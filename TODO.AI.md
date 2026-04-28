@@ -4,14 +4,15 @@ This file is the repository-local mirror of the active task state so work can mo
 
 ## Current In-Progress Task
 
-- [ ] `audit-graphql-runtime` — Audit the live gqlgen runtime against `AI.md` and remove the remaining verified runtime/spec drift. Current verified next gap: GraphQL passkey/security parity after the mounted REST/web passkey runtime was brought up to spec.
+- [ ] `audit-graphql-runtime` — Audit the live gqlgen runtime against the refreshed `AI.md` and remove the remaining verified runtime/spec drift. Current verified next gap: GraphQL passkey/security parity (mutations/queries paralleling the mounted `/api/v1/users/security/passkeys` REST surface and the password-login passkey-as-second-factor rules); `src/graphql/schema.graphqls` still contains zero `passkey`/`Passkey` references while `src/server/handler/users` and the auth runtime do. After GraphQL passkey parity, re-walk PARTs 11/14/16/17/34 of the refreshed AI.md to confirm no new spec drift was introduced by the template sync.
 
 ## Recently Completed Task
 
-- [x] `sync-local-plan-todo` — Create `PLAN.AI.md` in the repository and merge the current tracked work from the session/checkpoints/SQL ledger into repository-local planning files for migration handoff.
+- [x] `refresh-ai-md-template` — Re-sync `AI.md` from `~/Documents/templates/go/AI.md` (~+2200 lines, 4201 insertions / 2139 deletions vs. previous), replace `{project_name}`/`{PROJECT_NAME}`/`{project_org}`/`{PROJECT_ORG}`/`{project_repo}`/`{official_site}` placeholders with `weather`/`WEATHER`/`apimgr`/`APIMGR`/`https://github.com/apimgr/weather`/`https://wthr.top`, restore the previously deleted `CLAUDE.md` and `.claude/rules/*.md` files from `HEAD`, and re-anchor NEVER/MUST/COMMIT_MESS rules into the per-project memory store.
 
 ## Completed Tasks
 
+- [x] `sync-local-plan-todo` — Create `PLAN.AI.md` in the repository and merge the current tracked work from the session/checkpoints/SQL ledger into repository-local planning files for migration handoff.
 - [x] `audit-build-test` — Verify Makefile, test scripts, temp-dir usage, and container-only execution against `AI.md` PART 26/29 and fix drift.
 - [x] `audit-graphql-surface` — Align docs, templates, and route metadata with the mounted `/graphql` endpoint while the larger gqlgen runtime cutover was underway.
 - [x] `audit-infra` — Verify Docker, compose, workflows, MkDocs, and ReadTheDocs config against `AI.md` PART 27/28/30 and fix drift.
@@ -45,3 +46,4 @@ This file is the repository-local mirror of the active task state so work can mo
 - GraphQL invite auth is now aligned with the mounted multi-user runtime: `/graphql` now exposes user-invite and server-admin-invite validation/completion surfaces, all reusing the live `/api/v1/auth/invite/*` runtime so masked-email validation, auto-login-on-user-invite, and server-admin completion behavior stay consistent across REST and GraphQL.
 - The mounted multi-user passkey runtime is now aligned much more closely with AI.md: `/auth/passkey` now runs a live browser WebAuthn sign-in flow, `/api/v1/auth/passkey/challenge` and `/api/v1/auth/passkey/verify` are mounted with real WebAuthn ceremony/session handling, `/api/v1/users/security/passkeys` list/register/delete is mounted behind the authenticated user security surface, password login now treats registered passkeys as a second-factor requirement, and the user security page now manages passkeys instead of leaving the feature as placeholder-only UI plus an unused table.
 - Continue `audit-graphql-runtime` from the next verified schema/runtime mismatch; the next mounted multi-user auth/spec drift is the still-missing GraphQL passkey/security parity surface now that the REST and web passkey runtime is mounted.
+- AI.md was refreshed from `~/Documents/templates/go/AI.md` on 2026-04-28 (~+2200 lines vs. the previous in-tree copy). Placeholders were re-resolved (`weather`, `apimgr`, `https://wthr.top`, `https://github.com/apimgr/weather`). `.claude/rules/*.md` and `CLAUDE.md` had been deleted on the working tree and were restored from `HEAD` — they currently match the previous AI.md generation, so any audit step that relies on rule-file wording should re-confirm against the refreshed PARTs (especially PARTs 11/14/16/17/34) before relying on the rule-file summary alone.

