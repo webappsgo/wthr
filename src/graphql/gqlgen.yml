@@ -1,0 +1,54 @@
+schema:
+  - schema.graphqls
+
+exec:
+  filename: generated.go
+  package: graphql
+
+model:
+  filename: models_gen.go
+  package: graphql
+
+resolver:
+  layout: follow-schema
+  dir: .
+  package: graphql
+  filename_template: "{name}.resolvers.go"
+
+skip_validation: true
+
+autobind:
+  - github.com/apimgr/weather/src/graphql
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+      - github.com/99designs/gqlgen/graphql.Int64
+      - github.com/99designs/gqlgen/graphql.Int32
+  Time:
+    model: github.com/99designs/gqlgen/graphql.Time
+  Any:
+    model: github.com/99designs/gqlgen/graphql.Any
+  Upload:
+    model: github.com/99designs/gqlgen/graphql.Upload
+
+  # Bind GraphQL types to the project's existing model structs so REST and
+  # GraphQL share storage shapes and the custom resolvers (sql.NullTime →
+  # *time.Time conversions, etc.) keep working.
+  APIToken:
+    model: github.com/apimgr/weather/src/server/model.APIToken
+  User:
+    model: github.com/apimgr/weather/src/server/model.User
+  Notification:
+    model: github.com/apimgr/weather/src/server/model.Notification
+  SavedLocation:
+    model: github.com/apimgr/weather/src/server/model.SavedLocation
+  Setting:
+    model: github.com/apimgr/weather/src/server/model.Setting

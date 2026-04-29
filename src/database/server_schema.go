@@ -245,6 +245,29 @@ CREATE TABLE IF NOT EXISTS server_admin_preferences (
 	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
 );
 
+-- Admin Passkeys (WebAuthn/FIDO2 credentials) per AI.md PART 17 line 28674-28683.
+-- Mirrors user_passkeys (in users.db) but lives in server.db because admins
+-- are stored in server.db, never in users.db.
+CREATE TABLE IF NOT EXISTS server_admin_passkeys (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	admin_id INTEGER NOT NULL,
+	credential_id TEXT UNIQUE NOT NULL,
+	public_key TEXT NOT NULL,
+	aaguid TEXT,
+	sign_count INTEGER DEFAULT 0,
+	name TEXT NOT NULL,
+	transport TEXT NOT NULL DEFAULT '[]',
+	attestation_type TEXT NOT NULL DEFAULT '',
+	backup_eligible BOOLEAN NOT NULL DEFAULT 0,
+	backup_state BOOLEAN NOT NULL DEFAULT 0,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	last_used_at DATETIME,
+	FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_passkey_admin ON server_admin_passkeys(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_passkey_cred ON server_admin_passkeys(credential_id);
+
 -- Backup History table (backup metadata)
 CREATE TABLE IF NOT EXISTS server_backup_history (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,

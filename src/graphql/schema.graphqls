@@ -445,6 +445,33 @@ type UserToken {
   token: String
 }
 
+# ============================================================================
+# PASSKEY (WebAuthn / FIDO2) TYPES
+# ============================================================================
+
+type UserPasskey {
+  id: ID!
+  name: String!
+  createdAt: Time!
+  lastUsedAt: Time
+}
+
+type PasskeyRegistrationOptions {
+  ceremonyToken: String!
+  options: Any!
+}
+
+type PasskeyChallengeOptions {
+  ceremonyToken: String!
+  options: Any!
+}
+
+type PasskeyRegistrationResult {
+  message: String!
+  passkey: UserPasskey!
+  recoveryKeys: [String!]
+}
+
 type UserSettings {
   account: AccountSettings!
   privacy: PrivacySettings!
@@ -748,6 +775,7 @@ type Query {
   currentUserAvatar: PublicAvatar!
   currentUserTwoFactorStatus: TOTPStatus!
   currentUserTwoFactorSetup: TOTPSetup!
+  currentUserPasskeys: [UserPasskey!]!
   userSettings: UserSettings!
   userTokens: [UserToken!]!
 
@@ -807,6 +835,11 @@ type Mutation {
   disableUserTwoFactor(password: String!): GenericResponse!
   verifyUserTwoFactor(code: String!): GenericResponse!
   regenerateUserRecoveryKeys(code: String!): TOTPRecoveryKeys!
+  beginUserPasskeyRegistration(name: String!, password: String!): PasskeyRegistrationOptions!
+  finishUserPasskeyRegistration(ceremonyToken: String!, credential: Any!): PasskeyRegistrationResult!
+  deleteUserPasskey(id: ID!): GenericResponse!
+  beginUserPasskeyChallenge(sessionToken: String): PasskeyChallengeOptions!
+  finishUserPasskeyChallenge(ceremonyToken: String!, credential: Any!): AuthResult!
   updateUserSettings(
     account: AccountSettingsInput
     privacy: PrivacySettingsInput

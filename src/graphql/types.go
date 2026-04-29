@@ -26,6 +26,33 @@ type TOTPRecoveryKeys struct {
 	RecoveryKeys []string `json:"recoveryKeys"`
 }
 
+// =============================================================================
+// PASSKEY (WebAuthn / FIDO2) TYPES
+// =============================================================================
+
+type UserPasskey struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
+type PasskeyRegistrationOptions struct {
+	CeremonyToken string      `json:"ceremonyToken"`
+	Options       interface{} `json:"options"`
+}
+
+type PasskeyChallengeOptions struct {
+	CeremonyToken string      `json:"ceremonyToken"`
+	Options       interface{} `json:"options"`
+}
+
+type PasskeyRegistrationResult struct {
+	Message      string       `json:"message"`
+	Passkey      *UserPasskey `json:"passkey"`
+	RecoveryKeys []string     `json:"recoveryKeys,omitempty"`
+}
+
 type AuthUser struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
@@ -320,12 +347,11 @@ type SyslogConfig struct {
 // REUSE GenericResponse FROM models IF IT EXISTS, OTHERWISE DEFINE IT
 // =============================================================================
 
-// GenericResponse is used across multiple resolvers
-// This is typically already defined in models_gen.go from GraphQL schema
-// If not, uncomment below:
-/*
+// GenericResponse is used across multiple resolvers. It binds the GraphQL
+// `ok` field to the Go `Success` field name (matching the `BulkResponse` and
+// `ContactSubmission` convention) so resolver code can use `&GenericResponse{
+// Success: true, Message: "..."}` consistently.
 type GenericResponse struct {
-	Success bool   `json:"success"`
+	Success bool   `json:"ok"`
 	Message string `json:"message"`
 }
-*/

@@ -145,12 +145,64 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	admin, adminErr := adminModel.VerifyCredentials(req.Identifier, req.Password)
 
 	if adminErr == nil && admin != nil {
-		// Admin login successful - create admin session and set admin_session cookie
+		// Admin password verified. If the admin has registered passkeys,
+		// hold them in a pending state and require a passkey challenge
+		// before issuing the admin_session cookie. Per AI.md PART 17 line
+		// 28679 a passkey can be used as a primary login or as 2FA — for
+		// admins we use it strictly as a 2nd factor here.
+		serverDB := database.GetServerDB()
+		hasPasskeys, hpkErr := AdminHasPasskeys(serverDB, admin.ID)
+		if hpkErr != nil {
+			respondWithError(c, http.StatusInternalServerError, "Failed to load passkey status")
+			return
+		}
+
+		if hasPasskeys {
+			pendingToken, perr := CreateAdminPendingSession(admin.ID, c.ClientIP(), c.Request.UserAgent())
+			if perr != nil {
+				respondWithError(c, http.StatusInternalServerError, "Failed to create pending session")
+				return
+			}
+
+			cfg := config.GetGlobalConfig()
+			adminPath := "/" + cfg.GetAdminPath()
+
+			if strings.Contains(contentType, "application/json") {
+				c.JSON(http.StatusOK, gin.H{
+					"message":           "Passkey verification required",
+					"type":              "admin",
+					"requires_passkey":  true,
+					"session_token":     pendingToken,
+					"redirect":          adminPath,
+					"challenge_endpoint": "/api/v1/auth/admin/passkey/challenge",
+					"verify_endpoint":   "/api/v1/auth/admin/passkey/verify",
+				})
+			} else {
+				// Non-JSON callers (HTML form login) get redirected to a
+				// challenge page; the pending token is propagated via a
+				// short-lived cookie so the in-browser JS can reach it.
+				isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+				http.SetCookie(c.Writer, &http.Cookie{
+					Name:     "admin_passkey_pending",
+					Value:    pendingToken,
+					Path:     "/",
+					MaxAge:   int(time.Until(time.Now().Add(15 * time.Minute)).Seconds()),
+					HttpOnly: true,
+					Secure:   isHTTPS,
+					SameSite: http.SameSiteLaxMode,
+				})
+				c.Redirect(http.StatusFound, adminPath+"/passkey")
+			}
+			return
+		}
+
+		// No passkeys registered — issue a full admin session (existing
+		// behaviour, unchanged). 30 days default; remember-me support is
+		// not yet implemented.
 		cfg := config.GetGlobalConfig()
 		adminPath := "/" + cfg.GetAdminPath()
 
 		adminSessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
-		// 30 days default, 90 days if remember-me
 		duration := 30 * 24 * time.Hour
 		adminSession, err := adminSessionModel.CreateSession(admin.ID, c.ClientIP(), c.Request.UserAgent(), duration)
 		if err != nil {
@@ -158,12 +210,10 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			return
 		}
 
-		// Update last login
 		adminModel.UpdateLastLogin(admin.ID)
 
 		isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 
-		// Set admin_session cookie (separate from weather_session)
 		http.SetCookie(c.Writer, &http.Cookie{
 			Name:     "admin_session",
 			Value:    adminSession.SessionID,
@@ -174,7 +224,6 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			SameSite: http.SameSiteLaxMode,
 		})
 
-		// Respond based on request type
 		if strings.Contains(contentType, "application/json") {
 			c.JSON(http.StatusOK, gin.H{
 				"message":  "Login successful",

@@ -871,6 +871,7 @@ func main() {
 	dashboardHandler := &handler.DashboardHandler{DB: db.DB}
 	adminHandler := &handler.AdminHandler{DB: db.DB}
 	serverDB := database.GetServerDB()
+	adminPasskeyHandler := handler.NewAdminPasskeyHandler(serverDB)
 	adminInviteService := service.NewAdminInviteService(serverDB, "")
 	userInviteModel := &models.UserInviteModel{DB: database.GetUsersDB()}
 	locationHandler := &handler.LocationHandler{
@@ -2193,6 +2194,13 @@ func main() {
 		authAPI.POST("/2fa", authAPIHandler.HandleAPI2FA)
 		authAPI.POST("/passkey/challenge", passkeyHandler.BeginPasskeyChallenge)
 		authAPI.POST("/passkey/verify", passkeyHandler.VerifyPasskey)
+		// Admin passkey login challenge/verify per AI.md PART 17 line
+		// 28679 ("passkey can be used as primary login or as 2FA"). The
+		// pending session token is issued by HandleLogin (`/auth/login`)
+		// after admin password verify when the admin has at least one
+		// passkey registered.
+		authAPI.POST("/admin/passkey/challenge", adminPasskeyHandler.BeginPasskeyChallenge)
+		authAPI.POST("/admin/passkey/verify", adminPasskeyHandler.VerifyPasskey)
 		authAPI.POST("/recovery/use", authAPIHandler.HandleAPIRecoveryUse)
 		authAPI.POST("/password/forgot", authAPIHandler.HandleAPIPasswordForgot)
 		authAPI.POST("/password/reset", authAPIHandler.HandleAPIPasswordReset)
@@ -3031,6 +3039,12 @@ func main() {
 				"preferences": updatedPrefs,
 			})
 		})
+
+		// Admin passkeys per AI.md PART 17 line 28674-28683
+		// /api/{api_version}/{admin_path}/profile/security/passkeys
+		adminAPI.GET("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
+		adminAPI.POST("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
+		adminAPI.DELETE("/profile/security/passkeys/:passkey_id", adminPasskeyHandler.DeletePasskey)
 
 		// Server admins per spec: /api/{api_version}/{admin_path}/server/admins/
 		adminAPI.GET("/server/admins", func(c *gin.Context) {
