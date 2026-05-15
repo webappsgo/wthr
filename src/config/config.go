@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -291,7 +290,6 @@ type FeatureConfig struct {
 
 // randomPort returns a random port in the 64000-64999 range per AI.md PART 4
 func randomPort() int {
-	rand.Seed(time.Now().UnixNano())
 	return 64000 + rand.Intn(1000)
 }
 

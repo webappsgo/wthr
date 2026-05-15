@@ -78,9 +78,6 @@ func IsPortAvailable(port int) bool {
 
 // GetRandomAvailablePort finds a random available port in the 64000-64999 range
 func GetRandomAvailablePort() (int, error) {
-	// Initialize random seed
-	rand.Seed(time.Now().UnixNano())
-
 	// Try up to 100 times to find an available port
 	for i := 0; i < 100; i++ {
 		port := rand.Intn(MaxPort-MinPort+1) + MinPort

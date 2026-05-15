@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
-	mathRand "math/rand"
 	"net/http"
 	"time"
 
@@ -275,17 +274,14 @@ func generateSessionToken() string {
 	return generateSecureToken(32)
 }
 
-// generateSecureToken generates a secure random token of specified byte length
+// generateSecureToken generates a secure random token of specified byte length.
+// Fails closed: panics if crypto/rand is unavailable rather than falling back to
+// a weak RNG. Per AI.md PART 18: session tokens MUST be cryptographically random.
 func generateSecureToken(byteLength int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, byteLength)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to less secure if crypto/rand fails
-		for i := range b {
-			b[i] = charset[mathRand.Intn(len(charset))]
-		}
+		panic("crypto/rand unavailable — cannot generate secure token: " + err.Error())
 	}
-	// Convert to hex string
 	token := make([]byte, hex.EncodedLen(len(b)))
 	hex.Encode(token, b)
 	return string(token)
