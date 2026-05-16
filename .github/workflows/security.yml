@@ -1,0 +1,65 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog secret scan
+        uses: trufflesecurity/trufflehog@b313b2e4bd0db21c79df95cac4cd62b0e1b71e30 # v3.88.27
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  vuln-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 'stable'
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  workflow-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check workflow action pinning
+        run: |
+          failed=0
+          for f in .github/workflows/*.yml .gitea/workflows/*.yml .forgejo/workflows/*.yml; do
+            [ -f "$f" ] || continue
+            if grep -E 'uses: [^@]+@[^@[:space:]]+$' "$f" | grep -vE '@[0-9a-f]{40}'; then
+              echo "::error file=$f::Actions must be pinned to full commit SHA, not a tag or branch"
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || exit 1

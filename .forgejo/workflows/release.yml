@@ -1,12 +1,13 @@
-name: Beta Release
+name: Release
 
 on:
   push:
-    branches:
-      - beta
+    tags:
+      - 'v*'
+      - '[0-9]*.[0-9]*.[0-9]*'
 
 concurrency:
-  group: beta-${{ github.ref }}
+  group: release-${{ forgejo.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -47,16 +48,16 @@ jobs:
       - name: Set build info
         run: |
           if [ -f release.txt ]; then
-            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+            echo "VERSION=$(cat release.txt)" >> $FORGEJO_ENV
           else
-            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITHUB_ENV
+            echo "VERSION=${FORGEJO_REF_NAME#v}" >> $FORGEJO_ENV
           fi
-          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $FORGEJO_ENV
+          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $FORGEJO_ENV
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+            echo "OFFICIALSITE=$(cat site.txt)" >> $FORGEJO_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $FORGEJO_ENV
           fi
 
       - name: Build server
@@ -125,19 +126,33 @@ jobs:
 
       - name: Set version
         run: |
+          TAG="${FORGEJO_REF_NAME}"
           if [ -f release.txt ]; then
-            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+            echo "VERSION=$(cat release.txt)" >> $FORGEJO_ENV
           else
-            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITHUB_ENV
+            echo "VERSION=${TAG#v}" >> $FORGEJO_ENV
+          fi
+          if [[ "$TAG" == v* ]]; then
+            echo "RELEASE_TAG=$TAG" >> $FORGEJO_ENV
+          elif [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "RELEASE_TAG=v$TAG" >> $FORGEJO_ENV
+          else
+            echo "RELEASE_TAG=$TAG" >> $FORGEJO_ENV
           fi
 
       - name: Create version.txt
         run: echo "${{ env.VERSION }}" > binaries/version.txt
 
+      - name: Create source archive
+        run: |
+          tar --exclude='.git' --exclude='.github' --exclude='.gitea' --exclude='.forgejo' \
+            --exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
+            -czf binaries/${{ env.PROJECTNAME }}-${{ env.VERSION }}-source.tar.gz .
+
       - name: Create Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          tag_name: ${{ env.VERSION }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: binaries/*
-          prerelease: true
           generate_release_notes: true
+          make_latest: true

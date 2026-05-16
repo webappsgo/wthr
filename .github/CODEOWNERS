@@ -1,0 +1,14 @@
+# CODEOWNERS — Review requirements for sensitive areas
+
+# Catch-all: all changes require review from the maintainer
+* @casjay
+
+# Security-sensitive: auth, crypto, update paths
+src/server/handler/auth.go @casjay
+src/server/service/auth.go @casjay
+src/server/service/user.go @casjay
+src/config/ @casjay
+src/util/ @casjay
+docker/ @casjay
+.github/workflows/ @casjay
+scripts/ @casjay

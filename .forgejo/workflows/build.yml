@@ -1,0 +1,135 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECTNAME: weather
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 'stable'
+
+      - name: Lint
+        run: |
+          go vet ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 'stable'
+
+      - name: Test
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: coverage
+          path: coverage.out
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+          - goos: windows
+            goarch: arm64
+            ext: .exe
+          - goos: freebsd
+            goarch: amd64
+          - goos: freebsd
+            goarch: arm64
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 'stable'
+
+      - name: Set build info
+        run: |
+          echo "VERSION=$(cat release.txt 2>/dev/null || echo '0.1.0')" >> $FORGEJO_ENV
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $FORGEJO_ENV
+          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $FORGEJO_ENV
+          if [ -f site.txt ]; then
+            echo "OFFICIALSITE=$(cat site.txt)" >> $FORGEJO_ENV
+          else
+            echo "OFFICIALSITE=" >> $FORGEJO_ENV
+          fi
+
+      - name: Build server
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build \
+            -ldflags="-s -w \
+              -X 'main.Version=${{ env.VERSION }}' \
+              -X 'main.CommitID=${{ env.COMMIT_ID }}' \
+              -X 'main.BuildDate=${{ env.BUILD_DATE }}' \
+              -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'" \
+            -o binaries/${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext || '' }} \
+            ./src
+
+      - name: Build client
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build \
+            -ldflags="-s -w \
+              -X 'main.Version=${{ env.VERSION }}' \
+              -X 'main.CommitID=${{ env.COMMIT_ID }}' \
+              -X 'main.BuildDate=${{ env.BUILD_DATE }}' \
+              -X 'main.OfficialSite=${{ env.OFFICIALSITE }}'" \
+            -o binaries/${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext || '' }} \
+            ./src/client
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: binaries/

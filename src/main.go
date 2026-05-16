@@ -1074,8 +1074,11 @@ func main() {
 	// Set build info for handler package
 	handler.SetBuildInfo(Version, BuildDate, CommitID)
 
-	// Health check endpoints
+	// Health check endpoints (AI.md PART 13)
 	r.GET("/healthz", handler.HealthCheck(db, startTime))
+	r.GET("/health", handler.LivenessCheck)
+	r.GET("/health/ready", handler.ReadinessCheck(db, startTime))
+	r.GET("/health/full", handler.FullHealthCheck(db, startTime))
 
 	// Prometheus metrics endpoint (TEMPLATE.md required - optional auth)
 	r.GET("/metrics", handler.PrometheusMetrics())
@@ -3601,7 +3604,8 @@ JSON API:
 	// Initialization check middleware - show loading page if not ready
 	r.Use(func(c *gin.Context) {
 		// Skip for health checks, API routes, and static files
-		if strings.HasPrefix(c.Request.URL.Path, "/healthz") ||
+		if strings.HasPrefix(c.Request.URL.Path, "/health") ||
+			strings.HasPrefix(c.Request.URL.Path, "/healthz") ||
 			strings.HasPrefix(c.Request.URL.Path, "/api") ||
 			strings.HasPrefix(c.Request.URL.Path, "/debug") ||
 			strings.Contains(c.Request.URL.Path, ".") {

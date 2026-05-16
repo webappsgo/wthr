@@ -9,6 +9,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: daily-${{ gitea.ref }}
+  cancel-in-progress: ${{ gitea.ref == 'refs/heads/main' || gitea.ref == 'refs/heads/master' || gitea.ref == 'refs/heads/devel' || gitea.ref == 'refs/heads/dev' || gitea.ref == 'refs/heads/beta' }}
+
 permissions:
   contents: write
 
@@ -18,6 +22,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: golang:alpine
     strategy:
       matrix:
         include:
@@ -41,23 +46,21 @@ jobs:
             goarch: arm64
 
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set build info
         run: |
-          echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
-          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
-          if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+          if [ -f release.txt ]; then
+            echo "VERSION=$(cat release.txt)" >> $GITEA_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITEA_ENV
+          fi
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITEA_ENV
+          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITEA_ENV
+          if [ -f site.txt ]; then
+            echo "OFFICIALSITE=$(cat site.txt)" >> $GITEA_ENV
+          else
+            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITEA_ENV
           fi
 
       - name: Build server
@@ -80,14 +83,14 @@ jobs:
           go build -ldflags "${LDFLAGS}" -o ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} ./src/client
 
       - name: Upload server artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ env.PROJECTNAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
 
       - name: Upload CLI artifact
         if: hashFiles('src/client/') != ''
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ env.PROJECTNAME }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
@@ -104,7 +107,7 @@ jobs:
 
       - name: Upload Agent artifact
         if: hashFiles('src/agent/') != ''
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ env.PROJECTNAME }}-agent-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
@@ -116,16 +119,21 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           path: binaries
           merge-multiple: true
 
       - name: Set version
-        run: echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+        run: |
+          if [ -f release.txt ]; then
+            echo "VERSION=$(cat release.txt)" >> $GITEA_ENV
+          else
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITEA_ENV
+          fi
 
       - name: Create version.txt
         run: echo "${{ env.VERSION }}" > binaries/version.txt
@@ -135,10 +143,10 @@ jobs:
           gh release delete daily --yes 2>/dev/null || true
           git push origin :refs/tags/daily 2>/dev/null || true
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ gitea.token }}
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: daily
           name: "Daily Build ${{ env.VERSION }}"

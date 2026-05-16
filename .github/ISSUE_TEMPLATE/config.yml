@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/apimgr/weather/security/advisories/new
+    about: Report a security vulnerability privately — do not open a public issue
+  - name: Support & Questions
+    url: https://github.com/apimgr/weather/discussions
+    about: Ask questions and get support in GitHub Discussions
+  - name: Documentation
+    url: https://github.com/apimgr/weather/wiki
+    about: Read the project documentation

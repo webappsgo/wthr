@@ -6,7 +6,7 @@ on:
       - beta
 
 concurrency:
-  group: beta-${{ github.ref }}
+  group: beta-${{ forgejo.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -47,16 +47,16 @@ jobs:
       - name: Set build info
         run: |
           if [ -f release.txt ]; then
-            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+            echo "VERSION=$(cat release.txt)" >> $FORGEJO_ENV
           else
-            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITHUB_ENV
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $FORGEJO_ENV
           fi
-          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
+          echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $FORGEJO_ENV
+          echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $FORGEJO_ENV
           if [ -f site.txt ]; then
-            echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
+            echo "OFFICIALSITE=$(cat site.txt)" >> $FORGEJO_ENV
           else
-            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $GITHUB_ENV
+            echo "OFFICIALSITE=${{ secrets.OFFICIALSITE }}" >> $FORGEJO_ENV
           fi
 
       - name: Build server
@@ -126,9 +126,9 @@ jobs:
       - name: Set version
         run: |
           if [ -f release.txt ]; then
-            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+            echo "VERSION=$(cat release.txt)" >> $FORGEJO_ENV
           else
-            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $GITHUB_ENV
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")-beta" >> $FORGEJO_ENV
           fi
 
       - name: Create version.txt

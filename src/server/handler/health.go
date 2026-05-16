@@ -181,6 +181,38 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	}
 }
 
+// LivenessCheck handles GET /health — simple liveness probe per AI.md PART 13.
+// Returns 200 as long as the server process is alive, 503 only if startup panicked.
+func LivenessCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "alive"})
+}
+
+// ReadinessCheck handles GET /health/ready — readiness probe per AI.md PART 13.
+// Returns 503 until fully initialized and the database is reachable.
+func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !IsInitialized() {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "reason": "initializing"})
+			return
+		}
+		_, _, dbErr := db.HealthCheck()
+		if dbErr != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "reason": "database_unavailable"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready", "uptime": formatUptime(time.Since(startTime))})
+	}
+}
+
+// FullHealthCheck handles GET /health/full — comprehensive JSON status per AI.md PART 13.
+// Always returns JSON (same payload as /healthz with explicit JSON accept).
+func FullHealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		statusCode, response := buildPublicHealthResponse(db, startTime, c)
+		renderIndentedJSON(c, statusCode, response)
+	}
+}
+
 // DebugInfo handles GET /debug/info
 func DebugInfo(c *gin.Context) {
 	status := GetInitStatus()

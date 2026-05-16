@@ -1,9 +1,10 @@
 package utils
 
 import (
+	cryptorand "crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"net"
 	"os"
 	"os/exec"
@@ -80,7 +81,11 @@ func IsPortAvailable(port int) bool {
 func GetRandomAvailablePort() (int, error) {
 	// Try up to 100 times to find an available port
 	for i := 0; i < 100; i++ {
-		port := rand.Intn(MaxPort-MinPort+1) + MinPort
+		var b [4]byte
+		if _, err := cryptorand.Read(b[:]); err != nil {
+			panic("crypto/rand unavailable: " + err.Error())
+		}
+		port := int(binary.BigEndian.Uint32(b[:]))%(MaxPort-MinPort+1) + MinPort
 		if IsPortAvailable(port) {
 			return port, nil
 		}

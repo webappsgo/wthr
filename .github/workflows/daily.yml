@@ -9,6 +9,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: daily-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/devel' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' }}
+
 permissions:
   contents: write
 
@@ -18,6 +22,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: golang:alpine
     strategy:
       matrix:
         include:
@@ -43,17 +48,15 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: 'stable'
-
       - name: Set build info
         run: |
-          echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+          if [ -f release.txt ]; then
+            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+          else
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+          fi
           echo "COMMIT_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date +"%a %b %d, %Y at %H:%M:%S %Z")" >> $GITHUB_ENV
-          # OFFICIALSITE (optional): Set in repository secrets, or site.txt file, or leave empty
           if [ -f site.txt ]; then
             echo "OFFICIALSITE=$(cat site.txt)" >> $GITHUB_ENV
           else
@@ -125,7 +128,12 @@ jobs:
           merge-multiple: true
 
       - name: Set version
-        run: echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+        run: |
+          if [ -f release.txt ]; then
+            echo "VERSION=$(cat release.txt)" >> $GITHUB_ENV
+          else
+            echo "VERSION=$(date -u +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+          fi
 
       - name: Create version.txt
         run: echo "${{ env.VERSION }}" > binaries/version.txt

@@ -2,8 +2,9 @@ package config
 
 import (
 	"bytes"
+	cryptorand "crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -290,7 +291,11 @@ type FeatureConfig struct {
 
 // randomPort returns a random port in the 64000-64999 range per AI.md PART 4
 func randomPort() int {
-	return 64000 + rand.Intn(1000)
+	var b [4]byte
+	if _, err := cryptorand.Read(b[:]); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
+	return 64000 + int(binary.BigEndian.Uint32(b[:]))%1000
 }
 
 // getDefaultFQDN returns the default FQDN (hostname) per AI.md PART 4
