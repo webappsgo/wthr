@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // handlePlatformSignal handles platform-specific signals (Windows)

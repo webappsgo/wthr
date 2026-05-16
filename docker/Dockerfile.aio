@@ -48,6 +48,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-contrib \
     valkey \
     supervisor \
+    tini \
     tor \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
@@ -90,4 +91,4 @@ EXPOSE 80
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=3 \
     CMD timeout 10s bash -c ':> /dev/tcp/127.0.0.1/80' || exit 1
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh"]

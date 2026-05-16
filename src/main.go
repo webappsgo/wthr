@@ -32,7 +32,7 @@ import (
 	"github.com/apimgr/weather/src/database"
 	appgraphql "github.com/apimgr/weather/src/graphql"
 	"github.com/apimgr/weather/src/mode"
-	"github.com/apimgr/weather/src/paths"
+	"github.com/apimgr/weather/src/path"
 	"github.com/apimgr/weather/src/scheduler"
 	"github.com/apimgr/weather/src/server"
 	"github.com/apimgr/weather/src/server/handler"
@@ -40,7 +40,7 @@ import (
 	"github.com/apimgr/weather/src/server/middleware"
 	"github.com/apimgr/weather/src/server/model"
 	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 //go:embed common/i18n/locales/*.json
