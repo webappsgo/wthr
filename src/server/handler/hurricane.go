@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // HurricaneHandler handles hurricane tracking requests

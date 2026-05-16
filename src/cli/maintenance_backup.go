@@ -11,7 +11,7 @@ import (
 	"syscall"
 
 	"github.com/apimgr/weather/src/backup"
-	"github.com/apimgr/weather/src/paths"
+	"github.com/apimgr/weather/src/path"
 	"golang.org/x/term"
 )
 

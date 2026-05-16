@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // AdminServerStatus handles admin API server status/health requests with JSON-only output.

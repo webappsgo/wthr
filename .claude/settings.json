@@ -1,0 +1,63 @@
+{
+  "model": "",
+  "thinking": "off",
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(**)",
+      "Edit(**)",
+      "Bash(go:*)",
+      "Bash(make:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(git:*)",
+      "Bash(curl:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rm:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(ln:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(ls:*)",
+      "Bash(pwd:*)",
+      "Bash(timeout:*)",
+      "Bash(sort:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
+      "Bash(:*::*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pkg.go.dev)",
+      "WebFetch(domain:go.dev)",
+      "WebFetch(domain:golang.org)"
+    ],
+    "deny": [
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git push:+)",
+      "Bash(rm -rf /*:*)",
+      "Bash(sudo:*)"
+    ],
+    "ask": [
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout -- :*)"
+    ]
+  },
+  "preferences": {
+    "auto_commit": false
+  },
+  "hooks": {
+    "PreToolUse": [],
+    "PostToolUse": []
+  },
+  "env": {
+    "CGO_ENABLED": "0"
+  }
+}

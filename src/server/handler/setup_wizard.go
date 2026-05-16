@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/paths"
+	"github.com/apimgr/weather/src/path"
 	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // SetupWizardRequest represents the initial setup request

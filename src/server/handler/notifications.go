@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 
 	"github.com/gin-gonic/gin"
 )

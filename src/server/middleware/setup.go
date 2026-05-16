@@ -7,8 +7,8 @@ import (
 
 	"github.com/apimgr/weather/src/config"
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/paths"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/path"
+	"github.com/apimgr/weather/src/util"
 
 	"github.com/gin-gonic/gin"
 )

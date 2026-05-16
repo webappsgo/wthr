@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // ASCIIRenderer handles ASCII art weather display with terminal formatting

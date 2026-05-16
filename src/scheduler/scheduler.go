@@ -19,7 +19,7 @@ import (
 
 	"github.com/apimgr/weather/src/backup"
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/paths"
+	"github.com/apimgr/weather/src/path"
 	"github.com/robfig/cron/v3"
 )
 

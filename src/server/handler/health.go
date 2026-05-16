@@ -17,7 +17,7 @@ import (
 	"github.com/apimgr/weather/src/config"
 	"github.com/apimgr/weather/src/database"
 	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 var (

@@ -12,7 +12,7 @@ import (
 	"github.com/apimgr/weather/src/database"
 	"github.com/apimgr/weather/src/server/middleware"
 	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 
 	"github.com/gin-gonic/gin"
 )

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // SMTPConfig represents SMTP configuration

@@ -20,7 +20,7 @@ import (
 	"github.com/apimgr/weather/src/server/handler"
 	models "github.com/apimgr/weather/src/server/model"
 	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // ExpiresAt is the resolver for the expiresAt field.

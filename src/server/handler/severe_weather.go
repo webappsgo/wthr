@@ -10,7 +10,7 @@ import (
 
 	"github.com/apimgr/weather/src/server/middleware"
 	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // SevereWeatherHandler handles severe weather tracking requests

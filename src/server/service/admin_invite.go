@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 const DefaultAdminInviteExpiration = "24h"

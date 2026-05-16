@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/apimgr/weather/src/utils"
+	"github.com/apimgr/weather/src/util"
 )
 
 // I18n provides internationalization support.
