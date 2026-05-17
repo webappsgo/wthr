@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
 
 jobs:
   build:
@@ -135,9 +135,20 @@ jobs:
         run: echo "${{ env.VERSION }}" > binaries/version.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          files: binaries/*
-          prerelease: true
-          generate_release_notes: true
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          RESPONSE=$(curl -qsSf -X POST \
+            -H "Authorization: token $GITEA_TOKEN" \
+            -H "Content-Type: application/json" \
+            "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/releases" \
+            -d "{\"tag_name\":\"${{ env.VERSION }}\",\"name\":\"Beta ${{ env.VERSION }}\",\"body\":\"Beta release ${{ env.VERSION }}\",\"draft\":false,\"prerelease\":true}")
+          RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          for f in binaries/*; do
+            [ -f "$f" ] || continue
+            NAME=$(basename "$f")
+            curl -qsSf -X POST \
+              -H "Authorization: token $GITEA_TOKEN" \
+              -F "attachment=@$f;filename=$NAME" \
+              "${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}/releases/$RELEASE_ID/assets?name=$NAME"
+          done

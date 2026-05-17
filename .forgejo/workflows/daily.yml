@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
 
 jobs:
   build:
@@ -139,17 +139,37 @@ jobs:
         run: echo "${{ env.VERSION }}" > binaries/version.txt
 
       - name: Delete previous daily release
-        run: |
-          gh release delete daily --yes 2>/dev/null || true
-          git push origin :refs/tags/daily 2>/dev/null || true
         env:
-          GH_TOKEN: ${{ forgejo.token }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        run: |
+          RELEASE_ID=$(curl -qsSf \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/tags/daily" \
+            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "" ]; then
+            curl -qsSf -X DELETE \
+              -H "Authorization: token $FORGEJO_TOKEN" \
+              "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/$RELEASE_ID" || true
+          fi
+          curl -qsSf -X DELETE \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/tags/daily" 2>/dev/null || true
 
       - name: Create Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: daily
-          name: "Daily Build ${{ env.VERSION }}"
-          files: binaries/*
-          prerelease: true
-          body: "Daily build: ${{ env.VERSION }}"
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+        run: |
+          RESPONSE=$(curl -qsSf -X POST \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            -H "Content-Type: application/json" \
+            "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases" \
+            -d "{\"tag_name\":\"daily\",\"name\":\"Daily Build ${{ env.VERSION }}\",\"body\":\"Daily build: ${{ env.VERSION }}\",\"draft\":false,\"prerelease\":true}")
+          RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          for f in binaries/*; do
+            [ -f "$f" ] || continue
+            NAME=$(basename "$f")
+            curl -qsSf -X POST \
+              -H "Authorization: token $FORGEJO_TOKEN" \
+              -F "attachment=@$f;filename=$NAME" \
+              "${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}/releases/$RELEASE_ID/assets?name=$NAME"
+          done

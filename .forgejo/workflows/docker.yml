@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ forgejo.ref == 'refs/heads/main' || forgejo.ref == 'refs/heads/master' || forgejo.ref == 'refs/heads/devel' || forgejo.ref == 'refs/heads/dev' || forgejo.ref == 'refs/heads/beta' }}
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
