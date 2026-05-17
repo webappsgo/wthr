@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,7 +13,32 @@ import (
 	models "github.com/apimgr/weather/src/server/model"
 
 	"github.com/gin-gonic/gin"
+	"github.com/oklog/ulid/v2"
 )
+
+// logAdminPasskeyAudit writes an admin.passkey_added or admin.passkey_removed
+// event to server_audit_log (server.db). Errors are non-fatal — the passkey
+// operation has already completed; logging failure must not roll it back.
+func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
+	details, _ := json.Marshal(map[string]string{"name": passkeyName})
+	_, err := db.Exec(`
+		INSERT INTO server_audit_log
+			(ulid, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, 'admin', ?, ?, 'admin_passkey', ?, ?, ?, ?, 'success')
+	`,
+		ulid.Make().String(),
+		fmt.Sprintf("%d", adminID),
+		action,
+		fmt.Sprintf("%d", passkeyID),
+		string(details),
+		clientIP,
+		userAgent,
+	)
+	if err != nil {
+		// Non-fatal: the passkey operation already completed.
+		_ = err
+	}
+}
 
 // adminSessionCookieName is the canonical cookie name for full admin sessions.
 // Mirrors the literal already in use in HandleLogin (auth.go) and
@@ -140,6 +166,10 @@ func (h *AdminPasskeyHandler) RegisterPasskey(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
 			return
 		}
+
+		// Audit: admin.passkey_added per AI.md PART 11 shape.
+		logAdminPasskeyAudit(h.DB, "admin.passkey_added", admin.ID, result.Passkey.ID,
+			result.Passkey.Name, c.ClientIP(), c.Request.UserAgent())
 
 		c.JSON(http.StatusOK, gin.H{
 			"ok":      true,
@@ -281,6 +311,13 @@ func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
 		return
 	}
 
+	// Fetch the passkey name before deletion so the audit log entry is meaningful.
+	var passkeyName string
+	_ = h.DB.QueryRow(
+		"SELECT name FROM server_admin_passkeys WHERE id = ? AND admin_id = ?",
+		passkeyID, admin.ID,
+	).Scan(&passkeyName)
+
 	if err := DeleteAdminPasskey(h.DB, admin.ID, passkeyID); err != nil {
 		status := http.StatusInternalServerError
 		if err.Error() == "passkey not found" {
@@ -289,6 +326,10 @@ func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
 		c.JSON(status, gin.H{"ok": false, "error": err.Error()})
 		return
 	}
+
+	// Audit: admin.passkey_removed per AI.md PART 11 shape.
+	logAdminPasskeyAudit(h.DB, "admin.passkey_removed", admin.ID, passkeyID,
+		passkeyName, c.ClientIP(), c.Request.UserAgent())
 
 	c.JSON(http.StatusOK, gin.H{
 		"ok":      true,
