@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apimgr/weather/src/database"
+	"github.com/casapps/wthr/src/database"
 )
 
 // User represents a user account (stored in users.db)

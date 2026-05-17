@@ -38,7 +38,7 @@ weather service
 Install the companion client:
 
 ```bash
-curl -q -LSsf -O https://github.com/apimgr/weather/releases/latest/download/weather-cli-linux-amd64
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-cli-linux-amd64
 chmod +x weather-cli-linux-amd64
 sudo mv weather-cli-linux-amd64 /usr/local/bin/weather-cli
 ```
@@ -70,7 +70,7 @@ The CLI honors the project color/plain-output rules, including `NO_COLOR`.
 ## Configuration
 
 - Server config: `{config_dir}/server.yml`
-- Client config: `~/.config/apimgr/weather/cli.yml`
+- Client config: `~/.config/casapps/wthr/cli.yml`
 
 ## Next Steps
 

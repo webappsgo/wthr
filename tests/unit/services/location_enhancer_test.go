@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {

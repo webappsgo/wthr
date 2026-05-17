@@ -29,7 +29,7 @@ try {
 Write-Host "✓ Detected: windows/$Arch" -ForegroundColor Green
 
 # Get latest version
-$Repo = "apimgr/weather"
+$Repo = "casapps/wthr"
 if ($Version -eq "latest") {
     Write-Host "🔍 Fetching latest version..."
     try {

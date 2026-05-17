@@ -28,9 +28,9 @@ if [ ! -f /data/db/postgres/PG_VERSION ]; then
     sleep 3
 
     # Create application database and user
-    su - postgres -c "psql -c \"CREATE USER ${DB_USER:-weather} WITH PASSWORD '${DB_PASSWORD:-weather}';\""
-    su - postgres -c "psql -c \"CREATE DATABASE ${DB_NAME:-weather} OWNER ${DB_USER:-weather};\""
-    su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME:-weather} TO ${DB_USER:-weather};\""
+    su - postgres -c "psql -c \"CREATE USER ${DB_USER:-wthr} WITH PASSWORD '${DB_PASSWORD:-wthr}';\""
+    su - postgres -c "psql -c \"CREATE DATABASE ${DB_NAME:-wthr} OWNER ${DB_USER:-wthr};\""
+    su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME:-wthr} TO ${DB_USER:-wthr};\""
 
     # Stop PostgreSQL (supervisor will start it)
     su - postgres -c "pg_ctl -D /data/db/postgres stop"

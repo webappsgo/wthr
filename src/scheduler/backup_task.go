@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/apimgr/weather/src/backup"
-	"github.com/apimgr/weather/src/path"
+	"github.com/casapps/wthr/src/backup"
+	"github.com/casapps/wthr/src/path"
 )
 
 // BackupTask performs automated daily backups per AI.md PART 27 line 24182

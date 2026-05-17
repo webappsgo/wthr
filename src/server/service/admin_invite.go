@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/util"
 )
 
 const DefaultAdminInviteExpiration = "24h"

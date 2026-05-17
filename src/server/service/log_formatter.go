@@ -76,8 +76,8 @@ type LogFormatter struct {
 func NewLogFormatter(format LogFormat) *LogFormatter {
 	return &LogFormatter{
 		format:         format,
-		deviceVendor:   "apimgr",
-		deviceProduct:  "weather",
+		deviceVendor:   "casapps",
+		deviceProduct:  "wthr",
 		deviceVersion:  "1.0",
 	}
 }
@@ -257,7 +257,7 @@ func (f *LogFormatter) formatSyslog(entry *LogEntry) string {
 
 	timestamp := entry.Timestamp.Format(time.RFC3339)
 	hostname := "-"
-	appName := "weather"
+	appName := "wthr"
 	procID := "-"
 	msgID := entry.RequestID
 	if msgID == "" {

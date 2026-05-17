@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/util"
 )
 
 // JSONRenderer handles JSON API response formatting

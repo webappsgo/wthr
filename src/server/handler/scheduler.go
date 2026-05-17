@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
-	"github.com/apimgr/weather/src/scheduler"
+	"github.com/casapps/wthr/src/scheduler"
 
 	"github.com/gin-gonic/gin"
 )

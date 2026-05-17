@@ -9,15 +9,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/apimgr/weather/src/backup"
-	"github.com/apimgr/weather/src/path"
+	"github.com/casapps/wthr/src/backup"
+	"github.com/casapps/wthr/src/path"
 	"github.com/gin-gonic/gin"
 )
 
 // AdminBackupHandler handles /admin/server/backup page
 func AdminBackupHandler(c *gin.Context) {
 	// Get paths
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.HTML(http.StatusInternalServerError, "error.tmpl", gin.H{
 			"error": "Failed to get system paths",
@@ -48,7 +48,7 @@ func AdminBackupCreateHandler(c *gin.Context) {
 	includeData := c.PostForm("include_data") == "on"
 
 	// Get paths
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"ok": false,
@@ -106,7 +106,7 @@ func AdminBackupDownloadHandler(c *gin.Context) {
 	filename := c.Param("filename")
 
 	// Get paths
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.String(http.StatusInternalServerError, "Failed to get system paths")
 		return
@@ -130,7 +130,7 @@ func AdminBackupDeleteHandler(c *gin.Context) {
 	filename := c.Param("filename")
 
 	// Get paths
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"ok": false,

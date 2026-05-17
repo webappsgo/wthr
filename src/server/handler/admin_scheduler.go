@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/apimgr/weather/src/server/middleware"
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/server/middleware"
+	"github.com/casapps/wthr/src/server/model"
 	"github.com/gin-gonic/gin"
 )
 

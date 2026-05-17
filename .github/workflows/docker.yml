@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/devel' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' }}
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -92,8 +92,8 @@ jobs:
             COMMIT_ID=${{ env.COMMIT_ID }}
             OFFICIALSITE=${{ env.OFFICIALSITE }}
           labels: |
-            org.opencontainers.image.vendor=apimgr
-            org.opencontainers.image.authors=apimgr
+            org.opencontainers.image.vendor=casapps
+            org.opencontainers.image.authors=casapps
             org.opencontainers.image.title=${{ env.PROJECTNAME }}
             org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
             org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
@@ -105,8 +105,8 @@ jobs:
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
           annotations: |
-            manifest:org.opencontainers.image.vendor=apimgr
-            manifest:org.opencontainers.image.authors=apimgr
+            manifest:org.opencontainers.image.vendor=casapps
+            manifest:org.opencontainers.image.authors=casapps
             manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}
             manifest:org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
             manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
@@ -193,8 +193,8 @@ jobs:
             COMMIT_ID=${{ env.COMMIT_ID }}
             OFFICIALSITE=${{ env.OFFICIALSITE }}
           labels: |
-            org.opencontainers.image.vendor=apimgr
-            org.opencontainers.image.authors=apimgr
+            org.opencontainers.image.vendor=casapps
+            org.opencontainers.image.authors=casapps
             org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
             org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
             org.opencontainers.image.version=${{ env.VERSION }}
@@ -205,8 +205,8 @@ jobs:
             org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
           annotations: |
-            manifest:org.opencontainers.image.vendor=apimgr
-            manifest:org.opencontainers.image.authors=apimgr
+            manifest:org.opencontainers.image.vendor=casapps
+            manifest:org.opencontainers.image.authors=casapps
             manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
             manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}

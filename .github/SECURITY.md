@@ -13,7 +13,7 @@ Only the most recent release receives security patches. Upgrade to the latest ve
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Report vulnerabilities privately by emailing **casjay@yahoo.com** with the subject line `[SECURITY] weather — <brief description>`.
+Report vulnerabilities privately by emailing **casjay@yahoo.com** with the subject line `[SECURITY] wthr — <brief description>`.
 
 Include:
 - A description of the vulnerability and its potential impact
@@ -57,4 +57,4 @@ The following are **not** considered vulnerabilities for this project:
 - **All weather data sources** are public APIs; no API keys are stored
 - **Single binary** with embedded GeoIP database; no external runtime dependencies
 
-> CVE details and technical patch notes are published in [GitHub Security Advisories](https://github.com/apimgr/weather/security/advisories) after the fix is released — never in this file.
+> CVE details and technical patch notes are published in [GitHub Security Advisories](https://github.com/casapps/wthr/security/advisories) after the fix is released — never in this file.

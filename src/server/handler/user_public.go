@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/server/middleware"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/server/middleware"
+	"github.com/casapps/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/cretz/bine/tor"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/model"
 )
 
 // TorService manages the Tor hidden service

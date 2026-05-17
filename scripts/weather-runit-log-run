@@ -1,5 +1,0 @@
-#!/bin/sh
-# runit log run script for weather service
-# Installed to /etc/sv/weather/log/run
-
-exec svlogd -tt /var/log/apimgr/weather

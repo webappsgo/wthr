@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
 
 jobs:
   lint:

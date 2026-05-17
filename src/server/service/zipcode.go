@@ -59,7 +59,7 @@ func (zs *ZipcodeService) loadZipcodes() {
 	startTime := time.Now()
 	fmt.Println("📮 Loading US zipcode database...")
 
-	zipcodeURL := "https://raw.githubusercontent.com/apimgr/zipcodes/refs/heads/main/src/data/zipcodes.json"
+	zipcodeURL := "https://raw.githubusercontent.com/casapps/zipcodes/refs/heads/main/src/data/zipcodes.json"
 
 	resp, err := http.Get(zipcodeURL)
 	if err != nil {

@@ -92,7 +92,7 @@ var UsernameBlocklist = []string{
 	"webmaster", "hostmaster", "abuse", "spam", "junk", "trash",
 
 	// Project-specific
-	"weather", "apimgr",
+	"wthr", "casapps",
 }
 
 // Critical terms that block substrings per AI.md PART 22

@@ -17,9 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/apimgr/weather/src/backup"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/path"
+	"github.com/casapps/wthr/src/backup"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/path"
 	"github.com/robfig/cron/v3"
 )
 

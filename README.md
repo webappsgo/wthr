@@ -1,9 +1,9 @@
 # Weather Service
 
-[![Build](https://github.com/apimgr/weather/actions/workflows/build.yml/badge.svg)](https://github.com/apimgr/weather/actions/workflows/build.yml)
-[![Release](https://img.shields.io/github/v/release/apimgr/weather)](https://github.com/apimgr/weather/releases)
-[![Documentation](https://readthedocs.org/projects/apimgr-weather/badge/?version=latest)](https://apimgr-weather.readthedocs.io)
-[![License](https://img.shields.io/github/license/apimgr/weather)](LICENSE.md)
+[![Build](https://github.com/casapps/wthr/actions/workflows/build.yml/badge.svg)](https://github.com/casapps/wthr/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/casapps/wthr)](https://github.com/casapps/wthr/releases)
+[![Documentation](https://readthedocs.org/projects/casapps-wthr/badge/?version=latest)](https://casapps-wthr.readthedocs.io)
+[![License](https://img.shields.io/github/license/casapps/wthr)](LICENSE.md)
 
 ## About
 
@@ -38,13 +38,13 @@ docker run -d \
   -p 64580:80 \
   -v ./volumes/config:/config:z \
   -v ./volumes/data:/data:z \
-  ghcr.io/apimgr/weather:latest
+  ghcr.io/casapps/wthr:latest
 ```
 
 ### Docker Compose
 
 ```bash
-curl -q -LSsf -O https://raw.githubusercontent.com/apimgr/weather/main/docker/docker-compose.yml
+curl -q -LSsf -O https://raw.githubusercontent.com/casapps/wthr/main/docker/docker-compose.yml
 docker compose up -d
 ```
 
@@ -52,7 +52,7 @@ docker compose up -d
 
 ```bash
 # Download latest release
-curl -q -LSsf -O https://github.com/apimgr/weather/releases/latest/download/weather-linux-amd64
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
 
 # Make executable and run
 chmod +x weather-linux-amd64
@@ -63,21 +63,21 @@ chmod +x weather-linux-amd64
 
 ```bash
 # Download and install
-sudo mv weather-linux-amd64 /usr/local/bin/weather
-sudo useradd -r -s /bin/false weather
-sudo mkdir -p /var/lib/weather/{data,config}
-sudo chown -R weather:weather /var/lib/weather
+sudo mv wthr-linux-amd64 /usr/local/bin/wthr
+sudo useradd -r -s /bin/false wthr
+sudo mkdir -p /var/lib/casapps/wthr/{data,config}
+sudo chown -R wthr:wthr /var/lib/casapps/wthr
 
 # Create service
-sudo tee /etc/systemd/system/weather.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/wthr.service > /dev/null <<EOF
 [Unit]
-Description=Weather API Service
+Description=Wthr API Service
 After=network.target
 
 [Service]
 Type=simple
-User=weather
-ExecStart=/usr/local/bin/weather
+User=wthr
+ExecStart=/usr/local/bin/wthr
 Restart=always
 
 [Install]
@@ -85,7 +85,7 @@ WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now weather
+sudo systemctl enable --now wthr
 ```
 
 ## CLI Client
@@ -96,25 +96,25 @@ A companion CLI client is available for interacting with the server API.
 
 ```bash
 # Download latest release
-curl -q -LSsf -O https://github.com/apimgr/weather/releases/latest/download/weather-cli-linux-amd64
-chmod +x weather-cli-linux-amd64
-sudo mv weather-cli-linux-amd64 /usr/local/bin/weather-cli
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-cli-linux-amd64
+chmod +x wthr-cli-linux-amd64
+sudo mv wthr-cli-linux-amd64 /usr/local/bin/wthr-cli
 ```
 
 ### Configure
 
 ```bash
-# Connect to official server (creates ~/.config/apimgr/weather/cli.yml)
-weather-cli --server https://wthr.top --token YOUR_API_TOKEN
+# Connect to official server (creates ~/.config/casapps/wthr/cli.yml)
+wthr-cli --server https://wthr.top --token YOUR_API_TOKEN
 ```
 
 ### Usage
 
 ```bash
-weather-cli --help
-weather-cli weather Brooklyn,NY
-weather-cli severe-weather
-weather-cli moon
+wthr-cli --help
+wthr-cli weather Brooklyn,NY
+wthr-cli severe-weather
+wthr-cli moon
 ```
 
 ## Configuration
@@ -222,8 +222,8 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 
 ### Support
 
-- Documentation: https://apimgr-weather.readthedocs.io
-- Issues: https://github.com/apimgr/weather/issues
+- Documentation: https://casapps-wthr.readthedocs.io
+- Issues: https://github.com/casapps/wthr/issues
 
 ## Development
 
@@ -238,7 +238,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 
 ```bash
 # Clone
-git clone https://github.com/apimgr/weather
+git clone https://github.com/casapps/wthr
 cd weather
 
 # Quick dev build (outputs to binaries/)

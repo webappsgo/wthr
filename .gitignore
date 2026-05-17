@@ -103,7 +103,7 @@ $RECYCLE.BIN/
 **/*.refactor.sh
 
 # ============================================
-# PROJECT-SPECIFIC (apimgr/weather)
+# PROJECT-SPECIFIC (casapps/wthr)
 # ============================================
 
 # Build output

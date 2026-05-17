@@ -26,14 +26,14 @@ Weather Service is a production-grade weather API providing global weather forec
       -p 64580:80 \
       -v ./rootfs/config:/config:z \
       -v ./rootfs/data:/data:z \
-      ghcr.io/apimgr/weather:latest
+      ghcr.io/casapps/wthr:latest
     ```
 
 === "Binary Installation"
 
     ```bash
     # Download latest release
-    curl -q -LSsf -O https://github.com/apimgr/weather/releases/latest/download/weather-linux-amd64
+    curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
     chmod +x weather-linux-amd64
     sudo mv weather-linux-amd64 /usr/local/bin/weather
 
@@ -46,7 +46,7 @@ Weather Service is a production-grade weather API providing global weather forec
     ```yaml
     services:
       weather:
-        image: ghcr.io/apimgr/weather:latest
+        image: ghcr.io/casapps/wthr:latest
         ports:
           - "64580:80"
         volumes:
@@ -64,6 +64,6 @@ Weather Service is a production-grade weather API providing global weather forec
 
 ## Links
 
-- [GitHub Repository](https://github.com/apimgr/weather)
-- [Docker Images](https://ghcr.io/apimgr/weather)
-- [Report Issues](https://github.com/apimgr/weather/issues)
+- [GitHub Repository](https://github.com/casapps/wthr)
+- [Docker Images](https://ghcr.io/casapps/wthr)
+- [Report Issues](https://github.com/casapps/wthr/issues)

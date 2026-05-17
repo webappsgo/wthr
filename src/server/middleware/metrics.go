@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apimgr/weather/src/server/metrics"
+	"github.com/casapps/wthr/src/server/metrics"
 	"github.com/gin-gonic/gin"
 )
 

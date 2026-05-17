@@ -402,7 +402,7 @@ func LoadConfig() (*AppConfig, error) {
 			PIDFile:   true,
 			Daemonize: false,
 			Branding: BrandingConfig{
-				Title:       "weather",
+				Title:       "wthr",
 				Tagline:     "",
 				Description: "",
 			},
@@ -575,19 +575,19 @@ func LoadConfig() (*AppConfig, error) {
 func getConfigPath() string {
 	// Check if running as root
 	if os.Geteuid() == 0 {
-// Root user: /etc/apimgr/weather/server.yml
+// Root user: /etc/casapps/wthr/server.yml
 
-		return "/etc/apimgr/weather/server.yml"
+		return "/etc/casapps/wthr/server.yml"
 	}
 
-	// Regular user: ~/.config/apimgr/weather/server.yml
+	// Regular user: ~/.config/casapps/wthr/server.yml
 	home, err := os.UserHomeDir()
 	if err != nil {
 // Fallback to current directory if home not found
 
 		return "server.yml"
 	}
-	return filepath.Join(home, ".config", "apimgr", "weather", "server.yml")
+	return filepath.Join(home, ".config", "casapps", "wthr", "server.yml")
 }
 
 // findConfigFile searches for server.yml in common locations per AI.md PART 4

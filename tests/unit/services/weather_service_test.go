@@ -2,7 +2,7 @@ package services_test
 
 import (
 	"testing"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 func TestWeatherService_GetWeatherDescription(t *testing.T) {

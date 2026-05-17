@@ -58,12 +58,12 @@ func GetDefaultPaths(appName string) *Paths {
 }
 
 // getLinuxPaths returns Linux-specific paths (XDG Base Directory spec)
-// Per AI.md PART 4: Paths must include organization namespace (apimgr/weather)
+// Per AI.md PART 4: Paths must include organization namespace (casapps/wthr)
 func getLinuxPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("apimgr", appName)
+	orgNamespace := filepath.Join("casapps", appName)
 
 	// Check if running as root
 	if os.Geteuid() == 0 {
@@ -113,7 +113,7 @@ func getDarwinPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("apimgr", appName)
+	orgNamespace := filepath.Join("casapps", appName)
 
 	// Check if running as root or system service
 	if os.Geteuid() == 0 {
@@ -151,7 +151,7 @@ func getWindowsPaths(appName string) *Paths {
 	}
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("apimgr", appName)
+	orgNamespace := filepath.Join("casapps", appName)
 
 	// Check if running as SYSTEM or Administrator (service mode)
 	// In service mode, use ProgramData for all paths
@@ -197,7 +197,7 @@ func getBSDPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("apimgr", appName)
+	orgNamespace := filepath.Join("casapps", appName)
 
 	// Check if running as root
 	if os.Geteuid() == 0 {
@@ -397,7 +397,7 @@ func Initialize(appName string) error {
 func GetInstance() *Paths {
 	if defaultPaths == nil {
 		// Initialize with default app name if not already initialized
-		_ = Initialize("weather")
+		_ = Initialize("wthr")
 	}
 	return defaultPaths
 }

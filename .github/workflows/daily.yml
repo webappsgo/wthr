@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 env:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
 
 jobs:
   build:

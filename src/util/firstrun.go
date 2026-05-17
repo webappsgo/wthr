@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/config"
+	"github.com/casapps/wthr/src/config"
 	"gopkg.in/yaml.v3"
 )
 

@@ -18,7 +18,7 @@ This guide covers contributing to Weather Service development.
 ### Clone Repository
 
 ```bash
-git clone https://github.com/apimgr/weather.git
+git clone https://github.com/casapps/wthr.git
 cd weather
 ```
 

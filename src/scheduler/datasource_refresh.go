@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 // DataSourceRefresher holds references to all data sources that need periodic updates

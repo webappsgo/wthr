@@ -27,8 +27,8 @@
 ## DOCKERFILE LOCATIONS
 | File | Image | Base | Purpose |
 |------|-------|------|---------|
-| `docker/Dockerfile` | `ghcr.io/apimgr/weather:latest` | alpine | Standard — app only |
-| `docker/Dockerfile.aio` | `ghcr.io/apimgr/weather:latest-aio` | debian | All-in-one with DBs |
+| `docker/Dockerfile` | `ghcr.io/casapps/wthr:latest` | alpine | Standard — app only |
+| `docker/Dockerfile.aio` | `ghcr.io/casapps/wthr:latest-aio` | debian | All-in-one with DBs |
 
 ## STARTUP CHAIN (REQUIRED)
 ```

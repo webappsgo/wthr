@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/apimgr/weather/src/config"
+	"github.com/casapps/wthr/src/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -55,7 +55,7 @@ func TemplateData(c *gin.Context, data gin.H) gin.H {
 			"Description": "Weather information service",
 			"Version":     "unknown",
 			"Keywords":    "weather, forecast, alerts, earthquakes, hurricanes",
-			"Author":      "apimgr",
+			"Author":      "casapps",
 			"Lang":        "en",
 		}
 	} else {

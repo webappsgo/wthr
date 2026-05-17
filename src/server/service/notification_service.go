@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/server/model"
 )
 
 // NotificationService handles all notification operations

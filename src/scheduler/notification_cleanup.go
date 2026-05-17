@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 // NotificationCleaner holds references to the notification service for cleanup tasks

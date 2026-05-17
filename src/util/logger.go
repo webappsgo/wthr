@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/apimgr/weather/src/config"
+	"github.com/casapps/wthr/src/config"
 )
 
 // Logger handles application logging to both stdout and files

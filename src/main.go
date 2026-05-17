@@ -26,21 +26,21 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
-	"github.com/apimgr/weather/src/cli"
-	"github.com/apimgr/weather/src/common/i18n"
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/database"
-	appgraphql "github.com/apimgr/weather/src/graphql"
-	"github.com/apimgr/weather/src/mode"
-	"github.com/apimgr/weather/src/path"
-	"github.com/apimgr/weather/src/scheduler"
-	"github.com/apimgr/weather/src/server"
-	"github.com/apimgr/weather/src/server/handler"
-	"github.com/apimgr/weather/src/server/metrics"
-	"github.com/apimgr/weather/src/server/middleware"
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/cli"
+	"github.com/casapps/wthr/src/common/i18n"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/database"
+	appgraphql "github.com/casapps/wthr/src/graphql"
+	"github.com/casapps/wthr/src/mode"
+	"github.com/casapps/wthr/src/path"
+	"github.com/casapps/wthr/src/scheduler"
+	"github.com/casapps/wthr/src/server"
+	"github.com/casapps/wthr/src/server/handler"
+	"github.com/casapps/wthr/src/server/metrics"
+	"github.com/casapps/wthr/src/server/middleware"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
+	"github.com/casapps/wthr/src/util"
 )
 
 //go:embed common/i18n/locales/*.json
@@ -778,7 +778,7 @@ func main() {
 		if !cfg.Server.Maintenance.Backup.HourlyEnabled {
 			return nil
 		}
-		p := paths.GetDefaultPaths("weather")
+		p := paths.GetDefaultPaths("wthr")
 		if p == nil {
 			return fmt.Errorf("failed to get paths for hourly backup")
 		}

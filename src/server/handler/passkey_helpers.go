@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	models "github.com/apimgr/weather/src/server/model"
+	models "github.com/casapps/wthr/src/server/model"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"

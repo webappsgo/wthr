@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/database"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/database"
 )
 
 // Setting represents a configuration setting

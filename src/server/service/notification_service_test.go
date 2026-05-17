@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/server/model"
 	_ "modernc.org/sqlite"
 )
 

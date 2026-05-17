@@ -5,11 +5,11 @@ set -e
 
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-SERVICE_USER="${SERVICE_USER:-weather}"
-DATA_DIR="${DATA_DIR:-/var/lib/weather}"
-CONFIG_DIR="${CONFIG_DIR:-/etc/weather}"
-REPO="apimgr/weather"
-BINARY_NAME="weather"
+SERVICE_USER="${SERVICE_USER:-wthr}"
+DATA_DIR="${DATA_DIR:-/var/lib/wthr}"
+CONFIG_DIR="${CONFIG_DIR:-/etc/wthr}"
+REPO="casapps/wthr"
+BINARY_NAME="wthr"
 
 # Colors
 RED='\033[0;31m'
@@ -71,16 +71,16 @@ mkdir -p "${DATA_DIR}/db"
 mkdir -p "${DATA_DIR}/backups"
 mkdir -p "${CONFIG_DIR}/certs"
 mkdir -p "${CONFIG_DIR}/databases"
-mkdir -p "/var/log/weather"
-mkdir -p "/var/cache/weather/weather"
+mkdir -p "/var/log/wthr"
+mkdir -p "/var/cache/wthr/weather"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DATA_DIR}"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${CONFIG_DIR}"
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/log/weather"
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/cache/weather"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/log/wthr"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/cache/wthr"
 
 # Create systemd service
 echo "⚙️  Creating systemd service..."
-cat > /etc/systemd/system/weather.service <<EOF
+cat > /etc/systemd/system/wthr.service <<EOF
 [Unit]
 Description=Weather Service
 After=network.target
@@ -98,14 +98,14 @@ Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=weather
+SyslogIdentifier=wthr
 
 # Security
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${DATA_DIR} ${CONFIG_DIR} /var/log/weather /var/cache/weather
+ReadWritePaths=${DATA_DIR} ${CONFIG_DIR} /var/log/wthr /var/cache/wthr
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictRealtime=true
@@ -123,10 +123,10 @@ echo ""
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
 echo "Next steps:"
-echo "  sudo systemctl start weather    # Start service"
-echo "  sudo systemctl enable weather   # Enable on boot"
-echo "  sudo systemctl status weather   # Check status"
+echo "  sudo systemctl start wthr    # Start service"
+echo "  sudo systemctl enable wthr   # Enable on boot"
+echo "  sudo systemctl status wthr   # Check status"
 echo ""
-echo "  journalctl -u weather -f        # View logs"
+echo "  journalctl -u wthr -f        # View logs"
 echo ""
 echo "Service will run on: http://localhost:3000"

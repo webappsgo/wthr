@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/server/model"
 )
 
 // SecurityTxtService handles security.txt generation per RFC 9116

@@ -18,13 +18,13 @@ docker run -d \
   -p 64580:80 \
   -v ./rootfs/config:/config:z \
   -v ./rootfs/data:/data:z \
-  ghcr.io/apimgr/weather:latest
+  ghcr.io/casapps/wthr:latest
 ```
 
 ### Docker Compose
 
 ```bash
-curl -q -LSsf -O https://raw.githubusercontent.com/apimgr/weather/main/docker/docker-compose.yml
+curl -q -LSsf -O https://raw.githubusercontent.com/casapps/wthr/main/docker/docker-compose.yml
 docker compose up -d
 ```
 
@@ -33,7 +33,7 @@ docker compose up -d
 ### Download
 
 ```bash
-curl -q -LSsf -O https://github.com/apimgr/weather/releases/latest/download/weather-linux-amd64
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
 chmod +x weather-linux-amd64
 sudo mv weather-linux-amd64 /usr/local/bin/weather
 ```

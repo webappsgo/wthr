@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/server/middleware"
-	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/server/middleware"
+	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

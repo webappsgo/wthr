@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/apimgr/weather/src/server/middleware"
-	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/server/middleware"
+	"github.com/casapps/wthr/src/server/service"
+	"github.com/casapps/wthr/src/util"
 )
 
 // EarthquakeHandler handles earthquake-related routes

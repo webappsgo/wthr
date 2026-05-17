@@ -14,7 +14,7 @@
 ## CRITICAL - ALWAYS DO
 - ✅ Drop privileges after binding privileged port (< 1024)
 - ✅ Systemd unit: `weather.service` in `lib/systemd/system/`
-- ✅ Launchd plist: `io.github.apimgr.weather.plist` in `lib/launchd/`
+- ✅ Launchd plist: `io.github.casapps.wthr.plist` in `lib/launchd/`
 - ✅ OpenRC init: `weather` in `lib/openrc/`
 - ✅ Windows service: via `golang.org/x/sys/windows/svc`
 - ✅ `weather service install` — installs and enables the service

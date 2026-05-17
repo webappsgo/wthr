@@ -5897,7 +5897,7 @@ package main
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `{project_name}` | Project name (inferred from path) | `jokes` |
-| `{project_org}` | Organization name (inferred from path) | `apimgr` |
+| `{project_org}` | Organization name (inferred from path) | `casapps` |
 | `{gitprovider}` | Git hosting provider | `github`, `gitlab`, `private` |
 | **Rule** | Anything in `{}` is a variable | |
 | **Rule** | Anything NOT in `{}` is literal | `/etc/letsencrypt/live` is a real path |
@@ -5966,7 +5966,7 @@ PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(
 |-----------|-------------|----------|
 | `~/Projects/` | Base projects directory (recommended) | Can be `~/Projects/`, `~/Documents/`, `/opt/`, etc. |
 | `{gitprovider}` | Git hosting provider or `local` | `github`, `gitlab`, `bitbucket`, `private`, `local` |
-| `{project_org}` | Organization/username (inferred) | `apimgr`, `casjay`, `myorg` |
+| `{project_org}` | Organization/username (inferred) | `casapps`, `casjay`, `myorg` |
 | `{project_name}` | Project name (inferred) | `jokes`, `icons`, `myproject` |
 
 **Examples of recommended structure:**
@@ -5975,7 +5975,7 @@ PROJECTORG=$(git remote get-url origin 2>/dev/null | sed -E 's|.*/([^/]+)/[^/]+(
 ~/Projects/gitlab/casjay/icons        # ORG=casjay, PROJECT=icons
 ~/Projects/private/myorg/myproject    # ORG=myorg, PROJECT=myproject
 ~/Projects/bitbucket/company/app      # ORG=company, PROJECT=app
-~/Projects/local/apimgr/prototype     # ORG=apimgr, PROJECT=prototype
+~/Projects/local/casapps/prototype     # ORG=casapps, PROJECT=prototype
 ```
 
 **But any of these are equally valid:**
@@ -10279,7 +10279,7 @@ myapp 1.0.0 (abc123)                # Shows actual name
 
 # But internally:
 User-Agent: jokes/1.0.0             # Hardcoded project name
-Default config: /etc/apimgr/jokes/  # Hardcoded project name
+Default config: /etc/casapps/jokes/  # Hardcoded project name
 ```
 
 **For client and agent flags, see PART 33.**
@@ -38380,7 +38380,7 @@ $TEMP_DIR/
 **NEVER run docker compose in the project directory.**
 
 **Always use temp directory workflow:**
-1. Create unique temp dir with apimgr prefix
+1. Create unique temp dir with casapps prefix
 2. Copy `docker/docker-compose.yml` to temp dir
 3. Create `volumes/` structure in temp dir
 4. Run docker compose from temp dir
@@ -38409,7 +38409,7 @@ rm -rf "$TEMP_DIR"
 **Example paths:**
 ```
 /tmp/netutils/pastebin-aB3xY9/      # Example: pastebin project
-/tmp/apimgr/jokes-k9mN2p/           # Example: jokes project
+/tmp/casapps/jokes-k9mN2p/           # Example: jokes project
 /tmp/casapps/linktree-Qw5rT1/       # Example: different org
 ```
 
@@ -41978,7 +41978,7 @@ rm -rf "${TMPDIR:-/tmp}/${PROJECT_ORG}/"
 **Examples of CORRECT paths:**
 - `/tmp/cloudops/echoip-aB3xY9/` ✓
 - `/tmp/netutils/pastebin-k9mN2p/` ✓
-- `/tmp/apimgr/jokes-Qw5rT1/` ✓
+- `/tmp/casapps/jokes-Qw5rT1/` ✓
 
 **Examples of WRONG paths:**
 - `/tmp/echoip/` ❌ (missing org)
@@ -43332,7 +43332,7 @@ func AdminAuthMiddleware(next http.Handler) http.Handler {
 # Set project path to YOUR actual project location (examples shown below)
 # Use git top-level if in a git repo: PROJECT_PATH="$(git rev-parse --show-toplevel)"
 # Or use absolute path to your project directory
-PROJECT_PATH="/root/Projects/github/apimgr/{project_name}"  # Example 1
+PROJECT_PATH="/root/Projects/github/casapps/{project_name}"  # Example 1
 # PROJECT_PATH="~/Documents/myproject"                     # Example 2
 # PROJECT_PATH="~/myproject"                               # Example 3
 # PROJECT_PATH="/workspace/dev/myproject"                  # Example 4
@@ -60469,7 +60469,7 @@ Implement the required client, then any project-specific optional features:
 ## Time-Saving Tips
 
 1. **Use existing projects as reference:**
-   - Look at jokes, quotes, or other apimgr projects
+   - Look at jokes, quotes, or other casapps projects
    - Copy patterns that match the spec
    - Adapt to your project's needs
 
@@ -60509,7 +60509,7 @@ A successfully bootstrapped project should:
 When stuck:
 
 1. **Read the relevant PART** in AI.md that covers the current problem
-2. **Check existing projects** in apimgr for working examples
+2. **Check existing projects** in casapps for working examples
 3. **Ask specific questions** about unclear requirements
 4. **Propose solutions** for human review
 

@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/util"
 )
 
 // OneLineRenderer handles one-line format weather displays

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/util"
 )
 
 // ServiceCommand handles service management operations
@@ -144,14 +144,14 @@ func disableService() error {
 
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "disable", "weather")
+		return runCommand("systemctl", "disable", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/com.apimgr.weather.plist")
+		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/com.casapps.weather.plist")
 	case "freebsd", "openbsd", "netbsd":
 		fmt.Println("Service disabled. Remove from /etc/rc.conf to prevent auto-start.")
 		return nil
 	case "windows":
-		return runCommand("sc", "config", "weather", "start=", "disabled")
+		return runCommand("sc", "config", "wthr", "start=", "disabled")
 	default:
 		return fmt.Errorf("service disable not supported on %s", runtime.GOOS)
 	}
@@ -160,13 +160,13 @@ func disableService() error {
 func startService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "start", "weather")
+		return runCommand("systemctl", "start", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "start", "com.apimgr.weather")
+		return runCommand("launchctl", "start", "com.casapps.weather")
 	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "weather", "start")
+		return runCommand("service", "wthr", "start")
 	case "windows":
-		return runCommand("sc", "start", "weather")
+		return runCommand("sc", "start", "wthr")
 	default:
 		return fmt.Errorf("service start not supported on %s", runtime.GOOS)
 	}
@@ -175,13 +175,13 @@ func startService() error {
 func stopService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "stop", "weather")
+		return runCommand("systemctl", "stop", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "stop", "com.apimgr.weather")
+		return runCommand("launchctl", "stop", "com.casapps.weather")
 	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "weather", "stop")
+		return runCommand("service", "wthr", "stop")
 	case "windows":
-		return runCommand("sc", "stop", "weather")
+		return runCommand("sc", "stop", "wthr")
 	default:
 		return fmt.Errorf("service stop not supported on %s", runtime.GOOS)
 	}
@@ -190,14 +190,14 @@ func stopService() error {
 func restartService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "restart", "weather")
+		return runCommand("systemctl", "restart", "wthr")
 	case "darwin":
 		if err := stopService(); err != nil {
 			return err
 		}
 		return startService()
 	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "weather", "restart")
+		return runCommand("service", "wthr", "restart")
 	case "windows":
 		if err := stopService(); err != nil {
 			return err
@@ -211,11 +211,11 @@ func restartService() error {
 func reloadService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "reload", "weather")
+		return runCommand("systemctl", "reload", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "kickstart", "-k", "system/com.apimgr.weather")
+		return runCommand("launchctl", "kickstart", "-k", "system/com.casapps.weather")
 	case "freebsd", "openbsd", "netbsd":
-		return runCommand("service", "weather", "reload")
+		return runCommand("service", "wthr", "reload")
 	case "windows":
 		fmt.Println("Config reload via Windows Service Manager not supported. Use restart instead.")
 		return restartService()
@@ -238,7 +238,7 @@ func installSystemdService() error {
 
 	serviceContent := `[Unit]
 Description=Weather Service - Production-grade weather API server
-Documentation=https://github.com/apimgr/weather
+Documentation=https://github.com/casapps/wthr
 After=network.target
 
 [Service]
@@ -257,7 +257,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/apimgr/weather /var/log/apimgr/weather
+ReadWritePaths=/var/lib/casapps/wthr /var/log/casapps/wthr
 
 [Install]
 WantedBy=multi-user.target
@@ -275,7 +275,7 @@ WantedBy=multi-user.target
 	}
 
 	// Enable service
-	if err := runCommand("systemctl", "enable", "weather"); err != nil {
+	if err := runCommand("systemctl", "enable", "wthr"); err != nil {
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
@@ -286,10 +286,10 @@ WantedBy=multi-user.target
 
 func uninstallSystemdService() error {
 	// Stop service
-	runCommand("systemctl", "stop", "weather")
+	runCommand("systemctl", "stop", "wthr")
 
 	// Disable service
-	runCommand("systemctl", "disable", "weather")
+	runCommand("systemctl", "disable", "wthr")
 
 	// Remove service file
 	os.Remove("/etc/systemd/system/weather.service")
@@ -307,7 +307,7 @@ func installLaunchdService() error {
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.apimgr.weather</string>
+	<string>com.casapps.weather</string>
 	<key>Program</key>
 	<string>/usr/local/bin/weather</string>
 	<key>RunAtLoad</key>
@@ -315,14 +315,14 @@ func installLaunchdService() error {
 	<key>KeepAlive</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>/Library/Logs/apimgr/weather/weather.log</string>
+	<string>/Library/Logs/casapps/wthr/weather.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Library/Logs/apimgr/weather/error.log</string>
+	<string>/Library/Logs/casapps/wthr/error.log</string>
 </dict>
 </plist>
 `
 
-	plistPath := "/Library/LaunchDaemons/com.apimgr.weather.plist"
+	plistPath := "/Library/LaunchDaemons/com.casapps.weather.plist"
 	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
 		return fmt.Errorf("failed to write plist: %w", err)
 	}
@@ -333,12 +333,12 @@ func installLaunchdService() error {
 	}
 
 	fmt.Println("✓ Launchd service installed successfully")
-	fmt.Println("  Use: launchctl start com.apimgr.weather")
+	fmt.Println("  Use: launchctl start com.casapps.weather")
 	return nil
 }
 
 func uninstallLaunchdService() error {
-	plistPath := "/Library/LaunchDaemons/com.apimgr.weather.plist"
+	plistPath := "/Library/LaunchDaemons/com.casapps.weather.plist"
 
 	// Unload service
 	runCommand("launchctl", "unload", plistPath)
@@ -359,7 +359,7 @@ func installRCDService() error {
 
 . /etc/rc.subr
 
-name="weather"
+name="wthr"
 rcvar=weather_enable
 command="/usr/local/bin/weather"
 pidfile="/var/run/weather.pid"
@@ -398,15 +398,15 @@ func installWindowsService() error {
 	}
 
 	// Install service with NSSM
-	if err := runCommand("nssm", "install", "weather", binPath); err != nil {
+	if err := runCommand("nssm", "install", "wthr", binPath); err != nil {
 		return fmt.Errorf("failed to install service: %w", err)
 	}
 
 	// Set service description
-	runCommand("nssm", "set", "weather", "Description", "Weather Service - Production-grade weather API server")
+	runCommand("nssm", "set", "wthr", "Description", "Weather Service - Production-grade weather API server")
 
 	// Set startup type to automatic
-	runCommand("nssm", "set", "weather", "Start", "SERVICE_AUTO_START")
+	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
 
 	fmt.Println("✓ Windows service installed successfully")
 	fmt.Println("  Use: sc start weather")
@@ -416,12 +416,12 @@ func installWindowsService() error {
 func uninstallWindowsService() error {
 	if _, err := exec.LookPath("nssm"); err == nil {
 		// Uninstall with NSSM
-		runCommand("nssm", "stop", "weather")
-		runCommand("nssm", "remove", "weather", "confirm")
+		runCommand("nssm", "stop", "wthr")
+		runCommand("nssm", "remove", "wthr", "confirm")
 	} else {
 		// Fallback to sc
-		runCommand("sc", "stop", "weather")
-		runCommand("sc", "delete", "weather")
+		runCommand("sc", "stop", "wthr")
+		runCommand("sc", "delete", "wthr")
 	}
 
 	fmt.Println("✓ Windows service uninstalled")
@@ -478,7 +478,7 @@ exec chpst -u weather:weather /usr/local/bin/weather
 
 	// Create log run script
 	logRunScript := `#!/bin/sh
-exec svlogd -tt /var/log/apimgr/weather
+exec svlogd -tt /var/log/casapps/wthr
 `
 
 	logRunPath := logDir + "/run"
@@ -487,7 +487,7 @@ exec svlogd -tt /var/log/apimgr/weather
 	}
 
 	// Create log directory
-	if err := os.MkdirAll("/var/log/apimgr/weather", 0755); err != nil {
+	if err := os.MkdirAll("/var/log/casapps/wthr", 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -513,7 +513,7 @@ func uninstallRunitService() error {
 
 	// Stop the service first if sv command exists
 	if commandExists("sv") {
-		runCommand("sv", "stop", "weather")
+		runCommand("sv", "stop", "wthr")
 	}
 
 	// Remove service directory
@@ -541,7 +541,7 @@ func commandExists(name string) bool {
 // createSystemUser creates a system user and group for the service
 func createSystemUser() error {
 	// Check if user already exists
-	if userExists("weather") {
+	if userExists("wthr") {
 		fmt.Println("✓ System user 'weather' already exists")
 		return nil
 	}
@@ -561,9 +561,9 @@ func createSystemUser() error {
 // createLinuxUser creates a system user on Linux
 func createLinuxUser() error {
 	// Create group first
-	if err := runCommand("groupadd", "--system", "weather"); err != nil {
+	if err := runCommand("groupadd", "--system", "wthr"); err != nil {
 		// Group might already exist, check if that's the error
-		if !groupExists("weather") {
+		if !groupExists("wthr") {
 			return fmt.Errorf("failed to create group: %w", err)
 		}
 	}
@@ -571,17 +571,17 @@ func createLinuxUser() error {
 	// Create user with system flag, no login shell, no home directory
 	err := runCommand("useradd",
 		"--system",
-		"--gid", "weather",
+		"--gid", "wthr",
 		"--no-create-home",
 		"--shell", "/sbin/nologin",
-		"--comment", "Weather service account",
-		"weather")
+		"--comment", "Wthr service account",
+		"wthr")
 
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Println("✓ Created system user 'weather'")
+	fmt.Println("✓ Created system user 'wthr'")
 	return nil
 }
 
@@ -594,60 +594,60 @@ func createMacOSUser() error {
 	}
 
 	// Create group
-	if err := runCommand("dscl", ".", "-create", "/Groups/weather"); err != nil {
-		if !groupExists("weather") {
+	if err := runCommand("dscl", ".", "-create", "/Groups/wthr"); err != nil {
+		if !groupExists("wthr") {
 			return fmt.Errorf("failed to create group: %w", err)
 		}
 	}
-	runCommand("dscl", ".", "-create", "/Groups/weather", "PrimaryGroupID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Groups/weather", "RealName", "Weather Service")
+	runCommand("dscl", ".", "-create", "/Groups/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
+	runCommand("dscl", ".", "-create", "/Groups/wthr", "RealName", "Weather Service")
 
 	// Create user
-	if err := runCommand("dscl", ".", "-create", "/Users/weather"); err != nil {
+	if err := runCommand("dscl", ".", "-create", "/Users/wthr"); err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
-	runCommand("dscl", ".", "-create", "/Users/weather", "UniqueID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Users/weather", "PrimaryGroupID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Users/weather", "UserShell", "/usr/bin/false")
-	runCommand("dscl", ".", "-create", "/Users/weather", "RealName", "Weather Service")
-	runCommand("dscl", ".", "-create", "/Users/weather", "NFSHomeDirectory", "/var/empty")
+	runCommand("dscl", ".", "-create", "/Users/wthr", "UniqueID", fmt.Sprintf("%d", uid))
+	runCommand("dscl", ".", "-create", "/Users/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
+	runCommand("dscl", ".", "-create", "/Users/wthr", "UserShell", "/usr/bin/false")
+	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather Service")
+	runCommand("dscl", ".", "-create", "/Users/wthr", "NFSHomeDirectory", "/var/empty")
 
-	fmt.Println("✓ Created system user 'weather'")
+	fmt.Println("✓ Created system user 'wthr'")
 	return nil
 }
 
 // createBSDUser creates a system user on BSD
 func createBSDUser() error {
 	// Create group
-	if err := runCommand("pw", "groupadd", "weather", "-g", "800"); err != nil {
-		if !groupExists("weather") {
+	if err := runCommand("pw", "groupadd", "wthr", "-g", "800"); err != nil {
+		if !groupExists("wthr") {
 			return fmt.Errorf("failed to create group: %w", err)
 		}
 	}
 
 	// Create user
-	err := runCommand("pw", "useradd", "weather",
+	err := runCommand("pw", "useradd", "wthr",
 		"-u", "800",
-		"-g", "weather",
+		"-g", "wthr",
 		"-s", "/usr/sbin/nologin",
 		"-d", "/nonexistent",
-		"-c", "Weather service account")
+		"-c", "Wthr service account")
 
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Println("✓ Created system user 'weather'")
+	fmt.Println("✓ Created system user 'wthr'")
 	return nil
 }
 
 // createServiceDirectories creates required directories with correct ownership
 func createServiceDirectories() error {
 	dirs := []string{
-		"/var/lib/apimgr/weather",
-		"/var/lib/apimgr/weather/db",
-		"/var/log/apimgr/weather",
-		"/etc/apimgr/weather",
+		"/var/lib/casapps/wthr",
+		"/var/lib/casapps/wthr/db",
+		"/var/log/casapps/wthr",
+		"/etc/casapps/wthr",
 	}
 
 	for _, dir := range dirs {
@@ -657,7 +657,7 @@ func createServiceDirectories() error {
 		}
 
 		// Set ownership to weather:weather (skip if user doesn't exist)
-		if userExists("weather") {
+		if userExists("wthr") {
 			if runtime.GOOS != "windows" {
 				runCommand("chown", "-R", "weather:weather", dir)
 			}

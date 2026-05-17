@@ -48,11 +48,11 @@ docker/
 ## OS-SPECIFIC PATHS
 | Mode | Config | Data | Logs |
 |------|--------|------|------|
-| Root/system | `/etc/apimgr/weather/` | `/var/lib/apimgr/weather/` | `/var/log/apimgr/weather/` |
-| User | `~/.config/apimgr/weather/` | `~/.local/share/apimgr/weather/` | `~/.local/log/apimgr/weather/` |
+| Root/system | `/etc/casapps/wthr/` | `/var/lib/casapps/wthr/` | `/var/log/casapps/wthr/` |
+| User | `~/.config/casapps/wthr/` | `~/.local/share/casapps/wthr/` | `~/.local/log/casapps/wthr/` |
 
 ## MODULE PATH
-`github.com/apimgr/weather`
+`github.com/casapps/wthr`
 
 ---
 For complete details, see AI.md PART 2, 3, 4

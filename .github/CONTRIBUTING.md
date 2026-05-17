@@ -1,4 +1,4 @@
-# Contributing to Weather
+# Contributing to Wthr
 
 ## Local Setup
 
@@ -6,8 +6,8 @@
 
 ```bash
 # Clone
-git clone https://github.com/apimgr/weather.git
-cd weather
+git clone https://github.com/casapps/wthr.git
+cd wthr
 
 # Build (all 8 platforms)
 make build

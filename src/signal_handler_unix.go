@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/util"
 )
 
 func handlePlatformSignal(sig os.Signal, db *database.DB, appLogger *utils.Logger, dirPaths *utils.DirectoryPaths) bool {

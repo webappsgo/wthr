@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.apimgr.weather</string>
+    <string>com.casapps.wthr</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/weather</string>
+        <string>/usr/local/bin/wthr</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -31,13 +31,13 @@
     <string>Interactive</string>
 
     <key>StandardOutPath</key>
-    <string>/var/log/weather/stdout.log</string>
+    <string>/var/log/wthr/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/weather/stderr.log</string>
+    <string>/var/log/wthr/stderr.log</string>
 
     <key>WorkingDirectory</key>
-    <string>/var/lib/weather</string>
+    <string>/var/lib/wthr</string>
 
     <key>Nice</key>
     <integer>0</integer>

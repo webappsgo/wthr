@@ -37,13 +37,13 @@ admin:
 # Database Configuration
 database:
   driver: sqlite  # sqlite, postgres, mariadb, mysql, mssql, mongodb
-  path: "/var/lib/apimgr/weather/db/weather.db"
+  path: "/var/lib/casapps/wthr/db/weather.db"
 
 # SSL/TLS Configuration
 ssl:
   enabled: false
-  cert_file: "/etc/apimgr/weather/ssl/certs/cert.pem"
-  key_file: "/etc/apimgr/weather/ssl/certs/key.pem"
+  cert_file: "/etc/casapps/wthr/ssl/certs/cert.pem"
+  key_file: "/etc/casapps/wthr/ssl/certs/key.pem"
   acme:
     enabled: false
     email: ""
@@ -75,7 +75,7 @@ backup:
   enabled: true
   interval: 21600  # 6 hours in seconds
   retention_count: 7
-  path: "/mnt/Backups/apimgr/weather"
+  path: "/mnt/Backups/casapps/wthr"
 
 # SMTP Configuration (for email notifications)
 smtp:

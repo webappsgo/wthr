@@ -1,4 +1,4 @@
-module github.com/apimgr/weather
+module github.com/casapps/wthr
 
 go 1.25
 

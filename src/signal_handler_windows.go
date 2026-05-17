@@ -6,8 +6,8 @@ package main
 import (
 	"os"
 
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/util"
 )
 
 // handlePlatformSignal handles platform-specific signals (Windows)

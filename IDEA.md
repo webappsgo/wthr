@@ -33,16 +33,16 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 
 ## Project variables
 
-    project_name:     weather
-    project_org:      apimgr
-    internal_name:    weather
+    project_name:     wthr
+    project_org:      casapps
+    internal_name:    wthr
     app_name:         Weather
     official_site:    https://wthr.top
-    project_repo:     https://github.com/apimgr/weather
+    project_repo:     https://github.com/casapps/wthr
     admin_path:       admin
-    maintainer_name:  apimgr
+    maintainer_name:  casapps
     maintainer_email: casjay@yahoo.com
-    module_path:      github.com/apimgr/weather
+    module_path:      github.com/casapps/wthr
 
 ## Business logic
 

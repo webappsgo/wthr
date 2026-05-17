@@ -4,8 +4,8 @@
 
 set -e
 
-PROJECTNAME="weather"
-GITHUB_REPO="apimgr/weather"
+PROJECTNAME="wthr"
+GITHUB_REPO="casapps/wthr"
 VERSION="latest"
 
 # Colors
@@ -37,7 +37,7 @@ if [ "$EUID" -eq 0 ]; then
     DATA_DIR="/Library/Application Support/Weather/data"
     LOG_DIR="/Library/Logs/Weather"
     PLIST_DIR="/Library/LaunchDaemons"
-    PLIST_NAME="com.apimgr.weather.plist"
+    PLIST_NAME="com.casapps.wthr.plist"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
@@ -45,7 +45,7 @@ else
     DATA_DIR="$HOME/Library/Application Support/Weather/data"
     LOG_DIR="$HOME/Library/Logs/Weather"
     PLIST_DIR="$HOME/Library/LaunchAgents"
-    PLIST_NAME="com.apimgr.weather.plist"
+    PLIST_NAME="com.casapps.wthr.plist"
 fi
 
 echo "Install mode: $([ "$IS_ROOT" = true ] && echo "System (requires sudo)" || echo "User")"
@@ -77,7 +77,7 @@ cat > "${PLIST_DIR}/${PLIST_NAME}" << EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.apimgr.weather</string>
+    <string>com.casapps.wthr</string>
 
     <key>ProgramArguments</key>
     <array>

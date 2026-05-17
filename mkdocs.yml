@@ -1,10 +1,10 @@
 site_name: Weather Service
-site_url: https://apimgr-weather.readthedocs.io
+site_url: https://casapps-wthr.readthedocs.io
 site_description: "Production-grade weather API providing global forecasts, severe weather alerts, earthquake data, moon phases, and hurricane tracking"
-site_author: apimgr
+site_author: casapps
 
-repo_name: apimgr/weather
-repo_url: https://github.com/apimgr/weather
+repo_name: casapps/wthr
+repo_url: https://github.com/casapps/wthr
 edit_uri: edit/main/docs/
 
 theme:
@@ -82,7 +82,7 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.magiclink:
       repo_url_shorthand: true
-      user: apimgr
+      user: casapps
       repo: weather
   - pymdownx.mark
   - pymdownx.smartsymbols
@@ -112,5 +112,5 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/apimgr/weather
+      link: https://github.com/casapps/wthr
   generator: false

@@ -3,7 +3,7 @@
 # Supports: FreeBSD, OpenBSD, NetBSD with rc.d
 
 PROJECTNAME="weather"
-GITHUB_REPO="apimgr/weather"
+GITHUB_REPO="casapps/wthr"
 VERSION="latest"
 
 echo "=== Weather Service Installer for BSD ==="

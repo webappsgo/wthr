@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 // HistoryHandler handles the historical weather page

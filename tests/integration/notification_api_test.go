@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/handler"
-	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/handler"
+	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
 	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
 )

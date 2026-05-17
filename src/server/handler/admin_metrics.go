@@ -34,7 +34,7 @@ func (h *MetricsHandler) GetConfig(c *gin.Context) {
 	config := MetricsConfig{
 		Enabled:               true,
 		Path:                  "/metrics",
-		Namespace:             "weather",
+		Namespace:             "wthr",
 		Subsystem:             "",
 		IncludeGoMetrics:      true,
 		IncludeProcessMetrics: true,

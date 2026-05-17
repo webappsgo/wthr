@@ -14,10 +14,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/database"
-	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/database"
+	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/util"
 )
 
 var (

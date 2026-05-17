@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/middleware"
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/middleware"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

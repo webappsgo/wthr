@@ -22,7 +22,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
     -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIALSITE}'" \
-    -o /build/binary/weather ./src
+    -o /build/binary/wthr ./src
 
 # =============================================================================
 # Runtime Stage - Minimal Alpine image
@@ -37,14 +37,14 @@ ARG LICENSE=MIT
 
 # Static Labels (NON-NEGOTIABLE per AI.md PART 27)
 LABEL maintainer="Weather Service Contributors <noreply@github.com>" \
-      org.opencontainers.image.vendor="apimgr" \
-      org.opencontainers.image.authors="apimgr" \
-      org.opencontainers.image.title="weather" \
-      org.opencontainers.image.base.name="weather" \
-      org.opencontainers.image.description="Containerized version of weather" \
-      org.opencontainers.image.url="https://github.com/apimgr/weather" \
-      org.opencontainers.image.source="https://github.com/apimgr/weather" \
-      org.opencontainers.image.documentation="https://github.com/apimgr/weather" \
+      org.opencontainers.image.vendor="casapps" \
+      org.opencontainers.image.authors="casapps" \
+      org.opencontainers.image.title="wthr" \
+      org.opencontainers.image.base.name="wthr" \
+      org.opencontainers.image.description="Containerized version of wthr" \
+      org.opencontainers.image.url="https://github.com/casapps/wthr" \
+      org.opencontainers.image.source="https://github.com/casapps/wthr" \
+      org.opencontainers.image.documentation="https://github.com/casapps/wthr" \
       org.opencontainers.image.vcs-type="Git" \
       com.github.containers.toolbox="false"
 
@@ -69,7 +69,7 @@ RUN apk add --no-cache \
 # Docker volume mounts auto-create mount points
 
 # Copy binary from builder stage (multi-stage build)
-COPY --from=builder /build/binary/weather /usr/local/bin/weather
+COPY --from=builder /build/binary/wthr /usr/local/bin/wthr
 
 # Copy BUILD-TIME overlay (entrypoint.sh) from docker/file_system/ into image
 # Per AI.md PART 27: file_system/ is BUILD-TIME overlay, NOT runtime volumes
@@ -94,7 +94,7 @@ STOPSIGNAL SIGRTMIN+3
 
 # Health check (long start period for services that need initialization)
 HEALTHCHECK --start-period=10m --interval=5m --timeout=15s --retries=3 \
-    CMD /usr/local/bin/weather --status || exit 1
+    CMD /usr/local/bin/wthr --status || exit 1
 
 # Use tini as init with signal propagation
 # -p SIGTERM: propagate SIGTERM to child processes

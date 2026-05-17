@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
 )
 
 // BackupFile represents a backup file information
@@ -266,7 +266,7 @@ func RestoreBackup(c *gin.Context) {
 func ListBackups(c *gin.Context) {
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/apimgr/weather"
+		dataDir = "/var/lib/casapps/wthr"
 	}
 
 	backupDir := filepath.Join(dataDir, "backups")
@@ -315,7 +315,7 @@ func DownloadBackup(c *gin.Context) {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/apimgr/weather"
+		dataDir = "/var/lib/casapps/wthr"
 	}
 
 	backupPath := filepath.Join(dataDir, "backups", filename)
@@ -344,7 +344,7 @@ func DeleteBackup(c *gin.Context) {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/apimgr/weather"
+		dataDir = "/var/lib/casapps/wthr"
 	}
 
 	backupPath := filepath.Join(dataDir, "backups", filename)

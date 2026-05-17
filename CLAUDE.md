@@ -41,13 +41,13 @@ On EVERY new conversation or after "context compacted" message:
 **WHEN IN DOUBT: READ THE SPEC. DO NOT GUESS.**
 
 ## Binary Terminology
-- **server** = `weather` (main binary, runs as service)
-- **client** = `weather-cli` (REQUIRED companion, CLI/TUI/GUI)
-- **agent** = `weather-agent` (optional, runs on remote machines)
+- **server** = `wthr` (main binary, runs as service)
+- **client** = `wthr-cli` (REQUIRED companion, CLI/TUI/GUI)
+- **agent** = `wthr-agent` (optional, runs on remote machines)
 
 ## Key Placeholders
-- `{project_name}` = weather
-- `{project_org}` = apimgr
+- `{project_name}` = wthr
+- `{project_org}` = casapps
 - `{admin_path}` = admin
 
 ## Account Types (CRITICAL)
@@ -85,13 +85,13 @@ On EVERY new conversation or after "context compacted" message:
 5. Tor hidden service support (auto-enabled if Tor found)
 6. Built-in scheduler, GeoIP, metrics, email, backup, update
 7. Full admin panel with ALL settings
-8. Client binary for ALL projects (weather-cli)
+8. Client binary for ALL projects (wthr-cli)
 9. Commit often — small, focused commits
 
 ## File Locations
-- Config: `/etc/apimgr/weather/server.yml` (root) or `~/.config/apimgr/weather/server.yml` (user)
-- Data: `/var/lib/apimgr/weather/` (root) or `~/.local/share/apimgr/weather/` (user)
-- Logs: `/var/log/apimgr/weather/` (root) or `~/.local/log/apimgr/weather/` (user)
+- Config: `/etc/casapps/wthr/server.yml` (root) or `~/.config/casapps/wthr/server.yml` (user)
+- Data: `/var/lib/casapps/wthr/` (root) or `~/.local/share/casapps/wthr/` (user)
+- Logs: `/var/log/casapps/wthr/` (root) or `~/.local/log/casapps/wthr/` (user)
 - Source: `src/`
 - Docker: `docker/`
 

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/server/service"
 
 	"github.com/gin-gonic/gin"
 )

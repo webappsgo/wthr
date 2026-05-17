@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/server/model"
 	"github.com/gin-gonic/gin"
 )
 

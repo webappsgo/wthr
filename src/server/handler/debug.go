@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/apimgr/weather/src/database"
+	"github.com/casapps/wthr/src/database"
 
 	"github.com/gin-gonic/gin"
 )

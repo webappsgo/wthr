@@ -75,7 +75,7 @@ Runs the complete test suite with options for coverage and verbosity.
 Runs the weather service in an isolated temporary directory.
 
 **Features:**
-- Isolated temp directory per run (`/tmp/apimgr/weather-XXXXXX/`)
+- Isolated temp directory per run (`/tmp/casapps/wthr-XXXXXX/`)
 - Auto-cleanup on exit (Ctrl+C)
 - No repo pollution
 - Real-time log following
@@ -241,7 +241,7 @@ func TestMyFunction(t *testing.T) {
 
 ## Test Data
 
-- All test data stored in `/tmp/apimgr/weather-XXXXXX/`
+- All test data stored in `/tmp/casapps/wthr-XXXXXX/`
 - Automatically cleaned up on exit
 - Use `KEEP_TEMP=1` to inspect after test run
 - Never commit test databases or temp files

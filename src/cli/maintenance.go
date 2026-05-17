@@ -109,7 +109,7 @@ func setMaintenanceMode(mode string) error {
 	// Update config file if it exists
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/apimgr/weather"
+		configDir = "/etc/casapps/wthr"
 	}
 
 	_ = filepath.Join(configDir, "server.yml")
@@ -134,7 +134,7 @@ func adminRecoverySetup() error {
 	// Get directory paths
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/apimgr/weather"
+		dataDir = "/var/lib/casapps/wthr"
 	}
 
 	// Connect to server.db
@@ -362,13 +362,13 @@ func verifySystem() error {
 
 	// Default paths if not set
 	if dataDir == "" {
-		dataDir = "/var/lib/apimgr/weather"
+		dataDir = "/var/lib/casapps/wthr"
 	}
 	if configDir == "" {
-		configDir = "/etc/apimgr/weather"
+		configDir = "/etc/casapps/wthr"
 	}
 	if logDir == "" {
-		logDir = "/var/log/apimgr/weather"
+		logDir = "/var/log/casapps/wthr"
 	}
 
 	errors := 0

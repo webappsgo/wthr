@@ -1,7 +1,7 @@
 [Unit]
 Description=Weather Service
 After=network.target
-Documentation=https://github.com/apimgr/weather
+Documentation=https://github.com/casapps/wthr
 
 [Service]
 Type=simple

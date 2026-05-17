@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/apimgr/weather/src/database"
+	"github.com/casapps/wthr/src/database"
 )
 
 // TaskRun represents a single execution of a task

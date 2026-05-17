@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/server/handler"
-	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
-	utils "github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/server/handler"
+	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
+	utils "github.com/casapps/wthr/src/util"
 )
 
 // ExpiresAt is the resolver for the expiresAt field.

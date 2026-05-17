@@ -5,8 +5,8 @@
 
 set -e
 
-PROJECTNAME="weather"
-GITHUB_REPO="apimgr/weather"
+PROJECTNAME="wthr"
+GITHUB_REPO="casapps/wthr"
 VERSION="latest"
 
 # Colors

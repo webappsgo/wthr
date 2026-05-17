@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/apimgr/weather/src/database"
-	models "github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
+	"github.com/casapps/wthr/src/database"
+	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
 
 	"github.com/gin-gonic/gin"
 )

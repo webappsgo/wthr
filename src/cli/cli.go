@@ -37,7 +37,7 @@ type CLI struct {
 func NewCLI() *CLI {
 	return &CLI{
 		commands: make(map[string]*Command),
-		flags:    flag.NewFlagSet("weather", flag.ExitOnError),
+		flags:    flag.NewFlagSet("wthr", flag.ExitOnError),
 	}
 }
 

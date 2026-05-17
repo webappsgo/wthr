@@ -29,7 +29,7 @@ type GitHubRelease struct {
 }
 
 const (
-	githubAPI    = "https://api.github.com/repos/apimgr/weather/releases"
+	githubAPI    = "https://api.github.com/repos/casapps/wthr/releases"
 	githubStable = githubAPI + "/latest"
 	githubBeta   = githubAPI + "/tags/beta"
 	githubDaily  = githubAPI + "/tags/daily"

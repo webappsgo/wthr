@@ -22,8 +22,8 @@ type DirectoryPaths struct {
 // GetDirectoryPaths returns the appropriate directory paths based on privileges and OS
 func GetDirectoryPaths() (*DirectoryPaths, error) {
 	// TEMPLATE.md PART 3: Use {projectorg}/{projectname} pattern
-	// This creates paths like /etc/apimgr/weather/ instead of /etc/weather/
-	projectOrg := "apimgr"
+	// This creates paths like /etc/casapps/wthr/ instead of /etc/weather/
+	projectOrg := "casapps"
 	projectName := "weather"
 	projectPath := filepath.Join(projectOrg, projectName)
 
@@ -215,7 +215,7 @@ func GetTempPath() string {
 // GetTestDirectoryPaths returns directory paths for testing (uses temp directory)
 // This should be used by all tests to avoid polluting system directories
 func GetTestDirectoryPaths() (*DirectoryPaths, error) {
-	tempBase := filepath.Join(os.TempDir(), "apimgr-weather-test")
+	tempBase := filepath.Join(os.TempDir(), "casapps-wthr-test")
 
 	paths := &DirectoryPaths{
 		Config: filepath.Join(tempBase, "config"),

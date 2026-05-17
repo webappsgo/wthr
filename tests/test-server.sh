@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Create temp directory for testing
-TEST_DIR="${TMPDIR:-/tmp}/weather-test-$$"
+TEST_DIR="${TMPDIR:-/tmp}/wthr-test-$$"
 mkdir -p "$TEST_DIR"
 
 echo -e "${BLUE}🧪 Weather Service Test Server${NC}"
@@ -36,9 +36,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Build if needed
-if [ ! -f "./weather" ]; then
+if [ ! -f "./wthr" ]; then
     echo -e "${BLUE}🔨 Building binary...${NC}"
-    go build -o weather ./src || {
+    go build -o wthr ./src || {
         echo -e "${YELLOW}❌ Build failed${NC}"
         exit 1
     }
@@ -47,7 +47,7 @@ fi
 # Start server with temp directory
 echo -e "${BLUE}🚀 Starting server...${NC}"
 PORT="${PORT:-3053}"
-./weather \
+./wthr \
     --port "$PORT" \
     --data "$TEST_DIR" \
     > "$TEST_DIR/server.log" 2>&1 &

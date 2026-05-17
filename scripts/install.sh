@@ -6,8 +6,8 @@ set -e
 
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-REPO="apimgr/weather"
-BINARY_NAME="weather"
+REPO="casapps/wthr"
+BINARY_NAME="wthr"
 
 # Colors
 RED='\033[0;31m'

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/model"
-	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/service"
+	"github.com/casapps/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,8 +50,8 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Version":     Version,
 				"BuildDate":   BuildDate,
 				"Mode":        cfg.Server.Mode,
-				"GitOrg":      "apimgr",
-				"GitRepo":     "weather",
+				"GitOrg":      "casapps",
+				"GitRepo":     "wthr",
 				"Tor": gin.H{
 					"Enabled":      torEnabled,
 					"OnionAddress": onionAddress,
@@ -95,8 +95,8 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"page": "contact",
 			"server": gin.H{
 				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "apimgr",
-				"GitRepo": "weather",
+				"GitOrg":  "casapps",
+				"GitRepo": "wthr",
 			},
 			"HostInfo": utils.GetHostInfo(c),
 		}
@@ -116,8 +116,8 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"page": "help",
 			"server": gin.H{
 				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "apimgr",
-				"GitRepo": "weather",
+				"GitOrg":  "casapps",
+				"GitRepo": "wthr",
 			},
 			"HostInfo": utils.GetHostInfo(c),
 		}
@@ -171,7 +171,7 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Passkey / WebAuthn admin authentication",
 			},
 			"links": gin.H{
-				"github":  "https://github.com/apimgr/weather",
+				"github":  "https://github.com/casapps/wthr",
 				"docs":    "/openapi",
 				"graphql": "/graphql",
 			},

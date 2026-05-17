@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/apimgr/weather/src/backup"
-	"github.com/apimgr/weather/src/path"
+	"github.com/casapps/wthr/src/backup"
+	"github.com/casapps/wthr/src/path"
 	"golang.org/x/term"
 )
 
@@ -43,7 +43,7 @@ func MaintenanceBackupCommand(args []string) error {
 	}
 
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths")
 	}
@@ -148,7 +148,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths")
 	}

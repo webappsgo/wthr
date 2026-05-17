@@ -7,7 +7,7 @@ VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 DATA_DIR="${DATA_DIR:-$HOME/Library/Application Support/Weather}"
 CONFIG_DIR="${CONFIG_DIR:-$HOME/Library/Application Support/Weather/config}"
-REPO="apimgr/weather"
+REPO="casapps/wthr"
 BINARY_NAME="weather"
 
 # Colors
@@ -65,7 +65,7 @@ mkdir -p "$HOME/Library/Caches/weather/weather"
 
 # Create LaunchAgent
 echo "⚙️  Creating LaunchAgent..."
-LAUNCH_AGENT="$HOME/Library/LaunchAgents/com.apimgr.weather.plist"
+LAUNCH_AGENT="$HOME/Library/LaunchAgents/com.casapps.weather.plist"
 mkdir -p "$HOME/Library/LaunchAgents"
 
 cat > "${LAUNCH_AGENT}" <<EOF
@@ -74,7 +74,7 @@ cat > "${LAUNCH_AGENT}" <<EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.apimgr.weather</string>
+    <string>com.casapps.weather</string>
     <key>ProgramArguments</key>
     <array>
         <string>${INSTALL_DIR}/${BINARY_NAME}</string>

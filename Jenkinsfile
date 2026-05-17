@@ -7,7 +7,7 @@ pipeline {
 
     environment {
         PROJECTNAME = 'weather'
-        PROJECTORG = 'apimgr'
+        PROJECTORG = 'casapps'
         GO_VERSION = '1.24'
         DOCKER_IMAGE = "golang:${GO_VERSION}-alpine"
     }

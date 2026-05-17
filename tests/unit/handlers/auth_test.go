@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/handler"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/handler"
 )
 
 // initTestDualDB creates in-memory dual databases for testing

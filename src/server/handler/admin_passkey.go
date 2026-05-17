@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/apimgr/weather/src/server/model"
+	models "github.com/casapps/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oklog/ulid/v2"

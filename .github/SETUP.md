@@ -23,7 +23,7 @@ Go to: **Settings** → **Actions** → **General** → **Workflow permissions**
 
 The workflow automatically sets packages to public, but you can also:
 
-Go to: **Packages** → Click on `weather` → **Package settings**
+Go to: **Packages** → Click on `wthr` → **Package settings**
 
 - Set visibility to **Public**
 
@@ -39,7 +39,7 @@ Go to: **Repository Settings** → **Actions** → **General** → **Workflow pe
 
 **Additional for Organization Repositories:**
 
-If the repository is under an organization (apimgr), also check:
+If the repository is under an organization (casapps), also check:
 
 Go to: **Organization Settings** → **Actions** → **General**
 

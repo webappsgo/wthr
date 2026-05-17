@@ -30,8 +30,8 @@ docker run --rm \
   -v "$BUILD_DIR:/app" \
   alpine:latest sh -c "
     set -e
-    mkdir -p /tmp/apimgr
-    TEST_DIR=\$(mktemp -d /tmp/apimgr/weather-XXXXXX)
+    mkdir -p /tmp/casapps
+    TEST_DIR=\$(mktemp -d /tmp/casapps/wthr-XXXXXX)
     cleanup() {
         if [ -n \"\${SERVER_PID:-}\" ] && kill -0 \$SERVER_PID 2>/dev/null; then
             kill \$SERVER_PID 2>/dev/null || true

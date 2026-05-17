@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/apimgr/weather/src/util"
+	"github.com/casapps/wthr/src/util"
 	"github.com/gin-gonic/gin"
 )
 

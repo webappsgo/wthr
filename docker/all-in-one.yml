@@ -2,7 +2,7 @@
 # nginx proxy address - http://172.17.0.1:64580
 # Usage: docker compose -f all-in-one.yml up -d
 
-name: weather
+name: wthr
 
 x-logging: &default-logging
   options:
@@ -11,9 +11,9 @@ x-logging: &default-logging
   driver: json-file
 
 services:
-  weather:
-    image: ghcr.io/apimgr/weather:latest-aio
-    container_name: weather-app
+  wthr:
+    image: ghcr.io/casapps/wthr:latest-aio
+    container_name: wthr-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
     pull_policy: always
@@ -29,7 +29,7 @@ services:
     ports:
       - '172.17.0.1:64580:80'
     healthcheck:
-      test: /usr/local/bin/weather --status
+      test: /usr/local/bin/wthr --status
       interval: 10s
       timeout: 5s
       retries: 3
@@ -38,6 +38,6 @@ services:
       - weather
 
 networks:
-  weather:
+  wthr:
     name: weather
     external: false

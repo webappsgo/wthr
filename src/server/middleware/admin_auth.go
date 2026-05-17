@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/apimgr/weather/src/config"
-	"github.com/apimgr/weather/src/database"
-	"github.com/apimgr/weather/src/server/model"
+	"github.com/casapps/wthr/src/config"
+	"github.com/casapps/wthr/src/database"
+	"github.com/casapps/wthr/src/server/model"
 )
 
 // RequireAdminAuth checks if user is authenticated as admin
