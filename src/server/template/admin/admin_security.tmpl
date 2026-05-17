@@ -1,4 +1,4 @@
-{{define "admin/admin-security.tmpl"}}
+{{define "admin/admin_security.tmpl"}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -425,6 +425,60 @@
                     </form>
                 </div>
             </section>
+
+            <!-- Admin Passkey Management Section -->
+            <section class="admin-card" aria-labelledby="passkeys-heading">
+                <div class="card-header">
+                    <h2 id="passkeys-heading">Passkeys (WebAuthn)</h2>
+                    <p class="card-description">Manage passkeys used for admin login. Passkeys replace one-time codes as the second factor after your password.</p>
+                </div>
+                <div class="card-body">
+                    <div id="passkeys-status" class="alert alert-info" role="status">Loading passkeys…</div>
+
+                    <div id="passkeys-list" class="margin-y-md" style="display:none">
+                        <h3 style="font-size:1rem;font-weight:600;margin-bottom:0.75rem">Registered Passkeys</h3>
+                        <div id="passkeys-items"></div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:1.5rem">
+                        <label for="adminPasskeyName">New Passkey Name</label>
+                        <input
+                            type="text"
+                            id="adminPasskeyName"
+                            class="form-control"
+                            placeholder="e.g. MacBook Touch ID"
+                            aria-describedby="adminPasskeyName_help"
+                            maxlength="64"
+                        >
+                        <small id="adminPasskeyName_help" class="form-text">A friendly label to identify this passkey later</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="adminPasskeyPassword">Confirm Admin Password</label>
+                        <input
+                            type="password"
+                            id="adminPasskeyPassword"
+                            class="form-control"
+                            placeholder="Enter your admin password"
+                            aria-describedby="adminPasskeyPassword_help"
+                            autocomplete="current-password"
+                        >
+                        <small id="adminPasskeyPassword_help" class="form-text">Required to authorize passkey registration</small>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="registerPasskeyBtn"
+                        aria-label="Register a new admin passkey"
+                        onclick="registerAdminPasskey()"
+                    >
+                        🔑 Add Passkey
+                    </button>
+
+                    <div id="passkey-op-status" class="alert" style="display:none;margin-top:1rem" role="status"></div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -559,6 +613,195 @@
             notification.remove();
         }, 4000);
     }
+
+    // ── Passkey management ────────────────────────────────────────────────────
+
+    function pkBufToBase64url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (const b of bytes) binary += String.fromCharCode(b);
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function pkBase64urlToBuf(b64url) {
+        const padded = (b64url + '==='.slice((b64url.length + 3) % 4))
+            .replace(/-/g, '+').replace(/_/g, '/');
+        const binary = atob(padded);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+    }
+
+    function pkNormalizeCreation(options) {
+        const pk = options.publicKey || options;
+        pk.challenge = pkBase64urlToBuf(pk.challenge);
+        pk.user.id   = pkBase64urlToBuf(pk.user.id);
+        if (Array.isArray(pk.excludeCredentials)) {
+            pk.excludeCredentials = pk.excludeCredentials.map((c) => ({
+                ...c, id: pkBase64urlToBuf(c.id),
+            }));
+        }
+        return pk;
+    }
+
+    function pkSerializeCredential(cred, ceremonyToken) {
+        return {
+            ceremony_token: ceremonyToken,
+            id:    cred.id,
+            rawId: pkBufToBase64url(cred.rawId),
+            type:  cred.type,
+            response: {
+                attestationObject: pkBufToBase64url(cred.response.attestationObject),
+                clientDataJSON:    pkBufToBase64url(cred.response.clientDataJSON),
+                publicKey: cred.response.getPublicKey
+                    ? pkBufToBase64url(cred.response.getPublicKey())
+                    : undefined,
+                authenticatorData: cred.response.getAuthenticatorData
+                    ? pkBufToBase64url(cred.response.getAuthenticatorData())
+                    : undefined,
+            },
+        };
+    }
+
+    function pkSetOpStatus(msg, cls) {
+        const el = document.getElementById('passkey-op-status');
+        if (!el) return;
+        el.style.display = 'block';
+        el.className = 'alert ' + (cls || 'alert-info');
+        el.textContent = msg;
+    }
+
+    async function loadAdminPasskeys() {
+        const statusEl  = document.getElementById('passkeys-status');
+        const listEl    = document.getElementById('passkeys-list');
+        const itemsEl   = document.getElementById('passkeys-items');
+        try {
+            const resp = await fetch(ADMIN_API_PATH + '/profile/security/passkeys');
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.error || 'Failed to load passkeys');
+
+            const passkeys = data.passkeys || [];
+            if (passkeys.length === 0) {
+                statusEl.className = 'alert alert-info';
+                statusEl.textContent = 'No passkeys registered yet. Add one below to enable passkey-based login.';
+                listEl.style.display = 'none';
+            } else {
+                statusEl.className = 'alert alert-success';
+                statusEl.textContent = passkeys.length + ' passkey' + (passkeys.length === 1 ? '' : 's') + ' registered.';
+                itemsEl.innerHTML = passkeys.map((pk) => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid var(--color-border,#2d3748)">
+                        <div>
+                            <div style="font-weight:500">${escHtml(pk.name || pk.Name || 'Unnamed')}</div>
+                            <div style="font-size:0.8rem;color:var(--color-muted,#a0aec0)">
+                                Added ${escHtml(pk.created_at || pk.CreatedAt || '')}
+                                ${pk.last_used_at || pk.LastUsedAt ? ' · Last used ' + escHtml(pk.last_used_at || pk.LastUsedAt) : ''}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            class="btn btn-danger"
+                            onclick="deleteAdminPasskey(${JSON.stringify(pk.id || pk.ID)}, ${JSON.stringify(pk.name || pk.Name || 'Unnamed')})"
+                            aria-label="Delete passkey ${escHtml(pk.name || pk.Name || 'Unnamed')}"
+                            style="font-size:0.85rem;padding:0.3rem 0.75rem"
+                        >Delete</button>
+                    </div>`).join('');
+                listEl.style.display = 'block';
+            }
+        } catch (err) {
+            statusEl.className = 'alert alert-error';
+            statusEl.textContent = 'Failed to load passkeys: ' + err.message;
+        }
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    async function registerAdminPasskey() {
+        if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
+            pkSetOpStatus('This browser does not support passkeys.', 'alert-error');
+            return;
+        }
+
+        const name     = document.getElementById('adminPasskeyName').value.trim();
+        const password = document.getElementById('adminPasskeyPassword').value;
+        if (!name || !password) {
+            pkSetOpStatus('Passkey name and admin password are required.', 'alert-error');
+            return;
+        }
+
+        const btn = document.getElementById('registerPasskeyBtn');
+        btn.disabled = true;
+        pkSetOpStatus('Starting passkey registration…', 'alert-info');
+
+        try {
+            // Phase 1 — begin
+            const startResp = await fetch(ADMIN_API_PATH + '/profile/security/passkeys', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ name, password }),
+            });
+            const startData = await startResp.json();
+            if (!startResp.ok || !startData.ok) {
+                throw new Error(startData.error || 'Failed to start registration');
+            }
+
+            pkSetOpStatus('Touch your security key or use your device passkey prompt…', 'alert-info');
+
+            // Phase 2 — browser ceremony
+            const credential = await navigator.credentials.create({
+                publicKey: pkNormalizeCreation(startData.options),
+            });
+            if (!credential) throw new Error('Passkey registration was cancelled');
+
+            pkSetOpStatus('Completing registration…', 'alert-info');
+
+            // Phase 3 — finish
+            const finishResp = await fetch(ADMIN_API_PATH + '/profile/security/passkeys', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(pkSerializeCredential(credential, startData.ceremony_token)),
+            });
+            const finishData = await finishResp.json();
+            if (!finishResp.ok || !finishData.ok) {
+                throw new Error(finishData.error || 'Failed to complete registration');
+            }
+
+            pkSetOpStatus('Passkey registered successfully.', 'alert-success');
+            document.getElementById('adminPasskeyName').value     = '';
+            document.getElementById('adminPasskeyPassword').value = '';
+            await loadAdminPasskeys();
+        } catch (err) {
+            pkSetOpStatus('Registration failed: ' + err.message, 'alert-error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function deleteAdminPasskey(passkeyID, name) {
+        if (!confirm('Delete passkey "' + name + '"? You will no longer be able to use it for login.')) return;
+
+        pkSetOpStatus('Deleting passkey…', 'alert-info');
+        try {
+            const resp = await fetch(ADMIN_API_PATH + '/profile/security/passkeys/' + encodeURIComponent(passkeyID), {
+                method: 'DELETE',
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) throw new Error(data.error || 'Failed to delete passkey');
+
+            pkSetOpStatus('Passkey deleted.', 'alert-success');
+            await loadAdminPasskeys();
+        } catch (err) {
+            pkSetOpStatus('Delete failed: ' + err.message, 'alert-error');
+        }
+    }
+
+    // Load passkeys on page load alongside other settings.
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAdminPasskeys();
+    });
     </script>
 
 </body>
