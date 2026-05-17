@@ -54,7 +54,7 @@ func TestIsUsernameBlocked(t *testing.T) {
 		{"admin_mixed", "AdMiN@example.com", true},
 
 		// Project-specific
-		{"weather", "weather@example.com", true},
+		{"wthr", "wthr@example.com", true},
 		{"casapps", "casapps@example.com", true},
 	}
 

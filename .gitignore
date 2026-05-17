@@ -110,6 +110,10 @@ $RECYCLE.BIN/
 binaries/
 releases/
 
+# Test output
+coverage.out
+*.coverprofile
+
 # Runtime volume data (NEVER commit)
 rootfs/
 
