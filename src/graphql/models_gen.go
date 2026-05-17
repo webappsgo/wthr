@@ -28,6 +28,23 @@ type AccountSettingsInput struct {
 	TimeFormat  string `json:"timeFormat"`
 }
 
+type AdminLoginResult struct {
+	SessionToken string     `json:"sessionToken"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+}
+
+type AdminPasskey struct {
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	CreatedAt  string  `json:"createdAt"`
+	LastUsedAt *string `json:"lastUsedAt,omitempty"`
+}
+
+type AdminPasskeyRegistrationResult struct {
+	Message string        `json:"message"`
+	Passkey *AdminPasskey `json:"passkey"`
+}
+
 type AppearanceSettings struct {
 	Theme        string `json:"theme"`
 	FontSize     string `json:"fontSize"`

@@ -44,3 +44,21 @@ func mapGraphQLPasskey(summary *handler.PasskeySummary) *UserPasskey {
 	}
 	return out
 }
+
+// mapGraphQLAdminPasskey converts a handler.AdminPasskeySummary into the
+// GraphQL AdminPasskey type.
+func mapGraphQLAdminPasskey(summary *handler.AdminPasskeySummary) *AdminPasskey {
+	if summary == nil {
+		return nil
+	}
+	out := &AdminPasskey{
+		ID:        strconv.FormatInt(summary.ID, 10),
+		Name:      summary.Name,
+		CreatedAt: summary.CreatedAt,
+	}
+	if summary.LastUsedAt != nil {
+		v := *summary.LastUsedAt
+		out.LastUsedAt = &v
+	}
+	return out
+}

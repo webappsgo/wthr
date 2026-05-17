@@ -20,7 +20,7 @@ import (
 	"github.com/apimgr/weather/src/server/handler"
 	models "github.com/apimgr/weather/src/server/model"
 	"github.com/apimgr/weather/src/server/service"
-	"github.com/apimgr/weather/src/util"
+	utils "github.com/apimgr/weather/src/util"
 )
 
 // ExpiresAt is the resolver for the expiresAt field.
@@ -1508,6 +1508,132 @@ func (r *mutationResolver) AdminAutoDetectSMTP(ctx context.Context) (*SMTPProvid
 	}, nil
 }
 
+// BeginAdminPasskeyRegistration is the resolver for the beginAdminPasskeyRegistration field.
+// Requires admin auth. Verifies the admin's password then returns WebAuthn
+// registration options and a ceremony token.
+func (r *mutationResolver) BeginAdminPasskeyRegistration(ctx context.Context, name string, password string) (*PasskeyRegistrationOptions, error) {
+	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := graphQLPasskeyEnvelope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := handler.BeginAdminPasskeyRegistrationToken(r.ServerDB, admin, env, name, password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PasskeyRegistrationOptions{
+		CeremonyToken: result.CeremonyToken,
+		Options:       result.Options,
+	}, nil
+}
+
+// FinishAdminPasskeyRegistration is the resolver for the finishAdminPasskeyRegistration field.
+// Requires admin auth. Completes the WebAuthn ceremony and persists the passkey.
+func (r *mutationResolver) FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*AdminPasskeyRegistrationResult, error) {
+	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := graphQLPasskeyEnvelope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := json.Marshal(credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode passkey credential: %w", err)
+	}
+
+	result, err := handler.FinishAdminPasskeyRegistrationToken(r.ServerDB, admin, env, ceremonyToken, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AdminPasskeyRegistrationResult{
+		Message: "Passkey registered successfully",
+		Passkey: mapGraphQLAdminPasskey(result.Passkey),
+	}, nil
+}
+
+// DeleteAdminPasskey is the resolver for the deleteAdminPasskey field.
+// Requires admin auth. Deletes one of the authenticated admin's passkeys.
+func (r *mutationResolver) DeleteAdminPasskey(ctx context.Context, id string) (*GenericResponse, error) {
+	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	if err != nil {
+		return nil, err
+	}
+
+	passkeyID, err := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
+	if err != nil || passkeyID <= 0 {
+		return nil, fmt.Errorf("Invalid passkey id")
+	}
+
+	if err := handler.DeleteAdminPasskey(r.ServerDB, admin.ID, passkeyID); err != nil {
+		return nil, err
+	}
+
+	return &GenericResponse{Success: true, Message: "Passkey deleted successfully"}, nil
+}
+
+// BeginAdminPasskeyChallenge is the resolver for the beginAdminPasskeyChallenge field.
+// Public mutation — the pending session token (issued after password verify)
+// authenticates the request. Returns WebAuthn assertion options.
+func (r *mutationResolver) BeginAdminPasskeyChallenge(ctx context.Context, sessionToken string) (*PasskeyChallengeOptions, error) {
+	env, err := graphQLPasskeyEnvelope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := handler.BeginAdminPasskeyLoginToken(r.ServerDB, env, strings.TrimSpace(sessionToken))
+	if err != nil {
+		return nil, err
+	}
+
+	return &PasskeyChallengeOptions{
+		CeremonyToken: result.CeremonyToken,
+		Options:       result.Options,
+	}, nil
+}
+
+// FinishAdminPasskeyChallenge is the resolver for the finishAdminPasskeyChallenge field.
+// Public mutation — completes the admin passkey login ceremony. Returns a
+// session token (the caller must set the admin_session cookie via the REST
+// verify endpoint; GraphQL callers receive the session ID for use in
+// subsequent authenticated requests).
+func (r *mutationResolver) FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AdminLoginResult, error) {
+	env, err := graphQLPasskeyEnvelope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := json.Marshal(credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode passkey credential: %w", err)
+	}
+
+	clientIP := getIPFromContext(ctx)
+	userAgent, _ := ctx.Value("request_user_agent").(string)
+
+	const adminSessionDuration = 30 * 24 * time.Hour
+	result, err := handler.FinishAdminPasskeyLoginToken(r.ServerDB, env, ceremonyToken, body, clientIP, userAgent, adminSessionDuration)
+	if err != nil {
+		return nil, err
+	}
+
+	expiresAt := result.ExpiresAt
+	return &AdminLoginResult{
+		SessionToken: result.SessionID,
+		ExpiresAt:    &expiresAt,
+	}, nil
+}
+
 // SubmitContactForm is the resolver for the submitContactForm field.
 func (r *mutationResolver) SubmitContactForm(ctx context.Context, name string, email string, subject string, message string) (*ContactSubmission, error) {
 	if err := ensureGraphQLContactSubmissionsTable(r.ServerDB); err != nil {
@@ -2921,6 +3047,26 @@ func (r *queryResolver) AdminSMTPProviders(ctx context.Context) ([]*SMTPProvider
 	return providers, nil
 }
 
+// AdminPasskeys is the resolver for the adminPasskeys field.
+// Returns the passkeys registered for the currently authenticated admin.
+func (r *queryResolver) AdminPasskeys(ctx context.Context) ([]*AdminPasskey, error) {
+	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries, err := handler.ListAdminPasskeys(r.ServerDB, admin.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*AdminPasskey, 0, len(summaries))
+	for _, s := range summaries {
+		out = append(out, mapGraphQLAdminPasskey(s))
+	}
+	return out, nil
+}
+
 // Lat is the resolver for the lat field.
 func (r *savedLocationResolver) Lat(ctx context.Context, obj *models.SavedLocation) (float64, error) {
 	return obj.Latitude, nil
@@ -2982,4 +3128,3 @@ type notificationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type savedLocationResolver struct{ *Resolver }
 type settingResolver struct{ *Resolver }
-

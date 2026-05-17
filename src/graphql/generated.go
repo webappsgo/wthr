@@ -76,6 +76,23 @@ type ComplexityRoot struct {
 		Website     func(childComplexity int) int
 	}
 
+	AdminLoginResult struct {
+		ExpiresAt    func(childComplexity int) int
+		SessionToken func(childComplexity int) int
+	}
+
+	AdminPasskey struct {
+		CreatedAt  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+		Name       func(childComplexity int) int
+	}
+
+	AdminPasskeyRegistrationResult struct {
+		Message func(childComplexity int) int
+		Passkey func(childComplexity int) int
+	}
+
 	AppearanceSettings struct {
 		FontSize     func(childComplexity int) int
 		ReduceMotion func(childComplexity int) int
@@ -353,66 +370,71 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AdminAutoDetectSMTP           func(childComplexity int) int
-		AdminClearAuditLogs           func(childComplexity int) int
-		AdminCreateUserInvite         func(childComplexity int, username string, email string, role *string, expiresInDays *int) int
-		AdminDeleteServerAdmin        func(childComplexity int, id string) int
-		AdminDeleteUser               func(childComplexity int, id string) int
-		AdminDeleteUserInvite         func(childComplexity int, id string) int
-		AdminDisableChannel           func(childComplexity int, typeArg string) int
-		AdminDisableServerAdmin       func(childComplexity int, id string) int
-		AdminDisableTask              func(childComplexity int, name string) int
-		AdminEnableChannel            func(childComplexity int, typeArg string) int
-		AdminEnableServerAdmin        func(childComplexity int, id string) int
-		AdminEnableTask               func(childComplexity int, name string) int
-		AdminGenerateToken            func(childComplexity int) int
-		AdminInitializeChannels       func(childComplexity int) int
-		AdminInviteServerAdmin        func(childComplexity int, email string, expiresIn *string) int
-		AdminResetSettings            func(childComplexity int) int
-		AdminRevokeToken              func(childComplexity int, id string) int
-		AdminTestChannel              func(childComplexity int, typeArg string, recipient *string) int
-		AdminTriggerTask              func(childComplexity int, name string) int
-		AdminUpdateChannel            func(childComplexity int, typeArg string, enabled *bool, config any) int
-		AdminUpdateSetting            func(childComplexity int, key string, value string) int
-		AdminUpdateSettings           func(childComplexity int, settings []*SettingInput) int
-		AdminUpdateTask               func(childComplexity int, name string, enabled bool) int
-		AdminUpdateUser               func(childComplexity int, id string, username *string, email *string, role *string) int
-		BeginUserPasskeyChallenge     func(childComplexity int, sessionToken *string) int
-		BeginUserPasskeyRegistration  func(childComplexity int, name string, password string) int
-		ChangeUserPassword            func(childComplexity int, currentPassword string, newPassword string) int
-		CompleteServerInvite          func(childComplexity int, token string, username string, password string) int
-		CompleteUserInvite            func(childComplexity int, token string, username string, password string) int
-		CompleteUserTwoFactor         func(childComplexity int, sessionToken string, twoFactorCode string) int
-		CreateSavedLocation           func(childComplexity int, name string, lat float64, lon float64, country *string, region *string, alerts *bool) int
-		CreateUserToken               func(childComplexity int, name string, scopes *string, expiresIn *int) int
-		DeleteNotification            func(childComplexity int, id string) int
-		DeleteSavedLocation           func(childComplexity int, id string) int
-		DeleteUserPasskey             func(childComplexity int, id string) int
-		DisableUserTwoFactor          func(childComplexity int, password string) int
-		EnableUserTwoFactor           func(childComplexity int, secret string, code string) int
-		FinishUserPasskeyChallenge    func(childComplexity int, ceremonyToken string, credential any) int
-		FinishUserPasskeyRegistration func(childComplexity int, ceremonyToken string, credential any) int
-		LoginUser                     func(childComplexity int, identifier string, password string, twoFactorCode *string, recoveryKey *string) int
-		LogoutUser                    func(childComplexity int) int
-		MarkAllNotificationsRead      func(childComplexity int) int
-		MarkNotificationRead          func(childComplexity int, id string) int
-		RefreshUserSession            func(childComplexity int) int
-		RegenerateUserRecoveryKeys    func(childComplexity int, code string) int
-		RegisterUser                  func(childComplexity int, username string, email string, password string) int
-		RequestPasswordReset          func(childComplexity int, email string) int
-		ResetUserAvatar               func(childComplexity int) int
-		ResetUserPassword             func(childComplexity int, token string, password string) int
-		RevokeUserToken               func(childComplexity int, id string) int
-		SubmitContactForm             func(childComplexity int, name string, email string, subject string, message string) int
-		ToggleLocationAlerts          func(childComplexity int, id string) int
-		UpdateSavedLocation           func(childComplexity int, id string, name *string, alerts *bool) int
-		UpdateUserAvatar              func(childComplexity int, typeArg string, url *string) int
-		UpdateUserProfile             func(childComplexity int, displayName *string, phone *string) int
-		UpdateUserSettings            func(childComplexity int, account *AccountSettingsInput, privacy *PrivacySettingsInput, notifications *NotificationSettingsInput, appearance *AppearanceSettingsInput) int
-		UploadUserAvatar              func(childComplexity int, file graphql.Upload) int
-		UseUserRecoveryKey            func(childComplexity int, sessionToken string, recoveryKey string) int
-		VerifyUserEmail               func(childComplexity int, token string) int
-		VerifyUserTwoFactor           func(childComplexity int, code string) int
+		AdminAutoDetectSMTP            func(childComplexity int) int
+		AdminClearAuditLogs            func(childComplexity int) int
+		AdminCreateUserInvite          func(childComplexity int, username string, email string, role *string, expiresInDays *int) int
+		AdminDeleteServerAdmin         func(childComplexity int, id string) int
+		AdminDeleteUser                func(childComplexity int, id string) int
+		AdminDeleteUserInvite          func(childComplexity int, id string) int
+		AdminDisableChannel            func(childComplexity int, typeArg string) int
+		AdminDisableServerAdmin        func(childComplexity int, id string) int
+		AdminDisableTask               func(childComplexity int, name string) int
+		AdminEnableChannel             func(childComplexity int, typeArg string) int
+		AdminEnableServerAdmin         func(childComplexity int, id string) int
+		AdminEnableTask                func(childComplexity int, name string) int
+		AdminGenerateToken             func(childComplexity int) int
+		AdminInitializeChannels        func(childComplexity int) int
+		AdminInviteServerAdmin         func(childComplexity int, email string, expiresIn *string) int
+		AdminResetSettings             func(childComplexity int) int
+		AdminRevokeToken               func(childComplexity int, id string) int
+		AdminTestChannel               func(childComplexity int, typeArg string, recipient *string) int
+		AdminTriggerTask               func(childComplexity int, name string) int
+		AdminUpdateChannel             func(childComplexity int, typeArg string, enabled *bool, config any) int
+		AdminUpdateSetting             func(childComplexity int, key string, value string) int
+		AdminUpdateSettings            func(childComplexity int, settings []*SettingInput) int
+		AdminUpdateTask                func(childComplexity int, name string, enabled bool) int
+		AdminUpdateUser                func(childComplexity int, id string, username *string, email *string, role *string) int
+		BeginAdminPasskeyChallenge     func(childComplexity int, sessionToken string) int
+		BeginAdminPasskeyRegistration  func(childComplexity int, name string, password string) int
+		BeginUserPasskeyChallenge      func(childComplexity int, sessionToken *string) int
+		BeginUserPasskeyRegistration   func(childComplexity int, name string, password string) int
+		ChangeUserPassword             func(childComplexity int, currentPassword string, newPassword string) int
+		CompleteServerInvite           func(childComplexity int, token string, username string, password string) int
+		CompleteUserInvite             func(childComplexity int, token string, username string, password string) int
+		CompleteUserTwoFactor          func(childComplexity int, sessionToken string, twoFactorCode string) int
+		CreateSavedLocation            func(childComplexity int, name string, lat float64, lon float64, country *string, region *string, alerts *bool) int
+		CreateUserToken                func(childComplexity int, name string, scopes *string, expiresIn *int) int
+		DeleteAdminPasskey             func(childComplexity int, id string) int
+		DeleteNotification             func(childComplexity int, id string) int
+		DeleteSavedLocation            func(childComplexity int, id string) int
+		DeleteUserPasskey              func(childComplexity int, id string) int
+		DisableUserTwoFactor           func(childComplexity int, password string) int
+		EnableUserTwoFactor            func(childComplexity int, secret string, code string) int
+		FinishAdminPasskeyChallenge    func(childComplexity int, ceremonyToken string, credential any) int
+		FinishAdminPasskeyRegistration func(childComplexity int, ceremonyToken string, credential any) int
+		FinishUserPasskeyChallenge     func(childComplexity int, ceremonyToken string, credential any) int
+		FinishUserPasskeyRegistration  func(childComplexity int, ceremonyToken string, credential any) int
+		LoginUser                      func(childComplexity int, identifier string, password string, twoFactorCode *string, recoveryKey *string) int
+		LogoutUser                     func(childComplexity int) int
+		MarkAllNotificationsRead       func(childComplexity int) int
+		MarkNotificationRead           func(childComplexity int, id string) int
+		RefreshUserSession             func(childComplexity int) int
+		RegenerateUserRecoveryKeys     func(childComplexity int, code string) int
+		RegisterUser                   func(childComplexity int, username string, email string, password string) int
+		RequestPasswordReset           func(childComplexity int, email string) int
+		ResetUserAvatar                func(childComplexity int) int
+		ResetUserPassword              func(childComplexity int, token string, password string) int
+		RevokeUserToken                func(childComplexity int, id string) int
+		SubmitContactForm              func(childComplexity int, name string, email string, subject string, message string) int
+		ToggleLocationAlerts           func(childComplexity int, id string) int
+		UpdateSavedLocation            func(childComplexity int, id string, name *string, alerts *bool) int
+		UpdateUserAvatar               func(childComplexity int, typeArg string, url *string) int
+		UpdateUserProfile              func(childComplexity int, displayName *string, phone *string) int
+		UpdateUserSettings             func(childComplexity int, account *AccountSettingsInput, privacy *PrivacySettingsInput, notifications *NotificationSettingsInput, appearance *AppearanceSettingsInput) int
+		UploadUserAvatar               func(childComplexity int, file graphql.Upload) int
+		UseUserRecoveryKey             func(childComplexity int, sessionToken string, recoveryKey string) int
+		VerifyUserEmail                func(childComplexity int, token string) int
+		VerifyUserTwoFactor            func(childComplexity int, code string) int
 	}
 
 	Notification struct {
@@ -493,6 +515,7 @@ type ComplexityRoot struct {
 		AdminChannel               func(childComplexity int, typeArg string) int
 		AdminChannelStats          func(childComplexity int, typeArg string) int
 		AdminChannels              func(childComplexity int) int
+		AdminPasskeys              func(childComplexity int) int
 		AdminQueueStats            func(childComplexity int) int
 		AdminSMTPProviders         func(childComplexity int) int
 		AdminServerAdmin           func(childComplexity int, id string) int
@@ -874,6 +897,11 @@ type MutationResolver interface {
 	AdminTestChannel(ctx context.Context, typeArg string, recipient *string) (*GenericResponse, error)
 	AdminInitializeChannels(ctx context.Context) (*GenericResponse, error)
 	AdminAutoDetectSMTP(ctx context.Context) (*SMTPProvider, error)
+	BeginAdminPasskeyRegistration(ctx context.Context, name string, password string) (*PasskeyRegistrationOptions, error)
+	FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*AdminPasskeyRegistrationResult, error)
+	DeleteAdminPasskey(ctx context.Context, id string) (*GenericResponse, error)
+	BeginAdminPasskeyChallenge(ctx context.Context, sessionToken string) (*PasskeyChallengeOptions, error)
+	FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AdminLoginResult, error)
 	SubmitContactForm(ctx context.Context, name string, email string, subject string, message string) (*ContactSubmission, error)
 }
 type NotificationResolver interface {
@@ -924,6 +952,7 @@ type QueryResolver interface {
 	AdminChannelStats(ctx context.Context, typeArg string) (*ChannelStats, error)
 	AdminQueueStats(ctx context.Context) (*QueueStats, error)
 	AdminSMTPProviders(ctx context.Context) ([]*SMTPProvider, error)
+	AdminPasskeys(ctx context.Context) ([]*AdminPasskey, error)
 }
 type SavedLocationResolver interface {
 	Lat(ctx context.Context, obj *models.SavedLocation) (float64, error)
@@ -1066,6 +1095,62 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.AccountSettings.Website(childComplexity), true
+
+	case "AdminLoginResult.expiresAt":
+		if e.complexity.AdminLoginResult.ExpiresAt == nil {
+			break
+		}
+
+		return e.complexity.AdminLoginResult.ExpiresAt(childComplexity), true
+
+	case "AdminLoginResult.sessionToken":
+		if e.complexity.AdminLoginResult.SessionToken == nil {
+			break
+		}
+
+		return e.complexity.AdminLoginResult.SessionToken(childComplexity), true
+
+	case "AdminPasskey.createdAt":
+		if e.complexity.AdminPasskey.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskey.CreatedAt(childComplexity), true
+
+	case "AdminPasskey.id":
+		if e.complexity.AdminPasskey.ID == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskey.ID(childComplexity), true
+
+	case "AdminPasskey.lastUsedAt":
+		if e.complexity.AdminPasskey.LastUsedAt == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskey.LastUsedAt(childComplexity), true
+
+	case "AdminPasskey.name":
+		if e.complexity.AdminPasskey.Name == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskey.Name(childComplexity), true
+
+	case "AdminPasskeyRegistrationResult.message":
+		if e.complexity.AdminPasskeyRegistrationResult.Message == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskeyRegistrationResult.Message(childComplexity), true
+
+	case "AdminPasskeyRegistrationResult.passkey":
+		if e.complexity.AdminPasskeyRegistrationResult.Passkey == nil {
+			break
+		}
+
+		return e.complexity.AdminPasskeyRegistrationResult.Passkey(childComplexity), true
 
 	case "AppearanceSettings.fontSize":
 		if e.complexity.AppearanceSettings.FontSize == nil {
@@ -2590,6 +2675,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.AdminUpdateUser(childComplexity, args["id"].(string), args["username"].(*string), args["email"].(*string), args["role"].(*string)), true
 
+	case "Mutation.beginAdminPasskeyChallenge":
+		if e.complexity.Mutation.BeginAdminPasskeyChallenge == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_beginAdminPasskeyChallenge_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.BeginAdminPasskeyChallenge(childComplexity, args["sessionToken"].(string)), true
+
+	case "Mutation.beginAdminPasskeyRegistration":
+		if e.complexity.Mutation.BeginAdminPasskeyRegistration == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_beginAdminPasskeyRegistration_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.BeginAdminPasskeyRegistration(childComplexity, args["name"].(string), args["password"].(string)), true
+
 	case "Mutation.beginUserPasskeyChallenge":
 		if e.complexity.Mutation.BeginUserPasskeyChallenge == nil {
 			break
@@ -2686,6 +2795,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateUserToken(childComplexity, args["name"].(string), args["scopes"].(*string), args["expiresIn"].(*int)), true
 
+	case "Mutation.deleteAdminPasskey":
+		if e.complexity.Mutation.DeleteAdminPasskey == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteAdminPasskey_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteAdminPasskey(childComplexity, args["id"].(string)), true
+
 	case "Mutation.deleteNotification":
 		if e.complexity.Mutation.DeleteNotification == nil {
 			break
@@ -2745,6 +2866,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.EnableUserTwoFactor(childComplexity, args["secret"].(string), args["code"].(string)), true
+
+	case "Mutation.finishAdminPasskeyChallenge":
+		if e.complexity.Mutation.FinishAdminPasskeyChallenge == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_finishAdminPasskeyChallenge_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.FinishAdminPasskeyChallenge(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
+
+	case "Mutation.finishAdminPasskeyRegistration":
+		if e.complexity.Mutation.FinishAdminPasskeyRegistration == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_finishAdminPasskeyRegistration_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.FinishAdminPasskeyRegistration(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
 
 	case "Mutation.finishUserPasskeyChallenge":
 		if e.complexity.Mutation.FinishUserPasskeyChallenge == nil {
@@ -3345,6 +3490,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.AdminChannels(childComplexity), true
+
+	case "Query.adminPasskeys":
+		if e.complexity.Query.AdminPasskeys == nil {
+			break
+		}
+
+		return e.complexity.Query.AdminPasskeys(childComplexity), true
 
 	case "Query.adminQueueStats":
 		if e.complexity.Query.AdminQueueStats == nil {
@@ -5958,6 +6110,97 @@ func (ec *executionContext) field_Mutation_adminUpdateUser_argsRole(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_beginAdminPasskeyChallenge_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_beginAdminPasskeyChallenge_argsSessionToken(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["sessionToken"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_beginAdminPasskeyChallenge_argsSessionToken(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["sessionToken"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("sessionToken"))
+	if tmp, ok := rawArgs["sessionToken"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_beginAdminPasskeyRegistration_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_beginAdminPasskeyRegistration_argsName(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	arg1, err := ec.field_Mutation_beginAdminPasskeyRegistration_argsPassword(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["password"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_beginAdminPasskeyRegistration_argsName(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["name"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+	if tmp, ok := rawArgs["name"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_beginAdminPasskeyRegistration_argsPassword(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["password"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+	if tmp, ok := rawArgs["password"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_beginUserPasskeyChallenge_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -6592,6 +6835,38 @@ func (ec *executionContext) field_Mutation_createUserToken_argsExpiresIn(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteAdminPasskey_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_deleteAdminPasskey_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_deleteAdminPasskey_argsID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["id"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteNotification_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -6776,6 +7051,124 @@ func (ec *executionContext) field_Mutation_enableUserTwoFactor_argsCode(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_finishAdminPasskeyChallenge_argsCeremonyToken(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["ceremonyToken"] = arg0
+	arg1, err := ec.field_Mutation_finishAdminPasskeyChallenge_argsCredential(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["credential"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_argsCeremonyToken(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["ceremonyToken"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("ceremonyToken"))
+	if tmp, ok := rawArgs["ceremonyToken"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_argsCredential(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (any, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["credential"]
+	if !ok {
+		var zeroVal any
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("credential"))
+	if tmp, ok := rawArgs["credential"]; ok {
+		return ec.unmarshalNAny2interface(ctx, tmp)
+	}
+
+	var zeroVal any
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_finishAdminPasskeyRegistration_argsCeremonyToken(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["ceremonyToken"] = arg0
+	arg1, err := ec.field_Mutation_finishAdminPasskeyRegistration_argsCredential(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["credential"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_argsCeremonyToken(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["ceremonyToken"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("ceremonyToken"))
+	if tmp, ok := rawArgs["ceremonyToken"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_argsCredential(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (any, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["credential"]
+	if !ok {
+		var zeroVal any
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("credential"))
+	if tmp, ok := rawArgs["credential"]; ok {
+		return ec.unmarshalNAny2interface(ctx, tmp)
+	}
+
+	var zeroVal any
 	return zeroVal, nil
 }
 
@@ -9682,6 +10075,362 @@ func (ec *executionContext) fieldContext_AccountSettings_timeFormat(_ context.Co
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminLoginResult_sessionToken(ctx context.Context, field graphql.CollectedField, obj *AdminLoginResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminLoginResult_sessionToken(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.SessionToken, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminLoginResult_sessionToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminLoginResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminLoginResult_expiresAt(ctx context.Context, field graphql.CollectedField, obj *AdminLoginResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminLoginResult_expiresAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ExpiresAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*time.Time)
+	fc.Result = res
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminLoginResult_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminLoginResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskey_id(ctx context.Context, field graphql.CollectedField, obj *AdminPasskey) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskey_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskey_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskey",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskey_name(ctx context.Context, field graphql.CollectedField, obj *AdminPasskey) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskey_name(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskey_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskey",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskey_createdAt(ctx context.Context, field graphql.CollectedField, obj *AdminPasskey) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskey_createdAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskey_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskey",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskey_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *AdminPasskey) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskey_lastUsedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LastUsedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskey_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskey",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskeyRegistrationResult_message(ctx context.Context, field graphql.CollectedField, obj *AdminPasskeyRegistrationResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskeyRegistrationResult_message(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Message, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskeyRegistrationResult_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskeyRegistrationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AdminPasskeyRegistrationResult_passkey(ctx context.Context, field graphql.CollectedField, obj *AdminPasskeyRegistrationResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AdminPasskeyRegistrationResult_passkey(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Passkey, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*AdminPasskey)
+	fc.Result = res
+	return ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskey(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AdminPasskeyRegistrationResult_passkey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AdminPasskeyRegistrationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AdminPasskey_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AdminPasskey_name(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_AdminPasskey_createdAt(ctx, field)
+			case "lastUsedAt":
+				return ec.fieldContext_AdminPasskey_lastUsedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AdminPasskey", field.Name)
 		},
 	}
 	return fc, nil
@@ -21380,6 +22129,323 @@ func (ec *executionContext) fieldContext_Mutation_adminAutoDetectSMTP(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_beginAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_beginAdminPasskeyRegistration(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().BeginAdminPasskeyRegistration(rctx, fc.Args["name"].(string), fc.Args["password"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*PasskeyRegistrationOptions)
+	fc.Result = res
+	return ec.marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_beginAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ceremonyToken":
+				return ec.fieldContext_PasskeyRegistrationOptions_ceremonyToken(ctx, field)
+			case "options":
+				return ec.fieldContext_PasskeyRegistrationOptions_options(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PasskeyRegistrationOptions", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_beginAdminPasskeyRegistration_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_finishAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_finishAdminPasskeyRegistration(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().FinishAdminPasskeyRegistration(rctx, fc.Args["ceremonyToken"].(string),
+			func() interface{} {
+				if fc.Args["credential"] == nil {
+					return nil
+				}
+				return fc.Args["credential"].(interface{})
+			}())
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*AdminPasskeyRegistrationResult)
+	fc.Result = res
+	return ec.marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_finishAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "message":
+				return ec.fieldContext_AdminPasskeyRegistrationResult_message(ctx, field)
+			case "passkey":
+				return ec.fieldContext_AdminPasskeyRegistrationResult_passkey(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AdminPasskeyRegistrationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_finishAdminPasskeyRegistration_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAdminPasskey(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteAdminPasskey(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteAdminPasskey(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*GenericResponse)
+	fc.Result = res
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteAdminPasskey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ok":
+				return ec.fieldContext_GenericResponse_ok(ctx, field)
+			case "message":
+				return ec.fieldContext_GenericResponse_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GenericResponse", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteAdminPasskey_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_beginAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_beginAdminPasskeyChallenge(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().BeginAdminPasskeyChallenge(rctx, fc.Args["sessionToken"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*PasskeyChallengeOptions)
+	fc.Result = res
+	return ec.marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_beginAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ceremonyToken":
+				return ec.fieldContext_PasskeyChallengeOptions_ceremonyToken(ctx, field)
+			case "options":
+				return ec.fieldContext_PasskeyChallengeOptions_options(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PasskeyChallengeOptions", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_beginAdminPasskeyChallenge_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_finishAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_finishAdminPasskeyChallenge(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().FinishAdminPasskeyChallenge(rctx, fc.Args["ceremonyToken"].(string),
+			func() interface{} {
+				if fc.Args["credential"] == nil {
+					return nil
+				}
+				return fc.Args["credential"].(interface{})
+			}())
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*AdminLoginResult)
+	fc.Result = res
+	return ec.marshalNAdminLoginResult2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminLoginResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_finishAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "sessionToken":
+				return ec.fieldContext_AdminLoginResult_sessionToken(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_AdminLoginResult_expiresAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AdminLoginResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_finishAdminPasskeyChallenge_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_submitContactForm(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_submitContactForm(ctx, field)
 	if err != nil {
@@ -26154,6 +27220,60 @@ func (ec *executionContext) fieldContext_Query_adminSMTPProviders(_ context.Cont
 				return ec.fieldContext_SMTPProvider_secure(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SMTPProvider", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_adminPasskeys(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_adminPasskeys(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().AdminPasskeys(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*AdminPasskey)
+	fc.Result = res
+	return ec.marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_adminPasskeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_AdminPasskey_id(ctx, field)
+			case "name":
+				return ec.fieldContext_AdminPasskey_name(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_AdminPasskey_createdAt(ctx, field)
+			case "lastUsedAt":
+				return ec.fieldContext_AdminPasskey_lastUsedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type AdminPasskey", field.Name)
 		},
 	}
 	return fc, nil
@@ -36192,6 +37312,142 @@ func (ec *executionContext) _AccountSettings(ctx context.Context, sel ast.Select
 	return out
 }
 
+var adminLoginResultImplementors = []string{"AdminLoginResult"}
+
+func (ec *executionContext) _AdminLoginResult(ctx context.Context, sel ast.SelectionSet, obj *AdminLoginResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminLoginResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminLoginResult")
+		case "sessionToken":
+			out.Values[i] = ec._AdminLoginResult_sessionToken(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._AdminLoginResult_expiresAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminPasskeyImplementors = []string{"AdminPasskey"}
+
+func (ec *executionContext) _AdminPasskey(ctx context.Context, sel ast.SelectionSet, obj *AdminPasskey) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminPasskeyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminPasskey")
+		case "id":
+			out.Values[i] = ec._AdminPasskey_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AdminPasskey_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._AdminPasskey_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._AdminPasskey_lastUsedAt(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var adminPasskeyRegistrationResultImplementors = []string{"AdminPasskeyRegistrationResult"}
+
+func (ec *executionContext) _AdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, obj *AdminPasskeyRegistrationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, adminPasskeyRegistrationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AdminPasskeyRegistrationResult")
+		case "message":
+			out.Values[i] = ec._AdminPasskeyRegistrationResult_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "passkey":
+			out.Values[i] = ec._AdminPasskeyRegistrationResult_passkey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var appearanceSettingsImplementors = []string{"AppearanceSettings"}
 
 func (ec *executionContext) _AppearanceSettings(ctx context.Context, sel ast.SelectionSet, obj *AppearanceSettings) graphql.Marshaler {
@@ -38358,6 +39614,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_adminAutoDetectSMTP(ctx, field)
 			})
+		case "beginAdminPasskeyRegistration":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_beginAdminPasskeyRegistration(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "finishAdminPasskeyRegistration":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_finishAdminPasskeyRegistration(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAdminPasskey":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAdminPasskey(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "beginAdminPasskeyChallenge":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_beginAdminPasskeyChallenge(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "finishAdminPasskeyChallenge":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_finishAdminPasskeyChallenge(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "submitContactForm":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_submitContactForm(ctx, field)
@@ -39901,6 +41192,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_adminSMTPProviders(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "adminPasskeys":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_adminPasskeys(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -42476,6 +43789,88 @@ func (ec *executionContext) marshalNAccountSettings2ᚖgithubᚗcomᚋapimgrᚋw
 		return graphql.Null
 	}
 	return ec._AccountSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminLoginResult2githubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v AdminLoginResult) graphql.Marshaler {
+	return ec._AdminLoginResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminLoginResult2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v *AdminLoginResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminLoginResult(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*AdminPasskey) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskey(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAdminPasskey2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskey(ctx context.Context, sel ast.SelectionSet, v *AdminPasskey) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminPasskey(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2githubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v AdminPasskeyRegistrationResult) graphql.Marshaler {
+	return ec._AdminPasskeyRegistrationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋapimgrᚋweatherᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v *AdminPasskeyRegistrationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AdminPasskeyRegistrationResult(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNAny2interface(ctx context.Context, v interface{}) (any, error) {

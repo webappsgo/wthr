@@ -472,6 +472,23 @@ type PasskeyRegistrationResult {
   recoveryKeys: [String!]
 }
 
+type AdminPasskey {
+  id: ID!
+  name: String!
+  createdAt: String!
+  lastUsedAt: String
+}
+
+type AdminPasskeyRegistrationResult {
+  message: String!
+  passkey: AdminPasskey!
+}
+
+type AdminLoginResult {
+  sessionToken: String!
+  expiresAt: Time
+}
+
 type UserSettings {
   account: AccountSettings!
   privacy: PrivacySettings!
@@ -805,6 +822,7 @@ type Query {
   adminChannelStats(type: String!): ChannelStats
   adminQueueStats: QueueStats!
   adminSMTPProviders: [SMTPProvider!]!
+  adminPasskeys: [AdminPasskey!]!
 
 }
 
@@ -895,6 +913,13 @@ type Mutation {
   adminTestChannel(type: String!, recipient: String): GenericResponse!
   adminInitializeChannels: GenericResponse!
   adminAutoDetectSMTP: SMTPProvider
+
+  # Admin Passkey Mutations (management requires admin auth; challenge mutations are public)
+  beginAdminPasskeyRegistration(name: String!, password: String!): PasskeyRegistrationOptions!
+  finishAdminPasskeyRegistration(ceremonyToken: String!, credential: Any!): AdminPasskeyRegistrationResult!
+  deleteAdminPasskey(id: ID!): GenericResponse!
+  beginAdminPasskeyChallenge(sessionToken: String!): PasskeyChallengeOptions!
+  finishAdminPasskeyChallenge(ceremonyToken: String!, credential: Any!): AdminLoginResult!
 
   # Contact Form
   submitContactForm(name: String!, email: String!, subject: String!, message: String!): ContactSubmission!
