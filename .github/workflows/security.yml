@@ -28,9 +28,7 @@ jobs:
         uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --only-verified
+          extra_args: --since-commit HEAD~1 --only-verified --fail
 
   vuln-scan:
     runs-on: ubuntu-latest
