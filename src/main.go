@@ -1601,6 +1601,30 @@ func main() {
 	// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token
 	r.POST("/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
 
+	// Admin passkey login page (public — shown during the post-password / pre-passkey
+	// window; admin session is not yet established so this MUST be outside adminRoutes).
+	// auth.go sets the admin_passkey_pending cookie and redirects here when the admin
+	// has registered passkeys.  The page reads the cookie server-side (HttpOnly) and
+	// embeds the pending-session token so the in-page JS can call the challenge/verify
+	// API endpoints without ever exposing the raw cookie value to JS directly.
+	r.GET("/"+cfg.GetAdminPath()+"/passkey", func(c *gin.Context) {
+		pendingToken, cookieErr := c.Cookie("admin_passkey_pending")
+		if cookieErr != nil || strings.TrimSpace(pendingToken) == "" {
+			// Cookie missing or expired — bail back to login with a clear message.
+			c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", utils.TemplateData(c, gin.H{
+				"title":      "Admin Passkey Verification",
+				"admin_path": cfg.GetAdminPath(),
+				"error":      "Session expired or invalid. Please log in again.",
+			}))
+			return
+		}
+		c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", utils.TemplateData(c, gin.H{
+			"title":                 "Admin Passkey Verification",
+			"admin_path":            cfg.GetAdminPath(),
+			"pending_session_token": pendingToken,
+		}))
+	})
+
 	// Admin routes (require admin role + stricter rate limiting)
 	// AI.md: Admin panel at /{admin_path} (configurable, default: "admin")
 	adminRoutes := r.Group("/" + cfg.GetAdminPath())
