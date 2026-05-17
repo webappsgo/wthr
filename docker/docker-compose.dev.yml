@@ -1,4 +1,4 @@
-# weather - Development compose (DEBUG commented)
+# wthr - Development compose (DEBUG commented)
 # nginx proxy address - http://172.17.0.1:64580
 # Usage: docker compose -f docker-compose.dev.yml up -d
 
@@ -41,9 +41,9 @@ services:
       retries: 3
       start_period: 90s
     networks:
-      - weather-dev
+      - wthr-dev
 
 networks:
-  weather-dev:
-    name: weather-dev
+  wthr-dev:
+    name: wthr-dev
     external: false

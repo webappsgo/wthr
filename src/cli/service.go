@@ -52,15 +52,15 @@ func showServiceHelp() {
 	fmt.Println("Service Management Help")
 	fmt.Println()
 	fmt.Println("INSTALLATION:")
-	fmt.Println("  weather --service --install     Install as system service (requires root/admin)")
-	fmt.Println("  weather --service --uninstall   Remove system service (requires root/admin)")
-	fmt.Println("  weather --service --disable     Disable system service (requires root/admin)")
+	fmt.Println("  wthr --service --install     Install as system service (requires root/admin)")
+	fmt.Println("  wthr --service --uninstall   Remove system service (requires root/admin)")
+	fmt.Println("  wthr --service --disable     Disable system service (requires root/admin)")
 	fmt.Println()
 	fmt.Println("CONTROL:")
-	fmt.Println("  weather --service start         Start the service")
-	fmt.Println("  weather --service stop          Stop the service")
-	fmt.Println("  weather --service restart       Restart the service")
-	fmt.Println("  weather --service reload        Reload configuration (SIGHUP)")
+	fmt.Println("  wthr --service start         Start the service")
+	fmt.Println("  wthr --service stop          Stop the service")
+	fmt.Println("  wthr --service restart       Restart the service")
+	fmt.Println("  wthr --service reload        Reload configuration (SIGHUP)")
 	fmt.Println()
 	fmt.Println("SUPPORTED SERVICE MANAGERS:")
 	fmt.Println("  Linux:   systemd, runit")
@@ -146,7 +146,7 @@ func disableService() error {
 	case "linux":
 		return runCommand("systemctl", "disable", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/com.casapps.weather.plist")
+		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/com.casapps.wthr.plist")
 	case "freebsd", "openbsd", "netbsd":
 		fmt.Println("Service disabled. Remove from /etc/rc.conf to prevent auto-start.")
 		return nil
@@ -162,7 +162,7 @@ func startService() error {
 	case "linux":
 		return runCommand("systemctl", "start", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "start", "com.casapps.weather")
+		return runCommand("launchctl", "start", "com.casapps.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "start")
 	case "windows":
@@ -177,7 +177,7 @@ func stopService() error {
 	case "linux":
 		return runCommand("systemctl", "stop", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "stop", "com.casapps.weather")
+		return runCommand("launchctl", "stop", "com.casapps.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "stop")
 	case "windows":
@@ -213,7 +213,7 @@ func reloadService() error {
 	case "linux":
 		return runCommand("systemctl", "reload", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "kickstart", "-k", "system/com.casapps.weather")
+		return runCommand("launchctl", "kickstart", "-k", "system/com.casapps.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "reload")
 	case "windows":
@@ -237,20 +237,20 @@ func installSystemdService() error {
 	}
 
 	serviceContent := `[Unit]
-Description=Weather Service - Production-grade weather API server
+Description=Wthr - Weather Service
 Documentation=https://github.com/casapps/wthr
 After=network.target
 
 [Service]
 Type=simple
-User=weather
-Group=weather
-ExecStart=/usr/local/bin/weather
+User=wthr
+Group=wthr
+ExecStart=/usr/local/bin/wthr
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=weather
+SyslogIdentifier=wthr
 
 # Security hardening
 PrivateTmp=true
@@ -264,7 +264,7 @@ WantedBy=multi-user.target
 `
 
 	// Write service file
-	servicePath := "/etc/systemd/system/weather.service"
+	servicePath := "/etc/systemd/system/wthr.service"
 	if err := os.WriteFile(servicePath, []byte(serviceContent), 0644); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)
 	}
@@ -280,7 +280,7 @@ WantedBy=multi-user.target
 	}
 
 	fmt.Println("✓ Systemd service installed successfully")
-	fmt.Println("  Use: systemctl start weather")
+	fmt.Println("  Use: systemctl start wthr")
 	return nil
 }
 
@@ -292,7 +292,7 @@ func uninstallSystemdService() error {
 	runCommand("systemctl", "disable", "wthr")
 
 	// Remove service file
-	os.Remove("/etc/systemd/system/weather.service")
+	os.Remove("/etc/systemd/system/wthr.service")
 
 	// Reload systemd
 	runCommand("systemctl", "daemon-reload")
@@ -307,22 +307,22 @@ func installLaunchdService() error {
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.casapps.weather</string>
+	<string>com.casapps.wthr</string>
 	<key>Program</key>
-	<string>/usr/local/bin/weather</string>
+	<string>/usr/local/bin/wthr</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>/Library/Logs/casapps/wthr/weather.log</string>
+	<string>/Library/Logs/casapps/wthr/wthr.log</string>
 	<key>StandardErrorPath</key>
 	<string>/Library/Logs/casapps/wthr/error.log</string>
 </dict>
 </plist>
 `
 
-	plistPath := "/Library/LaunchDaemons/com.casapps.weather.plist"
+	plistPath := "/Library/LaunchDaemons/com.casapps.wthr.plist"
 	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
 		return fmt.Errorf("failed to write plist: %w", err)
 	}
@@ -333,12 +333,12 @@ func installLaunchdService() error {
 	}
 
 	fmt.Println("✓ Launchd service installed successfully")
-	fmt.Println("  Use: launchctl start com.casapps.weather")
+	fmt.Println("  Use: launchctl start com.casapps.wthr")
 	return nil
 }
 
 func uninstallLaunchdService() error {
-	plistPath := "/Library/LaunchDaemons/com.casapps.weather.plist"
+	plistPath := "/Library/LaunchDaemons/com.casapps.wthr.plist"
 
 	// Unload service
 	runCommand("launchctl", "unload", plistPath)
@@ -353,36 +353,36 @@ func uninstallLaunchdService() error {
 func installRCDService() error {
 	rcScript := `#!/bin/sh
 #
-# PROVIDE: weather
+# PROVIDE: wthr
 # REQUIRE: networking
 # KEYWORD: shutdown
 
 . /etc/rc.subr
 
 name="wthr"
-rcvar=weather_enable
-command="/usr/local/bin/weather"
-pidfile="/var/run/weather.pid"
+rcvar=wthr_enable
+command="/usr/local/bin/wthr"
+pidfile="/var/run/wthr.pid"
 
 load_rc_config $name
 run_rc_command "$1"
 `
 
-	rcPath := "/usr/local/etc/rc.d/weather"
+	rcPath := "/usr/local/etc/rc.d/wthr"
 	if err := os.WriteFile(rcPath, []byte(rcScript), 0755); err != nil {
 		return fmt.Errorf("failed to write rc.d script: %w", err)
 	}
 
 	fmt.Println("✓ RC.d service installed successfully")
-	fmt.Println("  Add to /etc/rc.conf: weather_enable=\"YES\"")
-	fmt.Println("  Use: service weather start")
+	fmt.Println("  Add to /etc/rc.conf: wthr_enable=\"YES\"")
+	fmt.Println("  Use: service wthr start")
 	return nil
 }
 
 func uninstallRCDService() error {
-	os.Remove("/usr/local/etc/rc.d/weather")
+	os.Remove("/usr/local/etc/rc.d/wthr")
 	fmt.Println("✓ RC.d service uninstalled")
-	fmt.Println("  Remove from /etc/rc.conf: weather_enable")
+	fmt.Println("  Remove from /etc/rc.conf: wthr_enable")
 	return nil
 }
 
@@ -403,13 +403,13 @@ func installWindowsService() error {
 	}
 
 	// Set service description
-	runCommand("nssm", "set", "wthr", "Description", "Weather Service - Production-grade weather API server")
+	runCommand("nssm", "set", "wthr", "Description", "Wthr - Weather Service")
 
 	// Set startup type to automatic
 	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
 
 	fmt.Println("✓ Windows service installed successfully")
-	fmt.Println("  Use: sc start weather")
+	fmt.Println("  Use: sc start wthr")
 	return nil
 }
 
@@ -452,7 +452,7 @@ func installRunitService() error {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	serviceDir := "/etc/sv/weather"
+	serviceDir := "/etc/sv/wthr"
 
 	// Create service directory
 	if err := os.MkdirAll(serviceDir, 0755); err != nil {
@@ -462,7 +462,7 @@ func installRunitService() error {
 	// Create run script
 	runScript := `#!/bin/sh
 exec 2>&1
-exec chpst -u weather:weather /usr/local/bin/weather
+exec chpst -u wthr:wthr /usr/local/bin/wthr
 `
 
 	runPath := serviceDir + "/run"
@@ -492,7 +492,7 @@ exec svlogd -tt /var/log/casapps/wthr
 	}
 
 	// Enable service by symlinking to /var/service
-	linkPath := "/var/service/weather"
+	linkPath := "/var/service/wthr"
 	// Remove if exists
 	os.Remove(linkPath)
 	if err := os.Symlink(serviceDir, linkPath); err != nil {
@@ -500,14 +500,15 @@ exec svlogd -tt /var/log/casapps/wthr
 	}
 
 	fmt.Println("✓ Runit service installed successfully")
-	fmt.Println("  Service directory: /etc/sv/weather")
-	fmt.Println("  Service link: /var/service/weather")
+	fmt.Println("  Service directory: /etc/sv/wthr")
+	fmt.Println("  Service link: /var/service/wthr")
+
 	return nil
 }
 
 func uninstallRunitService() error {
 	// Remove service link
-	if err := os.Remove("/var/service/weather"); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove("/var/service/wthr"); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove service link: %w", err)
 	}
 
@@ -517,7 +518,7 @@ func uninstallRunitService() error {
 	}
 
 	// Remove service directory
-	if err := os.RemoveAll("/etc/sv/weather"); err != nil && !os.IsNotExist(err) {
+	if err := os.RemoveAll("/etc/sv/wthr"); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove service directory: %w", err)
 	}
 
@@ -542,7 +543,7 @@ func commandExists(name string) bool {
 func createSystemUser() error {
 	// Check if user already exists
 	if userExists("wthr") {
-		fmt.Println("✓ System user 'weather' already exists")
+		fmt.Println("✓ System user 'wthr' already exists")
 		return nil
 	}
 
@@ -656,10 +657,10 @@ func createServiceDirectories() error {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
-		// Set ownership to weather:weather (skip if user doesn't exist)
+		// Set ownership to wthr:wthr (skip if user doesn't exist)
 		if userExists("wthr") {
 			if runtime.GOOS != "windows" {
-				runCommand("chown", "-R", "weather:weather", dir)
+				runCommand("chown", "-R", "wthr:wthr", dir)
 			}
 		}
 	}

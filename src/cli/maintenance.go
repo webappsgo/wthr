@@ -85,7 +85,7 @@ func updateServerConfig() error {
 	// 3. Write server.yml to config directory
 
 	fmt.Println("\n✓ Configuration updated successfully")
-	fmt.Println("  Send SIGHUP to reload: kill -HUP $(pidof weather)")
+	fmt.Println("  Send SIGHUP to reload: kill -HUP $(pidof wthr)")
 	return nil
 }
 
@@ -215,7 +215,7 @@ func adminRecoverySetup() error {
 
 	fmt.Printf("  Username: %s\n", username)
 	fmt.Println("\n⚠️  Please restart the server and login with the new credentials")
-	fmt.Println("  Use: systemctl restart weather")
+	fmt.Println("  Use: systemctl restart wthr")
 
 	return nil
 }
@@ -427,7 +427,7 @@ func verifySystem() error {
 	fmt.Print("Checking admin accounts... ")
 	if err := verifyAdminExists(serverDBPath); err != nil {
 		fmt.Printf("⚠️  WARNING: %v\n", err)
-		fmt.Println("   Run: weather --maintenance admin-recovery")
+		fmt.Println("   Run: wthr --maintenance admin-recovery")
 	} else {
 		fmt.Println("✓ OK")
 	}

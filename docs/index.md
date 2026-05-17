@@ -22,7 +22,7 @@ Weather Service is a production-grade weather API providing global weather forec
 
     ```bash
     docker run -d \
-      --name weather \
+      --name wthr \
       -p 64580:80 \
       -v ./rootfs/config:/config:z \
       -v ./rootfs/data:/data:z \
@@ -33,19 +33,19 @@ Weather Service is a production-grade weather API providing global weather forec
 
     ```bash
     # Download latest release
-    curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
-    chmod +x weather-linux-amd64
-    sudo mv weather-linux-amd64 /usr/local/bin/weather
+    curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-linux-amd64
+    chmod +x wthr-linux-amd64
+    sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 
     # Run the server
-    weather
+    wthr
     ```
 
 === "Docker Compose"
 
     ```yaml
     services:
-      weather:
+      wthr:
         image: ghcr.io/casapps/wthr:latest
         ports:
           - "64580:80"

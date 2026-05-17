@@ -1,13 +1,13 @@
 # CLI Reference
 
-Weather ships with the server binary (`weather`) and a companion client (`weather-cli`).
+Weather ships with the server binary (`wthr`) and a companion client (`wthr-cli`).
 
 ## Server CLI
 
 Basic usage:
 
 ```bash
-weather [flags] [command]
+wthr [flags] [command]
 ```
 
 Common flags:
@@ -27,10 +27,10 @@ Common flags:
 Useful commands:
 
 ```bash
-weather --status
-weather maintenance
-weather update
-weather service
+wthr --status
+wthr maintenance
+wthr update
+wthr service
 ```
 
 ## Client CLI
@@ -38,31 +38,31 @@ weather service
 Install the companion client:
 
 ```bash
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-cli-linux-amd64
-chmod +x weather-cli-linux-amd64
-sudo mv weather-cli-linux-amd64 /usr/local/bin/weather-cli
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-cli-linux-amd64
+chmod +x wthr-cli-linux-amd64
+sudo mv wthr-cli-linux-amd64 /usr/local/bin/wthr-cli
 ```
 
 Configure it against the official server:
 
 ```bash
-weather-cli --server https://wthr.top --token YOUR_API_TOKEN
+wthr-cli --server https://wthr.top --token YOUR_API_TOKEN
 ```
 
 Common usage:
 
 ```bash
-weather-cli --help
-weather-cli weather Brooklyn,NY
-weather-cli severe-weather
-weather-cli moon
+wthr-cli --help
+wthr-cli weather Brooklyn,NY
+wthr-cli severe-weather
+wthr-cli moon
 ```
 
 ## Output and Status
 
 ```bash
-weather --status
-weather-cli --help
+wthr --status
+wthr-cli --help
 ```
 
 The CLI honors the project color/plain-output rules, including `NO_COLOR`.

@@ -410,7 +410,7 @@ The admin panel is fully responsive and works on:
 
 **Solution:**
 1. Stop the server
-2. Run setup wizard reset: `weather --maintenance setup`
+2. Run setup wizard reset: `wthr --maintenance setup`
 3. Create new admin account
 4. Start the server
 

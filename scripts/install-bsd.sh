@@ -2,7 +2,7 @@
 # install-bsd.sh - BSD installer for Weather Service
 # Supports: FreeBSD, OpenBSD, NetBSD with rc.d
 
-PROJECTNAME="weather"
+PROJECTNAME="wthr"
 GITHUB_REPO="casapps/wthr"
 VERSION="latest"
 
@@ -29,16 +29,16 @@ echo "BSD variant: $BSD_VARIANT"
 if [ "$(id -u)" -eq 0 ]; then
     IS_ROOT=true
     BIN_DIR="/usr/local/bin"
-    CONFIG_DIR="/usr/local/etc/${PROJECTNAME}"
-    DATA_DIR="/var/db/${PROJECTNAME}"
-    LOG_DIR="/var/log/${PROJECTNAME}"
+    CONFIG_DIR="/usr/local/etc/casapps/${PROJECTNAME}"
+    DATA_DIR="/var/db/casapps/${PROJECTNAME}"
+    LOG_DIR="/var/log/casapps/${PROJECTNAME}"
     RC_DIR="/usr/local/etc/rc.d"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
-    CONFIG_DIR="$HOME/.config/${PROJECTNAME}"
-    DATA_DIR="$HOME/.local/share/${PROJECTNAME}"
-    LOG_DIR="$HOME/.local/state/${PROJECTNAME}"
+    CONFIG_DIR="$HOME/.config/casapps/${PROJECTNAME}"
+    DATA_DIR="$HOME/.local/share/casapps/${PROJECTNAME}"
+    LOG_DIR="$HOME/.local/log/casapps/${PROJECTNAME}"
     RC_DIR=""
 fi
 
@@ -70,24 +70,24 @@ echo "✓ Binary installed to ${BIN_DIR}/${PROJECTNAME}"
 if [ "$IS_ROOT" = "true" ]; then
     cat > "${RC_DIR}/${PROJECTNAME}" << 'RCEOF'
 #!/bin/sh
-# PROVIDE: weather
+# PROVIDE: wthr
 # REQUIRE: NETWORKING
 # KEYWORD: shutdown
 
 . /etc/rc.subr
 
-name="weather"
-rcvar="weather_enable"
-command="/usr/local/bin/weather"
+name="wthr"
+rcvar="wthr_enable"
+command="/usr/local/bin/wthr"
 pidfile="/var/run/${name}.pid"
 command_args="&"
 
-export CONFIG_DIR="/usr/local/etc/weather"
-export DATA_DIR="/var/db/weather"
-export LOG_DIR="/var/log/weather"
+export CONFIG_DIR="/usr/local/etc/casapps/wthr"
+export DATA_DIR="/var/db/casapps/wthr"
+export LOG_DIR="/var/log/casapps/wthr"
 
 load_rc_config $name
-: ${weather_enable:="NO"}
+: ${wthr_enable:="NO"}
 
 run_rc_command "$1"
 RCEOF
@@ -95,12 +95,12 @@ RCEOF
     chmod +x "${RC_DIR}/${PROJECTNAME}"
 
     # Add to rc.conf
-    if ! grep -q "weather_enable" /etc/rc.conf 2>/dev/null; then
-        echo "weather_enable=\"YES\"" >> /etc/rc.conf
+    if ! grep -q "wthr_enable" /etc/rc.conf 2>/dev/null; then
+        echo "wthr_enable=\"YES\"" >> /etc/rc.conf
     else
         # Use sysrc if available
         if command -v sysrc > /dev/null 2>&1; then
-            sysrc weather_enable="YES"
+            sysrc wthr_enable="YES"
         fi
     fi
 

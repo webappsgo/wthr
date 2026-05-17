@@ -6,7 +6,7 @@ labels: bug
 
 ## Version
 
-<!-- Run `weather --version` and paste output here -->
+<!-- Run `wthr --version` and paste output here -->
 
 ## Environment
 

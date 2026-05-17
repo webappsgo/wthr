@@ -14,7 +14,7 @@ This guide covers the supported install paths for Weather.
 
 ```bash
 docker run -d \
-  --name weather \
+  --name wthr \
   -p 64580:80 \
   -v ./rootfs/config:/config:z \
   -v ./rootfs/data:/data:z \
@@ -33,15 +33,15 @@ docker compose up -d
 ### Download
 
 ```bash
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
-chmod +x weather-linux-amd64
-sudo mv weather-linux-amd64 /usr/local/bin/weather
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-linux-amd64
+chmod +x wthr-linux-amd64
+sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 ```
 
 ### Run
 
 ```bash
-weather
+wthr
 ```
 
 On first run, Weather generates `server.yml` in `{config_dir}` and creates its data/log directories automatically.
@@ -59,9 +59,9 @@ After=network.target
 
 [Service]
 Type=simple
-User=weather
-Group=weather
-ExecStart=/usr/local/bin/weather --mode production
+User=wthr
+Group=wthr
+ExecStart=/usr/local/bin/wthr --mode production
 Restart=always
 RestartSec=10
 
@@ -80,7 +80,7 @@ Typical runtime locations follow AI.md PART 4:
 Use the platform-specific service helpers or native service manager with the same foreground command:
 
 ```bash
-weather --mode production
+wthr --mode production
 ```
 
 ## Setup
@@ -98,8 +98,8 @@ After setup, use:
 ## Verification
 
 ```bash
-weather --version
-weather --status
+wthr --version
+wthr --status
 curl -q -LSsf https://wthr.top/healthz
 ```
 

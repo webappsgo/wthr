@@ -198,10 +198,10 @@ func MaintenanceRestoreCommand(args []string) error {
 	fmt.Println()
 	fmt.Println("✅ Restore completed successfully!")
 	fmt.Println()
-	fmt.Println("Please restart the weather service for changes to take effect:")
-	fmt.Println("  systemctl restart weather")
+	fmt.Println("Please restart the wthr service for changes to take effect:")
+	fmt.Println("  systemctl restart wthr")
 	fmt.Println("  or")
-	fmt.Println("  weather --service restart")
+	fmt.Println("  wthr --service restart")
 
 	return nil
 }

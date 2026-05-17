@@ -19,13 +19,13 @@ This guide covers contributing to Weather Service development.
 
 ```bash
 git clone https://github.com/casapps/wthr.git
-cd weather
+cd wthr
 ```
 
 ### Project Structure
 
 ```
-weather/
+wthr/
 ├── src/                    # Go source code
 │   ├── main.go            # Application entry point
 │   ├── cli/               # CLI commands
@@ -82,14 +82,14 @@ make build
 Output location: `binaries/`
 
 Platforms built:
-- `weather-linux-amd64`
-- `weather-linux-arm64`
-- `weather-darwin-amd64`
-- `weather-darwin-arm64`
-- `weather-windows-amd64.exe`
-- `weather-windows-arm64.exe`
-- `weather-freebsd-amd64`
-- `weather-freebsd-arm64`
+- `wthr-linux-amd64`
+- `wthr-linux-arm64`
+- `wthr-darwin-amd64`
+- `wthr-darwin-arm64`
+- `wthr-windows-amd64.exe`
+- `wthr-windows-arm64.exe`
+- `wthr-freebsd-amd64`
+- `wthr-freebsd-arm64`
 
 ### Docker Build
 
@@ -439,13 +439,13 @@ s.AddTask("my_task", &MyTask{})
 Enable debug mode:
 
 ```bash
-weather --mode development
+wthr --mode development
 ```
 
 Or set log level:
 
 ```bash
-weather --log-level debug
+wthr --log-level debug
 ```
 
 ### Attach Debugger
@@ -469,13 +469,13 @@ Connect from IDE on port 2345.
 
 ```bash
 # Real-time logs
-tail -f /var/log/weather/weather.log
+tail -f /var/log/casapps/wthr/wthr.log
 
 # With Docker
-docker logs -f weather
+docker logs -f wthr
 
 # With systemd
-journalctl -u weather -f
+journalctl -u wthr -f
 ```
 
 ## Documentation

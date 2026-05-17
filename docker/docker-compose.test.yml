@@ -1,4 +1,4 @@
-# weather - Test compose (DEBUG=true enabled)
+# wthr - Test compose (DEBUG=true enabled)
 # nginx proxy address - http://172.17.0.1:64581
 # Usage: docker compose -f docker-compose.test.yml up -d
 
@@ -37,9 +37,9 @@ services:
       retries: 3
       start_period: 90s
     networks:
-      - weather-test
+      - wthr-test
 
 networks:
-  weather-test:
-    name: weather-test
+  wthr-test:
+    name: wthr-test
     external: false

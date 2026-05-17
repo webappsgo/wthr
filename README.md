@@ -34,7 +34,7 @@ https://wthr.top
 
 ```bash
 docker run -d \
-  --name weather \
+  --name wthr \
   -p 64580:80 \
   -v ./volumes/config:/config:z \
   -v ./volumes/data:/data:z \
@@ -52,11 +52,11 @@ docker compose up -d
 
 ```bash
 # Download latest release
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/weather-linux-amd64
+curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-linux-amd64
 
 # Make executable and run
-chmod +x weather-linux-amd64
-./weather-linux-amd64
+chmod +x wthr-linux-amd64
+./wthr-linux-amd64
 ```
 
 ### Systemd Service
@@ -216,7 +216,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 
 ### Troubleshooting
 
-- Check logs: `docker logs weather`
+- Check logs: `docker logs wthr`
 - Health check: `curl -q -LSsf https://wthr.top/healthz`
 - Port in use: `netstat -tulpn | grep :80`
 
@@ -239,7 +239,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 ```bash
 # Clone
 git clone https://github.com/casapps/wthr
-cd weather
+cd wthr
 
 # Quick dev build (outputs to binaries/)
 make dev
