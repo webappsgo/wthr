@@ -185,7 +185,53 @@
                     <li><code>Accept: text/plain</code> - Plain text (for terminal)</li>
                     <li><code>Accept: text/html</code> - HTML page (default for browsers)</li>
                 </ul>
-                <p>GraphQL endpoint available at <code>/graphql</code>.</p>
+                <p>GraphQL endpoint available at <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. Supports POST with <code>application/json</code> body.</p>
+            </div>
+        </details>
+
+        <details class="help-section">
+            <summary class="help-summary">GraphQL API</summary>
+            <div class="help-content">
+                <p>Send queries and mutations to <code>POST /graphql</code> with a JSON body of the form <code>{"query": "...", "variables": {...}}</code>.</p>
+                <p><strong>Key Queries</strong></p>
+                <ul>
+                    <li><code>weather(location: String!)</code> - Current weather and forecast</li>
+                    <li><code>currentUser</code> - Authenticated user profile</li>
+                    <li><code>savedLocations</code> - User's saved locations</li>
+                    <li><code>userTokens</code> - API tokens for authenticated user</li>
+                    <li><code>userPasskeys</code> - Registered passkeys for authenticated user</li>
+                    <li><code>publicUserProfile(username: String!)</code> - Public user profile</li>
+                </ul>
+                <p><strong>Authentication Mutations</strong></p>
+                <ul>
+                    <li><code>register(username, email, password)</code> - Create an account</li>
+                    <li><code>login(username, password)</code> - Sign in</li>
+                    <li><code>logout</code> - End session</li>
+                    <li><code>requestPasswordReset(email)</code> - Start password reset</li>
+                    <li><code>resetPassword(token, newPassword)</code> - Complete password reset</li>
+                    <li><code>verifyEmail(token)</code> - Verify email address</li>
+                    <li><code>twoFactorLogin(sessionToken, code)</code> - Complete 2FA login</li>
+                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - Login with recovery key</li>
+                </ul>
+                <p><strong>WebAuthn / Passkey Mutations (User)</strong></p>
+                <p>Register a new passkey, use it to log in, or remove it. Two-phase ceremony: begin returns <code>ceremonyToken</code> + WebAuthn options; finish sends the browser credential.</p>
+                <ul>
+                    <li><code>beginUserPasskeyRegistration(name, password)</code> - Start passkey registration</li>
+                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - Complete passkey registration</li>
+                    <li><code>deleteUserPasskey(id)</code> - Remove a passkey</li>
+                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - Start passkey login (public)</li>
+                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - Complete passkey login (public)</li>
+                </ul>
+                <p><strong>WebAuthn / Passkey Mutations (Admin)</strong></p>
+                <p>Admin accounts use passkeys as their primary authentication method. Management mutations require an active admin session; challenge mutations are public (called during login).</p>
+                <ul>
+                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - Start admin passkey registration (admin auth)</li>
+                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - Complete admin passkey registration (admin auth)</li>
+                    <li><code>deleteAdminPasskey(id)</code> - Remove an admin passkey (admin auth)</li>
+                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - Start admin passkey login challenge (public)</li>
+                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - Complete admin passkey login (public)</li>
+                </ul>
+                <p>Full schema introspection available via <code>POST /graphql</code> with a standard introspection query, or visit the <a href="/graphql" class="text-cyan">GraphQL playground</a>.</p>
             </div>
         </details>
     </div>

@@ -166,8 +166,9 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Earthquake monitoring from USGS",
 				"Hurricane and tropical storm tracking",
 				"Multi-day weather forecasts (up to 16 days)",
-				"Multi-format API (JSON, text/plain, GraphQL)",
+				"Multi-format API (JSON, text/plain, GraphQL) with passkey auth mutations",
 				"WebSocket real-time alert notifications",
+				"Passkey / WebAuthn admin authentication",
 			},
 			"links": gin.H{
 				"github":  "https://github.com/apimgr/weather",
@@ -228,6 +229,8 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				{"name": "Earthquake Data", "description": "Real-time seismic activity from USGS"},
 				{"name": "Hurricane Tracking", "description": "Active tropical storm monitoring from NOAA NHC"},
 				{"name": "Moon Phases", "description": "Lunar cycles, illumination, rise/set times"},
+				{"name": "GraphQL API", "description": "Full GraphQL endpoint at /graphql including passkey/WebAuthn auth mutations"},
+				{"name": "Passkey / WebAuthn", "description": "Admin passkey authentication via beginAdminPasskeyChallenge and finishAdminPasskeyChallenge GraphQL mutations"},
 			},
 			"api_documentation": gin.H{
 				"swagger":  "/openapi",

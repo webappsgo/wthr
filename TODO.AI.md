@@ -21,7 +21,7 @@ These pre-date the AI.md template sync and the GraphQL passkey work — they did
 - [x] `admin-passkey-ui` — Passkeys (WebAuthn) section added to admin_security.tmpl: list, add (two-phase WebAuthn ceremony), delete; {{define}} name mismatch also fixed — completed 2026-05-16
 - [x] `admin-passkey-audit-log` — admin.passkey_added and admin.passkey_removed written to server_audit_log after successful RegisterPasskey and DeletePasskey; logAdminPasskeyAudit helper uses ulid, actor_type=admin per PART 11 shape — completed 2026-05-16
 - [x] `swagger-annotations-coverage` — Added @Router/@Summary/@Tags/@Param/@Success/@Failure annotations to auth_api.go (all 12 auth endpoints), passkey.go (5 endpoints), health.go (4 endpoints), user_public.go (6 endpoints), user_settings.go (3 token endpoints), twofa.go (6 endpoints). Pre-existing go vet IPv6 Dial format errors fixed in email.go, firstrun.go, smtp.go.
-- [ ] `idea-md-passkey-content-source` — Frontend rules (PART 16) say `/server/about` and `/server/help` content MUST come from `IDEA.md` and never from generic placeholders. Verify the help/about pages actually mention the new GraphQL passkey mutations.
+- [x] `idea-md-passkey-content-source` — Frontend rules (PART 16) say `/server/about` and `/server/help` content MUST come from `IDEA.md` and never from generic placeholders. Verify the help/about pages actually mention the new GraphQL passkey mutations. — completed 2026-05-17
 
 ## Verified Progress Notes
 
