@@ -389,7 +389,7 @@ func formatUptime(d time.Duration) string {
 
 func buildPublicHealthResponse(db *database.DB, startTime time.Time, c *gin.Context) (int, publicHealthResponse) {
 	cfg := config.GetGlobalConfig()
-	brandingTitle := "weather"
+	brandingTitle := "wthr"
 	brandingTagline := ""
 	brandingDescription := "Weather information service"
 	modeName := "production"

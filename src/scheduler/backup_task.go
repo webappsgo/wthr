@@ -90,7 +90,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 // Per AI.md PART 27 lines 24182-24188
 func RegisterBackupTask(s *Scheduler, enabled bool) {
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("weather")
+	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		log.Println("⚠️  Failed to get default paths for backup task")
 		return

@@ -75,7 +75,7 @@ func (ts *TorService) Start(httpPort int) error {
 		DataDir:         ts.dataDir,
 		// Show startup messages
 		NoHush:          false,
-		TempDataDirBase: filepath.Join(os.TempDir(), "weather-tor"),
+		TempDataDirBase: filepath.Join(os.TempDir(), "casapps", "wthr-tor"),
 		// Let bine pick available ports (avoids system Tor 9050/9051)
 		NoAutoSocksPort: false,
 		// ExePath is not set - bine will find 'tor' in PATH

@@ -24,7 +24,7 @@ func GetDirectoryPaths() (*DirectoryPaths, error) {
 	// TEMPLATE.md PART 3: Use {projectorg}/{projectname} pattern
 	// This creates paths like /etc/casapps/wthr/ instead of /etc/weather/
 	projectOrg := "casapps"
-	projectName := "weather"
+	projectName := "wthr"
 	projectPath := filepath.Join(projectOrg, projectName)
 
 	// Check if running as root/administrator
@@ -202,7 +202,7 @@ func GetAirportDataPath(paths *DirectoryPaths) string {
 
 // GetWeatherCachePath returns the full path to weather cache directory
 func GetWeatherCachePath(paths *DirectoryPaths) string {
-	return filepath.Join(paths.Cache, "weather")
+	return filepath.Join(paths.Cache, "wthr")
 }
 
 // GetTempPath returns the full path to temporary files directory
@@ -215,7 +215,7 @@ func GetTempPath() string {
 // GetTestDirectoryPaths returns directory paths for testing (uses temp directory)
 // This should be used by all tests to avoid polluting system directories
 func GetTestDirectoryPaths() (*DirectoryPaths, error) {
-	tempBase := filepath.Join(os.TempDir(), "casapps-wthr-test")
+	tempBase := filepath.Join(os.TempDir(), "casapps", "wthr-test")
 
 	paths := &DirectoryPaths{
 		Config: filepath.Join(tempBase, "config"),
