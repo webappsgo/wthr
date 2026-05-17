@@ -22,13 +22,13 @@ func NewPIDFile(dataDir string) *PIDFile {
 	if os.Geteuid() == 0 {
 		// Running as root - use /var/run or /run
 		if _, err := os.Stat("/run"); err == nil {
-			pidPath = "/run/weather.pid"
+			pidPath = "/run/casapps/wthr.pid"
 		} else {
-			pidPath = "/var/run/weather.pid"
+			pidPath = "/var/run/casapps/wthr.pid"
 		}
 	} else {
 		// Running as regular user - use data directory
-		pidPath = filepath.Join(dataDir, "weather.pid")
+		pidPath = filepath.Join(dataDir, "wthr.pid")
 	}
 
 	return &PIDFile{Path: pidPath}

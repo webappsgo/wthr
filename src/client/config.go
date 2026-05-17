@@ -230,18 +230,18 @@ func LoadConfigFromProfile(profile string) (*CLIConfig, error) {
 		}
 	}
 
-	// Apply environment variable overrides per AI.md line 45338-45345
-	// Pattern: WEATHER_{SECTION}_{KEY}
-	if v := os.Getenv("WEATHER_SERVER_PRIMARY"); v != "" {
+	// Apply environment variable overrides per AI.md PART 33
+	// Pattern: WTHR_{SECTION}_{KEY}
+	if v := os.Getenv("WTHR_SERVER_PRIMARY"); v != "" {
 		config.Server.Primary = v
 	}
-	if v := os.Getenv("WEATHER_TOKEN"); v != "" {
+	if v := os.Getenv("WTHR_TOKEN"); v != "" {
 		config.Auth.Token = v
 	}
-	if v := os.Getenv("WEATHER_OUTPUT_FORMAT"); v != "" {
+	if v := os.Getenv("WTHR_OUTPUT_FORMAT"); v != "" {
 		config.Output.Format = v
 	}
-	if os.Getenv("WEATHER_DEBUG") != "" {
+	if os.Getenv("WTHR_DEBUG") != "" {
 		config.Debug = true
 	}
 
@@ -263,8 +263,8 @@ func GetToken(flagToken, flagTokenFile string, config *CLIConfig) string {
 		}
 	}
 
-	// 3. Environment variable: WEATHER_TOKEN
-	if token := os.Getenv("WEATHER_TOKEN"); token != "" {
+	// 3. Environment variable: WTHR_TOKEN
+	if token := os.Getenv("WTHR_TOKEN"); token != "" {
 		return token
 	}
 

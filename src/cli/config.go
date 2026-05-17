@@ -37,7 +37,7 @@ admin:
 # Database Configuration
 database:
   driver: sqlite  # sqlite, postgres, mariadb, mysql, mssql, mongodb
-  path: "/var/lib/casapps/wthr/db/weather.db"
+  path: "/var/lib/casapps/wthr/db/server.db"
 
 # SSL/TLS Configuration
 ssl:

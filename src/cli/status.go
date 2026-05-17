@@ -120,6 +120,6 @@ func ShowStatusNotRunning() {
 	fmt.Println("Cluster:        disabled")
 	fmt.Println("Tor:            Unknown (server not running)")
 	fmt.Println()
-	fmt.Println("Use 'weather --service start' to start the server")
+	fmt.Println("Use 'wthr --service start' to start the server")
 	fmt.Println()
 }

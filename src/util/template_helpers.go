@@ -50,9 +50,9 @@ func TemplateData(c *gin.Context, data gin.H) gin.H {
 	if !exists {
 		// Fallback to defaults
 		serverCtx = map[string]string{
-			"Title":       "Weather Service",
-			"Tagline":     "Your personal weather dashboard",
-			"Description": "Weather information service",
+			"Title":       "wthr",
+			"Tagline":     "Global weather data, self-hosted",
+			"Description": "Unified weather platform: forecasts, alerts, earthquakes, hurricanes",
 			"Version":     "unknown",
 			"Keywords":    "weather, forecast, alerts, earthquakes, hurricanes",
 			"Author":      "casapps",

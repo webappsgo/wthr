@@ -76,7 +76,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 		if opts.Password != "" {
 			ext = ".tar.gz.enc"
 		}
-		opts.OutputPath = filepath.Join(opts.DataDir, "backup", fmt.Sprintf("weather_backup_%s%s", timestamp, ext))
+		opts.OutputPath = filepath.Join(opts.DataDir, "backup", fmt.Sprintf("wthr_backup_%s%s", timestamp, ext))
 	}
 
 	// Ensure backup directory exists

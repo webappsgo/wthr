@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -108,10 +109,10 @@ func checkForUpdates() error {
 
 	fmt.Println()
 	fmt.Println("To update:")
-	fmt.Println("  weather --update yes                  # Update to latest stable")
-	fmt.Println("  weather --update branch stable        # Update to stable branch")
-	fmt.Println("  weather --update branch beta          # Update to beta branch")
-	fmt.Println("  weather --update branch daily         # Update to daily build")
+	fmt.Println("  wthr --update yes                     # Update to latest stable")
+	fmt.Println("  wthr --update branch stable           # Update to stable branch")
+	fmt.Println("  wthr --update branch beta             # Update to beta branch")
+	fmt.Println("  wthr --update branch daily            # Update to daily build")
 
 	return nil
 }
@@ -148,7 +149,7 @@ func performUpdate(branch string) error {
 	}
 
 	// Find asset for current platform
-	assetName := fmt.Sprintf("weather-%s-%s", runtime.GOOS, runtime.GOARCH)
+	assetName := fmt.Sprintf("wthr-%s-%s", runtime.GOOS, runtime.GOARCH)
 	var downloadURL string
 	var assetSize int64
 
@@ -166,8 +167,12 @@ func performUpdate(branch string) error {
 
 	fmt.Printf("Downloading: %s (%.2f MB)\n", assetName, float64(assetSize)/(1024*1024))
 
-	// Download binary
-	tmpFile := "/tmp/weather-update"
+	// Download binary to org-namespaced temp path per AI.md PART 29
+	tmpDir := filepath.Join(os.TempDir(), "casapps")
+	if err := os.MkdirAll(tmpDir, 0700); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	tmpFile := filepath.Join(tmpDir, "wthr-update")
 	if err := downloadFile(tmpFile, downloadURL); err != nil {
 		return fmt.Errorf("failed to download: %w", err)
 	}
