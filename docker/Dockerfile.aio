@@ -29,7 +29,7 @@ ARG OFFICIALSITE=https://wthr.top
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIALSITE}'" \
-    -o weather ./src
+    -o wthr ./src
 
 # =============================================================================
 # Stage 2: Runtime image with PostgreSQL + Valkey + Tor
@@ -69,7 +69,7 @@ COPY docker/file_system/ /
 COPY docker/file_system/usr/local/bin/entrypoint-aio.sh /usr/local/bin/entrypoint.sh
 
 # Copy application binary from builder
-COPY --from=builder /build/weather /usr/local/bin/
+COPY --from=builder /build/wthr /usr/local/bin/
 RUN chmod +x /usr/local/bin/wthr /usr/local/bin/entrypoint.sh
 
 # Default environment
@@ -81,8 +81,8 @@ ENV MODE=production \
     DATABASE_DIR=/data/db/sqlite \
     PGDATA=/data/db/postgres \
     DB_HOST=/run/postgresql \
-    DB_NAME=weather \
-    DB_USER=weather \
+    DB_NAME=wthr \
+    DB_USER=wthr \
     VALKEY_SOCKET=/run/valkey/valkey.sock
 
 # Only expose app port - db/cache are internal
