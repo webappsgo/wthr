@@ -65,7 +65,7 @@ func (s *Service) IsEnabled() bool {
 // Per AI.md line 22787: "SMTP configured but invalid → Validate on save, reject invalid config"
 func (s *Service) validateSMTP() error {
 	// Try to connect to SMTP server
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+	addr := net.JoinHostPort(s.config.Host, fmt.Sprintf("%d", s.config.Port))
 
 	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
@@ -113,7 +113,7 @@ func (s *Service) Send(to []string, subject, body string) error {
 	auth := smtp.PlainAuth("", s.config.Username, s.config.Password, s.config.Host)
 
 	// Send email
-	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
+	addr := net.JoinHostPort(s.config.Host, fmt.Sprintf("%d", s.config.Port))
 	if err := smtp.SendMail(addr, auth, s.config.From, to, []byte(msg)); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}

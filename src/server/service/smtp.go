@@ -245,7 +245,7 @@ func (s *SMTPService) TestConnection(config *SMTPConfig) error {
 	}
 
 	// Try to connect
-	addr := fmt.Sprintf("%s:%s", config.Host, config.Port)
+	addr := net.JoinHostPort(config.Host, config.Port)
 
 	if config.UseTLS {
 		// TLS connection
@@ -303,7 +303,7 @@ func (s *SMTPService) SendEmail(to, subject, body string) error {
 	message += "\r\n" + body
 
 	// Send email
-	addr := fmt.Sprintf("%s:%s", s.config.Host, s.config.Port)
+	addr := net.JoinHostPort(s.config.Host, s.config.Port)
 
 	var auth smtp.Auth
 	if s.config.Username != "" && s.config.Password != "" {

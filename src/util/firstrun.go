@@ -141,7 +141,7 @@ func AutoDetectSMTP() (string, int) {
 	}{"host.docker.internal", 25})
 
 	for _, server := range smtpServers {
-		addr := fmt.Sprintf("%s:%d", server.Host, server.Port)
+		addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", server.Port))
 		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
 		if err == nil {
 			conn.Close()

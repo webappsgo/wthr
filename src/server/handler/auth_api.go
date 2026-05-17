@@ -711,6 +711,18 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 }
 
 // HandleAPILogin handles POST /api/v1/auth/login per AI.md PART 33
+// @Summary Login
+// @Description Authenticate with username/email and password. Returns session token or pending-2fa token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APILoginRequest true "Login credentials"
+// @Success 200 {object} map[string]interface{} "Login successful — session_token returned"
+// @Success 202 {object} map[string]interface{} "2FA required — pending session token returned"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Invalid credentials"
+// @Failure 403 {object} map[string]interface{} "Account disabled or suspended"
+// @Router /api/v1/auth/login [post]
 func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
 	var req APILoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -751,6 +763,17 @@ func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
 }
 
 // HandleAPIRegister handles POST /api/v1/auth/register per AI.md PART 33
+// @Summary Register
+// @Description Register a new user account. Requires open registration mode.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APIRegisterRequest true "Registration details"
+// @Success 201 {object} map[string]interface{} "Account created"
+// @Failure 400 {object} map[string]interface{} "Validation error"
+// @Failure 404 {object} map[string]interface{} "Registration disabled"
+// @Failure 409 {object} map[string]interface{} "Username or email already exists"
+// @Router /api/v1/auth/register [post]
 func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
 	var req APIRegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -791,6 +814,14 @@ func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
 }
 
 // HandleAPILogout handles POST /api/v1/auth/logout per AI.md PART 33
+// @Summary Logout
+// @Description Invalidate the current session token.
+// @Tags Auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Logged out"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/auth/logout [post]
 func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
 	session, ok := middleware.GetCurrentSession(c)
 	if !ok || session == nil {
@@ -816,6 +847,16 @@ func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
 }
 
 // HandleAPI2FA handles POST /api/v1/auth/2fa per AI.md PART 33
+// @Summary Complete 2FA
+// @Description Complete login with a TOTP code when 2FA is required.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body API2FARequest true "2FA request with pending session token and TOTP code"
+// @Success 200 {object} map[string]interface{} "Session token returned"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Invalid code or expired session"
+// @Router /api/v1/auth/2fa [post]
 func (h *AuthAPIHandler) HandleAPI2FA(c *gin.Context) {
 	var req API2FARequest
 
@@ -850,6 +891,16 @@ func (h *AuthAPIHandler) HandleAPI2FA(c *gin.Context) {
 }
 
 // HandleAPIRecoveryUse handles POST /api/v1/auth/recovery/use per AI.md PART 33
+// @Summary Login with recovery key
+// @Description Complete login using a one-time recovery key when 2FA device is unavailable.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APIRecoveryUseRequest true "Pending session token and recovery key"
+// @Success 200 {object} map[string]interface{} "Session token returned"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Invalid key or expired session"
+// @Router /api/v1/auth/recovery/use [post]
 func (h *AuthAPIHandler) HandleAPIRecoveryUse(c *gin.Context) {
 	var req APIRecoveryUseRequest
 
@@ -882,6 +933,14 @@ func (h *AuthAPIHandler) HandleAPIRecoveryUse(c *gin.Context) {
 }
 
 // HandleAPIRefresh handles POST /api/v1/auth/refresh per AI.md PART 33
+// @Summary Refresh session
+// @Description Extend the current session expiry and return a refreshed token.
+// @Tags Auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Refreshed session token"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/auth/refresh [post]
 func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
 	session, ok := middleware.GetCurrentSession(c)
 	if !ok || session == nil {
@@ -917,6 +976,15 @@ func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
 }
 
 // HandleAPIVerifyEmail handles POST /api/v1/auth/verify per AI.md PART 33
+// @Summary Verify email
+// @Description Verify a user's email address using the verification code sent by email.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APIVerifyEmailRequest true "Verification code"
+// @Success 200 {object} map[string]interface{} "Email verified"
+// @Failure 400 {object} map[string]interface{} "Bad request or invalid code"
+// @Router /api/v1/auth/verify [post]
 func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
 	var req APIVerifyEmailRequest
 
@@ -947,6 +1015,15 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
 }
 
 // HandleAPIPasswordForgot handles POST /api/v1/auth/password/forgot per AI.md PART 33
+// @Summary Request password reset
+// @Description Send a password reset email. Always returns 200 to prevent enumeration.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APIPasswordForgotRequest true "Email address"
+// @Success 200 {object} map[string]interface{} "Reset email sent (or silently skipped)"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Router /api/v1/auth/password/forgot [post]
 func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 	var req APIPasswordForgotRequest
 
@@ -978,6 +1055,15 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 }
 
 // HandleAPIPasswordReset handles POST /api/v1/auth/password/reset per AI.md PART 33
+// @Summary Reset password
+// @Description Complete password reset using the token from the reset email.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body APIPasswordResetRequest true "Reset token and new password"
+// @Success 200 {object} map[string]interface{} "Password reset successful"
+// @Failure 400 {object} map[string]interface{} "Bad request or expired token"
+// @Router /api/v1/auth/password/reset [post]
 func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
 	var req APIPasswordResetRequest
 
@@ -1008,6 +1094,15 @@ func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
 }
 
 // HandleAPIUserInviteValidate handles GET /api/v1/auth/invite/user/{token} per AI.md PART 33
+// @Summary Validate user invite
+// @Description Validate a user invite token before completion.
+// @Tags Auth
+// @Produce json
+// @Param token path string true "Invite token"
+// @Success 200 {object} map[string]interface{} "Invite is valid"
+// @Failure 400 {object} map[string]interface{} "Token required"
+// @Failure 410 {object} map[string]interface{} "Token expired or invalid"
+// @Router /api/v1/auth/invite/user/{token} [get]
 func (h *AuthAPIHandler) HandleAPIUserInviteValidate(c *gin.Context) {
 	response, err := ValidateAPIUserInvite(h.DB, c.Param("token"))
 	if err != nil {
@@ -1029,6 +1124,17 @@ func (h *AuthAPIHandler) HandleAPIUserInviteValidate(c *gin.Context) {
 }
 
 // HandleAPIUserInviteComplete handles POST /api/v1/auth/invite/user/{token} per AI.md PART 33
+// @Summary Complete user invite
+// @Description Accept a user invite and create the account.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param token path string true "Invite token"
+// @Param body body object true "Username and password"
+// @Success 201 {object} map[string]interface{} "Account created"
+// @Failure 400 {object} map[string]interface{} "Validation error"
+// @Failure 410 {object} map[string]interface{} "Token expired or invalid"
+// @Router /api/v1/auth/invite/user/{token} [post]
 func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required,min=3"`
@@ -1078,6 +1184,15 @@ func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
 }
 
 // HandleAPIServerInviteValidate handles GET /api/v1/auth/invite/server/{token}.
+// @Summary Validate admin invite
+// @Description Validate a server-admin invite token before completion.
+// @Tags Auth
+// @Produce json
+// @Param token path string true "Invite token"
+// @Success 200 {object} map[string]interface{} "Invite is valid"
+// @Failure 400 {object} map[string]interface{} "Token required"
+// @Failure 410 {object} map[string]interface{} "Token expired or invalid"
+// @Router /api/v1/auth/invite/server/{token} [get]
 func (h *AuthAPIHandler) HandleAPIServerInviteValidate(c *gin.Context) {
 	response, err := ValidateAPIServerInvite(c.Param("token"))
 	if err != nil {
@@ -1099,6 +1214,17 @@ func (h *AuthAPIHandler) HandleAPIServerInviteValidate(c *gin.Context) {
 }
 
 // HandleAPIServerInviteComplete handles POST /api/v1/auth/invite/server/{token}.
+// @Summary Complete admin invite
+// @Description Accept a server-admin invite and create the admin account.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param token path string true "Invite token"
+// @Param body body object true "Username and password"
+// @Success 201 {object} map[string]interface{} "Admin account created"
+// @Failure 400 {object} map[string]interface{} "Validation error"
+// @Failure 410 {object} map[string]interface{} "Token expired or invalid"
+// @Router /api/v1/auth/invite/server/{token} [post]
 func (h *AuthAPIHandler) HandleAPIServerInviteComplete(c *gin.Context) {
 	var req struct {
 		Username string `json:"username" binding:"required,min=3"`

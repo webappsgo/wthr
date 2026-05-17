@@ -8,7 +8,7 @@ This file is the repository-local mirror of the active task state so work can mo
 
 ## Bootstrap Items (from 2026-05-16 bootstrap run)
 
-- [ ] `.forgejo/workflows/` — Forgejo CI/CD files (build.yml, release.yml, security.yml, beta.yml, daily.yml, docker.yml) — spec requires all five providers; Forgejo missing
+- [x] `.forgejo/workflows/` — Forgejo CI/CD files (build.yml, release.yml, security.yml, beta.yml, daily.yml, docker.yml) — completed 2026-05-16
 - [ ] Verify `govulncheck` passes on current dependencies before next release
 - [ ] Verify test coverage meets 80% target for business logic (`make test`)
 
@@ -20,7 +20,7 @@ These pre-date the AI.md template sync and the GraphQL passkey work — they did
 - [ ] `admin-passkey-graphql-parity` — GraphQL schema/resolvers for admin passkeys (mirror of the user-side surface added in `wire-graphql-passkey-runtime`). Will require a gqlgen regen following the operational workflow recorded in this file's Verified Progress Notes.
 - [ ] `admin-passkey-ui` — `src/server/template/admin/admin_security.tmpl` has zero passkey references today; add a passkey management section parallel to the user-side `src/server/template/page/user/security.tmpl`.
 - [ ] `admin-passkey-audit-log` — Add `admin.passkey_added` / `admin.passkey_removed` events to `server_audit_log` (PART 11 already mentions `admin.mfa_*` for TOTP/WebAuthn enable-disable; new per-passkey events should follow the same shape).
-- [ ] `swagger-annotations-coverage` — PART 14 says "Both Swagger and GraphQL expose identical functionality" and the audit step in PART 0 requires Swagger to match the actual API. Today `src/swagger/annotations.go` is 58 lines with **zero `@Router` annotations**, so the OpenAPI spec served at `/api/{api_version}/openapi.json` is effectively empty. Add `@Router` annotations covering at minimum the routes mounted in `src/main.go` under `/api/v1/auth/*`, `/api/v1/users/*`, and `/api/v1/{admin_path}/*`.
+- [x] `swagger-annotations-coverage` — Added @Router/@Summary/@Tags/@Param/@Success/@Failure annotations to auth_api.go (all 12 auth endpoints), passkey.go (5 endpoints), health.go (4 endpoints), user_public.go (6 endpoints), user_settings.go (3 token endpoints), twofa.go (6 endpoints). Pre-existing go vet IPv6 Dial format errors fixed in email.go, firstrun.go, smtp.go.
 - [ ] `idea-md-passkey-content-source` — Frontend rules (PART 16) say `/server/about` and `/server/help` content MUST come from `IDEA.md` and never from generic placeholders. Verify the help/about pages actually mention the new GraphQL passkey mutations.
 
 ## Verified Progress Notes

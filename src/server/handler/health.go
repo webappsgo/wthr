@@ -158,6 +158,13 @@ type publicHealthResponse struct {
 }
 
 // HealthCheck handles GET /healthz with browser/html, CLI/text, and API/json negotiation.
+// @Summary Health status
+// @Description Public health status. Responds with HTML for browsers, plain text for CLI, JSON for API clients.
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Service healthy"
+// @Failure 503 {object} map[string]interface{} "Service unhealthy"
+// @Router /healthz [get]
 func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, c)
@@ -183,12 +190,25 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 
 // LivenessCheck handles GET /health — simple liveness probe per AI.md PART 13.
 // Returns 200 as long as the server process is alive, 503 only if startup panicked.
+// @Summary Liveness probe
+// @Description Kubernetes/container liveness probe. 200 = process alive.
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Alive"
+// @Router /health [get]
 func LivenessCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "alive"})
 }
 
 // ReadinessCheck handles GET /health/ready — readiness probe per AI.md PART 13.
 // Returns 503 until fully initialized and the database is reachable.
+// @Summary Readiness probe
+// @Description Kubernetes/container readiness probe. 200 = ready to serve traffic.
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Ready"
+// @Failure 503 {object} map[string]interface{} "Not ready"
+// @Router /health/ready [get]
 func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !IsInitialized() {
@@ -206,6 +226,13 @@ func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 
 // FullHealthCheck handles GET /health/full — comprehensive JSON status per AI.md PART 13.
 // Always returns JSON (same payload as /healthz with explicit JSON accept).
+// @Summary Full health status
+// @Description Comprehensive health status as JSON — includes DB, scheduler, GeoIP, Tor, cluster state.
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Full health payload"
+// @Failure 503 {object} map[string]interface{} "Service unhealthy"
+// @Router /health/full [get]
 func FullHealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, c)

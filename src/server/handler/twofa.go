@@ -190,6 +190,14 @@ func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *models.User, 
 }
 
 // GetTwoFactorStatus returns the 2FA status for the authenticated user (API endpoint)
+// @Summary Get 2FA status
+// @Description Get the current user's two-factor authentication status.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "2FA status"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/2fa [get]
 func (h *TwoFactorHandler) GetTwoFactorStatus(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -242,6 +250,14 @@ func (h *TwoFactorHandler) ShowSecurityPage(c *gin.Context) {
 }
 
 // SetupTwoFactor generates a TOTP secret and QR code for setup
+// @Summary Setup 2FA
+// @Description Generate a TOTP secret and QR code to begin 2FA enrollment.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "TOTP setup info with QR code"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/2fa/setup [get]
 func (h *TwoFactorHandler) SetupTwoFactor(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -269,6 +285,17 @@ func (h *TwoFactorHandler) SetupTwoFactor(c *gin.Context) {
 }
 
 // EnableTwoFactor verifies the TOTP code and enables 2FA for the user
+// @Summary Enable 2FA
+// @Description Verify TOTP code and enable two-factor authentication. Returns recovery keys.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "TOTP secret and verification code"
+// @Success 200 {object} map[string]interface{} "2FA enabled, recovery keys returned"
+// @Failure 400 {object} map[string]interface{} "Invalid code"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/2fa/enable [post]
 func (h *TwoFactorHandler) EnableTwoFactor(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -303,6 +330,17 @@ func (h *TwoFactorHandler) EnableTwoFactor(c *gin.Context) {
 }
 
 // DisableTwoFactor disables 2FA for the user
+// @Summary Disable 2FA
+// @Description Disable two-factor authentication. Requires current password.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "Current password"
+// @Success 200 {object} map[string]interface{} "2FA disabled"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Wrong password or not authenticated"
+// @Router /api/v1/users/security/2fa/disable [post]
 func (h *TwoFactorHandler) DisableTwoFactor(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -340,6 +378,17 @@ func (h *TwoFactorHandler) DisableTwoFactor(c *gin.Context) {
 
 // VerifyTwoFactorCode verifies a TOTP code for an authenticated user
 // This is used during sensitive operations, not during login
+// @Summary Verify TOTP code
+// @Description Verify a TOTP code for elevated trust within a session.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "TOTP code"
+// @Success 200 {object} map[string]interface{} "Code valid"
+// @Failure 400 {object} map[string]interface{} "Invalid code"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/2fa/verify [post]
 func (h *TwoFactorHandler) VerifyTwoFactorCode(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -367,6 +416,17 @@ func (h *TwoFactorHandler) VerifyTwoFactorCode(c *gin.Context) {
 }
 
 // RegenerateRecoveryKeys generates new recovery keys for a user
+// @Summary Regenerate recovery keys
+// @Description Invalidate existing recovery keys and generate new ones. Requires TOTP code.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object true "TOTP code"
+// @Success 200 {object} map[string]interface{} "New recovery keys"
+// @Failure 400 {object} map[string]interface{} "Invalid code"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/recovery/regenerate [post]
 func (h *TwoFactorHandler) RegenerateRecoveryKeys(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {

@@ -102,6 +102,14 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 // GetPublicProfile returns a public user profile
 // Route: GET /api/v1/public/users/:username
 // Per AI.md PART 34: Private profiles return 404 (not 403) to prevent existence leakage
+// @Summary Get public profile
+// @Description Get the public profile of a user by username.
+// @Tags User
+// @Produce json
+// @Param username path string true "Username"
+// @Success 200 {object} map[string]interface{} "Public user profile"
+// @Failure 404 {object} map[string]interface{} "User not found or profile is private"
+// @Router /api/v1/public/users/{username} [get]
 func (h *UserPublicHandler) GetPublicProfile(c *gin.Context) {
 	username := strings.ToLower(c.Param("username"))
 	var viewerUserID int64
@@ -302,6 +310,14 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 
 // GetCurrentUserAvatar returns the current user's avatar info
 // Route: GET /api/v1/users/avatar
+// @Summary Get avatar
+// @Description Get the current user's avatar info.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Avatar info"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/avatar [get]
 func (h *UserPublicHandler) GetCurrentUserAvatar(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -326,6 +342,16 @@ type UpdateAvatarRequest struct {
 
 // UpdateAvatarSettings updates the user's avatar settings (type and URL)
 // Route: PATCH /api/v1/users/avatar
+// @Summary Update avatar settings
+// @Description Update avatar type (gravatar/url/upload) and URL.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body UpdateAvatarRequest true "Avatar settings"
+// @Success 200 {object} map[string]interface{} "Updated avatar info"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/avatar [patch]
 func (h *UserPublicHandler) UpdateAvatarSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -354,6 +380,14 @@ func (h *UserPublicHandler) UpdateAvatarSettings(c *gin.Context) {
 
 // ResetAvatar resets the user's avatar to Gravatar
 // Route: DELETE /api/v1/users/avatar
+// @Summary Reset avatar
+// @Description Reset avatar to Gravatar default.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Avatar reset"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/avatar [delete]
 func (h *UserPublicHandler) ResetAvatar(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -372,6 +406,17 @@ func (h *UserPublicHandler) ResetAvatar(c *gin.Context) {
 // UploadAvatar handles avatar file upload
 // Route: POST /api/v1/users/avatar
 // Per AI.md PART 34: Max 2MB, PNG/JPG/GIF/WEBP/etc.
+// @Summary Upload avatar
+// @Description Upload an avatar image (max 2 MB, PNG/JPG/GIF/WEBP).
+// @Tags User
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Avatar image file"
+// @Success 200 {object} map[string]interface{} "Upload successful"
+// @Failure 400 {object} map[string]interface{} "Bad request or file too large"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/avatar [post]
 func (h *UserPublicHandler) UploadAvatar(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -471,6 +516,17 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 
 // ChangePassword allows authenticated user to change their password
 // Route: POST /api/v1/users/security/password
+// @Summary Change password
+// @Description Change the current user's password.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body ChangePasswordRequest true "Current and new password"
+// @Success 200 {object} map[string]interface{} "Password changed"
+// @Failure 400 {object} map[string]interface{} "Validation error"
+// @Failure 401 {object} map[string]interface{} "Wrong current password or not authenticated"
+// @Router /api/v1/users/security/password [post]
 func (h *UserPublicHandler) ChangePassword(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {

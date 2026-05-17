@@ -177,6 +177,14 @@ type AppearanceSettings struct {
 
 // GetSettings returns all user settings
 // Route: GET /api/v1/users/settings
+// @Summary Get user settings
+// @Description Get all settings for the current user (account, privacy, notifications, appearance).
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "User settings"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/settings [get]
 func (h *UserSettingsHandler) GetSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -202,6 +210,17 @@ type UpdateSettingsRequest struct {
 
 // UpdateSettings updates user settings (partial update)
 // Route: PATCH /api/v1/users/settings
+// @Summary Update user settings
+// @Description Update user settings (partial update — only include changed sections).
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body UpdateSettingsRequest true "Settings to update"
+// @Success 200 {object} map[string]interface{} "Updated settings"
+// @Failure 400 {object} map[string]interface{} "Validation error"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/settings [patch]
 func (h *UserSettingsHandler) UpdateSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -532,6 +551,17 @@ type CreateTokenRequest struct {
 
 // CreateToken creates a new API token for the user
 // Route: POST /api/v1/users/tokens
+// @Summary Create API token
+// @Description Create a named API token for programmatic access (max 5 per user).
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body CreateTokenRequest true "Token name"
+// @Success 201 {object} map[string]interface{} "Token created — plaintext token returned once"
+// @Failure 400 {object} map[string]interface{} "Validation error or token limit reached"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/tokens [post]
 func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -589,6 +619,16 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 
 // RevokeToken revokes an API token
 // Route: DELETE /api/v1/users/tokens/:id
+// @Summary Revoke API token
+// @Description Permanently revoke a user API token.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Token ID"
+// @Success 200 {object} map[string]interface{} "Token revoked"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Failure 404 {object} map[string]interface{} "Token not found"
+// @Router /api/v1/users/tokens/{id} [delete]
 func (h *UserSettingsHandler) RevokeToken(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -618,6 +658,14 @@ func (h *UserSettingsHandler) RevokeToken(c *gin.Context) {
 
 // ListTokens returns all tokens for the current user
 // Route: GET /api/v1/users/tokens
+// @Summary List API tokens
+// @Description List all API tokens for the current user.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Token list"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/tokens [get]
 func (h *UserSettingsHandler) ListTokens(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {

@@ -224,6 +224,14 @@ func (h *PasskeyHandler) passkeyLookup(rawID []byte, userHandle []byte) (webauth
 	return nil, fmt.Errorf("credential not found")
 }
 
+// @Summary List passkeys
+// @Description List all registered passkeys for the authenticated user.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Passkey list"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/passkeys [get]
 func (h *PasskeyHandler) ListPasskeys(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -254,6 +262,16 @@ func (h *PasskeyHandler) ListPasskeys(c *gin.Context) {
 	})
 }
 
+// @Summary Register passkey
+// @Description Begin WebAuthn passkey registration ceremony for the authenticated user.
+// @Tags User
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param body body object false "Optional passkey name"
+// @Success 200 {object} map[string]interface{} "WebAuthn creation options or success on completion"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Router /api/v1/users/security/passkeys [post]
 func (h *PasskeyHandler) RegisterPasskey(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -408,6 +426,16 @@ func (h *PasskeyHandler) finishPasskeyRegistration(c *gin.Context, user *models.
 	c.JSON(http.StatusOK, response)
 }
 
+// @Summary Delete passkey
+// @Description Delete a registered passkey by ID.
+// @Tags User
+// @Security BearerAuth
+// @Produce json
+// @Param passkey_id path string true "Passkey ID"
+// @Success 200 {object} map[string]interface{} "Passkey deleted"
+// @Failure 401 {object} map[string]interface{} "Not authenticated"
+// @Failure 404 {object} map[string]interface{} "Passkey not found"
+// @Router /api/v1/users/security/passkeys/{passkey_id} [delete]
 func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -437,6 +465,15 @@ func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 	})
 }
 
+// @Summary Begin passkey auth challenge
+// @Description Start WebAuthn authentication ceremony (login via passkey).
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body object false "Optional username hint"
+// @Success 200 {object} map[string]interface{} "WebAuthn request options"
+// @Failure 500 {object} map[string]interface{} "Server error"
+// @Router /api/v1/auth/passkey/challenge [post]
 func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 	var req passkeyChallengeRequest
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
@@ -521,6 +558,15 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 	})
 }
 
+// @Summary Verify passkey auth
+// @Description Complete WebAuthn authentication ceremony and return a session token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Session token returned"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Verification failed"
+// @Router /api/v1/auth/passkey/verify [post]
 func (h *PasskeyHandler) VerifyPasskey(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil || len(body) == 0 {
