@@ -9,7 +9,7 @@ This file is the repository-local mirror of the active task state so work can mo
 ## Bootstrap Items (from 2026-05-16 bootstrap run)
 
 - [x] `.forgejo/workflows/` — Forgejo CI/CD files (build.yml, release.yml, security.yml, beta.yml, daily.yml, docker.yml) — completed 2026-05-16
-- [ ] Verify `govulncheck` passes on current dependencies before next release
+- [x] Verify `govulncheck` passes on current dependencies before next release — 0 vulnerabilities in called code (4 in imported-but-uncalled packages) — verified 2026-05-18
 - [ ] Verify test coverage meets 80% target for business logic (`make test`)
 
 ## Pre-Existing Spec Gaps (Partially Closed)

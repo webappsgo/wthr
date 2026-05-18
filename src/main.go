@@ -749,6 +749,16 @@ func main() {
 		return weatherNotifications.CheckWeatherAlerts()
 	})
 
+	// Expire stale weather alerts from user_weather_alerts every 5 minutes
+	taskScheduler.AddTask("expire-weather-alerts", "@every 5m", func() error {
+		usersDB := database.GetUsersDB()
+		if usersDB == nil {
+			return nil
+		}
+		_, err := usersDB.Exec(`DELETE FROM user_weather_alerts WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`)
+		return err
+	})
+
 	// Register daily forecast - AI.md PART 19: run once per day at 7 AM
 	taskScheduler.AddTask("daily-forecast", "0 7 * * *", func() error {
 		return weatherNotifications.SendDailyForecast()
@@ -870,6 +880,18 @@ func main() {
 	earthquakeService := service.NewEarthquakeService()
 	hurricaneService := service.NewHurricaneService()
 	severeWeatherService := service.NewSevereWeatherService()
+
+	// Pre-warm earthquake cache every 1 minute (USGS feed per features-rules)
+	taskScheduler.AddTask("poll-earthquakes", "@every 1m", func() error {
+		_, _ = earthquakeService.GetEarthquakes("all_hour")
+		return nil
+	})
+
+	// Pre-warm hurricane cache every 15 minutes (NOAA NHC per features-rules)
+	taskScheduler.AddTask("poll-hurricanes", "@every 15m", func() error {
+		_, _ = hurricaneService.GetActiveStorms()
+		return nil
+	})
 
 	// Create handlers
 	weatherHandler := handler.NewWeatherHandler(weatherService, locationEnhancer)

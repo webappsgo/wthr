@@ -139,6 +139,21 @@ CREATE TABLE IF NOT EXISTS user_weather_alerts (
 CREATE INDEX IF NOT EXISTS idx_alerts_location ON user_weather_alerts(location_id);
 CREATE INDEX IF NOT EXISTS idx_alerts_expires ON user_weather_alerts(expires_at);
 
+-- Weather alert deduplication history (tracks which alerts have been sent to avoid re-notifying within 6 hours)
+CREATE TABLE IF NOT EXISTS user_weather_alert_history (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	location_id INTEGER NOT NULL,
+	alert_type TEXT NOT NULL,
+	sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	FOREIGN KEY (location_id) REFERENCES user_saved_locations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_alert_hist_user ON user_weather_alert_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_alert_hist_location ON user_weather_alert_history(location_id);
+CREATE INDEX IF NOT EXISTS idx_alert_hist_sent ON user_weather_alert_history(sent_at);
+
 -- User Notifications table (TEMPLATE.md Part 25: WebUI notifications)
 CREATE TABLE IF NOT EXISTS user_notifications (
 	id TEXT PRIMARY KEY,
