@@ -435,10 +435,7 @@ func (h *SSLHandler) SecurityScan(c *gin.Context) {
 
 // Helper: Get certificate information
 func (h *SSLHandler) getCertificateInfo() (*CertificateInfo, error) {
-	// In a real implementation, load certificate from file
-	// For now, return a placeholder
-
-	// Try to get cert from the local HTTPS server
+	// Connect to the local HTTPS server to read the active certificate
 	conn, err := tls.Dial("tcp", h.httpsAddr, &tls.Config{
 		InsecureSkipVerify: true,
 	})

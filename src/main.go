@@ -801,8 +801,28 @@ func main() {
 	})
 
 	// Register weather cache refresh - run every 15 minutes per IDEA.md
+	// Proactively fetches weather for all saved user locations to warm the in-process cache.
 	taskScheduler.AddTask("refresh-weather-cache", "@every 15m", func() error {
-		return scheduler.RefreshWeatherCache(db.DB)
+		usersDB := database.GetUsersDB()
+		if usersDB == nil {
+			return nil
+		}
+		rows, err := usersDB.Query(`SELECT DISTINCT latitude, longitude FROM user_locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 100`)
+		if err != nil {
+			return nil
+		}
+		defer rows.Close()
+		count := 0
+		for rows.Next() {
+			var lat, lon float64
+			if err := rows.Scan(&lat, &lon); err != nil {
+				continue
+			}
+			_, _ = weatherService.GetCurrentWeather(lat, lon, "metric")
+			count++
+		}
+		log.Printf("🌤️  Weather cache refreshed for %d location(s)", count)
+		return nil
 	})
 
 	// Register GeoIP database update - AI.md PART 19: weekly Sunday at 03:00
@@ -861,6 +881,7 @@ func main() {
 	hurricaneHandler := handler.NewHurricaneHandler(hurricaneService)
 	severeWeatherHandler := handler.NewSevereWeatherHandler(severeWeatherService, locationEnhancer, weatherService)
 	moonHandler := handler.NewMoonHandler(weatherService, locationEnhancer)
+	historyHandler := handler.NewHistoryHandler(weatherService, settingsModel)
 
 	// Create auth handlers
 	authHandler := &handler.AuthHandler{DB: db.DB}
@@ -1098,9 +1119,12 @@ func main() {
 	// /.well-known/acme-challenge/:token - Let's Encrypt HTTP-01 challenge (TEMPLATE.md Part 8)
 	r.GET("/.well-known/acme-challenge/:token", func(c *gin.Context) {
 		token := c.Param("token")
-		// This would retrieve the key authorization from the Let's Encrypt service
-		// For now, return a placeholder response
-		c.String(http.StatusOK, "ACME challenge token: %s", token)
+		keyAuth, ok := service.GetGlobalHTTP01Provider().GetKeyAuth(token)
+		if !ok {
+			c.String(http.StatusNotFound, "")
+			return
+		}
+		c.String(http.StatusOK, "%s", keyAuth)
 	})
 
 	// robots.txt endpoint
@@ -3595,6 +3619,9 @@ JSON API:
 	// Moon interface routes
 	r.GET("/moon", webHandler.ServeMoonInterface)
 	r.GET("/moon/:location", webHandler.ServeMoonInterface)
+
+	// Historical weather page
+	r.GET("/history", historyHandler.ShowHistory)
 
 	// Earthquake routes (plural per AI.md PART 14)
 	r.GET("/earthquakes", earthquakeHandler.HandleEarthquakeRequest)

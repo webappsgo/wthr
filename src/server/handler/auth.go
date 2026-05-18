@@ -196,9 +196,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			return
 		}
 
-		// No passkeys registered — issue a full admin session (existing
-		// behaviour, unchanged). 30 days default; remember-me support is
-		// not yet implemented.
+		// No passkeys registered — issue a full admin session. 30 days default.
 		cfg := config.GetGlobalConfig()
 		adminPath := "/" + cfg.GetAdminPath()
 

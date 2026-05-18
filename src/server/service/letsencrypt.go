@@ -17,7 +17,6 @@ import (
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/challenge/dns01"
-	"github.com/go-acme/lego/v4/challenge/http01"
 	"github.com/go-acme/lego/v4/challenge/tlsalpn01"
 	"github.com/go-acme/lego/v4/lego"
 	"github.com/go-acme/lego/v4/registration"
@@ -59,6 +58,16 @@ func (u *LEUser) GetRegistration() *registration.Resource {
 // GetPrivateKey returns user private key
 func (u *LEUser) GetPrivateKey() crypto.PrivateKey {
 	return u.key
+}
+
+// globalHTTP01Provider is the package-level singleton used by the gin route handler.
+// Initialized on first call to NewLetsEncryptService; safe for concurrent use.
+var globalHTTP01Provider = NewHTTP01Provider()
+
+// GetGlobalHTTP01Provider returns the singleton HTTP-01 challenge provider so that
+// the application server can serve /.well-known/acme-challenge/ responses.
+func GetGlobalHTTP01Provider() *HTTP01Provider {
+	return globalHTTP01Provider
 }
 
 // HTTP01Provider implements HTTP-01 challenge
@@ -238,8 +247,9 @@ func NewLetsEncryptService(email, certsDir string, staging bool) (*LetsEncryptSe
 		renewalDays: 7,
 	}
 
-	// Initialize challenge providers
-	service.http01Provider = NewHTTP01Provider()
+	// Initialize challenge providers (reuse the global HTTP-01 provider so the gin
+	// route handler at /.well-known/acme-challenge/ can serve the responses).
+	service.http01Provider = globalHTTP01Provider
 	service.tlsalpn01Provider = NewTLSALPN01Provider()
 	service.dns01Provider = NewDNS01Provider()
 
@@ -250,9 +260,11 @@ func NewLetsEncryptService(email, certsDir string, staging bool) (*LetsEncryptSe
 func (s *LetsEncryptService) SetupChallenges(challengeType string) error {
 	switch challengeType {
 	case "http-01":
-		// HTTP-01 challenge
-		provider := http01.NewProviderServer("", "80")
-		if err := s.client.Challenge.SetHTTP01Provider(provider); err != nil {
+		// HTTP-01 challenge: use our in-process provider so that the gin route at
+		// /.well-known/acme-challenge/ serves the key-authorization responses.
+		// Using lego's http01.NewProviderServer would bind a second listener on port 80
+		// which conflicts with the running app server.
+		if err := s.client.Challenge.SetHTTP01Provider(s.http01Provider); err != nil {
 			return fmt.Errorf("failed to setup HTTP-01: %w", err)
 		}
 

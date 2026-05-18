@@ -493,16 +493,6 @@ func createNotification(db *sql.DB, userID int, notifType, title, message, link 
 	}
 }
 
-// RefreshWeatherCache could refresh cached weather data
-func RefreshWeatherCache(db *sql.DB) error {
-	// This would refresh weather data cache for frequently accessed locations
-	// For now, it's a placeholder as weather data is fetched on-demand
-
-	log.Println("🌤️  Weather cache refresh (placeholder)")
-
-	return nil
-}
-
 // CreateSystemBackup creates a backup of the database
 // AI.md PART 19/25: backup_daily task - creates verified backups
 func CreateSystemBackup(db *sql.DB) error {

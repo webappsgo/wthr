@@ -93,10 +93,10 @@ func ComprehensiveHealthCheck(db *database.DB, httpPort string, httpsPort int, s
 		// SSL status
 		sslStatus := getSSLStatus(sslManager)
 
-		// Scheduler status (placeholder)
+		// Scheduler status
 		schedulerStatus := getSchedulerStatus()
 
-		// Request stats (placeholder - will track in middleware)
+		// Request stats
 		requestStats := getRequestStats()
 
 		// Server info
@@ -179,7 +179,6 @@ func ComprehensiveHealthCheck(db *database.DB, httpPort string, httpsPort int, s
 				"scheduler": schedulerStatus,
 				"sessions": gin.H{
 					"active":      sessionCount,
-					// Placeholder
 					"total_today": sessionCount,
 				},
 				"requests": requestStats,

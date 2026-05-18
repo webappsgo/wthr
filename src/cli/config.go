@@ -6,13 +6,10 @@ import (
 	"path/filepath"
 )
 
-// GenerateServerYML generates server.yml from current configuration
-// This is called at runtime to keep server.yml in sync with database settings
+// GenerateServerYML writes a default server.yml to configDir if none exists.
+// Called at first-run to ensure the server starts with a valid configuration file.
 func GenerateServerYML(configDir string) error {
 	configPath := filepath.Join(configDir, "server.yml")
-
-	// Read current settings from database (placeholder - actual implementation
-	// would query the settings table and format as YAML)
 
 	serverYML := `# Weather Configuration
 # This file is auto-generated from database settings
@@ -202,22 +199,9 @@ metrics:
   endpoint: /metrics
 `
 
-	// Write to file
 	if err := os.WriteFile(configPath, []byte(serverYML), 0644); err != nil {
 		return fmt.Errorf("failed to write server.yml: %w", err)
 	}
 
 	return nil
-}
-
-// SyncConfigFromDatabase reads settings from database and updates server.yml
-// This is called periodically to keep server.yml in sync with database
-func SyncConfigFromDatabase(configDir string, dbSettings map[string]string) error {
-	// This function would:
-	// 1. Read all settings from database
-	// 2. Generate YAML structure
-	// 3. Write to server.yml
-
-	// For now, just regenerate with defaults
-	return GenerateServerYML(configDir)
 }

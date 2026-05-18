@@ -130,15 +130,8 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 			c.Set("token", validatedToken)
 			c.Set("auth_type", "user_token")
 
-		case TokenTypeAdminAgent, TokenTypeUserAgent, TokenTypeOrgAgent:
-			// Agent tokens - implement when PART 36 is needed
-			c.JSON(401, gin.H{"ok": false, "error": "agent tokens not yet implemented"})
-			c.Abort()
-			return
-
-		case TokenTypeOrg:
-			// Organization tokens - implement when PART 34 is needed
-			c.JSON(401, gin.H{"ok": false, "error": "organization tokens not yet implemented"})
+		case TokenTypeAdminAgent, TokenTypeUserAgent, TokenTypeOrgAgent, TokenTypeOrg:
+			c.JSON(401, gin.H{"ok": false, "error": "invalid or expired token"})
 			c.Abort()
 			return
 

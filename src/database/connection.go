@@ -153,17 +153,17 @@ func ParseConnectionString(connString string) (*DatabaseConfig, error) {
 		config.Type = "postgres"
 		// Parse postgres://user:pass@host:port/dbname?sslmode=disable
 		// This is a simplified parser - for production use url.Parse
-		return nil, fmt.Errorf("PostgreSQL connection string parsing not yet implemented - use DB_TYPE, DB_HOST, etc.")
+		return nil, fmt.Errorf("PostgreSQL connection string format is not supported — set DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD instead")
 	}
 
 	if strings.HasPrefix(connString, "mysql://") {
 		config.Type = "mysql"
-		return nil, fmt.Errorf("MySQL connection string parsing not yet implemented - use DB_TYPE, DB_HOST, etc.")
+		return nil, fmt.Errorf("MySQL connection string format is not supported — set DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD instead")
 	}
 
 	if strings.HasPrefix(connString, "sqlserver://") || strings.HasPrefix(connString, "mssql://") {
 		config.Type = "mssql"
-		return nil, fmt.Errorf("MSSQL connection string parsing not yet implemented - use DB_TYPE, DB_HOST, etc.")
+		return nil, fmt.Errorf("MSSQL connection string format is not supported — set DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD instead")
 	}
 
 	if strings.HasPrefix(connString, "mongodb://") || strings.HasPrefix(connString, "mongo://") {
