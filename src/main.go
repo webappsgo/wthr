@@ -2324,6 +2324,8 @@ func main() {
 
 		// Password change per AI.md PART 34
 		usersAPI.POST("/security/password", userPublicHandler.ChangePassword)
+		usersAPI.POST("/security/email", userPublicHandler.ChangeEmail)
+		usersAPI.DELETE("/account", userPublicHandler.DeleteAccount)
 	}
 
 	// Note: 2FA routes already registered under usersAPI (/users/security/2fa/*)

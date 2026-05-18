@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	models "github.com/casapps/wthr/src/server/model"
 	"github.com/casapps/wthr/src/server/middleware"
 	"github.com/casapps/wthr/src/util"
 
@@ -550,4 +551,99 @@ func (h *UserPublicHandler) ChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
+
+// ChangeEmail allows an authenticated user to change their email address.
+// The new email is marked unverified until the user completes email verification.
+func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
+	user, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	var req struct {
+		NewEmail        string `json:"new_email" binding:"required,email"`
+		CurrentPassword string `json:"current_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify current password before allowing email change
+	var passwordHash string
+	if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
+		return
+	}
+	valid, err := utils.VerifyPassword(req.CurrentPassword, passwordHash)
+	if err != nil || !valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	// Check the new email is not already in use
+	var existing int64
+	_ = h.DB.QueryRow(`SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
+	if existing != 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "Email address is already in use"})
+		return
+	}
+
+	// Update email and mark as unverified until re-verified
+	if _, err := h.DB.Exec(
+		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		req.NewEmail, user.ID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update email"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Email address updated. Please verify your new email address."})
+}
+
+// DeleteAccount permanently deletes the authenticated user's account.
+// Requires current password and the literal string "DELETE" as confirmation.
+func (h *UserPublicHandler) DeleteAccount(c *gin.Context) {
+	user, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		Confirm         string `json:"confirm" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Confirm != "DELETE" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": `Confirmation must be the exact string "DELETE"`})
+		return
+	}
+
+	// Verify password before allowing deletion
+	var passwordHash string
+	if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
+		return
+	}
+	valid, err := utils.VerifyPassword(req.CurrentPassword, passwordHash)
+	if err != nil || !valid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	// Delete the account (cascades to sessions, preferences, locations, etc.)
+	userModel := &models.UserModel{DB: h.DB}
+	if err := userModel.Delete(user.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})
 }
