@@ -70,7 +70,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 		opts.DataDir = s.dataDir
 	}
 	if opts.OutputPath == "" {
-		// Filename format per AI.md PART 25 line 22386: weather_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
+		// Filename format per AI.md PART 22 line 22386: wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
 		timestamp := time.Now().Format("2006-01-02_150405")
 		ext := ".tar.gz"
 		if opts.Password != "" {
@@ -463,7 +463,7 @@ func (s *BackupService) decrypt(data []byte, password string) ([]byte, error) {
 // Retention policy: keep last 4 backups (default)
 func (s *BackupService) cleanupOldBackups(backupDir string, maxBackups int) error {
 	// List all backup files
-	files, err := filepath.Glob(filepath.Join(backupDir, "weather_backup_*.tar.gz*"))
+	files, err := filepath.Glob(filepath.Join(backupDir, "wthr_backup_*.tar.gz*"))
 	if err != nil {
 		return err
 	}

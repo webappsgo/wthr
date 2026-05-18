@@ -235,7 +235,7 @@ func CreateBackup(c *gin.Context) {
 	// This should call the CLI backup function from src/cli/maintenance.go
 
 	timestamp := time.Now().Format("20060102-150405")
-	filename := "weather-backup-" + timestamp + ".tar.gz"
+	filename := "wthr-backup-" + timestamp + ".tar.gz"
 
 	RespondSuccess(c, "Backup created successfully", map[string]interface{}{
 		"filename": filename,

@@ -4057,7 +4057,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	fmt.Println("   --version       Show version information")
 	fmt.Println("   --healthcheck   Run health check (for Docker)")
 	fmt.Println("   --port PORT     Override PORT environment variable")
-	fmt.Println("   --data DIR      Data directory (will store weather.db)")
+	fmt.Println("   --data DIR      Data directory (will store server.db)")
 	fmt.Println("   --config DIR    Configuration directory")
 	fmt.Println("   --address ADDR  Override server listen address")
 

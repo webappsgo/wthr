@@ -23,7 +23,7 @@ type LogsHandler struct {
 func NewLogsHandler(logsDir string) *LogsHandler {
 	return &LogsHandler{
 		logsDir: logsDir,
-		logFile: filepath.Join(logsDir, "weather.log"),
+		logFile: filepath.Join(logsDir, "wthr.log"),
 	}
 }
 

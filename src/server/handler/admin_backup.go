@@ -182,7 +182,7 @@ func listBackups(backupDir string) ([]BackupInfo, error) {
 	}
 
 	// List files
-	files, err := filepath.Glob(filepath.Join(backupDir, "weather_backup_*.tar.gz*"))
+	files, err := filepath.Glob(filepath.Join(backupDir, "wthr_backup_*.tar.gz*"))
 	if err != nil {
 		return nil, err
 	}

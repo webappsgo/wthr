@@ -192,6 +192,24 @@ func TokenPath() (string, error) {
 	return CLITokenFile(), nil
 }
 
+// checkSensitiveFilePerms checks that a file containing credentials is not
+// world- or group-readable. Per AI.md PART 33: if perms are too loose, warn
+// on stderr and return an error so the caller skips using the token.
+// On Windows the mode bits are not meaningful; ACL inheritance handles access.
+func checkSensitiveFilePerms(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		fmt.Fprintf(os.Stderr, "warning: %s has insecure permissions (%v); "+
+			"token will not be loaded. Run: chmod 0600 %s\n",
+			path, info.Mode().Perm(), path)
+		return fmt.Errorf("insecure file permissions on %s", path)
+	}
+	return nil
+}
+
 // LoadConfig loads the configuration from the default config file
 func LoadConfig() (*CLIConfig, error) {
 	return LoadConfigFromProfile("")
@@ -218,15 +236,20 @@ func LoadConfigFromProfile(profile string) (*CLIConfig, error) {
 	// Start with defaults
 	config := DefaultConfig()
 
-	// If config exists, load it
+	// If config exists, load it — but check permissions first per AI.md PART 33
 	if _, err := os.Stat(configPath); err == nil {
-		data, err := os.ReadFile(configPath)
-		if err != nil {
-			return nil, NewConfigError(fmt.Sprintf("failed to read config: %v", err))
-		}
+		if permErr := checkSensitiveFilePerms(configPath); permErr != nil {
+			// Permissions too loose: skip loading token from config, warn already printed
+			config.Auth.Token = ""
+		} else {
+			data, err := os.ReadFile(configPath)
+			if err != nil {
+				return nil, NewConfigError(fmt.Sprintf("failed to read config: %v", err))
+			}
 
-		if err := yaml.Unmarshal(data, config); err != nil {
-			return nil, NewConfigError(fmt.Sprintf("failed to parse config: %v", err))
+			if err := yaml.Unmarshal(data, config); err != nil {
+				return nil, NewConfigError(fmt.Sprintf("failed to parse config: %v", err))
+			}
 		}
 	}
 
@@ -273,11 +296,13 @@ func GetToken(flagToken, flagTokenFile string, config *CLIConfig) string {
 		return config.Auth.Token
 	}
 
-	// 5. Default token file: {config_dir}/token
+	// 5. Default token file: {config_dir}/token (check perms per AI.md PART 33)
 	tokenPath, err := TokenPath()
 	if err == nil {
-		if data, err := os.ReadFile(tokenPath); err == nil {
-			return strings.TrimSpace(string(data))
+		if checkSensitiveFilePerms(tokenPath) == nil {
+			if data, err := os.ReadFile(tokenPath); err == nil {
+				return strings.TrimSpace(string(data))
+			}
 		}
 	}
 

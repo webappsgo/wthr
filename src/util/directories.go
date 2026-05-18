@@ -167,7 +167,7 @@ func isRoot() bool {
 
 // GetDatabasePath returns the full path to the SQLite database file
 func GetDatabasePath(paths *DirectoryPaths) string {
-	return filepath.Join(paths.Data, "db", "weather.db")
+	return filepath.Join(paths.Data, "db", "server.db")
 }
 
 // GetDatabaseDir returns the directory containing database files
