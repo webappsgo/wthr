@@ -555,7 +555,7 @@ func createSystemUser() error {
 	case "freebsd", "openbsd", "netbsd":
 		return createBSDUser()
 	default:
-		return fmt.Errorf("user creation not implemented for %s", runtime.GOOS)
+		return fmt.Errorf("service install is not supported on %s", runtime.GOOS)
 	}
 }
 

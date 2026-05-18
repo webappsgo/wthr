@@ -47,11 +47,7 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 const adminSessionCookieName = "admin_session"
 
 // AdminPasskeyHandler hosts the gin REST routes for admin-side WebAuthn
-// passkey management (registration, listing, deletion). Login challenge /
-// verify routes for admin-as-passkey-login are intentionally not in this
-// file yet — the existing admin login flow does not yet have a 2FA stage,
-// and adding one is tracked separately (see TODO.AI.md
-// `admin-passkey-login-integration`).
+// passkey management (registration, listing, and deletion).
 type AdminPasskeyHandler struct {
 	DB *sql.DB
 }

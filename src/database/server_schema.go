@@ -364,7 +364,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_name ON server_metrics(metric_name);
 CREATE INDEX IF NOT EXISTS idx_metrics_recorded ON server_metrics(recorded_at);
 CREATE INDEX IF NOT EXISTS idx_metrics_node ON server_metrics(node_id);
 
--- Reserved domain mapping table (currently unused; PART 36 is not implemented)
+-- Custom domain mapping table (PART 36 — not enabled for this project)
 CREATE TABLE IF NOT EXISTS custom_domains (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	domain TEXT UNIQUE NOT NULL,

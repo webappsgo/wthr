@@ -358,7 +358,7 @@ func (r *mutationResolver) RegenerateUserRecoveryKeys(ctx context.Context, code 
 // prelude.resolvers.go template bug, so the regen is currently blocked. The
 // schema entry, the resolver method, and the supporting helpers in
 // src/server/handler/passkey_helpers.go all exist and compile; they will
-// activate as soon as the regen runs cleanly. See TODO.AI.md.
+// activate as soon as the regen runs cleanly.
 func (r *mutationResolver) BeginUserPasskeyRegistration(ctx context.Context, name string, password string) (*PasskeyRegistrationOptions, error) {
 	user, err := loadGraphQLCurrentUserAuth(ctx, r.UsersDB)
 	if err != nil {

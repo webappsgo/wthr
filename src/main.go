@@ -707,9 +707,7 @@ func main() {
 		// Update global config for handlers
 		config.SetGlobalConfig(cfg)
 
-		// Note: Port changes would require graceful restart (not implemented yet)
-		// For now, port changes require manual restart
-
+		// Port changes require a manual restart to take effect.
 		log.Println("✅ All configuration sections reloaded (branding, SEO, theme, email, notifications, rate limiting, web, Tor, features)")
 		fmt.Println("✅ All configuration sections reloaded successfully")
 

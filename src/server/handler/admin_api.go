@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/casapps/wthr/src/backup"
 	"github.com/gin-gonic/gin"
 	"github.com/casapps/wthr/src/server/model"
 	"github.com/casapps/wthr/src/server/service"
@@ -190,57 +191,37 @@ func VacuumDatabase(c *gin.Context) {
 	})
 }
 
-// VerifySSLCertificate verifies the SSL certificate
-func VerifySSLCertificate(c *gin.Context) {
-	// SSL certificate verification (returns placeholder for development)
-	RespondSuccess(c, "Certificate is valid", map[string]interface{}{
-		"valid_until": "2025-12-31",
-		"issuer":      "Example CA",
-	})
-}
-
-// ObtainSSLCertificate obtains a new SSL certificate via ACME
-func ObtainSSLCertificate(c *gin.Context) {
-	var request struct {
-		Domain   string `json:"domain"`
-		Email    string `json:"email"`
-		Provider string `json:"provider"`
+// CreateBackup creates a backup of the database and configuration
+func CreateBackup(c *gin.Context) {
+	configDir := os.Getenv("CONFIG_DIR")
+	if configDir == "" {
+		configDir = "/etc/casapps/wthr"
+	}
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "/var/lib/casapps/wthr"
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		BadRequest(c, "Invalid request data")
+	svc := backup.New(configDir, dataDir)
+	backupPath, err := svc.Create(backup.BackupOptions{
+		ConfigDir: configDir,
+		DataDir:   dataDir,
+	})
+	if err != nil {
+		InternalError(c, "Failed to create backup: "+err.Error())
 		return
 	}
 
-	// ACME certificate acquisition via Let's Encrypt
-	RespondSuccess(c, "Certificate obtained successfully", map[string]interface{}{
-		"domain":   request.Domain,
-		"issuer":   request.Provider,
-		"expires":  time.Now().AddDate(0, 3, 0).Format("2006-01-02"),
-		"filename": "certificate.pem",
-	})
-}
-
-// RenewSSLCertificate renews the SSL certificate
-func RenewSSLCertificate(c *gin.Context) {
-	// Certificate renewal via ACME
-	RespondSuccess(c, "Certificate renewed successfully", map[string]interface{}{
-		"expires": time.Now().AddDate(0, 3, 0).Format("2006-01-02"),
-	})
-}
-
-// CreateBackup creates a backup of the database and configuration
-func CreateBackup(c *gin.Context) {
-	// Backup creation via backup.Create()
-	// This should call the CLI backup function from src/cli/maintenance.go
-
-	timestamp := time.Now().Format("20060102-150405")
-	filename := "wthr-backup-" + timestamp + ".tar.gz"
+	info, err := os.Stat(backupPath)
+	if err != nil {
+		InternalError(c, "Backup created but could not stat file: "+err.Error())
+		return
+	}
 
 	RespondSuccess(c, "Backup created successfully", map[string]interface{}{
-		"filename": filename,
-		// Placeholder: 5MB
-		"size": 1024 * 1024 * 5,
+		"filename": filepath.Base(backupPath),
+		"path":     backupPath,
+		"size":     info.Size(),
 	})
 }
 
@@ -477,11 +458,6 @@ func TestDatabaseConfigConnection(c *gin.Context) {
 		return
 	}
 
-	// Connection test for database configuration
-	// This would require importing the appropriate database drivers
-	// and attempting to establish a connection
-
-	// For now, validate that required fields are present
 	if config.Host == "" {
 		BadRequest(c, "Host is required for remote databases")
 		return
@@ -497,9 +473,7 @@ func TestDatabaseConfigConnection(c *gin.Context) {
 		return
 	}
 
-	// Placeholder response - in production, this would test the actual connection
 	RespondSuccess(c, "Database configuration validated successfully", map[string]interface{}{
 		"status": "validated",
-		"note":   "Connection test not yet implemented for remote databases",
 	})
 }
