@@ -71,7 +71,7 @@ func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 
 		// No admin, setup token exists, no verified cookie - show token entry form at /admin
 		// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token
-		title := "Weather Service"
+		title := "Weather"
 		cfgLoaded, _ := config.LoadConfig()
 		if cfgLoaded != nil && cfgLoaded.Server.Branding.Title != "" {
 			title = cfgLoaded.Server.Branding.Title

@@ -323,7 +323,7 @@ func (h *LocationHandler) ShowAddLocationPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "page/add_location.tmpl", utils.TemplateData(c, gin.H{
-		"title": "Add Location - Weather Service",
+		"title": "Add Location - Weather",
 		"user":  user,
 		"page":  "locations",
 	}))
@@ -356,7 +356,7 @@ func (h *LocationHandler) ShowEditLocationPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "page/edit_location.tmpl", utils.TemplateData(c, gin.H{
-		"title":    "Edit Location - Weather Service",
+		"title":    "Edit Location - Weather",
 		"user":     user,
 		"location": location,
 		"page":     "locations",

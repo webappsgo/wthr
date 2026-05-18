@@ -177,7 +177,7 @@ const graphiQLHTML = `<!DOCTYPE html>
         root.render(
             React.createElement(GraphiQL, {
                 fetcher: fetcher,
-                defaultQuery: '# Welcome to GraphQL API for Weather Service\n# Try this example query:\n\n{\n  health {\n    status\n    version\n    uptime\n  }\n  weather(location: "London") {\n    location {\n      name\n      latitude\n      longitude\n      country\n    }\n    temperature\n    humidity\n    wind_speed\n  }\n}'
+                defaultQuery: '# Welcome to GraphQL API for Weather\n# Try this example query:\n\n{\n  health {\n    status\n    version\n    uptime\n  }\n  weather(location: "London") {\n    location {\n      name\n      latitude\n      longitude\n      country\n    }\n    temperature\n    humidity\n    wind_speed\n  }\n}'
             })
         );
     </script>

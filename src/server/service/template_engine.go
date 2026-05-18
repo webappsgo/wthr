@@ -250,7 +250,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 			{{.Body}}
 		</div>
 		<div class="footer">
-			<p>Sent from Weather Service at {{now.Format "2006-01-02 15:04:05"}}</p>
+			<p>Sent from Weather at {{now.Format "2006-01-02 15:04:05"}}</p>
 		</div>
 	</div>
 </body>
@@ -340,7 +340,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 			<p>Have a great day! 🌈</p>
 		</div>
 		<div class="footer">
-			<p>Weather Service • {{now.Format "Monday, January 2, 2006"}}</p>
+			<p>Weather • {{now.Format "Monday, January 2, 2006"}}</p>
 		</div>
 	</div>
 </body>
@@ -354,7 +354,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 			ChannelType:     "email",
 			TemplateName:    "welcome",
 			TemplateType:    "account",
-			SubjectTemplate: "Welcome to Weather Service, {{.Name}}!",
+			SubjectTemplate: "Welcome to Weather, {{.Name}}!",
 			BodyTemplate: `
 <html>
 <head>
@@ -371,7 +371,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 <body>
 	<div class="container">
 		<div class="header">
-			<h1>Welcome to Weather Service! 🌤️</h1>
+			<h1>Welcome to Weather! 🌤️</h1>
 		</div>
 		<div class="content">
 			<p>Hi {{.Name}},</p>
@@ -391,7 +391,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 
 			<p>Need help getting started? Check out our <a href="{{.HelpURL}}">help center</a>.</p>
 
-			<p>Happy weather tracking!<br>The Weather Service Team</p>
+			<p>Happy weather tracking!<br>The Weather Team</p>
 		</div>
 	</div>
 </body>
@@ -405,7 +405,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 			ChannelType:     "email",
 			TemplateName:    "password_reset",
 			TemplateType:    "account",
-			SubjectTemplate: "Reset Your Password - Weather Service",
+			SubjectTemplate: "Reset Your Password - Weather",
 			BodyTemplate: `
 <html>
 <head>
@@ -426,7 +426,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 		</div>
 		<div class="content">
 			<p>Hi {{.Name}},</p>
-			<p>We received a request to reset your password for your Weather Service account.</p>
+			<p>We received a request to reset your password for your Weather account.</p>
 
 			{{if .ResetURL}}
 			<p style="text-align: center;">
@@ -556,7 +556,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 		"color": 6737151,
 		"timestamp": "{{now.Format "2006-01-02T15:04:05Z07:00"}}",
 		"footer": {
-			"text": "Weather Service"
+			"text": "Weather"
 		}
 	}]
 }`,

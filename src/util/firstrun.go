@@ -188,7 +188,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 			"port":    80,
 			"address": "::",
 			"branding": map[string]interface{}{
-				"title":       "Weather Service",
+				"title":       "Weather",
 				"description": "Professional weather tracking and forecasting service with real-time updates, severe weather alerts, earthquake monitoring, and moon phase tracking",
 				"tagline":     "Your reliable weather companion",
 				"logo_url":    "",
@@ -196,7 +196,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 			},
 			"seo": map[string]interface{}{
 				"keywords":      []string{"weather", "forecast", "alerts", "tracking", "severe weather", "earthquakes", "moon phases"},
-				"author":        "Weather Service",
+				"author":        "Weather",
 				"canonical_url": "",
 				"og_image":      "",
 			},
@@ -211,7 +211,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 				"username":  "",
 				"password":  "",
 				"from":      config.DefaultEmailAddress("noreply", nil),
-				"from_name": "Weather Service",
+				"from_name": "Weather",
 				"use_tls":   false,
 			},
 			"notifications": map[string]interface{}{
@@ -249,7 +249,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 	}
 
 	// Write to file
-	header := "# Weather Service Configuration\n"
+	header := "# Weather Configuration\n"
 	header += "# Auto-generated on first run: " + time.Now().Format(time.RFC3339) + "\n"
 	header += "# SMTP auto-detected: " + smtpHost + ":" + fmt.Sprintf("%d", smtpPort) + "\n\n"
 

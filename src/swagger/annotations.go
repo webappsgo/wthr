@@ -4,12 +4,12 @@ package swagger
 // These annotations are used by swag to auto-generate OpenAPI specification
 // Generate with: swag init -g src/main.go --output src/swagger/docs
 
-// @title Weather Service API
+// @title Weather API
 // @version 1.0
 // @description Professional weather tracking and forecasting service with real-time updates, severe weather alerts, earthquake monitoring, and moon phase tracking.
 // @termsOfService https://github.com/casapps/wthr
 
-// @contact.name Weather Service Support
+// @contact.name Weather Support
 // @contact.url https://github.com/casapps/wthr
 // @contact.email support@example.com
 

@@ -1,4 +1,4 @@
-site_name: Weather Service
+site_name: wthr
 site_url: https://casapps-wthr.readthedocs.io
 site_description: "Production-grade weather API providing global forecasts, severe weather alerts, earthquake data, moon phases, and hurricane tracking"
 site_author: casapps
@@ -83,7 +83,7 @@ markdown_extensions:
   - pymdownx.magiclink:
       repo_url_shorthand: true
       user: casapps
-      repo: weather
+      repo: wthr
   - pymdownx.mark
   - pymdownx.smartsymbols
   - pymdownx.superfences:
@@ -106,6 +106,8 @@ nav:
     - API Reference: api.md
     - CLI Reference: cli.md
     - Admin Panel: admin.md
+    - Integrations: integrations.md
+  - Security: security.md
   - Development:
     - Contributing: development.md
 

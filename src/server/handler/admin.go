@@ -622,7 +622,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 	settings := make(map[string]interface{})
 
 	// Server settings
-	settings["server_title"] = settingsModel.GetString("server.title", "Weather Service")
+	settings["server_title"] = settingsModel.GetString("server.title", "Weather")
 	settings["server_tagline"] = settingsModel.GetString("server.tagline", "Your personal weather dashboard")
 	settings["server_description"] = settingsModel.GetString("server.description", "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.")
 	settings["server_port"] = settingsModel.GetInt("server.port", 64580)
@@ -669,7 +669,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 	settings["smtp_username"] = settingsModel.GetString("smtp.username", "")
 	settings["smtp_password"] = settingsModel.GetString("smtp.password", "")
 	settings["smtp_from_address"] = settingsModel.GetString("smtp.from_address", "")
-	settings["smtp_from_name"] = settingsModel.GetString("smtp.from_name", "Weather Service")
+	settings["smtp_from_name"] = settingsModel.GetString("smtp.from_name", "Weather")
 	settings["smtp_use_tls"] = settingsModel.GetBool("smtp.use_tls", true)
 
 	// Rate limiting settings

@@ -1,6 +1,6 @@
 package main
 
-// Weather Service - Main entry point
+// Weather - Main entry point
 // Per AI.md: Swagger annotations moved to src/swagger/annotations.go
 
 import (
@@ -370,7 +370,7 @@ func main() {
 		// Set default from_name to server.title if not set
 		fromName := settingsModel.GetString("smtp.from_name", "")
 		if fromName == "" {
-			serverTitle := settingsModel.GetString("server.title", "Weather Service")
+			serverTitle := settingsModel.GetString("server.title", "Weather")
 			settingsModel.SetString("smtp.from_name", serverTitle)
 		}
 	}
@@ -4011,7 +4011,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Display status
 	fmt.Println("\n╔══════════════════════════════════════════════════════╗")
-	fmt.Println("║          🌤️  Weather Service - Status              ║")
+	fmt.Println("║          🌤️  Weather - Status              ║")
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 
 	fmt.Printf("\n🏥 Health Status: %s\n", healthStatus)

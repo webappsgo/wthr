@@ -237,7 +237,7 @@ func installSystemdService() error {
 	}
 
 	serviceContent := `[Unit]
-Description=Wthr - Weather Service
+Description=Wthr Weather
 Documentation=https://github.com/casapps/wthr
 After=network.target
 
@@ -403,7 +403,7 @@ func installWindowsService() error {
 	}
 
 	// Set service description
-	runCommand("nssm", "set", "wthr", "Description", "Wthr - Weather Service")
+	runCommand("nssm", "set", "wthr", "Description", "Wthr Weather")
 
 	// Set startup type to automatic
 	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
@@ -601,7 +601,7 @@ func createMacOSUser() error {
 		}
 	}
 	runCommand("dscl", ".", "-create", "/Groups/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
-	runCommand("dscl", ".", "-create", "/Groups/wthr", "RealName", "Weather Service")
+	runCommand("dscl", ".", "-create", "/Groups/wthr", "RealName", "Weather")
 
 	// Create user
 	if err := runCommand("dscl", ".", "-create", "/Users/wthr"); err != nil {
@@ -610,7 +610,7 @@ func createMacOSUser() error {
 	runCommand("dscl", ".", "-create", "/Users/wthr", "UniqueID", fmt.Sprintf("%d", uid))
 	runCommand("dscl", ".", "-create", "/Users/wthr", "PrimaryGroupID", fmt.Sprintf("%d", uid))
 	runCommand("dscl", ".", "-create", "/Users/wthr", "UserShell", "/usr/bin/false")
-	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather Service")
+	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather")
 	runCommand("dscl", ".", "-create", "/Users/wthr", "NFSHomeDirectory", "/var/empty")
 
 	fmt.Println("✓ Created system user 'wthr'")

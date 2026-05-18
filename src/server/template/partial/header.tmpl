@@ -2,7 +2,7 @@
 <header class="site-header">
     <div class="container">
         <div class="header-content">
-            <h1 class="site-logo">Weather Service</h1>
+            <h1 class="site-logo">{{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</h1>
         </div>
     </div>
 </header>

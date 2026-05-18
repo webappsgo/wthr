@@ -163,7 +163,7 @@ func (s *SMTPService) LoadConfig() error {
 	if fromName == "" {
 		fromName = os.Getenv("SMTP_FROM_NAME")
 		if fromName == "" {
-			fromName = "Weather Service"
+			fromName = "Weather"
 		}
 	}
 
@@ -320,12 +320,12 @@ func (s *SMTPService) SendEmail(to, subject, body string) error {
 
 // SendTestEmail sends a test email
 func (s *SMTPService) SendTestEmail(to string) error {
-	subject := "Weather Service SMTP Test"
+	subject := "Weather SMTP Test"
 	body := `
 	<html>
 	<body>
 		<h2>SMTP Test Successful</h2>
-		<p>This is a test email from Weather Service notification system.</p>
+		<p>This is a test email from Weather notification system.</p>
 		<p>If you received this email, your SMTP configuration is working correctly.</p>
 		<p><strong>Configuration:</strong></p>
 		<ul>

@@ -37,7 +37,7 @@ func InjectServerContext(db *sql.DB, version string) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		// Get server settings
-		title := settingsModel.GetString("server.title", "Weather Service")
+		title := settingsModel.GetString("server.title", "Weather")
 		tagline := settingsModel.GetString("server.tagline", "Your personal weather dashboard")
 		description := settingsModel.GetString("server.description", "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.")
 
@@ -97,7 +97,7 @@ func GetServerContext(c *gin.Context) (ServerContext, bool) {
 	serverCtx, exists := c.Get("server")
 	if !exists {
 		return ServerContext{
-			Title:       "Weather Service",
+			Title:       "Weather",
 			Tagline:     "Your personal weather dashboard",
 			Description: "Weather information service",
 			Version:     "unknown",

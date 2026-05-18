@@ -93,7 +93,7 @@ func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *models.User) (
 		return nil, fmt.Errorf("two-factor authentication is already enabled")
 	}
 
-	secret, qrCodeDataURL, err := utils.GenerateTOTPSecret(user.Email, "Weather Service")
+	secret, qrCodeDataURL, err := utils.GenerateTOTPSecret(user.Email, "Weather")
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate 2FA secret")
 	}
@@ -101,9 +101,9 @@ func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *models.User) (
 	return &TwoFactorSetupResponse{
 		Secret:    secret,
 		QRCode:    qrCodeDataURL,
-		ManualURL: utils.GenerateOTPAuthURL(user.Email, secret, "Weather Service"),
+		ManualURL: utils.GenerateOTPAuthURL(user.Email, secret, "Weather"),
 		Account:   user.Email,
-		Issuer:    "Weather Service",
+		Issuer:    "Weather",
 	}, nil
 }
 

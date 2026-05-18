@@ -636,7 +636,7 @@ func createDefaultConfig(cfg *AppConfig, path string) error {
 
 	// Add header comment
 	header := `# =============================================================================
-# Weather Service Configuration (AI.md PART 4)
+# Weather Configuration (AI.md PART 4)
 # =============================================================================
 # This file was auto-generated on first run with sane defaults.
 # Edit as needed and restart the service to apply changes.

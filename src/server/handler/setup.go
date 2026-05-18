@@ -40,7 +40,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 		adminPath = "/" + cfg.GetAdminPath()
 	}
 
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
@@ -141,7 +141,7 @@ func (h *SetupHandler) VerifySetupToken(c *gin.Context) {
 // AI.md: Setup wizard step - create Primary Admin
 func (h *SetupHandler) ShowAdminSetup(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
@@ -162,7 +162,7 @@ func (h *SetupHandler) setupError(c *gin.Context, status int, errorMsg string) {
 
 	// HTML form submission - re-render form with error
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
@@ -425,7 +425,7 @@ func generateSessionID() (string, error) {
 // AI.md: Setup wizard Step 2 - API Token auto-generated, user MUST copy
 func (h *SetupHandler) ShowAPIToken(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
@@ -459,7 +459,7 @@ func (h *SetupHandler) ProcessAPIToken(c *gin.Context) {
 // AI.md: Setup wizard Step 3 - Server Configuration
 func (h *SetupHandler) ShowServerConfig(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	defaultDomain := ""
 	defaultMode := "production"
 	defaultTimezone := "UTC"
@@ -534,7 +534,7 @@ func (h *SetupHandler) ProcessServerConfig(c *gin.Context) {
 // AI.md: Setup wizard Step 4 - Security Settings
 func (h *SetupHandler) ShowSecurity(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}
@@ -602,7 +602,7 @@ func (h *SetupHandler) ProcessSecurity(c *gin.Context) {
 // AI.md: Setup wizard Step 5 - Optional Services
 func (h *SetupHandler) ShowServices(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	title := "Weather Service"
+	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
 	}

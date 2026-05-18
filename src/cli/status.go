@@ -27,7 +27,7 @@ type StatusCommand struct {
 
 // Execute runs the status command
 func (s *StatusCommand) Execute() error {
-	fmt.Println("Weather Service - Server Status")
+	fmt.Println("Weather - Server Status")
 	fmt.Println()
 
 	// Server Status
@@ -113,7 +113,7 @@ func formatDuration(d time.Duration) string {
 // ShowStatusNotRunning shows status when server is not running
 // This allows --status to work even when server is down
 func ShowStatusNotRunning() {
-	fmt.Println("Weather Service - Server Status")
+	fmt.Println("Weather - Server Status")
 	fmt.Println()
 	fmt.Println("Server Status:  Stopped")
 	fmt.Println("Node:           standalone")

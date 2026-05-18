@@ -196,7 +196,7 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"preferences": true,
 				"analytics":   false,
 			},
-			"data_collection": "Weather Service collects minimal data necessary to provide weather information. Location data is used solely for delivering location-specific weather forecasts and alerts.",
+			"data_collection": "Weather collects minimal data necessary to provide weather information. Location data is used solely for delivering location-specific weather forecasts and alerts.",
 			"data_retention":  "Session data is retained for the duration of your session. Saved locations are retained until you delete them. Server logs are rotated and deleted per the configured retention policy.",
 			"third_parties":   []string{"Open-Meteo (weather data)", "USGS (earthquake data)", "NOAA (hurricane/alert data)"},
 			"contact":         "/server/contact",
@@ -263,11 +263,11 @@ func GetTermsAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"title":        "Terms of Service",
 			"last_updated": BuildDate,
 			"sections": []gin.H{
-				{"title": "Acceptance of Terms", "content": "By accessing or using Weather Service, you agree to be bound by these terms. If you do not agree, do not use the service."},
-				{"title": "Description of Service", "content": "Weather Service provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and moon phase information through a web interface and API."},
+				{"title": "Acceptance of Terms", "content": "By accessing or using Weather, you agree to be bound by these terms. If you do not agree, do not use the service."},
+				{"title": "Description of Service", "content": "Weather provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and moon phase information through a web interface and API."},
 				{"title": "Acceptable Use", "content": "You may use the service for lawful purposes. You must not attempt to disrupt the service, circumvent rate limits, or use the service to harm others."},
 				{"title": "Data Accuracy", "content": "Weather data is sourced from third-party providers (Open-Meteo, USGS, NOAA). We do not guarantee the accuracy, completeness, or timeliness of data. Do not rely solely on this service for safety-critical decisions."},
-				{"title": "Limitation of Liability", "content": "Weather Service is provided as-is without warranty. We are not liable for any damages arising from use of the service or reliance on data provided."},
+				{"title": "Limitation of Liability", "content": "Weather is provided as-is without warranty. We are not liable for any damages arising from use of the service or reliance on data provided."},
 				{"title": "Changes to Terms", "content": "We may update these terms at any time. Continued use after changes constitutes acceptance of new terms."},
 			},
 		})

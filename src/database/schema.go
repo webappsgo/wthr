@@ -391,7 +391,7 @@ var DefaultSettings = map[string]string{
 	"smtp.password":       "",
 	// SMTP_FROM_ADDRESS env var
 	"smtp.from_address":   "",
-	"smtp.from_name":      "Weather Service",
+	"smtp.from_name":      "Weather",
 	"smtp.use_tls":        "true",
 	// Auto-enable on successful test
 	"smtp.auto_enable":    "true",

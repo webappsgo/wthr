@@ -24,7 +24,7 @@ func RequireAdminAuth() gin.HandlerFunc {
 		if err == nil && cfg.Server.Branding.Title != "" {
 			title = cfg.Server.Branding.Title
 		} else {
-			title = "Weather Service"
+			title = "Weather"
 		}
 
 		// Get version from main package
@@ -110,7 +110,7 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Load config for branding and HTTPS detection
 		cfg, _ := config.LoadConfig()
-		title := "Weather Service"
+		title := "Weather"
 		if cfg != nil && cfg.Server.Branding.Title != "" {
 			title = cfg.Server.Branding.Title
 		}

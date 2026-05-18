@@ -310,7 +310,7 @@ func ServeLoadingPage(c *gin.Context) {
 Services Initialization:
   [%s] Countries Database
   [%s] Cities Database
-  [%s] Weather Service
+  [%s] Weather
 
 Uptime: %s
 

@@ -113,7 +113,7 @@ func (sm *SSLManager) GenerateSelfSignedCert(domain string) error {
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Weather Service"},
+			Organization: []string{"Weather"},
 			CommonName:   domain,
 		},
 		NotBefore:             time.Now(),

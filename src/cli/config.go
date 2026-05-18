@@ -14,14 +14,14 @@ func GenerateServerYML(configDir string) error {
 	// Read current settings from database (placeholder - actual implementation
 	// would query the settings table and format as YAML)
 
-	serverYML := `# Weather Service Configuration
+	serverYML := `# Weather Configuration
 # This file is auto-generated from database settings
 # Edit via admin panel at /admin/settings
 # Last updated: AUTO_GENERATED
 
 # Server Configuration
 server:
-  title: "Weather Service"
+  title: "Weather"
   tagline: "Production-grade weather API server"
   description: "Global weather forecasts, alerts, and tracking"
   port: 80
@@ -85,7 +85,7 @@ smtp:
   username: ""
   password: ""
   from_address: "noreply@example.com"
-  from_name: "Weather Service"
+  from_name: "Weather"
   use_tls: true
   test_recipient: ""
 

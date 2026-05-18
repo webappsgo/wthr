@@ -181,9 +181,9 @@ func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresA
 
 	// Email sending via SMTP service
 	/*
-	subject := "Admin Invitation - Weather Service"
+	subject := "Admin Invitation - Weather"
 
-	body := fmt.Sprintf(`You have been invited to become an administrator of the Weather Service.
+	body := fmt.Sprintf(`You have been invited to become an administrator of the Weather.
 
 Click the link below to accept the invitation and create your admin account:
 
@@ -194,7 +194,7 @@ This invitation will expire in %d minutes.
 If you did not request this invitation, please ignore this email.
 
 ---
-Weather Service
+Weather
 `, inviteURL, minutesRemaining)
 
 	// Use email service to send

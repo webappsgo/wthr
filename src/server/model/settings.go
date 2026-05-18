@@ -196,7 +196,7 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 
 	defaults := map[string]Setting{
 		// Server settings
-		"server.title":         {Value: "Weather Service", Type: "string", Description: "Application display name shown in the header and page titles"},
+		"server.title":         {Value: "Weather", Type: "string", Description: "Application display name shown in the header and page titles"},
 		"server.tagline":       {Value: "Your personal weather dashboard", Type: "string", Description: "Short subtitle or slogan displayed under the title"},
 		"server.description":   {Value: "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.", Type: "string", Description: "Full description shown on about page and in meta tags"},
 		"server.port":          {Value: "64580", Type: "number", Description: "Server listen port (requires restart to apply)"},
@@ -229,7 +229,7 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 		"security.hiring":          {Value: "", Type: "string", Description: "URL to security job postings (optional)"},
 
 		// Web frontend settings (app.* are aliases for server.* for consistency)
-		"app.name":        {Value: "Weather Service", Type: "string", Description: "Alias for server.title - Application display name"},
+		"app.name":        {Value: "Weather", Type: "string", Description: "Alias for server.title - Application display name"},
 		"app.tagline":     {Value: "Your personal weather dashboard", Type: "string", Description: "Alias for server.tagline - Short subtitle"},
 		"app.description": {Value: "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.", Type: "string", Description: "Alias for server.description - Full description"},
 
