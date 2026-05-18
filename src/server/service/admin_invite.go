@@ -23,22 +23,21 @@ var adminInviteExpirations = map[string]time.Duration{
 
 // AdminInviteService handles admin invitation logic
 type AdminInviteService struct {
-	DB          *sql.DB
-	InviteModel *models.AdminInviteModel
-	AdminModel  *models.AdminModel
-	// EmailService integration available when SMTP is configured
-	// Application base URL for invite links
-	BaseURL string
+	DB           *sql.DB
+	InviteModel  *models.AdminInviteModel
+	AdminModel   *models.AdminModel
+	EmailService *SMTPService
+	BaseURL      string
 }
 
 // NewAdminInviteService creates a new admin invite service
-func NewAdminInviteService(db *sql.DB, baseURL string) *AdminInviteService {
+func NewAdminInviteService(db *sql.DB, baseURL string, emailService *SMTPService) *AdminInviteService {
 	return &AdminInviteService{
-		DB:          db,
-		InviteModel: &models.AdminInviteModel{DB: db},
-		AdminModel:  &models.AdminModel{DB: db},
-		// EmailService: emailService,
-		BaseURL: baseURL,
+		DB:           db,
+		InviteModel:  &models.AdminInviteModel{DB: db},
+		AdminModel:   &models.AdminModel{DB: db},
+		EmailService: emailService,
+		BaseURL:      baseURL,
 	}
 }
 
@@ -102,13 +101,12 @@ func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expirat
 	}
 
 	// Send invitation email when SMTP is configured
-	// if s.EmailService != nil {
-	// 	inviteURL := fmt.Sprintf("%s/admin/invite/accept?token=%s", s.BaseURL, token)
-	// 	err = s.sendInviteEmail(email, inviteURL, invite.ExpiresAt)
-	// 	if err != nil {
-	// 		fmt.Printf("Warning: Failed to send invite email to %s: %v\n", email, err)
-	// 	}
-	// }
+	if s.EmailService != nil && s.EmailService.IsEnabled() {
+		inviteURL := fmt.Sprintf("%s/auth/invite/server/%s", s.BaseURL, invite.Token)
+		if err := s.sendInviteEmail(normalizedEmail, inviteURL, invite.ExpiresAt); err != nil {
+			fmt.Printf("Warning: failed to send invite email to %s: %v\n", normalizedEmail, err)
+		}
+	}
 
 	return invite, normalizedExpiration, nil
 }
@@ -171,19 +169,12 @@ func (s *AdminInviteService) CleanupExpiredInvites() error {
 	return s.InviteModel.DeleteExpiredInvites()
 }
 
-// sendInviteEmail sends an invitation email
-// Re-enable when SMTP service is configured
+// sendInviteEmail sends an admin invitation email via the configured SMTP service.
 func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresAt time.Time) error {
-	_ = toEmail
-	_ = inviteURL
 	minutesRemaining := int(time.Until(expiresAt).Minutes())
-	_ = minutesRemaining
 
-	// Email sending via SMTP service
-	/*
 	subject := "Admin Invitation - Weather"
-
-	body := fmt.Sprintf(`You have been invited to become an administrator of the Weather.
+	body := fmt.Sprintf(`You have been invited to become an administrator of the Weather instance at %s.
 
 Click the link below to accept the invitation and create your admin account:
 
@@ -195,15 +186,9 @@ If you did not request this invitation, please ignore this email.
 
 ---
 Weather
-`, inviteURL, minutesRemaining)
+`, s.BaseURL, inviteURL, minutesRemaining)
 
-	// Use email service to send
-	// Note: This assumes EmailService has a Send method
-	// In real implementation, this would use the actual email service
-	fmt.Printf("Sending invite email to %s\nInvite URL: %s\n", toEmail, inviteURL)
-	*/
-
-	return nil
+	return s.EmailService.SendEmail(toEmail, subject, body)
 }
 
 // RevokeInvite revokes a pending invite

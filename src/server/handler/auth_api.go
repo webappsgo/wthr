@@ -676,7 +676,7 @@ func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, err
 		return nil, fmt.Errorf("Token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetServerDB(), "")
+	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
 	invite, err := inviteService.VerifyInvite(token)
 	if err != nil {
 		return nil, err
@@ -694,7 +694,7 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 		return nil, fmt.Errorf("Token required")
 	}
 
-	inviteService := service.NewAdminInviteService(database.GetServerDB(), "")
+	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
 	admin, err := inviteService.AcceptInvite(token, username, password)
 	if err != nil {
 		return nil, err

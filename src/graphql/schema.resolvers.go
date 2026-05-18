@@ -989,7 +989,7 @@ func (r *mutationResolver) AdminInviteServerAdmin(ctx context.Context, email str
 		expiration = strings.TrimSpace(*expiresIn)
 	}
 
-	inviteService := service.NewAdminInviteService(r.ServerDB, "")
+	inviteService := service.NewAdminInviteService(r.ServerDB, "", nil)
 	invite, normalizedExpiration, err := inviteService.CreateInvite(email, int(currentAdmin.ID), expiration)
 	if err != nil {
 		return nil, err

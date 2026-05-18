@@ -872,7 +872,7 @@ func main() {
 	adminHandler := &handler.AdminHandler{DB: db.DB}
 	serverDB := database.GetServerDB()
 	adminPasskeyHandler := handler.NewAdminPasskeyHandler(serverDB)
-	adminInviteService := service.NewAdminInviteService(serverDB, "")
+	adminInviteService := service.NewAdminInviteService(serverDB, "", smtpService)
 	userInviteModel := &models.UserInviteModel{DB: database.GetUsersDB()}
 	locationHandler := &handler.LocationHandler{
 		DB:               db.DB,
