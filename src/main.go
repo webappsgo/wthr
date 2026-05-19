@@ -341,6 +341,10 @@ func main() {
 		fmt.Printf("✅ Cache enabled (Redis/Valkey)\n")
 	}
 
+	// LDAP authentication service per AI.md PART 11
+	ldapService := service.NewLDAPService(db.DB)
+	ldapAuthHandler := &handler.LDAPAuthHandler{DB: db.DB, LDAPService: ldapService}
+
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
 	smtpService := service.NewSMTPService(db.DB)
 	if err := smtpService.LoadConfig(); err == nil {
@@ -1615,9 +1619,7 @@ func main() {
 	})
 
 	// LDAP authentication route (public)
-	r.POST("/auth/ldap", func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"error": "LDAP authentication not yet configured"})
-	})
+	r.POST("/auth/ldap", ldapAuthHandler.Login)
 
 	// User routes (require authentication) - per AI.md PART 14: /users/ is plural
 	usersRoutes := r.Group("/users")

@@ -910,10 +910,12 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 	// 24-hour expiry
 	expiresAt := time.Now().Add(24 * time.Hour)
 
+	tokenHash := HashAPIToken(token)
+
 	result, err := database.GetUsersDB().Exec(`
 		INSERT INTO user_email_verifications (user_id, token, email, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, token, email, expiresAt)
+	`, userID, tokenHash, email, expiresAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create verification: %w", err)
@@ -943,7 +945,7 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 		SELECT id, user_id, token, email, created_at, expires_at, used_at
 		FROM user_email_verifications
 		WHERE token = ?
-	`, token).Scan(
+	`, HashAPIToken(token)).Scan(
 		&verification.ID,
 		&verification.UserID,
 		&verification.Token,
@@ -973,7 +975,7 @@ func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 		UPDATE user_email_verifications
 		SET used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
-	`, token)
+	`, HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark verification as used: %w", err)
@@ -1012,10 +1014,12 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 	// 1-hour expiry
 	expiresAt := time.Now().Add(1 * time.Hour)
 
+	tokenHash := HashAPIToken(token)
+
 	result, err := database.GetUsersDB().Exec(`
 		INSERT INTO user_password_resets (user_id, token, created_at, expires_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, token, expiresAt)
+	`, userID, tokenHash, expiresAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reset: %w", err)
@@ -1044,7 +1048,7 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 		SELECT id, user_id, token, created_at, expires_at, used_at
 		FROM user_password_resets
 		WHERE token = ?
-	`, token).Scan(
+	`, HashAPIToken(token)).Scan(
 		&reset.ID,
 		&reset.UserID,
 		&reset.Token,
@@ -1073,7 +1077,7 @@ func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 		UPDATE user_password_resets
 		SET used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
-	`, token)
+	`, HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark reset as used: %w", err)
@@ -1266,10 +1270,12 @@ func (m *UserInviteModel) CreateInvite(username, email, role string, expiresInDa
 
 	expiresAt := time.Now().Add(time.Duration(expiresInDays) * 24 * time.Hour)
 
+	tokenHash := HashAPIToken(token)
+
 	result, err := m.getDB().Exec(`
 		INSERT INTO user_invites (code, email, invited_by, created_at, expires_at, used_by, used_at, max_uses, use_count, username, role)
 		VALUES (?, ?, NULL, CURRENT_TIMESTAMP, ?, NULL, NULL, 1, 0, ?, ?)
-	`, token, email, expiresAt, username, role)
+	`, tokenHash, email, expiresAt, username, role)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)
@@ -1308,7 +1314,7 @@ func (m *UserInviteModel) GetByToken(token string) (*UserInvite, error) {
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
 		FROM user_invites
 		WHERE code = ?
-	`, token).Scan(
+	`, HashAPIToken(token)).Scan(
 		&invite.ID,
 		&invite.Token,
 		&invite.Username,
@@ -1416,7 +1422,7 @@ func (m *UserInviteModel) MarkUsed(token string, usedBy int64) error {
 		UPDATE user_invites
 		SET used_by = ?, used_at = datetime('now'), use_count = use_count + 1
 		WHERE code = ?
-	`, usedBy, token)
+	`, usedBy, HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark invite used: %w", err)

@@ -652,10 +652,12 @@ func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn
 
 	expiresAt := time.Now().Add(expiresIn)
 
+	tokenHash := HashAPIToken(token)
+
 	result, err := database.GetServerDB().Exec(`
 		INSERT INTO server_admin_invites (token, invited_email, invited_by, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, token, email, invitedBy, expiresAt)
+	`, tokenHash, email, invitedBy, expiresAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)
@@ -686,7 +688,7 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 		SELECT id, token, invited_email, invited_by, created_at, expires_at, used_by, used_at
 		FROM server_admin_invites
 		WHERE token = ?
-	`, token).Scan(
+	`, HashAPIToken(token)).Scan(
 		&invite.ID,
 		&invite.Token,
 		&invite.InvitedEmail,
@@ -721,7 +723,7 @@ func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
 		UPDATE server_admin_invites
 		SET used_by = ?, used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
-	`, usedBy, token)
+	`, usedBy, HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark invite as used: %w", err)

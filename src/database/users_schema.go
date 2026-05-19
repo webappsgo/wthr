@@ -71,18 +71,20 @@ CREATE INDEX IF NOT EXISTS idx_tokens_expires ON user_tokens(expires_at);
 
 -- User Sessions table (web sessions for regular users)
 CREATE TABLE IF NOT EXISTS user_sessions (
-	id TEXT PRIMARY KEY,
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
-	data TEXT,
-	expires_at DATETIME NOT NULL,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	session_id TEXT UNIQUE NOT NULL,
 	ip_address TEXT,
 	user_agent TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	expires_at DATETIME NOT NULL,
+	last_used_at DATETIME,
 	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_id ON user_sessions(session_id);
 
 -- User Invites table (for invite-only registration)
 CREATE TABLE IF NOT EXISTS user_invites (
@@ -146,7 +148,7 @@ CREATE TABLE IF NOT EXISTS user_weather_alert_history (
 	location_id INTEGER NOT NULL,
 	alert_type TEXT NOT NULL,
 	sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
 	FOREIGN KEY (location_id) REFERENCES user_saved_locations(id) ON DELETE CASCADE
 );
 

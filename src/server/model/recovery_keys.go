@@ -3,36 +3,33 @@ package models
 import (
 	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/util"
 )
 
-// RecoveryKey represents a 2FA recovery key
-// TEMPLATE.md Part 31: 10 one-time recovery keys when 2FA enabled
+// RecoveryKey represents a 2FA recovery key per AI.md PART 34.
+// Format: {8-hex-chars}-{4-hex-chars} e.g. a1b2c3d4-e5f6
 type RecoveryKey struct {
-	ID        int       `json:"id"`
-	UserID    int       `json:"user_id"`
-	// Never expose hash
-	KeyHash   string    `json:"-"`
+	ID        int        `json:"id"`
+	UserID    int        `json:"user_id"`
+	KeyHash   string     `json:"-"` // SHA-256 hash — never exposed
 	UsedAt    *time.Time `json:"used_at,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
-// RecoveryKeyModel handles recovery key database operations
+// RecoveryKeyModel handles recovery key database operations.
 type RecoveryKeyModel struct {
 	DB *sql.DB
 }
 
-// GenerateRecoveryKeys generates 10 recovery keys for a user
-// Format: XXXX-XXXX-XXXX-XXXX (16 alphanumeric characters)
-// Returns the plain-text keys (shown only once) and error
+// GenerateRecoveryKeys generates 10 one-time recovery keys for a user per AI.md PART 34.
+// Keys are formatted as {8-hex-chars}-{4-hex-chars} (e.g. a1b2c3d4-e5f6).
+// Each key is SHA-256 hashed before storage; plain-text keys are returned once.
 func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
-	// Delete any existing keys for this user
 	if err := m.DeleteAllForUser(userID); err != nil {
 		return nil, fmt.Errorf("failed to delete existing keys: %w", err)
 	}
@@ -40,30 +37,20 @@ func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
 	keys := make([]string, 10)
 
 	for i := 0; i < 10; i++ {
-		// Generate random 12-byte key (16 chars base64)
-		keyBytes := make([]byte, 12)
-		if _, err := rand.Read(keyBytes); err != nil {
+		raw := make([]byte, 6) // 6 bytes = 12 hex chars
+		if _, err := rand.Read(raw); err != nil {
 			return nil, fmt.Errorf("failed to generate random key: %w", err)
 		}
-
-		// Encode to base64 and format
-		encoded := base64.RawStdEncoding.EncodeToString(keyBytes)
-		// Format as XXXX-XXXX-XXXX-XXXX
-		formatted := formatRecoveryKey(encoded[:16])
+		h := hex.EncodeToString(raw) // 12 lowercase hex chars
+		formatted := h[0:8] + "-" + h[8:12]
 		keys[i] = formatted
 
-		// Hash the key for storage (using Argon2id per TEMPLATE.md)
-		keyHash, err := utils.HashPassword(formatted)
-		if err != nil {
-			return nil, fmt.Errorf("failed to hash recovery key: %w", err)
-		}
+		keyHash := HashAPIToken(formatted) // SHA-256 per AI.md PART 34
 
-		// Store hashed key in database
-		_, err = database.GetUsersDB().Exec(`
+		_, err := database.GetUsersDB().Exec(`
 			INSERT INTO recovery_keys (user_id, key_hash, created_at)
 			VALUES (?, ?, ?)
 		`, userID, keyHash, time.Now())
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to store recovery key: %w", err)
 		}
@@ -72,74 +59,59 @@ func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
 	return keys, nil
 }
 
-// VerifyAndUseRecoveryKey verifies a recovery key and marks it as used
-// Returns true if key is valid and was used successfully
+// VerifyAndUseRecoveryKey verifies a recovery key (case-insensitive) and marks it as used.
 func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool, error) {
-	// Normalize key (remove spaces, convert to uppercase)
-	key = strings.ToUpper(strings.ReplaceAll(key, " ", ""))
-	key = strings.ReplaceAll(key, "-", "")
+	// Normalize: lowercase, strip spaces
+	key = strings.ToLower(strings.ReplaceAll(key, " ", ""))
 
-	// Re-add dashes in proper format
-	if len(key) == 16 {
-		key = fmt.Sprintf("%s-%s-%s-%s", key[0:4], key[4:8], key[8:12], key[12:16])
+	// Accept with or without dash — rebuild canonical form
+	stripped := strings.ReplaceAll(key, "-", "")
+	if len(stripped) == 12 {
+		key = stripped[0:8] + "-" + stripped[8:12]
 	}
 
-	// Get all unused keys for this user
-	rows, err := database.GetUsersDB().Query(`
-		SELECT id, key_hash FROM recovery_keys
-		WHERE user_id = ? AND used_at IS NULL
-	`, userID)
+	keyHash := HashAPIToken(key)
 
+	rows, err := database.GetUsersDB().Query(`
+		SELECT id FROM recovery_keys
+		WHERE user_id = ? AND key_hash = ? AND used_at IS NULL
+	`, userID, keyHash)
 	if err != nil {
 		return false, fmt.Errorf("failed to query recovery keys: %w", err)
 	}
 	defer rows.Close()
 
-	// Check each key
-	for rows.Next() {
-		var id int
-		var keyHash string
-
-		if err := rows.Scan(&id, &keyHash); err != nil {
-			continue
-		}
-
-		// Verify key against hash
-		valid, err := utils.VerifyPassword(key, keyHash)
-		if err != nil {
-			continue
-		}
-
-		if valid {
-			// Mark key as used
-			now := time.Now()
-			_, err := database.GetUsersDB().Exec(`
-				UPDATE recovery_keys SET used_at = ? WHERE id = ?
-			`, now, id)
-
-			if err != nil {
-				return false, fmt.Errorf("failed to mark key as used: %w", err)
-			}
-
-			return true, nil
-		}
+	if !rows.Next() {
+		return false, nil
 	}
 
-	return false, nil
+	var id int
+	if err := rows.Scan(&id); err != nil {
+		return false, fmt.Errorf("failed to scan recovery key: %w", err)
+	}
+	rows.Close()
+
+	_, err = database.GetUsersDB().Exec(`
+		UPDATE recovery_keys SET used_at = ? WHERE id = ?
+	`, time.Now(), id)
+	if err != nil {
+		return false, fmt.Errorf("failed to mark key as used: %w", err)
+	}
+
+	return true, nil
 }
 
-// GetUnusedKeysCount returns the count of unused recovery keys for a user
+// GetUnusedKeysCount returns the count of unused recovery keys for a user.
 func (m *RecoveryKeyModel) GetUnusedKeysCount(userID int) (int, error) {
 	var count int
 	err := database.GetUsersDB().QueryRow(`
 		SELECT COUNT(*) FROM recovery_keys
 		WHERE user_id = ? AND used_at IS NULL
 	`, userID).Scan(&count)
-
 	return count, err
 }
 
-// GetAllKeysForUser returns all recovery keys for a user (for admin view)
+// GetAllKeysForUser returns all recovery keys for a user.
 func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) {
 	rows, err := database.GetUsersDB().Query(`
 		SELECT id, user_id, key_hash, used_at, created_at
@@ -147,7 +119,6 @@ func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) 
 		WHERE user_id = ?
 		ORDER BY created_at DESC
 	`, userID)
-
 	if err != nil {
 		return nil, err
 	}
@@ -157,41 +128,19 @@ func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) 
 	for rows.Next() {
 		var key RecoveryKey
 		var usedAt sql.NullTime
-
-		err := rows.Scan(&key.ID, &key.UserID, &key.KeyHash, &usedAt, &key.CreatedAt)
-		if err != nil {
+		if err := rows.Scan(&key.ID, &key.UserID, &key.KeyHash, &usedAt, &key.CreatedAt); err != nil {
 			return nil, err
 		}
-
 		if usedAt.Valid {
 			key.UsedAt = &usedAt.Time
 		}
-
 		keys = append(keys, key)
 	}
-
 	return keys, nil
 }
 
-// DeleteAllForUser deletes all recovery keys for a user
+// DeleteAllForUser deletes all recovery keys for a user.
 func (m *RecoveryKeyModel) DeleteAllForUser(userID int) error {
-	_, err := database.GetUsersDB().Exec(`
-		DELETE FROM recovery_keys WHERE user_id = ?
-	`, userID)
-
+	_, err := database.GetUsersDB().Exec(`DELETE FROM recovery_keys WHERE user_id = ?`, userID)
 	return err
-}
-
-// formatRecoveryKey formats a 16-character string as XXXX-XXXX-XXXX-XXXX
-func formatRecoveryKey(key string) string {
-	if len(key) < 16 {
-		// Pad with zeros if needed
-		key = key + strings.Repeat("0", 16-len(key))
-	}
-
-	return fmt.Sprintf("%s-%s-%s-%s",
-		strings.ToUpper(key[0:4]),
-		strings.ToUpper(key[4:8]),
-		strings.ToUpper(key[8:12]),
-		strings.ToUpper(key[12:16]))
 }
