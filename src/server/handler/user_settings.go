@@ -681,3 +681,108 @@ func (h *UserSettingsHandler) ListTokens(c *gin.Context) {
 
 	c.JSON(http.StatusOK, tokens)
 }
+
+// ListSessions returns the authenticated user's active sessions.
+// Route: GET /api/v1/users/sessions
+func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
+	user, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	sessionModel := &models.UserSessionModel{DB: h.DB}
+	sessions, err := sessionModel.GetActiveSessions(user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list sessions"})
+		return
+	}
+
+	// Get the current session ID from the request so the client can mark it
+	currentSessionID, _ := c.Get("session_id")
+
+	type SessionItem struct {
+		ID         int64     `json:"id"`
+		IPAddress  string    `json:"ip_address"`
+		UserAgent  string    `json:"user_agent"`
+		CreatedAt  time.Time `json:"created_at"`
+		ExpiresAt  time.Time `json:"expires_at"`
+		LastUsedAt time.Time `json:"last_used_at"`
+		IsCurrent  bool      `json:"is_current"`
+	}
+
+	items := make([]SessionItem, 0, len(sessions))
+	for _, s := range sessions {
+		item := SessionItem{
+			ID:         s.ID,
+			IPAddress:  s.IPAddress,
+			UserAgent:  s.UserAgent,
+			CreatedAt:  s.CreatedAt,
+			ExpiresAt:  s.ExpiresAt,
+			LastUsedAt: s.LastUsedAt,
+		}
+		if sid, ok := currentSessionID.(string); ok {
+			item.IsCurrent = s.SessionID == sid
+		}
+		items = append(items, item)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"sessions": items})
+}
+
+// RevokeSession deletes a specific session by ID.
+// Route: DELETE /api/v1/users/sessions/:id
+func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
+	user, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	sessionID := c.Param("id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		return
+	}
+
+	// Verify the session belongs to the current user before deleting
+	var ownerID int64
+	err := h.DB.QueryRow(
+		`SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP`,
+		sessionID,
+	).Scan(&ownerID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+	if ownerID != user.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Session does not belong to you"})
+		return
+	}
+
+	sessionModel := &models.UserSessionModel{DB: h.DB}
+	if err := sessionModel.DeleteSession(sessionID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke session"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Session revoked"})
+}
+
+// RevokeAllSessions deletes all sessions for the authenticated user (logout everywhere).
+// Route: DELETE /api/v1/users/sessions
+func (h *UserSettingsHandler) RevokeAllSessions(c *gin.Context) {
+	user, ok := middleware.GetCurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
+
+	sessionModel := &models.UserSessionModel{DB: h.DB}
+	if err := sessionModel.DeleteAllSessionsForUser(user.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke sessions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "All sessions revoked"})
+}

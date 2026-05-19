@@ -2326,6 +2326,10 @@ func main() {
 		usersAPI.POST("/security/password", userPublicHandler.ChangePassword)
 		usersAPI.POST("/security/email", userPublicHandler.ChangeEmail)
 		usersAPI.DELETE("/account", userPublicHandler.DeleteAccount)
+
+		usersAPI.GET("/sessions", userSettingsHandler.ListSessions)
+		usersAPI.DELETE("/sessions", userSettingsHandler.RevokeAllSessions)
+		usersAPI.DELETE("/sessions/:id", userSettingsHandler.RevokeSession)
 	}
 
 	// Note: 2FA routes already registered under usersAPI (/users/security/2fa/*)
