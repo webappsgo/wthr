@@ -6,13 +6,15 @@ require (
 	github.com/99designs/gqlgen v0.17.60
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/cretz/bine v0.2.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-gonic/gin v1.11.0
-	github.com/go-acme/lego/v4 v4.25.2
+	github.com/go-acme/lego/v4 v4.22.2
 	github.com/go-chi/httprate v0.15.0
+	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/go-webauthn/webauthn v0.11.2
 	github.com/google/uuid v1.6.0
@@ -25,7 +27,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pquerna/otp v1.5.0
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.22.0
 	github.com/redis/go-redis/v9 v9.14.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggo/files v1.0.1
@@ -33,6 +35,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.22
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.50.0
+	golang.org/x/oauth2 v0.24.0
 	golang.org/x/term v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.39.0
@@ -66,7 +69,6 @@ require (
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
-	github.com/go-ldap/ldap/v3 v3.4.13 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.6 // indirect
 	github.com/go-openapi/spec v0.20.4 // indirect
@@ -107,7 +109,7 @@ require (
 	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.66.1 // indirect
+	github.com/prometheus/common v0.62.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.57.0 // indirect
@@ -123,7 +125,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/arch v0.20.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/mod v0.32.0 // indirect

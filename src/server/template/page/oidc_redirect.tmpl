@@ -10,20 +10,19 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Redirecting to {{.provider}}</h1>
-            <p>You are being redirected to your identity provider for authentication</p>
+            <h1>OIDC Login — {{.provider}}</h1>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
-            {{end}}
-
-            <div class="auth-message">
-                <p>Redirecting...</p>
-            </div>
-
             <div class="auth-links">
                 <a href="/auth/login">Back to Login</a>
             </div>
+            {{else}}
+            <p>Redirecting to your identity provider…</p>
+            <div class="auth-links">
+                <a href="/auth/login">Cancel</a>
+            </div>
+            {{end}}
         </div>
     </div>
 </body>

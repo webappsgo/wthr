@@ -10,20 +10,16 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Authentication Complete</h1>
-            <p>Processing your {{.provider}} authentication</p>
+            <h1>OIDC Login — {{.provider}}</h1>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
-            {{end}}
-
-            <div class="auth-message">
-                <p>Processing...</p>
-            </div>
-
             <div class="auth-links">
                 <a href="/auth/login">Back to Login</a>
             </div>
+            {{else}}
+            <p>Completing sign-in…</p>
+            {{end}}
         </div>
     </div>
 </body>

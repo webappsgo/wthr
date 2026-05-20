@@ -345,6 +345,9 @@ func main() {
 	ldapService := service.NewLDAPService(db.DB)
 	ldapAuthHandler := &handler.LDAPAuthHandler{DB: db.DB, LDAPService: ldapService}
 
+	oidcService := service.NewOIDCService(db.DB)
+	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db.DB, OIDCService: oidcService}
+
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
 	smtpService := service.NewSMTPService(db.DB)
 	if err := smtpService.LoadConfig(); err == nil {
@@ -1604,19 +1607,9 @@ func main() {
 		c.Redirect(http.StatusSeeOther, "/users/dashboard")
 	})
 
-	// OIDC authentication routes (public)
-	r.GET("/auth/oidc/:provider", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "page/oidc_redirect.tmpl", utils.TemplateData(c, gin.H{
-			"title":    "OIDC Login",
-			"provider": c.Param("provider"),
-		}))
-	})
-	r.GET("/auth/oidc/:provider/callback", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "page/oidc_callback.tmpl", utils.TemplateData(c, gin.H{
-			"title":    "OIDC Callback",
-			"provider": c.Param("provider"),
-		}))
-	})
+	// OIDC authentication routes (public) — per AI.md PART 34
+	r.GET("/auth/oidc/:provider", oidcAuthHandler.StartLogin)
+	r.GET("/auth/oidc/:provider/callback", oidcAuthHandler.Callback)
 
 	// LDAP authentication route (public)
 	r.POST("/auth/ldap", ldapAuthHandler.Login)
