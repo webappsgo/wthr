@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 	session_id TEXT UNIQUE NOT NULL,
 	ip_address TEXT,
 	user_agent TEXT,
+	data TEXT,
 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 	expires_at DATETIME NOT NULL,
 	last_used_at DATETIME,
@@ -332,4 +333,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity_log(activity_type)
 CREATE INDEX IF NOT EXISTS idx_activity_created ON user_activity_log(created_at);
 `
 
-const UsersSchemaVersion = 5
+const UsersSchemaVersion = 6

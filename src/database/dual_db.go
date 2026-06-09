@@ -163,9 +163,35 @@ func initUsersDB(path string) (*sql.DB, error) {
 			return nil, fmt.Errorf("failed to insert schema version: %w", err)
 		}
 		log.Printf("Users database initialized with schema version %d", UsersSchemaVersion)
+	} else if currentVersion < UsersSchemaVersion {
+		// Existing database - apply idempotent migrations
+		if err := migrateUsersDB(db, currentVersion); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("failed to migrate users database: %w", err)
+		}
+		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", UsersSchemaVersion); err != nil {
+			db.Close()
+			return nil, fmt.Errorf("failed to update users schema version: %w", err)
+		}
+		log.Printf("Users database migrated from version %d to %d", currentVersion, UsersSchemaVersion)
 	}
 
 	return db, nil
+}
+
+// migrateUsersDB applies idempotent schema migrations for the users database.
+// Each migration is safe to run on databases that already have the column.
+func migrateUsersDB(db *sql.DB, fromVersion int) error {
+	// v6: add data column to user_sessions for 2FA pending state storage
+	if fromVersion < 6 {
+		// SQLite: ignore "duplicate column" error — idempotent
+		if _, err := db.Exec("ALTER TABLE user_sessions ADD COLUMN data TEXT"); err != nil {
+			if !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("add user_sessions.data: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // Close closes both database connections

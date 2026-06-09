@@ -56,7 +56,7 @@ func (m *SessionModel) Create(userID interface{}, sessionTimeout int) (*Session,
 	now := time.Now()
 
 	_, err = database.GetUsersDB().Exec(`
-		INSERT INTO user_sessions (id, user_id, expires_at, created_at)
+		INSERT INTO user_sessions (session_id, user_id, expires_at, created_at)
 		VALUES (?, ?, ?, ?)
 	`, sessionID, uid, expiresAt, now)
 
@@ -78,8 +78,8 @@ func (m *SessionModel) GetByID(sessionID string) (*Session, error) {
 	var dataJSON sql.NullString
 
 	err := database.GetUsersDB().QueryRow(`
-		SELECT id, user_id, data, expires_at, created_at
-		FROM user_sessions WHERE id = ?
+		SELECT session_id, user_id, data, expires_at, created_at
+		FROM user_sessions WHERE session_id = ?
 	`, sessionID).Scan(&session.ID, &session.UserID, &dataJSON, &session.ExpiresAt, &session.CreatedAt)
 
 	if err == sql.ErrNoRows {
@@ -115,7 +115,7 @@ func (m *SessionModel) UpdateData(sessionID string, data map[string]interface{})
 
 	_, err = database.GetUsersDB().Exec(`
 		UPDATE user_sessions SET data = ?
-		WHERE id = ?
+		WHERE session_id = ?
 	`, string(dataJSON), sessionID)
 	return err
 }
@@ -126,14 +126,14 @@ func (m *SessionModel) Extend(sessionID string, sessionTimeout int) error {
 
 	_, err := database.GetUsersDB().Exec(`
 		UPDATE user_sessions SET expires_at = ?
-		WHERE id = ?
+		WHERE session_id = ?
 	`, expiresAt, sessionID)
 	return err
 }
 
 // Delete deletes a session
 func (m *SessionModel) Delete(sessionID string) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE id = ?", sessionID)
+	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE session_id = ?", sessionID)
 	return err
 }
 
