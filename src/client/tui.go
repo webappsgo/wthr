@@ -7,19 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-)
 
-// Terminal size breakpoints per AI.md PART 33 line 46318
-type sizeMode int
-
-const (
-	sizeModeMicro     sizeMode = iota // <40 cols, <10 rows
-	sizeModeMinimal                   // 40-59 cols, 10-15 rows
-	sizeModeCompact                   // 60-79 cols, 16-23 rows
-	sizeModeStandard                  // 80-119 cols, 24-39 rows
-	sizeModeWide                      // 120-199 cols, 40-59 rows
-	sizeModeUltrawide                 // 200-399 cols, 60-79 rows
-	sizeModeMassive                   // ≥400 cols, ≥80 rows
+	"github.com/casapps/wthr/src/common/terminal"
 )
 
 // Dracula theme colors per AI.md PART 16
@@ -71,7 +60,7 @@ type tuiModel struct {
 	err          error
 	width        int
 	height       int
-	sizeMode     sizeMode
+	sizeMode     terminal.SizeMode
 	scrollOffset int
 }
 
@@ -99,7 +88,7 @@ func newTUIModel(config *CLIConfig) tuiModel {
 		},
 		width:    80,
 		height:   24,
-		sizeMode: sizeModeStandard,
+		sizeMode: terminal.SizeModeStandard,
 	}
 }
 
@@ -117,7 +106,7 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Per AI.md PART 33 line 46286-46316: Window awareness
 		m.width = msg.Width
 		m.height = msg.Height
-		m.sizeMode = m.calculateSizeMode()
+		m.sizeMode = terminal.GetTerminalSize().Mode
 		return m, nil
 	case apiResultMsg:
 		m.loading = false
@@ -135,30 +124,6 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// calculateSizeMode determines the size mode based on terminal dimensions
-// Per AI.md PART 33 line 46318-46352
-func (m tuiModel) calculateSizeMode() sizeMode {
-	w, h := m.width, m.height
-	if w < 40 || h < 10 {
-		return sizeModeMicro
-	}
-	if w < 60 || h < 16 {
-		return sizeModeMinimal
-	}
-	if w < 80 || h < 24 {
-		return sizeModeCompact
-	}
-	if w < 120 || h < 40 {
-		return sizeModeStandard
-	}
-	if w < 200 || h < 60 {
-		return sizeModeWide
-	}
-	if w < 400 || h < 80 {
-		return sizeModeUltrawide
-	}
-	return sizeModeMassive
-}
 
 // handleKeyPress handles keyboard input
 // Per AI.md PART 33 line 46564-46580: Vim-style navigation
@@ -412,7 +377,7 @@ func (m tuiModel) renderMenu() string {
 		Foreground(colorComment)
 
 	// Header
-	if m.sizeMode >= sizeModeCompact {
+	if m.sizeMode >= terminal.SizeModeCompact {
 		s.WriteString(titleStyle.Render("Weather CLI"))
 		s.WriteString("\n")
 		s.WriteString(helpStyle.Render(m.config.Server.Primary))
@@ -422,14 +387,14 @@ func (m tuiModel) renderMenu() string {
 	// Menu items
 	for i, item := range m.menuItems {
 		var line string
-		if m.sizeMode >= sizeModeStandard {
+		if m.sizeMode >= terminal.SizeModeStandard {
 			// Full display with icon
 			if i == m.cursor {
 				line = selectedStyle.Render(fmt.Sprintf(" → %s %s", item.icon, item.label))
 			} else {
 				line = itemStyle.Render(fmt.Sprintf("   %s %s", item.icon, item.label))
 			}
-		} else if m.sizeMode >= sizeModeMinimal {
+		} else if m.sizeMode >= terminal.SizeModeMinimal {
 			// Compact display without icon
 			if i == m.cursor {
 				line = selectedStyle.Render(fmt.Sprintf("> %s", item.label))
@@ -473,7 +438,7 @@ func (m tuiModel) renderInput() string {
 
 	s.WriteString(titleStyle.Render(m.inputLabel))
 	s.WriteString("\n")
-	if m.sizeMode >= sizeModeCompact {
+	if m.sizeMode >= terminal.SizeModeCompact {
 		s.WriteString(promptStyle.Render(m.inputPrompt))
 		s.WriteString("\n")
 	}
@@ -596,9 +561,9 @@ func (m tuiModel) renderHelp() string {
 // Per AI.md PART 33 line 46383-46394
 func (m tuiModel) getHelpText() string {
 	switch m.sizeMode {
-	case sizeModeMicro:
+	case terminal.SizeModeMicro:
 		return "?:help q:quit"
-	case sizeModeMinimal:
+	case terminal.SizeModeMinimal:
 		return "j/k:nav │ Enter:select │ ?:help │ q:quit"
 	default:
 		return "↑/↓ or j/k: Navigate │ Enter: Select │ ?: Help │ q: Quit"
