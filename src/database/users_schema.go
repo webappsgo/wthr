@@ -70,10 +70,12 @@ CREATE INDEX IF NOT EXISTS idx_tokens_user ON user_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_tokens_expires ON user_tokens(expires_at);
 
 -- User Sessions table (web sessions for regular users)
+-- token_hash stores SHA-256(raw_token) per IDEA.md security requirements.
+-- The raw token is set in the HttpOnly cookie; it is never stored plaintext.
 CREATE TABLE IF NOT EXISTS user_sessions (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	user_id INTEGER NOT NULL,
-	session_id TEXT UNIQUE NOT NULL,
+	token_hash TEXT UNIQUE NOT NULL,
 	ip_address TEXT,
 	user_agent TEXT,
 	data TEXT,
@@ -85,7 +87,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_id ON user_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_hash ON user_sessions(token_hash);
 
 -- User Invites table (for invite-only registration)
 CREATE TABLE IF NOT EXISTS user_invites (
@@ -333,4 +335,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity_log(activity_type)
 CREATE INDEX IF NOT EXISTS idx_activity_created ON user_activity_log(created_at);
 `
 
-const UsersSchemaVersion = 6
+const UsersSchemaVersion = 7

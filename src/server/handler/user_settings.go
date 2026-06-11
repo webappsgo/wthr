@@ -3,9 +3,12 @@
 package handler
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -698,8 +701,16 @@ func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
 		return
 	}
 
-	// Get the current session ID from the request so the client can mark it
-	currentSessionID, _ := c.Get("session_id")
+	// Determine the hash of the current request's session so we can mark it.
+	// The middleware stores the Session struct under SessionContextKey ("session").
+	// Session.ID is the raw bearer token; we hash it to compare against stored hashes.
+	var currentTokenHash string
+	if sessionVal, ok := c.Get(middleware.SessionContextKey); ok {
+		if sess, ok := sessionVal.(*models.Session); ok && sess != nil {
+			h := sha256.Sum256([]byte(sess.ID))
+			currentTokenHash = hex.EncodeToString(h[:])
+		}
+	}
 
 	type SessionItem struct {
 		ID         int64     `json:"id"`
@@ -721,8 +732,9 @@ func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
 			ExpiresAt:  s.ExpiresAt,
 			LastUsedAt: s.LastUsedAt,
 		}
-		if sid, ok := currentSessionID.(string); ok {
-			item.IsCurrent = s.SessionID == sid
+		// s.SessionID holds the stored token_hash; compare with the hash of the current token.
+		if currentTokenHash != "" {
+			item.IsCurrent = s.SessionID == currentTokenHash
 		}
 		items = append(items, item)
 	}
@@ -730,8 +742,9 @@ func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sessions": items})
 }
 
-// RevokeSession deletes a specific session by ID.
+// RevokeSession deletes a specific session by its integer row ID.
 // Route: DELETE /api/v1/users/sessions/:id
+// The `:id` is the integer primary key from the session list, NOT the raw token.
 func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -739,17 +752,22 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 		return
 	}
 
-	sessionID := c.Param("id")
-	if sessionID == "" {
+	rowIDStr := c.Param("id")
+	if rowIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
 		return
 	}
+	rowID, err := strconv.ParseInt(rowIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+		return
+	}
 
-	// Verify the session belongs to the current user before deleting
+	// Verify the session belongs to the current user before deleting.
 	var ownerID int64
-	err := h.DB.QueryRow(
-		`SELECT user_id FROM user_sessions WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP`,
-		sessionID,
+	err = h.DB.QueryRow(
+		`SELECT user_id FROM user_sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP`,
+		rowID,
 	).Scan(&ownerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
@@ -761,7 +779,7 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
-	if err := sessionModel.DeleteSession(sessionID); err != nil {
+	if err := sessionModel.DeleteSessionByRowID(rowID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke session"})
 		return
 	}

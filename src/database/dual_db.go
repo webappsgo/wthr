@@ -191,6 +191,32 @@ func migrateUsersDB(db *sql.DB, fromVersion int) error {
 			}
 		}
 	}
+
+	// v7: rename session_id to token_hash + clear old unhashed sessions.
+	// Sessions stored before this migration contain raw tokens and cannot be
+	// retroactively hashed, so we delete them — existing users must log in
+	// again. This is acceptable for a security fix (raw→hashed storage).
+	if fromVersion < 7 {
+		// Invalidate all old sessions first so no raw-token rows remain.
+		if _, err := db.Exec("DELETE FROM user_sessions"); err != nil {
+			return fmt.Errorf("clear user_sessions for v7 migration: %w", err)
+		}
+		// RENAME COLUMN requires SQLite ≥3.25 (2018); modernc.org/sqlite always satisfies this.
+		if _, err := db.Exec("ALTER TABLE user_sessions RENAME COLUMN session_id TO token_hash"); err != nil {
+			// If the column is already named token_hash (already migrated or new DB), ignore.
+			if !strings.Contains(err.Error(), "no such column") && !strings.Contains(err.Error(), "duplicate column") {
+				return fmt.Errorf("rename user_sessions.session_id to token_hash: %w", err)
+			}
+		}
+		// Add a unique index on the new column name if it doesn't already exist.
+		if _, err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_hash ON user_sessions(token_hash)"); err != nil {
+			return fmt.Errorf("create idx_sessions_hash: %w", err)
+		}
+		// Drop the old index if it was named for session_id.
+		if _, err := db.Exec("DROP INDEX IF EXISTS idx_sessions_id"); err != nil {
+			return fmt.Errorf("drop idx_sessions_id: %w", err)
+		}
+	}
 	return nil
 }
 

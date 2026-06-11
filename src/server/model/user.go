@@ -2,7 +2,9 @@
 package models
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -734,6 +736,14 @@ func (m *UserModel) DisableTwoFactor(id int64) error {
 	return m.Disable2FA(id)
 }
 
+// hashUserToken returns the lower-hex SHA-256 digest of rawToken.
+// Mirrors the identical helper in session.go — both models share the same
+// user_sessions table and must hash tokens identically.
+func hashUserToken(rawToken string) string {
+	sum := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(sum[:])
+}
+
 // UserSessionModel handles user session operations
 // Per TEMPLATE.md PART 10: Session-based authentication required
 type UserSessionModel struct {
@@ -750,9 +760,9 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 	expiresAt := time.Now().Add(duration)
 
 	result, err := database.GetUsersDB().Exec(`
-		INSERT INTO user_sessions (user_id, session_id, ip_address, user_agent, created_at, expires_at, last_used_at)
+		INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-	`, userID, sessionID, ipAddress, userAgent, expiresAt)
+	`, userID, hashUserToken(sessionID), ipAddress, userAgent, expiresAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -775,15 +785,16 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 	}, nil
 }
 
-// GetSession retrieves a session by session ID
-func (m *UserSessionModel) GetSession(sessionID string) (*UserSession, error) {
+// GetSession retrieves a session by the raw bearer token from the cookie.
+// SessionID in the returned struct holds the SHA-256 hash (not the raw token).
+func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 	var session UserSession
 
 	err := database.GetUsersDB().QueryRow(`
-		SELECT id, user_id, session_id, ip_address, user_agent, created_at, expires_at, last_used_at
+		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
-		WHERE session_id = ?
-	`, sessionID).Scan(
+		WHERE token_hash = ?
+	`, hashUserToken(rawToken)).Scan(
 		&session.ID,
 		&session.UserID,
 		&session.SessionID,
@@ -804,13 +815,14 @@ func (m *UserSessionModel) GetSession(sessionID string) (*UserSession, error) {
 	return &session, nil
 }
 
-// UpdateSessionLastUsed updates the last used timestamp
-func (m *UserSessionModel) UpdateSessionLastUsed(sessionID string) error {
+// UpdateSessionLastUsed refreshes the last-used timestamp for a session.
+// rawToken is the bearer token from the cookie.
+func (m *UserSessionModel) UpdateSessionLastUsed(rawToken string) error {
 	_, err := database.GetUsersDB().Exec(`
 		UPDATE user_sessions
 		SET last_used_at = CURRENT_TIMESTAMP
-		WHERE session_id = ?
-	`, sessionID)
+		WHERE token_hash = ?
+	`, hashUserToken(rawToken))
 
 	if err != nil {
 		return fmt.Errorf("failed to update session: %w", err)
@@ -819,17 +831,41 @@ func (m *UserSessionModel) UpdateSessionLastUsed(sessionID string) error {
 	return nil
 }
 
-// DeleteSession deletes a session (logout)
-func (m *UserSessionModel) DeleteSession(sessionID string) error {
+// DeleteSession removes a session by its raw bearer token (logout).
+func (m *UserSessionModel) DeleteSession(rawToken string) error {
 	_, err := database.GetUsersDB().Exec(`
-		DELETE FROM user_sessions WHERE session_id = ?
-	`, sessionID)
+		DELETE FROM user_sessions WHERE token_hash = ?
+	`, hashUserToken(rawToken))
 
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
 	return nil
+}
+
+// DeleteSessionByRowID removes a session by its integer row ID.
+// Used by the session-revocation endpoint where the client supplies the row ID.
+func (m *UserSessionModel) DeleteSessionByRowID(rowID int64) error {
+	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE id = ?", rowID)
+	if err != nil {
+		return fmt.Errorf("failed to delete session: %w", err)
+	}
+	return nil
+}
+
+// GetRowIDByTokenHash returns the integer row ID for the session whose
+// token_hash matches hashUserToken(rawToken). Returns 0 if not found.
+func (m *UserSessionModel) GetRowIDByToken(rawToken string) (int64, error) {
+	var rowID int64
+	err := database.GetUsersDB().QueryRow(
+		"SELECT id FROM user_sessions WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP",
+		hashUserToken(rawToken),
+	).Scan(&rowID)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return rowID, err
 }
 
 // DeleteAllSessionsForUser deletes all sessions for a user (logout all)
@@ -859,9 +895,13 @@ func (m *UserSessionModel) DeleteExpiredSessions() error {
 }
 
 // GetActiveSessions returns all active sessions for a user
+// GetActiveSessions returns all active (non-expired) sessions for a user.
+// SessionID in each returned UserSession is the stored token_hash (SHA-256),
+// NOT the raw bearer token. Callers can use it for "is this my current
+// session?" comparisons by hashing the current raw token.
 func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error) {
 	rows, err := database.GetUsersDB().Query(`
-		SELECT id, user_id, session_id, ip_address, user_agent, created_at, expires_at, last_used_at
+		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
 		WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP
 		ORDER BY last_used_at DESC
