@@ -1261,33 +1261,33 @@ func main() {
 	}
 
 	// Authentication routes (public) - TEMPLATE.md lines 4441-4534
-	r.GET("/auth/login", authHandler.ShowLoginPage)
-	r.POST("/auth/login", middleware.LoginRateLimitMiddleware(), authHandler.HandleLogin)
-	r.GET("/auth/register", authHandler.ShowRegisterPage)
-	r.POST("/auth/register", authHandler.HandleRegister)
-	r.GET("/auth/logout", authHandler.HandleLogout)
+	r.GET("/server/auth/login", authHandler.ShowLoginPage)
+	r.POST("/server/auth/login", middleware.LoginRateLimitMiddleware(), authHandler.HandleLogin)
+	r.GET("/server/auth/register", authHandler.ShowRegisterPage)
+	r.POST("/server/auth/register", authHandler.HandleRegister)
+	r.GET("/server/auth/logout", authHandler.HandleLogout)
 
 	// Password reset routes (public)
-	r.GET("/auth/password/forgot", func(c *gin.Context) {
+	r.GET("/server/auth/password/forgot", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/forgot_password.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Forgot Password",
 		}))
 	})
-	r.POST("/auth/password/forgot", middleware.PasswordResetRateLimitMiddleware(), func(c *gin.Context) {
+	r.POST("/server/auth/password/forgot", middleware.PasswordResetRateLimitMiddleware(), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "If an account with that email exists, a reset link has been sent"})
 	})
-	r.GET("/auth/password/reset", func(c *gin.Context) {
+	r.GET("/server/auth/password/reset", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/reset_password.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Reset Password",
 			"token": c.Query("token"),
 		}))
 	})
-	r.POST("/auth/password/reset", func(c *gin.Context) {
+	r.POST("/server/auth/password/reset", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Password has been reset successfully"})
 	})
 
 	// Email verification route (public) - per spec: GET /auth/verify/{code} verifies inline
-	r.GET("/auth/verify/:code", func(c *gin.Context) {
+	r.GET("/server/auth/verify/:code", func(c *gin.Context) {
 		code := c.Param("code")
 		if code == "" {
 			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", utils.TemplateData(c, gin.H{
@@ -1331,43 +1331,43 @@ func main() {
 		// Delete used token
 		db.DB.Exec(`DELETE FROM user_email_verifications WHERE id = ?`, verificationID)
 
-		c.Redirect(http.StatusFound, "/auth/login?verified=1")
+		c.Redirect(http.StatusFound, "/server/auth/login?verified=1")
 	})
 
 	// Two-factor authentication routes (public)
-	r.GET("/auth/2fa", func(c *gin.Context) {
+	r.GET("/server/auth/2fa", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/two_factor.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Two-Factor Authentication",
 		}))
 	})
-	r.POST("/auth/2fa", func(c *gin.Context) {
+	r.POST("/server/auth/2fa", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Two-factor authentication verified"})
 	})
 
 	// Passkey authentication routes (public)
-	r.GET("/auth/passkey", func(c *gin.Context) {
+	r.GET("/server/auth/passkey", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/passkey.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Passkey Authentication",
 		}))
 	})
 
 	// Username recovery routes (public)
-	r.GET("/auth/username/forgot", func(c *gin.Context) {
+	r.GET("/server/auth/username/forgot", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/forgot_username.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Forgot Username",
 		}))
 	})
-	r.POST("/auth/username/forgot", func(c *gin.Context) {
+	r.POST("/server/auth/username/forgot", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "If an account with that email exists, the username has been sent"})
 	})
 
 	// Recovery key usage route (public)
-	r.GET("/auth/recovery/use", func(c *gin.Context) {
+	r.GET("/server/auth/recovery/use", func(c *gin.Context) {
 		handler.NegotiateResponse(c, "page/recovery_key.tmpl", utils.TemplateData(c, gin.H{
 			"title": "Use Recovery Key",
 		}))
 	})
-	r.POST("/auth/recovery/use", func(c *gin.Context) {
+	r.POST("/server/auth/recovery/use", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Recovery key accepted"})
 	})
 
@@ -1392,7 +1392,7 @@ func main() {
 	}
 
 	// Invite routes (public - token validates)
-	r.GET("/auth/invite/server/:code", func(c *gin.Context) {
+	r.GET("/server/server/auth/invite/server/:code", func(c *gin.Context) {
 		invite, err := adminInviteService.VerifyInvite(c.Param("code"))
 		if err != nil {
 			renderServerInvitePage(c, http.StatusGone, gin.H{
@@ -1408,7 +1408,7 @@ func main() {
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.POST("/auth/invite/server/:code", func(c *gin.Context) {
+	r.POST("/server/server/auth/invite/server/:code", func(c *gin.Context) {
 		token := c.Param("code")
 		invite, err := adminInviteService.VerifyInvite(token)
 		if err != nil {
@@ -1457,9 +1457,9 @@ func main() {
 			return
 		}
 
-		c.Redirect(http.StatusSeeOther, "/auth/login?invite=accepted")
+		c.Redirect(http.StatusSeeOther, "/server/auth/login?invite=accepted")
 	})
-	r.GET("/auth/invite/user/:code", func(c *gin.Context) {
+	r.GET("/server/server/auth/invite/user/:code", func(c *gin.Context) {
 		invite, err := userInviteModel.VerifyInvite(c.Param("code"))
 		if err != nil {
 			renderUserInvitePage(c, http.StatusGone, gin.H{
@@ -1477,7 +1477,7 @@ func main() {
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.POST("/auth/invite/user/:code", func(c *gin.Context) {
+	r.POST("/server/server/auth/invite/user/:code", func(c *gin.Context) {
 		token := c.Param("code")
 		invite, err := userInviteModel.VerifyInvite(token)
 		if err != nil {
@@ -1608,11 +1608,11 @@ func main() {
 	})
 
 	// OIDC authentication routes (public) — per AI.md PART 34
-	r.GET("/auth/oidc/:provider", oidcAuthHandler.StartLogin)
-	r.GET("/auth/oidc/:provider/callback", oidcAuthHandler.Callback)
+	r.GET("/server/auth/oidc/:provider", oidcAuthHandler.StartLogin)
+	r.GET("/server/auth/oidc/:provider/callback", oidcAuthHandler.Callback)
 
 	// LDAP authentication route (public)
-	r.POST("/auth/ldap", ldapAuthHandler.Login)
+	r.POST("/server/auth/ldap", ldapAuthHandler.Login)
 
 	// User routes (require authentication) - per AI.md PART 14: /users/ is plural
 	usersRoutes := r.Group("/users")
@@ -1688,7 +1688,7 @@ func main() {
 			}
 			// Clear admin_session cookie
 			c.SetCookie("admin_session", "", -1, "/", "", false, true)
-			c.Redirect(http.StatusFound, "/auth/login")
+			c.Redirect(http.StatusFound, "/server/auth/login")
 		})
 
 		// All management pages under /server/ per spec
@@ -1947,7 +1947,7 @@ func main() {
 					"expires_at": invite.ExpiresAt,
 					"used_at":    invite.UsedAt,
 					"status":     statusLabel,
-					"invite_url": fmt.Sprintf("%s://%s/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
+					"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
 				})
 			}
 
@@ -2047,7 +2047,7 @@ func main() {
 
 			renderAdminUserInvitesPage(c, http.StatusOK, gin.H{
 				"message":    "User invite created",
-				"invite_url": fmt.Sprintf("%s://%s/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
+				"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
 			})
 		})
 
@@ -2252,7 +2252,7 @@ func main() {
 	apiV1.POST("/server/contact", handler.HandleContactFormSubmission(db, cfg))
 
 	// Auth API routes per AI.md PART 33
-	authAPI := apiV1.Group("/auth")
+	authAPI := apiV1.Group("/server/auth")
 	{
 		// Public auth endpoints (no auth required)
 		authAPI.POST("/register", authAPIHandler.HandleAPIRegister)
@@ -2262,7 +2262,7 @@ func main() {
 		authAPI.POST("/passkey/verify", passkeyHandler.VerifyPasskey)
 		// Admin passkey login challenge/verify per AI.md PART 17 line
 		// 28679 ("passkey can be used as primary login or as 2FA"). The
-		// pending session token is issued by HandleLogin (`/auth/login`)
+		// pending session token is issued by HandleLogin (`/server/auth/login`)
 		// after admin password verify when the admin has at least one
 		// passkey registered.
 		authAPI.POST("/admin/passkey/challenge", adminPasskeyHandler.BeginPasskeyChallenge)
@@ -2490,7 +2490,7 @@ func main() {
 				}
 			}
 
-			return fmt.Sprintf("%s://%s/auth/invite/server/%s", scheme, c.Request.Host, token)
+			return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, c.Request.Host, token)
 		}
 
 		buildUserInviteURL := func(c *gin.Context, token string) string {
@@ -2503,7 +2503,7 @@ func main() {
 				}
 			}
 
-			return fmt.Sprintf("%s://%s/auth/invite/user/%s", scheme, c.Request.Host, token)
+			return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, token)
 		}
 
 		userInviteStatus := func(invite models.UserInvite) string {

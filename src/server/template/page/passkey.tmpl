@@ -24,7 +24,7 @@
             <div id="passkeyStatus" class="alert alert-info">Waiting for your browser to start passkey authentication...</div>
 
             <div class="auth-links">
-                <a href="/auth/login">Back to Login</a>
+                <a href="/server/auth/login">Back to Login</a>
             </div>
         </div>
     </div>
@@ -79,7 +79,7 @@
         }
 
         try {
-            const challengeResponse = await fetch('/api/v1/auth/passkey/challenge', {
+            const challengeResponse = await fetch('/api/v1/server/auth/passkey/challenge', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: '{}',
@@ -97,7 +97,7 @@
                 throw new Error('Passkey authentication was cancelled');
             }
 
-            const verifyResponse = await fetch('/api/v1/auth/passkey/verify', {
+            const verifyResponse = await fetch('/api/v1/server/auth/passkey/verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(serializeAssertion(credential)),

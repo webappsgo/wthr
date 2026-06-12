@@ -94,12 +94,12 @@
 
         {{if .error}}
         <div class="status-box status-error">{{.error}}</div>
-        <a href="/auth/login" class="back-link">← Back to login</a>
+        <a href="/server/auth/login" class="back-link">← Back to login</a>
         {{else}}
         <div id="passkeyStatus" class="status-box status-info">
             <span class="spinner"></span> Starting passkey authentication…
         </div>
-        <a href="/auth/login" class="back-link">← Back to login</a>
+        <a href="/server/auth/login" class="back-link">← Back to login</a>
 
         <script>
         (function () {
@@ -161,7 +161,7 @@
 
             async function run() {
                 if (!pendingToken) {
-                    setStatus('Session expired or invalid. <a href="/auth/login" style="color:inherit;text-decoration:underline">Please log in again.</a>', 'status-error');
+                    setStatus('Session expired or invalid. <a href="/server/auth/login" style="color:inherit;text-decoration:underline">Please log in again.</a>', 'status-error');
                     return;
                 }
                 if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
@@ -171,7 +171,7 @@
 
                 try {
                     // Step 1 — fetch WebAuthn challenge options
-                    var challengeResp = await fetch('/api/v1/auth/admin/passkey/challenge', {
+                    var challengeResp = await fetch('/api/v1/server/auth/admin/passkey/challenge', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ session_token: pendingToken }),
@@ -195,7 +195,7 @@
 
                     // Step 3 — verify with the server
                     var payload = serializeAssertion(credential, challengeData.ceremony_token);
-                    var verifyResp = await fetch('/api/v1/auth/admin/passkey/verify', {
+                    var verifyResp = await fetch('/api/v1/server/auth/admin/passkey/verify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
@@ -210,7 +210,7 @@
 
                 } catch (err) {
                     setStatus('Passkey authentication failed: ' + (err.message || String(err)) +
-                        ' <a href="/auth/login" style="color:inherit;text-decoration:underline">Try again</a>', 'status-error');
+                        ' <a href="/server/auth/login" style="color:inherit;text-decoration:underline">Try again</a>', 'status-error');
                 }
             }
 

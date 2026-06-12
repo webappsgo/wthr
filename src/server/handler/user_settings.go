@@ -34,7 +34,7 @@ func NewUserSettingsHandler(db *sql.DB) *UserSettingsHandler {
 func (h *UserSettingsHandler) ShowAccountSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 
@@ -51,7 +51,7 @@ func (h *UserSettingsHandler) ShowAccountSettings(c *gin.Context) {
 func (h *UserSettingsHandler) ShowPrivacySettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *UserSettingsHandler) ShowPrivacySettings(c *gin.Context) {
 func (h *UserSettingsHandler) ShowNotificationSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 
@@ -93,7 +93,7 @@ func (h *UserSettingsHandler) ShowNotificationSettings(c *gin.Context) {
 func (h *UserSettingsHandler) ShowAppearanceSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 
@@ -114,7 +114,7 @@ func (h *UserSettingsHandler) ShowAppearanceSettings(c *gin.Context) {
 func (h *UserSettingsHandler) ShowTokensSettings(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 

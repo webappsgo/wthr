@@ -35,7 +35,7 @@ const (
 // @Success 302 {string} string "Redirect to OIDC provider"
 // @Failure 400 {object} map[string]string
 // @Failure 503 {object} map[string]string
-// @Router /auth/oidc/{provider} [get]
+// @Router /server/auth/oidc/{provider} [get]
 func (h *OIDCAuthHandler) StartLogin(c *gin.Context) {
 	provider := c.Param("provider")
 
@@ -107,7 +107,7 @@ func (h *OIDCAuthHandler) StartLogin(c *gin.Context) {
 // @Param state query string true "State parameter"
 // @Success 302 {string} string "Redirect to dashboard"
 // @Failure 400 {object} map[string]string
-// @Router /auth/oidc/{provider}/callback [get]
+// @Router /server/auth/oidc/{provider}/callback [get]
 func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 	provider := c.Param("provider")
 
@@ -347,7 +347,7 @@ func buildOIDCCallbackURL(c *gin.Context, provider string) string {
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		scheme = proto
 	}
-	return scheme + "://" + c.Request.Host + "/auth/oidc/" + provider + "/callback"
+	return scheme + "://" + c.Request.Host + "/server/auth/oidc/" + provider + "/callback"
 }
 
 // deriveUsernameFromClaims creates a sanitized username candidate from OIDC claims.

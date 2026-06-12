@@ -744,11 +744,11 @@ a:hover {
 }
 
 /* Sign out link (last item) */
-a.profile-dropdown-item[href="/auth/logout"] {
+a.profile-dropdown-item[href="/server/auth/logout"] {
   color: var(--color-error);
 }
 
-a.profile-dropdown-item[href="/auth/logout"]:hover {
+a.profile-dropdown-item[href="/server/auth/logout"]:hover {
   background: var(--color-error);
   color: var(--color-bg);
 }

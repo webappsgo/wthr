@@ -18,7 +18,7 @@
         <div class="error-message" role="alert" aria-live="assertive">{{ .error }}</div>
         {{ end }}
 
-        <form method="POST" action="/auth/register" id="registerForm" role="form" aria-label="User registration form">
+        <form method="POST" action="/server/auth/register" id="registerForm" role="form" aria-label="User registration form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="username">Username</label>
@@ -95,7 +95,7 @@
         </form>
 
         <div class="form-footer">
-            <p>Already have an account? <a href="/auth/login">Sign in here</a></p>
+            <p>Already have an account? <a href="/server/auth/login">Sign in here</a></p>
         </div>
 
         <div class="back-link">

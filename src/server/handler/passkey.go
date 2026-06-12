@@ -473,7 +473,7 @@ func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 // @Param body body object false "Optional username hint"
 // @Success 200 {object} map[string]interface{} "WebAuthn request options"
 // @Failure 500 {object} map[string]interface{} "Server error"
-// @Router /api/v1/auth/passkey/challenge [post]
+// @Router /api/v1/server/auth/passkey/challenge [post]
 func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 	var req passkeyChallengeRequest
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
@@ -566,7 +566,7 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Session token returned"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 401 {object} map[string]interface{} "Verification failed"
-// @Router /api/v1/auth/passkey/verify [post]
+// @Router /api/v1/server/auth/passkey/verify [post]
 func (h *PasskeyHandler) VerifyPasskey(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil || len(body) == 0 {

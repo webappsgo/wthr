@@ -174,8 +174,8 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 					"requires_passkey":  true,
 					"session_token":     pendingToken,
 					"redirect":          adminPath,
-					"challenge_endpoint": "/api/v1/auth/admin/passkey/challenge",
-					"verify_endpoint":   "/api/v1/auth/admin/passkey/verify",
+					"challenge_endpoint": "/api/v1/server/auth/admin/passkey/challenge",
+					"verify_endpoint":   "/api/v1/server/auth/admin/passkey/verify",
 				})
 			} else {
 				// Non-JSON callers (HTML form login) get redirected to a
@@ -415,7 +415,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	user, err := userModel.Create(username, req.Email, req.Password, role)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			respondWithError(c, http.StatusBadRequest, "Unable to complete registration. [Forgot credentials?](/auth/password/forgot)")
+			respondWithError(c, http.StatusBadRequest, "Unable to complete registration. [Forgot credentials?](/server/auth/password/forgot)")
 			return
 		}
 		respondWithError(c, http.StatusInternalServerError, "Failed to create account. Please try again later.")
@@ -442,7 +442,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 			return
 		}
 
-		c.Redirect(http.StatusFound, "/auth/login?pending_verification=1")
+		c.Redirect(http.StatusFound, "/server/auth/login?pending_verification=1")
 		return
 	}
 

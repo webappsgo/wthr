@@ -71,7 +71,7 @@ func AuthMiddleware(db *sql.DB, required bool) gin.HandlerFunc {
 			// Check if request is from browser or API
 			acceptHeader := c.GetHeader("Accept")
 			if strings.Contains(acceptHeader, "text/html") {
-				c.Redirect(http.StatusFound, "/auth/login")
+				c.Redirect(http.StatusFound, "/server/auth/login")
 				c.Abort()
 				return
 			}
@@ -174,9 +174,9 @@ func RestrictAdminToAdminRoutes() gin.HandlerFunc {
 		if strings.HasPrefix(path, adminPath) ||
 			strings.HasPrefix(path, "/api") ||
 			strings.HasPrefix(path, "/static") ||
-			strings.HasPrefix(path, "/auth/login") ||
-			strings.HasPrefix(path, "/auth/logout") ||
-			strings.HasPrefix(path, "/auth/register") ||
+			strings.HasPrefix(path, "/server/auth/login") ||
+			strings.HasPrefix(path, "/server/auth/logout") ||
+			strings.HasPrefix(path, "/server/auth/register") ||
 			strings.HasPrefix(path, "/healthz") ||
 			strings.HasPrefix(path, "/debug") ||
 			strings.HasPrefix(path, "/docs") {

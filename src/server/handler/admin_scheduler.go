@@ -75,7 +75,7 @@ type TaskConfigTorHealth struct {
 func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
-		c.Redirect(http.StatusFound, "/auth/login")
+		c.Redirect(http.StatusFound, "/server/auth/login")
 		return
 	}
 

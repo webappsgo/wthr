@@ -451,7 +451,7 @@ func handleLoginCommand(config *CLIConfig, args []string) error {
 	}
 
 	var result map[string]interface{}
-	if err := client.PostJSON(config.GetAPIPath()+"/auth/login", loginReq, &result); err != nil {
+	if err := client.PostJSON(config.GetAPIPath()+"/server/auth/login", loginReq, &result); err != nil {
 		return err
 	}
 

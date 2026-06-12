@@ -48,7 +48,7 @@
                 <span class="user-avatar">{{if .user.Email}}{{index .user.Email 0 | printf "%c" | upper}}{{else}}A{{end}}</span>
                 <span class="user-name">{{.user.Email}}</span>
             </div>
-            <a href="/auth/logout" class="admin-nav-link logout">
+            <a href="/server/auth/logout" class="admin-nav-link logout">
                 <span class="nav-icon">🚪</span>
                 Logout
             </a>
