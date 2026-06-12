@@ -10,6 +10,7 @@ import (
 
 	"github.com/casapps/wthr/src/database"
 	models "github.com/casapps/wthr/src/server/model"
+	"github.com/casapps/wthr/src/server/middleware"
 	"github.com/casapps/wthr/src/server/service"
 )
 
@@ -333,7 +334,7 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("session_id", session.SessionID, 86400, "/", "", secure, true)
+	c.SetCookie(middleware.SessionCookieName, session.SessionID, 86400, "/", "", secure, true)
 	c.Redirect(http.StatusFound, "/")
 }
 
