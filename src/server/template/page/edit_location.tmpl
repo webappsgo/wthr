@@ -125,7 +125,7 @@
             };
 
             try {
-                const response = await fetch(`${API_PATH}/locations/${locationId}`, {
+                const response = await fetch(`${API_PATH}/users/locations/${locationId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -151,7 +151,7 @@
             }
 
             try {
-                const response = await fetch(`${API_PATH}/locations/${locationId}`, {
+                const response = await fetch(`${API_PATH}/users/locations/${locationId}`, {
                     method: 'DELETE'
                 });
 

@@ -372,7 +372,7 @@
             };
 
             try {
-                const response = await fetch(API_PATH + '/locations', {
+                const response = await fetch(API_PATH + '/users/locations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)

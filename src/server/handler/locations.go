@@ -30,7 +30,7 @@ type LocationHandler struct {
 // @Success 200 {array} models.Location "List of saved locations"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/v1/locations [get]
+// @Router /api/v1/users/locations [get]
 func (h *LocationHandler) ListLocations(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -61,7 +61,7 @@ func (h *LocationHandler) ListLocations(c *gin.Context) {
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 403 {object} map[string]interface{} "Access denied"
 // @Failure 404 {object} map[string]interface{} "Location not found"
-// @Router /api/v1/locations/{id} [get]
+// @Router /api/v1/users/locations/{id} [get]
 func (h *LocationHandler) GetLocation(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -103,7 +103,7 @@ func (h *LocationHandler) GetLocation(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Invalid request data"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/v1/locations [post]
+// @Router /api/v1/users/locations [post]
 func (h *LocationHandler) CreateLocation(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -170,7 +170,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 // @Failure 403 {object} map[string]interface{} "Access denied"
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/v1/locations/{id} [put]
+// @Router /api/v1/users/locations/{id} [put]
 func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {
@@ -233,7 +233,7 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 // @Failure 403 {object} map[string]interface{} "Access denied"
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
-// @Router /api/v1/locations/{id} [delete]
+// @Router /api/v1/users/locations/{id} [delete]
 func (h *LocationHandler) DeleteLocation(c *gin.Context) {
 	user, ok := middleware.GetCurrentUser(c)
 	if !ok {

@@ -2158,8 +2158,8 @@ func main() {
 	// Removed - moved to adminRoutes group above
 
 	// Location management pages
-	r.GET("/locations/new", middleware.RequireAuth(db.DB), locationHandler.ShowAddLocationPage)
-	r.GET("/locations/:id/edit", middleware.RequireAuth(db.DB), locationHandler.ShowEditLocationPage)
+	r.GET("/users/locations/new", middleware.RequireAuth(db.DB), locationHandler.ShowAddLocationPage)
+	r.GET("/users/locations/:id/edit", middleware.RequireAuth(db.DB), locationHandler.ShowEditLocationPage)
 
 	// API routes - all API endpoints under /api/{api_version}
 	// AI.md: API version prefix is configurable (default: "v1")
@@ -2341,8 +2341,9 @@ func main() {
 	apiV1.GET("/locations/lookup/coords", locationHandler.LookupCoordinates)
 
 	// Protected location endpoints (require auth)
-	locationAPI := apiV1.Group("/locations")
+	locationAPI := apiV1.Group("/users/locations")
 	locationAPI.Use(middleware.RequireAuth(db.DB))
+	locationAPI.Use(middleware.BlockAdminFromUserRoutes())
 	{
 		locationAPI.GET("", locationHandler.ListLocations)
 		locationAPI.GET("/:id", locationHandler.GetLocation)

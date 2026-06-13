@@ -28,7 +28,7 @@
     <section class="card">
         <div class="card-header flex items-center justify-between gap-sm">
             <h2 class="card-title">{{t .server.Lang "dashboard_your_saved_locations"}}</h2>
-            <a href="/locations/new" class="btn btn-primary btn-sm">+ {{t .server.Lang "dashboard_add_location"}}</a>
+            <a href="/users/locations/new" class="btn btn-primary btn-sm">+ {{t .server.Lang "dashboard_add_location"}}</a>
         </div>
         <div class="card-body">
             {{if gt .locationCount 0}}
@@ -54,7 +54,7 @@
 
                             <div class="flex gap-sm margin-y-md">
                                 <button type="button" class="btn btn-secondary btn-sm flex-1" onclick="window.location.href='/{{.Latitude}},{{.Longitude}}'">{{t $.server.Lang "dashboard_view_weather"}}</button>
-                                <button type="button" class="btn btn-primary btn-sm flex-1" onclick="window.location.href='/locations/{{.ID}}/edit'">{{t $.server.Lang "btn_edit"}}</button>
+                                <button type="button" class="btn btn-primary btn-sm flex-1" onclick="window.location.href='/users/locations/{{.ID}}/edit'">{{t $.server.Lang "btn_edit"}}</button>
                             </div>
                         </div>
                     </div>
@@ -65,7 +65,7 @@
                     <div class="empty-state__icon">📍</div>
                     <h3 class="empty-state__title">{{t .server.Lang "dashboard_no_locations_title"}}</h3>
                     <p class="empty-state__message">{{t .server.Lang "dashboard_no_locations_message"}}</p>
-                    <a href="/locations/new" class="btn btn-primary margin-y-md">{{t .server.Lang "dashboard_add_first_location"}}</a>
+                    <a href="/users/locations/new" class="btn btn-primary margin-y-md">{{t .server.Lang "dashboard_add_first_location"}}</a>
                 </div>
             {{end}}
         </div>
