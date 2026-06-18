@@ -1,50 +1,51 @@
 # AI Task Ledger
 
-This file is the repository-local mirror of the active task state so work can move to a new development server without losing context.
+This file is the repository-local mirror of the active task state so work
+can move to a new development server without losing context.
+
+Last updated: 2026-06-17. Build: clean. All 10 test suites: EXIT:0.
 
 ## Current In-Progress Task
 
-- [ ] `audit-graphql-runtime` — Continue auditing the live gqlgen runtime against the refreshed `AI.md`. The GraphQL passkey/security parity surface is fully wired (build + vet clean inside `golang:alpine`) and the post-regen sweep of PARTs 11/14/16/17/34 is now done with no drift caused by my recent work. The admin-passkey foundation (server-side schema/model/REST CRUD) is also landed — admin-passkey-login-integration / admin-passkey-graphql-parity / admin-passkey-ui / admin-passkey-audit-log are tracked as separate items below. Next concrete step: pick the highest-priority remaining item below and break it out into its own focused task.
+No active task. Pick from "Remaining Spec Gaps" below.
 
-## Bootstrap Items (from 2026-05-16 bootstrap run)
+## Session 2026-06-07/17 — Completed
 
-- [x] `.forgejo/workflows/` — Forgejo CI/CD files (build.yml, release.yml, security.yml, beta.yml, daily.yml, docker.yml) — completed 2026-05-16
-- [x] Verify `govulncheck` passes on current dependencies before next release — 0 vulnerabilities in called code (4 in imported-but-uncalled packages) — verified 2026-05-18
-- [ ] Verify test coverage meets 80% target for business logic (`make test`)
+| Commit | What |
+|--------|------|
+| f6028bc | Fix user_sessions column mismatch — INSERT used id (INTEGER PK) instead of session_id TEXT; added data TEXT column; schema v5→v6 |
+| cac6e51 | Add src/common/{terminal,display,theme,banner} packages per PART 7 |
+| afad097 | Hash session tokens with SHA-256 per IDEA.md security spec; schema v6→v7 (session_id→token_hash) |
+| 6e41f72 | Fix LDAP/OIDC handlers using wrong cookie name |
+| 93ad86f | Migrate auth routes /auth/* → /server/auth/* per PART 14 (29 files) |
+| 09de777 | Move user saved-locations routes to /users/locations per PART 14 |
+| 45cff80 | Standardise registration mode to spec values (open/invite/admin_only/disabled); default invite-only per IDEA.md |
 
-## Pre-Existing Spec Gaps (Partially Closed)
+## Remaining Spec Gaps
 
-These pre-date the AI.md template sync and the GraphQL passkey work — they did NOT regress. The admin-passkey item is now partially closed (foundation landed); the rest are still open.
+### High Priority (PART 14/34 compliance)
 
-- [x] `admin-passkey-login-html-form-page` — GET /{admin_path}/passkey route registered outside adminRoutes; standalone admin/admin_passkey_login.tmpl created; handler reads admin_passkey_pending cookie server-side and embeds token; JS calls challenge/verify endpoints and redirects to dashboard on success — completed 2026-05-16
-- [x] `admin-passkey-graphql-parity` — GraphQL schema/resolvers for admin passkeys (mirror of the user-side surface added in `wire-graphql-passkey-runtime`). Will require a gqlgen regen following the operational workflow recorded in this file's Verified Progress Notes. — completed 2026-05-17
-- [x] `admin-passkey-ui` — Passkeys (WebAuthn) section added to admin_security.tmpl: list, add (two-phase WebAuthn ceremony), delete; {{define}} name mismatch also fixed — completed 2026-05-16
-- [x] `admin-passkey-audit-log` — admin.passkey_added and admin.passkey_removed written to server_audit_log after successful RegisterPasskey and DeletePasskey; logAdminPasskeyAudit helper uses ulid, actor_type=admin per PART 11 shape — completed 2026-05-16
-- [x] `swagger-annotations-coverage` — Added @Router/@Summary/@Tags/@Param/@Success/@Failure annotations to auth_api.go (all 12 auth endpoints), passkey.go (5 endpoints), health.go (4 endpoints), user_public.go (6 endpoints), user_settings.go (3 token endpoints), twofa.go (6 endpoints). Pre-existing go vet IPv6 Dial format errors fixed in email.go, firstrun.go, smtp.go.
-- [x] `idea-md-passkey-content-source` — Frontend rules (PART 16) say `/server/about` and `/server/help` content MUST come from `IDEA.md` and never from generic placeholders. Verify the help/about pages actually mention the new GraphQL passkey mutations. — completed 2026-05-17
+- [ ] `user-settings-routes` — verify user settings web routes are at `/users/settings/*`; check all PART 14 user scope routes are correctly mounted
+- [ ] `admin-config-routes` — verify ALL admin config routes use `/server/{admin_path}/config/*` prefix; grep for stray admin routes outside this scope
+- [ ] `graphql-audit` — partially audited in previous sessions; remaining: verify passkey GraphQL mutations match live WebAuthn runtime; check any remaining panic-stubs or runtime mismatches
 
-## Verified Progress Notes
+### Medium Priority (PART 7 / PART 33)
 
-- Continue `audit-graphql-runtime` from the next verified schema/runtime mismatch. `adminTestChannel` now accepts an optional `recipient`, `adminSMTPProviders` now reads shared SMTP presets, and `submitContactForm` now stores the same request metadata/table shape as the live contact fallback path instead of writing blank fields.
-- Active admin API stubs in `src/main.go` are now partially replaced with runtime-backed behavior: `/api/v1/admin/profile*` uses the real server-admin model/token/preferences runtime, `/api/v1/admin/server/admins*` now enforces server-admin privacy while using the live admin/invite tables instead of empty or dummy JSON, and `/api/v1/admin/server/status` plus `/api/v1/admin/server/health` now serve live health data instead of hardcoded placeholders.
-- The public health surface is now aligned with the verified PART 13 runtime contract: `/healthz` now serves browser HTML, CLI plain text, and explicit JSON from one canonical public-safe payload; `/api/v1/healthz` now always returns that same indented JSON shape; and the old detailed system-health page no longer exposes internal-ish disk/memory/path details on the public route.
-- The server-admin invite flow is now aligned with the public auth invite contract: generated links now point at `/auth/invite/server/{token}`, `/api/v1/auth/invite/server/{token}` now supports validate + complete, the public invite page now validates live tokens and lets the invitee set username/password without re-entering email, invite expiry now uses the allowed `1h|6h|24h|48h|7d` values with a `24h` default instead of a hardcoded 15-minute window, and invite acceptance no longer double-hashes admin passwords.
-- The multi-user user-invite surface is now aligned with the implemented invite-only model: `/auth/invite/user/{token}` is now a live HTML accept flow, `/api/v1/auth/invite/user/{token}` validates and completes against the same runtime using stored invite email/role instead of a second registration path, `/api/v1/admin/server/users/invites*` now exists for create/list/detail/revoke, the admin UI now has a working `/admin/server/users/invites` page and correct sidebar link, direct admin user creation/password-setting routes are no longer mounted, and `user_invites` now uses a compatible runtime/schema shape with default `invite_expiration_days: 7`.
-- GraphQL is now aligned with the invite-only multi-user model: forbidden `adminCreateUser` and `adminUpdateUserPassword` mutations are removed, `adminUsers` and updated user payloads now mask emails, `/graphql` now exposes live `adminUserInvites` list/detail plus `adminCreateUserInvite`/`adminDeleteUserInvite`, and the remaining admin user update/delete mutations now route through the shared user runtime instead of raw SQL writes.
-- GraphQL scheduler mutations are now aligned with the live admin scheduler runtime: `/graphql` now exposes `adminUpdateTask(name, enabled)` alongside enable/disable/trigger, and `adminTaskHistory` now accepts an optional `limit` argument instead of hardcoding 50 runs.
-- GraphQL server-admin management is now aligned with the live privacy-safe REST runtime: `/graphql` now exposes `adminServerAdmins` summary data, self-only `adminServerAdmin(id)` detail, and live `adminInviteServerAdmin` plus enable/disable/delete mutations with the same self/primary-admin/last-super-admin protections as `/api/v1/admin/server/admins*`.
-- GraphQL current-user token management is now aligned with the live multi-user runtime: `/graphql` now exposes `userTokens`, `createUserToken`, and `revokeUserToken`, mirroring the existing `/api/v1/users/tokens` list/create/delete behavior including the 5-token limit, `usr_` token prefix handling, and create-only plaintext token return.
-- GraphQL current-user settings are now aligned with the live multi-user runtime: `/graphql` now exposes `userSettings` plus `updateUserSettings(...)`, mirroring the existing `/api/v1/users/settings` account/privacy/notifications/appearance payload and reusing the shared settings runtime instead of a GraphQL-only partial profile path.
-- GraphQL public multi-user profiles are now aligned with the live runtime: `/graphql` now exposes `publicUserProfile(username)` with the same username/display-name/avatar/bio/location/website/verified/created-at payload as `/api/v1/public/users/:username`.
-- GraphQL current-user avatar management is now aligned with the live multi-user runtime: `/graphql` now exposes `currentUserAvatar`, `updateUserAvatar(type, url)`, and `resetUserAvatar`, mirroring the existing `/api/v1/users/avatar` read/update/reset behavior.
-- GraphQL current-user password changes are now aligned with the live multi-user runtime: `/graphql` now exposes `changeUserPassword(currentPassword, newPassword)` reusing the shared password-change runtime.
-- GraphQL current-user 2FA and recovery-key flows are now aligned with the live multi-user runtime: `/graphql` now exposes `currentUserTwoFactorStatus`, `currentUserTwoFactorSetup`, `enableUserTwoFactor`, `disableUserTwoFactor`, `verifyUserTwoFactor`, and `regenerateUserRecoveryKeys`.
-- GraphQL current-user avatar uploads are now aligned with the live multi-user runtime: `/graphql` now exposes `uploadUserAvatar(file: Upload!)` capped at the same 2 MB limit as REST.
-- Current-user profile runtime is now aligned across REST and GraphQL: the shared profile update path now correctly writes `display_name` instead of corrupting `username`.
-- The mounted multi-user auth runtime is now closer to the AI.md contract: `/api/v1/auth/login` now returns a temporary `session_token` for pending 2FA instead of leaking `user_id`.
-- GraphQL mounted core auth is now aligned with the live multi-user runtime: `/graphql` now exposes register/login, session-token 2FA completion, recovery-key login, logout, refresh, password-reset request/reset, and email verification mutations.
-- GraphQL invite auth is now aligned with the mounted multi-user runtime: `/graphql` now exposes user-invite and server-admin-invite validation/completion surfaces.
-- The mounted multi-user passkey runtime is now aligned much more closely with AI.md: `/auth/passkey` now runs a live browser WebAuthn sign-in flow, `/api/v1/auth/passkey/challenge` and `/api/v1/auth/passkey/verify` are mounted with real WebAuthn ceremony/session handling.
-- Continue `audit-graphql-runtime` from the next verified schema/runtime mismatch; the next mounted multi-user auth/spec drift is the still-missing GraphQL passkey/security parity surface now that the REST and web passkey runtime is mounted.
-- AI.md was refreshed from `~/Documents/templates/go/AI.md` on 2026-04-28 (~+2200 lines vs. the previous in-tree copy). Placeholders were re-resolved per the spec (values in IDEA.md, not in AI.md itself).
-- gqlgen toolchain note (updated 2026-04-28 after the passkey regen): the project pins gqlgen runtime at v0.17.60 in `go.mod` but the v0.17.60 generator has a prelude template bug. The repo carries a hand-patched `prelude.resolvers.go` and ships `src/graphql/gqlgen.yml` with `skip_validation: true`. **Operational regen workflow**: from `src/graphql/`, run `go run github.com/99designs/gqlgen generate` inside `golang:alpine`; gqlgen will overwrite `generated.go` / `models_gen.go` / `schema.resolvers.go` and emit a broken `prelude.resolvers.go`; restore the hand-fixed prelude from `git`, strip the gqlgen-emitted `/* … */` "preserve" block at the bottom of `schema.resolvers.go`, and replace any panic-stub resolvers gqlgen wrote with real implementations. Keep runtime at v0.17.60 until ready to do a coordinated bump.
+- [ ] `common-version-package` — `src/common/version/version.go` not yet created (PART 7 directory spec)
+- [ ] `terminal-resize-package` — `src/common/terminal/resize.go` (SIGWINCH handler) not yet created
+- [ ] `terminal-symbols-package` — `src/common/terminal/symbols.go` (Unicode/ASCII symbols) not yet created
+- [ ] `display-mode-file` — `src/common/display/mode.go` listed separately in PART 7 tree (currently merged into detect.go)
+- [ ] `client-common-display` — client cli.go uses own detectMode() instead of common/display.DetectDisplayEnv()
+
+### Lower Priority
+
+- [ ] `ldap-oidc-session-timeout` — LDAP/OIDC CreateSession hardcodes 24h instead of reading server config `auth.session_timeout`
+- [ ] `registration-mode-normalise-on-load` — setup wizard and admin_users save raw mode strings; normalisation happens in GetRegistrationMode() which is correct, but server_config table may store legacy "public"/"private" values — acceptable since read path normalises
+
+## Verified Progress Notes (from previous sessions)
+
+- gqlgen toolchain note: project pins v0.17.60; generator has prelude template bug; hand-patched prelude.resolvers.go; skip_validation: true in gqlgen.yml; operational regen workflow documented in old TODO.AI.md entries
+- Admin passkey foundation (server-side schema/model/REST CRUD) and GraphQL parity are landed
+- Multi-user REST, web, and invite flows are implemented and tested
+- Session token security: SHA-256 hashing, HttpOnly Secure cookie, SameSite Lax
+- All weather data endpoints (weather, forecast, alerts, earthquakes, hurricanes, moon) are functional
