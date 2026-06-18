@@ -10,9 +10,10 @@
 <section class="card"><h2>Registration</h2>
 <label for="registration_mode">Registration mode</label>
 <select id="registration_mode" name="registration_mode">
-    <option value="public">Public</option>
-    <option value="private">Private (admin invite only)</option>
-    <option value="disabled">Disabled (hidden registration)</option>
+    <option value="open">Open (anyone can register)</option>
+    <option value="invite">Invite Only (admin-issued links)</option>
+    <option value="admin_only">Admin Only (admin creates accounts directly)</option>
+    <option value="disabled">Disabled (no new accounts)</option>
 </select>
 <label><input type="checkbox" name="registration_require_email_verification"> Require email verification</label>
 </section>

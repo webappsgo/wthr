@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
+	"github.com/casapps/wthr/src/config"
 	"github.com/casapps/wthr/src/database"
 	"github.com/casapps/wthr/src/server/handler"
 )
@@ -51,8 +52,18 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 	// Set global dual database
 	database.SetGlobalDualDB(dualDB)
 
+	// Set a minimal global config with open registration so handler tests can
+	// exercise the registration path. The project default is invite-only (per
+	// IDEA.md), but unit tests need to verify the registration handler itself.
+	cfg := &config.AppConfig{}
+	cfg.Users.Enabled = true
+	cfg.Users.Registration.Mode = "open"
+	cfg.Users.Registration.RequireEmailVerification = false
+	config.SetGlobalConfig(cfg)
+
 	cleanup := func() {
 		database.SetGlobalDualDB(nil)
+		config.SetGlobalConfig(nil)
 		serverDB.Close()
 		usersDB.Close()
 	}

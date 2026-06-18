@@ -31,16 +31,21 @@ type UsersConfig struct {
 	Registration RegistrationConfig `yaml:"registration"`
 }
 
-// RegistrationConfig represents user registration settings per AI.md PART 33
+// RegistrationConfig represents user registration settings per AI.md PART 34.
 type RegistrationConfig struct {
-	// Mode: public, private, disabled
-	// public = anyone can register
-	// private = invite only (admin creates invite links)
-	// disabled = invite only with registration hidden
+	// Mode controls how new regular-user accounts are created.
+	// Per AI.md PART 34 canonical values:
+	//   open       — anyone can self-register (public)
+	//   invite     — only admin-issued invite links create accounts (default, per IDEA.md)
+	//   admin_only — only direct admin creation (no self-service)
+	//   disabled   — no new regular-user accounts allowed
+	// Legacy aliases accepted for backward compat (normalised in GetRegistrationMode):
+	//   "public"  → "open"
+	//   "private" → "invite"
 	Mode string `yaml:"mode"`
-	// Require users to verify email before login
+	// RequireEmailVerification requires users to verify email before login.
 	RequireEmailVerification bool `yaml:"require_email_verification"`
-	// Invite links remain valid for this many days
+	// InviteExpirationDays controls how many days invite links remain valid.
 	InviteExpirationDays int `yaml:"invite_expiration_days"`
 }
 
@@ -371,8 +376,8 @@ func LoadConfig() (*AppConfig, error) {
 		Users: UsersConfig{
 			Enabled: true,
 			Registration: RegistrationConfig{
-				// public = anyone can register (default)
-				Mode:                     "public",
+				// invite = admin-issued invite links only (per IDEA.md project default)
+				Mode:                     "invite",
 				RequireEmailVerification: true,
 				InviteExpirationDays:     7,
 			},
@@ -726,18 +731,27 @@ func IsMultiUserEnabled() bool {
 	return cfg.Users.Enabled
 }
 
-// GetRegistrationMode returns the current registration mode
-// Per AI.md PART 33: public, private, or disabled
+// GetRegistrationMode returns the canonical registration mode per AI.md PART 34.
+// Valid canonical values: "open", "invite", "admin_only", "disabled".
+// Legacy values "public" and "private" are normalised to their canonical equivalents.
+// Default when no config is set: "invite" (per IDEA.md project specification).
 func GetRegistrationMode() string {
 	cfg := GetGlobalConfig()
-	if cfg == nil {
-		return "public"
+	var mode string
+	if cfg != nil {
+		mode = cfg.Users.Registration.Mode
 	}
-	mode := cfg.Users.Registration.Mode
-	if mode == "" {
-		return "public" // default
+	switch mode {
+	case "public":
+		return "open"
+	case "private":
+		return "invite"
+	case "open", "invite", "admin_only", "disabled":
+		return mode
+	default:
+		// Not configured or unknown value: default to invite per IDEA.md.
+		return "invite"
 	}
-	return mode
 }
 
 // GetUserInviteExpirationDays returns the configured invite expiration in days.
@@ -750,20 +764,37 @@ func GetUserInviteExpirationDays() int {
 	return cfg.Users.Registration.InviteExpirationDays
 }
 
-// IsRegistrationPublic returns true if public registration is enabled
-// Per AI.md PART 33: public mode = anyone can register
+// IsRegistrationOpen returns true when anyone can self-register (mode "open").
+// Per AI.md PART 34: open mode = anyone can register.
+func IsRegistrationOpen() bool {
+	return GetRegistrationMode() == "open"
+}
+
+// IsRegistrationPublic is a backward-compatible alias for IsRegistrationOpen.
 func IsRegistrationPublic() bool {
-	return GetRegistrationMode() == "public"
+	return IsRegistrationOpen()
 }
 
-// IsRegistrationPrivate returns true if invite-only registration is enabled
-// Per AI.md PART 33: private mode = invite only
+// IsRegistrationPrivate returns true when only invite links create accounts.
+// Kept for backward compat; prefer IsRegistrationInviteOnly.
 func IsRegistrationPrivate() bool {
-	return GetRegistrationMode() == "private"
+	return IsRegistrationInviteOnly()
 }
 
-// IsRegistrationDisabled returns true if registration is disabled
-// Per AI.md PART 33: disabled mode = admin creates accounts directly
+// IsRegistrationInviteOnly returns true when registration mode is "invite".
+// Per AI.md PART 34: invite mode = admin-issued invite links only.
+func IsRegistrationInviteOnly() bool {
+	return GetRegistrationMode() == "invite"
+}
+
+// IsRegistrationAdminOnly returns true when only admins can directly create accounts.
+// Per AI.md PART 34: admin_only mode = no self-service or invites.
+func IsRegistrationAdminOnly() bool {
+	return GetRegistrationMode() == "admin_only"
+}
+
+// IsRegistrationDisabled returns true when no new regular-user accounts are allowed.
+// Per AI.md PART 34: disabled mode = existing users only.
 func IsRegistrationDisabled() bool {
 	return GetRegistrationMode() == "disabled"
 }

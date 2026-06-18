@@ -88,8 +88,9 @@
                         <div class="form-group">
                             <label class="form-label" for="registration_mode">Registration Mode</label>
                             <select id="registration_mode" name="registration_mode" class="form-input">
-                                <option value="public">Public (anyone can register)</option>
-                                <option value="invite">Invite Only</option>
+                                <option value="open">Open (anyone can register)</option>
+                                <option value="invite" selected>Invite Only (default)</option>
+                                <option value="admin_only">Admin Only</option>
                                 <option value="disabled">Disabled</option>
                             </select>
                         </div>
