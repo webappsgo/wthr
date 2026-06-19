@@ -13,13 +13,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupTokenRequired shows setup token entry form at /admin when no admin exists
-// AI.md: User navigates to /admin → User enters setup token → Redirect to /{admin_path}/server/setup
-// AI.md: Admin panel (/admin) - YES (requires setup token) - accessible before setup
+// SetupTokenRequired shows setup token entry form at /server/admin when no admin exists
+// AI.md: User navigates to /server/admin → User enters setup token → Redirect to /server/{admin_path}/server/setup
+// AI.md: Admin panel (/server/admin) - YES (requires setup token) - accessible before setup
 func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		adminPath := "/" + cfg.GetAdminPath()
+		adminPath := "/server/" + cfg.GetAdminPath()
 
 		// Only apply to admin routes
 		if !strings.HasPrefix(path, adminPath) {
@@ -97,7 +97,7 @@ func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc 
 		err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 		if err == nil && count > 0 {
 			// Admin exists - setup complete, redirect to admin dashboard
-			adminPath := "/" + cfg.GetAdminPath()
+			adminPath := "/server/" + cfg.GetAdminPath()
 			c.Redirect(http.StatusFound, adminPath+"/dashboard")
 			c.Abort()
 			return
@@ -107,7 +107,7 @@ func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc 
 		configDir := paths.GetConfigDir()
 		if !utils.SetupTokenExists(configDir) {
 			// No setup token file and no admin - should not happen
-			adminPath := "/" + cfg.GetAdminPath()
+			adminPath := "/server/" + cfg.GetAdminPath()
 			c.Redirect(http.StatusFound, adminPath)
 			c.Abort()
 			return
@@ -124,8 +124,8 @@ func RequireSetupTokenVerified(cfg *config.AppConfig) gin.HandlerFunc {
 		// Check for setup_token_verified cookie
 		tokenVerified, _ := c.Cookie("setup_token_verified")
 		if tokenVerified != "true" {
-			// No verified token - redirect to /admin to enter token
-			adminPath := "/" + cfg.GetAdminPath()
+			// No verified token - redirect to /server/admin to enter token
+			adminPath := "/server/" + cfg.GetAdminPath()
 			c.Redirect(http.StatusFound, adminPath)
 			c.Abort()
 			return
@@ -149,7 +149,7 @@ func BlockSetupAfterAdminExists(db *sql.DB, cfg *config.AppConfig) gin.HandlerFu
 
 		// If admin exists, redirect to admin dashboard
 		if count > 0 {
-			adminPath := "/" + cfg.GetAdminPath()
+			adminPath := "/server/" + cfg.GetAdminPath()
 			c.Redirect(http.StatusFound, adminPath+"/dashboard")
 			c.Abort()
 			return

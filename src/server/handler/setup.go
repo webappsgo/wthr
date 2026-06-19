@@ -30,14 +30,14 @@ func (h *SetupHandler) ShowSetupTokenEntry(c *gin.Context) {
 	})
 }
 
-// VerifySetupTokenAtAdmin handles setup token verification at /admin/verify-token
-// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token → Step 4: Redirect to setup wizard
+// VerifySetupTokenAtAdmin handles setup token verification at /server/admin/verify-token
+// AI.md: Step 2: User navigates to /server/admin → Step 3: User enters setup token → Step 4: Redirect to setup wizard
 func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 	// Get admin path from config
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
 	title := "Weather"
@@ -126,9 +126,9 @@ func (h *SetupHandler) VerifySetupToken(c *gin.Context) {
 
 	// Get admin path for redirect
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -704,12 +704,12 @@ func (h *SetupHandler) CompleteSetup(c *gin.Context) {
 	}
 
 	// Get the admin path from config (derive from current URL)
-	// Current URL is /{admin_path}/server/setup/complete
+	// Current URL is /server/{admin_path}/server/setup/complete
 	path := c.Request.URL.Path
 	parts := strings.Split(path, "/")
-	adminPath := "/admin" // default
-	if len(parts) > 1 && parts[1] != "" {
-		adminPath = "/" + parts[1]
+	adminPath := "/server/admin" // default
+	if len(parts) > 2 && parts[1] == "server" && parts[2] != "" {
+		adminPath = "/server/" + parts[2]
 	}
 
 	c.HTML(http.StatusOK, "page/setup_complete.tmpl", gin.H{
@@ -721,9 +721,9 @@ func (h *SetupHandler) CompleteSetup(c *gin.Context) {
 // GetSetupStatus returns the current setup status as a healthz endpoint
 func (h *SetupHandler) GetSetupStatus(c *gin.Context) {
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
 	// Check if a primary admin exists

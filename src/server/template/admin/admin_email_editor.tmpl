@@ -135,6 +135,7 @@
     </div>
 
     <script>
+        const ADMIN_API_PATH = '{{.admin_api_path}}';
         let currentTemplate = 'welcome';
         let templates = {};
 
@@ -155,7 +156,7 @@
         // Load template
         async function loadTemplate(templateName) {
             try {
-                const response = await fetch(`/api/admin/email/templates/${templateName}`);
+                const response = await fetch(`${ADMIN_API_PATH}/email/templates/${templateName}`);
                 if (!response.ok) throw new Error('Failed to load template');
 
                 const data = await response.json();
@@ -202,7 +203,7 @@
                 const subject = document.getElementById('templateSubject').value;
                 const body = document.getElementById('templateBody').value;
 
-                const response = await fetch(`/api/admin/email/templates/${currentTemplate}`, {
+                const response = await fetch(`${ADMIN_API_PATH}/email/templates/${currentTemplate}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ subject, body })
@@ -236,7 +237,7 @@
             testBtn.innerHTML = '<span class="loading"></span> Sending...';
 
             try {
-                const response = await fetch('/api/admin/email/test', {
+                const response = await fetch(`${ADMIN_API_PATH}/email/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ template: currentTemplate })

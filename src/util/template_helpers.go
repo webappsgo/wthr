@@ -90,13 +90,13 @@ func TemplateData(c *gin.Context, data gin.H) gin.H {
 	currentURL := scheme + "://" + c.Request.Host + c.Request.URL.Path
 
 	// Get configurable paths per AI.md PART 17
-	// Templates must use these instead of hardcoded "/admin/" or "/api/v1/"
+	// Templates must use these instead of hardcoded "/server/admin/" or "/api/v1/server/admin/"
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	apiPath := "/api/v1"
-	adminAPIPath := "/api/v1/admin"
+	adminAPIPath := "/api/v1/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 		apiPath = cfg.GetAPIPath()
 		adminAPIPath = cfg.GetAdminAPIPath()
 	}

@@ -57,8 +57,8 @@ func AuditLogger(db *sql.DB) gin.HandlerFunc {
 
 // isAdminRoute checks if the path is an admin route
 func isAdminRoute(path string) bool {
-	return len(path) >= 6 && path[:6] == "/admin" ||
-		len(path) >= 13 && path[:13] == "/api/v1/admin"
+	return len(path) >= 13 && path[:13] == "/server/admin" ||
+		len(path) >= 20 && path[:20] == "/api/v1/server/admin"
 }
 
 // getActionFromRequest determines the action type from method and path
@@ -83,11 +83,11 @@ func getActionFromRequest(method, path string) string {
 
 // getResourceFromPath extracts the resource name from the path
 func getResourceFromPath(path string) string {
-	// Remove /api/v1/admin or /admin prefix
-	if len(path) >= 13 && path[:13] == "/api/v1/admin" {
+	// Remove /api/v1/server/admin or /server/admin prefix
+	if len(path) >= 20 && path[:20] == "/api/v1/server/admin" {
+		path = path[20:]
+	} else if len(path) >= 13 && path[:13] == "/server/admin" {
 		path = path[13:]
-	} else if len(path) >= 6 && path[:6] == "/admin" {
-		path = path[6:]
 	}
 
 	// Remove leading slash

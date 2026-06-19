@@ -157,14 +157,14 @@ func IsAdmin(c *gin.Context) bool {
 	return ok && user.Role == "admin"
 }
 
-// RestrictAdminToAdminRoutes middleware that forces admins to only access /admin routes
+// RestrictAdminToAdminRoutes middleware that forces admins to only access /server/admin routes
 // Admins are treated as guest/anonymous on all non-admin routes
 func RestrictAdminToAdminRoutes() gin.HandlerFunc {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
 	return func(c *gin.Context) {
@@ -202,9 +202,9 @@ func RestrictAdminToAdminRoutes() gin.HandlerFunc {
 func BlockAdminFromUserRoutes() gin.HandlerFunc {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
-	adminPath := "/admin"
+	adminPath := "/server/admin"
 	if cfg != nil {
-		adminPath = "/" + cfg.GetAdminPath()
+		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
 	return func(c *gin.Context) {

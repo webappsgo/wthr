@@ -215,7 +215,7 @@ func (h *MetricsHandler) exportPrometheus(c *gin.Context) {
 	output := `# HELP weather_http_requests_total Total number of HTTP requests
 # TYPE weather_http_requests_total counter
 weather_http_requests_total{method="GET",path="/api/v1/weather"} 1234
-weather_http_requests_total{method="POST",path="/api/v1/admin/settings"} 56
+weather_http_requests_total{method="POST",path="/api/v1/server/admin/settings"} 56
 
 # HELP weather_http_request_duration_seconds HTTP request duration in seconds
 # TYPE weather_http_request_duration_seconds histogram
@@ -241,7 +241,7 @@ func (h *MetricsHandler) exportJSON(c *gin.Context) {
 			"type": "counter",
 			"values": []map[string]interface{}{
 				{"labels": map[string]string{"method": "GET", "path": "/api/v1/weather"}, "value": 1234},
-				{"labels": map[string]string{"method": "POST", "path": "/api/v1/admin/settings"}, "value": 56},
+				{"labels": map[string]string{"method": "POST", "path": "/api/v1/server/admin/settings"}, "value": 56},
 			},
 		},
 		"active_connections": map[string]interface{}{

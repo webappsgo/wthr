@@ -730,7 +730,7 @@ func RegisterNotificationAPIRoutes(router *gin.Engine, handlers *NotificationAPI
 	}
 
 	// Admin notification endpoints
-	adminAPI := router.Group("/api/v1/admin")
+	adminAPI := router.Group("/api/v1/server/admin")
 	if adminAuth != nil {
 		adminAPI.Use(adminAuth)
 	}

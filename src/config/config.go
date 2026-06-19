@@ -358,10 +358,10 @@ func (c *AppConfig) GetAPIPath() string {
 	return "/api/" + c.GetAPIVersion()
 }
 
-// GetAdminAPIPath returns the full admin API path prefix (e.g., "/api/v1/admin")
-// AI.md: Admin API routes use /api/{api_version}/{admin_path}/ format
+// GetAdminAPIPath returns the full admin API path prefix (e.g., "/api/v1/server/admin")
+// AI.md: Admin API routes use /api/{api_version}/server/{admin_path}/ format
 func (c *AppConfig) GetAdminAPIPath() string {
-	return c.GetAPIPath() + "/" + c.GetAdminPath()
+	return c.GetAPIPath() + "/server/" + c.GetAdminPath()
 }
 
 // LoadConfig loads configuration from server.yml per AI.md PART 4

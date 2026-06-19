@@ -29,20 +29,20 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 	cfg := config.GetGlobalConfig()
 	adminIDValue, exists := c.Get("admin_id")
 	if !exists {
-		c.Redirect(http.StatusFound, "/admin")
+		c.Redirect(http.StatusFound, "/server/admin")
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		c.Redirect(http.StatusFound, "/admin")
+		c.Redirect(http.StatusFound, "/server/admin")
 		return
 	}
 
 	adminModel := &models.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		c.Redirect(http.StatusFound, "/admin")
+		c.Redirect(http.StatusFound, "/server/admin")
 		return
 	}
 

@@ -390,8 +390,8 @@ func main() {
 		hasNoUsers = false
 	}
 	if hasNoUsers {
-		appLogger.Printf("No server admins found - complete setup at /%s", cfg.GetAdminPath())
-		fmt.Printf("🆕 No server admins found - complete setup at /%s\n", cfg.GetAdminPath())
+		appLogger.Printf("No server admins found - complete setup at /server/%s", cfg.GetAdminPath())
+		fmt.Printf("🆕 No server admins found - complete setup at /server/%s\n", cfg.GetAdminPath())
 	}
 
 	// Handle status flag
@@ -1237,11 +1237,11 @@ func main() {
 		})
 	})
 
-	// Server setup routes at /{admin_path}/server/setup (requires verified setup token)
-	// AI.md: Setup flow is at /{admin_path}/server/setup, creates Primary Admin
+	// Server setup routes at /server/{admin_path}/server/setup (requires verified setup token)
+	// AI.md: Setup flow is at /server/{admin_path}/server/setup, creates Primary Admin
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
-	// AI.md: Step 4: Redirect to /{admin_path}/server/setup (setup wizard) after token verified
-	adminSetupRoutes := r.Group("/" + cfg.GetAdminPath() + "/server/setup")
+	// AI.md: Step 4: Redirect to /server/{admin_path}/server/setup (setup wizard) after token verified
+	adminSetupRoutes := r.Group("/server/" + cfg.GetAdminPath() + "/server/setup")
 	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(db.DB, cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
 	{
@@ -1637,8 +1637,8 @@ func main() {
 	}
 
 	// Admin setup token verification route (public - before auth check)
-	// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token
-	r.POST("/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
+	// AI.md: Step 2: User navigates to /server/admin → Step 3: User enters setup token
+	r.POST("/server/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
 
 	// Admin passkey login page (public — shown during the post-password / pre-passkey
 	// window; admin session is not yet established so this MUST be outside adminRoutes).
@@ -1646,7 +1646,7 @@ func main() {
 	// has registered passkeys.  The page reads the cookie server-side (HttpOnly) and
 	// embeds the pending-session token so the in-page JS can call the challenge/verify
 	// API endpoints without ever exposing the raw cookie value to JS directly.
-	r.GET("/"+cfg.GetAdminPath()+"/passkey", func(c *gin.Context) {
+	r.GET("/server/"+cfg.GetAdminPath()+"/passkey", func(c *gin.Context) {
 		pendingToken, cookieErr := c.Cookie("admin_passkey_pending")
 		if cookieErr != nil || strings.TrimSpace(pendingToken) == "" {
 			// Cookie missing or expired — bail back to login with a clear message.
@@ -1665,8 +1665,8 @@ func main() {
 	})
 
 	// Admin routes (require admin role + stricter rate limiting)
-	// AI.md: Admin panel at /{admin_path} (configurable, default: "admin")
-	adminRoutes := r.Group("/" + cfg.GetAdminPath())
+	// AI.md: Admin panel at /server/{admin_path} (configurable, default: "admin")
+	adminRoutes := r.Group("/server/" + cfg.GetAdminPath())
 	// AI.md: Show setup token entry at /admin when no admin exists
 	adminRoutes.Use(middleware.SetupTokenRequired(db.DB, cfg))
 	adminRoutes.Use(middleware.RequireAdminAuth())
@@ -2371,8 +2371,8 @@ func main() {
 	}
 
 	// Admin API routes (require admin role + stricter rate limiting)
-	// AI.md: Admin API at /api/{api_version}/{admin_path}/
-	adminAPI := apiV1.Group("/" + cfg.GetAdminPath())
+	// AI.md: Admin API at /api/{api_version}/server/{admin_path}/
+	adminAPI := apiV1.Group("/server/" + cfg.GetAdminPath())
 	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerDB(), db.DB))
 	adminAPI.Use(middleware.AdminRateLimitMiddleware())
 	// Log all admin API actions

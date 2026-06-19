@@ -213,9 +213,9 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 
 		// Get admin path from config (AI.md: use configurable admin_path)
-		adminPath := "/admin"
+		adminPath := "/server/admin"
 		if cfg != nil {
-			adminPath = "/" + cfg.GetAdminPath()
+			adminPath = "/server/" + cfg.GetAdminPath()
 		}
 
 		// Set admin_session cookie with proper security (AI.md PART 18)
@@ -244,9 +244,9 @@ func AdminLogoutHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get admin path from config (AI.md: use configurable admin_path)
 		cfg, _ := config.LoadConfig()
-		adminPath := "/admin"
+		adminPath := "/server/admin"
 		if cfg != nil {
-			adminPath = "/" + cfg.GetAdminPath()
+			adminPath = "/server/" + cfg.GetAdminPath()
 		}
 
 		// Clear admin session cookie

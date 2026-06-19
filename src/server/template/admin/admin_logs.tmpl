@@ -120,6 +120,7 @@
     </div>
 
     <script>
+        const ADMIN_API_PATH = '{{.admin_api_path}}';
         let logs = [];
         let filteredLogs = [];
         let autoRefreshInterval = null;
@@ -133,7 +134,7 @@
 
             try {
                 const tailLines = document.getElementById('tailLines').value;
-                const response = await fetch(`/api/admin/logs?tail=${tailLines}`);
+                const response = await fetch(`${ADMIN_API_PATH}/logs?tail=${tailLines}`);
 
                 if (!response.ok) throw new Error('Failed to fetch logs');
 
@@ -228,7 +229,7 @@
         // Download logs
         async function downloadLogs() {
             try {
-                const response = await fetch('/api/admin/logs/download');
+                const response = await fetch(`${ADMIN_API_PATH}/logs/download`);
                 if (!response.ok) throw new Error('Failed to download logs');
 
                 const blob = await response.blob();
@@ -252,7 +253,7 @@
             }
 
             try {
-                const response = await fetch('/api/admin/logs', { method: 'DELETE' });
+                const response = await fetch(`${ADMIN_API_PATH}/logs`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Failed to clear logs');
 
                 logs = [];

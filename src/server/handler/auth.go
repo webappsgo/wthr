@@ -57,7 +57,7 @@ type RegisterRequest struct {
 func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	// Check if already authenticated as admin (admin_session cookie)
 	cfg := config.GetGlobalConfig()
-	adminPath := "/" + cfg.GetAdminPath()
+	adminPath := "/server/" + cfg.GetAdminPath()
 	adminSessionID, err := c.Cookie("admin_session")
 	if err == nil && adminSessionID != "" {
 		// Validate admin session exists in database
@@ -165,7 +165,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			}
 
 			cfg := config.GetGlobalConfig()
-			adminPath := "/" + cfg.GetAdminPath()
+			adminPath := "/server/" + cfg.GetAdminPath()
 
 			if strings.Contains(contentType, "application/json") {
 				c.JSON(http.StatusOK, gin.H{
@@ -198,7 +198,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 
 		// No passkeys registered — issue a full admin session. 30 days default.
 		cfg := config.GetGlobalConfig()
-		adminPath := "/" + cfg.GetAdminPath()
+		adminPath := "/server/" + cfg.GetAdminPath()
 
 		adminSessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
 		duration := 30 * 24 * time.Hour
@@ -490,7 +490,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	} else {
 		// Honor ?redirect= param, but never redirect to admin routes
 		redirect := c.Query("redirect")
-		if redirect == "" || strings.HasPrefix(redirect, "/admin") {
+		if redirect == "" || strings.HasPrefix(redirect, "/server/admin") {
 			redirect = "/users"
 		}
 		c.Redirect(http.StatusFound, redirect)
