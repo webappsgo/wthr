@@ -114,9 +114,6 @@ releases/
 coverage.out
 *.coverprofile
 
-# Runtime volume data (NEVER commit)
-rootfs/
-
 # IDE
 .idea/
 .vscode/

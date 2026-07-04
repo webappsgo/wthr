@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status --porcelain)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git stash*)",
+      "Bash(git pull)",
+      "Bash(git add*)",
+      "Bash(git mv*)",
+      "Bash(git rm*)",
+      "Bash(grep*)",
+      "Bash(find*)",
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(mkdir*)",
+      "Bash(cp*)",
+      "Bash(mv*)",
+      "Bash(rm*)",
+      "Bash(docker*)",
+      "Bash(make*)",
+      "Bash(go*)",
+      "Bash(gitcommit*)",
+      "Write(.git/COMMIT_MESS)",
+      "Write(CLAUDE.md)",
+      "Write(AI.md)",
+      "Write(IDEA.md)",
+      "Write(SPEC.md)",
+      "Write(TODO.AI.md)",
+      "Write(TODO.md)",
+      "Write(PLAN.AI.md)",
+      "Write(PLAN.md)",
+      "Write(.claude/settings.json)",
+      "Write(.claude/settings.local.json)",
+      "Write(.env)",
+      "Write(app.env)",
+      "Write(default.env)",
+      "Write(.no_push)"
+    ]
+  }
+}

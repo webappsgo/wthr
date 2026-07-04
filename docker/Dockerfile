@@ -1,18 +1,14 @@
 # =============================================================================
 # Build Stage - Compile Go binary
 # =============================================================================
-FROM golang:alpine AS builder
-
-# Install git and bash (git: required for go mod download; bash: for build scripts)
-RUN apk add --no-cache git bash
+FROM casjaysdev/go:latest AS builder
 
 ARG TARGETARCH
 ARG VERSION=dev
 ARG BUILD_DATE
 ARG COMMIT_ID
-ARG OFFICIALSITE=https://wthr.top
 
-WORKDIR /build
+WORKDIR /app
 
 # Copy go.mod first for layer caching
 COPY go.mod go.sum ./
@@ -21,8 +17,9 @@ RUN go mod download
 # Copy source and build
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIALSITE}'" \
-    -o /build/binary/wthr ./src
+    -buildvcs=false -trimpath \
+    -ldflags "-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}'" \
+    -o /app/binary/wthr ./src
 
 # =============================================================================
 # Runtime Stage - Minimal Alpine image
@@ -35,25 +32,11 @@ ARG BUILD_DATE
 ARG COMMIT_ID
 ARG LICENSE=MIT
 
-# Static Labels (NON-NEGOTIABLE per AI.md PART 27)
-LABEL maintainer="Weather Service Contributors <noreply@github.com>" \
-      org.opencontainers.image.vendor="casapps" \
-      org.opencontainers.image.authors="casapps" \
-      org.opencontainers.image.title="wthr" \
-      org.opencontainers.image.base.name="wthr" \
-      org.opencontainers.image.description="Containerized version of wthr" \
-      org.opencontainers.image.url="https://github.com/casapps/wthr" \
-      org.opencontainers.image.source="https://github.com/casapps/wthr" \
-      org.opencontainers.image.documentation="https://github.com/casapps/wthr" \
-      org.opencontainers.image.vcs-type="Git" \
-      com.github.containers.toolbox="false"
-
-# Dynamic Labels (from ARGs)
-LABEL org.opencontainers.image.licenses="${LICENSE}" \
-      org.opencontainers.image.created="${BUILD_DATE}" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.schema-version="${VERSION}" \
-      org.opencontainers.image.revision="${COMMIT_ID}"
+# No LABEL blocks — all image metadata is applied as OCI annotations at build time.
+# Pass --annotation flags to docker buildx build (or use docker/metadata-action
+# annotations: output in GitHub Actions). Annotations attach to the manifest index
+# and are visible on multiarch pulls. LABEL applies only to per-platform layers.
+# See dockerfile_conventions.md → OCI Annotations.
 
 # Install required packages
 # NOTE: Tor binary installed but NOT configured here - binary handles all Tor setup (see PART 32)
@@ -69,11 +52,11 @@ RUN apk add --no-cache \
 # Docker volume mounts auto-create mount points
 
 # Copy binary from builder stage (multi-stage build)
-COPY --from=builder /build/binary/wthr /usr/local/bin/wthr
+COPY --from=builder /app/binary/wthr /usr/local/bin/wthr
 
-# Copy BUILD-TIME overlay (entrypoint.sh) from docker/file_system/ into image
-# Per AI.md PART 27: file_system/ is BUILD-TIME overlay, NOT runtime volumes
-COPY docker/file_system/ /
+# Copy BUILD-TIME overlay (entrypoint.sh) from docker/rootfs/ into image
+# Note: This is docker/rootfs/ (build context), NOT runtime ./volumes/ mounts
+COPY docker/rootfs/ /
 
 # Copy Dockerfile to image (for reference and backup)
 COPY docker/Dockerfile /root/Dockerfile
@@ -84,7 +67,8 @@ RUN chmod 755 /usr/local/bin/*
 # Set environment
 # Note: Tor available (binary installed) but server binary controls Tor startup (see PART 32)
 ENV MODE=development \
-    TZ=America/New_York
+    TZ=America/New_York \
+    DATABASE_DIR=/data/db/sqlite
 
 # Expose internal port (always 80)
 EXPOSE 80
