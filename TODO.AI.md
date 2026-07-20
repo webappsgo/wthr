@@ -3,7 +3,7 @@
 This file is the repository-local mirror of the active task state so work
 can move to a new development server without losing context.
 
-Last updated: 2026-06-17. Build: clean. All 10 test suites: EXIT:0.
+Last updated: 2026-07-18. Build: clean. All 10 test suites: EXIT:0.
 
 ## Current In-Progress Task
 
@@ -26,21 +26,40 @@ No active task. Pick from "Remaining Spec Gaps" below.
 ### High Priority (PART 14/34 compliance)
 
 - [ ] `user-settings-routes` — verify user settings web routes are at `/users/settings/*`; check all PART 14 user scope routes are correctly mounted
+  Read: AI.md PART 14
 - [ ] `admin-config-routes` — verify ALL admin config routes use `/server/{admin_path}/config/*` prefix; grep for stray admin routes outside this scope
+  Read: AI.md PART 14
 - [ ] `graphql-audit` — partially audited in previous sessions; remaining: verify passkey GraphQL mutations match live WebAuthn runtime; check any remaining panic-stubs or runtime mismatches
+  Read: AI.md PART 14
 
 ### Medium Priority (PART 7 / PART 33)
 
 - [ ] `common-version-package` — `src/common/version/version.go` not yet created (PART 7 directory spec)
+  Read: AI.md PART 7
 - [ ] `terminal-resize-package` — `src/common/terminal/resize.go` (SIGWINCH handler) not yet created
+  Read: AI.md PART 7
 - [ ] `terminal-symbols-package` — `src/common/terminal/symbols.go` (Unicode/ASCII symbols) not yet created
+  Read: AI.md PART 7
 - [ ] `display-mode-file` — `src/common/display/mode.go` listed separately in PART 7 tree (currently merged into detect.go)
+  Read: AI.md PART 7
 - [ ] `client-common-display` — client cli.go uses own detectMode() instead of common/display.DetectDisplayEnv()
+  Read: AI.md PART 7
 
 ### Lower Priority
 
 - [ ] `ldap-oidc-session-timeout` — LDAP/OIDC CreateSession hardcodes 24h instead of reading server config `auth.session_timeout`
+  Read: AI.md PART 12
 - [ ] `registration-mode-normalise-on-load` — setup wizard and admin_users save raw mode strings; normalisation happens in GetRegistrationMode() which is correct, but server_config table may store legacy "public"/"private" values — acceptable since read path normalises
+  Read: AI.md PART 34
+
+### Foundational (PART 0-6, found during 2026-07-18 bootstrap reconciliation)
+
+- [ ] `license-attribution-incomplete` — LICENSE.md third-party section lists only 3 of ~40 direct go.mod dependencies; needs each dependency's actual license verified (not guessed) before adding
+  Read: AI.md PART 2
+- [ ] `docker-dockerfile-dev-missing` — `docker/Dockerfile.dev` does not exist; project structure requires it alongside `Dockerfile` and `Dockerfile.aio`
+  Read: AI.md PART 3
+- [ ] `router-migration-gin-to-chi` — AI.md PART 3 mandates go-chi/chi/v5, codebase uses gin-gonic/gin across ~80 source files, no approved-deviation doc exists; needs a full migration plan before execution given the blast radius
+  Read: AI.md PART 3
 
 ## Verified Progress Notes (from previous sessions)
 
