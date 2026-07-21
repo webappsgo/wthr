@@ -203,11 +203,7 @@ func shouldRespondText(c *gin.Context) bool {
 
 	// Check Accept header
 	accept := c.GetHeader("Accept")
-	if strings.Contains(accept, "text/plain") {
-		return true
-	}
-
-	return false
+	return strings.Contains(accept, "text/plain")
 }
 
 // WantsJSON checks if the request wants JSON response per AI.md PART 14

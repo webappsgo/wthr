@@ -54,10 +54,10 @@ func (fm *FailoverManager) IsReadOnly() bool {
 }
 
 // GetLastError returns the last database error and when it occurred
-func (fm *FailoverManager) GetLastError() (error, time.Time) {
+func (fm *FailoverManager) GetLastError() (time.Time, error) {
 	fm.mu.RLock()
 	defer fm.mu.RUnlock()
-	return fm.lastError, fm.lastErrorAt
+	return fm.lastErrorAt, fm.lastError
 }
 
 // Query executes a SELECT query (reads from cache if in read-only mode)

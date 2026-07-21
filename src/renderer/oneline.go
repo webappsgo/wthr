@@ -142,13 +142,3 @@ func (r *OneLineRenderer) getShortLocationName(location utils.LocationData) stri
 	return fmt.Sprintf("%s, %s", cityName, countryCode)
 }
 
-// getFullLocationName gets the full location name for display
-func (r *OneLineRenderer) getFullLocationName(location utils.LocationData) string {
-	// Use the pre-built full name from enhanced location data
-	if location.FullName != "" {
-		return location.FullName
-	}
-
-	// Fallback: basic format
-	return fmt.Sprintf("%s, %s", location.Name, location.Country)
-}

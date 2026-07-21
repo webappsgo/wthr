@@ -93,12 +93,9 @@ func (s *Scheduler) ScheduleNotificationCleanup(cleaner *NotificationCleaner, ta
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				if err := cleaner.CleanupExpiredNotifications(); err != nil {
-					log.Printf("⚠️  Scheduled notification cleanup failed: %v", err)
-				}
+		for range ticker.C {
+			if err := cleaner.CleanupExpiredNotifications(); err != nil {
+				log.Printf("⚠️  Scheduled notification cleanup failed: %v", err)
 			}
 		}
 	}()
@@ -126,12 +123,9 @@ func (s *Scheduler) ScheduleNotificationLimitEnforcement(cleaner *NotificationCl
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				if err := cleaner.EnforceLimits(); err != nil {
-					log.Printf("⚠️  Scheduled notification limit enforcement failed: %v", err)
-				}
+		for range ticker.C {
+			if err := cleaner.EnforceLimits(); err != nil {
+				log.Printf("⚠️  Scheduled notification limit enforcement failed: %v", err)
 			}
 		}
 	}()

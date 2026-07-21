@@ -464,6 +464,10 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 			radius,
 			feedType,
 		)
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
+			return
+		}
 	} else {
 		earthquakes, err = h.earthquakeService.GetEarthquakes(feedType)
 	}

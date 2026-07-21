@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
@@ -236,8 +237,8 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 	// Add each file/directory
 	for _, file := range files {
 		var sourcePath string
-		if file == "server.yml" || filepath.HasPrefix(file, "template/") ||
-			filepath.HasPrefix(file, "themes/") || filepath.HasPrefix(file, "ssl/") {
+		if file == "server.yml" || strings.HasPrefix(file, "template/") ||
+			strings.HasPrefix(file, "themes/") || strings.HasPrefix(file, "ssl/") {
 			sourcePath = filepath.Join(configDir, file)
 		} else {
 			sourcePath = filepath.Join(dataDir, file)

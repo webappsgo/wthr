@@ -24,7 +24,6 @@ type SSLManager struct {
 	certPath     string
 	keyPath      string
 	domain       string
-	httpsPort    int
 	httpsEnabled bool
 	certExpiry   time.Time
 	certIssuer   string

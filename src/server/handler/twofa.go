@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -457,18 +456,4 @@ func (h *TwoFactorHandler) RegenerateRecoveryKeys(c *gin.Context) {
 		"message":       response.Message,
 		"recovery_keys": response.RecoveryKeys,
 	})
-}
-
-// respondWith2FAError sends appropriate error response based on content type
-func respondWith2FAError(c *gin.Context, statusCode int, message string) {
-	contentType := c.GetHeader("Content-Type")
-	acceptHeader := c.GetHeader("Accept")
-
-	if strings.Contains(contentType, "application/json") || strings.Contains(acceptHeader, "application/json") {
-		c.JSON(statusCode, gin.H{"error": message})
-	} else {
-		c.HTML(statusCode, "page/error.tmpl", gin.H{
-			"error": message,
-		})
-	}
 }

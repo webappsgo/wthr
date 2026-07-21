@@ -116,6 +116,16 @@ No active task. Pick from "Remaining Spec Gaps" below.
   Read: AI.md PART 32
 - [ ] `tor-restart-validate-endpoints-missing` — `POST .../tor/restart` and `POST .../tor/validate` API endpoints have no corresponding handlers in `src/server/handler/admin_tor.go`
   Read: AI.md PART 32
+- [ ] `platforms-not-all-8` — `Makefile` line 38 `PLATFORMS` only lists `linux/amd64,linux/arm64`; must build all 8 (linux/darwin/windows/freebsd × amd64/arm64)
+  Read: AI.md PART 26
+- [ ] `coverage-threshold-below-spec` — `.github/workflows/ci.yml` line 46 enforces `THRESHOLD=60` (60%); testing-rules.md and AI.md PART 29 require 80% minimum; actual coverage is far below either threshold and needs substantial new test-writing effort across ~20 zero-coverage packages before the threshold itself can be safely raised
+  Read: AI.md PART 29
+- [ ] `external-cron-forbidden` — `src/scheduler/scheduler.go` imports `github.com/robfig/cron/v3` and calls `cron.New()` (~line 75); spec requires an internal ticker-based scheduler only, no third-party cron library
+  Read: AI.md PART 19
+- [ ] `graphiql-client-side-rendering` — `src/server/handler/graphql.go` lines ~146-185 serve GraphiQL via a client-side-rendering HTML page; spec forbids client-side rendering for any served page — must be server-side Go templates or disabled outside development mode
+  Read: AI.md PART 16
+- [ ] `release-build-date-format` — `.github/workflows/release.yml` line 57 formats `BUILD_DATE` as `"%a %b %d, %Y at %H:%M:%S %Z"`; must be ISO 8601 UTC (`%Y-%m-%dT%H:%M:%SZ`) to match the Makefile/CI convention
+  Read: AI.md PART 28
 
 ## Verified Progress Notes (from previous sessions)
 

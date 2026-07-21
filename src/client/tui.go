@@ -19,8 +19,6 @@ var (
 	colorComment    = lipgloss.Color("#6272a4")
 	colorCyan       = lipgloss.Color("#8be9fd")
 	colorGreen      = lipgloss.Color("#50fa7b")
-	colorOrange     = lipgloss.Color("#ffb86c")
-	colorPink       = lipgloss.Color("#ff79c6")
 	colorPurple     = lipgloss.Color("#bd93f9")
 	colorRed        = lipgloss.Color("#ff5555")
 	colorYellow     = lipgloss.Color("#f1fa8c")

@@ -451,7 +451,7 @@ func loadGraphQLCurrentUserSession(ctx context.Context) (*models.Session, error)
 	sessionValue := ctx.Value("user_session")
 	session, ok := sessionValue.(*models.Session)
 	if !ok || session == nil {
-		return nil, fmt.Errorf("Session authentication required")
+		return nil, fmt.Errorf("session authentication required")
 	}
 	return session, nil
 }

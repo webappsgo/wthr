@@ -114,12 +114,9 @@ func (s *Scheduler) ScheduleDataSourceRefresh(refresher *DataSourceRefresher, ta
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				if err := refresher.RefreshAllDataSources(); err != nil {
-					log.Printf("⚠️  Scheduled data refresh failed: %v", err)
-				}
+		for range ticker.C {
+			if err := refresher.RefreshAllDataSources(); err != nil {
+				log.Printf("⚠️  Scheduled data refresh failed: %v", err)
 			}
 		}
 	}()

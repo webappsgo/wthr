@@ -8,6 +8,9 @@ import (
 	"html/template"
 	"strings"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TemplateEngine handles notification template processing
@@ -38,7 +41,7 @@ func (te *TemplateEngine) Render(templateContent string, variables map[string]in
 	funcMap := template.FuncMap{
 		"upper": strings.ToUpper,
 		"lower": strings.ToLower,
-		"title": strings.Title,
+		"title": func(s string) string { return cases.Title(language.English).String(s) },
 		"now":   time.Now,
 		"formatDate": func(t time.Time, format string) string {
 			return t.Format(format)
@@ -719,7 +722,7 @@ func (te *TemplateEngine) ValidateTemplate(templateContent string) error {
 	funcMap := template.FuncMap{
 		"upper":      strings.ToUpper,
 		"lower":      strings.ToLower,
-		"title":      strings.Title,
+		"title":      func(s string) string { return cases.Title(language.English).String(s) },
 		"now":        time.Now,
 		"formatDate": func(t time.Time, format string) string { return "" },
 		"default":    func(a, b interface{}) interface{} { return a },

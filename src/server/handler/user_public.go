@@ -246,10 +246,10 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 
 	if req.Type == "url" {
 		if strings.TrimSpace(req.URL) == "" {
-			return fmt.Errorf("URL is required for url avatar type")
+			return fmt.Errorf("url is required for url avatar type")
 		}
 		if !strings.HasPrefix(req.URL, "https://") {
-			return fmt.Errorf("avatar URL must use HTTPS")
+			return fmt.Errorf("avatar url must use HTTPS")
 		}
 	}
 
@@ -277,11 +277,11 @@ func (h *UserPublicHandler) resetCurrentUserAvatar(userID int64) error {
 
 func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *AvatarUploadRequest) error {
 	if upload == nil {
-		return fmt.Errorf("No file uploaded")
+		return fmt.Errorf("no file uploaded")
 	}
 
 	if upload.Size > 2*1024*1024 {
-		return fmt.Errorf("File too large (max 2MB)")
+		return fmt.Errorf("file too large (max 2MB)")
 	}
 
 	contentType := strings.TrimSpace(upload.ContentType)
@@ -296,7 +296,7 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 		"image/vnd.microsoft.icon": true,
 	}
 	if !allowedTypes[contentType] {
-		return fmt.Errorf("Invalid image type")
+		return fmt.Errorf("invalid image type")
 	}
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/user_%d.%s", userID, getExtension(contentType))

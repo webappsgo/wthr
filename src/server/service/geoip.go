@@ -12,12 +12,6 @@ import (
 	"github.com/oschwald/maxminddb-golang"
 )
 
-// asnRecord maps the ip-location-db ASN MMDB fields
-type asnRecord struct {
-	ASN uint32 `maxminddb:"autonomous_system_number"`
-	Org string `maxminddb:"autonomous_system_organization"`
-}
-
 // countryRecord maps the ip-location-db country MMDB fields
 type countryRecord struct {
 	// ISO 3166-1 alpha-2

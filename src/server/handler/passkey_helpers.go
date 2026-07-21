@@ -33,10 +33,6 @@ type PasskeySummary struct {
 	Raw        *models.UserPasskey `json:"-"`
 }
 
-func envelopeFromGin(host string, https bool) PasskeyEnvelope {
-	return PasskeyEnvelope{Host: strings.TrimSpace(host), HTTPS: https}
-}
-
 func buildWebAuthnFromEnvelope(env PasskeyEnvelope) (*webauthn.WebAuthn, error) {
 	host := strings.TrimSpace(env.Host)
 	if host == "" {
@@ -168,12 +164,12 @@ func BeginPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEnv
 	name = strings.TrimSpace(name)
 	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
-		return nil, fmt.Errorf("Passkey name and password are required")
+		return nil, fmt.Errorf("passkey name and password are required")
 	}
 
 	userModel := &models.UserModel{DB: db}
 	if !userModel.CheckPassword(user, password) {
-		return nil, fmt.Errorf("Invalid password")
+		return nil, fmt.Errorf("invalid password")
 	}
 
 	waUser, err := loadWebAuthnUserForPasskey(db, user)
@@ -237,7 +233,7 @@ func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEn
 		return nil, err
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != user.ID {
-		return nil, fmt.Errorf("Invalid passkey registration session")
+		return nil, fmt.Errorf("invalid passkey registration session")
 	}
 
 	waUser, err := loadWebAuthnUserForPasskey(db, user)
@@ -306,7 +302,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 		userModel := &models.UserModel{DB: db}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			return nil, fmt.Errorf("Invalid session token")
+			return nil, fmt.Errorf("invalid session token")
 		}
 		if err := validateAuthUser(user); err != nil {
 			return nil, err
@@ -317,7 +313,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 			return nil, fmt.Errorf("failed to load passkeys: %w", err)
 		}
 		if len(waUser.credentials) == 0 {
-			return nil, fmt.Errorf("No passkeys registered for this account")
+			return nil, fmt.Errorf("no passkeys registered for this account")
 		}
 
 		options, sessionData, err := wa.BeginLogin(waUser, webauthn.WithUserVerification(protocol.VerificationRequired))
@@ -360,7 +356,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 // PublicKeyCredential.toJSON() call.
 func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP string) (*AuthLoginResponse, error) {
 	if len(body) == 0 {
-		return nil, fmt.Errorf("Invalid request body")
+		return nil, fmt.Errorf("invalid request body")
 	}
 
 	state, err := loadPasskeyCeremonyByToken(ceremonyToken)
@@ -441,7 +437,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 
 		user, err = userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			return nil, fmt.Errorf("Invalid session token")
+			return nil, fmt.Errorf("invalid session token")
 		}
 		if err := validateAuthUser(user); err != nil {
 			return nil, err
@@ -466,7 +462,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 		_ = sessionModel.Delete(pendingSession.ID)
 
 	default:
-		return nil, fmt.Errorf("Invalid passkey session")
+		return nil, fmt.Errorf("invalid passkey session")
 	}
 
 	if err := passkeyModel.UpdateCredential(user.ID, credential); err != nil {

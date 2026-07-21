@@ -140,13 +140,13 @@ func buildAuthUserSummary(user *models.User) *AuthUserSummary {
 
 func validateAuthUser(user *models.User) error {
 	if !user.IsActive {
-		return fmt.Errorf("Account is disabled")
+		return fmt.Errorf("account is disabled")
 	}
 	if user.IsBanned {
-		return fmt.Errorf("Account is suspended")
+		return fmt.Errorf("account is suspended")
 	}
 	if requiresEmailVerification() && !user.EmailVerified {
-		return fmt.Errorf("Invalid credentials")
+		return fmt.Errorf("invalid credentials")
 	}
 	return nil
 }
@@ -238,17 +238,17 @@ func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLogin
 	req.Identifier = strings.TrimSpace(req.Identifier)
 
 	if req.Password != strings.TrimSpace(req.Password) {
-		return nil, fmt.Errorf("Password cannot start or end with whitespace")
+		return nil, fmt.Errorf("password cannot start or end with whitespace")
 	}
 
 	userModel := &models.UserModel{DB: db}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid credentials")
+		return nil, fmt.Errorf("invalid credentials")
 	}
 
 	if !userModel.CheckPassword(user, req.Password) {
-		return nil, fmt.Errorf("Invalid credentials")
+		return nil, fmt.Errorf("invalid credentials")
 	}
 
 	if err := validateAuthUser(user); err != nil {
@@ -266,7 +266,7 @@ func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLogin
 		}
 		if req.TwoFactorCode != "" {
 			if !user.TwoFactorEnabled {
-				return nil, fmt.Errorf("Invalid two-factor code")
+				return nil, fmt.Errorf("invalid two-factor code")
 			}
 			return loginWithTwoFactorCode(db, user, req.TwoFactorCode, clientIP)
 		}
@@ -293,7 +293,7 @@ func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLogin
 func loginWithTwoFactorCode(db *sql.DB, user *models.User, code string, clientIP string) (*AuthLoginResponse, error) {
 	verified, err := utils.VerifyTOTP(user.TwoFactorSecret, code)
 	if err != nil || !verified {
-		return nil, fmt.Errorf("Invalid two-factor code")
+		return nil, fmt.Errorf("invalid two-factor code")
 	}
 
 	response, err := createFullAuthSession(db, user)
@@ -310,7 +310,7 @@ func loginWithRecoveryKey(db *sql.DB, user *models.User, recoveryKey string, cli
 	recoveryKeyModel := &models.RecoveryKeyModel{DB: db}
 	verified, err := recoveryKeyModel.VerifyAndUseRecoveryKey(int(user.ID), recoveryKey)
 	if err != nil || !verified {
-		return nil, fmt.Errorf("Invalid recovery key")
+		return nil, fmt.Errorf("invalid recovery key")
 	}
 
 	response, err := createFullAuthSession(db, user)
@@ -338,7 +338,7 @@ func CompleteAPIUserTwoFactor(db *sql.DB, req *API2FARequest, clientIP string) (
 	userModel := &models.UserModel{DB: db}
 	user, err := userModel.GetByID(int64(pendingSession.UserID))
 	if err != nil {
-		return nil, fmt.Errorf("Invalid session token")
+		return nil, fmt.Errorf("invalid session token")
 	}
 
 	if err := validateAuthUser(user); err != nil {
@@ -365,7 +365,7 @@ func UseAPIUserRecoveryKey(db *sql.DB, req *APIRecoveryUseRequest, clientIP stri
 	userModel := &models.UserModel{DB: db}
 	user, err := userModel.GetByID(int64(pendingSession.UserID))
 	if err != nil {
-		return nil, fmt.Errorf("Invalid session token")
+		return nil, fmt.Errorf("invalid session token")
 	}
 
 	if err := validateAuthUser(user); err != nil {
@@ -385,10 +385,10 @@ func UseAPIUserRecoveryKey(db *sql.DB, req *APIRecoveryUseRequest, clientIP stri
 
 func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse, error) {
 	if !config.IsMultiUserEnabled() {
-		return nil, fmt.Errorf("Registration is not available")
+		return nil, fmt.Errorf("registration is not available")
 	}
 	if !config.IsRegistrationPublic() {
-		return nil, fmt.Errorf("Public registration is not available")
+		return nil, fmt.Errorf("public registration is not available")
 	}
 
 	req.Username = strings.TrimSpace(req.Username)
@@ -401,16 +401,16 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 		return nil, err
 	}
 	if len(req.Password) < 8 {
-		return nil, fmt.Errorf("Password must be at least 8 characters")
+		return nil, fmt.Errorf("password must be at least 8 characters")
 	}
 
 	userModel := &models.UserModel{DB: db}
 	user, err := userModel.Create(utils.NormalizeUsername(req.Username), req.Email, req.Password, "user")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
-			return nil, fmt.Errorf("Username or email already exists")
+			return nil, fmt.Errorf("username or email already exists")
 		}
-		return nil, fmt.Errorf("Failed to create account")
+		return nil, fmt.Errorf("failed to create account")
 	}
 
 	response := &AuthRegisterResponse{
@@ -419,7 +419,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 
 	if requiresEmailVerification() {
 		if _, err := createUserEmailVerification(user.ID, user.Email); err != nil {
-			return nil, fmt.Errorf("Failed to start email verification")
+			return nil, fmt.Errorf("failed to start email verification")
 		}
 		response.VerificationRequired = true
 		return response, nil
@@ -427,7 +427,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 
 	sessionResponse, err := createFullAuthSession(db, user)
 	if err != nil {
-		return nil, fmt.Errorf("Account created but failed to login")
+		return nil, fmt.Errorf("account created but failed to login")
 	}
 	response.Token = sessionResponse.Token
 
@@ -436,7 +436,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 
 func LogoutCurrentUserSession(db *sql.DB, session *models.Session) error {
 	if session == nil {
-		return fmt.Errorf("Session authentication required")
+		return fmt.Errorf("session authentication required")
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
@@ -449,7 +449,7 @@ func LogoutCurrentUserSession(db *sql.DB, session *models.Session) error {
 
 func RefreshCurrentUserSession(db *sql.DB, session *models.Session, user *models.User) (*AuthLoginResponse, error) {
 	if session == nil || user == nil {
-		return nil, fmt.Errorf("Session authentication required")
+		return nil, fmt.Errorf("session authentication required")
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
@@ -479,7 +479,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		WHERE token = ? AND expires_at > ?
 	`, strings.TrimSpace(req.Token), time.Now()).Scan(&verification.ID, &verification.UserID, &verification.Email, &verification.ExpiresAt)
 	if err != nil {
-		return fmt.Errorf("Invalid or expired verification token")
+		return fmt.Errorf("invalid or expired verification token")
 	}
 
 	_, err = db.Exec(`
@@ -488,7 +488,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		WHERE id = ?
 	`, time.Now(), verification.UserID)
 	if err != nil {
-		return fmt.Errorf("Failed to verify email")
+		return fmt.Errorf("failed to verify email")
 	}
 
 	_, _ = db.Exec(`DELETE FROM user_email_verifications WHERE id = ?`, verification.ID)
@@ -498,7 +498,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, resetContext *APIPasswordResetContext) error {
 	email := strings.TrimSpace(req.Email)
 	if err := utils.ValidateEmail(email); err != nil {
-		return fmt.Errorf("Invalid email format")
+		return fmt.Errorf("invalid email format")
 	}
 
 	clientIP := ""
@@ -560,7 +560,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 
 func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 	if len(req.Password) < 8 {
-		return fmt.Errorf("Invalid request format")
+		return fmt.Errorf("invalid request format")
 	}
 
 	var reset struct {
@@ -575,12 +575,12 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		WHERE token = ? AND expires_at > ?
 	`, strings.TrimSpace(req.Token), time.Now()).Scan(&reset.ID, &reset.UserID, &reset.ExpiresAt)
 	if err != nil {
-		return fmt.Errorf("Invalid or expired reset token")
+		return fmt.Errorf("invalid or expired reset token")
 	}
 
 	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		return fmt.Errorf("Failed to process password")
+		return fmt.Errorf("failed to process password")
 	}
 
 	_, err = db.Exec(`
@@ -589,7 +589,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		WHERE id = ?
 	`, hashedPassword, time.Now(), reset.UserID)
 	if err != nil {
-		return fmt.Errorf("Failed to reset password")
+		return fmt.Errorf("failed to reset password")
 	}
 
 	_, _ = db.Exec(`DELETE FROM user_password_resets WHERE id = ?`, reset.ID)
@@ -600,7 +600,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 func ValidateAPIUserInvite(db *sql.DB, token string) (*UserInviteValidationResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("Token required")
+		return nil, fmt.Errorf("token required")
 	}
 
 	inviteModel := &models.UserInviteModel{DB: db}
@@ -620,7 +620,7 @@ func ValidateAPIUserInvite(db *sql.DB, token string) (*UserInviteValidationRespo
 func CompleteAPIUserInvite(db *sql.DB, token string, username string, password string) (*UserInviteCompletionResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("Token required")
+		return nil, fmt.Errorf("token required")
 	}
 
 	inviteModel := &models.UserInviteModel{DB: db}
@@ -635,25 +635,25 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 	}
 
 	if invite.Username != "" && username != utils.NormalizeUsername(invite.Username) {
-		return nil, fmt.Errorf("Invite username does not match")
+		return nil, fmt.Errorf("invite username does not match")
 	}
 
 	if invite.Email == "" {
-		return nil, fmt.Errorf("Invite is missing an email address")
+		return nil, fmt.Errorf("invite is missing an email address")
 	}
 
 	userModel := &models.UserModel{DB: db}
 	user, err := userModel.Create(username, invite.Email, password, invite.Role)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create account")
+		return nil, fmt.Errorf("failed to create account")
 	}
 
 	if _, err := db.Exec(`UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
-		return nil, fmt.Errorf("Failed to finalize account")
+		return nil, fmt.Errorf("failed to finalize account")
 	}
 
 	if err := inviteModel.MarkUsed(token, user.ID); err != nil {
-		return nil, fmt.Errorf("Failed to finalize invite")
+		return nil, fmt.Errorf("failed to finalize invite")
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
@@ -673,7 +673,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("Token required")
+		return nil, fmt.Errorf("token required")
 	}
 
 	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
@@ -691,7 +691,7 @@ func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, err
 func CompleteAPIServerInvite(token string, username string, password string) (*ServerInviteCompletionResponse, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("Token required")
+		return nil, fmt.Errorf("token required")
 	}
 
 	inviteService := service.NewAdminInviteService(database.GetServerDB(), "", nil)
@@ -737,9 +737,9 @@ func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
 	if err != nil {
 		status := http.StatusUnauthorized
 		switch err.Error() {
-		case "Password cannot start or end with whitespace":
+		case "password cannot start or end with whitespace":
 			status = http.StatusBadRequest
-		case "Account is disabled", "Account is suspended":
+		case "account is disabled", "account is suspended":
 			status = http.StatusForbidden
 		case "failed to create session":
 			status = http.StatusInternalServerError
@@ -788,11 +788,11 @@ func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		switch err.Error() {
-		case "Registration is not available", "Public registration is not available":
+		case "registration is not available", "public registration is not available":
 			status = http.StatusNotFound
-		case "Username or email already exists":
+		case "username or email already exists":
 			status = http.StatusConflict
-		case "Password must be at least 8 characters":
+		case "password must be at least 8 characters":
 			status = http.StatusBadRequest
 		default:
 			if strings.HasPrefix(err.Error(), "Username") || strings.HasPrefix(err.Error(), "Email") {
@@ -827,7 +827,7 @@ func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
 	if !ok || session == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"ok":    false,
-			"error": "Session authentication required",
+			"error": "session authentication required",
 		})
 		return
 	}
@@ -946,7 +946,7 @@ func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
 	if !ok || session == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"ok":    false,
-			"error": "Session authentication required",
+			"error": "session authentication required",
 		})
 		return
 	}

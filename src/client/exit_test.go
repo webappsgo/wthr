@@ -121,8 +121,7 @@ func TestNewUsageError(t *testing.T) {
 }
 
 func TestExitErrorImplementsError(t *testing.T) {
-	var err error
-	err = NewConfigError("test")
+	var err error = NewConfigError("test")
 
 	// Verify it implements error interface
 	if err.Error() != "test" {

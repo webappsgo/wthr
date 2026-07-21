@@ -326,13 +326,13 @@ func (f *LogFormatter) formatCEF(entry *LogEntry) string {
 		fmt.Sprintf("request=%s %s", entry.Method, entry.Path),
 		fmt.Sprintf("requestMethod=%s", entry.Method),
 		fmt.Sprintf("requestUrl=%s", entry.Path),
-		fmt.Sprintf("cs1Label=Protocol"),
+		"cs1Label=Protocol",
 		fmt.Sprintf("cs1=%s", entry.Protocol),
-		fmt.Sprintf("cs2Label=StatusCode"),
+		"cs2Label=StatusCode",
 		fmt.Sprintf("cs2=%d", entry.StatusCode),
-		fmt.Sprintf("cn1Label=BytesSent"),
+		"cn1Label=BytesSent",
 		fmt.Sprintf("cn1=%d", entry.BytesSent),
-		fmt.Sprintf("cn2Label=RequestTime"),
+		"cn2Label=RequestTime",
 		fmt.Sprintf("cn2=%.3f", entry.RequestTime),
 	}
 
@@ -363,7 +363,7 @@ func (f *LogFormatter) formatCEF(entry *LogEntry) string {
 func (f *LogFormatter) formatText(entry *LogEntry) string {
 	timestamp := entry.Timestamp.Format("2006-01-02 15:04:05.000")
 
-	status := fmt.Sprintf("%d", entry.StatusCode)
+	var status string
 	if entry.StatusCode >= 500 {
 		status = fmt.Sprintf("ERROR %d", entry.StatusCode)
 	} else if entry.StatusCode >= 400 {

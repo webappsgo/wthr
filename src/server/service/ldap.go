@@ -60,13 +60,19 @@ func (s *LDAPService) Authenticate(username, password string) (email, displayNam
 		return "", "", fmt.Errorf("username and password are required")
 	}
 
-	addr := fmt.Sprintf("%s:%d", cfg.Server, cfg.Port)
+	var (
+		conn *ldap.Conn
+		url  string
+	)
 
-	var conn *ldap.Conn
+	tlsConfig := &tls.Config{ServerName: cfg.Server, MinVersion: tls.VersionTLS12}
+
 	if cfg.Port == 636 {
-		conn, err = ldap.DialTLS("tcp", addr, &tls.Config{ServerName: cfg.Server, MinVersion: tls.VersionTLS12})
+		url = fmt.Sprintf("ldaps://%s:%d", cfg.Server, cfg.Port)
+		conn, err = ldap.DialURL(url, ldap.DialWithTLSConfig(tlsConfig))
 	} else {
-		conn, err = ldap.Dial("tcp", addr)
+		url = fmt.Sprintf("ldap://%s:%d", cfg.Server, cfg.Port)
+		conn, err = ldap.DialURL(url)
 	}
 	if err != nil {
 		return "", "", fmt.Errorf("failed to connect to LDAP server: %w", err)

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -435,7 +437,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 		displayLocation := locationName
 
 		c.HTML(http.StatusOK, "page/severe_weather.tmpl", gin.H{
-			"Title":          fmt.Sprintf("%s - Severe Weather Alerts", strings.Title(alertType)),
+			"Title":          fmt.Sprintf("%s - Severe Weather Alerts", cases.Title(language.English).String(alertType)),
 			"page":           "severe-weather",
 			"Data":           filteredData,
 			"TotalAlerts":    totalAlerts,

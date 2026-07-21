@@ -20,6 +20,23 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 )
 
+// contextKey is an unexported type used for context keys
+type contextKey string
+
+const (
+	ctxKeyRequestIP       contextKey = "request_ip"
+	ctxKeyClientIP        contextKey = "client_ip"
+	ctxKeyRequestHost     contextKey = "request_host"
+	ctxKeyRequestScheme   contextKey = "request_scheme"
+	ctxKeyRequestUserAgent contextKey = "request_user_agent"
+	ctxKeyAdminID         contextKey = "admin_id"
+	ctxKeyUserRole        contextKey = "user_role"
+	ctxKeyAdminEmail      contextKey = "admin_email"
+	ctxKeyUserID          contextKey = "user_id"
+	ctxKeyUserSession     contextKey = "user_session"
+	ctxKeyUserSessionID   contextKey = "user_session_id"
+)
+
 // NewServer creates a gqlgen GraphQL server for the provided resolver tree.
 func NewServer(resolver *Resolver) *gqlhandler.Server {
 	srv := gqlhandler.New(NewExecutableSchema(Config{Resolvers: resolver}))
@@ -90,9 +107,9 @@ func PlaygroundHandler(endpoint string) gin.HandlerFunc {
 
 func buildGraphQLAuthContext(c *gin.Context) (context.Context, error) {
 	ctx := c.Request.Context()
-	ctx = context.WithValue(ctx, "request_ip", c.ClientIP())
-	ctx = context.WithValue(ctx, "client_ip", c.ClientIP())
-	ctx = context.WithValue(ctx, "request_host", c.Request.Host)
+	ctx = context.WithValue(ctx, ctxKeyRequestIP, c.ClientIP())
+	ctx = context.WithValue(ctx, ctxKeyClientIP, c.ClientIP())
+	ctx = context.WithValue(ctx, ctxKeyRequestHost, c.Request.Host)
 
 	scheme := c.GetHeader("X-Forwarded-Proto")
 	if scheme == "" {
@@ -102,11 +119,11 @@ func buildGraphQLAuthContext(c *gin.Context) (context.Context, error) {
 			scheme = "http"
 		}
 	}
-	ctx = context.WithValue(ctx, "request_scheme", scheme)
+	ctx = context.WithValue(ctx, ctxKeyRequestScheme, scheme)
 
 	userAgent := strings.TrimSpace(c.Request.UserAgent())
 	if userAgent != "" {
-		ctx = context.WithValue(ctx, "request_user_agent", userAgent)
+		ctx = context.WithValue(ctx, ctxKeyRequestUserAgent, userAgent)
 	}
 
 	if userValue, exists := c.Get(middleware.UserContextKey); exists {
@@ -228,25 +245,25 @@ func withGraphQLAdminContext(ctx context.Context, adminID int) (context.Context,
 }
 
 func withGraphQLAdminValues(ctx context.Context, adminID int, email string) context.Context {
-	ctx = context.WithValue(ctx, "admin_id", adminID)
-	ctx = context.WithValue(ctx, "user_role", "admin")
+	ctx = context.WithValue(ctx, ctxKeyAdminID, adminID)
+	ctx = context.WithValue(ctx, ctxKeyUserRole, "admin")
 	if email != "" {
-		ctx = context.WithValue(ctx, "admin_email", email)
+		ctx = context.WithValue(ctx, ctxKeyAdminEmail, email)
 	}
 	return ctx
 }
 
 func withGraphQLUserContext(ctx context.Context, user *models.User) context.Context {
-	ctx = context.WithValue(ctx, "user_id", int(user.ID))
-	ctx = context.WithValue(ctx, "user_role", user.Role)
+	ctx = context.WithValue(ctx, ctxKeyUserID, int(user.ID))
+	ctx = context.WithValue(ctx, ctxKeyUserRole, user.Role)
 	return ctx
 }
 
 func withGraphQLUserSessionContext(ctx context.Context, user *models.User, session *models.Session) context.Context {
 	ctx = withGraphQLUserContext(ctx, user)
-	ctx = context.WithValue(ctx, "user_session", session)
+	ctx = context.WithValue(ctx, ctxKeyUserSession, session)
 	if session != nil {
-		ctx = context.WithValue(ctx, "user_session_id", session.ID)
+		ctx = context.WithValue(ctx, ctxKeyUserSessionID, session.ID)
 	}
 	return ctx
 }

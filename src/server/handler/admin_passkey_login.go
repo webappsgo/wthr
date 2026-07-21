@@ -126,10 +126,10 @@ func BeginAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, pendingSession
 	adminModel := &models.AdminModel{DB: db}
 	admin, err := adminModel.GetByID(pending.AdminID)
 	if err != nil || admin == nil {
-		return nil, fmt.Errorf("Invalid session token")
+		return nil, fmt.Errorf("invalid session token")
 	}
 	if !admin.IsActive {
-		return nil, fmt.Errorf("Admin account is disabled")
+		return nil, fmt.Errorf("admin account is disabled")
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)
@@ -137,7 +137,7 @@ func BeginAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, pendingSession
 		return nil, fmt.Errorf("failed to load admin passkeys: %w", err)
 	}
 	if len(waUser.credentials) == 0 {
-		return nil, fmt.Errorf("No passkeys registered for this account")
+		return nil, fmt.Errorf("no passkeys registered for this account")
 	}
 
 	wa, err := buildWebAuthnFromEnvelope(env)
@@ -182,7 +182,7 @@ type AdminPasskeyLoginResult struct {
 // can call it too).
 func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP, userAgent string, sessionDuration time.Duration) (*AdminPasskeyLoginResult, error) {
 	if len(body) == 0 {
-		return nil, fmt.Errorf("Invalid request body")
+		return nil, fmt.Errorf("invalid request body")
 	}
 
 	state, err := loadPasskeyCeremonyByToken(ceremonyToken)
@@ -190,7 +190,7 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, err
 	}
 	if state.Kind != passkeyKindAdminLogin {
-		return nil, fmt.Errorf("Invalid passkey ceremony")
+		return nil, fmt.Errorf("invalid passkey ceremony")
 	}
 
 	pending, err := LoadAdminPendingSession(state.PendingSessionToken)
@@ -198,16 +198,16 @@ func FinishAdminPasskeyLoginToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken
 		return nil, err
 	}
 	if pending.AdminID != state.UserID {
-		return nil, fmt.Errorf("Invalid session token")
+		return nil, fmt.Errorf("invalid session token")
 	}
 
 	adminModel := &models.AdminModel{DB: db}
 	admin, err := adminModel.GetByID(pending.AdminID)
 	if err != nil || admin == nil {
-		return nil, fmt.Errorf("Invalid session token")
+		return nil, fmt.Errorf("invalid session token")
 	}
 	if !admin.IsActive {
-		return nil, fmt.Errorf("Admin account is disabled")
+		return nil, fmt.Errorf("admin account is disabled")
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)

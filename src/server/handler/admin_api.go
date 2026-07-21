@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/backup"
@@ -302,7 +303,7 @@ func DownloadBackup(c *gin.Context) {
 	backupPath := filepath.Join(dataDir, "backups", filename)
 
 	// Security: Prevent directory traversal
-	if !filepath.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
+	if !strings.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
 		Forbidden(c, "Invalid backup filename")
 		return
 	}
@@ -331,7 +332,7 @@ func DeleteBackup(c *gin.Context) {
 	backupPath := filepath.Join(dataDir, "backups", filename)
 
 	// Security: Prevent directory traversal
-	if !filepath.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
+	if !strings.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
 		Forbidden(c, "Invalid backup filename")
 		return
 	}

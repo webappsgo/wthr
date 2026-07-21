@@ -780,11 +780,3 @@ func (h *SetupHandler) GetSetupStatus(c *gin.Context) {
 		"is_complete": true,
 	})
 }
-
-// Helper function to convert bool to string
-func boolToString(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
-}

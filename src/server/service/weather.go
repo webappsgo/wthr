@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -26,7 +25,6 @@ type WeatherService struct {
 	locationEnhancer *LocationEnhancer
 	zipcodeService   *ZipcodeService
 	geoipService     *GeoIPService
-	mu               sync.RWMutex
 }
 
 // GeocodeResult represents raw geocoding API response

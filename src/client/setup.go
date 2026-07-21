@@ -16,8 +16,6 @@ import (
 // setupModel is the bubbletea model for the setup wizard
 type setupModel struct {
 	serverURL      string
-	cursor         int
-	textInput      string
 	focusedField   int
 	testing        bool
 	testResult     string
@@ -139,7 +137,7 @@ func (m setupModel) View() string {
 		Padding(0, 1).
 		Width(50)
 
-	focusedInputStyle := inputStyle.Copy().
+	focusedInputStyle := inputStyle.
 		BorderForeground(colorCyan)
 
 	buttonStyle := lipgloss.NewStyle().
@@ -147,7 +145,7 @@ func (m setupModel) View() string {
 		Background(colorSelection).
 		Padding(0, 2)
 
-	focusedButtonStyle := buttonStyle.Copy().
+	focusedButtonStyle := buttonStyle.
 		Background(colorPurple).
 		Foreground(colorBackground)
 

@@ -430,6 +430,9 @@ func getSchedulerStatus() gin.H {
 	// Get next scheduled run
 	var nextRun *string
 	err = db.QueryRow("SELECT MIN(next_run) FROM server_scheduler_state WHERE enabled = 1 AND next_run IS NOT NULL").Scan(&nextRun)
+	if err != nil {
+		nextRun = nil
+	}
 
 	// Count running tasks (locked)
 	var runningTasks int

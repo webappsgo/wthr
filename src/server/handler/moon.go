@@ -286,7 +286,7 @@ func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) gin.H 
 	if year == float64(int(year/4)*4) { // Leap year check
 		daysInYear = 366.0
 	}
-	gamma := 2 * 3.14159265359 / daysInYear * (float64(dayOfYear) - 1 + (12-12)/24)
+	gamma := 2 * 3.14159265359 / daysInYear * (float64(dayOfYear) - 1)
 
 	// Equation of time (minutes)
 	eqtime := 229.18 * (0.000075 + 0.001868*cos(gamma) - 0.032077*sin(gamma) -

@@ -41,6 +41,9 @@ import (
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 //go:embed common/i18n/locales/*.json
@@ -563,7 +566,7 @@ func main() {
 	templateFuncs := template.FuncMap{
 		"upper": strings.ToUpper,
 		"lower": strings.ToLower,
-		"title": strings.Title,
+		"title": func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b
 		},
@@ -3913,98 +3916,6 @@ JSON API:
 		}
 	}
 }
-
-// apacheLoggingMiddleware logs requests in Apache2 combined format
-func apacheLoggingMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Start timer
-		start := time.Now()
-
-		// Process request
-		c.Next()
-
-		// Get client IP
-		clientIP := c.ClientIP()
-
-		// Skip logging for localhost/private IPs
-		if isLocalIP(clientIP) {
-			return
-		}
-
-		// Calculate latency
-		latency := time.Since(start)
-
-		// Get status code
-		statusCode := c.Writer.Status()
-
-		// Get method and path
-		method := c.Request.Method
-		path := c.Request.URL.Path
-		if c.Request.URL.RawQuery != "" {
-			path += "?" + c.Request.URL.RawQuery
-		}
-
-		// Get user agent
-		userAgent := c.Request.UserAgent()
-		if userAgent == "" {
-			userAgent = "-"
-		}
-
-		// Get referer
-		referer := c.Request.Referer()
-		if referer == "" {
-			referer = "-"
-		}
-
-		// Apache2 combined log format
-		// 127.0.0.1 - - [10/Oct/2000:13:55:36 -0700] "GET /apache.gif HTTP/1.0" 200 2326 "http://www.example.com/start.html" "Mozilla/4.08"
-		log.Printf("%s - - [%s] \"%s %s %s\" %d %d \"%s\" \"%s\" %.3fms",
-			clientIP,
-			start.Format("02/Jan/2006:15:04:05 -0700"),
-			method,
-			path,
-			c.Request.Proto,
-			statusCode,
-			c.Writer.Size(),
-			referer,
-			userAgent,
-			float64(latency.Microseconds())/1000.0,
-		)
-	}
-}
-
-// isLocalIP checks if an IP is localhost or private (supports IPv4 and IPv6)
-func isLocalIP(ip string) bool {
-	// Parse IP address properly
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		// If we can't parse it, assume local for safety
-		return true
-	}
-
-	// Check if loopback (127.0.0.1 or ::1)
-	if parsedIP.IsLoopback() {
-		return true
-	}
-
-	// Check if private (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7, fe80::/10)
-	if parsedIP.IsPrivate() {
-		return true
-	}
-
-	// Check for link-local IPv6 (fe80::/10)
-	if parsedIP.IsLinkLocalUnicast() {
-		return true
-	}
-
-	// Check for unique local IPv6 (fc00::/7)
-	if len(parsedIP) == 16 && (parsedIP[0]&0xfe) == 0xfc {
-		return true
-	}
-
-	return false
-}
-
 
 // showServerStatus displays comprehensive server status information
 // Per AI.md PART 8: Returns true if healthy, false if unhealthy

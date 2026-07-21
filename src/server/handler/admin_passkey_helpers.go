@@ -3,7 +3,6 @@ package handler
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -93,18 +92,6 @@ func (u *adminPasskeyUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.credentials
 }
 
-func parseAdminPasskeyUserHandle(userHandle []byte) (int64, error) {
-	raw := string(userHandle)
-	if !strings.HasPrefix(raw, models.AdminPasskeyUserHandlePrefix) {
-		return 0, fmt.Errorf("invalid admin user handle")
-	}
-	adminID, err := strconv.ParseInt(strings.TrimPrefix(raw, models.AdminPasskeyUserHandlePrefix), 10, 64)
-	if err != nil || adminID <= 0 {
-		return 0, fmt.Errorf("invalid admin user handle")
-	}
-	return adminID, nil
-}
-
 // AdminPasskeyRegistrationOptionsResult is the begin-registration response
 // shared by REST and GraphQL callers.
 type AdminPasskeyRegistrationOptionsResult struct {
@@ -122,12 +109,12 @@ func BeginAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pas
 	name = strings.TrimSpace(name)
 	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
-		return nil, fmt.Errorf("Passkey name and password are required")
+		return nil, fmt.Errorf("passkey name and password are required")
 	}
 
 	valid, err := models.VerifyPassword(password, admin.PasswordHash)
 	if err != nil || !valid {
-		return nil, fmt.Errorf("Invalid password")
+		return nil, fmt.Errorf("invalid password")
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)
@@ -190,7 +177,7 @@ func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pa
 		return nil, err
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != admin.ID {
-		return nil, fmt.Errorf("Invalid passkey registration session")
+		return nil, fmt.Errorf("invalid passkey registration session")
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)

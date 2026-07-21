@@ -423,7 +423,7 @@ func (r *mutationResolver) DeleteUserPasskey(ctx context.Context, id string) (*G
 
 	passkeyID, err := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		return nil, fmt.Errorf("Invalid passkey id")
+		return nil, fmt.Errorf("invalid passkey id")
 	}
 
 	if err := handler.DeleteUserPasskey(r.UsersDB, user.ID, passkeyID); err != nil {
@@ -1572,7 +1572,7 @@ func (r *mutationResolver) DeleteAdminPasskey(ctx context.Context, id string) (*
 
 	passkeyID, err := strconv.ParseInt(strings.TrimSpace(id), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		return nil, fmt.Errorf("Invalid passkey id")
+		return nil, fmt.Errorf("invalid passkey id")
 	}
 
 	if err := handler.DeleteAdminPasskey(r.ServerDB, admin.ID, passkeyID); err != nil {

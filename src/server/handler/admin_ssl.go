@@ -2,7 +2,6 @@ package handler
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -461,15 +460,6 @@ func (h *SSLHandler) getCertificateInfo() (*CertificateInfo, error) {
 		IsValid:       time.Now().After(cert.NotBefore) && time.Now().Before(cert.NotAfter),
 		DaysRemaining: daysRemaining,
 	}, nil
-}
-
-// Helper: Parse certificate
-func parseCertificate(certPEM []byte) (*x509.Certificate, error) {
-	cert, err := x509.ParseCertificate(certPEM)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
 }
 
 // Helper: Calculate next renewal date
