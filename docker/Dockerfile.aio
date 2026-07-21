@@ -62,11 +62,11 @@ RUN mkdir -p /config/postgres /config/valkey \
              /run/postgresql /run/valkey \
     && chown -R postgres:postgres /data/db/postgres /data/log/postgres /run/postgresql
 
-# Copy configs and entrypoint (minimal version from file_system/)
-COPY docker/file_system/ /
+# Copy configs and entrypoint (minimal version from rootfs/)
+COPY docker/rootfs/ /
 
 # Overwrite with AIO-specific entrypoint (supervisor-based)
-COPY docker/file_system/usr/local/bin/entrypoint-aio.sh /usr/local/bin/entrypoint.sh
+COPY docker/rootfs/usr/local/bin/entrypoint-aio.sh /usr/local/bin/entrypoint.sh
 
 # Copy application binary from builder
 COPY --from=builder /build/wthr /usr/local/bin/

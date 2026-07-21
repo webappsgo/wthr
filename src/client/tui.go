@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/casapps/wthr/src/common/terminal"
+	"github.com/webappsgo/wthr/src/common/terminal"
 )
 
 // Dracula theme colors per AI.md PART 16

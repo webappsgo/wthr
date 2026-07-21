@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // User represents a user account (stored in users.db)

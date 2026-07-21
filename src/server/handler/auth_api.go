@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/server/middleware"
-	models "github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/service"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

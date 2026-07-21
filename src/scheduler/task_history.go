@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // TaskRun represents a single execution of a task

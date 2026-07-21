@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/path"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
+	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

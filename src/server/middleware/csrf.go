@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/gin-gonic/gin"
 )
 

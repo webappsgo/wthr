@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminServerStatus handles admin API server status/health requests with JSON-only output.

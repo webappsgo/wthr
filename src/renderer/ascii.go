@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // ASCIIRenderer handles ASCII art weather display with terminal formatting

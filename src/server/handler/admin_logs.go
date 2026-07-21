@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 type LogsHandler struct {

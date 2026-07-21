@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/casapps/wthr/src/config"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/gin-gonic/gin"
 )
 

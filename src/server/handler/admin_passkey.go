@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/casapps/wthr/src/server/model"
+	models "github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oklog/ulid/v2"

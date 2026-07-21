@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // I18n provides internationalization support.

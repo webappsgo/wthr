@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/casapps/wthr/src/backup"
-	"github.com/casapps/wthr/src/path"
+	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/path"
 	"github.com/gin-gonic/gin"
 )
 

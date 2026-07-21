@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/server/middleware"
-	models "github.com/casapps/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"

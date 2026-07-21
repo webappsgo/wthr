@@ -8,10 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/casapps/wthr/src/database"
-	models "github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/middleware"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/database"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // LDAPAuthHandler handles LDAP-based user authentication.

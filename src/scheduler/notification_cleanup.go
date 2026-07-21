@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // NotificationCleaner holds references to the notification service for cleanup tasks

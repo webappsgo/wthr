@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // Session represents a user session.

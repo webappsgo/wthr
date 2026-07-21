@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/server/handler"
-	models "github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/service"
-	utils "github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/server/handler"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
+	utils "github.com/webappsgo/wthr/src/util"
 )
 
 // ExpiresAt is the resolver for the expiresAt field.

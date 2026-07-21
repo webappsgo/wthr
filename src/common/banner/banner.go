@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/casapps/wthr/src/common/terminal"
+	"github.com/webappsgo/wthr/src/common/terminal"
 )
 
 // BannerConfig carries the data displayed in the startup banner.

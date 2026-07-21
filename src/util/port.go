@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 const (

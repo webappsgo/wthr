@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/casapps/wthr/src/server/service"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // APIHandler handles JSON API routes (/api/v1/*)

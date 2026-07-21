@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // DataSourceRefresher holds references to all data sources that need periodic updates

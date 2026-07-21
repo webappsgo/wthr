@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // JSONRenderer handles JSON API response formatting

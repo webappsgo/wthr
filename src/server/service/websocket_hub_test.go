@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/casapps/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 func TestWebSocketHub_RegisterClient(t *testing.T) {

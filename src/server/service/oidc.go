@@ -17,7 +17,7 @@ import (
 	oidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	models "github.com/casapps/wthr/src/server/model"
+	models "github.com/webappsgo/wthr/src/server/model"
 )
 
 // OIDCProviderConfig holds configuration for one OIDC provider.

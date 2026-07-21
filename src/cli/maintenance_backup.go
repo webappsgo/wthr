@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/casapps/wthr/src/backup"
-	"github.com/casapps/wthr/src/path"
+	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/path"
 	"golang.org/x/term"
 )
 

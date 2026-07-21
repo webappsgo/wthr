@@ -279,7 +279,7 @@ func (s *SevereWeatherService) fetchNWSAlerts() ([]Alert, error) {
 	}
 
 	// NWS requires a User-Agent header
-	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 	req.Header.Set("Accept", "application/geo+json")
 
 	resp, err := client.Do(req)
@@ -665,7 +665,7 @@ func (s *SevereWeatherService) fetchEnvironmentCanadaAlerts() ([]Alert, error) {
 			continue
 		}
 
-		req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+		req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 		resp, err := client.Do(req)
 		if err != nil {
@@ -766,7 +766,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 		return []Alert{}, nil
 	}
 
-	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -884,7 +884,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 		return []Alert{}, nil
 	}
 
-	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1025,7 +1025,7 @@ func (s *SevereWeatherService) fetchJapanAlerts() ([]Alert, error) {
 		return []Alert{}, nil
 	}
 
-	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -1182,7 +1182,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 		return []Alert{}, nil
 	}
 
-	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/casapps/wthr)")
+	req.Header.Set("User-Agent", "WeatherApp/2.0 (https://github.com/webappsgo/wthr)")
 
 	resp, err := client.Do(req)
 	if err != nil {

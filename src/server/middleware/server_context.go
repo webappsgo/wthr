@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/casapps/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
 )

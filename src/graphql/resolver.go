@@ -2,8 +2,8 @@ package graphql
 
 import (
 	"database/sql"
-	"github.com/casapps/wthr/src/server/handler"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/handler"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // This file will NOT be regenerated automatically by gqlgen.

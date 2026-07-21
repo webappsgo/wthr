@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/config"
+	"github.com/webappsgo/wthr/src/config"
 	"gopkg.in/yaml.v3"
 )
 

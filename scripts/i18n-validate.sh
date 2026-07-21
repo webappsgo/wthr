@@ -8,7 +8,7 @@ import json
 import os
 import sys
 
-locale_dir = sys.argv[1] if len(sys.argv) > 1 else "src/locale"
+locale_dir = sys.argv[1] if len(sys.argv) > 1 else "src/common/i18n/locales"
 
 if not os.path.isdir(locale_dir):
     print(f"ERROR: locale directory not found: {locale_dir}")

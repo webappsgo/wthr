@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/casapps/wthr/src/config"
+	"github.com/webappsgo/wthr/src/config"
 )
 
 var (

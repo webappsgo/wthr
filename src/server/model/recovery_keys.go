@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // RecoveryKey represents a 2FA recovery key per AI.md PART 34.

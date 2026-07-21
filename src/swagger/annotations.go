@@ -7,14 +7,14 @@ package swagger
 // @title Weather API
 // @version 1.0
 // @description Professional weather tracking and forecasting service with real-time updates, severe weather alerts, earthquake monitoring, and moon phase tracking.
-// @termsOfService https://github.com/casapps/wthr
+// @termsOfService https://github.com/webappsgo/wthr
 
 // @contact.name Weather Support
-// @contact.url https://github.com/casapps/wthr
+// @contact.url https://github.com/webappsgo/wthr
 // @contact.email support@example.com
 
 // @license.name MIT
-// @license.url https://github.com/casapps/wthr/blob/main/LICENSE.md
+// @license.url https://github.com/webappsgo/wthr/blob/main/LICENSE.md
 
 // @host localhost
 // @BasePath /api/v1

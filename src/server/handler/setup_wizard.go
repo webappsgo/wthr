@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/path"
-	"github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
+	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // SetupWizardRequest represents the initial setup request

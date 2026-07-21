@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // WeatherNotificationService handles weather-based notifications

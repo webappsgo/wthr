@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/casapps/wthr/src/server/metrics"
+	"github.com/webappsgo/wthr/src/server/metrics"
 	"github.com/gin-gonic/gin"
 )
 

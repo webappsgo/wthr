@@ -9,7 +9,7 @@ import (
 
 	ldap "github.com/go-ldap/ldap/v3"
 
-	models "github.com/casapps/wthr/src/server/model"
+	models "github.com/webappsgo/wthr/src/server/model"
 )
 
 // LDAPConfig holds LDAP connection settings read from server_config.

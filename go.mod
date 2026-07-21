@@ -1,4 +1,4 @@
-module github.com/casapps/wthr
+module github.com/webappsgo/wthr
 
 go 1.25.0
 
@@ -24,7 +24,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/microsoft/go-mssqldb v1.9.3
 	github.com/oklog/ulid/v2 v2.1.0
-	github.com/oschwald/geoip2-golang v1.13.0
+	github.com/oschwald/maxminddb-golang v1.13.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pquerna/otp v1.5.0
 	github.com/prometheus/client_golang v1.22.0
@@ -107,7 +107,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.62.0 // indirect

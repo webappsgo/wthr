@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

@@ -7,7 +7,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // DeliveryState represents the state of a notification in the delivery pipeline

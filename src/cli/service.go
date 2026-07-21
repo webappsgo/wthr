@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // ServiceCommand handles service management operations
@@ -238,7 +238,7 @@ func installSystemdService() error {
 
 	serviceContent := `[Unit]
 Description=Wthr Weather
-Documentation=https://github.com/casapps/wthr
+Documentation=https://github.com/webappsgo/wthr
 After=network.target
 
 [Service]

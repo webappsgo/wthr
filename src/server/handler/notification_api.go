@@ -10,10 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/mode"
-	"github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/mode"
+	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // Note: Uses standard response helpers from response.go

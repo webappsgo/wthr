@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // RequireAdminAuth checks if user is authenticated as admin

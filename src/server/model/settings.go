@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casapps/wthr/src/config"
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // Setting represents a configuration setting

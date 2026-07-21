@@ -9,8 +9,34 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/oschwald/geoip2-golang"
+	"github.com/oschwald/maxminddb-golang"
 )
+
+// asnRecord maps the ip-location-db ASN MMDB fields
+type asnRecord struct {
+	ASN uint32 `maxminddb:"autonomous_system_number"`
+	Org string `maxminddb:"autonomous_system_organization"`
+}
+
+// countryRecord maps the ip-location-db country MMDB fields
+type countryRecord struct {
+	// ISO 3166-1 alpha-2
+	CountryCode string `maxminddb:"country_code"`
+}
+
+// cityRecord maps the ip-location-db city MMDB fields; empty string when not populated
+type cityRecord struct {
+	City        string  `maxminddb:"city"`
+	CountryCode string  `maxminddb:"country_code"`
+	Latitude    float64 `maxminddb:"latitude"`
+	Longitude   float64 `maxminddb:"longitude"`
+	Postcode    string  `maxminddb:"postcode"`
+	// region / province
+	State1 string `maxminddb:"state1"`
+	// sub-region
+	State2   string `maxminddb:"state2"`
+	Timezone string `maxminddb:"timezone"`
+}
 
 // GeoIPData represents location data from GeoIP lookup
 type GeoIPData struct {
@@ -190,7 +216,7 @@ func (gs *GeoIPService) LookupIP(ip string) (*GeoIPData, error) {
 	}
 
 	// Try city database first
-	cityReader, err := geoip2.Open(cityDBPath)
+	cityReader, err := maxminddb.Open(cityDBPath)
 	if err != nil {
 		// Fallback to country database
 		return gs.lookupCountry(parsedIP, ip)
@@ -198,59 +224,29 @@ func (gs *GeoIPService) LookupIP(ip string) (*GeoIPData, error) {
 	defer cityReader.Close()
 
 	// Lookup city data
-	record, err := cityReader.City(parsedIP)
-	if err != nil {
+	var record cityRecord
+	if err := cityReader.Lookup(parsedIP, &record); err != nil {
 		// Fallback to country database
 		cityReader.Close()
 		return gs.lookupCountry(parsedIP, ip)
 	}
 
-	// Extract city name (prefer English)
-	city := ""
-	if len(record.City.Names) > 0 {
-		if name, ok := record.City.Names["en"]; ok {
-			city = name
-		} else {
-			// Fallback to first available name
-			for _, name := range record.City.Names {
-				city = name
-				break
-			}
-		}
-	}
-
-	// Extract region/state (prefer English)
-	region := ""
-	if len(record.Subdivisions) > 0 {
-		if name, ok := record.Subdivisions[0].Names["en"]; ok {
-			region = name
-		}
-	}
-
-	// Extract country (prefer English)
-	country := ""
-	countryCode := ""
-	if len(record.Country.Names) > 0 {
-		if name, ok := record.Country.Names["en"]; ok {
-			country = name
-		}
-		countryCode = record.Country.IsoCode
-	}
-
 	// Extract timezone
-	timezone := record.Location.TimeZone
+	timezone := record.Timezone
 	if timezone == "" {
 		timezone = "UTC"
 	}
 
 	geoData := &GeoIPData{
-		IP:          ip,
-		City:        city,
-		Region:      region,
-		Country:     country,
-		CountryCode: countryCode,
-		Latitude:    record.Location.Latitude,
-		Longitude:   record.Location.Longitude,
+		IP:   ip,
+		City: record.City,
+		// ip-location-db city MMDB files only expose the region/province code,
+		// not a full country name — Country stays empty (not sole access control)
+		Region:      record.State1,
+		Country:     "",
+		CountryCode: record.CountryCode,
+		Latitude:    record.Latitude,
+		Longitude:   record.Longitude,
 		Timezone:    timezone,
 	}
 
@@ -265,36 +261,27 @@ func (gs *GeoIPService) LookupIP(ip string) (*GeoIPData, error) {
 // lookupCountry performs country-level lookup (fallback when city lookup fails)
 func (gs *GeoIPService) lookupCountry(parsedIP net.IP, ipStr string) (*GeoIPData, error) {
 	// Open country database (combined IPv4/IPv6)
-	countryReader, err := geoip2.Open(gs.countryPath)
+	countryReader, err := maxminddb.Open(gs.countryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open country database: %w", err)
 	}
 	defer countryReader.Close()
 
 	// Lookup country data
-	record, err := countryReader.Country(parsedIP)
-	if err != nil {
+	var record countryRecord
+	if err := countryReader.Lookup(parsedIP, &record); err != nil {
 		return nil, fmt.Errorf("country lookup failed: %w", err)
 	}
 
-	// Extract country info
-	country := ""
-	countryCode := ""
-	if len(record.Country.Names) > 0 {
-		if name, ok := record.Country.Names["en"]; ok {
-			country = name
-		}
-		countryCode = record.Country.IsoCode
-	}
-
 	// Country-level only, no city
-	// Country database doesn't have coordinates
+	// Country database doesn't have coordinates or a full country name,
+	// only the ISO 3166-1 alpha-2 code
 	geoData := &GeoIPData{
 		IP:          ipStr,
 		City:        "",
 		Region:      "",
-		Country:     country,
-		CountryCode: countryCode,
+		Country:     "",
+		CountryCode: record.CountryCode,
 		Latitude:    0,
 		Longitude:   0,
 		Timezone:    "",
@@ -375,7 +362,7 @@ func (gs *GeoIPService) updateSingleDatabase(url, path, name string) error {
 	out.Close()
 
 	// Verify database is valid
-	testReader, err := geoip2.Open(tempPath)
+	testReader, err := maxminddb.Open(tempPath)
 	if err != nil {
 		os.Remove(tempPath)
 		return fmt.Errorf("downloaded database is invalid: %w", err)

@@ -6,8 +6,8 @@ package main
 import (
 	"os"
 
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // handlePlatformSignal handles platform-specific signals (Windows)

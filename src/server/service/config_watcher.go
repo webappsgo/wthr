@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/casapps/wthr/src/config"
+	"github.com/webappsgo/wthr/src/config"
 )
 
 // ConfigWatcher watches server.yml for changes and triggers reload

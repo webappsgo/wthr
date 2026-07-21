@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // APIToken represents an API token

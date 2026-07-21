@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // OneLineRenderer handles one-line format weather displays

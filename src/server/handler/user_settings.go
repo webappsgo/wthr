@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/server/middleware"
-	models "github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
 )

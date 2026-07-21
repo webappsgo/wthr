@@ -58,8 +58,11 @@ func GetHostFromRequest(c *gin.Context) string {
 // GetFQDN resolves the fully qualified domain name (TEMPLATE.md compliant)
 // Priority: DOMAIN env > os.Hostname() > HOSTNAME env > IPv6 > IPv4
 func GetFQDN() string {
-	// 1. DOMAIN env var (explicit user override)
+	// 1. DOMAIN env var (explicit user override, comma-separated list supported)
 	if domain := os.Getenv("DOMAIN"); domain != "" {
+		if idx := strings.Index(domain, ","); idx > 0 {
+			return strings.TrimSpace(domain[:idx])
+		}
 		return domain
 	}
 

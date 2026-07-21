@@ -212,23 +212,23 @@ func (h *MetricsHandler) ExportMetrics(c *gin.Context) {
 
 // Helper: Export in Prometheus format
 func (h *MetricsHandler) exportPrometheus(c *gin.Context) {
-	output := `# HELP weather_http_requests_total Total number of HTTP requests
-# TYPE weather_http_requests_total counter
-weather_http_requests_total{method="GET",path="/api/v1/weather"} 1234
-weather_http_requests_total{method="POST",path="/api/v1/server/admin/settings"} 56
+	output := `# HELP wthr_http_requests_total Total number of HTTP requests
+# TYPE wthr_http_requests_total counter
+wthr_http_requests_total{method="GET",path="/api/v1/weather"} 1234
+wthr_http_requests_total{method="POST",path="/api/v1/server/admin/settings"} 56
 
-# HELP weather_http_request_duration_seconds HTTP request duration in seconds
-# TYPE weather_http_request_duration_seconds histogram
-weather_http_request_duration_seconds_bucket{le="0.1"} 1000
-weather_http_request_duration_seconds_bucket{le="0.5"} 1200
-weather_http_request_duration_seconds_bucket{le="1"} 1250
-weather_http_request_duration_seconds_bucket{le="+Inf"} 1260
-weather_http_request_duration_seconds_sum 315.5
-weather_http_request_duration_seconds_count 1260
+# HELP wthr_http_request_duration_seconds HTTP request duration in seconds
+# TYPE wthr_http_request_duration_seconds histogram
+wthr_http_request_duration_seconds_bucket{le="0.1"} 1000
+wthr_http_request_duration_seconds_bucket{le="0.5"} 1200
+wthr_http_request_duration_seconds_bucket{le="1"} 1250
+wthr_http_request_duration_seconds_bucket{le="+Inf"} 1260
+wthr_http_request_duration_seconds_sum 315.5
+wthr_http_request_duration_seconds_count 1260
 
-# HELP weather_active_connections Number of active connections
-# TYPE weather_active_connections gauge
-weather_active_connections 42`
+# HELP wthr_active_connections Number of active connections
+# TYPE wthr_active_connections gauge
+wthr_active_connections 42`
 
 	c.Header("Content-Type", "text/plain; version=0.0.4")
 	c.String(http.StatusOK, output)
@@ -255,11 +255,11 @@ func (h *MetricsHandler) exportJSON(c *gin.Context) {
 
 // Helper: Export in OpenMetrics format
 func (h *MetricsHandler) exportOpenMetrics(c *gin.Context) {
-	output := `# HELP weather_http_requests Total number of HTTP requests
-# TYPE weather_http_requests counter
-# UNIT weather_http_requests requests
-weather_http_requests_total{method="GET"} 1234
-weather_http_requests_created{method="GET"} 1702598400
+	output := `# HELP wthr_http_requests Total number of HTTP requests
+# TYPE wthr_http_requests counter
+# UNIT wthr_http_requests requests
+wthr_http_requests_total{method="GET"} 1234
+wthr_http_requests_created{method="GET"} 1702598400
 # EOF`
 
 	c.Header("Content-Type", "application/openmetrics-text; version=1.0.0; charset=utf-8")

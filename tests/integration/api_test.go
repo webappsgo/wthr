@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/server/handler"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/handler"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 func setupIntegrationTest(t *testing.T) (*gin.Engine, *database.DB) {

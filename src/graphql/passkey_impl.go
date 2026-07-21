@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/casapps/wthr/src/server/handler"
+	"github.com/webappsgo/wthr/src/server/handler"
 )
 
 // graphQLPasskeyEnvelope reads the host/scheme stored on the request context

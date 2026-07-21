@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/database"
-	"github.com/casapps/wthr/src/util"
+	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // SMTPConfig represents SMTP configuration

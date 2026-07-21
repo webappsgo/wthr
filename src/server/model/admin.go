@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/argon2"
-	"github.com/casapps/wthr/src/database"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // Argon2id parameters per TEMPLATE.md PART 0

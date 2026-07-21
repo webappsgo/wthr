@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/casapps/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // NotificationService handles all notification operations

@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/casapps/wthr/src/scheduler"
-	"github.com/casapps/wthr/src/server/handler"
-	models "github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/scheduler"
+	"github.com/webappsgo/wthr/src/server/handler"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // Ok is the resolver for the GenericResponse.ok field. The Go struct uses

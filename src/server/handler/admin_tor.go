@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/casapps/wthr/src/server/model"
-	"github.com/casapps/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // TorAdminHandler handles Tor administration endpoints
