@@ -126,6 +126,42 @@ No active task. Pick from "Remaining Spec Gaps" below.
   Read: AI.md PART 16
 - [ ] `release-build-date-format` — `.github/workflows/release.yml` line 57 formats `BUILD_DATE` as `"%a %b %d, %Y at %H:%M:%S %Z"`; must be ISO 8601 UTC (`%Y-%m-%dT%H:%M:%SZ`) to match the Makefile/CI convention
   Read: AI.md PART 28
+- [ ] `schema-migration-v2-deadlock` — `src/database/schema.go` `migrateToV2`: nested query/exec on the same `*sql.DB` while a cursor is open self-deadlocks on real SQLite; found while writing `src/database/schema_test.go`
+  Read: AI.md PART 9
+- [ ] `db-connection-leak-on-pragma-error` — `src/database/connection.go`: PRAGMA/schema-creation error paths return without `db.Close()`, leaking the connection; found while writing `src/database/connection_test.go`
+  Read: AI.md PART 9
+- [ ] `custom-domains-table-forbidden` — `src/database/server_schema.go:368` defines a `custom_domains` table; PART 35/36 explicitly forbids any reference to `custom_domains` in code since the feature is not implemented
+  Read: AI.md PART 35, 36
+- [ ] `backup-token-unchecked-rand-error` — `src/backup/restore.go:206` `generateSetupToken()` ignores the `rand.Read` error, risking an all-zero predictable token on read failure
+  Read: AI.md PART 11
+- [ ] `email-template-placeholder-mismatch` — `src/email/template/welcome.txt:3` uses uppercase `{APP_NAME}` which never matches the lowercase template variable map; `Template.Render` also silently leaves unmatched placeholders as literal text instead of erroring
+  Read: AI.md PART 18
+- [ ] `scheduler-taskstats-null-scan-error` — `src/scheduler/task_history.go` `GetTaskStats`: `SUM(CASE...)` scanned into `int` errors on `NULL` (zero rows) instead of returning zeroed stats
+  Read: AI.md PART 19
+- [ ] `scheduler-backup-task-enabled-flag-ignored` — `src/scheduler/backup_task.go` `RegisterBackupTask`: the `enabled` parameter only affects a log line — the task is always registered as enabled regardless of its value
+  Read: AI.md PART 19
+- [ ] `scheduler-cleanup-datetime-format-mismatch` — `src/scheduler/scheduler.go` (`CleanupOldSessions`, `CleanupExpiredTokens`, `CleanupRateLimitCounters`) compares Go time-formatted values against SQLite `datetime('now')` in incompatible formats, confirmed to delete non-expired rows
+  Read: AI.md PART 19
+- [ ] `cli-maintenance-wrong-sqlite-driver` — `src/cli/maintenance.go:349` `openDatabase()` calls `sql.Open("sqlite3", dbPath)` but the only registered driver (`_ "modernc.org/sqlite"`) registers as `"sqlite"`; every caller (`wthr maintenance update`, `wthr maintenance admin-recovery`/`setup`) fails at runtime with `sql: unknown driver "sqlite3"`
+  Read: AI.md PART 9
+- [ ] `renderer-ascii-lowercase-country-code` — `src/renderer/ascii.go:88` `capitalizeLocation()` only uppercases a 2-letter part if it's already all-uppercase; `capitalizeLocation("london, gb")` returns `"London, Gb"` instead of `"London, GB"`
+  Read: AI.md PART 16
+- [ ] `renderer-json-nil-weather-panic` — `src/renderer/json.go` `Render()` dereferences `weather.Location`/`Current`/`Forecast`/`Moon` with no nil check; `Render(nil)` panics instead of returning a clean error
+  Read: AI.md PART 16
+- [ ] `graphql-context-key-type-mismatch` — `src/graphql/graphql.go` stores auth values with a typed `contextKey` (`ctxKeyAdminID`, `ctxKeyUserRole`, etc.) but `resolvers_helpers.go:451,474,839,855`, `schema.resolvers_impl.go:12`, and ~50 sites in `schema.resolvers.go` read them back with raw untyped string literals; `contextKey("admin_id") != "admin_id"` as map keys, so every raw-string lookup returns `ok=false` and authorization/role checks silently fail to see correctly-attached admin/user context across nearly all authenticated GraphQL resolvers
+  Read: AI.md PART 14
+- [x] `admin-users-registration-mode-legacy-only` — `src/server/handler/admin_users.go` `UpdateUserSettings` only accepts legacy `public`/`private`/`disabled` registration modes, rejecting the spec-mandated `open`/`invite`/`admin_only`/`disabled` (config-rules.md)
+  Read: AI.md PART 34
+  Fixed: now accepts `open`/`invite`/`admin_only`/`disabled` and normalises legacy `public`→`open`, `private`→`invite` instead of rejecting them.
+- [x] `setup-wizard-mark-complete-wrong-columns` — `src/server/handler/setup_wizard.go` `markSetupComplete()` inserted into `server_setup_state` using `id`/`setup_completed`/`setup_completed_at` columns that don't exist on that table (it is a generic `key TEXT PRIMARY KEY, value TEXT, updated_at DATETIME` store per `database.ServerSchema`); every call silently failed with only a warning log, so the setup-state write was permanently dead. `IsSetupComplete()` gates on admin count, not this table, so functional gating was unaffected, but the audit/state write never persisted.
+  Read: AI.md PART 22
+  Fixed: rewrote the INSERT to the key/value shape (`key='setup_completed', value='1'`) with `ON CONFLICT(key) DO UPDATE`.
+- [ ] `dead-db-param-pattern` — widespread pattern: handler/model constructors across `src/server/handler` and `src/server/model` accept a `*sql.DB` parameter but ignore it in favor of `database.GetServerDB()`/`GetUsersDB()` globals, forcing tests through `database.SetGlobalDualDB(...)` instead of real dependency injection
+  Read: AI.md PART 9
+- [ ] `path-sync-once-test-unfriendly` — `src/path/paths.go` uses a package-level `sync.Once`; `CONFIG_DIR`/`DATA_DIR` overrides only take effect if pinned before any other code initializes it, making runtime reconfiguration and test isolation fragile
+  Read: AI.md PART 4
+- [ ] `config-dir-override-ignored-on-first-run` — `src/config/config.go` `findConfigFile()` only honors the `CONFIG_DIR` env var if `{CONFIG_DIR}/server.yml` already exists (`os.Stat` check); when it does not, it falls through to `getConfigPath()`'s hardcoded system path (`/etc/casapps/wthr/server.yml` as root) and `createDefaultConfig` writes there, silently ignoring an explicitly-set `CONFIG_DIR` on first run instead of creating `{CONFIG_DIR}/server.yml`
+  Read: AI.md PART 4, 5
 
 ## Verified Progress Notes (from previous sessions)
 
