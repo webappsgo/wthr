@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"time"
+
+	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 
@@ -33,11 +35,9 @@ func AccessLogger(logger *utils.Logger) gin.HandlerFunc {
 
 		// Get username from context (if authenticated)
 		username := ""
-		if user, exists := c.Get("user"); exists {
-			if userMap, ok := user.(map[string]interface{}); ok {
-				if uname, ok := userMap["username"].(string); ok {
-					username = uname
-				}
+		if user, exists := c.Get(UserContextKey); exists {
+			if u, ok := user.(*models.User); ok && u != nil {
+				username = u.Username
 			}
 		}
 
@@ -65,11 +65,9 @@ func AccessLoggerWithFormat(logger *utils.Logger, formatter *service.LogFormatte
 		entry := service.ExtractLogEntry(c, start, c.Writer.Size())
 
 		// Get username from context (if authenticated)
-		if user, exists := c.Get("user"); exists {
-			if userMap, ok := user.(map[string]interface{}); ok {
-				if uname, ok := userMap["username"].(string); ok {
-					entry.Username = uname
-				}
+		if user, exists := c.Get(UserContextKey); exists {
+			if u, ok := user.(*models.User); ok && u != nil {
+				entry.Username = u.Username
 			}
 		}
 

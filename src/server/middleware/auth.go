@@ -147,8 +147,8 @@ func GetCurrentSession(c *gin.Context) (*models.Session, bool) {
 
 // IsAuthenticated checks if user is authenticated
 func IsAuthenticated(c *gin.Context) bool {
-	_, exists := c.Get(UserContextKey)
-	return exists
+	_, ok := GetCurrentUser(c)
+	return ok
 }
 
 // IsAdmin checks if user is admin

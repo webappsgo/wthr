@@ -1,13 +1,19 @@
 package middleware
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
+
 	"github.com/gin-gonic/gin"
+	"github.com/oklog/ulid/v2"
 )
 
-// AuditLogger logs admin actions to the audit_log table
+// AuditLogger logs admin actions to the server_audit_log table
 func AuditLogger(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only log admin routes
@@ -42,11 +48,25 @@ func AuditLogger(db *sql.DB) gin.HandlerFunc {
 
 		// Log the action
 		success := c.Writer.Status() >= 200 && c.Writer.Status() < 400
+		status := "success"
+		if !success {
+			status = "failure"
+		}
+
+		actorType := "anonymous"
+		var actorID string
+		if userID != nil {
+			actorType = "user"
+			actorID = strconv.FormatInt(*userID, 10)
+		}
+
+		now := time.Now()
+		id := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
 		_, err := db.Exec(`
-			INSERT INTO audit_log (user_id, action, resource, ip_address, user_agent, created_at, success)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`, userID, action, resource, clientIP, userAgent, time.Now(), success)
+			INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, id, now, actorType, actorID, action, resource, "", clientIP, userAgent, status)
 
 		if err != nil {
 			// Log error but don't fail the request
@@ -55,10 +75,18 @@ func AuditLogger(db *sql.DB) gin.HandlerFunc {
 	}
 }
 
-// isAdminRoute checks if the path is an admin route
+// isAdminRoute checks if the path is an admin route, using the configured
+// admin.path (AI.md config-rules.md: admin path is configurable, default
+// "admin") rather than a hardcoded "/server/admin" prefix - matching the
+// resolution pattern already used by auth.go's RestrictAdminToAdminRoutes.
 func isAdminRoute(path string) bool {
-	return len(path) >= 13 && path[:13] == "/server/admin" ||
-		len(path) >= 20 && path[:20] == "/api/v1/server/admin"
+	adminPath := "/server/admin"
+	if cfg, err := config.LoadConfig(); err == nil && cfg != nil {
+		adminPath = "/server/" + cfg.GetAdminPath()
+	}
+	apiAdminPath := "/api/v1" + adminPath
+
+	return strings.HasPrefix(path, adminPath) || strings.HasPrefix(path, apiAdminPath)
 }
 
 // getActionFromRequest determines the action type from method and path

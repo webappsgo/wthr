@@ -78,7 +78,11 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 // UpdatePreference updates a user's channel preference
 func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	prefID, _ := strconv.Atoi(c.Param("id"))
+	prefID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid preference id"})
+		return
+	}
 
 	var req struct {
 		Enabled         bool                   `json:"enabled"`
@@ -95,7 +99,7 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 
 	configJSON, _ := json.Marshal(req.Config)
 
-	_, err := h.DB.Exec(`
+	result, err := h.DB.Exec(`
 		UPDATE user_notification_preferences
 		SET enabled = ?, priority = ?, quiet_hours_start = ?,
 		    quiet_hours_end = ?, config = ?, updated_at = datetime('now')
@@ -105,6 +109,16 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preference"})
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preference"})
+		return
+	}
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Preference not found"})
 		return
 	}
 
@@ -157,15 +171,29 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 // DeletePreference deletes a user's channel preference
 func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	prefID, _ := strconv.Atoi(c.Param("id"))
+	prefID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid preference id"})
+		return
+	}
 
-	_, err := h.DB.Exec(`
+	result, err := h.DB.Exec(`
 		DELETE FROM user_notification_preferences
 		WHERE id = ? AND user_id = ?
 	`, prefID, userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete preference"})
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete preference"})
+		return
+	}
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Preference not found"})
 		return
 	}
 

@@ -413,6 +413,19 @@ CREATE INDEX IF NOT EXISTS idx_nq_priority ON notification_queue(priority);
 CREATE INDEX IF NOT EXISTS idx_nq_retry ON notification_queue(next_retry_at);
 CREATE INDEX IF NOT EXISTS idx_nq_created ON notification_queue(created_at);
 
+-- Notification Metrics table (custom metrics and analytics; PART 21)
+CREATE TABLE IF NOT EXISTS notification_metrics (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	metric_type TEXT NOT NULL,
+	channel_type TEXT,
+	value REAL NOT NULL,
+	recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_nm_type ON notification_metrics(metric_type);
+CREATE INDEX IF NOT EXISTS idx_nm_channel ON notification_metrics(channel_type);
+CREATE INDEX IF NOT EXISTS idx_nm_recorded ON notification_metrics(recorded_at);
+
 -- Notification History table (audit trail)
 CREATE TABLE IF NOT EXISTS notification_history (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,145 @@
+go: downloading github.com/go-sql-driver/mysql v1.9.3
+go: downloading github.com/jackc/pgx/v5 v5.9.2
+go: downloading github.com/microsoft/go-mssqldb v1.9.3
+go: downloading github.com/99designs/gqlgen v0.17.60
+go: downloading modernc.org/sqlite v1.39.0
+go: downloading github.com/gin-gonic/gin v1.11.0
+go: downloading github.com/vektah/gqlparser/v2 v2.5.22
+go: downloading github.com/robfig/cron/v3 v3.0.1
+go: downloading github.com/go-webauthn/webauthn v0.11.2
+go: downloading github.com/gorilla/websocket v1.5.1
+go: downloading github.com/graphql-go/graphql v0.8.1
+go: downloading github.com/graphql-go/handler v0.2.4
+go: downloading github.com/oklog/ulid/v2 v2.1.0
+go: downloading github.com/patrickmn/go-cache v2.1.0+incompatible
+go: downloading github.com/prometheus/client_golang v1.22.0
+go: downloading github.com/swaggo/files v1.0.1
+go: downloading github.com/swaggo/gin-swagger v1.6.0
+go: downloading golang.org/x/text v0.38.0
+go: downloading github.com/pquerna/otp v1.5.0
+go: downloading github.com/prometheus/client_model v0.6.2
+go: downloading github.com/go-chi/httprate v0.15.0
+go: downloading github.com/google/uuid v1.6.0
+go: downloading golang.org/x/crypto v0.53.0
+go: downloading github.com/coreos/go-oidc/v3 v3.11.0
+go: downloading github.com/cretz/bine v0.2.0
+go: downloading github.com/fsnotify/fsnotify v1.9.0
+go: downloading github.com/go-acme/lego/v4 v4.25.2
+go: downloading github.com/go-ldap/ldap/v3 v3.4.13
+go: downloading github.com/oschwald/maxminddb-golang v1.13.1
+go: downloading github.com/redis/go-redis/v9 v9.14.0
+go: downloading golang.org/x/oauth2 v0.30.0
+go: downloading golang.org/x/net v0.56.0
+go: downloading golang.org/x/term v0.44.0
+go: downloading gopkg.in/yaml.v3 v3.0.1
+go: downloading github.com/gin-contrib/cors v1.7.6
+go: downloading github.com/gin-contrib/gzip v0.0.6
+go: downloading github.com/charmbracelet/bubbletea v1.3.10
+go: downloading github.com/charmbracelet/lipgloss v1.1.0
+go: downloading github.com/gin-contrib/sse v1.1.0
+go: downloading github.com/mattn/go-isatty v0.0.20
+go: downloading github.com/quic-go/quic-go v0.59.1
+go: downloading filippo.io/edwards25519 v1.1.0
+go: downloading github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9
+go: downloading github.com/golang-sql/sqlexp v0.1.0
+go: downloading github.com/golang-jwt/jwt/v5 v5.2.2
+go: downloading github.com/google/go-tpm v0.9.1
+go: downloading github.com/mitchellh/mapstructure v1.5.0
+go: downloading github.com/swaggo/swag v1.16.4
+go: downloading github.com/sosodev/duration v1.3.1
+go: downloading github.com/go-viper/mapstructure/v2 v2.4.0
+go: downloading github.com/hashicorp/golang-lru/v2 v2.0.7
+go: downloading github.com/prometheus/common v0.62.0
+go: downloading github.com/beorn7/perks v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading github.com/prometheus/procfs v0.16.1
+go: downloading google.golang.org/protobuf v1.36.9
+go: downloading github.com/go-jose/go-jose/v4 v4.1.4
+go: downloading github.com/zeebo/xxh3 v1.0.2
+go: downloading golang.org/x/sys v0.46.0
+go: downloading github.com/Azure/go-ntlmssp v0.1.0
+go: downloading github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667
+go: downloading github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f
+go: downloading github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd
+go: downloading github.com/charmbracelet/x/ansi v0.10.1
+go: downloading github.com/muesli/termenv v0.16.0
+go: downloading github.com/rivo/uniseg v0.4.7
+go: downloading github.com/charmbracelet/x/term v0.2.1
+go: downloading github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6
+go: downloading github.com/muesli/cancelreader v0.2.2
+go: downloading github.com/go-playground/validator/v10 v10.27.0
+go: downloading github.com/goccy/go-yaml v1.18.0
+go: downloading github.com/pelletier/go-toml/v2 v2.2.4
+go: downloading github.com/ugorji/go/codec v1.3.0
+go: downloading github.com/miekg/dns v1.1.67
+go: downloading github.com/jackc/pgpassfile v1.0.0
+go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+go: downloading github.com/jackc/puddle/v2 v2.2.2
+go: downloading github.com/agnivade/levenshtein v1.2.0
+go: downloading github.com/go-webauthn/x v0.1.14
+go: downloading github.com/fxamacker/cbor/v2 v2.7.0
+go: downloading github.com/quic-go/qpack v0.6.0
+go: downloading github.com/KyleBanks/depth v1.2.1
+go: downloading github.com/go-openapi/spec v0.20.4
+go: downloading golang.org/x/tools v0.45.0
+go: downloading github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc
+go: downloading github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
+go: downloading github.com/klauspost/cpuid/v2 v2.3.0
+go: downloading github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc
+go: downloading github.com/mattn/go-runewidth v0.0.16
+go: downloading github.com/lucasb-eyer/go-colorful v1.2.0
+go: downloading github.com/aymanbagabas/go-osc52/v2 v2.0.1
+go: downloading github.com/gabriel-vasile/mimetype v1.4.9
+go: downloading github.com/go-playground/universal-translator v0.18.1
+go: downloading github.com/leodido/go-urn v1.4.0
+go: downloading github.com/cenkalti/backoff/v4 v4.3.0
+go: downloading golang.org/x/sync v0.21.0
+go: downloading github.com/x448/float16 v0.8.4
+go: downloading github.com/go-openapi/jsonpointer v0.19.5
+go: downloading github.com/go-openapi/jsonreference v0.19.6
+go: downloading github.com/go-openapi/swag v0.19.15
+go: downloading github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e
+go: downloading github.com/go-playground/locales v0.14.1
+go: downloading github.com/PuerkitoBio/purell v1.1.1
+go: downloading github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
+go: downloading gopkg.in/yaml.v2 v2.4.0
+go: downloading github.com/mailru/easyjson v0.7.6
+go: downloading github.com/josharian/intern v1.0.0
+go: downloading modernc.org/libc v1.66.3
+go: downloading modernc.org/memory v1.11.0
+go: downloading modernc.org/mathutil v1.7.1
+go: downloading golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
+go: downloading github.com/dustin/go-humanize v1.0.1
+go: downloading github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec
+ok  	github.com/webappsgo/wthr/src	4.329s	coverage: 0.9% of statements
+ok  	github.com/webappsgo/wthr/src/backup	57.621s	coverage: 81.9% of statements
+ok  	github.com/webappsgo/wthr/src/cli	29.290s	coverage: 41.8% of statements
+ok  	github.com/webappsgo/wthr/src/client	5.302s	coverage: 73.0% of statements
+ok  	github.com/webappsgo/wthr/src/cluster	2.226s	coverage: 74.1% of statements
+ok  	github.com/webappsgo/wthr/src/common/banner	2.074s	coverage: 55.2% of statements
+ok  	github.com/webappsgo/wthr/src/common/display	2.071s	coverage: 88.4% of statements
+ok  	github.com/webappsgo/wthr/src/common/i18n	2.196s	coverage: 81.2% of statements
+ok  	github.com/webappsgo/wthr/src/common/terminal	2.066s	coverage: 100.0% of statements
+ok  	github.com/webappsgo/wthr/src/common/theme	2.062s	coverage: 78.6% of statements
+ok  	github.com/webappsgo/wthr/src/config	2.076s	coverage: 73.9% of statements
+ok  	github.com/webappsgo/wthr/src/database	66.210s	coverage: 70.1% of statements
+ok  	github.com/webappsgo/wthr/src/email	1.282s	coverage: 55.0% of statements
+ok  	github.com/webappsgo/wthr/src/graphql	12.828s	coverage: 2.1% of statements
+ok  	github.com/webappsgo/wthr/src/middleware	0.392s	coverage: 100.0% of statements
+ok  	github.com/webappsgo/wthr/src/mode	0.637s	coverage: 100.0% of statements
+ok  	github.com/webappsgo/wthr/src/path	0.437s	coverage: 48.5% of statements
+ok  	github.com/webappsgo/wthr/src/renderer	3.287s	coverage: 73.3% of statements
+ok  	github.com/webappsgo/wthr/src/scheduler	9.828s	coverage: 55.5% of statements
+	github.com/webappsgo/wthr/src/server		coverage: 0.0% of statements
+ok  	github.com/webappsgo/wthr/src/server/handler	425.988s	coverage: 35.1% of statements
+ok  	github.com/webappsgo/wthr/src/server/metrics	1.484s	coverage: 64.7% of statements
+ok  	github.com/webappsgo/wthr/src/server/middleware	116.581s	coverage: 87.4% of statements
+ok  	github.com/webappsgo/wthr/src/server/model	239.027s	coverage: 42.2% of statements
+ok  	github.com/webappsgo/wthr/src/server/service	162.071s	coverage: 63.3% of statements
+?   	github.com/webappsgo/wthr/src/server/store	[no test files]
+ok  	github.com/webappsgo/wthr/src/swagger	1.228s	coverage: 100.0% of statements
+ok  	github.com/webappsgo/wthr/src/util	75.217s	coverage: 67.8% of statements
+ok  	github.com/webappsgo/wthr/tests/e2e	36.104s	coverage: [no statements]
+ok  	github.com/webappsgo/wthr/tests/integration	36.602s	coverage: [no statements]
+ok  	github.com/webappsgo/wthr/tests/unit/handlers	72.400s	coverage: [no statements]
+ok  	github.com/webappsgo/wthr/tests/unit/services	15.934s	coverage: [no statements]

@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -1687,7 +1688,7 @@ func main() {
 			// Delete admin session from database
 			adminSessionID, err := c.Cookie("admin_session")
 			if err == nil && adminSessionID != "" {
-				database.GetServerDB().Exec("DELETE FROM server_admin_sessions WHERE session_id = ?", adminSessionID)
+				database.GetServerDB().Exec("DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID)
 			}
 			// Clear admin_session cookie
 			c.SetCookie("admin_session", "", -1, "/", "", false, true)
@@ -2399,36 +2400,54 @@ func main() {
 			return admin, true
 		}
 
+		// server_admin_preferences (src/database/server_schema.go) stores
+		// preferences as a single JSON blob column (admin_id, preferences,
+		// updated_at) — not individual theme/language/... columns.
+		defaultAdminPreferencesJSON := func(adminID int64) (string, error) {
+			b, err := json.Marshal(models.AdminPreferences{
+				AdminID:              adminID,
+				Theme:                "auto",
+				Language:             "en",
+				Timezone:             "UTC",
+				NotificationsEnabled: true,
+				EmailNotifications:   true,
+			})
+			return string(b), err
+		}
+
 		loadAdminPreferences := func(adminID int64) (*models.AdminPreferences, error) {
+			defaultJSON, err := defaultAdminPreferencesJSON(adminID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
+			}
+
 			if _, err := serverDB.Exec(`
-				INSERT INTO server_admin_preferences (admin_id, theme, language, timezone, notifications_enabled, email_notifications, created_at, updated_at)
-				SELECT ?, 'auto', 'en', 'UTC', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+				INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
+				SELECT ?, ?, CURRENT_TIMESTAMP
 				WHERE NOT EXISTS (
 					SELECT 1 FROM server_admin_preferences WHERE admin_id = ?
 				)
-			`, adminID, adminID); err != nil {
+			`, adminID, defaultJSON, adminID); err != nil {
 				return nil, fmt.Errorf("failed to ensure admin preferences: %w", err)
 			}
 
-			prefs := &models.AdminPreferences{}
-			err := serverDB.QueryRow(`
-				SELECT id, admin_id, theme, language, timezone, notifications_enabled, email_notifications, created_at, updated_at
+			var prefsJSON string
+			var updatedAt time.Time
+			err = serverDB.QueryRow(`
+				SELECT preferences, updated_at
 				FROM server_admin_preferences
 				WHERE admin_id = ?
-			`, adminID).Scan(
-				&prefs.ID,
-				&prefs.AdminID,
-				&prefs.Theme,
-				&prefs.Language,
-				&prefs.Timezone,
-				&prefs.NotificationsEnabled,
-				&prefs.EmailNotifications,
-				&prefs.CreatedAt,
-				&prefs.UpdatedAt,
-			)
+			`, adminID).Scan(&prefsJSON, &updatedAt)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load admin preferences: %w", err)
 			}
+
+			prefs := &models.AdminPreferences{}
+			if err := json.Unmarshal([]byte(prefsJSON), prefs); err != nil {
+				return nil, fmt.Errorf("failed to decode admin preferences: %w", err)
+			}
+			prefs.AdminID = adminID
+			prefs.UpdatedAt = updatedAt
 
 			return prefs, nil
 		}
@@ -3094,11 +3113,24 @@ func main() {
 				emailNotifications = *req.EmailNotifications
 			}
 
+			updatedJSON, err := json.Marshal(models.AdminPreferences{
+				AdminID:              admin.ID,
+				Theme:                theme,
+				Language:             language,
+				Timezone:             timezone,
+				NotificationsEnabled: notificationsEnabled,
+				EmailNotifications:   emailNotifications,
+			})
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode preferences"})
+				return
+			}
+
 			if _, err := serverDB.Exec(`
 				UPDATE server_admin_preferences
-				SET theme = ?, language = ?, timezone = ?, notifications_enabled = ?, email_notifications = ?, updated_at = CURRENT_TIMESTAMP
+				SET preferences = ?, updated_at = CURRENT_TIMESTAMP
 				WHERE admin_id = ?
-			`, theme, language, timezone, notificationsEnabled, emailNotifications, admin.ID); err != nil {
+			`, string(updatedJSON), admin.ID); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preferences"})
 				return
 			}

@@ -32,8 +32,16 @@ func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 		return
 	}
 
+	// Registration modes per AI.md config-rules.md: open/invite/admin_only/
+	// disabled. Legacy values (public/private) are normalised to their
+	// current equivalents rather than rejected, so already-stored configs
+	// and older API clients keep working.
 	switch req.RegistrationMode {
-	case "public", "private", "disabled":
+	case "public":
+		req.RegistrationMode = "open"
+	case "private":
+		req.RegistrationMode = "invite"
+	case "open", "invite", "admin_only", "disabled":
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid registration mode"})
 		return

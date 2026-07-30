@@ -169,7 +169,7 @@ func (m tuiModel) handleInputKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
-	case "escape", "ctrl+[":
+	case "esc", "ctrl+[":
 		m.view = viewMenu
 		m.input = ""
 		return m, nil
@@ -191,7 +191,7 @@ func (m tuiModel) handleResultKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "escape", "b", "h", "ctrl+[":
+	case "esc", "b", "h", "ctrl+[":
 		m.view = viewMenu
 		m.result = ""
 		m.err = nil
@@ -216,7 +216,7 @@ func (m tuiModel) handleHelpKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "escape", "?", "enter", "ctrl+[":
+	case "esc", "?", "enter", "ctrl+[":
 		m.view = m.previousView
 		return m, nil
 	}

@@ -318,8 +318,8 @@ func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatisti
 	err := m.DB.QueryRow(`
 		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END) as unread,
-			SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END) as read
+			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
+			COALESCE(SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END), 0) as read
 		FROM user_notifications
 		WHERE user_id = ? AND expires_at > ?
 	`, userID, time.Now()).Scan(&stats.Total, &stats.Unread, &stats.Read)
@@ -620,8 +620,8 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	err := m.DB.QueryRow(`
 		SELECT
 			COUNT(*) as total,
-			SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END) as unread,
-			SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END) as read
+			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
+			COALESCE(SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END), 0) as read
 		FROM server_admin_notifications
 		WHERE admin_id = ? AND expires_at > ?
 	`, adminID, time.Now()).Scan(&stats.Total, &stats.Unread, &stats.Read)

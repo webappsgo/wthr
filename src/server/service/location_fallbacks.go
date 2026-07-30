@@ -251,6 +251,14 @@ func CreateFallbackLocation(location string) *Coordinates {
 	// Normalize location name for lookup
 	normalized := strings.ToLower(strings.TrimSpace(location))
 
+	// Empty/whitespace-only input never matches: without this guard,
+	// strings.Contains(key, "") is always true, so the partial-match loop
+	// below would return a nondeterministic city (depends on map
+	// iteration order) instead of "no match".
+	if normalized == "" {
+		return nil
+	}
+
 	// Direct match
 	if fallback, ok := fallbacks[normalized]; ok {
 		return fallback

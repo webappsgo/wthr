@@ -64,7 +64,7 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 		var adminID int
 		err := database.GetServerDB().QueryRow(`
 			SELECT admin_id FROM server_admin_sessions
-			WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
+			WHERE id = ? AND datetime(expires_at) > datetime('now')
 		`, adminSessionID).Scan(&adminID)
 		if err == nil {
 			c.Redirect(http.StatusFound, adminPath)

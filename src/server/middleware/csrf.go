@@ -67,7 +67,7 @@ func CSRFProtection(cfg CSRFConfig) gin.HandlerFunc {
 
 		// Skip CSRF for unauthenticated users on public pages
 		// CSRF protects against session hijacking - no session = no risk
-		if _, exists := c.Get("user_id"); !exists {
+		if _, exists := c.Get(UserContextKey); !exists {
 			if _, adminExists := c.Get("admin_id"); !adminExists {
 				c.Next()
 				return

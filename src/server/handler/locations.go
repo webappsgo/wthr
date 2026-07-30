@@ -112,9 +112,14 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 	}
 
 	var req struct {
-		Name      string  `json:"name" binding:"required"`
-		Latitude  float64 `json:"latitude" binding:"required"`
-		Longitude float64 `json:"longitude" binding:"required"`
+		Name string `json:"name" binding:"required"`
+		// Latitude/Longitude intentionally have no "required" binding: 0.0 is
+		// a legitimate coordinate (e.g. Null Island / equator / prime
+		// meridian) and gin's "required" rejects the zero value for
+		// non-pointer numeric fields. Range validation below is the real
+		// correctness check.
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
 		Timezone  string  `json:"timezone"`
 	}
 
@@ -185,15 +190,26 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 	}
 
 	var req struct {
-		Name          string  `json:"name" binding:"required"`
-		Latitude      float64 `json:"latitude" binding:"required"`
-		Longitude     float64 `json:"longitude" binding:"required"`
+		Name string `json:"name" binding:"required"`
+		// See CreateLocation: 0.0 is a legitimate coordinate, so no
+		// "required" binding on the float fields.
+		Latitude      float64 `json:"latitude"`
+		Longitude     float64 `json:"longitude"`
 		Timezone      string  `json:"timezone"`
 		AlertsEnabled bool    `json:"alerts_enabled"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.Latitude < -90 || req.Latitude > 90 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Latitude must be between -90 and 90"})
+		return
+	}
+	if req.Longitude < -180 || req.Longitude > 180 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Longitude must be between -180 and 180"})
 		return
 	}
 

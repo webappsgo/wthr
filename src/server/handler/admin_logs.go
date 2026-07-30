@@ -239,8 +239,8 @@ func (h *LogsHandler) parseLine(line string) LogEntry {
 		parts := strings.SplitN(line, "]", 4)
 		if len(parts) >= 4 {
 			entry.Timestamp = strings.TrimPrefix(parts[0], "[")
-			entry.Level = strings.TrimSpace(strings.TrimPrefix(parts[1], "["))
-			entry.Source = strings.TrimSpace(strings.TrimPrefix(parts[2], "["))
+			entry.Level = strings.TrimPrefix(strings.TrimSpace(parts[1]), "[")
+			entry.Source = strings.TrimPrefix(strings.TrimSpace(parts[2]), "[")
 			entry.Message = strings.TrimSpace(parts[3])
 		}
 	}
@@ -581,19 +581,16 @@ func (h *LogsHandler) readAuditLogs(filePath string, limit, offset int, eventTyp
 }
 
 // Helper: Search audit logs with advanced filtering
-func (h *LogsHandler) searchAuditLogs(filePath string, req interface{}) ([]service.AuditEvent, int, error) {
-	// Type assert the request
-	searchReq := req.(struct {
-		EventType string
-		Username  string
-		IP        string
-		StartDate string
-		EndDate   string
-		Success   *bool
-		Limit     int
-		Offset    int
-	})
-
+func (h *LogsHandler) searchAuditLogs(filePath string, searchReq struct {
+	EventType string `json:"event_type"`
+	Username  string `json:"username"`
+	IP        string `json:"ip"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+	Success   *bool  `json:"success"`
+	Limit     int    `json:"limit"`
+	Offset    int    `json:"offset"`
+}) ([]service.AuditEvent, int, error) {
 	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return []service.AuditEvent{}, 0, nil

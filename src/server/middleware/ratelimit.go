@@ -135,7 +135,7 @@ func APIUnauthRateLimitMiddleware() gin.HandlerFunc {
 func APIRateLimitMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if user is authenticated
-		_, exists := c.Get("user_id")
+		_, exists := c.Get(UserContextKey)
 		if exists {
 			// Authenticated: 100 req/min
 			wrapRateLimiter(apiAuthLimiter, APIAuthRequestsPerWindow, APIAuthWindowDuration)(c)
@@ -162,31 +162,35 @@ func AdminRateLimitMiddleware() gin.HandlerFunc {
 }
 
 // wrapRateLimiter wraps httprate.RateLimiter for Gin
+//
+// httprate.RateLimiter.Handler only invokes the wrapped inner handler when
+// the request is WITHIN the limit - when the limit is exceeded it calls
+// RespondOnLimit (default: http.Error with 429) and returns without ever
+// calling the inner handler. So the inner handler must only be used to
+// detect the "allowed" case; the "exceeded" case is everything else.
 func wrapRateLimiter(limiter *httprate.RateLimiter, limit int, window time.Duration) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Create a wrapper to capture rate limit status
-		rateLimitExceeded := false
+		nextCalled := false
 
-		handler := limiter.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check if rate limit headers were set by httprate
-			if w.Header().Get("X-RateLimit-Remaining") == "0" {
-				rateLimitExceeded = true
-			}
-			c.Next()
-		}))
-
-		// Create response writer wrapper
+		// Response writer wrapper: swallow the 429 that httprate's default
+		// limit handler writes directly, so this middleware can produce its
+		// own JSON body below instead.
 		writer := &rateLimitResponseWriter{
 			ResponseWriter: c.Writer,
 			ginContext:     c,
 		}
-		c.Writer = writer
 
-		// Call httprate handler
+		handler := limiter.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			nextCalled = true
+		}))
+
+		// Call httprate handler against the wrapper, not c.Writer directly,
+		// so a rate-limited response never reaches the real writer.
 		handler.ServeHTTP(writer, c.Request)
 
-		// If rate limited, abort with 429
-		if rateLimitExceeded {
+		// If httprate never called the inner handler, the request was
+		// rejected as over the limit.
+		if !nextCalled {
 			retryAfter := int(window.Seconds())
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       "Rate limit exceeded",
@@ -197,10 +201,12 @@ func wrapRateLimiter(limiter *httprate.RateLimiter, limit int, window time.Durat
 			return
 		}
 
-		// Set rate limit headers for successful requests
+		// Set rate limit headers for allowed requests, then continue the
+		// real Gin chain.
 		c.Header("X-RateLimit-Limit", writer.Header().Get("X-RateLimit-Limit"))
 		c.Header("X-RateLimit-Remaining", writer.Header().Get("X-RateLimit-Remaining"))
 		c.Header("X-RateLimit-Reset", writer.Header().Get("X-RateLimit-Reset"))
+		c.Next()
 	}
 }
 

@@ -759,10 +759,15 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 
 	expiresAt := time.Now().Add(duration)
 
+	// Bind expires_at as SQLite's own canonical "YYYY-MM-DD HH:MM:SS" text
+	// format (matching CURRENT_TIMESTAMP's output). Binding a raw time.Time
+	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
+	// datetime() cannot parse -- every datetime(expires_at) comparison
+	// elsewhere then silently evaluates to NULL.
 	result, err := database.GetUsersDB().Exec(`
 		INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-	`, userID, hashUserToken(sessionID), ipAddress, userAgent, expiresAt)
+	`, userID, hashUserToken(sessionID), ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -859,7 +864,7 @@ func (m *UserSessionModel) DeleteSessionByRowID(rowID int64) error {
 func (m *UserSessionModel) GetRowIDByToken(rawToken string) (int64, error) {
 	var rowID int64
 	err := database.GetUsersDB().QueryRow(
-		"SELECT id FROM user_sessions WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP",
+		"SELECT id FROM user_sessions WHERE token_hash = ? AND datetime(expires_at) > datetime('now')",
 		hashUserToken(rawToken),
 	).Scan(&rowID)
 	if err == sql.ErrNoRows {
@@ -884,7 +889,7 @@ func (m *UserSessionModel) DeleteAllSessionsForUser(userID int64) error {
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
 func (m *UserSessionModel) DeleteExpiredSessions() error {
 	_, err := database.GetUsersDB().Exec(`
-		DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP
+		DELETE FROM user_sessions WHERE datetime(expires_at) < datetime('now')
 	`)
 
 	if err != nil {
@@ -903,7 +908,7 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 	rows, err := database.GetUsersDB().Query(`
 		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
-		WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP
+		WHERE user_id = ? AND datetime(expires_at) > datetime('now')
 		ORDER BY last_used_at DESC
 	`, userID)
 
@@ -952,10 +957,12 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 
 	tokenHash := HashAPIToken(token)
 
+	// See CreateSession for why expires_at must be bound as SQLite's own
+	// canonical text format rather than a raw time.Time.
 	result, err := database.GetUsersDB().Exec(`
 		INSERT INTO user_email_verifications (user_id, token, email, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, tokenHash, email, expiresAt)
+	`, userID, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create verification: %w", err)
@@ -1028,7 +1035,7 @@ func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
 	_, err := database.GetUsersDB().Exec(`
 		DELETE FROM user_email_verifications
-		WHERE expires_at < CURRENT_TIMESTAMP OR used_at IS NOT NULL
+		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
 
 	if err != nil {
@@ -1056,10 +1063,12 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 
 	tokenHash := HashAPIToken(token)
 
+	// See CreateSession for why expires_at must be bound as SQLite's own
+	// canonical text format rather than a raw time.Time.
 	result, err := database.GetUsersDB().Exec(`
 		INSERT INTO user_password_resets (user_id, token, created_at, expires_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, tokenHash, expiresAt)
+	`, userID, tokenHash, expiresAt.UTC().Format("2006-01-02 15:04:05"))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reset: %w", err)
@@ -1130,7 +1139,7 @@ func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 func (m *UserPasswordResetModel) DeleteExpiredResets() error {
 	_, err := database.GetUsersDB().Exec(`
 		DELETE FROM user_password_resets
-		WHERE expires_at < CURRENT_TIMESTAMP OR used_at IS NOT NULL
+		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
 
 	if err != nil {
@@ -1146,9 +1155,11 @@ type UserActivityLogModel struct {
 }
 
 // LogActivity logs a user activity
+// user_activity_log's text column is named "description" (see
+// src/database/users_schema.go); there is no "details" column.
 func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress, userAgent, details string) error {
 	_, err := database.GetUsersDB().Exec(`
-		INSERT INTO user_activity_log (user_id, activity_type, ip_address, user_agent, details, created_at)
+		INSERT INTO user_activity_log (user_id, activity_type, ip_address, user_agent, description, created_at)
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`, userID, activityType, ipAddress, userAgent, details)
 
@@ -1162,7 +1173,7 @@ func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress
 // GetActivities retrieves activities for a user with pagination
 func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([]UserActivityLog, error) {
 	rows, err := database.GetUsersDB().Query(`
-		SELECT id, user_id, activity_type, ip_address, user_agent, details, created_at
+		SELECT id, user_id, activity_type, ip_address, user_agent, description, created_at
 		FROM user_activity_log
 		WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -1312,10 +1323,12 @@ func (m *UserInviteModel) CreateInvite(username, email, role string, expiresInDa
 
 	tokenHash := HashAPIToken(token)
 
+	// See UserSessionModel.CreateSession for why expires_at must be bound
+	// as SQLite's own canonical text format rather than a raw time.Time.
 	result, err := m.getDB().Exec(`
 		INSERT INTO user_invites (code, email, invited_by, created_at, expires_at, used_by, used_at, max_uses, use_count, username, role)
 		VALUES (?, ?, NULL, CURRENT_TIMESTAMP, ?, NULL, NULL, 1, 0, ?, ?)
-	`, tokenHash, email, expiresAt, username, role)
+	`, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"), username, role)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)

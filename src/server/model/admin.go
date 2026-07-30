@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -433,11 +434,25 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 		return nil, fmt.Errorf("failed to get admin ID: %w", err)
 	}
 
-	// Create default preferences
+	// Create default preferences.
+	// server_admin_preferences (src/database/server_schema.go) stores
+	// preferences as a single JSON blob column, not individual columns.
+	defaultPrefs, err := json.Marshal(AdminPreferences{
+		AdminID:              id,
+		Theme:                "auto",
+		Language:             "en",
+		Timezone:             "UTC",
+		NotificationsEnabled: true,
+		EmailNotifications:   true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
+	}
+
 	_, err = database.GetServerDB().Exec(`
-		INSERT INTO server_admin_preferences (admin_id, theme, language, timezone, notifications_enabled, email_notifications, created_at, updated_at)
-		VALUES (?, 'auto', 'en', 'UTC', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, id)
+		INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
+		VALUES (?, ?, CURRENT_TIMESTAMP)
+	`, id, string(defaultPrefs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin preferences: %w", err)
 	}
@@ -654,10 +669,15 @@ func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn
 
 	tokenHash := HashAPIToken(token)
 
+	// Bind expires_at as SQLite's own canonical "YYYY-MM-DD HH:MM:SS" text
+	// format (matching CURRENT_TIMESTAMP's output). Binding a raw time.Time
+	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
+	// datetime() cannot parse -- every datetime(expires_at) comparison
+	// elsewhere then silently evaluates to NULL.
 	result, err := database.GetServerDB().Exec(`
 		INSERT INTO server_admin_invites (token, invited_email, invited_by, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, tokenHash, email, invitedBy, expiresAt)
+	`, tokenHash, email, invitedBy, expiresAt.UTC().Format("2006-01-02 15:04:05"))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)
@@ -684,8 +704,11 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 	var usedBy sql.NullInt64
 	var usedAt sql.NullTime
 
+	// server_admin_invites has no "id" column (PK is token); use the
+	// implicit SQLite rowid, matching the value CreateInvite already
+	// returns via LastInsertId().
 	err := database.GetServerDB().QueryRow(`
-		SELECT id, token, invited_email, invited_by, created_at, expires_at, used_by, used_at
+		SELECT rowid, token, invited_email, invited_by, created_at, expires_at, used_by, used_at
 		FROM server_admin_invites
 		WHERE token = ?
 	`, HashAPIToken(token)).Scan(
@@ -737,7 +760,7 @@ func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
 func (m *AdminInviteModel) DeleteExpiredInvites() error {
 	_, err := database.GetServerDB().Exec(`
 		DELETE FROM server_admin_invites
-		WHERE expires_at < CURRENT_TIMESTAMP OR used_at IS NOT NULL
+		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
 
 	if err != nil {
@@ -749,10 +772,12 @@ func (m *AdminInviteModel) DeleteExpiredInvites() error {
 
 // GetPendingInvites returns all pending (unused, not expired) invites
 func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
+	// server_admin_invites has no "id" column (PK is token); use the
+	// implicit SQLite rowid, matching GetInvite.
 	rows, err := database.GetServerDB().Query(`
-		SELECT id, token, invited_email, invited_by, created_at, expires_at
+		SELECT rowid, token, invited_email, invited_by, created_at, expires_at
 		FROM server_admin_invites
-		WHERE used_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+		WHERE used_at IS NULL AND datetime(expires_at) > datetime('now')
 		ORDER BY created_at DESC
 	`)
 
@@ -796,10 +821,12 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 
 	expiresAt := time.Now().Add(duration)
 
+	// See AdminInviteModel.CreateInvite for why expires_at must be bound
+	// as SQLite's own canonical text format rather than a raw time.Time.
 	_, err = database.GetServerDB().Exec(`
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, sessionID, adminID, ipAddress, userAgent, expiresAt)
+	`, sessionID, adminID, ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -818,22 +845,24 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 }
 
 // GetSession retrieves a session by session ID
+// Note: server_admin_sessions has no session_id or last_used_at columns
+// (see src/database/server_schema.go) — the session token IS the "id"
+// primary key, and there is no separate last-used tracking column, so
+// LastUsedAt is approximated from CreatedAt.
 func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) {
 	var session AdminSession
 
 	err := database.GetServerDB().QueryRow(`
-		SELECT id, admin_id, session_id, ip_address, user_agent, created_at, expires_at, last_used_at
+		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
-		WHERE session_id = ?
+		WHERE id = ?
 	`, sessionID).Scan(
-		&session.ID,
-		&session.AdminID,
 		&session.SessionID,
+		&session.AdminID,
 		&session.IPAddress,
 		&session.UserAgent,
 		&session.CreatedAt,
 		&session.ExpiresAt,
-		&session.LastUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -842,29 +871,22 @@ func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
+	session.LastUsedAt = session.CreatedAt
 
 	return &session, nil
 }
 
-// UpdateSessionLastUsed updates the last used timestamp
+// UpdateSessionLastUsed is a no-op: server_admin_sessions has no
+// last_used_at column (see src/database/server_schema.go), so there is
+// nothing to persist. Kept for API symmetry with UserSessionModel.
 func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
-	_, err := database.GetServerDB().Exec(`
-		UPDATE server_admin_sessions
-		SET last_used_at = CURRENT_TIMESTAMP
-		WHERE session_id = ?
-	`, sessionID)
-
-	if err != nil {
-		return fmt.Errorf("failed to update session: %w", err)
-	}
-
 	return nil
 }
 
 // DeleteSession deletes a session (logout)
 func (m *AdminSessionModel) DeleteSession(sessionID string) error {
 	_, err := database.GetServerDB().Exec(`
-		DELETE FROM server_admin_sessions WHERE session_id = ?
+		DELETE FROM server_admin_sessions WHERE id = ?
 	`, sessionID)
 
 	if err != nil {
@@ -890,7 +912,7 @@ func (m *AdminSessionModel) DeleteAllSessionsForAdmin(adminID int64) error {
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
 func (m *AdminSessionModel) DeleteExpiredSessions() error {
 	_, err := database.GetServerDB().Exec(`
-		DELETE FROM server_admin_sessions WHERE expires_at < CURRENT_TIMESTAMP
+		DELETE FROM server_admin_sessions WHERE datetime(expires_at) < datetime('now')
 	`)
 
 	if err != nil {
@@ -903,10 +925,10 @@ func (m *AdminSessionModel) DeleteExpiredSessions() error {
 // GetActiveSessions returns all active sessions for an admin
 func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, error) {
 	rows, err := database.GetServerDB().Query(`
-		SELECT id, admin_id, session_id, ip_address, user_agent, created_at, expires_at, last_used_at
+		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
-		WHERE admin_id = ? AND expires_at > CURRENT_TIMESTAMP
-		ORDER BY last_used_at DESC
+		WHERE admin_id = ? AND datetime(expires_at) > datetime('now')
+		ORDER BY created_at DESC
 	`, adminID)
 
 	if err != nil {
@@ -918,18 +940,17 @@ func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, er
 	for rows.Next() {
 		var session AdminSession
 		err := rows.Scan(
-			&session.ID,
-			&session.AdminID,
 			&session.SessionID,
+			&session.AdminID,
 			&session.IPAddress,
 			&session.UserAgent,
 			&session.CreatedAt,
 			&session.ExpiresAt,
-			&session.LastUsedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
 		}
+		session.LastUsedAt = session.CreatedAt
 		sessions = append(sessions, session)
 	}
 

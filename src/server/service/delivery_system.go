@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/database"
@@ -425,7 +426,7 @@ func (ds *DeliverySystem) RequeueDeadLetters(ids []int) error {
 		SET state = ?, retry_count = 0, next_retry_at = NULL,
 		    error_message = NULL, updated_at = ?
 		WHERE id IN (%s) AND state = ?
-	`, string(placeholders[0]))
+	`, strings.Join(placeholders, ","))
 
 	args = append([]interface{}{StateQueued, time.Now()}, args...)
 	args = append(args, StateDeadLetter)

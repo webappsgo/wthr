@@ -81,8 +81,13 @@ func NewNotificationAPIHandlers(notificationService *service.NotificationService
 // GetUserNotifications returns all notifications for the authenticated user
 // GET /{api_version}/users/notifications
 func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		Unauthorized(c, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(int)
+	if !ok {
 		Unauthorized(c, "unauthorized")
 		return
 	}
@@ -94,7 +99,7 @@ func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
 		limit = 50
 	}
 
-	notifications, err := h.NotificationService.GetUserNotifications(userID.(int), limit, offset)
+	notifications, err := h.NotificationService.GetUserNotifications(userID, limit, offset)
 	if err != nil {
 		InternalError(c, "failed to retrieve notifications")
 		return
@@ -111,13 +116,18 @@ func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
 // GetUserUnreadNotifications returns unread notifications for the authenticated user
 // GET /{api_version}/users/notifications/unread
 func (h *NotificationAPIHandlers) GetUserUnreadNotifications(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		Unauthorized(c, "unauthorized")
 		return
 	}
+	userID, ok := userIDVal.(int)
+	if !ok {
+		Unauthorized(c, "unauthorized")
+		return
+	}
 
-	notifications, err := h.NotificationService.GetUserUnreadNotifications(userID.(int))
+	notifications, err := h.NotificationService.GetUserUnreadNotifications(userID)
 	if err != nil {
 		InternalError(c, "failed to retrieve unread notifications")
 		return
@@ -132,13 +142,18 @@ func (h *NotificationAPIHandlers) GetUserUnreadNotifications(c *gin.Context) {
 // GetUserUnreadCount returns the count of unread notifications
 // GET /{api_version}/users/notifications/count
 func (h *NotificationAPIHandlers) GetUserUnreadCount(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		Unauthorized(c, "unauthorized")
 		return
 	}
+	userID, ok := userIDVal.(int)
+	if !ok {
+		Unauthorized(c, "unauthorized")
+		return
+	}
 
-	count, err := h.NotificationService.GetUserUnreadCount(userID.(int))
+	count, err := h.NotificationService.GetUserUnreadCount(userID)
 	if err != nil {
 		InternalError(c, "failed to get unread count")
 		return
@@ -152,13 +167,18 @@ func (h *NotificationAPIHandlers) GetUserUnreadCount(c *gin.Context) {
 // GetUserNotificationStats returns notification statistics
 // GET /{api_version}/users/notifications/stats
 func (h *NotificationAPIHandlers) GetUserNotificationStats(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		Unauthorized(c, "unauthorized")
 		return
 	}
+	userID, ok := userIDVal.(int)
+	if !ok {
+		Unauthorized(c, "unauthorized")
+		return
+	}
 
-	stats, err := h.NotificationService.GetUserStatistics(userID.(int))
+	stats, err := h.NotificationService.GetUserStatistics(userID)
 	if err != nil {
 		InternalError(c, "failed to get statistics")
 		return
@@ -170,8 +190,13 @@ func (h *NotificationAPIHandlers) GetUserNotificationStats(c *gin.Context) {
 // MarkUserNotificationRead marks a notification as read
 // PATCH /{api_version}/users/notifications/:id/read
 func (h *NotificationAPIHandlers) MarkUserNotificationRead(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		Unauthorized(c, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(int)
+	if !ok {
 		Unauthorized(c, "unauthorized")
 		return
 	}
@@ -182,7 +207,7 @@ func (h *NotificationAPIHandlers) MarkUserNotificationRead(c *gin.Context) {
 		return
 	}
 
-	err := h.NotificationService.MarkUserNotificationAsRead(notificationID, userID.(int))
+	err := h.NotificationService.MarkUserNotificationAsRead(notificationID, userID)
 	if err != nil {
 		NotFound(c, "notification not found or access denied")
 		return
@@ -196,13 +221,18 @@ func (h *NotificationAPIHandlers) MarkUserNotificationRead(c *gin.Context) {
 // MarkAllUserNotificationsRead marks all notifications as read
 // PATCH /{api_version}/users/notifications/read
 func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		Unauthorized(c, "unauthorized")
 		return
 	}
+	userID, ok := userIDVal.(int)
+	if !ok {
+		Unauthorized(c, "unauthorized")
+		return
+	}
 
-	err := h.NotificationService.MarkAllUserNotificationsAsRead(userID.(int))
+	err := h.NotificationService.MarkAllUserNotificationsAsRead(userID)
 	if err != nil {
 		InternalError(c, "failed to mark notifications as read")
 		return
@@ -214,8 +244,13 @@ func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(c *gin.Context) {
 // DismissUserNotification dismisses a notification
 // PATCH /{api_version}/users/notifications/:id/dismiss
 func (h *NotificationAPIHandlers) DismissUserNotification(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		Unauthorized(c, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(int)
+	if !ok {
 		Unauthorized(c, "unauthorized")
 		return
 	}
@@ -226,7 +261,7 @@ func (h *NotificationAPIHandlers) DismissUserNotification(c *gin.Context) {
 		return
 	}
 
-	err := h.NotificationService.DismissUserNotification(notificationID, userID.(int))
+	err := h.NotificationService.DismissUserNotification(notificationID, userID)
 	if err != nil {
 		NotFound(c, "notification not found or access denied")
 		return
@@ -240,8 +275,13 @@ func (h *NotificationAPIHandlers) DismissUserNotification(c *gin.Context) {
 // DeleteUserNotification deletes a notification
 // DELETE /{api_version}/users/notifications/:id
 func (h *NotificationAPIHandlers) DeleteUserNotification(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		Unauthorized(c, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(int)
+	if !ok {
 		Unauthorized(c, "unauthorized")
 		return
 	}
@@ -252,7 +292,7 @@ func (h *NotificationAPIHandlers) DeleteUserNotification(c *gin.Context) {
 		return
 	}
 
-	err := h.NotificationService.DeleteUserNotification(notificationID, userID.(int))
+	err := h.NotificationService.DeleteUserNotification(notificationID, userID)
 	if err != nil {
 		NotFound(c, "notification not found or access denied")
 		return
@@ -266,13 +306,18 @@ func (h *NotificationAPIHandlers) DeleteUserNotification(c *gin.Context) {
 // GetUserNotificationPreferences returns notification preferences
 // GET /{api_version}/users/notifications/preferences
 func (h *NotificationAPIHandlers) GetUserNotificationPreferences(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
 		Unauthorized(c, "unauthorized")
 		return
 	}
+	userID, ok := userIDVal.(int)
+	if !ok {
+		Unauthorized(c, "unauthorized")
+		return
+	}
 
-	prefs, err := h.NotificationService.GetUserPreferences(userID.(int))
+	prefs, err := h.NotificationService.GetUserPreferences(userID)
 	if err != nil {
 		InternalError(c, "failed to get preferences")
 		return
@@ -284,8 +329,13 @@ func (h *NotificationAPIHandlers) GetUserNotificationPreferences(c *gin.Context)
 // UpdateUserNotificationPreferences updates notification preferences
 // PATCH /{api_version}/users/notifications/preferences
 func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userIDVal, exists := c.Get("user_id")
 	if !exists {
+		Unauthorized(c, "unauthorized")
+		return
+	}
+	userID, ok := userIDVal.(int)
+	if !ok {
 		Unauthorized(c, "unauthorized")
 		return
 	}
@@ -304,7 +354,7 @@ func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(c *gin.Conte
 		return
 	}
 
-	err := h.NotificationService.UpdateUserPreferences(userID.(int), &prefs)
+	err := h.NotificationService.UpdateUserPreferences(userID, &prefs)
 	if err != nil {
 		InternalError(c, "failed to update preferences")
 		return
@@ -621,8 +671,8 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 // GET /ws/notifications
 func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 	// Check if user or admin is authenticated
-	userID, userExists := c.Get("user_id")
-	adminID, adminExists := c.Get("admin_id")
+	userIDRaw, userExists := c.Get("user_id")
+	adminIDRaw, adminExists := c.Get("admin_id")
 
 	if !userExists && !adminExists {
 		Unauthorized(c, "unauthorized")
@@ -639,7 +689,11 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 	// Create WebSocket client
 	var client *service.WebSocketClient
 	if userExists {
-		userIDInt := userID.(int)
+		userIDInt, ok := userIDRaw.(int)
+		if !ok {
+			InternalError(c, "invalid user context")
+			return
+		}
 		client = &service.WebSocketClient{
 			ID:       fmt.Sprintf("user-%d", userIDInt),
 			Conn:     conn,
@@ -649,7 +703,7 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 			LastPing: time.Now(),
 		}
 	} else {
-		adminIDInt := adminID.(int)
+		adminIDInt := adminIDRaw.(int)
 		client = &service.WebSocketClient{
 			ID:       fmt.Sprintf("admin-%d", adminIDInt),
 			Conn:     conn,

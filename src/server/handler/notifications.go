@@ -27,9 +27,29 @@ type Notification struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// authedUserID returns the authenticated user's id from context. Unlike
+// c.GetInt, which silently returns 0 when the key is absent, this reports
+// whether a valid caller was actually authenticated so handlers can reject
+// unauthenticated requests instead of silently scoping them to user_id=0.
+func authedUserID(c *gin.Context) (int, bool) {
+	val, exists := c.Get("user_id")
+	if !exists {
+		return 0, false
+	}
+	id, ok := val.(int)
+	if !ok {
+		return 0, false
+	}
+	return id, true
+}
+
 // ListNotifications returns all notifications for the current user
 func (h *NotificationHandler) ListNotifications(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	userID, ok := authedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	// Get pagination params
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -99,7 +119,11 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 
 // GetUnreadCount returns the count of unread notifications
 func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	userID, ok := authedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	var count int
 	err := h.DB.QueryRow("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read = 0", userID).Scan(&count)
@@ -115,7 +139,11 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 
 // MarkAsRead marks a notification as read
 func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	userID, ok := authedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	notificationID := c.Param("id")
 
 	// Verify ownership
@@ -143,7 +171,11 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 
 // MarkAllAsRead marks all notifications as read for the current user
 func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	userID, ok := authedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	_, err := h.DB.Exec("UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
 	if err != nil {
@@ -156,7 +188,11 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 
 // DeleteNotification deletes a notification
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
-	userID := c.GetInt("user_id")
+	userID, ok := authedUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 	notificationID := c.Param("id")
 
 	// Verify ownership

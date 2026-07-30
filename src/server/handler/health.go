@@ -283,8 +283,20 @@ func ServeLoadingPage(c *gin.Context) {
 	status := GetInitStatus()
 	uptime := time.Since(status.Started)
 
+	// Check if it's a console client (curl/wget) first: these tools also
+	// match WantsJSON's UA sniffing, which would otherwise make this
+	// ASCII-banner branch unreachable. Explicit JSON requests (Accept:
+	// application/json, ?format=json, or /api/ routes) still take
+	// priority and are handled below via WantsJSON.
+	userAgent := c.GetHeader("User-Agent")
+	isCurl := contains(userAgent, "curl") || contains(userAgent, "wget") || contains(userAgent, "HTTPie")
+	accept := c.GetHeader("Accept")
+	explicitJSON := strings.Contains(accept, "application/json") ||
+		c.Query("format") == "json" ||
+		strings.HasPrefix(c.Request.URL.Path, "/api/")
+
 	// Check if it's an API request (wants JSON)
-	if WantsJSON(c) {
+	if explicitJSON || (WantsJSON(c) && !isCurl) {
 		RespondNegotiatedData(c, http.StatusServiceUnavailable, gin.H{
 			"status":  "Initializing",
 			"message": "Services are starting up. Please wait a moment.",
@@ -298,10 +310,6 @@ func ServeLoadingPage(c *gin.Context) {
 		})
 		return
 	}
-
-	// Check if it's a console client (curl/wget)
-	userAgent := c.GetHeader("User-Agent")
-	isCurl := contains(userAgent, "curl") || contains(userAgent, "wget") || contains(userAgent, "HTTPie")
 
 	if isCurl {
 		// Console-friendly ASCII output

@@ -998,7 +998,7 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
 
 	if err := VerifyAPIUserEmail(h.DB, &req); err != nil {
 		status := http.StatusBadRequest
-		if err.Error() == "Failed to verify email" {
+		if err.Error() == "failed to verify email" {
 			status = http.StatusInternalServerError
 		}
 		c.JSON(status, gin.H{
@@ -1077,7 +1077,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
 
 	if err := ResetAPIUserPassword(h.DB, &req); err != nil {
 		status := http.StatusBadRequest
-		if err.Error() == "Failed to process password" || err.Error() == "Failed to reset password" {
+		if err.Error() == "failed to process password" || err.Error() == "failed to reset password" {
 			status = http.StatusInternalServerError
 		}
 		c.JSON(status, gin.H{

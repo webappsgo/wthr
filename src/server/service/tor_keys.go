@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // TorKeyManager handles Tor hidden service key operations
@@ -155,13 +156,13 @@ func (km *TorKeyManager) ImportFromFile(filepath string) error {
 		key := data[32:64]
 
 		// Determine if private or public based on header
-		header := string(data[:28])
-		if header == "== ed25519v1-secret: type0" {
+		header := string(data[:32])
+		if strings.HasPrefix(header, "== ed25519v1-secret: type0") {
 			// Tor private key files store a 32-byte seed after the header.
 			privKey := ed25519.NewKeyFromSeed(key)
 			pubKey := privKey.Public().(ed25519.PublicKey)
 			return km.ImportKeys(pubKey, key)
-		} else if header == "== ed25519v1-public: type0 " {
+		} else if strings.HasPrefix(header, "== ed25519v1-public: type0") {
 			return fmt.Errorf("cannot import public key alone, need private key")
 		}
 	}

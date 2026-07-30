@@ -228,10 +228,10 @@ func WantsJSON(c *gin.Context) bool {
 	}
 
 	// Check common CLI tools that prefer JSON
-	userAgent := c.GetHeader("User-Agent")
+	userAgent := strings.ToLower(c.GetHeader("User-Agent"))
 	if strings.Contains(userAgent, "curl") ||
 		strings.Contains(userAgent, "wget") ||
-		strings.Contains(userAgent, "HTTPie") {
+		strings.Contains(userAgent, "httpie") {
 		// CLI tools: check if Accept header is not explicitly HTML
 		if !strings.Contains(accept, "text/html") {
 			return true

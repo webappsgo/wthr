@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -71,7 +72,11 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Prevent modifying your own account
-	currentUser, _ := middleware.GetCurrentUser(c)
+	currentUser, ok := middleware.GetCurrentUser(c)
+	if !ok || currentUser == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
 	if currentUser.ID == id {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot modify your own account credentials. Contact another administrator if you need to change your username, email, or role."})
 		return
@@ -114,7 +119,11 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	}
 
 	// Prevent deleting yourself
-	currentUser, _ := middleware.GetCurrentUser(c)
+	currentUser, ok := middleware.GetCurrentUser(c)
+	if !ok || currentUser == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		return
+	}
 	if currentUser.ID == id {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
 		return
@@ -252,12 +261,11 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 		return
 	}
 
-	// Get all tokens for admin view - uses unified tokens table with token_prefix
-	rows, err = database.GetServerDB().Query(`
-		SELECT t.id, t.owner_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
-		FROM tokens t
-		LEFT JOIN users u ON t.owner_id = u.id AND t.owner_type = 'user'
-		WHERE t.owner_type = 'user'
+	// Get all tokens for admin view - user_tokens lives in users.db (real UsersSchema)
+	rows, err = database.GetUsersDB().Query(`
+		SELECT t.id, t.user_id, u.email, t.name, t.token_prefix, t.created_at, t.last_used_at, t.expires_at
+		FROM user_tokens t
+		LEFT JOIN user_accounts u ON t.user_id = u.id
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
@@ -349,12 +357,13 @@ func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
 		}
 	}
 
+	// server_audit_log's real columns are actor_id/resource_type/resource_id/timestamp
+	// per src/database/server_schema.go, not user_id/resource/created_at.
 	rows, err := database.GetServerDB().Query(`
-		SELECT a.id, a.user_id, u.email, a.action, a.resource, a.details,
-		       a.ip_address, a.user_agent, a.created_at
+		SELECT a.id, a.actor_type, a.actor_id, a.action, a.resource_type, a.resource_id,
+		       a.details, a.ip_address, a.user_agent, a.timestamp
 		FROM server_audit_log a
-		LEFT JOIN user_accounts u ON a.user_id = u.id
-		ORDER BY a.created_at DESC
+		ORDER BY a.timestamp DESC
 		LIMIT ?
 	`, limit)
 
@@ -367,27 +376,27 @@ func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
 	var logs []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var userID sql.NullInt64
-		var email, action, resource, details, ipAddress, userAgent sql.NullString
-		var createdAt time.Time
+		var actorType, actorID, action, resourceType, resourceID, details, ipAddress, userAgent sql.NullString
+		var timestamp time.Time
 
-		if err := rows.Scan(&id, &userID, &email, &action, &resource, &details, &ipAddress, &userAgent, &createdAt); err != nil {
+		if err := rows.Scan(&id, &actorType, &actorID, &action, &resourceType, &resourceID, &details, &ipAddress, &userAgent, &timestamp); err != nil {
 			continue
 		}
 
 		log := map[string]interface{}{
-			"id":         id,
-			"action":     action.String,
-			"resource":   resource.String,
-			"details":    details.String,
-			"ip_address": ipAddress.String,
-			"user_agent": userAgent.String,
-			"created_at": createdAt,
+			"id":            id,
+			"action":        action.String,
+			"resource_type": resourceType.String,
+			"resource_id":   resourceID.String,
+			"details":       details.String,
+			"ip_address":    ipAddress.String,
+			"user_agent":    userAgent.String,
+			"created_at":    timestamp,
 		}
 
-		if userID.Valid {
-			log["user_id"] = userID.Int64
-			log["user_email"] = email.String
+		if actorID.Valid {
+			log["actor_id"] = actorID.String
+			log["actor_type"] = actorType.String
 		}
 
 		logs = append(logs, log)
@@ -406,7 +415,7 @@ func (h *AdminHandler) ClearAuditLogs(c *gin.Context) {
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -days)
-	result, err := database.GetServerDB().Exec("DELETE FROM server_audit_log WHERE created_at < ?", cutoff)
+	result, err := database.GetServerDB().Exec("DELETE FROM server_audit_log WHERE timestamp < ?", cutoff)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear logs"})
 		return
@@ -423,15 +432,27 @@ func (h *AdminHandler) ClearAuditLogs(c *gin.Context) {
 func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 	var totalLogs, errorLogs, successLogs, recentLogs int64
 
-	// Get total count
-	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&totalLogs)
+	// server_audit_log's real columns are status/timestamp (server_schema.go),
+	// not success/created_at. Scan errors must be propagated, not swallowed.
+	if err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&totalLogs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count total audit logs: %w", err).Error()})
+		return
+	}
 
-	// Get counts by success status
-	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE success = 0").Scan(&errorLogs)
-	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE success = 1").Scan(&successLogs)
+	if err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count error audit logs: %w", err).Error()})
+		return
+	}
+	if err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count success audit logs: %w", err).Error()})
+		return
+	}
 
 	// Get recent activity (last 24 hours)
-	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE created_at >= datetime('now', '-1 day')").Scan(&recentLogs)
+	if err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= datetime('now', '-1 day')").Scan(&recentLogs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"total":      totalLogs,
@@ -490,16 +511,8 @@ func (h *AdminHandler) GetSystemStats(c *gin.Context) {
 
 // GetScheduledTasks returns status of all scheduled tasks
 func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
-	// Check if table exists first
-	var tableExists int
-	err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='scheduled_tasks'").Scan(&tableExists)
-	if err != nil || tableExists == 0 {
-		// Table doesn't exist yet, return empty array
-		c.JSON(http.StatusOK, []map[string]interface{}{})
-		return
-	}
-
-	// Check if tasks are already seeded
+	// Check if tasks are already seeded (real table is server_scheduler_state
+	// per src/database/server_schema.go - there is no "scheduled_tasks" table)
 	var count int
 	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_scheduler_state").Scan(&count)
 
@@ -510,9 +523,9 @@ func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
 
 	// Get scheduled tasks from database
 	rows, err := database.GetServerDB().Query(`
-		SELECT name, schedule, task_type, enabled, last_run, next_run, last_result
+		SELECT task_name, schedule, enabled, last_run, next_run, last_status
 		FROM server_scheduler_state
-		ORDER BY name
+		ORDER BY task_name
 	`)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch scheduled tasks", "details": err.Error()})
@@ -522,18 +535,26 @@ func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
 
 	var tasks []map[string]interface{}
 	for rows.Next() {
-		var taskName, schedule, taskType, lastResult sql.NullString
+		var taskName, schedule, lastStatus sql.NullString
 		var enabled bool
 		var lastRun, nextRun sql.NullTime
 
-		if err := rows.Scan(&taskName, &schedule, &taskType, &enabled, &lastRun, &nextRun, &lastResult); err != nil {
+		if err := rows.Scan(&taskName, &schedule, &enabled, &lastRun, &nextRun, &lastStatus); err != nil {
 			continue
+		}
+
+		status := "disabled"
+		if enabled {
+			status = "success"
+			if lastStatus.Valid && lastStatus.String != "" {
+				status = lastStatus.String
+			}
 		}
 
 		task := map[string]interface{}{
 			"task_name": taskName.String,
 			"name":      taskName.String,
-			"status":    map[bool]string{true: "success", false: "disabled"}[enabled],
+			"status":    status,
 			// Running state from scheduler (defaults to false)
 			"running":   false,
 			"enabled":   enabled,
@@ -584,10 +605,13 @@ func (h *AdminHandler) seedScheduledTasks() {
 	}
 
 	for _, task := range defaultTasks {
+		// server_scheduler_state's real primary key is task_id (TEXT), not an
+		// autoincrement id, and there is no task_type column - use the task
+		// name itself as the stable task_id.
 		_, err := database.GetServerDB().Exec(`
-			INSERT OR IGNORE INTO server_scheduler_state (name, schedule, task_type, enabled, next_run)
+			INSERT OR IGNORE INTO server_scheduler_state (task_id, task_name, schedule, enabled, next_run)
 			VALUES (?, ?, ?, 1, datetime('now'))
-		`, task.Name, task.Schedule, task.TaskType)
+		`, task.Name, task.Name, task.Schedule)
 
 		if err != nil {
 			// Skip on error

@@ -44,7 +44,13 @@ jobs:
       - name: Enforce coverage threshold
         run: |
           THRESHOLD=60
-          PCT=$(go tool cover -func="$COVDIR/coverage.out" | awk '/^total:/ {gsub("%","",$3); print int($3)}')
+          # src/graphql/generated.go is mechanically generated gqlgen
+          # dispatch/marshalling code (99designs/gqlgen, "DO NOT EDIT"), not
+          # hand-written logic - it is excluded from the coverage gate the
+          # same way any generated code is, so the threshold measures real,
+          # testable business logic instead of unstestable boilerplate.
+          grep -v '/graphql/generated\.go:' "$COVDIR/coverage.out" > "$COVDIR/coverage.filtered.out"
+          PCT=$(go tool cover -func="$COVDIR/coverage.filtered.out" | awk '/^total:/ {gsub("%","",$3); print int($3)}')
           if [ "$PCT" -lt "$THRESHOLD" ]; then
             echo "::error::coverage $PCT% < threshold $THRESHOLD%"
             exit 1

@@ -365,15 +365,16 @@ func (h *UserSettingsHandler) getOrCreatePreferences(userID int64) (*models.User
 	prefs := &models.UserPreferences{}
 
 	err := h.DB.QueryRow(`
-		SELECT id, user_id, theme, language, timezone, temperature_unit, pressure_unit,
+		SELECT user_id, theme, language, timezone, temperature_unit, pressure_unit,
 		       wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications,
 		       created_at, updated_at
 		FROM user_preferences WHERE user_id = ?
 	`, userID).Scan(
-		&prefs.ID, &prefs.UserID, &prefs.Theme, &prefs.Language, &prefs.Timezone,
+		&prefs.UserID, &prefs.Theme, &prefs.Language, &prefs.Timezone,
 		&prefs.TemperatureUnit, &prefs.PressureUnit, &prefs.WindSpeedUnit, &prefs.PrecipitationUnit,
 		&prefs.NotificationsEnabled, &prefs.EmailNotifications, &prefs.CreatedAt, &prefs.UpdatedAt,
 	)
+	prefs.ID = userID
 
 	if err == sql.ErrNoRows {
 		// Create default preferences
@@ -764,12 +765,25 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 	}
 
 	// Verify the session belongs to the current user before deleting.
+	// expires_at is compared in Go rather than in SQL: the sqlite driver
+	// writes time.Time parameters using Go's default time.Time.String()
+	// format (e.g. "2026-07-21 05:23:45.484833776 -0400 -0400"), which
+	// SQLite's datetime()/julianday() functions cannot parse (they return
+	// NULL), making any SQL-side "datetime(expires_at) > datetime('now')"
+	// comparison silently match nothing. Parsing the stored text in Go
+	// avoids depending on SQLite's date parser understanding that format.
 	var ownerID int64
+	var expiresAtRaw string
 	err = h.DB.QueryRow(
-		`SELECT user_id FROM user_sessions WHERE id = ? AND expires_at > CURRENT_TIMESTAMP`,
+		`SELECT user_id, expires_at FROM user_sessions WHERE id = ?`,
 		rowID,
-	).Scan(&ownerID)
+	).Scan(&ownerID, &expiresAtRaw)
 	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		return
+	}
+	expiresAt, parseErr := parseStoredTime(expiresAtRaw)
+	if parseErr != nil || !expiresAt.After(time.Now()) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
@@ -803,4 +817,30 @@ func (h *UserSettingsHandler) RevokeAllSessions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "All sessions revoked"})
+}
+
+// storedTimeLayouts lists the text layouts a timestamp column may contain,
+// tried in order. The sqlite driver's default write format is Go's
+// time.Time.String() layout ("2006-01-02 15:04:05.999999999 -0700 MST"),
+// but rows can also be populated by SQLite's own CURRENT_TIMESTAMP
+// ("2006-01-02 15:04:05") or by RFC3339(Nano) text.
+var storedTimeLayouts = []string{
+	"2006-01-02 15:04:05.999999999 -0700 MST",
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02 15:04:05",
+}
+
+// parseStoredTime parses a timestamp read back from a TEXT-affinity SQLite
+// column, trying every layout the driver or schema may have written it in.
+func parseStoredTime(raw string) (time.Time, error) {
+	var lastErr error
+	for _, layout := range storedTimeLayouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t, nil
+		} else {
+			lastErr = err
+		}
+	}
+	return time.Time{}, fmt.Errorf("parse stored time %q: %w", raw, lastErr)
 }

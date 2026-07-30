@@ -306,9 +306,9 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 // GetRecentErrors returns recent notification errors
 func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interface{}, error) {
 	rows, err := nm.db.Query(`
-		SELECT id, channel_type, subject, last_error, retry_count, created_at
+		SELECT id, channel_type, subject, error_message, retry_count, created_at
 		FROM notification_queue
-		WHERE state IN ('failed', 'dead_letter') AND last_error IS NOT NULL
+		WHERE state IN ('failed', 'dead_letter') AND error_message IS NOT NULL
 		ORDER BY updated_at DESC
 		LIMIT ?
 	`, limit)

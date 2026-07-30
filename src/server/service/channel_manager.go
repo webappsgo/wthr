@@ -309,7 +309,7 @@ func (cm *ChannelManager) RecordFailure(channelType string, errorMsg string) err
 		SET last_error = ?,
 			failure_count = failure_count + 1,
 			state = CASE
-				WHEN failure_count >= 5 THEN 'failed'
+				WHEN failure_count + 1 >= 5 THEN 'failed'
 				ELSE state
 			END,
 			updated_at = ?

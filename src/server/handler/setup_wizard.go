@@ -261,11 +261,16 @@ func deleteSetupToken() error {
 	return utils.DeleteSetupToken(configDir)
 }
 
-// markSetupComplete updates the server_setup_state table
+// markSetupComplete updates the server_setup_state table. The table is a
+// generic key/value store (key TEXT PRIMARY KEY, value TEXT, updated_at
+// DATETIME) per database.ServerSchema - it has no id/setup_completed/
+// setup_completed_at columns, so writes must go through the key/value shape
+// rather than a fixed-column row.
 func markSetupComplete() error {
 	_, err := database.GetServerDB().Exec(`
-		INSERT OR REPLACE INTO server_setup_state (id, setup_completed, setup_completed_at)
-		VALUES (1, 1, CURRENT_TIMESTAMP)
+		INSERT INTO server_setup_state (key, value, updated_at)
+		VALUES ('setup_completed', '1', CURRENT_TIMESTAMP)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to mark setup complete: %w", err)
