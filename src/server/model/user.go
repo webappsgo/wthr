@@ -2,6 +2,7 @@
 package models
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -174,7 +175,7 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 	}
 
 	// Insert user into users.db
-	result, err := database.GetUsersDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_accounts (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, 0, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, username, email, passwordHash, userRole)
@@ -189,7 +190,7 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 	}
 
 	// Create default preferences
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit, pressure_unit, wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications, created_at, updated_at)
 		VALUES (?, 'auto', 'en', 'UTC', 'celsius', 'hPa', 'kmh', 'mm', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, userID)
@@ -219,7 +220,7 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 	var language sql.NullString
 	var lastLoginIP sql.NullString
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, display_name, notification_email, email, phone, password_hash,
 		       email_verified, is_active, is_banned, ban_reason, role, visibility,
 		       two_factor_enabled, two_factor_secret, avatar_type, avatar_url, bio,
@@ -318,7 +319,7 @@ func (m *UserModel) GetByUsername(username string) (*User, error) {
 	var lastLoginAt sql.NullTime
 	var lastLoginIP, banReason, twoFactorSecret sql.NullString
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		WHERE username = ?
@@ -368,7 +369,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 	var lastLoginAt sql.NullTime
 	var lastLoginIP, banReason, twoFactorSecret sql.NullString
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		WHERE email = ?
@@ -414,7 +415,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 
 // ListUsers retrieves all users with pagination
 func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT id, username, email, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		ORDER BY created_at DESC
@@ -469,7 +470,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 // CountUsers returns the total number of users
 func (m *UserModel) CountUsers() (int, error) {
 	var count int
-	err := database.GetUsersDB().QueryRow(`SELECT COUNT(*) FROM user_accounts`).Scan(&count)
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_accounts`).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -480,7 +481,7 @@ func (m *UserModel) CountUsers() (int, error) {
 func (m *UserModel) Update(id int64, username, email string, role ...string) error {
 	// If role is provided, update it too
 	if len(role) > 0 && role[0] != "" {
-		_, err := database.GetUsersDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 			UPDATE user_accounts
 			SET username = ?, email = ?, role = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ?
@@ -490,7 +491,7 @@ func (m *UserModel) Update(id int64, username, email string, role ...string) err
 			return fmt.Errorf("failed to update user: %w", err)
 		}
 	} else {
-		_, err := database.GetUsersDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 			UPDATE user_accounts
 			SET username = ?, email = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ?
@@ -513,7 +514,7 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -528,7 +529,7 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 
 // UpdateLastLogin updates the last login timestamp and IP
 func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET last_login_at = CURRENT_TIMESTAMP, last_login_ip = ?
 		WHERE id = ?
@@ -543,7 +544,7 @@ func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
 
 // VerifyEmail marks a user's email as verified
 func (m *UserModel) VerifyEmail(id int64) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET email_verified = 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -558,7 +559,7 @@ func (m *UserModel) VerifyEmail(id int64) error {
 
 // SetActive sets the user's active status
 func (m *UserModel) SetActive(id int64, isActive bool) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET is_active = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -573,7 +574,7 @@ func (m *UserModel) SetActive(id int64, isActive bool) error {
 
 // BanUser bans a user with a reason
 func (m *UserModel) BanUser(id int64, reason string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET is_banned = 1, ban_reason = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -588,7 +589,7 @@ func (m *UserModel) BanUser(id int64, reason string) error {
 
 // UnbanUser unbans a user
 func (m *UserModel) UnbanUser(id int64) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET is_banned = 0, ban_reason = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -604,7 +605,7 @@ func (m *UserModel) UnbanUser(id int64) error {
 // Delete deletes a user account
 func (m *UserModel) Delete(id int64) error {
 	// Delete user (cascades to sessions, preferences, etc.)
-	_, err := database.GetUsersDB().Exec(`DELETE FROM user_accounts WHERE id = ?`, id)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM user_accounts WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -656,7 +657,7 @@ func (m *UserModel) Enable2FA(id int64, secret string) error {
 		return fmt.Errorf("failed to encrypt 2FA secret: %w", err)
 	}
 
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET two_factor_enabled = 1, two_factor_secret = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -720,7 +721,7 @@ func DecryptTwoFactorSecret(stored string) (string, error) {
 
 // Disable2FA disables two-factor authentication for a user
 func (m *UserModel) Disable2FA(id int64) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET two_factor_enabled = 0, two_factor_secret = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -747,7 +748,7 @@ func (m *UserModel) Count() (int, error) {
 func (m *UserModel) CountByRole(role string) (int, error) {
 	query := `SELECT COUNT(*) FROM user_accounts WHERE role = ?`
 	var count int
-	err := m.DB.QueryRow(query, role).Scan(&count)
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, role).Scan(&count)
 	return count, err
 }
 
@@ -771,7 +772,7 @@ func (m *UserModel) CheckPassword(user *User, password string) bool {
 
 // UpdateProfile updates current-user profile information.
 func (m *UserModel) UpdateProfile(id int64, displayName, phone string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET display_name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -822,7 +823,7 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
 	// datetime() cannot parse -- every datetime(expires_at) comparison
 	// elsewhere then silently evaluates to NULL.
-	result, err := database.GetUsersDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
 	`, userID, hashUserToken(sessionID), ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
@@ -853,7 +854,7 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 	var session UserSession
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
 		WHERE token_hash = ?
@@ -881,7 +882,7 @@ func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 // UpdateSessionLastUsed refreshes the last-used timestamp for a session.
 // rawToken is the bearer token from the cookie.
 func (m *UserSessionModel) UpdateSessionLastUsed(rawToken string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_sessions
 		SET last_used_at = CURRENT_TIMESTAMP
 		WHERE token_hash = ?
@@ -896,7 +897,7 @@ func (m *UserSessionModel) UpdateSessionLastUsed(rawToken string) error {
 
 // DeleteSession removes a session by its raw bearer token (logout).
 func (m *UserSessionModel) DeleteSession(rawToken string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		DELETE FROM user_sessions WHERE token_hash = ?
 	`, hashUserToken(rawToken))
 
@@ -910,7 +911,7 @@ func (m *UserSessionModel) DeleteSession(rawToken string) error {
 // DeleteSessionByRowID removes a session by its integer row ID.
 // Used by the session-revocation endpoint where the client supplies the row ID.
 func (m *UserSessionModel) DeleteSessionByRowID(rowID int64) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE id = ?", rowID)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE id = ?", rowID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
@@ -921,7 +922,7 @@ func (m *UserSessionModel) DeleteSessionByRowID(rowID int64) error {
 // token_hash matches hashUserToken(rawToken). Returns 0 if not found.
 func (m *UserSessionModel) GetRowIDByToken(rawToken string) (int64, error) {
 	var rowID int64
-	err := database.GetUsersDB().QueryRow(
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect,
 		"SELECT id FROM user_sessions WHERE token_hash = ? AND datetime(expires_at) > datetime('now')",
 		hashUserToken(rawToken),
 	).Scan(&rowID)
@@ -933,7 +934,7 @@ func (m *UserSessionModel) GetRowIDByToken(rawToken string) (int64, error) {
 
 // DeleteAllSessionsForUser deletes all sessions for a user (logout all)
 func (m *UserSessionModel) DeleteAllSessionsForUser(userID int64) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		DELETE FROM user_sessions WHERE user_id = ?
 	`, userID)
 
@@ -946,7 +947,7 @@ func (m *UserSessionModel) DeleteAllSessionsForUser(userID int64) error {
 
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
 func (m *UserSessionModel) DeleteExpiredSessions() error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
 		DELETE FROM user_sessions WHERE datetime(expires_at) < datetime('now')
 	`)
 
@@ -963,7 +964,7 @@ func (m *UserSessionModel) DeleteExpiredSessions() error {
 // NOT the raw bearer token. Callers can use it for "is this my current
 // session?" comparisons by hashing the current raw token.
 func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error) {
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
 		WHERE user_id = ? AND datetime(expires_at) > datetime('now')
@@ -1017,7 +1018,7 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
-	result, err := database.GetUsersDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_email_verifications (user_id, token, email, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`, userID, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"))
@@ -1046,7 +1047,7 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 	var verification UserEmailVerification
 	var usedAt sql.NullTime
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, email, created_at, expires_at, used_at
 		FROM user_email_verifications
 		WHERE token = ?
@@ -1076,7 +1077,7 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 
 // MarkVerificationUsed marks a verification as used
 func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_email_verifications
 		SET used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
@@ -1091,7 +1092,7 @@ func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 
 // DeleteExpiredVerifications deletes expired and used verifications (cleanup)
 func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
 		DELETE FROM user_email_verifications
 		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
@@ -1123,7 +1124,7 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
-	result, err := database.GetUsersDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_password_resets (user_id, token, created_at, expires_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP, ?)
 	`, userID, tokenHash, expiresAt.UTC().Format("2006-01-02 15:04:05"))
@@ -1151,7 +1152,7 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 	var reset UserPasswordReset
 	var usedAt sql.NullTime
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, created_at, expires_at, used_at
 		FROM user_password_resets
 		WHERE token = ?
@@ -1180,7 +1181,7 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 
 // MarkResetUsed marks a reset as used
 func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_password_resets
 		SET used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
@@ -1195,7 +1196,7 @@ func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 
 // DeleteExpiredResets deletes expired and used resets (cleanup)
 func (m *UserPasswordResetModel) DeleteExpiredResets() error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
 		DELETE FROM user_password_resets
 		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
@@ -1216,7 +1217,7 @@ type UserActivityLogModel struct {
 // user_activity_log's text column is named "description" (see
 // src/database/users_schema.go); there is no "details" column.
 func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress, userAgent, details string) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_activity_log (user_id, activity_type, ip_address, user_agent, description, created_at)
 		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`, userID, activityType, ipAddress, userAgent, details)
@@ -1230,7 +1231,7 @@ func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress
 
 // GetActivities retrieves activities for a user with pagination
 func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([]UserActivityLog, error) {
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT id, user_id, activity_type, ip_address, user_agent, description, created_at
 		FROM user_activity_log
 		WHERE user_id = ?
@@ -1273,7 +1274,7 @@ func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([
 
 // DeleteOldActivities deletes activities older than specified duration
 func (m *UserActivityLogModel) DeleteOldActivities(days int) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
 		DELETE FROM user_activity_log
 		WHERE created_at < datetime('now', '-' || ? || ' days')
 	`, days)
@@ -1314,7 +1315,7 @@ func (m *UserInviteModel) getDB() *sql.DB {
 }
 
 func (m *UserInviteModel) ensureInviteSchema() error {
-	rows, err := m.getDB().Query(`PRAGMA table_info(user_invites)`)
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(user_invites)`)
 	if err != nil {
 		return fmt.Errorf("failed to inspect user_invites schema: %w", err)
 	}
@@ -1343,13 +1344,13 @@ func (m *UserInviteModel) ensureInviteSchema() error {
 	}
 
 	if !hasUsername {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_invites ADD COLUMN username TEXT`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_invites ADD COLUMN username TEXT`); err != nil {
 			return fmt.Errorf("failed to add user_invites.username: %w", err)
 		}
 	}
 
 	if !hasRole {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_invites ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`); err != nil {
 			return fmt.Errorf("failed to add user_invites.role: %w", err)
 		}
 	}
@@ -1383,7 +1384,7 @@ func (m *UserInviteModel) CreateInvite(username, email, role string, expiresInDa
 
 	// See UserSessionModel.CreateSession for why expires_at must be bound
 	// as SQLite's own canonical text format rather than a raw time.Time.
-	result, err := m.getDB().Exec(`
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_invites (code, email, invited_by, created_at, expires_at, used_by, used_at, max_uses, use_count, username, role)
 		VALUES (?, ?, NULL, CURRENT_TIMESTAMP, ?, NULL, NULL, 1, 0, ?, ?)
 	`, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"), username, role)
@@ -1421,7 +1422,7 @@ func (m *UserInviteModel) GetByToken(token string) (*UserInvite, error) {
 	var createdBy sql.NullInt64
 	var usedAt sql.NullTime
 
-	err := m.getDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
 		FROM user_invites
 		WHERE code = ?
@@ -1466,7 +1467,7 @@ func (m *UserInviteModel) GetByID(id int64) (*UserInvite, error) {
 	var createdBy sql.NullInt64
 	var usedAt sql.NullTime
 
-	err := m.getDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
 		FROM user_invites
 		WHERE id = ?
@@ -1529,7 +1530,7 @@ func (m *UserInviteModel) MarkUsed(token string, usedBy int64) error {
 		return err
 	}
 
-	_, err := m.getDB().Exec(`
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_invites
 		SET used_by = ?, used_at = datetime('now'), use_count = use_count + 1
 		WHERE code = ?
@@ -1548,7 +1549,7 @@ func (m *UserInviteModel) DeleteExpiredInvites() error {
 		return err
 	}
 
-	_, err := m.getDB().Exec(`
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
 		DELETE FROM user_invites
 		WHERE expires_at < datetime('now') OR used_at IS NOT NULL
 	`)
@@ -1566,7 +1567,7 @@ func (m *UserInviteModel) ListInvites() ([]UserInvite, error) {
 		return nil, err
 	}
 
-	rows, err := m.getDB().Query(`
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
 		FROM user_invites
 		ORDER BY created_at DESC
@@ -1637,7 +1638,7 @@ func (m *UserInviteModel) DeleteInvite(id int64) error {
 		return err
 	}
 
-	_, err := m.getDB().Exec(`DELETE FROM user_invites WHERE id = ?`, id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_invites WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete invite: %w", err)
 	}

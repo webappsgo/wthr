@@ -277,3 +277,27 @@ any of the above: `src/graphql/context_keys_test.go`,
     may use them, log lines may not). Fix: replace the emoji prefixes with
     plain-text equivalents (e.g. "WARNING:", "INFO:", "OK:"). Read: AI.md
     PART 14 (log output plain-text rule).
+
+18. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
+    user.go pass): `src/server/model/user.go` has stale spec references and
+    an inline-comment violation, pre-existing and not introduced by item 12's
+    context-timeout conversion — out of scope for that pass:
+    - Lines 1, 61, 157, 163, 171, 509, 511, 616, 807 say "TEMPLATE.md PART N"
+      where they should say "AI.md PART 34" (Multi-User) per ai-rules.md's
+      no-stale-spec-reference expectation — the file predates the AI.md/
+      TEMPLATE.md rename and was never updated.
+    - Lines 47-52 (AvatarType, AvatarURL, Bio, Location, Website, Timezone,
+      Language struct fields) use inline trailing comments
+      (`// gravatar, upload, url` etc.) — ai-rules.md PART 0 requires
+      comments ABOVE the code, never on the same line.
+    Fix: rewrite the 9 "TEMPLATE.md" comments to say "AI.md", and move the
+    7 inline struct-field comments to their own line above each field.
+    Read: AI.md PART 0 (comment placement, spec-reference rules).
+
+19. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
+    user.go pass): `src/cli/cli.go` line 225 lists `--color` flag values as
+    `{always|never|auto}` — per binary-rules.md PART 7 (sourced from AI.md
+    PART 33), the canonical values are `{auto|yes|no}` with default `auto`.
+    Pre-existing, unrelated to the DB-timeout migration. Fix: update the
+    flag's help text/parsing to accept `auto|yes|no` instead of
+    `always|never|auto`. Read: AI.md PART 33 (`--color` flag spec).
