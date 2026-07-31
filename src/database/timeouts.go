@@ -69,11 +69,20 @@ func QueryRowContext(ctx context.Context, db *sql.DB, timeout time.Duration, que
 	return db.QueryRowContext(ctx, query, args...)
 }
 
-// QueryContext executes a query with timeout and returns rows
+// QueryContext executes a query with timeout and returns rows.
+// The rows are iterated lazily by the caller (Rows.Next/Scan) after this
+// function returns, so cancel must NOT run on return (that would cancel the
+// query before iteration completes, same hazard as QueryRowContext) —
+// release the context once the timeout itself elapses instead.
 func QueryContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) (*sql.Rows, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	time.AfterFunc(timeout, cancel)
+	return rows, nil
 }
 
 // ExecContext executes a statement with timeout
