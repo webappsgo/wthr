@@ -32,7 +32,7 @@ RELDIR := releases
 # GO_CACHE maps host module cache to GOPATH/pkg/mod inside casjaysdev/go:latest
 # GO_BUILD maps to GOCACHE inside the image
 GO_CACHE  ?= $(HOME)/go/pkg/mod
-GO_BUILD  ?= $(HOME)/.cache/go-build
+GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
 # Build targets
 PLATFORMS ?= linux/amd64,linux/arm64

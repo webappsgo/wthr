@@ -53,9 +53,10 @@ before starting each item — do not rely on memory.
    `ERROR: Coverage is 25.9%, must be >= 80%` (exit 1) instead of silently
    passing. Read: AI.md PART 26, PART 29-31 (testing requirements).
 
-6. `go-lint` flagged `Makefile` line 35: `GO_BUILD` is not project-scoped —
-   must be `$(HOME)/.cache/go-build/$(PROJECTNAME)`, currently
-   `$(HOME)/.cache/go-build`. Read: AI.md PART 26.
+6. DONE (2026-07-30): `go-lint` flagged `Makefile` line 35: `GO_BUILD` was
+   not project-scoped (`$(HOME)/.cache/go-build`), shared across every
+   project on the host instead of isolated per project. Fixed to
+   `$(HOME)/.cache/go-build/$(PROJECTNAME)`. Read: AI.md PART 26.
 
 7. DONE (2026-07-30): `go-lint` flagged `src/scheduler/scheduler.go` line 23:
    external cron library `robfig/cron/v3` used instead of a built-in
