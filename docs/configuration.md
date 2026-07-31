@@ -31,6 +31,59 @@ Configuration is applied in this order:
 - All server settings must also be editable from the admin WebUI
 - Most changes apply live without restarting the service
 
+## Environment Variables
+
+Environment variables override the generated config file (see Precedence
+above). Path and bootstrap variables marked *init-only* are read once on first
+run to seed the config, then ignored on later restarts; runtime variables are
+re-read on every start.
+
+### Runtime
+
+| Variable | Purpose |
+|----------|---------|
+| `DOMAIN` | FQDN used for displayed/embedded URLs |
+| `MODE` / `APP_MODE` / `ENVIRONMENT` | Application mode (`production` or `development`) |
+| `DEBUG` | Enable debug diagnostics (verbosity only, never bypasses auth) |
+| `PORT` | Listen port |
+| `LISTEN` / `SERVER_ADDRESS` | Listen address (legacy fallback for `PORT`) |
+| `REVERSE_PROXY` | Trust reverse-proxy forwarding headers |
+| `TLS_ENABLED` | Enable HTTPS/TLS on the listener |
+| `DAEMON` | Run in background/daemon mode |
+| `NO_COLOR` | Disable ANSI colors and emoji in output |
+| `TERM` | Terminal type (`dumb` forces plain CLI output) |
+
+### Cache
+
+| Variable | Purpose |
+|----------|---------|
+| `CACHE_ENABLED` | Enable the external cache backend |
+| `CACHE_HOST` | Cache (Valkey/Redis) host |
+| `CACHE_PORT` | Cache port |
+| `CACHE_PASSWORD` | Cache password |
+| `CACHE_DB` | Cache logical DB number |
+
+### SMTP
+
+| Variable | Purpose |
+|----------|---------|
+| `SMTP_HOST` | SMTP server host |
+| `SMTP_PORT` | SMTP server port |
+| `SMTP_USERNAME` | SMTP auth username |
+| `SMTP_PASSWORD` | SMTP auth password |
+| `SMTP_FROM_ADDRESS` | Envelope/from address |
+| `SMTP_FROM_NAME` | Display name for outgoing mail |
+
+### Paths (init-only)
+
+| Variable | Purpose |
+|----------|---------|
+| `CONFIG_DIR` | Override config directory |
+| `DATA_DIR` | Override data directory |
+| `LOG_DIR` | Override log directory |
+| `CACHE_DIR` | Override cache directory |
+| `TEMP_DIR` | Override temp directory |
+
 ## Common Settings
 
 ### Server

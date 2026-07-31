@@ -146,7 +146,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 	if h.NotificationService != nil && len(applied) > 0 {
 		adminIDInterface, exists := c.Get("admin_id")
 		if exists {
-			_, ok := adminIDInterface.(int)
+			adminID, ok := adminIDInterface.(int)
 			if ok {
 				// Send success toast notification
 				message := fmt.Sprintf("Successfully updated %d setting(s)", len(applied))
@@ -154,7 +154,14 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 					message += fmt.Sprintf(", %d failed", len(failed))
 				}
 
-				// _, _ = h.NotificationService.SendAdminSuccess(adminID, title, message, nil)
+				_, _ = h.NotificationService.SendAdminNotification(
+					adminID,
+					models.NotificationTypeSuccess,
+					models.NotificationDisplayToast,
+					"Settings Updated",
+					message,
+					nil,
+				)
 			}
 		}
 	}

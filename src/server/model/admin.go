@@ -465,8 +465,11 @@ func (m *AdminModel) Update(id int64, username, email string, opts ...interface{
 	// Support both Update(id, username, email) and Update(id, username, email, isSuperAdmin, isActive)
 	if len(opts) >= 2 {
 		// Full update with flags
-		isSuperAdmin := opts[0].(bool)
-		isActive := opts[1].(bool)
+		isSuperAdmin, ok1 := opts[0].(bool)
+		isActive, ok2 := opts[1].(bool)
+		if !ok1 || !ok2 {
+			return fmt.Errorf("admin update flags must be booleans")
+		}
 		_, err := database.GetServerDB().Exec(`
 			UPDATE server_admin_credentials
 			SET username = ?, email = ?, is_super_admin = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"sync"
 	"time"
@@ -61,7 +60,7 @@ func (zs *ZipcodeService) loadZipcodes() {
 
 	zipcodeURL := "https://raw.githubusercontent.com/casapps/zipcodes/refs/heads/main/src/data/zipcodes.json"
 
-	resp, err := http.Get(zipcodeURL)
+	resp, err := downloadClient.Get(zipcodeURL)
 	if err != nil {
 		fmt.Printf("⚠️  Zipcode database unavailable: %v (continuing without zipcodes)\n", err)
 		zs.mu.Lock()

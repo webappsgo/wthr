@@ -1020,6 +1020,9 @@ func (ws *WeatherService) selectBestLocationMatch(results []GeocodeResult, locat
 	}
 
 	// Default to the first result (usually most populated)
+	if len(results) == 0 {
+		return nil
+	}
 	return &results[0]
 }
 

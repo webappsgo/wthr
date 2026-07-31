@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -202,11 +203,13 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 
 	// If setting as default, unset other defaults for this channel
 	if req.IsDefault {
-		_, _ = h.DB.Exec(`
+		if _, err := h.DB.Exec(`
 			UPDATE notification_templates
 			SET is_default = 0
 			WHERE channel_type = ?
-		`, req.ChannelType)
+		`, req.ChannelType); err != nil {
+			log.Printf("failed to clear existing default templates for channel %s: %v", req.ChannelType, err)
+		}
 	}
 
 	variablesJSON, _ := json.Marshal(req.Variables)
@@ -274,11 +277,13 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 
 	// If setting as default, unset other defaults
 	if req.IsDefault {
-		_, _ = h.DB.Exec(`
+		if _, err := h.DB.Exec(`
 			UPDATE notification_templates
 			SET is_default = 0
 			WHERE channel_type = ? AND id != ?
-		`, channelType, id)
+		`, channelType, id); err != nil {
+			log.Printf("failed to clear existing default templates for channel %s: %v", channelType, err)
+		}
 	}
 
 	variablesJSON, _ := json.Marshal(req.Variables)

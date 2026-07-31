@@ -103,7 +103,7 @@ Rate limits: 20 req/min anonymous, 100 req/min authenticated, unlimited admin.
 - `users.db` — regular user accounts, user sessions, saved locations, alert subscriptions
 
 **Sensitive data:**
-- Admin passwords: Argon2id hash (time=1, mem=64MB, threads=4, keyLen=32)
+- Admin passwords: Argon2id hash (time=3, mem=64MB, threads=4, keyLen=32)
 - User passwords: Argon2id (same parameters)
 - Session tokens: 32 bytes crypto/rand → stored as SHA-256 hash; raw token returned once
 - Admin session tokens prefixed `adm:` before hashing
@@ -303,46 +303,68 @@ All external API responses are validated before use. Network calls have 30-secon
 
 ### API endpoints
 
-**Public Weather:**
+The JSON API is versioned under `/api/v1` (the `{api_version}` prefix). Web
+pages share the same route tree and are content-negotiated (HTML for browsers,
+text for CLI/curl, JSON on request).
+
+**Public Weather (JSON API):**
+- `GET /api/v1/weather` — Current weather (location from IP or `?location=`)
+- `GET /api/v1/weather/:location` — Current weather for a named location
+- `GET /api/v1/weather/forecast` — Multi-day forecast
+- `GET /api/v1/weather/locations` — Saved/known locations
+- `GET /api/v1/weather/alerts` — Weather alerts for the resolved location
+- `GET /api/v1/weather/moon` — Moon data for the resolved location
+- `GET /api/v1/weather/history` — Recent weather history
+- `GET /api/v1/forecasts` / `GET /api/v1/forecasts/:location` — Forecast data
+- `GET /api/v1/ip` — Detect location from the client IP
+
+**Weather web pages (content-negotiated):**
 - `GET /` — Current weather (location from IP or query param)
-- `GET /:location` — Current weather for location
-- `GET /:location/forecast` — 16-day forecast
-- `GET /:location/hourly` — 48-hour hourly forecast
-- `GET /api/weather` — JSON weather data
-- `GET /api/forecast` — JSON forecast data
+- `GET /:location` / `GET /weather/:location` — Current weather for a location
+- `GET /web` / `GET /web/:location` — Web-rendered weather view
+- `GET /moon` / `GET /moon/:location` — Moon phase page
+- `GET /history` — Weather history page
+- `GET /earthquakes` / `GET /earthquake` / `GET /earthquakes/:location`
+- `GET /hurricanes` / `GET /hurricane`
+- `GET /severe-weather` / `GET /severe-weather/:location` /
+  `GET /severe/:type` / `GET /severe/:type/:location`
 
-**Severe Weather:**
-- `GET /api/alerts` — Active alerts (filterable by region/severity)
-- `GET /api/alerts/:id` — Single alert details
-- `GET /api/alerts/history` — Past 7 days of alerts
+**Severe Weather (JSON API):**
+- `GET /api/v1/severe-weather` — Active severe-weather events
+- `GET /api/v1/severe-weather/:id` — Single event details
+- `GET /api/v1/weather/alerts` — Active alerts for the resolved location
 
-**Natural Events:**
-- `GET /api/earthquakes` — Recent earthquakes
-- `GET /api/earthquakes/:id` — Single earthquake details
-- `GET /api/hurricanes` — Active tropical storms
-- `GET /api/hurricanes/:id` — Hurricane with forecast track
+**Natural Events (JSON API):**
+- `GET /api/v1/earthquakes` — Recent earthquakes
+- `GET /api/v1/earthquakes/:id` — Single earthquake details
+- `GET /api/v1/hurricanes` — Active tropical storms
+- `GET /api/v1/hurricanes/:id` — Hurricane with forecast track
 
-**Astronomy:**
-- `GET /api/moon` — Current moon phase
-- `GET /api/moon/calendar` — Monthly moon calendar
-- `GET /api/sun` — Sunrise/sunset for location
+**Astronomy (JSON API):**
+- `GET /api/v1/moon` — Current moon phase
+- `GET /api/v1/moon/calendar` — Monthly moon calendar
+- `GET /api/v1/sun` — Sunrise/sunset for location
 
-**Location:**
-- `GET /api/location` — Detect location from client IP
-- `GET /api/location/search` — Find cities by name
-- `GET /api/location/reverse` — Reverse geocode coordinates
+**Location (JSON API):**
+- `GET /api/v1/locations/search` — Find cities by name
+- `GET /api/v1/locations/lookup/zip/:code` — Look up a ZIP/postal code
+- `GET /api/v1/locations/lookup/coords` — Reverse geocode coordinates
+- `GET /api/v1/users/locations` (+ POST/PUT/DELETE, auth) — Saved user locations
+- `PUT /api/v1/users/locations/:id/alerts` — Configure per-location alerts
 
-**System:**
-- `GET /health` — Liveness probe
-- `GET /health/ready` — Readiness probe
-- `GET /health/full` — Comprehensive status JSON
-- `GET /api/version` — Version info
-- `GET /metrics` — Prometheus metrics
-- `GET /graphql` — GraphQL endpoint
-- `GET /swagger/` — OpenAPI documentation
-- `GET /:bash.function` — Bash shell function for terminal use
+**System & discovery:**
+- `GET /healthz` / `GET /health` / `GET /health/ready` / `GET /health/full`
+  — Liveness/readiness/full status (content-negotiated)
+- `GET /api/v1/healthz` — Health check (JSON)
+- `GET /metrics` — Prometheus metrics (internal only)
+- `GET /graphql` (+ `POST /graphql`) — GraphQL endpoint
+- `GET /docs` / `GET /openapi` / `GET /openapi.json` — OpenAPI documentation
+- `GET /api` / `GET /api/autodiscover` — API discovery
+- `GET /ws/notifications` — WebSocket notification stream
 - `GET /server/about` — About page (content from IDEA.md)
 - `GET /server/help` — Help page (real endpoints + curl examples)
 
-**Admin (/{admin_path}/):**
-- Dashboard, settings, admin management, user management, logs, backup, update
+**Admin (`/server/{admin_path}/...`, default `admin_path` = `admin`):**
+- Dashboard, server settings, admin/user management, security, logs, backup,
+  SSL, scheduler, notifications, updates — full web + `/api/v1` route trees
+  per AI.md PART 17. Not linked from any public page (typed-URL access only).

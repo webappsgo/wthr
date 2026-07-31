@@ -526,6 +526,24 @@ func saveUser(user *LEUser, certsDir string) error {
 }
 
 // Helper: Sanitize domain name for file system
+// Replaces the wildcard marker and neutralizes any character that is not
+// valid in a hostname, so a malformed/hostile domain can never introduce
+// path separators or traversal sequences into the certificate file path.
 func sanitizeDomain(domain string) string {
-	return strings.ReplaceAll(domain, "*", "_wildcard_")
+	domain = strings.ReplaceAll(domain, "*", "_wildcard_")
+	var b strings.Builder
+	for _, r := range domain {
+		switch {
+		case r >= 'a' && r <= 'z',
+			r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == '-', r == '.', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	sanitized := b.String()
+	sanitized = strings.ReplaceAll(sanitized, "..", "__")
+	return sanitized
 }

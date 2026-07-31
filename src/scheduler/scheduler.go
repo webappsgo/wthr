@@ -428,6 +428,9 @@ func CheckWeatherAlerts(db *sql.DB) error {
 
 	alertCount := 0
 
+	// Bound each Open-Meteo fetch so a stalled upstream can't hang the task.
+	client := &http.Client{Timeout: 30 * time.Second}
+
 	for rows.Next() {
 		var locationID int
 		var name string
@@ -443,13 +446,6 @@ func CheckWeatherAlerts(db *sql.DB) error {
 		url := fmt.Sprintf("https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current=temperature_2m,wind_speed_10m,precipitation,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch",
 			latitude, longitude)
 
-		resp, err := http.Get(url)
-		if err != nil {
-			log.Printf("⚠️  Failed to fetch weather for %s: %v", name, err)
-			continue
-		}
-		defer resp.Body.Close()
-
 		var weatherData struct {
 			Current struct {
 				Temperature   float64 `json:"temperature_2m"`
@@ -459,8 +455,18 @@ func CheckWeatherAlerts(db *sql.DB) error {
 			} `json:"current"`
 		}
 
-		if err := json.NewDecoder(resp.Body).Decode(&weatherData); err != nil {
-			log.Printf("⚠️  Failed to decode weather data for %s: %v", name, err)
+		// Fetch and decode in a closure so the response body is closed on every
+		// iteration rather than deferred until the whole loop returns.
+		fetchErr := func() error {
+			resp, err := client.Get(url)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			return json.NewDecoder(resp.Body).Decode(&weatherData)
+		}()
+		if fetchErr != nil {
+			log.Printf("⚠️  Failed to fetch weather for %s: %v", name, fetchErr)
 			continue
 		}
 
@@ -911,10 +917,12 @@ func UpdateBlocklist() error {
 	}
 
 	// Clean up old entries (older than 7 days and not in latest update)
-	_, _ = db.Exec(`
+	if _, err := db.Exec(`
 		DELETE FROM server_ip_blocklist
 		WHERE updated_at < datetime('now', '-7 days')
-	`)
+	`); err != nil {
+		log.Printf("⚠️  Failed to prune old blocklist entries: %v", err)
+	}
 
 	log.Printf("🛡️ Blocklist update complete: %d entries processed", totalAdded)
 	return nil

@@ -703,7 +703,11 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 			LastPing: time.Now(),
 		}
 	} else {
-		adminIDInt := adminIDRaw.(int)
+		adminIDInt, ok := adminIDRaw.(int)
+		if !ok {
+			InternalError(c, "invalid admin context")
+			return
+		}
 		client = &service.WebSocketClient{
 			ID:       fmt.Sprintf("admin-%d", adminIDInt),
 			Conn:     conn,

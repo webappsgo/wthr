@@ -72,6 +72,22 @@ The CLI honors the project color/plain-output rules, including `NO_COLOR`.
 - Server config: `{config_dir}/server.yml`
 - Client config: `~/.config/casapps/wthr/cli.yml`
 
+### Environment Variables
+
+The CLI reads these environment variables (command-line flags take precedence):
+
+| Variable | Purpose |
+|----------|---------|
+| `WTHR_SERVER_PRIMARY` | Default server URL to connect to |
+| `WTHR_TOKEN` | API token for authenticated requests |
+| `WTHR_OUTPUT_FORMAT` | Default output format (e.g. `json`, `text`) |
+| `WTHR_DEBUG` | Enable client debug output |
+| `MYLOCATION_NAME` | Default location name for weather lookups |
+| `MYLOCATION_ZIP` | Default ZIP/postal code for weather lookups |
+| `CONFIG_DIR` | Override the client config directory |
+| `DATA_DIR` | Override the client data directory |
+| `LOG_DIR` | Override the client log directory |
+
 ## Next Steps
 
 - [Installation](installation.md)

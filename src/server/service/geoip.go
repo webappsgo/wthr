@@ -152,7 +152,7 @@ func (gs *GeoIPService) loadDatabases() {
 
 // downloadDatabase downloads a database file
 func (gs *GeoIPService) downloadDatabase(url, path string) error {
-	resp, err := http.Get(url)
+	resp, err := downloadClient.Get(url)
 	if err != nil {
 		return err
 	}
@@ -329,7 +329,7 @@ func (gs *GeoIPService) UpdateDatabase() error {
 func (gs *GeoIPService) updateSingleDatabase(url, path, name string) error {
 	fmt.Printf("  📥 Downloading %s database...\n", name)
 
-	resp, err := http.Get(url)
+	resp, err := downloadClient.Get(url)
 	if err != nil {
 		return err
 	}

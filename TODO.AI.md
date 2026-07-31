@@ -135,3 +135,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     without the new coverage-threshold regression the hand-edits introduced
     (admin_auth.go's uncovered new lines dropped repo-wide coverage to 51%,
     below the 60% gate). Read: AI.md PART 9 (dependency hygiene).
+
+11. TODO (flagged 2026-07-31 during audit): 2FA/TOTP secrets are stored in
+    plaintext. `src/server/model/user.go` `Enable2FA` (and the TOTP setup path)
+    persist the shared secret as-is; AI.md PART 11 ("Data protection matrix")
+    requires 2FA secrets encrypted at rest with AES-256-GCM under
+    `server.security.encryption_key`. No such key source or encryption helper
+    exists in the codebase yet, so this needs: (a) a decision on where the
+    encryption key lives (`app_secrets` table per PART 11, generated on first
+    run), (b) an AES-256-GCM encrypt/decrypt helper, and (c) a one-time
+    migration re-encrypting existing plaintext secrets. Not a targeted fix —
+    requires the key-management design first. Read: AI.md PART 11 (Data
+    protection matrix), PART 34 (recovery keys / 2FA).
+
+12. TODO (flagged 2026-07-31 during audit): ~722 database calls use the
+    non-Context variants (`Query`/`Exec`/`QueryRow`) rather than
+    `QueryContext`/`ExecContext`/`QueryRowContext` with a timeout. AI.md
+    PART 10 requires every query/transaction wrapped in `context.WithTimeout`
+    (SELECT 5s, JOIN 15s, write 10s, bulk 60s, reports 2m). This is a systemic
+    migration across the whole data layer, not a single-file audit fix — should
+    be done as a dedicated pass (introduce a per-call-site context helper, then
+    convert package by package with tests). Read: AI.md PART 10 (query
+    timeouts / connection pooling).

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -80,7 +79,7 @@ func (as *AirportService) loadAirports() {
 
 	// If cache load failed or doesn't exist, download
 	if body == nil {
-		resp, err := http.Get(as.dataURL)
+		resp, err := downloadClient.Get(as.dataURL)
 		if err != nil {
 			fmt.Printf("❌ Failed to load airports: %v\n", err)
 			return

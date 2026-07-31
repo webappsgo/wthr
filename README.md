@@ -1,6 +1,6 @@
 # Weather Service
 
-[![Build](https://github.com/casapps/wthr/actions/workflows/build.yml/badge.svg)](https://github.com/casapps/wthr/actions/workflows/build.yml)
+[![Build](https://github.com/casapps/wthr/actions/workflows/ci.yml/badge.svg)](https://github.com/casapps/wthr/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/casapps/wthr)](https://github.com/casapps/wthr/releases)
 [![Documentation](https://readthedocs.org/projects/casapps-wthr/badge/?version=latest)](https://casapps-wthr.readthedocs.io)
 [![License](https://img.shields.io/github/license/casapps/wthr)](LICENSE.md)
@@ -122,26 +122,24 @@ wthr-cli moon
 Configuration is auto-generated on first run. Edit via admin panel at `https://wthr.top/admin`.
 
 Key settings:
-- `server.address` - Listen address (default: :80)
+- `server.port` - Listen port (auto-selected in the 64000-64999 range on first run, then persisted; set explicitly to override)
+- `server.address` - Listen address (default: `[::]`)
 - `server.mode` - production or development
 
 Configuration file: `$CONFIG_DIR/server.yml`
 
 ```yaml
 server:
-  address: ":80"
+  port: 0
+  address: "[::]"
   mode: production
+  admin_path: admin
+  api_version: v1
 
-logging:
-  level: info
-  format: json
-
-geoip:
-  update_interval: 168h
-
-cache:
-  weather_ttl: 15m
-  severe_ttl: 5m
+weather:
+  forecast_days: 16
+  update_interval: 900
+  location_search_enabled: true
 ```
 
 ## API
@@ -161,9 +159,9 @@ Full API documentation is available at `https://wthr.top/openapi`, with OpenAPI 
 |----------|-------------|
 | `GET /api/v1/weather` | Current weather (auto-detect location) |
 | `GET /api/v1/weather/:location` | Weather for specific location |
-| `GET /api/v1/forecast` | Multi-day forecast (up to 16 days) |
+| `GET /api/v1/weather/forecast` | Multi-day forecast (up to 16 days) |
 | `GET /api/v1/ip` | Client IP and geolocation info |
-| `GET /api/v1/location` | Auto-detect location from IP |
+| `GET /api/v1/weather/locations` | Auto-detect location from IP |
 
 ### Severe Weather & Natural Events
 
@@ -187,8 +185,8 @@ Full API documentation is available at `https://wthr.top/openapi`, with OpenAPI 
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/v1/locations` | List saved locations |
-| `POST /api/v1/locations` | Save a new location |
+| `GET /api/v1/users/locations` | List saved locations |
+| `POST /api/v1/users/locations` | Save a new location |
 | `GET /api/v1/locations/search` | Search for locations |
 
 ### Examples

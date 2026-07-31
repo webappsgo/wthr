@@ -167,6 +167,11 @@ func (es *EarthquakeService) GetEarthquakes(feedType string) (*EarthquakeCollect
 	// Convert USGS format to our format
 	earthquakes := make([]Earthquake, 0, len(usgsData.Features))
 	for _, feature := range usgsData.Features {
+		// USGS occasionally emits features with null/empty geometry or fewer
+		// than 3 coordinates; skip them rather than panic on out-of-range index.
+		if len(feature.Geometry.Coordinates) < 3 {
+			continue
+		}
 		eq := Earthquake{
 			ID:            feature.ID,
 			Magnitude:     feature.Properties.Mag,
