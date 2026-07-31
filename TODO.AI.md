@@ -106,3 +106,19 @@ any of the above: `src/graphql/context_keys_test.go`,
    These live in the same 10 files carrying unrelated uncommitted hand-edits
    noted above — fix once those files come back into scope, not as part of
    any currently-tracked item.
+
+9. DONE (2026-07-30): found while verifying items 5/6 — `PROJECTNAME`/
+   `PROJECTORG` (Makefile lines 2-3) mis-parsed the project's SSH remote
+   `git@github.com:webappsgo/wthr.git`: the `PROJECTNAME` regex's greedy
+   `[^/]+` swallowed the literal `.git` suffix (yielding `wthr.git` instead
+   of `wthr`), and `PROJECTORG` requires two `/` after the match point but
+   the SSH form only has one (colon instead of a second slash), so the sed
+   silently failed to match and left the org as the full raw remote string
+   (`git@github.com:webappsgo/wthr.git`). Confirmed live: `make test`'s
+   coverage temp dir was created as
+   `/tmp/git@github.com:webappsgo/wthr.git/wthr.git-XXXXXX/`, violating the
+   required `/tmp/{project_org}/{internal_name}-XXXXXX/` temp-dir
+   convention (PART 29). Fixed by normalizing `git@host:org/repo.git` to
+   `https://host/org/repo` form first (strip `.git`), then extracting the
+   last two path segments for name/org — verified `make -f` test harness
+   now resolves `NAME=wthr ORG=webappsgo`. Read: AI.md PART 26, PART 29.
