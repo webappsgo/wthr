@@ -89,3 +89,21 @@ any of the above: `src/graphql/context_keys_test.go`,
 `src/graphql/schema.resolvers_test.go`, `src/server/handler/admin_auth.go`,
 `src/server/handler/admin_auth_test.go`,
 `src/server/middleware/access_log_test.go`, `src/util/logger_test.go`.
+
+8. The GitHub Actions `CI` workflow has been failing on `main` since before
+   this bootstrap pass (confirmed failing at commits `3f2082cd`, `094092ff`,
+   and `9e27dd31` — i.e. unrelated to and not introduced by any TODO.AI.md
+   item fixed above), entirely inside the item-7-adjacent "Pre-existing, out
+   of scope" files above:
+   - `test` job: `TestMutationResolver_RegisterUser/registration_not_available_with_no_config`
+     in `src/graphql/schema.resolvers_mutations_test.go` fails —
+     `err = "public registration is not available"`, want
+     `"registration is not available"` (message text mismatch).
+   - `lint` job (`staticcheck`): `SA1029` (built-in `string` used as a
+     context key) at `src/graphql/schema.resolvers_mutations_test.go:656,725,734`
+     and `src/server/handler/admin_auth_test.go:211`; `U1000` (unused func
+     `newTestLogger`) at `src/server/middleware/access_log_test.go:19` and
+     `src/util/logger_test.go:55`.
+   These live in the same 10 files carrying unrelated uncommitted hand-edits
+   noted above — fix once those files come back into scope, not as part of
+   any currently-tracked item.
