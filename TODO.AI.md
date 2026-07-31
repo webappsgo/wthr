@@ -16,10 +16,18 @@ before starting each item — do not rely on memory.
    same template (header, NON-NEGOTIABLE warning, CRITICAL - NEVER/ALWAYS DO,
    key-rules summary, footer). Verified all 14 present via `ls .claude/rules/`.
 
-2. Create `.claude/settings.json` (shared team settings, version-controlled)
-   and `.claude/.mcp.json` if this project uses MCP servers — depends on
-   item 1 existing first since PART 3's `.claude/` layout lists `rules/`
-   alongside these. Read: AI.md PART 3 § "Directory Structure".
+2. DONE (2026-07-31): Created `.claude/settings.json` (shared team config,
+   version-controlled per PART 3's `.claude/` listing) following the sample
+   template at AI.md PART 3 lines ~1780-1857, adapted with this project's
+   Go-project addition (`Bash(golangci-lint *)` allow) and Docker-project
+   addition (`Bash(docker system prune *)` deny, consistent with
+   docker-rules.md's own ban on broad prune sweeps). Includes the two sample
+   PreToolUse hooks (vendor-attribution check, gofmt check) and
+   `CGO_ENABLED=0` env. `.claude/.mcp.json` intentionally NOT created — this
+   project does not itself declare/require any MCP servers (the `github` MCP
+   tools available in-session are session/global Claude Code config, not a
+   project-level dependency); create `.mcp.json` later only if the project
+   comes to genuinely need one. Read: AI.md PART 3 § "Directory Structure".
 
 3. `.cursor/`, `.windsurf/`, `.aider/`, `.ai/` mirrors are marked OPTIONAL in
    PART 3 — user confirmed (2026-07-30) to skip these for now; revisit only
