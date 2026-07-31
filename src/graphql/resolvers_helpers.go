@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -504,8 +505,8 @@ func loadGraphQLCurrentAdmin(ctx context.Context, db *sql.DB) (*models.Admin, er
 
 	return admin, nil
 }
-func loadGraphQLOnlineAdminUsernames(db *sql.DB) ([]string, error) {
-	rows, err := db.Query(`
+func loadGraphQLOnlineAdminUsernames(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := database.QueryContext(ctx, db, database.TimeoutComplexSelect, `
 	SELECT DISTINCT sac.username
 	FROM server_admin_credentials sac
 	INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
@@ -532,9 +533,9 @@ func loadGraphQLOnlineAdminUsernames(db *sql.DB) ([]string, error) {
 
 	return usernames, nil
 }
-func countGraphQLOtherActiveSuperAdmins(db *sql.DB, excludeID int64) (int, error) {
+func countGraphQLOtherActiveSuperAdmins(ctx context.Context, db *sql.DB, excludeID int64) (int, error) {
 	var count int
-	err := db.QueryRow(`
+	err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, `
 	SELECT COUNT(*)
 	FROM server_admin_credentials
 	WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
@@ -587,8 +588,8 @@ func buildGraphQLServerAdminInvite(ctx context.Context, invite *models.AdminInvi
 		InviteURL: graphQLServerInviteURL(ctx, invite.Token),
 	}
 }
-func (r *mutationResolver) updateGraphQLScheduledTaskEnabled(name string, enabled bool) (*ScheduledTask, error) {
-	_, err := r.ServerDB.Exec(`
+func (r *mutationResolver) updateGraphQLScheduledTaskEnabled(ctx context.Context, name string, enabled bool) (*ScheduledTask, error) {
+	_, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 	UPDATE server_scheduler_state
 	SET enabled = ?, locked_by = NULL, locked_at = NULL
 	WHERE task_name = ?
@@ -597,15 +598,15 @@ func (r *mutationResolver) updateGraphQLScheduledTaskEnabled(name string, enable
 		return nil, err
 	}
 
-	task, err := r.loadGraphQLScheduledTask(name)
+	task, err := r.loadGraphQLScheduledTask(ctx, name)
 	if err != nil {
 		return nil, err
 	}
 
 	return task, nil
 }
-func (r *mutationResolver) loadGraphQLScheduledTask(name string) (*ScheduledTask, error) {
-	return scanGraphQLScheduledTask(r.ServerDB.QueryRow(
+func (r *mutationResolver) loadGraphQLScheduledTask(ctx context.Context, name string) (*ScheduledTask, error) {
+	return scanGraphQLScheduledTask(database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect,
 		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM server_scheduler_state WHERE task_name = ?",
 		name,
 	).Scan)
@@ -637,8 +638,8 @@ func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, err
 
 	return &task, nil
 }
-func loadGraphQLNotificationChannel(db *sql.DB, channelType string) (*NotificationChannel, error) {
-	return scanGraphQLNotificationChannel(db.QueryRow(
+func loadGraphQLNotificationChannel(ctx context.Context, db *sql.DB, channelType string) (*NotificationChannel, error) {
+	return scanGraphQLNotificationChannel(database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
 		"SELECT channel_type, enabled, config FROM notification_channels WHERE channel_type = ?",
 		channelType,
 	).Scan)
@@ -663,8 +664,8 @@ func scanGraphQLNotificationChannel(scan func(dest ...any) error) (*Notification
 
 	return &channel, nil
 }
-func loadGraphQLSetting(db *sql.DB, key string) (*models.Setting, error) {
-	return scanGraphQLSetting(db.QueryRow(
+func loadGraphQLSetting(ctx context.Context, db *sql.DB, key string) (*models.Setting, error) {
+	return scanGraphQLSetting(database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
 		"SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config WHERE key = ?",
 		key,
 	).Scan)
@@ -710,24 +711,24 @@ func mapSchedulerTaskHistory(run scheduler.TaskRun) *TaskHistory {
 		Error:       errorText,
 	}
 }
-func loadGraphQLRequestStats(serverDB *sql.DB) (*RequestStats, error) {
+func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestStats, error) {
 	var totalToday int
 	var errorsToday int
 	var lastMinute int
 
-	if err := serverDB.QueryRow(`
+	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
 	SELECT COUNT(*) FROM server_audit_log
 	WHERE timestamp >= date('now', 'start of day')
 `).Scan(&totalToday); err != nil {
 		return nil, err
 	}
-	if err := serverDB.QueryRow(`
+	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
 	SELECT COUNT(*) FROM server_audit_log
 	WHERE timestamp >= date('now', 'start of day') AND status = 'error'
 `).Scan(&errorsToday); err != nil {
 		return nil, err
 	}
-	if err := serverDB.QueryRow(`
+	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
 	SELECT COUNT(*) FROM server_audit_log
 	WHERE timestamp >= datetime('now', '-1 minute')
 `).Scan(&lastMinute); err != nil {
@@ -741,8 +742,8 @@ func loadGraphQLRequestStats(serverDB *sql.DB) (*RequestStats, error) {
 		Errors:    &errorsToday,
 	}, nil
 }
-func loadGraphQLDatabaseStats(serverDB, usersDB *sql.DB) (*DatabaseStats, error) {
-	serverSize, serverTables, err := loadGraphQLSQLiteStats(serverDB)
+func loadGraphQLDatabaseStats(ctx context.Context, serverDB, usersDB *sql.DB) (*DatabaseStats, error) {
+	serverSize, serverTables, err := loadGraphQLSQLiteStats(ctx, serverDB)
 	if err != nil {
 		return nil, err
 	}
@@ -750,7 +751,7 @@ func loadGraphQLDatabaseStats(serverDB, usersDB *sql.DB) (*DatabaseStats, error)
 	usersSize := 0.0
 	usersTables := 0
 	if usersDB != nil {
-		usersSize, usersTables, err = loadGraphQLSQLiteStats(usersDB)
+		usersSize, usersTables, err = loadGraphQLSQLiteStats(ctx, usersDB)
 		if err != nil {
 			return nil, err
 		}
@@ -771,7 +772,7 @@ func loadGraphQLDatabaseStats(serverDB, usersDB *sql.DB) (*DatabaseStats, error)
 		Connections: &connections,
 	}, nil
 }
-func loadGraphQLSQLiteStats(db *sql.DB) (float64, int, error) {
+func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, error) {
 	if db == nil {
 		return 0, 0, nil
 	}
@@ -780,24 +781,24 @@ func loadGraphQLSQLiteStats(db *sql.DB) (float64, int, error) {
 	var pageSize int64
 	var tables int
 
-	if err := db.QueryRow("PRAGMA page_count").Scan(&pageCount); err != nil {
+	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, "PRAGMA page_count").Scan(&pageCount); err != nil {
 		return 0, 0, err
 	}
-	if err := db.QueryRow("PRAGMA page_size").Scan(&pageSize); err != nil {
+	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, "PRAGMA page_size").Scan(&pageSize); err != nil {
 		return 0, 0, err
 	}
-	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").Scan(&tables); err != nil {
+	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").Scan(&tables); err != nil {
 		return 0, 0, err
 	}
 
 	return float64(pageCount * pageSize), tables, nil
 }
-func ensureGraphQLContactSubmissionsTable(db *sql.DB) error {
+func ensureGraphQLContactSubmissionsTable(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return fmt.Errorf("server database unavailable")
 	}
 
-	_, err := db.Exec(`
+	_, err := database.ExecContext(ctx, db, database.TimeoutMigration, `
 	CREATE TABLE IF NOT EXISTS contact_submissions (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
@@ -838,7 +839,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 
 	if adminID, ok := ctx.Value("admin_id").(int); ok && adminID > 0 {
 		var adminEmail string
-		err := r.ServerDB.QueryRow(`
+		err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
 		SELECT email
 		FROM server_admin_credentials
 		WHERE id = ? AND is_active = 1
@@ -860,7 +861,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 	}
 
 	var fallbackEmail string
-	err := r.ServerDB.QueryRow(`
+	err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
 	SELECT email
 	FROM server_admin_credentials
 	WHERE is_active = 1 AND email IS NOT NULL AND TRIM(email) != ''

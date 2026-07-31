@@ -17,6 +17,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -543,7 +544,7 @@ func (r *mutationResolver) CreateUserToken(ctx context.Context, name string, sco
 	}
 
 	var count int
-	if err := r.UsersDB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", userID).Scan(&count); err != nil {
+	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", userID).Scan(&count); err != nil {
 		return nil, fmt.Errorf("failed to count user tokens: %w", err)
 	}
 	if count >= 5 {
@@ -572,7 +573,7 @@ func (r *mutationResolver) CreateUserToken(ctx context.Context, name string, sco
 		scopesValue = strings.TrimSpace(*scopes)
 	}
 
-	result, err := r.UsersDB.Exec(`
+	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, userID, tokenHash, tokenPrefix, strings.TrimSpace(name), scopesValue, createdAt, expiresAt)
@@ -609,7 +610,7 @@ func (r *mutationResolver) RevokeUserToken(ctx context.Context, id string) (*Gen
 		return nil, fmt.Errorf("invalid token id")
 	}
 
-	result, err := r.UsersDB.Exec("DELETE FROM user_tokens WHERE id = ? AND user_id = ?", tokenID, userID)
+	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ? AND user_id = ?", tokenID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to revoke token: %w", err)
 	}
@@ -638,7 +639,7 @@ func (r *mutationResolver) CreateSavedLocation(ctx context.Context, name string,
 	}
 
 	timezone := ""
-	result, err := r.UsersDB.Exec(`
+	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
 		INSERT INTO user_saved_locations (user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, userID, name, lat, lon, timezone, alertsEnabled, time.Now(), time.Now())
@@ -653,7 +654,7 @@ func (r *mutationResolver) CreateSavedLocation(ctx context.Context, name string,
 	}
 
 	location := &models.SavedLocation{}
-	err = r.UsersDB.QueryRow(`
+	err = database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at
 		FROM user_saved_locations WHERE id = ?
 	`, id).Scan(&location.ID, &location.UserID, &location.Name, &location.Latitude, &location.Longitude, &location.Timezone, &location.AlertsEnabled, &location.CreatedAt, &location.UpdatedAt)
@@ -673,21 +674,21 @@ func (r *mutationResolver) UpdateSavedLocation(ctx context.Context, id string, n
 	}
 
 	if name != nil {
-		_, err := r.UsersDB.Exec("UPDATE user_saved_locations SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?", *name, time.Now(), id, userID)
+		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?", *name, time.Now(), id, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update name: %w", err)
 		}
 	}
 
 	if alerts != nil {
-		_, err := r.UsersDB.Exec("UPDATE user_saved_locations SET alerts_enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?", *alerts, time.Now(), id, userID)
+		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET alerts_enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?", *alerts, time.Now(), id, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update alerts: %w", err)
 		}
 	}
 
 	location := &models.SavedLocation{}
-	err := r.UsersDB.QueryRow(`
+	err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at
 		FROM user_saved_locations WHERE id = ? AND user_id = ?
 	`, id, userID).Scan(&location.ID, &location.UserID, &location.Name, &location.Latitude, &location.Longitude, &location.Timezone, &location.AlertsEnabled, &location.CreatedAt, &location.UpdatedAt)
@@ -706,7 +707,7 @@ func (r *mutationResolver) DeleteSavedLocation(ctx context.Context, id string) (
 		return nil, fmt.Errorf("unauthorized")
 	}
 
-	result, err := r.UsersDB.Exec("DELETE FROM user_saved_locations WHERE id = ? AND user_id = ?", id, userID)
+	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "DELETE FROM user_saved_locations WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return &GenericResponse{Success: false, Message: fmt.Sprintf("Failed to delete location: %v", err)}, nil
 	}
@@ -726,9 +727,9 @@ func (r *mutationResolver) ToggleLocationAlerts(ctx context.Context, id string) 
 		return nil, fmt.Errorf("unauthorized")
 	}
 
-	_, err := r.UsersDB.Exec(`
-		UPDATE user_saved_locations 
-		SET alerts_enabled = NOT alerts_enabled, updated_at = ? 
+	_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
+		UPDATE user_saved_locations
+		SET alerts_enabled = NOT alerts_enabled, updated_at = ?
 		WHERE id = ? AND user_id = ?
 	`, time.Now(), id, userID)
 
@@ -737,7 +738,7 @@ func (r *mutationResolver) ToggleLocationAlerts(ctx context.Context, id string) 
 	}
 
 	location := &models.SavedLocation{}
-	err = r.UsersDB.QueryRow(`
+	err = database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at
 		FROM user_saved_locations WHERE id = ? AND user_id = ?
 	`, id, userID).Scan(&location.ID, &location.UserID, &location.Name, &location.Latitude, &location.Longitude, &location.Timezone, &location.AlertsEnabled, &location.CreatedAt, &location.UpdatedAt)
@@ -756,8 +757,8 @@ func (r *mutationResolver) MarkNotificationRead(ctx context.Context, id string) 
 		return nil, fmt.Errorf("unauthorized")
 	}
 
-	_, err := r.UsersDB.Exec(`
-		UPDATE user_notifications 
+	_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
+		UPDATE user_notifications
 		SET read = 1
 		WHERE id = ? AND user_id = ?
 	`, id, userID)
@@ -768,7 +769,7 @@ func (r *mutationResolver) MarkNotificationRead(ctx context.Context, id string) 
 
 	notification := &models.Notification{}
 	var notificationUserID int
-	err = r.UsersDB.QueryRow(`
+	err = database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, type, display, title, message, read, dismissed, created_at, expires_at
 		FROM user_notifications WHERE id = ? AND user_id = ?
 	`, id, userID).Scan(
@@ -800,8 +801,8 @@ func (r *mutationResolver) MarkAllNotificationsRead(ctx context.Context) (*Gener
 		return nil, fmt.Errorf("unauthorized")
 	}
 
-	_, err := r.UsersDB.Exec(`
-		UPDATE user_notifications 
+	_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
+		UPDATE user_notifications
 		SET read = 1
 		WHERE user_id = ? AND read = 0
 	`, userID)
@@ -820,7 +821,7 @@ func (r *mutationResolver) DeleteNotification(ctx context.Context, id string) (*
 		return nil, fmt.Errorf("unauthorized")
 	}
 
-	result, err := r.UsersDB.Exec("DELETE FROM user_notifications WHERE id = ? AND user_id = ?", id, userID)
+	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "DELETE FROM user_notifications WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return &GenericResponse{Success: false, Message: fmt.Sprintf("Failed to delete notification: %v", err)}, nil
 	}
@@ -1028,7 +1029,7 @@ func (r *mutationResolver) AdminDeleteServerAdmin(ctx context.Context, id string
 		return &GenericResponse{Success: false, Message: "Admin not found"}, nil
 	}
 	if admin.IsSuperAdmin && admin.IsActive {
-		otherSuperAdmins, err := countGraphQLOtherActiveSuperAdmins(r.ServerDB, adminID)
+		otherSuperAdmins, err := countGraphQLOtherActiveSuperAdmins(ctx, r.ServerDB, adminID)
 		if err != nil {
 			return nil, err
 		}
@@ -1074,7 +1075,7 @@ func (r *mutationResolver) AdminDisableServerAdmin(ctx context.Context, id strin
 		return &GenericResponse{Success: false, Message: "Admin not found"}, nil
 	}
 	if admin.IsSuperAdmin && admin.IsActive {
-		otherSuperAdmins, err := countGraphQLOtherActiveSuperAdmins(r.ServerDB, adminID)
+		otherSuperAdmins, err := countGraphQLOtherActiveSuperAdmins(ctx, r.ServerDB, adminID)
 		if err != nil {
 			return nil, err
 		}
@@ -1122,7 +1123,7 @@ func (r *mutationResolver) AdminUpdateSetting(ctx context.Context, key string, v
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	result, err := r.ServerDB.Exec(`
+	result, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 		UPDATE server_config
 		SET value = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE key = ?
@@ -1139,7 +1140,7 @@ func (r *mutationResolver) AdminUpdateSetting(ctx context.Context, key string, v
 		return nil, fmt.Errorf("setting not found: %s", key)
 	}
 
-	return loadGraphQLSetting(r.ServerDB, key)
+	return loadGraphQLSetting(ctx, r.ServerDB, key)
 }
 
 // AdminUpdateSettings is the resolver for the adminUpdateSettings field.
@@ -1153,7 +1154,7 @@ func (r *mutationResolver) AdminUpdateSettings(ctx context.Context, settings []*
 	failedCount := 0
 
 	for _, setting := range settings {
-		result, err := r.ServerDB.Exec(`
+		result, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 			UPDATE server_config
 			SET value = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE key = ?
@@ -1189,17 +1190,12 @@ func (r *mutationResolver) AdminResetSettings(ctx context.Context) (*GenericResp
 	settingsModel := &models.SettingsModel{DB: r.ServerDB}
 	backupPath := settingsModel.GetString("backup.location", "/data/backups")
 
-	tx, err := r.ServerDB.Begin()
+	err := database.WithTransaction(ctx, r.ServerDB, func(tx *sql.Tx) error {
+		_, err := tx.Exec("DELETE FROM server_config")
+		return err
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start settings reset: %w", err)
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec("DELETE FROM server_config"); err != nil {
 		return nil, fmt.Errorf("failed to clear settings: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit settings reset: %w", err)
 	}
 
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
@@ -1271,7 +1267,7 @@ func (r *mutationResolver) AdminClearAuditLogs(ctx context.Context) (*GenericRes
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	_, err := r.ServerDB.Exec("DELETE FROM server_audit_log")
+	_, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutBulk, "DELETE FROM server_audit_log")
 	if err != nil {
 		return nil, fmt.Errorf("failed to clear audit logs: %w", err)
 	}
@@ -1286,7 +1282,7 @@ func (r *mutationResolver) AdminUpdateTask(ctx context.Context, name string, ena
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	task, err := r.updateGraphQLScheduledTaskEnabled(name, enabled)
+	task, err := r.updateGraphQLScheduledTaskEnabled(ctx, name, enabled)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update task: %w", err)
 	}
@@ -1301,7 +1297,7 @@ func (r *mutationResolver) AdminEnableTask(ctx context.Context, name string) (*S
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	task, err := r.updateGraphQLScheduledTaskEnabled(name, true)
+	task, err := r.updateGraphQLScheduledTaskEnabled(ctx, name, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable task: %w", err)
 	}
@@ -1316,7 +1312,7 @@ func (r *mutationResolver) AdminDisableTask(ctx context.Context, name string) (*
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	task, err := r.updateGraphQLScheduledTaskEnabled(name, false)
+	task, err := r.updateGraphQLScheduledTaskEnabled(ctx, name, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to disable task: %w", err)
 	}
@@ -1365,7 +1361,7 @@ func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg strin
 			return nil, fmt.Errorf("failed to marshal channel config: %w", err)
 		}
 
-		_, err = r.ServerDB.Exec(`
+		_, err = database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 			UPDATE notification_channels
 			SET config = ?, updated_at = datetime('now')
 			WHERE channel_type = ?
@@ -1375,7 +1371,7 @@ func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg strin
 		}
 	}
 
-	return loadGraphQLNotificationChannel(r.ServerDB, typeArg)
+	return loadGraphQLNotificationChannel(ctx, r.ServerDB, typeArg)
 }
 
 // AdminEnableChannel is the resolver for the adminEnableChannel field.
@@ -1390,7 +1386,7 @@ func (r *mutationResolver) AdminEnableChannel(ctx context.Context, typeArg strin
 		return nil, fmt.Errorf("failed to enable channel: %w", err)
 	}
 
-	return loadGraphQLNotificationChannel(r.ServerDB, typeArg)
+	return loadGraphQLNotificationChannel(ctx, r.ServerDB, typeArg)
 }
 
 // AdminDisableChannel is the resolver for the adminDisableChannel field.
@@ -1405,7 +1401,7 @@ func (r *mutationResolver) AdminDisableChannel(ctx context.Context, typeArg stri
 		return nil, fmt.Errorf("failed to disable channel: %w", err)
 	}
 
-	return loadGraphQLNotificationChannel(r.ServerDB, typeArg)
+	return loadGraphQLNotificationChannel(ctx, r.ServerDB, typeArg)
 }
 
 // AdminTestChannel is the resolver for the adminTestChannel field.
@@ -1636,14 +1632,14 @@ func (r *mutationResolver) FinishAdminPasskeyChallenge(ctx context.Context, cere
 
 // SubmitContactForm is the resolver for the submitContactForm field.
 func (r *mutationResolver) SubmitContactForm(ctx context.Context, name string, email string, subject string, message string) (*ContactSubmission, error) {
-	if err := ensureGraphQLContactSubmissionsTable(r.ServerDB); err != nil {
+	if err := ensureGraphQLContactSubmissionsTable(ctx, r.ServerDB); err != nil {
 		return nil, fmt.Errorf("failed to prepare contact submission storage: %w", err)
 	}
 
 	requestIP, _ := ctx.Value("request_ip").(string)
 	userAgent, _ := ctx.Value("request_user_agent").(string)
 
-	_, err := r.ServerDB.Exec(`
+	_, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, name, email, subject, message, strings.TrimSpace(requestIP), strings.TrimSpace(userAgent))
@@ -2060,7 +2056,8 @@ func (r *queryResolver) HistoricalWeather(ctx context.Context, location string, 
 			MaxTemp:            histDay.TempMax,
 			MinTemp:            histDay.TempMin,
 			TotalPrecipitation: &precipitation,
-			ChanceOfRain:       &humidity, // Use humidity as proxy since historical data doesn't have chance of rain
+			// Use humidity as proxy since historical data doesn't have chance of rain
+			ChanceOfRain: &humidity,
 			Condition: &WeatherCondition{
 				Text: r.WeatherService.GetWeatherDescription(histDay.WeatherCode),
 				Icon: stringPtr(r.WeatherService.GetWeatherIcon(histDay.WeatherCode, true)),
@@ -2371,7 +2368,7 @@ func (r *queryResolver) UserTokens(ctx context.Context) ([]*UserToken, error) {
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
-	rows, err := r.UsersDB.Query(`
+	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect, `
 		SELECT id, name, token_prefix, scopes, created_at, expires_at, last_used_at
 		FROM user_tokens
 		WHERE user_id = ?
@@ -2422,8 +2419,8 @@ func (r *queryResolver) SavedLocations(ctx context.Context) ([]*models.SavedLoca
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
-	rows, err := r.UsersDB.Query(
-		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE user_id = $1 ORDER BY created_at DESC",
+	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
+		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE user_id = ? ORDER BY created_at DESC",
 		userID,
 	)
 	if err != nil {
@@ -2451,8 +2448,8 @@ func (r *queryResolver) SavedLocation(ctx context.Context, id string) (*models.S
 	}
 
 	var loc models.SavedLocation
-	err := r.UsersDB.QueryRow(
-		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE id = $1 AND user_id = $2",
+	err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect,
+		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE id = ? AND user_id = ?",
 		id, userID,
 	).Scan(&loc.ID, &loc.UserID, &loc.Name, &loc.Latitude, &loc.Longitude, &loc.AlertsEnabled, &loc.CreatedAt, &loc.UpdatedAt)
 	if err != nil {
@@ -2469,8 +2466,8 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
-	rows, err := r.UsersDB.Query(
-		"SELECT id, user_id, type, display, title, message, read, dismissed, created_at, expires_at FROM user_notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50",
+	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
+		"SELECT id, user_id, type, display, title, message, read, dismissed, created_at, expires_at FROM user_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
 		userID,
 	)
 	if err != nil {
@@ -2512,8 +2509,8 @@ func (r *queryResolver) UnreadNotifications(ctx context.Context) (*UnreadCount, 
 	}
 
 	var count int
-	err := r.UsersDB.QueryRow(
-		"SELECT COUNT(*) FROM user_notifications WHERE user_id = $1 AND read = 0",
+	err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect,
+		"SELECT COUNT(*) FROM user_notifications WHERE user_id = ? AND read = 0",
 		userID,
 	).Scan(&count)
 	if err != nil {
@@ -2530,7 +2527,7 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	rows, err := r.UsersDB.Query(
+	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
 		"SELECT id, email, username, role, email_verified, two_factor_enabled, created_at, updated_at FROM user_accounts ORDER BY created_at DESC",
 	)
 	if err != nil {
@@ -2569,7 +2566,7 @@ func (r *queryResolver) AdminServerAdmins(ctx context.Context) (*ServerAdminOver
 		return nil, err
 	}
 
-	onlineAdmins, err := loadGraphQLOnlineAdminUsernames(r.ServerDB)
+	onlineAdmins, err := loadGraphQLOnlineAdminUsernames(ctx, r.ServerDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load online admins: %w", err)
 	}
@@ -2658,7 +2655,7 @@ func (r *queryResolver) AdminSettings(ctx context.Context) ([]*models.Setting, e
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	rows, err := r.ServerDB.Query(
+	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
 		"SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config ORDER BY key",
 	)
 	if err != nil {
@@ -2685,7 +2682,7 @@ func (r *queryResolver) AdminSetting(ctx context.Context, key string) (*models.S
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	setting, err := loadGraphQLSetting(r.ServerDB, key)
+	setting, err := loadGraphQLSetting(ctx, r.ServerDB, key)
 	if err != nil {
 		return nil, fmt.Errorf("setting not found: %w", err)
 	}
@@ -2741,7 +2738,7 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 		offsetVal = *offset
 	}
 
-	rows, err := r.ServerDB.Query(
+	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
 		"SELECT id, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, timestamp FROM server_audit_log ORDER BY timestamp DESC LIMIT ? OFFSET ?",
 		limitVal, offsetVal,
 	)
@@ -2812,25 +2809,25 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to count admin users: %w", err)
 	}
-	if err := r.UsersDB.QueryRow("SELECT COUNT(*) FROM user_accounts WHERE last_login_at > datetime('now', '-30 days')").Scan(&activeUsers); err != nil {
+	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts WHERE last_login_at > datetime('now', '-30 days')").Scan(&activeUsers); err != nil {
 		return nil, fmt.Errorf("failed to count active users: %w", err)
 	}
-	if err := r.UsersDB.QueryRow("SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
+	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
 		return nil, fmt.Errorf("failed to count saved locations: %w", err)
 	}
-	if err := r.UsersDB.QueryRow("SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications); err != nil {
+	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications); err != nil {
 		return nil, fmt.Errorf("failed to count notifications: %w", err)
 	}
-	if err := r.UsersDB.QueryRow("SELECT COUNT(*) FROM user_notifications WHERE read = 0").Scan(&unreadNotifications); err != nil {
+	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications WHERE read = 0").Scan(&unreadNotifications); err != nil {
 		return nil, fmt.Errorf("failed to count unread notifications: %w", err)
 	}
 
-	requestStats, err := loadGraphQLRequestStats(r.ServerDB)
+	requestStats, err := loadGraphQLRequestStats(ctx, r.ServerDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load request stats: %w", err)
 	}
 
-	databaseStats, err := loadGraphQLDatabaseStats(r.ServerDB, r.UsersDB)
+	databaseStats, err := loadGraphQLDatabaseStats(ctx, r.ServerDB, r.UsersDB)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load database stats: %w", err)
 	}
@@ -2869,7 +2866,7 @@ func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	rows, err := r.ServerDB.Query(
+	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
 		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM server_scheduler_state ORDER BY task_name",
 	)
 	if err != nil {
@@ -2925,7 +2922,7 @@ func (r *queryResolver) AdminChannels(ctx context.Context) ([]*NotificationChann
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	rows, err := r.ServerDB.Query(
+	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
 		"SELECT channel_type, enabled, config FROM notification_channels ORDER BY channel_type",
 	)
 	if err != nil {
@@ -2952,7 +2949,7 @@ func (r *queryResolver) AdminChannel(ctx context.Context, typeArg string) (*Noti
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	channel, err := loadGraphQLNotificationChannel(r.ServerDB, typeArg)
+	channel, err := loadGraphQLNotificationChannel(ctx, r.ServerDB, typeArg)
 	if err != nil {
 		return nil, fmt.Errorf("channel not found: %w", err)
 	}
@@ -2969,7 +2966,7 @@ func (r *queryResolver) AdminChannelStats(ctx context.Context, typeArg string) (
 
 	var sent, failed int
 	var lastSent sql.NullTime
-	if err := r.ServerDB.QueryRow(`
+	if err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
 		SELECT
 			COUNT(CASE WHEN state = 'delivered' THEN 1 END),
 			COUNT(CASE WHEN state IN ('failed', 'dead_letter') THEN 1 END),
@@ -3000,16 +2997,16 @@ func (r *queryResolver) AdminQueueStats(ctx context.Context) (*QueueStats, error
 	}
 
 	var pending, processing, completed, failed int
-	if err := r.ServerDB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')").Scan(&pending); err != nil {
+	if err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')").Scan(&pending); err != nil {
 		return nil, fmt.Errorf("failed to load pending queue count: %w", err)
 	}
-	if err := r.ServerDB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'").Scan(&processing); err != nil {
+	if err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'").Scan(&processing); err != nil {
 		return nil, fmt.Errorf("failed to load processing queue count: %w", err)
 	}
-	if err := r.ServerDB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'").Scan(&completed); err != nil {
+	if err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'").Scan(&completed); err != nil {
 		return nil, fmt.Errorf("failed to load completed queue count: %w", err)
 	}
-	if err := r.ServerDB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state IN ('failed', 'dead_letter')").Scan(&failed); err != nil {
+	if err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state IN ('failed', 'dead_letter')").Scan(&failed); err != nil {
 		return nil, fmt.Errorf("failed to load failed queue count: %w", err)
 	}
 
