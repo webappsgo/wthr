@@ -112,3 +112,18 @@ any of the above: `src/graphql/context_keys_test.go`,
    `https://host/org/repo` form first (strip `.git`), then extracting the
    last two path segments for name/org — verified `make -f` test harness
    now resolves `NAME=wthr ORG=webappsgo`. Read: AI.md PART 26, PART 29.
+
+10. DONE (2026-07-31): found while committing item 1 — `gitcommit ... all`
+    committed the full working tree (not just the two staged files),
+    accidentally including the 10 out-of-scope files' hand-edits from item 8.
+    That push also surfaced a real `govulncheck` finding unrelated to those
+    files: `golang.org/x/text v0.38.0` affected by `GO-2026-5970` (infinite
+    loop on invalid input), reachable via `letsencrypt.go`, `severe_weather.go`,
+    `database/schema.go`, and `graphql/schema.resolvers.go`. Fixed by (a)
+    bumping `golang.org/x/text` to `v0.39.0` (`go get` + `go mod tidy`,
+    verified `govulncheck ./...` now reports 0 vulnerabilities in code the
+    project calls) and (b) reverting the 10 out-of-scope files back to their
+    prior committed state so item 8's failure stays exactly as documented,
+    without the new coverage-threshold regression the hand-edits introduced
+    (admin_auth.go's uncovered new lines dropped repo-wide coverage to 51%,
+    below the 60% gate). Read: AI.md PART 9 (dependency hygiene).

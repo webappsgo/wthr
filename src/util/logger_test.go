@@ -52,6 +52,16 @@ func TestNewLogger_DebugMode(t *testing.T) {
 	}
 }
 
+func newTestLogger(t *testing.T) *Logger {
+	t.Helper()
+	t.Setenv("MODE", "production")
+	logger, err := NewLogger(filepath.Join(t.TempDir(), "logs"))
+	if err != nil {
+		t.Fatalf("NewLogger: %v", err)
+	}
+	return logger
+}
+
 func readLogFile(t *testing.T, dir, name string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(dir, name))

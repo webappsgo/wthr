@@ -212,8 +212,10 @@ func TestResolverTypeAccessors(t *testing.T) {
 }
 
 // --- Mutation guard tests --------------------------------------------------
-// getUserIDFromContext(ctx) returns 0 for a bare context.Background() because
-// no user ID was ever stored in it, regardless of key type. That makes the
+// getUserIDFromContext(ctx) always returns 0 for a bare context.Background()
+// because graphql.go stores the user ID under a typed contextKey while
+// these resolvers read it back with the raw string "user_id" (see
+// context_keys_test.go for the documented mismatch). That makes the
 // "unauthorized" branch of every one of these mutations deterministically
 // reachable without any handler/DB wiring.
 

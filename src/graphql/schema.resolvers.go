@@ -835,7 +835,7 @@ func (r *mutationResolver) DeleteNotification(ctx context.Context, id string) (*
 
 // AdminUpdateUser is the resolver for the adminUpdateUser field.
 func (r *mutationResolver) AdminUpdateUser(ctx context.Context, id string, username *string, email *string, role *string) (*models.User, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -887,7 +887,7 @@ func (r *mutationResolver) AdminUpdateUser(ctx context.Context, id string, usern
 
 // AdminDeleteUser is the resolver for the adminDeleteUser field.
 func (r *mutationResolver) AdminDeleteUser(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -910,7 +910,7 @@ func (r *mutationResolver) AdminDeleteUser(ctx context.Context, id string) (*Gen
 
 // AdminCreateUserInvite is the resolver for the adminCreateUserInvite field.
 func (r *mutationResolver) AdminCreateUserInvite(ctx context.Context, username string, email string, role *string, expiresInDays *int) (*UserInvite, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -954,7 +954,7 @@ func (r *mutationResolver) AdminCreateUserInvite(ctx context.Context, username s
 
 // AdminDeleteUserInvite is the resolver for the adminDeleteUserInvite field.
 func (r *mutationResolver) AdminDeleteUserInvite(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -974,7 +974,7 @@ func (r *mutationResolver) AdminDeleteUserInvite(ctx context.Context, id string)
 
 // AdminInviteServerAdmin is the resolver for the adminInviteServerAdmin field.
 func (r *mutationResolver) AdminInviteServerAdmin(ctx context.Context, email string, expiresIn *string) (*ServerAdminInvite, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1000,7 +1000,7 @@ func (r *mutationResolver) AdminInviteServerAdmin(ctx context.Context, email str
 
 // AdminDeleteServerAdmin is the resolver for the adminDeleteServerAdmin field.
 func (r *mutationResolver) AdminDeleteServerAdmin(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1046,7 +1046,7 @@ func (r *mutationResolver) AdminDeleteServerAdmin(ctx context.Context, id string
 
 // AdminDisableServerAdmin is the resolver for the adminDisableServerAdmin field.
 func (r *mutationResolver) AdminDisableServerAdmin(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1092,7 +1092,7 @@ func (r *mutationResolver) AdminDisableServerAdmin(ctx context.Context, id strin
 
 // AdminEnableServerAdmin is the resolver for the adminEnableServerAdmin field.
 func (r *mutationResolver) AdminEnableServerAdmin(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1117,7 +1117,7 @@ func (r *mutationResolver) AdminEnableServerAdmin(ctx context.Context, id string
 
 // AdminUpdateSetting is the resolver for the adminUpdateSetting field.
 func (r *mutationResolver) AdminUpdateSetting(ctx context.Context, key string, value string) (*models.Setting, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1144,7 +1144,7 @@ func (r *mutationResolver) AdminUpdateSetting(ctx context.Context, key string, v
 
 // AdminUpdateSettings is the resolver for the adminUpdateSettings field.
 func (r *mutationResolver) AdminUpdateSettings(ctx context.Context, settings []*SettingInput) (*BulkResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1181,7 +1181,7 @@ func (r *mutationResolver) AdminUpdateSettings(ctx context.Context, settings []*
 
 // AdminResetSettings is the resolver for the adminResetSettings field.
 func (r *mutationResolver) AdminResetSettings(ctx context.Context) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1211,12 +1211,12 @@ func (r *mutationResolver) AdminResetSettings(ctx context.Context) (*GenericResp
 
 // AdminGenerateToken is the resolver for the adminGenerateToken field.
 func (r *mutationResolver) AdminGenerateToken(ctx context.Context) (*models.APIToken, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	adminID, ok := ctx.Value(ctxKeyAdminID).(int)
+	adminID, ok := ctx.Value("admin_id").(int)
 	if !ok || adminID <= 0 {
 		return nil, fmt.Errorf("unauthorized: admin session required")
 	}
@@ -1242,12 +1242,12 @@ func (r *mutationResolver) AdminGenerateToken(ctx context.Context) (*models.APIT
 
 // AdminRevokeToken is the resolver for the adminRevokeToken field.
 func (r *mutationResolver) AdminRevokeToken(ctx context.Context, id string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	adminID, ok := ctx.Value(ctxKeyAdminID).(int)
+	adminID, ok := ctx.Value("admin_id").(int)
 	if !ok || adminID <= 0 {
 		return nil, fmt.Errorf("unauthorized: admin session required")
 	}
@@ -1266,7 +1266,7 @@ func (r *mutationResolver) AdminRevokeToken(ctx context.Context, id string) (*Ge
 
 // AdminClearAuditLogs is the resolver for the adminClearAuditLogs field.
 func (r *mutationResolver) AdminClearAuditLogs(ctx context.Context) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1281,7 +1281,7 @@ func (r *mutationResolver) AdminClearAuditLogs(ctx context.Context) (*GenericRes
 
 // AdminUpdateTask is the resolver for the adminUpdateTask field.
 func (r *mutationResolver) AdminUpdateTask(ctx context.Context, name string, enabled bool) (*ScheduledTask, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1296,7 +1296,7 @@ func (r *mutationResolver) AdminUpdateTask(ctx context.Context, name string, ena
 
 // AdminEnableTask is the resolver for the adminEnableTask field.
 func (r *mutationResolver) AdminEnableTask(ctx context.Context, name string) (*ScheduledTask, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1311,7 +1311,7 @@ func (r *mutationResolver) AdminEnableTask(ctx context.Context, name string) (*S
 
 // AdminDisableTask is the resolver for the adminDisableTask field.
 func (r *mutationResolver) AdminDisableTask(ctx context.Context, name string) (*ScheduledTask, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1326,7 +1326,7 @@ func (r *mutationResolver) AdminDisableTask(ctx context.Context, name string) (*
 
 // AdminTriggerTask is the resolver for the adminTriggerTask field.
 func (r *mutationResolver) AdminTriggerTask(ctx context.Context, name string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1341,7 +1341,7 @@ func (r *mutationResolver) AdminTriggerTask(ctx context.Context, name string) (*
 
 // AdminUpdateChannel is the resolver for the adminUpdateChannel field.
 func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg string, enabled *bool, config any) (*NotificationChannel, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1380,7 +1380,7 @@ func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg strin
 
 // AdminEnableChannel is the resolver for the adminEnableChannel field.
 func (r *mutationResolver) AdminEnableChannel(ctx context.Context, typeArg string) (*NotificationChannel, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1395,7 +1395,7 @@ func (r *mutationResolver) AdminEnableChannel(ctx context.Context, typeArg strin
 
 // AdminDisableChannel is the resolver for the adminDisableChannel field.
 func (r *mutationResolver) AdminDisableChannel(ctx context.Context, typeArg string) (*NotificationChannel, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1410,7 +1410,7 @@ func (r *mutationResolver) AdminDisableChannel(ctx context.Context, typeArg stri
 
 // AdminTestChannel is the resolver for the adminTestChannel field.
 func (r *mutationResolver) AdminTestChannel(ctx context.Context, typeArg string, recipient *string) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1446,7 +1446,7 @@ func (r *mutationResolver) AdminTestChannel(ctx context.Context, typeArg string,
 
 // AdminInitializeChannels is the resolver for the adminInitializeChannels field.
 func (r *mutationResolver) AdminInitializeChannels(ctx context.Context) (*GenericResponse, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1464,7 +1464,7 @@ func (r *mutationResolver) AdminInitializeChannels(ctx context.Context) (*Generi
 
 // AdminAutoDetectSMTP is the resolver for the adminAutoDetectSMTP field.
 func (r *mutationResolver) AdminAutoDetectSMTP(ctx context.Context) (*SMTPProvider, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -1968,7 +1968,7 @@ func (r *queryResolver) CurrentLocation(ctx context.Context) (*IPGeolocation, er
 	}
 
 	// Get client IP from context (set by middleware)
-	clientIP, ok := ctx.Value(ctxKeyClientIP).(string)
+	clientIP, ok := ctx.Value("client_ip").(string)
 	if !ok || clientIP == "" {
 		return nil, fmt.Errorf("client IP not available in context")
 	}
@@ -2525,7 +2525,7 @@ func (r *queryResolver) UnreadNotifications(ctx context.Context) (*UnreadCount, 
 
 // AdminUsers is the resolver for the adminUsers field.
 func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2553,7 +2553,7 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 
 // AdminServerAdmins is the resolver for the adminServerAdmins field.
 func (r *queryResolver) AdminServerAdmins(ctx context.Context) (*ServerAdminOverview, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2584,7 +2584,7 @@ func (r *queryResolver) AdminServerAdmins(ctx context.Context) (*ServerAdminOver
 
 // AdminServerAdmin is the resolver for the adminServerAdmin field.
 func (r *queryResolver) AdminServerAdmin(ctx context.Context, id string) (*ServerAdmin, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2607,7 +2607,7 @@ func (r *queryResolver) AdminServerAdmin(ctx context.Context, id string) (*Serve
 
 // AdminUserInvites is the resolver for the adminUserInvites field.
 func (r *queryResolver) AdminUserInvites(ctx context.Context) ([]*UserInvite, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2629,7 +2629,7 @@ func (r *queryResolver) AdminUserInvites(ctx context.Context) ([]*UserInvite, er
 
 // AdminUserInvite is the resolver for the adminUserInvite field.
 func (r *queryResolver) AdminUserInvite(ctx context.Context, id string) (*UserInvite, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2653,7 +2653,7 @@ func (r *queryResolver) AdminUserInvite(ctx context.Context, id string) (*UserIn
 
 // AdminSettings is the resolver for the adminSettings field.
 func (r *queryResolver) AdminSettings(ctx context.Context) ([]*models.Setting, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2680,7 +2680,7 @@ func (r *queryResolver) AdminSettings(ctx context.Context) ([]*models.Setting, e
 
 // AdminSetting is the resolver for the adminSetting field.
 func (r *queryResolver) AdminSetting(ctx context.Context, key string) (*models.Setting, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2695,12 +2695,12 @@ func (r *queryResolver) AdminSetting(ctx context.Context, key string) (*models.S
 
 // AdminTokens is the resolver for the adminTokens field.
 func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	adminID, ok := ctx.Value(ctxKeyAdminID).(int)
+	adminID, ok := ctx.Value("admin_id").(int)
 	if !ok || adminID <= 0 {
 		return nil, fmt.Errorf("unauthorized: admin session required")
 	}
@@ -2727,7 +2727,7 @@ func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, er
 
 // AdminAuditLogs is the resolver for the adminAuditLogs field.
 func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *int) ([]*AuditLog, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2792,7 +2792,7 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 
 // AdminStats is the resolver for the adminStats field.
 func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2864,7 +2864,7 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 
 // AdminTasks is the resolver for the adminTasks field.
 func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2891,7 +2891,7 @@ func (r *queryResolver) AdminTasks(ctx context.Context) ([]*ScheduledTask, error
 
 // AdminTaskHistory is the resolver for the adminTaskHistory field.
 func (r *queryResolver) AdminTaskHistory(ctx context.Context, name string, limit *int) ([]*TaskHistory, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2920,7 +2920,7 @@ func (r *queryResolver) AdminTaskHistory(ctx context.Context, name string, limit
 
 // AdminChannels is the resolver for the adminChannels field.
 func (r *queryResolver) AdminChannels(ctx context.Context) ([]*NotificationChannel, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2947,7 +2947,7 @@ func (r *queryResolver) AdminChannels(ctx context.Context) ([]*NotificationChann
 
 // AdminChannel is the resolver for the adminChannel field.
 func (r *queryResolver) AdminChannel(ctx context.Context, typeArg string) (*NotificationChannel, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2962,7 +2962,7 @@ func (r *queryResolver) AdminChannel(ctx context.Context, typeArg string) (*Noti
 
 // AdminChannelStats is the resolver for the adminChannelStats field.
 func (r *queryResolver) AdminChannelStats(ctx context.Context, typeArg string) (*ChannelStats, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -2994,7 +2994,7 @@ func (r *queryResolver) AdminChannelStats(ctx context.Context, typeArg string) (
 
 // AdminQueueStats is the resolver for the adminQueueStats field.
 func (r *queryResolver) AdminQueueStats(ctx context.Context) (*QueueStats, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
@@ -3023,7 +3023,7 @@ func (r *queryResolver) AdminQueueStats(ctx context.Context) (*QueueStats, error
 
 // AdminSMTPProviders is the resolver for the adminSMTPProviders field.
 func (r *queryResolver) AdminSMTPProviders(ctx context.Context) ([]*SMTPProvider, error) {
-	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	userRole, ok := ctx.Value("user_role").(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}

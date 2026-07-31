@@ -13,6 +13,18 @@ import (
 	utils "github.com/webappsgo/wthr/src/util"
 )
 
+// newTestLogger builds a *utils.Logger writing into a per-test temp
+// directory (t.TempDir(), auto-cleaned by the Go test runner - not the
+// project tree, per PART 29's "runtime/test data never in project dir" rule).
+func newTestLogger(t *testing.T) *utils.Logger {
+	t.Helper()
+	logger, err := utils.NewLogger(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLogger: %v", err)
+	}
+	return logger
+}
+
 // TestAccessLogger_WritesRequestLine verifies AccessLogger produces an
 // access.log entry containing the method, path, and status code for a
 // completed request.
