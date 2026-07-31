@@ -290,7 +290,13 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			}
 		} else {
 			// Verify TOTP code
-			verified, err = utils.VerifyTOTP(user.TwoFactorSecret, req.TwoFactorCode)
+			var secret string
+			secret, err = models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+			if err != nil {
+				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
+				return
+			}
+			verified, err = utils.VerifyTOTP(secret, req.TwoFactorCode)
 			if err != nil {
 				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return

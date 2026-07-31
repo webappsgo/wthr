@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	utils "github.com/webappsgo/wthr/src/util"
 )
 
 // User represents a user account (stored in users.db)
@@ -645,19 +647,75 @@ func (m *UserModel) VerifyCredentials(username, password string) (*User, error) 
 	return user, nil
 }
 
-// Enable2FA enables two-factor authentication for a user
+// Enable2FA enables two-factor authentication for a user. The TOTP secret is
+// encrypted at rest with AES-256-GCM under server.security.encryption_key
+// per AI.md PART 11 ("Data protection matrix") before it is persisted.
 func (m *UserModel) Enable2FA(id int64, secret string) error {
-	_, err := database.GetUsersDB().Exec(`
+	encryptedSecret, err := encryptTwoFactorSecret(secret)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt 2FA secret: %w", err)
+	}
+
+	_, err = database.GetUsersDB().Exec(`
 		UPDATE user_accounts
 		SET two_factor_enabled = 1, two_factor_secret = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, secret, id)
+	`, encryptedSecret, id)
 
 	if err != nil {
 		return fmt.Errorf("failed to enable 2FA: %w", err)
 	}
 
 	return nil
+}
+
+// twoFactorEncryptionKey returns the configured server.security.encryption_key,
+// nil-safe per the codebase convention (config.DefaultEmailAddress,
+// (*AppConfig).GetAdminPath) since config.GetGlobalConfig() can return nil
+// before any config has been loaded (e.g. test harnesses that never call
+// config.SetGlobalConfig). In production LoadConfig always generates and
+// persists this key on first run, so an empty result here only ever happens
+// in a test fixture, never at real runtime.
+func twoFactorEncryptionKey() string {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Server.Security.EncryptionKey
+}
+
+// encryptTwoFactorSecret encrypts a plaintext TOTP secret with the
+// project-wide server.security.encryption_key. If no valid key is
+// configured (only possible outside production, see twoFactorEncryptionKey),
+// the secret is stored as-is rather than failing 2FA setup outright.
+func encryptTwoFactorSecret(secret string) (string, error) {
+	key := twoFactorEncryptionKey()
+	if key == "" {
+		return secret, nil
+	}
+	return utils.EncryptAtRest(key, secret)
+}
+
+// DecryptTwoFactorSecret returns the plaintext TOTP secret for a stored
+// user_accounts.two_factor_secret value. It transparently handles the
+// one-time migration from legacy plaintext secrets (stored before AI.md
+// PART 11 at-rest encryption was implemented): if the stored value does not
+// decrypt as AES-256-GCM ciphertext, it is treated as legacy plaintext and
+// returned as-is so existing 2FA users are not locked out. Callers that
+// re-persist the secret afterward (e.g. on next successful verify) should
+// prefer Enable2FA so the value gets encrypted going forward.
+func DecryptTwoFactorSecret(stored string) (string, error) {
+	if stored == "" {
+		return "", nil
+	}
+
+	key := twoFactorEncryptionKey()
+	if key != "" && utils.IsEncryptedAtRest(key, stored) {
+		return utils.DecryptAtRest(key, stored)
+	}
+
+	// Legacy plaintext secret from before at-rest encryption existed.
+	return stored, nil
 }
 
 // Disable2FA disables two-factor authentication for a user

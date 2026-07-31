@@ -158,7 +158,12 @@ func (h *TwoFactorHandler) verifyCurrentUserTwoFactorCode(user *models.User, cod
 		return fmt.Errorf("two-factor authentication is not enabled")
 	}
 
-	valid, err := utils.VerifyTOTP(user.TwoFactorSecret, code)
+	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+	if err != nil {
+		return fmt.Errorf("invalid verification code")
+	}
+
+	valid, err := utils.VerifyTOTP(secret, code)
 	if err != nil || !valid {
 		return fmt.Errorf("invalid verification code")
 	}
@@ -171,7 +176,12 @@ func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *models.User, 
 		return nil, fmt.Errorf("two-factor authentication is not enabled")
 	}
 
-	valid, err := utils.VerifyTOTP(user.TwoFactorSecret, code)
+	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+	if err != nil {
+		return nil, fmt.Errorf("invalid verification code")
+	}
+
+	valid, err := utils.VerifyTOTP(secret, code)
 	if err != nil || !valid {
 		return nil, fmt.Errorf("invalid verification code")
 	}

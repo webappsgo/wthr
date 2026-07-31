@@ -291,7 +291,12 @@ func LoginAPIUser(db *sql.DB, req *APILoginRequest, clientIP string) (*AuthLogin
 }
 
 func loginWithTwoFactorCode(db *sql.DB, user *models.User, code string, clientIP string) (*AuthLoginResponse, error) {
-	verified, err := utils.VerifyTOTP(user.TwoFactorSecret, code)
+	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+	if err != nil {
+		return nil, fmt.Errorf("invalid two-factor code")
+	}
+
+	verified, err := utils.VerifyTOTP(secret, code)
 	if err != nil || !verified {
 		return nil, fmt.Errorf("invalid two-factor code")
 	}

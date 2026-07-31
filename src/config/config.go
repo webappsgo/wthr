@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	cryptorand "crypto/rand"
+	"encoding/base64"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -89,6 +90,21 @@ type ServerConfig struct {
 	Notifications NotificationConfig `yaml:"notifications"`
 	Tor      TorConfig          `yaml:"tor"`
 	Features FeatureConfig      `yaml:"features"`
+	// Security holds project-level at-rest encryption settings per AI.md PART 11
+	Security SecurityConfig     `yaml:"security"`
+}
+
+// SecurityConfig represents the server-wide at-rest encryption settings per
+// AI.md PART 11 ("Cryptographic Keys" -> "Server Encryption Key"). This key is
+// distinct from the app_secrets table (installation_secret, cookie_signing_key,
+// csrf_token_secret) and is used for AES-256-GCM encryption of 2FA/TOTP
+// secrets, security report bodies, and any future at-rest encrypted data.
+type SecurityConfig struct {
+	// EncryptionKey is a base64-encoded 32-byte AES-256-GCM key, generated
+	// once on first run and persisted; never regenerated once present.
+	EncryptionKey string `yaml:"encryption_key"`
+	// EncryptionKeyVersion increments on manual admin-initiated rotation.
+	EncryptionKeyVersion int `yaml:"encryption_key_version"`
 }
 
 // AdminConfig represents admin panel configuration per AI.md PART 4
@@ -301,6 +317,19 @@ func randomPort() int {
 		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return 64000 + int(binary.BigEndian.Uint32(b[:]))%1000
+}
+
+// generateEncryptionKey returns a base64-encoded 32-byte AES-256-GCM key per
+// AI.md PART 11 ("Cryptographic Keys" -> "Server Encryption Key"). Generated
+// once on first run (or once on upgrade if missing from an existing
+// server.yml) and persisted — never regenerated once present, since a new
+// key would make previously-encrypted at-rest data undecryptable.
+func generateEncryptionKey() string {
+	key := make([]byte, 32)
+	if _, err := cryptorand.Read(key); err != nil {
+		panic("crypto/rand unavailable: " + err.Error())
+	}
+	return base64.StdEncoding.EncodeToString(key)
 }
 
 // getDefaultFQDN returns the default FQDN (hostname) per AI.md PART 4
@@ -536,6 +565,9 @@ func LoadConfig() (*AppConfig, error) {
 				SevereWeather: true,
 				AuditLog:      true,
 			},
+			// AI.md PART 11: left empty here so the load path below can tell
+			// "missing from server.yml" apart from "explicitly present" and
+			// generate-once-and-persist accordingly (see LoadConfig).
 		},
 		Web: WebConfig{
 			UI: UIConfig{
@@ -549,6 +581,13 @@ func LoadConfig() (*AppConfig, error) {
 	configPath := findConfigFile()
 	if configPath == "" {
 // No config file found - create it on first run per AI.md PART 4
+
+		// AI.md PART 11: first run, generate the at-rest encryption key
+		// before persisting the default config to disk.
+		cfg.Server.Security = SecurityConfig{
+			EncryptionKey:        generateEncryptionKey(),
+			EncryptionKeyVersion: 1,
+		}
 
 		configPath = getConfigPath()
 		if err := createDefaultConfig(cfg, configPath); err != nil {
@@ -571,6 +610,25 @@ func LoadConfig() (*AppConfig, error) {
 	decoder.KnownFields(true)
 	if err := decoder.Decode(cfg); err != nil {
 		return cfg, fmt.Errorf("config error: %w (unknown fields are not allowed)", err)
+	}
+
+	// AI.md PART 11: an existing server.yml from before this key existed
+	// (or one with the field blanked) must get a key generated ONCE and
+	// persisted immediately — unlike Port, silently regenerating this value
+	// every restart would make previously-encrypted at-rest data (2FA
+	// secrets, security reports) permanently undecryptable.
+	if cfg.Server.Security.EncryptionKey == "" {
+		cfg.Server.Security.EncryptionKey = generateEncryptionKey()
+		if cfg.Server.Security.EncryptionKeyVersion == 0 {
+			cfg.Server.Security.EncryptionKeyVersion = 1
+		}
+		if err := SaveConfig(cfg); err != nil {
+	// Log error but continue with the in-memory key so the process still
+	// starts; the key will simply be regenerated again next restart until
+	// the underlying write failure (e.g. read-only filesystem) is fixed.
+
+			fmt.Fprintf(os.Stderr, "Warning: Could not persist generated encryption key: %v\n", err)
+		}
 	}
 
 	return cfg, nil
