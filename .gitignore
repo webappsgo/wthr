@@ -113,6 +113,10 @@ releases/
 # Test output
 coverage.out
 *.coverprofile
+.coverage*.out
+.test_run.log
+/*.out
+/*.log
 
 # IDE
 .idea/
