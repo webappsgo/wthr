@@ -218,7 +218,7 @@ test:
 		COVDIR=\$$(mktemp -d \"/tmp/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX\") && \
 		go mod download && \
 		go test -v -cover -coverprofile=\$$COVDIR/coverage.out ./... && \
-		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.out | grep total | awk '{print \$$3}' | sed 's/%//') && \
+		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.out | awk '/^total:/{print \$$3}' | sed 's/%//') && \
 		echo \"Coverage: \$$COVERAGE%\" && \
 		if [ \$$(echo \"\$$COVERAGE < 80\" | bc -l) -eq 1 ]; then \
 			echo \"ERROR: Coverage is \$$COVERAGE%, must be >= 80%\"; exit 1; \

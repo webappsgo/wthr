@@ -41,19 +41,17 @@ before starting each item — do not rely on memory.
    from spec. Removed `-it` from `GO_DOCKER` in `Makefile` line 42 to match.
    `make dev`/`make test` now work without a TTY.
 
-5. `make test`'s 80%-coverage gate (Makefile lines 213-226) is broken and
-   found while verifying item 4: `go tool cover -func` prints one `total:`
-   line per `go test` invocation across the run, so
-   `awk '{print $3}' | ... total ...` captures multiple `0.0`/percentage
-   values instead of a single number; `$COVERAGE` becomes multi-line, the
-   `[ $(echo "$COVERAGE < 80" | bc -l) -eq 1 ]` check fails with
-   `too many arguments`, and the gate silently no-ops (exits 0) instead of
-   failing the build — confirmed live: actual coverage was 25.8%
-   (well under the required 80%) but `make test` still exited 0. Fix the
-   coverage extraction (e.g. run `go tool cover -func` once against the
-   merged `$COVDIR/coverage.out` and take only the final `total:` line, or
-   `grep -c` guard against multiple matches) so the gate actually enforces
-   80%. Read: AI.md PART 26, PART 29-31 (testing requirements).
+5. DONE (2026-07-30): `make test`'s 80%-coverage gate (Makefile lines
+   213-226) was broken: `go tool cover -func` prints one `total:` line per
+   `go test` invocation across the run, so `grep total | awk '{print $3}'`
+   captured multiple values instead of a single number; `$COVERAGE` became
+   multi-line, the `bc -l` check failed with `too many arguments`, and the
+   gate silently no-oped (exited 0) instead of failing the build. Fixed by
+   anchoring the awk match to `/^total:/` so only the final merged `total:`
+   line from `$COVDIR/coverage.out` is captured. Verified live via
+   `make test`: gate now correctly fails the build with
+   `ERROR: Coverage is 25.9%, must be >= 80%` (exit 1) instead of silently
+   passing. Read: AI.md PART 26, PART 29-31 (testing requirements).
 
 6. `go-lint` flagged `Makefile` line 35: `GO_BUILD` is not project-scoped —
    must be `$(HOME)/.cache/go-build/$(PROJECTNAME)`, currently
