@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -73,30 +74,31 @@ func initServerDB(path string) (*sql.DB, error) {
 	db.SetMaxIdleConns(5)
 
 	// Test connection
-	if err := db.Ping(); err != nil {
+	if err := PingWithTimeout(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to connect to server database: %w", err)
 	}
 
 	// Enable SQLite optimizations
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
-	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Create server schema
-	if _, err := db.Exec(ServerSchema); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, ServerSchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to create server schema: %w", err)
 	}
 
 	// Check and initialize schema version
 	var currentVersion int
-	err = db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
+	err = QueryRowContext(context.Background(), db, TimeoutSimpleSelect, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to check schema version: %w", err)
@@ -104,7 +106,7 @@ func initServerDB(path string) (*sql.DB, error) {
 
 	if currentVersion == 0 {
 		// New database - insert schema version
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", ServerSchemaVersion); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", ServerSchemaVersion); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("failed to insert schema version: %w", err)
 		}
@@ -127,30 +129,31 @@ func initUsersDB(path string) (*sql.DB, error) {
 	db.SetMaxIdleConns(5)
 
 	// Test connection
-	if err := db.Ping(); err != nil {
+	if err := PingWithTimeout(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to connect to users database: %w", err)
 	}
 
 	// Enable SQLite optimizations
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
-	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Create users schema
-	if _, err := db.Exec(UsersSchema); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, UsersSchema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to create users schema: %w", err)
 	}
 
 	// Check and initialize schema version
 	var currentVersion int
-	err = db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
+	err = QueryRowContext(context.Background(), db, TimeoutSimpleSelect, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to check schema version: %w", err)
@@ -158,7 +161,7 @@ func initUsersDB(path string) (*sql.DB, error) {
 
 	if currentVersion == 0 {
 		// New database - insert schema version
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", UsersSchemaVersion); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", UsersSchemaVersion); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("failed to insert schema version: %w", err)
 		}
@@ -169,7 +172,7 @@ func initUsersDB(path string) (*sql.DB, error) {
 			db.Close()
 			return nil, fmt.Errorf("failed to migrate users database: %w", err)
 		}
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", UsersSchemaVersion); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", UsersSchemaVersion); err != nil {
 			db.Close()
 			return nil, fmt.Errorf("failed to update users schema version: %w", err)
 		}
@@ -182,10 +185,13 @@ func initUsersDB(path string) (*sql.DB, error) {
 // migrateUsersDB applies idempotent schema migrations for the users database.
 // Each migration is safe to run on databases that already have the column.
 func migrateUsersDB(db *sql.DB, fromVersion int) error {
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+	ctx := context.Background()
+
 	// v6: add data column to user_sessions for 2FA pending state storage
 	if fromVersion < 6 {
 		// SQLite: ignore "duplicate column" error — idempotent
-		if _, err := db.Exec("ALTER TABLE user_sessions ADD COLUMN data TEXT"); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutMigration, "ALTER TABLE user_sessions ADD COLUMN data TEXT"); err != nil {
 			if !strings.Contains(err.Error(), "duplicate column") {
 				return fmt.Errorf("add user_sessions.data: %w", err)
 			}
@@ -198,22 +204,22 @@ func migrateUsersDB(db *sql.DB, fromVersion int) error {
 	// again. This is acceptable for a security fix (raw→hashed storage).
 	if fromVersion < 7 {
 		// Invalidate all old sessions first so no raw-token rows remain.
-		if _, err := db.Exec("DELETE FROM user_sessions"); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutMigration, "DELETE FROM user_sessions"); err != nil {
 			return fmt.Errorf("clear user_sessions for v7 migration: %w", err)
 		}
 		// RENAME COLUMN requires SQLite ≥3.25 (2018); modernc.org/sqlite always satisfies this.
-		if _, err := db.Exec("ALTER TABLE user_sessions RENAME COLUMN session_id TO token_hash"); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutMigration, "ALTER TABLE user_sessions RENAME COLUMN session_id TO token_hash"); err != nil {
 			// If the column is already named token_hash (already migrated or new DB), ignore.
 			if !strings.Contains(err.Error(), "no such column") && !strings.Contains(err.Error(), "duplicate column") {
 				return fmt.Errorf("rename user_sessions.session_id to token_hash: %w", err)
 			}
 		}
 		// Add a unique index on the new column name if it doesn't already exist.
-		if _, err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_hash ON user_sessions(token_hash)"); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutMigration, "CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_hash ON user_sessions(token_hash)"); err != nil {
 			return fmt.Errorf("create idx_sessions_hash: %w", err)
 		}
 		// Drop the old index if it was named for session_id.
-		if _, err := db.Exec("DROP INDEX IF EXISTS idx_sessions_id"); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutMigration, "DROP INDEX IF EXISTS idx_sessions_id"); err != nil {
 			return fmt.Errorf("drop idx_sessions_id: %w", err)
 		}
 	}
@@ -248,12 +254,12 @@ func (ddb *DualDB) HealthCheck() (string, int64, error) {
 	start := time.Now()
 
 	// Check server database
-	if err := ddb.Server.Ping(); err != nil {
+	if err := PingWithTimeout(ddb.Server); err != nil {
 		return "error", 0, fmt.Errorf("server database unhealthy: %w", err)
 	}
 
 	// Check users database
-	if err := ddb.Users.Ping(); err != nil {
+	if err := PingWithTimeout(ddb.Users); err != nil {
 		return "error", 0, fmt.Errorf("users database unhealthy: %w", err)
 	}
 
@@ -271,32 +277,39 @@ func (ddb *DualDB) GetUsersDB() *sql.DB {
 	return ddb.Users
 }
 
-// QueryServer executes a query on the server database
+// QueryServer executes a query on the server database.
+// AI.md PART 10: callers pass arbitrary SELECTs (including JOINs), so the
+// Complex Select timeout tier (15s) is used here.
 func (ddb *DualDB) QueryServer(query string, args ...interface{}) (*sql.Rows, error) {
-	return ddb.Server.Query(query, args...)
+	return QueryContext(context.Background(), ddb.Server, TimeoutComplexSelect, query, args...)
 }
 
-// QueryRowServer executes a query on the server database and returns a single row
+// QueryRowServer executes a query on the server database and returns a single
+// row. AI.md PART 10: Simple Select timeout tier (5s).
 func (ddb *DualDB) QueryRowServer(query string, args ...interface{}) *sql.Row {
-	return ddb.Server.QueryRow(query, args...)
+	return QueryRowContext(context.Background(), ddb.Server, TimeoutSimpleSelect, query, args...)
 }
 
-// ExecServer executes a statement on the server database
+// ExecServer executes a statement on the server database.
+// AI.md PART 10: Write timeout tier (10s).
 func (ddb *DualDB) ExecServer(query string, args ...interface{}) (sql.Result, error) {
-	return ddb.Server.Exec(query, args...)
+	return ExecContext(context.Background(), ddb.Server, TimeoutWrite, query, args...)
 }
 
-// QueryUsers executes a query on the users database
+// QueryUsers executes a query on the users database.
+// AI.md PART 10: Complex Select timeout tier (15s).
 func (ddb *DualDB) QueryUsers(query string, args ...interface{}) (*sql.Rows, error) {
-	return ddb.Users.Query(query, args...)
+	return QueryContext(context.Background(), ddb.Users, TimeoutComplexSelect, query, args...)
 }
 
-// QueryRowUsers executes a query on the users database and returns a single row
+// QueryRowUsers executes a query on the users database and returns a single
+// row. AI.md PART 10: Simple Select timeout tier (5s).
 func (ddb *DualDB) QueryRowUsers(query string, args ...interface{}) *sql.Row {
-	return ddb.Users.QueryRow(query, args...)
+	return QueryRowContext(context.Background(), ddb.Users, TimeoutSimpleSelect, query, args...)
 }
 
-// ExecUsers executes a statement on the users database
+// ExecUsers executes a statement on the users database.
+// AI.md PART 10: Write timeout tier (10s).
 func (ddb *DualDB) ExecUsers(query string, args ...interface{}) (sql.Result, error) {
-	return ddb.Users.Exec(query, args...)
+	return ExecContext(context.Background(), ddb.Users, TimeoutWrite, query, args...)
 }

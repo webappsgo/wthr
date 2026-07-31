@@ -267,3 +267,13 @@ any of the above: `src/graphql/context_keys_test.go`,
     package-by-package with the two-phase testing strategy (PART 29).
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
+
+17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass):
+    `src/database/failover.go` lines 154-268 use emoji (⚠️/📝/✅) in
+    `log.Printf` log-output lines — pre-existing, not introduced by item 12's
+    context-timeout conversion; out of scope for that pass since it's a
+    logging-format issue, not a query-timeout issue. Log output must be raw
+    plain text with no emoji/color per the API/logging rules (banners/console
+    may use them, log lines may not). Fix: replace the emoji prefixes with
+    plain-text equivalents (e.g. "WARNING:", "INFO:", "OK:"). Read: AI.md
+    PART 14 (log output plain-text rule).

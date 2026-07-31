@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -88,36 +89,37 @@ func InitDBWithConfig(config *DatabaseConfig) (*DB, error) {
 	}
 
 	// Enable SQLite-specific optimizations
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
 	if driver == "sqlite" {
-		if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
 			return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 		}
-		if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
 			return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 		}
 	}
 
 	// Create schema
-	if _, err := db.Exec(Schema); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, Schema); err != nil {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	// Check and apply migrations
 	var currentVersion int
-	err = db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
+	err = QueryRowContext(context.Background(), db, TimeoutSimpleSelect, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check schema version: %w", err)
 	}
 
 	if currentVersion == 0 {
 		// New database - insert schema version and defaults
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", SchemaVersion); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", SchemaVersion); err != nil {
 			return nil, fmt.Errorf("failed to insert schema version: %w", err)
 		}
 
 		// Insert default settings
 		for key, value := range DefaultSettings {
-			_, err := db.Exec(`
+			_, err := ExecContext(context.Background(), db, TimeoutMigration, `
 				INSERT INTO settings (key, value) VALUES (?, ?)
 				ON CONFLICT(key) DO NOTHING
 			`, key, value)

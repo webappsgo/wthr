@@ -60,45 +60,51 @@ func (fm *FailoverManager) GetLastError() (time.Time, error) {
 	return fm.lastErrorAt, fm.lastError
 }
 
-// Query executes a SELECT query (reads from cache if in read-only mode)
+// Query executes a SELECT query (reads from cache if in read-only mode).
+// AI.md PART 10: callers pass arbitrary SELECTs (including JOINs), so the
+// Complex Select timeout tier (15s) is used here.
 func (fm *FailoverManager) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	fm.mu.RLock()
 	readOnly := fm.readOnly
 	fm.mu.RUnlock()
 
+	ctx := context.Background()
 	if readOnly {
 		// Use cache DB for reads
-		return fm.cacheDB.Query(query, args...)
+		return QueryContext(ctx, fm.cacheDB, TimeoutComplexSelect, query, args...)
 	}
 
 	// Try primary DB
-	rows, err := fm.primaryDB.Query(query, args...)
+	rows, err := QueryContext(ctx, fm.primaryDB, TimeoutComplexSelect, query, args...)
 	if err != nil {
 		// Primary DB failed, switch to read-only mode
 		fm.handlePrimaryFailure(err)
 		// Fallback to cache
-		return fm.cacheDB.Query(query, args...)
+		return QueryContext(ctx, fm.cacheDB, TimeoutComplexSelect, query, args...)
 	}
 
 	return rows, nil
 }
 
-// QueryRow executes a single-row query (reads from cache if in read-only mode)
+// QueryRow executes a single-row query (reads from cache if in read-only mode).
+// AI.md PART 10: Simple Select timeout tier (5s).
 func (fm *FailoverManager) QueryRow(query string, args ...interface{}) *sql.Row {
 	fm.mu.RLock()
 	readOnly := fm.readOnly
 	fm.mu.RUnlock()
 
+	ctx := context.Background()
 	if readOnly {
 		// Use cache DB for reads
-		return fm.cacheDB.QueryRow(query, args...)
+		return QueryRowContext(ctx, fm.cacheDB, TimeoutSimpleSelect, query, args...)
 	}
 
 	// Use primary DB
-	return fm.primaryDB.QueryRow(query, args...)
+	return QueryRowContext(ctx, fm.primaryDB, TimeoutSimpleSelect, query, args...)
 }
 
-// Exec executes a write query (queues if in read-only mode)
+// Exec executes a write query (queues if in read-only mode).
+// AI.md PART 10: Write timeout tier (10s).
 func (fm *FailoverManager) Exec(query string, args ...interface{}) (sql.Result, error) {
 	fm.mu.RLock()
 	readOnly := fm.readOnly
@@ -111,7 +117,7 @@ func (fm *FailoverManager) Exec(query string, args ...interface{}) (sql.Result, 
 	}
 
 	// Try primary DB
-	result, err := fm.primaryDB.Exec(query, args...)
+	result, err := ExecContext(context.Background(), fm.primaryDB, TimeoutWrite, query, args...)
 	if err != nil {
 		// Primary DB failed, queue write and switch to read-only
 		fm.handlePrimaryFailure(err)
@@ -189,7 +195,8 @@ func (fm *FailoverManager) attemptRecovery() {
 	fm.mu.RUnlock()
 
 	// Test connection with a simple query
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// AI.md PART 10: Simple Select timeout tier (5s)
+	ctx, cancel := context.WithTimeout(context.Background(), TimeoutSimpleSelect)
 	defer cancel()
 
 	err := fm.primaryDB.PingContext(ctx)
@@ -244,7 +251,7 @@ func (fm *FailoverManager) replayWrites() {
 	failCount := 0
 
 	for _, write := range queue {
-		_, err := fm.primaryDB.Exec(write.Query, write.Args...)
+		_, err := ExecContext(context.Background(), fm.primaryDB, TimeoutWrite, write.Query, write.Args...)
 		if err != nil {
 			log.Printf("⚠️  Failed to replay write from %s: %v", write.Timestamp.Format(time.RFC3339), err)
 			failCount++

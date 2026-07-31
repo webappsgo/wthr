@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -439,7 +440,8 @@ func runMigrations(db *sql.DB, fromVersion, toVersion int) error {
 		}
 
 		// Update schema version
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", v); err != nil {
+		// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", v); err != nil {
 			return fmt.Errorf("failed to update schema version to %d: %w", v, err)
 		}
 
@@ -451,18 +453,22 @@ func runMigrations(db *sql.DB, fromVersion, toVersion int) error {
 
 // migrateToV2 adds username and phone fields to users table
 func migrateToV2(db *sql.DB) error {
+	ctx := context.Background()
+
 	// Add username column (will be populated with email prefix initially)
-	if _, err := db.Exec("ALTER TABLE users ADD COLUMN username TEXT"); err != nil {
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+	if _, err := ExecContext(ctx, db, TimeoutMigration, "ALTER TABLE users ADD COLUMN username TEXT"); err != nil {
 		return fmt.Errorf("failed to add username column: %w", err)
 	}
 
 	// Add phone column (nullable)
-	if _, err := db.Exec("ALTER TABLE users ADD COLUMN phone TEXT"); err != nil {
+	if _, err := ExecContext(ctx, db, TimeoutMigration, "ALTER TABLE users ADD COLUMN phone TEXT"); err != nil {
 		return fmt.Errorf("failed to add phone column: %w", err)
 	}
 
 	// Populate username from email (take part before @, add random suffix if needed for uniqueness)
-	rows, err := db.Query("SELECT id, email FROM users")
+	// AI.md PART 10: bulk-style read over the whole users table
+	rows, err := QueryContext(ctx, db, TimeoutBulk, "SELECT id, email FROM users")
 	if err != nil {
 		return fmt.Errorf("failed to query users: %w", err)
 	}
@@ -493,28 +499,32 @@ func migrateToV2(db *sql.DB) error {
 
 		// Check if username exists
 		var count int
-		db.QueryRow("SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
+		QueryRowContext(ctx, db, TimeoutSimpleSelect, "SELECT COUNT(*) FROM users WHERE username = ?", username).Scan(&count)
 		if count > 0 {
 			// Append user ID to make it unique
 			username = fmt.Sprintf("%s_%d", username, id)
 		}
 
 		// Update username
-		if _, err := db.Exec("UPDATE users SET username = ? WHERE id = ?", username, id); err != nil {
+		if _, err := ExecContext(ctx, db, TimeoutWrite, "UPDATE users SET username = ? WHERE id = ?", username, id); err != nil {
 			return fmt.Errorf("failed to update username for user %d: %w", id, err)
 		}
 	}
 
 	// Now make username column NOT NULL and UNIQUE
 	// SQLite doesn't support ALTER COLUMN, so we need to recreate the table
-	tx, err := db.Begin()
+	// AI.md PART 10: whole-transaction migration work gets the Migration timeout tier (5m)
+	txCtx, txCancel := context.WithTimeout(context.Background(), TimeoutMigration)
+	defer txCancel()
+
+	tx, err := db.BeginTx(txCtx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	// Create new users table with constraints
-	_, err = tx.Exec(`
+	_, err = tx.ExecContext(txCtx, `
 		CREATE TABLE users_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			username TEXT UNIQUE NOT NULL,
@@ -532,7 +542,7 @@ func migrateToV2(db *sql.DB) error {
 	}
 
 	// Copy data
-	_, err = tx.Exec(`
+	_, err = tx.ExecContext(txCtx, `
 		INSERT INTO users_new (id, username, email, phone, display_name, password_hash, role, created_at, updated_at)
 		SELECT id, username, email, phone,
 			CASE WHEN EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name='display_name')
@@ -546,32 +556,32 @@ func migrateToV2(db *sql.DB) error {
 	}
 
 	// Drop old table
-	if _, err = tx.Exec("DROP TABLE users"); err != nil {
+	if _, err = tx.ExecContext(txCtx, "DROP TABLE users"); err != nil {
 		return fmt.Errorf("failed to drop old users table: %w", err)
 	}
 
 	// Rename new table
-	if _, err = tx.Exec("ALTER TABLE users_new RENAME TO users"); err != nil {
+	if _, err = tx.ExecContext(txCtx, "ALTER TABLE users_new RENAME TO users"); err != nil {
 		return fmt.Errorf("failed to rename users table: %w", err)
 	}
 
 	// Recreate indexes
-	_, err = tx.Exec("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+	_, err = tx.ExecContext(txCtx, "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
 	if err != nil {
 		return fmt.Errorf("failed to create username index: %w", err)
 	}
 
-	_, err = tx.Exec("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+	_, err = tx.ExecContext(txCtx, "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
 	if err != nil {
 		return fmt.Errorf("failed to create email index: %w", err)
 	}
 
-	_, err = tx.Exec("CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
+	_, err = tx.ExecContext(txCtx, "CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
 	if err != nil {
 		return fmt.Errorf("failed to create phone index: %w", err)
 	}
 
-	_, err = tx.Exec("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+	_, err = tx.ExecContext(txCtx, "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
 	if err != nil {
 		return fmt.Errorf("failed to create role index: %w", err)
 	}
@@ -591,36 +601,37 @@ func InitDB(dbPath string) (*DB, error) {
 	}
 
 	// Enable foreign keys
-	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+	// AI.md PART 10: schema/DDL statements use the Migration timeout tier (5m)
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA foreign_keys = ON"); err != nil {
 		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
 	// Enable WAL mode for better concurrency
-	if _, err := db.Exec("PRAGMA journal_mode = WAL"); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, "PRAGMA journal_mode = WAL"); err != nil {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Create schema
-	if _, err := db.Exec(Schema); err != nil {
+	if _, err := ExecContext(context.Background(), db, TimeoutMigration, Schema); err != nil {
 		return nil, fmt.Errorf("failed to create schema: %w", err)
 	}
 
 	// Check schema version
 	var currentVersion int
-	err = db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
+	err = QueryRowContext(context.Background(), db, TimeoutSimpleSelect, "SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&currentVersion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check schema version: %w", err)
 	}
 
 	// Insert schema version if new database
 	if currentVersion == 0 {
-		if _, err := db.Exec("INSERT INTO schema_version (version) VALUES (?)", SchemaVersion); err != nil {
+		if _, err := ExecContext(context.Background(), db, TimeoutMigration, "INSERT INTO schema_version (version) VALUES (?)", SchemaVersion); err != nil {
 			return nil, fmt.Errorf("failed to insert schema version: %w", err)
 		}
 
 		// Insert default settings
 		for key, value := range DefaultSettings {
-			_, err := db.Exec(`
+			_, err := ExecContext(context.Background(), db, TimeoutMigration, `
 				INSERT INTO settings (key, value) VALUES (?, ?)
 				ON CONFLICT(key) DO NOTHING
 			`, key, value)
@@ -658,7 +669,7 @@ func (db *DB) IsFirstRun() (bool, error) {
 	}
 
 	var count int
-	err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+	err := QueryRowContext(context.Background(), serverDB, TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -668,13 +679,13 @@ func (db *DB) IsFirstRun() (bool, error) {
 // GetSetting retrieves a setting value
 func (db *DB) GetSetting(key string) (string, error) {
 	var value string
-	err := db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
+	err := QueryRowContext(context.Background(), db.DB, TimeoutSimpleSelect, "SELECT value FROM settings WHERE key = ?", key).Scan(&value)
 	return value, err
 }
 
 // SetSetting updates or inserts a setting
 func (db *DB) SetSetting(key, value string) error {
-	_, err := db.Exec(`
+	_, err := ExecContext(context.Background(), db.DB, TimeoutWrite, `
 		INSERT INTO settings (key, value, updated_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -684,20 +695,20 @@ func (db *DB) SetSetting(key, value string) error {
 
 // CleanupExpiredSessions removes expired sessions
 func (db *DB) CleanupExpiredSessions() error {
-	_, err := db.Exec("DELETE FROM sessions WHERE expires_at < ?", time.Now())
+	_, err := ExecContext(context.Background(), db.DB, TimeoutBulk, "DELETE FROM sessions WHERE expires_at < ?", time.Now())
 	return err
 }
 
 // CleanupExpiredAlerts removes expired alerts
 func (db *DB) CleanupExpiredAlerts() error {
-	_, err := db.Exec("DELETE FROM weather_alerts WHERE expires_at IS NOT NULL AND expires_at < ?", time.Now())
+	_, err := ExecContext(context.Background(), db.DB, TimeoutBulk, "DELETE FROM weather_alerts WHERE expires_at IS NOT NULL AND expires_at < ?", time.Now())
 	return err
 }
 
 // CleanupOldAuditLogs removes audit logs older than retention period
 func (db *DB) CleanupOldAuditLogs(retentionDays int) error {
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
-	_, err := db.Exec("DELETE FROM audit_log WHERE created_at < ?", cutoff)
+	_, err := ExecContext(context.Background(), db.DB, TimeoutBulk, "DELETE FROM audit_log WHERE created_at < ?", cutoff)
 	return err
 }
 
@@ -705,7 +716,7 @@ func (db *DB) CleanupOldAuditLogs(retentionDays int) error {
 func (db *DB) CleanupRateLimits() error {
 	// Remove entries older than 2 hours
 	cutoff := time.Now().Add(-2 * time.Hour)
-	_, err := db.Exec("DELETE FROM rate_limits WHERE window_start < ?", cutoff)
+	_, err := ExecContext(context.Background(), db.DB, TimeoutBulk, "DELETE FROM rate_limits WHERE window_start < ?", cutoff)
 	return err
 }
 
@@ -715,7 +726,7 @@ func (db *DB) HealthCheck() (status string, latencyMs int64, err error) {
 
 	// Simple query to check connection
 	var result int
-	err = db.QueryRow("SELECT 1").Scan(&result)
+	err = QueryRowContext(context.Background(), db.DB, TimeoutSimpleSelect, "SELECT 1").Scan(&result)
 
 	latencyMs = time.Since(start).Milliseconds()
 
@@ -729,6 +740,6 @@ func (db *DB) HealthCheck() (status string, latencyMs int64, err error) {
 // GetSessionCount returns active session count
 func (db *DB) GetSessionCount() (int, error) {
 	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM sessions WHERE expires_at > ?", time.Now()).Scan(&count)
+	err := QueryRowContext(context.Background(), db.DB, TimeoutSimpleSelect, "SELECT COUNT(*) FROM sessions WHERE expires_at > ?", time.Now()).Scan(&count)
 	return count, err
 }

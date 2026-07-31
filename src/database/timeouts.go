@@ -59,10 +59,13 @@ func ApplyPoolConfig(db *sql.DB, cfg PoolConfig) {
 	db.SetConnMaxIdleTime(cfg.MaxIdleTime)
 }
 
-// QueryRowContext executes a query with timeout and returns a single row
+// QueryRowContext executes a query with timeout and returns a single row.
+// The row is scanned lazily by the caller (Row.Scan), so cancel must NOT run
+// before this function returns (that would cancel the query before Scan
+// executes) — release the context once the timeout itself elapses instead.
 func QueryRowContext(ctx context.Context, db *sql.DB, timeout time.Duration, query string, args ...interface{}) *sql.Row {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	time.AfterFunc(timeout, cancel)
 	return db.QueryRowContext(ctx, query, args...)
 }
 
