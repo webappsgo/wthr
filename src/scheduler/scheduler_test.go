@@ -454,12 +454,12 @@ func weatherWith(temp, wind, precip float64, code int) struct {
 
 func TestCheckAndCreateAlerts(t *testing.T) {
 	tests := []struct {
-		name  string
-		temp  float64
-		wind  float64
+		name   string
+		temp   float64
+		wind   float64
 		precip float64
-		code  int
-		want  int
+		code   int
+		want   int
 	}{
 		{"calm weather, no alerts", 70, 5, 0, 1, 0},
 		{"exactly freezing (32F) is not below threshold", 32, 0, 0, 0, 0},

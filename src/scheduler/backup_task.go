@@ -28,17 +28,17 @@ func BackupTask(configDir, dataDir string) func() error {
 		// - templates/ (if exists)
 		// - themes/ (if exists)
 		opts := backup.BackupOptions{
-			ConfigDir:   configDir,
-			DataDir:     dataDir,
+			ConfigDir: configDir,
+			DataDir:   dataDir,
 			// Auto-generate filename
-			OutputPath:  "",
+			OutputPath: "",
 			// Encryption disabled for automated backups
 			Password:    "",
 			IncludeSSL:  false,
 			IncludeData: false,
 			CreatedBy:   "scheduler",
 			// Version set at build time
-			AppVersion:  "1.0.0",
+			AppVersion: "1.0.0",
 		}
 
 		backupPath, err := svc.Create(opts)

@@ -20,7 +20,6 @@ import (
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
-	"github.com/robfig/cron/v3"
 )
 
 // Task represents a scheduled task
@@ -29,7 +28,8 @@ type Task struct {
 	Name     string
 	Schedule string // Cron expression: "0 2 * * *", "@hourly", "@every 5m"
 	Fn       func() error
-	entryID  cron.EntryID
+	schedule Schedule
+	nextRun  time.Time
 	// Can be toggled on/off
 	enabled bool
 	// Last execution time
@@ -52,17 +52,27 @@ var globalTasks = map[string]bool{
 // LockTimeout is how long a lock is valid before auto-release (5 minutes per AI.md)
 const LockTimeout = 5 * time.Minute
 
-// Scheduler manages scheduled tasks using robfig/cron
+// tickInterval is how often the scheduler loop wakes up to check for due
+// tasks. AI.md PART 19: "Use Go's time/ticker - No external cron libraries
+// required" - one second gives sub-minute schedules (e.g. "@every 30s") the
+// precision they need while staying cheap to poll.
+const tickInterval = 1 * time.Second
+
+// Scheduler manages scheduled tasks using a built-in time.Ticker loop
 // AI.md PART 19: Built-in scheduler with cron expression support
 type Scheduler struct {
-	cron   *cron.Cron
-	tasks  map[string]*Task
-	db     *sql.DB
-	nodeID string
-	mu     sync.RWMutex
+	ticker  *time.Ticker
+	stopCh  chan struct{}
+	stopped chan struct{}
+	tasks   map[string]*Task
+	db      *sql.DB
+	nodeID  string
+	mu      sync.RWMutex
+	running bool
 }
 
-// NewScheduler creates a new scheduler instance with robfig/cron
+// NewScheduler creates a new scheduler instance backed by a built-in
+// time.Ticker loop instead of an external cron library.
 func NewScheduler(db *sql.DB) *Scheduler {
 	// Get node ID from hostname
 	nodeID, err := getNodeID()
@@ -70,14 +80,7 @@ func NewScheduler(db *sql.DB) *Scheduler {
 		nodeID = "default"
 	}
 
-	// Create cron instance with seconds optional (standard cron format)
-	// AI.md PART 19: Support "0 2 * * *", "@hourly", "@every 5m" formats
-	c := cron.New(cron.WithParser(cron.NewParser(
-		cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-	)))
-
 	return &Scheduler{
-		cron:   c,
 		tasks:  make(map[string]*Task),
 		db:     db,
 		nodeID: nodeID,
@@ -99,57 +102,104 @@ func (s *Scheduler) AddTask(name string, schedule string, fn func() error) error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	task := &Task{
-		Name:     name,
-		Schedule: schedule,
-		Fn:       fn,
-		enabled:  true,
-		lastRun:  nil,
-	}
-
-	// Wrap the task function with our execution logic
-	wrappedFn := func() {
-		s.executeTask(task)
-	}
-
-	// Add to cron scheduler
-	entryID, err := s.cron.AddFunc(schedule, wrappedFn)
+	parsed, err := parseSchedule(schedule)
 	if err != nil {
 		return fmt.Errorf("failed to add task '%s' with schedule '%s': %w", name, schedule, err)
 	}
 
-	task.entryID = entryID
+	task := &Task{
+		Name:     name,
+		Schedule: schedule,
+		Fn:       fn,
+		schedule: parsed,
+		nextRun:  parsed.Next(time.Now()),
+		enabled:  true,
+		lastRun:  nil,
+	}
+
 	s.tasks[name] = task
 
 	return nil
 }
 
 // AddTaskInterval adds a task with a time.Duration interval (convenience method)
-// Converts to @every format for robfig/cron
+// Converts to @every format for the built-in scheduler
 func (s *Scheduler) AddTaskInterval(name string, interval time.Duration, fn func() error) error {
 	schedule := fmt.Sprintf("@every %s", interval.String())
 	return s.AddTask(name, schedule, fn)
 }
 
-// Start starts the cron scheduler
+// Start starts the scheduler's ticker loop
+// AI.md PART 19: "Use Go's time/ticker - No external cron libraries required"
 func (s *Scheduler) Start() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	if s.running {
+		s.mu.Unlock()
+		return
+	}
+	s.ticker = time.NewTicker(tickInterval)
+	s.stopCh = make(chan struct{})
+	s.stopped = make(chan struct{})
+	s.running = true
+	taskCount := len(s.tasks)
+	s.mu.Unlock()
 
-	s.cron.Start()
+	go s.run()
 
-	log.Printf("📅 Task manager has started (%d scheduled tasks)", len(s.tasks))
+	log.Printf("📅 Task manager has started (%d scheduled tasks)", taskCount)
 }
 
-// Stop stops the cron scheduler
+// run is the scheduler's main loop, driven by a time.Ticker.
+func (s *Scheduler) run() {
+	defer close(s.stopped)
+
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case now := <-s.ticker.C:
+			s.runDueTasks(now)
+		}
+	}
+}
+
+// runDueTasks executes (asynchronously) every task whose nextRun has passed,
+// and advances each executed task's nextRun using its Schedule.
+func (s *Scheduler) runDueTasks(now time.Time) {
+	s.mu.RLock()
+	due := make([]*Task, 0)
+	for _, task := range s.tasks {
+		task.mu.Lock()
+		if task.enabled && !task.nextRun.IsZero() && !now.Before(task.nextRun) {
+			task.nextRun = task.schedule.Next(now)
+			due = append(due, task)
+		}
+		task.mu.Unlock()
+	}
+	s.mu.RUnlock()
+
+	for _, task := range due {
+		go s.executeTask(task)
+	}
+}
+
+// Stop stops the scheduler's ticker loop, waiting for the loop goroutine to
+// exit. Running task executions are not forcibly cancelled - they complete
+// on their own goroutines per AI.md PART 19's graceful-shutdown requirement.
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	if !s.running {
+		s.mu.Unlock()
+		return
+	}
 	log.Println("🛑 Stopping scheduler...")
+	s.ticker.Stop()
+	close(s.stopCh)
+	stopped := s.stopped
+	s.running = false
+	s.mu.Unlock()
 
-	ctx := s.cron.Stop()
-	<-ctx.Done() // Wait for running jobs to complete
+	<-stopped // Wait for the loop goroutine to exit
 
 	log.Println("✅ Scheduler stopped")
 }
@@ -255,9 +305,6 @@ func (s *Scheduler) executeTask(task *Task) {
 	task.lastRun = &end
 	task.mu.Unlock()
 
-	// Record in database
-	s.RecordTaskRun(task.Name, start, end, err)
-
 	if err != nil {
 		log.Printf("❌ Task '%s' failed after %v: %v", task.Name, elapsed, err)
 	} else {
@@ -266,6 +313,12 @@ func (s *Scheduler) executeTask(task *Task) {
 
 	// Log to audit if enabled
 	s.logTaskExecution(task.Name, elapsed, err)
+
+	// Record in database last, so that once this row becomes visible to a
+	// caller polling GetLastTaskRun, every side effect of the run has
+	// already completed - avoids a caller tearing down the DB (e.g. test
+	// cleanup) while logTaskExecution is still in flight.
+	s.RecordTaskRun(task.Name, start, end, err)
 }
 
 // logTaskExecution logs task execution to audit log
@@ -303,11 +356,7 @@ func (s *Scheduler) GetTaskStatus() []map[string]interface{} {
 
 	for _, task := range s.tasks {
 		task.mu.Lock()
-		var nextRun time.Time
-		entry := s.cron.Entry(task.entryID)
-		if entry.ID != 0 {
-			nextRun = entry.Next
-		}
+		nextRun := task.nextRun
 		status = append(status, map[string]interface{}{
 			"name":     task.Name,
 			"schedule": task.Schedule,

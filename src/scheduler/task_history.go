@@ -16,10 +16,10 @@ type TaskRun struct {
 	StartTime time.Time `json:"start_time"`
 	EndTime   time.Time `json:"end_time"`
 	// milliseconds
-	Duration  int64     `json:"duration_ms"`
+	Duration int64 `json:"duration_ms"`
 	// "success", "error"
-	Status    string    `json:"status"`
-	Error     string    `json:"error,omitempty"`
+	Status string `json:"status"`
+	Error  string `json:"error,omitempty"`
 }
 
 // TaskInfo provides detailed information about a task
@@ -161,13 +161,10 @@ func (s *Scheduler) GetAllTaskInfo() ([]TaskInfo, error) {
 			Running:  false, // Cron handles running state internally
 		}
 
-		// Get next run time from cron entry
-		if task.enabled {
-			entry := s.cron.Entry(task.entryID)
-			if entry.ID != 0 {
-				nextRun := entry.Next
-				taskInfo.NextRun = &nextRun
-			}
+		// Get next run time from the task's own schedule
+		if task.enabled && !task.nextRun.IsZero() {
+			nextRun := task.nextRun
+			taskInfo.NextRun = &nextRun
 		}
 
 		task.mu.Unlock()

@@ -59,10 +59,24 @@ before starting each item — do not rely on memory.
    must be `$(HOME)/.cache/go-build/$(PROJECTNAME)`, currently
    `$(HOME)/.cache/go-build`. Read: AI.md PART 26.
 
-7. `go-lint` flagged `src/scheduler/scheduler.go` line 23: external cron
-   library `robfig/cron/v3` used instead of a built-in scheduler — verify
-   against AI.md PART 19 whether this is an approved exception; if not,
-   replace with the built-in scheduler pattern. Read: AI.md PART 19.
+7. DONE (2026-07-30): `go-lint` flagged `src/scheduler/scheduler.go` line 23:
+   external cron library `robfig/cron/v3` used instead of a built-in
+   scheduler. AI.md PART 19 "Exceptions (NONE)" explicitly rejects this
+   ("I need complex schedules" -> "No - built-in supports full cron
+   syntax"), so it is not an approved exception. Replaced with a built-in
+   `time.Ticker`-driven scheduler: new `src/scheduler/cron.go` (a
+   `Schedule` interface with standard 5-field cron, descriptor, and
+   `@every <duration>` parsing, no external dependency), rewired
+   `Scheduler`/`Task` in `src/scheduler/scheduler.go` to compute/track
+   `nextRun` and poll it on a 1s ticker instead of delegating to
+   `cron.Cron`, and updated `src/scheduler/task_history.go` to read
+   `task.nextRun` directly. Removed `github.com/robfig/cron/v3` from
+   `go.mod`/`go.sum` via `go mod tidy`. While verifying, also fixed a
+   pre-existing goroutine race in `executeTask` (recording the DB history
+   row before the audit-log write let async goroutines from finished
+   tests run into a later test's already-torn-down DB) by reordering to
+   log before recording. `go build ./...`, `go vet ./...`, and
+   `go test ./src/scheduler/... -count=5` all pass.
 
 ## Pre-existing, out of scope
 
