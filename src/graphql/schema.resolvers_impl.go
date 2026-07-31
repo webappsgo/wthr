@@ -7,19 +7,25 @@ import (
 	"context"
 )
 
-// Helper function to get user ID from context.
+// Helper function to get user ID from context. Must read the same typed
+// contextKey (ctxKeyUserID, defined in graphql.go) that production request
+// handling stores the value under - a bare string key here would never
+// match the typed key's interface identity, silently returning 0 (i.e.
+// always unauthorized) for every real authenticated request.
 func getUserIDFromContext(ctx context.Context) int {
-	userID, ok := ctx.Value("user_id").(int)
+	userID, ok := ctx.Value(ctxKeyUserID).(int)
 	if !ok {
 		return 0
 	}
 	return userID
 }
 
-
-// Helper function to get IP from context
+// Helper function to get IP from context. Must read the same typed
+// contextKey (ctxKeyClientIP, defined in graphql.go) that production
+// request handling stores the value under, for the same reason as
+// getUserIDFromContext above.
 func getIPFromContext(ctx context.Context) string {
-	ip, ok := ctx.Value("client_ip").(string)
+	ip, ok := ctx.Value(ctxKeyClientIP).(string)
 	if !ok {
 		return "unknown"
 	}

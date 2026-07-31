@@ -87,23 +87,41 @@ any of the above: `src/graphql/context_keys_test.go`,
 `src/server/handler/admin_auth_test.go`,
 `src/server/middleware/access_log_test.go`, `src/util/logger_test.go`.
 
-8. The GitHub Actions `CI` workflow has been failing on `main` since before
-   this bootstrap pass (confirmed failing at commits `3f2082cd`, `094092ff`,
-   and `9e27dd31` — i.e. unrelated to and not introduced by any TODO.AI.md
-   item fixed above), entirely inside the item-7-adjacent "Pre-existing, out
-   of scope" files above:
+8. DONE (2026-07-31): the GitHub Actions `CI` workflow was failing on `main`
+   (confirmed failing at commits `3f2082cd`, `094092ff`, `9e27dd31`, and
+   `6220988f`), inside the item-7-adjacent "Pre-existing, out of scope"
+   files above:
    - `test` job: `TestMutationResolver_RegisterUser/registration_not_available_with_no_config`
-     in `src/graphql/schema.resolvers_mutations_test.go` fails —
+     in `src/graphql/schema.resolvers_mutations_test.go` failed —
      `err = "public registration is not available"`, want
-     `"registration is not available"` (message text mismatch).
+     `"registration is not available"` (message text mismatch). Fixed to
+     match the actual `auth_api.go` wording (see item 13).
    - `lint` job (`staticcheck`): `SA1029` (built-in `string` used as a
      context key) at `src/graphql/schema.resolvers_mutations_test.go:656,725,734`
      and `src/server/handler/admin_auth_test.go:211`; `U1000` (unused func
      `newTestLogger`) at `src/server/middleware/access_log_test.go:19` and
-     `src/util/logger_test.go:55`.
-   These live in the same 10 files carrying unrelated uncommitted hand-edits
-   noted above — fix once those files come back into scope, not as part of
-   any currently-tracked item.
+     `src/util/logger_test.go:55`. Fixed by switching the test context keys
+     to the project's typed `contextKey` constants (`ctxKeyUserID` etc.,
+     already defined in `src/graphql/graphql.go`) and removing the two
+     unused test helpers.
+   - Switching those tests to the typed context keys exposed a genuine
+     production bug (not previously caught by any test): `getUserIDFromContext`
+     / `getIPFromContext` in `src/graphql/schema.resolvers_impl.go` read
+     `ctx.Value("user_id")` / `ctx.Value("client_ip")` — bare `string` keys
+     that can never match the typed `ctxKeyUserID` / `ctxKeyClientIP` keys
+     production actually sets (`graphql.go:257` etc.), because Go compares
+     `context.Value` keys by both underlying type and value. Every real
+     authenticated GraphQL request was silently getting user ID `0` /
+     IP `"unknown"` from these two helpers. Fixed by switching both helpers
+     to the typed keys. This affects every call site that delegates to
+     these two shared helpers (`schema.resolvers.go` lines 200-2509,
+     `resolvers_helpers.go:438`) — all fixed by this one change.
+   Verified via Docker `casjaysdev/go:latest`: `go build ./...`, `go vet
+   ./...`, and `go test ./src/graphql/... ./src/server/handler/...
+   ./src/server/middleware/... ./src/util/... ./src/config/...` all pass;
+   `staticcheck ./...` reports zero findings. See item 15 for a much larger,
+   related systemic bug found while investigating this one, deliberately
+   left unfixed here as out of scope.
 
 9. DONE (2026-07-30): found while verifying items 5/6 — `PROJECTNAME`/
    `PROJECTORG` (Makefile lines 2-3) mis-parsed the project's SSH remote
@@ -172,18 +190,55 @@ any of the above: `src/graphql/context_keys_test.go`,
     convert package by package with tests). Read: AI.md PART 10 (query
     timeouts / connection pooling).
 
-13. TODO (flagged 2026-07-31 while running `make test` for item 11): pre-
-    existing, unrelated test failure —
+13. DONE (2026-07-31): pre-existing, unrelated test failure —
     `src/graphql/schema.resolvers_mutations_test.go`
     `TestMutationResolver_RegisterUser/registration_not_available_with_no_config`
-    expects `err.Error() == "registration is not available"` but
+    expected `err.Error() == "registration is not available"` but
     `src/server/handler/auth_api.go` (~line 396) returns `"public
-    registration is not available"` for this code path (mode branch mismatch
-    between the two literal error strings at lines 393/396 and the switch at
-    line 796 that only special-cases both as equivalent for a different
-    purpose). Needs the actual registration-mode branch in `auth_api.go`
-    reconciled with what the test expects for a no-config server (or the test
-    updated if `"public registration is not available"` is the intended
-    wording) — not touched here since it is unrelated to 2FA encryption and
-    predates this session's changes. Read: AI.md PART 34 (registration
-    modes).
+    registration is not available"` for this code path. `"public
+    registration is not available"` is the correct, intended wording (it
+    distinguishes public self-registration from invite/admin-created
+    accounts per PART 34's four registration modes) — fixed the test's
+    expected string to match production, not the other way around. See
+    item 8 for the full CI-fix pass this was part of. Read: AI.md PART 34
+    (registration modes).
+
+14. TODO (flagged 2026-07-31, out of scope for item 8): `src/server/handler/
+    admin_auth.go`'s admin-auth handlers (e.g. `AdminLogoutAllHandler`,
+    `AdminMeHandler` and others reading an admin from request context) never
+    actually get an admin value injected via `context.WithValue` anywhere in
+    the real request path — only the test file constructs a context with the
+    admin already set. In production these handlers appear to be effectively
+    unreachable / always fail their context lookup. Needs a dedicated
+    investigation: find (or add) the middleware that is supposed to set the
+    admin context value for these routes, and verify each handler's context
+    key matches it. Read: AI.md PART 17 (Server Admin), PART 24/25
+    (privilege/service — for how admin sessions should be established).
+
+15. TODO (flagged 2026-07-31 while fixing item 8's `getUserIDFromContext`/
+    `getIPFromContext` bug): the SAME bare-`string`-vs-typed-`contextKey`
+    mismatch exists much more widely across the GraphQL resolver layer —
+    NOT limited to the two helpers fixed in item 8. Found via grep, NOT
+    fixed (large, security-relevant blast radius; needs its own dedicated
+    session with case-by-case fail-open/fail-closed verification, not a
+    mass find-replace):
+    - `src/graphql/schema.resolvers.go`: ~60+ bare-string lookups, e.g.
+      `ctx.Value("user_role").(string)` (repeated ~35+ times across lines
+      838-3026), `ctx.Value("admin_id").(int)` (lines 1219, 1250, 2703),
+      `ctx.Value("request_user_agent")` (1622, 1644), `ctx.Value("request_ip")`
+      (1643), `ctx.Value("client_ip")` (1971) — none of these match the
+      typed `ctxKeyUserRole` / `ctxKeyAdminID` / `ctxKeyRequestUserAgent` /
+      `ctxKeyRequestIP` / `ctxKeyClientIP` constants defined in `graphql.go`.
+    - `src/graphql/resolvers_helpers.go`: `ctx.Value("user_session")` (451),
+      `ctx.Value("request_host")` (459, 565, 925), `ctx.Value("request_scheme")`
+      (465, 570, 930), `ctx.Value("admin_id")` (474, 839),
+      `ctx.Value("admin_email")` (855) — same mismatch.
+    - `src/graphql/passkey_impl.go`: `ctx.Value("request_host")` (16),
+      `ctx.Value("request_scheme")` (22) — same mismatch.
+    Practical effect: nearly every role-based/admin authorization check and
+    request-metadata lookup in the GraphQL resolver layer may be silently
+    returning zero-value/failed type assertions in production (fail-open or
+    fail-closed depending on how each call site handles the `!ok` case —
+    must be checked individually, not assumed). This is a serious,
+    wide-blast-radius issue distinct from item 8's narrow fix. Read: AI.md
+    PART 9 (defense in depth), PART 11 (authz), PART 34 (multi-user roles).

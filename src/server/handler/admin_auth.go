@@ -18,6 +18,15 @@ const (
 	AdminSessionCookieName = "admin_session"
 )
 
+// adminAuthContextKey is a package-private type for request-context keys used
+// by admin auth handlers, per staticcheck SA1029 (built-in string must not be
+// used as a context key to avoid collisions with other packages' keys).
+type adminAuthContextKey string
+
+// adminContextKey is the request-context key under which the authenticated
+// *model.Admin is stored by the auth middleware for these handlers to read.
+const adminContextKey adminAuthContextKey = "admin"
+
 // AdminLoginRequest represents a login request
 type AdminLoginRequest struct {
 	Username string `json:"username"`
@@ -178,7 +187,7 @@ func AdminLogoutAllHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context (set by auth middleware)
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(adminContextKey).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -222,7 +231,7 @@ func AdminMeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context (set by auth middleware)
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(adminContextKey).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -246,7 +255,7 @@ func AdminSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(adminContextKey).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -282,7 +291,7 @@ func AdminChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(adminContextKey).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -371,7 +380,7 @@ func AdminRegenerateAPITokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(adminContextKey).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

@@ -82,6 +82,14 @@ func seedPendingTwoFactorSession(t *testing.T, ddb *database.DualDB, userID int6
 func TestMutationResolver_RegisterUser(t *testing.T) {
 	t.Run("registration not available with no config", func(t *testing.T) {
 		ddb := newAuthMutationTestDB(t)
+		// config.IsMultiUserEnabled() defaults to true when GetGlobalConfig()
+		// is nil (see config.IsMultiUserEnabled doc comment and
+		// TestIsMultiUserEnabled/nil_global_config_defaults_true), so this
+		// subtest must explicitly disable the multi-user feature to exercise
+		// the "registration is not available" branch of RegisterAPIUser
+		// rather than relying on ambient nil global config.
+		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: false}})
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
 
 		_, err := m.RegisterUser(context.Background(), "newuser", "newuser@example.com", "password123")
@@ -653,7 +661,7 @@ func TestMutationResolver_UploadUserAvatar(t *testing.T) {
 		}
 	})
 
-	authedCtx := context.WithValue(context.Background(), "user_id", int(user.ID))
+	authedCtx := context.WithValue(context.Background(), ctxKeyUserID, int(user.ID))
 
 	t.Run("file too large", func(t *testing.T) {
 		_, err := m.UploadUserAvatar(authedCtx, graphql.Upload{Filename: "big.png", Size: 3 * 1024 * 1024, ContentType: "image/png"})
@@ -722,7 +730,7 @@ func TestQueryResolver_PublicUserProfile(t *testing.T) {
 			t.Fatalf("profile = %+v, want nil for unauthenticated viewer of a private profile", anonProfile)
 		}
 
-		otherCtx := context.WithValue(context.Background(), "user_id", int(seedGraphQLUser(t, ddb, "anothersnooper", "anothersnooper@example.com", "correctpass1").ID))
+		otherCtx := context.WithValue(context.Background(), ctxKeyUserID, int(seedGraphQLUser(t, ddb, "anothersnooper", "anothersnooper@example.com", "correctpass1").ID))
 		otherProfile, err := q.PublicUserProfile(otherCtx, "profileowner")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -731,7 +739,7 @@ func TestQueryResolver_PublicUserProfile(t *testing.T) {
 			t.Fatalf("profile = %+v, want nil for a different logged-in viewer of a private profile", otherProfile)
 		}
 
-		ownerCtx := context.WithValue(context.Background(), "user_id", int(owner.ID))
+		ownerCtx := context.WithValue(context.Background(), ctxKeyUserID, int(owner.ID))
 		ownProfile, err := q.PublicUserProfile(ownerCtx, "profileowner")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

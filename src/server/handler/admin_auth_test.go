@@ -205,10 +205,10 @@ func TestAdminLogoutHandler(t *testing.T) {
 	})
 }
 
-// withAdminContext injects an *models.Admin under the raw string key
-// "admin", matching admin_auth.go's r.Context().Value("admin") lookups.
+// withAdminContext injects an *models.Admin under adminContextKey, matching
+// admin_auth.go's r.Context().Value(adminContextKey) lookups.
 func withAdminContext(r *http.Request, admin *models.Admin) *http.Request {
-	return r.WithContext(context.WithValue(r.Context(), "admin", admin))
+	return r.WithContext(context.WithValue(r.Context(), adminContextKey, admin))
 }
 
 // TestAdminMeHandler covers the authorized and unauthorized paths.
