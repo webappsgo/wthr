@@ -471,7 +471,7 @@ func graphQLRequestBaseURL(ctx context.Context) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 func getGraphQLCurrentAdminID(ctx context.Context) (int64, error) {
-	value := ctx.Value("admin_id")
+	value := ctx.Value(ctxKeyAdminID)
 	switch id := value.(type) {
 	case int:
 		if id > 0 {
@@ -836,7 +836,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 		}
 	}
 
-	if adminID, ok := ctx.Value("admin_id").(int); ok && adminID > 0 {
+	if adminID, ok := ctx.Value(ctxKeyAdminID).(int); ok && adminID > 0 {
 		var adminEmail string
 		err := r.ServerDB.QueryRow(`
 		SELECT email
@@ -852,7 +852,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 		}
 	}
 
-	if adminEmail, ok := ctx.Value("admin_email").(string); ok {
+	if adminEmail, ok := ctx.Value(ctxKeyAdminEmail).(string); ok {
 		adminEmail = strings.TrimSpace(adminEmail)
 		if adminEmail != "" {
 			return adminEmail, nil

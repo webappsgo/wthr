@@ -85,8 +85,8 @@ func TestMutationResolver_RegisterUser(t *testing.T) {
 		m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
 
 		_, err := m.RegisterUser(context.Background(), "newuser", "newuser@example.com", "password123")
-		if err == nil || err.Error() != "registration is not available" {
-			t.Fatalf("err = %v, want %q", err, "registration is not available")
+		if err == nil || err.Error() != "public registration is not available" {
+			t.Fatalf("err = %v, want %q", err, "public registration is not available")
 		}
 	})
 
@@ -653,7 +653,7 @@ func TestMutationResolver_UploadUserAvatar(t *testing.T) {
 		}
 	})
 
-	authedCtx := context.WithValue(context.Background(), "user_id", int(user.ID))
+	authedCtx := context.WithValue(context.Background(), ctxKeyUserID, int(user.ID))
 
 	t.Run("file too large", func(t *testing.T) {
 		_, err := m.UploadUserAvatar(authedCtx, graphql.Upload{Filename: "big.png", Size: 3 * 1024 * 1024, ContentType: "image/png"})
@@ -722,7 +722,7 @@ func TestQueryResolver_PublicUserProfile(t *testing.T) {
 			t.Fatalf("profile = %+v, want nil for unauthenticated viewer of a private profile", anonProfile)
 		}
 
-		otherCtx := context.WithValue(context.Background(), "user_id", int(seedGraphQLUser(t, ddb, "anothersnooper", "anothersnooper@example.com", "correctpass1").ID))
+		otherCtx := context.WithValue(context.Background(), ctxKeyUserID, int(seedGraphQLUser(t, ddb, "anothersnooper", "anothersnooper@example.com", "correctpass1").ID))
 		otherProfile, err := q.PublicUserProfile(otherCtx, "profileowner")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -731,7 +731,7 @@ func TestQueryResolver_PublicUserProfile(t *testing.T) {
 			t.Fatalf("profile = %+v, want nil for a different logged-in viewer of a private profile", otherProfile)
 		}
 
-		ownerCtx := context.WithValue(context.Background(), "user_id", int(owner.ID))
+		ownerCtx := context.WithValue(context.Background(), ctxKeyUserID, int(owner.ID))
 		ownProfile, err := q.PublicUserProfile(ownerCtx, "profileowner")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

@@ -4,27 +4,17 @@ Dependency order: items are listed in the order they must be done (each depends
 on the ones above it being in place first). Read the cited AI.md PART slice
 before starting each item — do not rely on memory.
 
-1. Generate `.claude/rules/*.md` — 14 required cheatsheet files (PART 0 § "Rule
-   Files to Create/Update", directory listed as REQUIRED in PART 3 §
-   "Directory Structure"). Each file needs: header `# {Topic} Rules (PART X, Y, Z)`,
-   the NON-NEGOTIABLE warning line, `## CRITICAL - NEVER DO`, `## CRITICAL -
-   ALWAYS DO`, a key-rules summary, and a `For complete details, see AI.md
-   PART X, Y, Z` footer. Build them in this sub-order (each pass only needs
-   its own PART range, no cross-dependencies among them):
-   - Read: AI.md PART 0, 1 → `.claude/rules/ai-rules.md`
-   - Read: AI.md PART 2, 3, 4 → `.claude/rules/project-rules.md`
-   - Read: AI.md PART 5, 6, 12 → `.claude/rules/config-rules.md`
-   - Read: AI.md PART 7, 8, 33 → `.claude/rules/binary-rules.md`
-   - Read: AI.md PART 9, 10, 11, 32 → `.claude/rules/backend-rules.md`
-   - Read: AI.md PART 13, 14, 15 → `.claude/rules/api-rules.md`
-   - Read: AI.md PART 16, 17 → `.claude/rules/frontend-rules.md`
-   - Read: AI.md PART 18-23 → `.claude/rules/features-rules.md`
-   - Read: AI.md PART 24, 25 → `.claude/rules/service-rules.md`
-   - Read: AI.md PART 26 → `.claude/rules/makefile-rules.md`
-   - Read: AI.md PART 27 → `.claude/rules/docker-rules.md`
-   - Read: AI.md PART 28 → `.claude/rules/cicd-rules.md`
-   - Read: AI.md PART 29, 30, 31 → `.claude/rules/testing-rules.md`
-   - Read: AI.md PART 34-36 → `.claude/rules/optional-rules.md`
+1. DONE (2026-07-30): Generated all 14 `.claude/rules/*.md` cheatsheet files
+   (PART 0 § "Rule Files to Create/Update", directory listed as REQUIRED in
+   PART 3 § "Directory Structure") — `ai-rules.md`, `project-rules.md`,
+   `config-rules.md`, `binary-rules.md`, `backend-rules.md`, `api-rules.md`,
+   `frontend-rules.md`, `features-rules.md`, `service-rules.md`,
+   `makefile-rules.md`, `docker-rules.md`, `cicd-rules.md`, `testing-rules.md`,
+   `optional-rules.md`. Thirteen already existed from earlier bootstrap work;
+   `config-rules.md` (PART 5, 6, 12: Configuration, Application Modes, Server
+   Configuration) was the last missing file, added this pass following the
+   same template (header, NON-NEGOTIABLE warning, CRITICAL - NEVER/ALWAYS DO,
+   key-rules summary, footer). Verified all 14 present via `ls .claude/rules/`.
 
 2. Create `.claude/settings.json` (shared team settings, version-controlled)
    and `.claude/.mcp.json` if this project uses MCP servers — depends on

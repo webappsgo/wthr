@@ -18,6 +18,15 @@ const (
 	AdminSessionCookieName = "admin_session"
 )
 
+// adminContextKey is an unexported type used for request-context keys in
+// this package, so context values can't collide with keys from other
+// packages using the same string (staticcheck SA1029).
+type adminContextKey string
+
+// ctxKeyAdmin is the request-context key an authenticated *models.Admin is
+// stored under.
+const ctxKeyAdmin adminContextKey = "admin"
+
 // AdminLoginRequest represents a login request
 type AdminLoginRequest struct {
 	Username string `json:"username"`
@@ -178,7 +187,7 @@ func AdminLogoutAllHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context (set by auth middleware)
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(ctxKeyAdmin).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -222,7 +231,7 @@ func AdminMeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context (set by auth middleware)
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(ctxKeyAdmin).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -246,7 +255,7 @@ func AdminSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(ctxKeyAdmin).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -282,7 +291,7 @@ func AdminChangePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(ctxKeyAdmin).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -371,7 +380,7 @@ func AdminRegenerateAPITokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin from context
-	admin, ok := r.Context().Value("admin").(*models.Admin)
+	admin, ok := r.Context().Value(ctxKeyAdmin).(*models.Admin)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

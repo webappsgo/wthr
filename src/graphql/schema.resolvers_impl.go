@@ -9,7 +9,7 @@ import (
 
 // Helper function to get user ID from context.
 func getUserIDFromContext(ctx context.Context) int {
-	userID, ok := ctx.Value("user_id").(int)
+	userID, ok := ctx.Value(ctxKeyUserID).(int)
 	if !ok {
 		return 0
 	}
@@ -19,7 +19,7 @@ func getUserIDFromContext(ctx context.Context) int {
 
 // Helper function to get IP from context
 func getIPFromContext(ctx context.Context) string {
-	ip, ok := ctx.Value("client_ip").(string)
+	ip, ok := ctx.Value(ctxKeyClientIP).(string)
 	if !ok {
 		return "unknown"
 	}
