@@ -110,6 +110,9 @@ $RECYCLE.BIN/
 binaries/
 releases/
 
+# Runtime volume data
+volumes/
+
 # Test output
 coverage.out
 *.coverprofile
