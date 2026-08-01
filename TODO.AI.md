@@ -268,15 +268,20 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
 
-17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass):
-    `src/database/failover.go` lines 154-268 use emoji (⚠️/📝/✅) in
-    `log.Printf` log-output lines — pre-existing, not introduced by item 12's
+17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
+    extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
+    `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
+    (~45 call sites, e.g. lines 150, 196, 205, 246, 278, 310) use emoji
+    (⚠️/📝/✅/🛑/📅/❌ etc.) in `log.Printf` log-output lines, unconditionally
+    (no `NO_COLOR` check) — pre-existing, not introduced by item 12's
     context-timeout conversion; out of scope for that pass since it's a
     logging-format issue, not a query-timeout issue. Log output must be raw
     plain text with no emoji/color per the API/logging rules (banners/console
-    may use them, log lines may not). Fix: replace the emoji prefixes with
-    plain-text equivalents (e.g. "WARNING:", "INFO:", "OK:"). Read: AI.md
-    PART 14 (log output plain-text rule).
+    may use them, log lines may not), and any place emojis ARE allowed must
+    still honor `NO_COLOR`. Fix: replace the emoji prefixes with plain-text
+    equivalents (e.g. "WARNING:", "INFO:", "OK:") across both files (and any
+    other files found via `grep -rln` for the same pattern while fixing).
+    Read: AI.md PART 14 (log output plain-text rule), PART 11 (`NO_COLOR`).
 
 18. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
     user.go pass): `src/server/model/user.go` has stale spec references and

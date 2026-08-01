@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -225,7 +226,7 @@ func (s *Scheduler) acquireTaskLock(taskName string) bool {
 	// 2. If lock exists but expired (older than 5 min), steal it
 	// 3. If lock exists and held by us, refresh it
 	// 4. If lock exists and held by another node, fail
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_scheduler_state (task_id, task_name, locked_by, locked_at, enabled)
 		VALUES (?, ?, ?, ?, true)
 		ON CONFLICT(task_id) DO UPDATE SET
@@ -247,7 +248,7 @@ func (s *Scheduler) acquireTaskLock(taskName string) bool {
 
 	// Check if we actually got the lock
 	var lockedBy string
-	err = database.GetServerDB().QueryRow(
+	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect,
 		"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?",
 		taskName,
 	).Scan(&lockedBy)
@@ -267,7 +268,7 @@ func (s *Scheduler) releaseTaskLock(taskName string) {
 		return
 	}
 
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_scheduler_state
 		SET locked_by = NULL, locked_at = NULL
 		WHERE task_id = ? AND locked_by = ?
@@ -325,7 +326,7 @@ func (s *Scheduler) executeTask(task *Task) {
 func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, err error) {
 	// Check if audit logging is enabled
 	var auditEnabled string
-	queryErr := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'audit.enabled'").Scan(&auditEnabled)
+	queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'audit.enabled'").Scan(&auditEnabled)
 	if queryErr != nil || auditEnabled != "true" {
 		return
 	}
@@ -337,7 +338,7 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 		details = fmt.Sprintf("Failed: %v", err)
 	}
 
-	_, insertErr := database.GetServerDB().Exec(`
+	_, insertErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_audit_log (user_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (NULL, ?, 'scheduler', ?, ?, 'system', 'scheduler', ?)
 	`, taskName, taskName, details, status)
@@ -372,7 +373,7 @@ func (s *Scheduler) GetTaskStatus() []map[string]interface{} {
 
 // CleanupOldSessions removes expired sessions
 func CleanupOldSessions(db *sql.DB) error {
-	result, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE expires_at < datetime('now')")
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, "DELETE FROM user_sessions WHERE expires_at < datetime('now')")
 	if err != nil {
 		return fmt.Errorf("failed to cleanup sessions: %w", err)
 	}
@@ -389,13 +390,13 @@ func CleanupOldSessions(db *sql.DB) error {
 func CleanupOldAuditLogs(db *sql.DB) error {
 	// Get retention days from settings
 	var retentionDays int
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'audit.retention_days'").Scan(&retentionDays)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'audit.retention_days'").Scan(&retentionDays)
 	if err != nil {
 		// Default to 90 days
 		retentionDays = 90
 	}
 
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_audit_log
 		WHERE created_at < datetime('now', '-' || ? || ' days')
 	`, retentionDays)
@@ -415,7 +416,7 @@ func CleanupOldAuditLogs(db *sql.DB) error {
 // CheckWeatherAlerts checks for weather alerts on saved locations
 func CheckWeatherAlerts(db *sql.DB) error {
 	// Get all locations with alerts enabled
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT l.id, l.name, l.latitude, l.longitude, l.user_id
 		FROM user_saved_locations l
 		JOIN user_accounts u ON l.user_id = u.id
@@ -538,7 +539,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 // createNotification creates a notification in the database
 func createNotification(db *sql.DB, userID int, notifType, title, message, link string) {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_notifications (user_id, type, title, message, link, read)
 		VALUES (?, ?, ?, ?, ?, 0)
 	`, userID, notifType, title, message, link)
@@ -553,7 +554,7 @@ func createNotification(db *sql.DB, userID int, notifType, title, message, link 
 func CreateSystemBackup(db *sql.DB) error {
 	// Get backup settings
 	var backupEnabled string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'backup.enabled'").Scan(&backupEnabled)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.enabled'").Scan(&backupEnabled)
 	if err != nil || backupEnabled != "true" {
 		// Backups disabled, skip silently
 		return nil
@@ -570,7 +571,7 @@ func CreateSystemBackup(db *sql.DB) error {
 
 	// Check for encryption password from settings
 	var encryptionPassword string
-	_ = database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'backup.encryption_password'").Scan(&encryptionPassword)
+	_ = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.encryption_password'").Scan(&encryptionPassword)
 
 	// Create backup with options per AI.md PART 25
 	opts := backup.BackupOptions{
@@ -599,7 +600,7 @@ func CreateSystemBackup(db *sql.DB) error {
 // AI.md PART 19: token cleanup every 15 minutes
 func CleanupExpiredTokens(db *sql.DB) error {
 	// Clean up expired API tokens
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_api_tokens
 		WHERE expires_at IS NOT NULL AND expires_at < datetime('now')
 	`)
@@ -613,7 +614,7 @@ func CleanupExpiredTokens(db *sql.DB) error {
 	}
 
 	// Clean up expired setup tokens
-	result2, err := database.GetServerDB().Exec(`
+	result2, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_setup_tokens
 		WHERE expires_at < datetime('now')
 	`)
@@ -635,7 +636,7 @@ func CleanupExpiredTokens(db *sql.DB) error {
 func CheckSSLRenewal() error {
 	// Check if SSL is enabled via Let's Encrypt
 	var sslEnabled string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'ssl.letsencrypt.enabled'").Scan(&sslEnabled)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'ssl.letsencrypt.enabled'").Scan(&sslEnabled)
 	if err != nil || sslEnabled != "true" {
 		// SSL not using Let's Encrypt, skip renewal
 		return nil
@@ -643,7 +644,7 @@ func CheckSSLRenewal() error {
 
 	// Get the domain from settings
 	var domain string
-	domainErr := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'ssl.domain'").Scan(&domain)
+	domainErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'ssl.domain'").Scan(&domain)
 	if domainErr != nil || domain == "" {
 		// No domain configured, skip
 		return nil
@@ -720,7 +721,7 @@ func CheckSSLRenewal() error {
 // AI.md PART 19: healthcheck_self every 5 minutes
 func SelfHealthCheck() error {
 	// Check database connectivity
-	err := database.GetServerDB().Ping()
+	err := database.PingWithTimeout(database.GetServerDB())
 	if err != nil {
 		log.Printf("⚠️ Self health check: database ping failed: %v", err)
 		return fmt.Errorf("database health check failed: %w", err)
@@ -744,7 +745,7 @@ func SelfHealthCheck() error {
 	// Check users database connectivity too
 	usersDB := database.GetUsersDB()
 	if usersDB != nil {
-		if err := usersDB.Ping(); err != nil {
+		if err := database.PingWithTimeout(usersDB); err != nil {
 			log.Printf("⚠️ Self health check: users database ping failed: %v", err)
 			return fmt.Errorf("users database health check failed: %w", err)
 		}
@@ -765,7 +766,7 @@ func CheckTorHealth() error {
 
 	// Check if Tor service is enabled
 	var torEnabled string
-	queryErr := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'tor.enabled'").Scan(&torEnabled)
+	queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.enabled'").Scan(&torEnabled)
 	if queryErr != nil || torEnabled != "true" {
 		// Tor not enabled, skip
 		return nil
@@ -783,7 +784,7 @@ func CheckTorHealth() error {
 
 		// Check if auto-restart is enabled
 		var restartOnFail string
-		queryErr := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'tor.restart_on_fail'").Scan(&restartOnFail)
+		queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.restart_on_fail'").Scan(&restartOnFail)
 		if queryErr == nil && restartOnFail == "true" {
 			log.Printf("🧅 Attempting to restart Tor service...")
 			// Note: The actual restart is handled by TorService, we just log the status
@@ -796,7 +797,7 @@ func CheckTorHealth() error {
 
 	// Check if onion address is configured (indicates successful Tor initialization)
 	var onionAddress string
-	addrErr := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'tor.onion_address'").Scan(&onionAddress)
+	addrErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.onion_address'").Scan(&onionAddress)
 	if addrErr != nil || onionAddress == "" {
 		log.Printf("⚠️ Tor health check: No .onion address configured")
 		// This might be normal during startup, don't fail
@@ -808,7 +809,7 @@ func CheckTorHealth() error {
 // CleanupRateLimitCounters resets rate limit counters
 func CleanupRateLimitCounters(db *sql.DB) error {
 	// Reset hourly counters that are older than 1 hour
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_rate_limits
 		WHERE window_start < datetime('now', '-1 hour')
 	`)
@@ -831,7 +832,7 @@ func UpdateBlocklist() error {
 
 	// Check if blocklist is enabled
 	var blocklistEnabled string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'security.blocklist.enabled'").Scan(&blocklistEnabled)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'security.blocklist.enabled'").Scan(&blocklistEnabled)
 	if err != nil || blocklistEnabled != "true" {
 		// Blocklist not enabled, skip
 		return nil
@@ -849,7 +850,7 @@ func UpdateBlocklist() error {
 	db := database.GetServerDB()
 
 	// Create table if not exists
-	_, err = db.Exec(`
+	_, err = database.ExecContext(context.Background(), db, database.TimeoutMigration, `
 		CREATE TABLE IF NOT EXISTS server_ip_blocklist (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			source TEXT NOT NULL,
@@ -902,7 +903,7 @@ func UpdateBlocklist() error {
 			}
 
 			// Insert or update
-			_, err = db.Exec(`
+			_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 				INSERT INTO server_ip_blocklist (source, ip_range, description, updated_at)
 				VALUES (?, ?, ?, CURRENT_TIMESTAMP)
 				ON CONFLICT(source, ip_range) DO UPDATE SET
@@ -917,7 +918,7 @@ func UpdateBlocklist() error {
 	}
 
 	// Clean up old entries (older than 7 days and not in latest update)
-	if _, err := db.Exec(`
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutBulk, `
 		DELETE FROM server_ip_blocklist
 		WHERE updated_at < datetime('now', '-7 days')
 	`); err != nil {
@@ -935,7 +936,7 @@ func UpdateCVEDatabase() error {
 
 	// Check if CVE monitoring is enabled
 	var cveEnabled string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'security.cve.enabled'").Scan(&cveEnabled)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'security.cve.enabled'").Scan(&cveEnabled)
 	if err != nil || cveEnabled != "true" {
 		// CVE monitoring not enabled, skip
 		return nil
@@ -944,7 +945,7 @@ func UpdateCVEDatabase() error {
 	db := database.GetServerDB()
 
 	// Create table if not exists
-	_, err = db.Exec(`
+	_, err = database.ExecContext(context.Background(), db, database.TimeoutMigration, `
 		CREATE TABLE IF NOT EXISTS server_cve_alerts (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cve_id TEXT NOT NULL UNIQUE,
@@ -1033,7 +1034,7 @@ func UpdateCVEDatabase() error {
 		}
 
 		// Insert or update
-		_, err = db.Exec(`
+		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_cve_alerts (cve_id, description, severity, cvss_score, published_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 			ON CONFLICT(cve_id) DO UPDATE SET
@@ -1056,7 +1057,7 @@ func UpdateCVEDatabase() error {
 func ClusterHeartbeat(nodeID string) error {
 	// Check if cluster mode is enabled
 	var clusterEnabled string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled)
 	if err != nil || clusterEnabled != "true" {
 		// Not in cluster mode, skip silently
 		return nil
@@ -1064,7 +1065,7 @@ func ClusterHeartbeat(nodeID string) error {
 
 	// Update node heartbeat in cluster nodes table
 	// Per AI.md lines 22616-22620
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_nodes (node_id, last_heartbeat, status)
 		VALUES (?, datetime('now'), 'online')
 		ON CONFLICT(node_id) DO UPDATE SET
