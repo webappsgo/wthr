@@ -331,3 +331,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     `gofmt -w` package-by-package as its own dedicated formatting pass with
     its own commit(s), verified via `go build`/`go test` after each. Read:
     ai-rules.md / AI.md PART 0 (formatting requirements) before starting.
+
+22. TODO (flagged 2026-08-01 by go-lint during item 12's
+    src/server/handler/admin.go pass): several DB call sites ignore the
+    returned error from `.Scan(...)`/`QueryRowContext(...)`:
+    - `GetTasksStats` (~line 471-476): 4x `QueryRowContext(...).Scan(...)`
+      calls, no error check.
+    - `GetSystemStats` (~line 495-498): 4x `QueryRowContext(...).Scan(...)`
+      calls, no error check.
+    - `GetScheduledTasks` (~line 518): `QueryRowContext(...).Scan(&count)`,
+      no error check before using `count`.
+    - `seedScheduledTasks` (~line 612-620): `ExecContext` errors in the seed
+      loop are silently dropped via a bare `continue`, no logging.
+    Pre-existing pattern (predates the DB-timeout migration; the original
+    `QueryRow`/`Exec` calls already ignored errors the same way) — kept
+    unchanged in the item-12 pass to stay scoped to timeout-wrapping only.
+    Fix: check `err` after each `.Scan()`, return/log on failure per
+    backend-rules.md's "log every error with context" rule; replace the
+    silent `continue` in `seedScheduledTasks` with an error-logged
+    continue. Read: AI.md PART 9 (error handling) before starting.
