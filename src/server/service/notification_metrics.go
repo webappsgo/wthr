@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NotificationMetrics provides metrics and statistics for the notification system
@@ -61,13 +64,13 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	}
 
 	// Get total notifications
-	err := nm.db.QueryRow("SELECT COUNT(*) FROM notification_queue").Scan(&summary.TotalNotifications)
+	err := database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue").Scan(&summary.TotalNotifications)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get counts by state
-	rows, err := nm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT state, COUNT(*) as count
 		FROM notification_queue
 		GROUP BY state
@@ -87,7 +90,7 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	}
 
 	// Get counts by channel
-	rows, err = nm.db.Query(`
+	rows, err = database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT channel_type, COUNT(*) as count
 		FROM notification_queue
 		GROUP BY channel_type
@@ -107,7 +110,7 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	}
 
 	// Get counts by priority
-	rows, err = nm.db.Query(`
+	rows, err = database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT
 			CASE
 				WHEN priority = 1 THEN 'low'
@@ -135,7 +138,7 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	}
 
 	// Get queue depth (queued + sending)
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state IN ('queued', 'sending')
 	`).Scan(&summary.QueueDepth)
@@ -144,7 +147,7 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	}
 
 	// Get average delivery time
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT AVG(
 			CAST((julianday(delivered_at) - julianday(created_at)) * 86400 AS REAL)
 		)
@@ -182,7 +185,7 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	since := time.Now().Add(-duration)
 
 	// Get total in period
-	err := nm.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE created_at >= datetime(?, 'unixepoch')
 	`, since.Unix()).Scan(&metrics.Total)
@@ -191,7 +194,7 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	}
 
 	// Get delivered in period
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state = 'delivered' AND created_at >= datetime(?, 'unixepoch')
 	`, since.Unix()).Scan(&metrics.Delivered)
@@ -200,7 +203,7 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	}
 
 	// Get failed in period
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state = 'failed' AND created_at >= datetime(?, 'unixepoch')
 	`, since.Unix()).Scan(&metrics.Failed)
@@ -209,7 +212,7 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	}
 
 	// Get pending in period
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state IN ('queued', 'sending') AND created_at >= datetime(?, 'unixepoch')
 	`, since.Unix()).Scan(&metrics.Pending)
@@ -218,7 +221,7 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 	}
 
 	// Get by channel
-	rows, err := nm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT channel_type, COUNT(*) as count
 		FROM notification_queue
 		WHERE created_at >= datetime(?, 'unixepoch')
@@ -248,7 +251,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 	}
 
 	// Get total
-	err := nm.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue WHERE channel_type = ?
 	`, channelType).Scan(&metrics.Total)
 	if err != nil {
@@ -256,7 +259,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 	}
 
 	// Get delivered
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE channel_type = ? AND state = 'delivered'
 	`, channelType).Scan(&metrics.Delivered)
@@ -265,7 +268,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 	}
 
 	// Get failed
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE channel_type = ? AND state = 'failed'
 	`, channelType).Scan(&metrics.Failed)
@@ -274,7 +277,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 	}
 
 	// Get pending
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE channel_type = ? AND state IN ('queued', 'sending')
 	`, channelType).Scan(&metrics.Pending)
@@ -289,7 +292,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 	}
 
 	// Get average delivery time
-	err = nm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutReport, `
 		SELECT AVG(
 			CAST((julianday(delivered_at) - julianday(created_at)) * 86400 AS REAL)
 		)
@@ -305,7 +308,7 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 
 // GetRecentErrors returns recent notification errors
 func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interface{}, error) {
-	rows, err := nm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, subject, error_message, retry_count, created_at
 		FROM notification_queue
 		WHERE state IN ('failed', 'dead_letter') AND error_message IS NOT NULL
@@ -342,7 +345,7 @@ func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interfac
 
 // RecordMetric records a custom metric event
 func (nm *NotificationMetrics) RecordMetric(metricType, channel string, value float64) error {
-	_, err := nm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), nm.db, database.TimeoutWrite, `
 		INSERT INTO notification_metrics (metric_type, channel_type, value, recorded_at)
 		VALUES (?, ?, ?, datetime('now'))
 	`, metricType, channel, value)
@@ -357,7 +360,7 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 
 	// Check queue depth
 	var queueDepth int64
-	nm.db.QueryRow(`
+	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state IN ('queued', 'sending')
 	`).Scan(&queueDepth)
@@ -371,7 +374,7 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 
 	// Check for stuck notifications (queued for > 1 hour)
 	var stuckCount int64
-	nm.db.QueryRow(`
+	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state = 'queued'
 		AND created_at < datetime('now', '-1 hour')
@@ -385,12 +388,12 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 
 	// Check error rate in last hour
 	var recentTotal, recentFailed int64
-	nm.db.QueryRow(`
+	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE created_at >= datetime('now', '-1 hour')
 	`).Scan(&recentTotal)
 
-	nm.db.QueryRow(`
+	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM notification_queue
 		WHERE state = 'failed' AND created_at >= datetime('now', '-1 hour')
 	`).Scan(&recentFailed)
