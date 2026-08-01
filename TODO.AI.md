@@ -301,3 +301,14 @@ any of the above: `src/graphql/context_keys_test.go`,
     Pre-existing, unrelated to the DB-timeout migration. Fix: update the
     flag's help text/parsing to accept `auto|yes|no` instead of
     `always|never|auto`. Read: AI.md PART 33 (`--color` flag spec).
+
+20. TODO (flagged 2026-08-01 by go-lint during item 12's
+    src/server/model/notification.go pass): `Notification` struct
+    (src/server/model/notification.go ~line 58-59) has both a `Read` and an
+    `IsRead` field representing the same concept under different JSON keys —
+    naming redundancy per ai-rules.md's "names must reveal intent, no
+    duplicate meaning" guidance. Pre-existing, unrelated to the DB-timeout
+    migration; risky to fix inline (touches JSON wire format/GraphQL
+    resolvers). Fix: consolidate to one canonical field (or document why both
+    are needed) and update all call sites/resolvers/tests together. Read:
+    AI.md PART 0 (naming conventions) before starting.

@@ -1,12 +1,14 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/oklog/ulid/v2"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NotificationType represents the type of notification
@@ -125,7 +127,7 @@ func (m *UserNotificationModel) Create(userID int, notifType NotificationType, d
 		actionJSON = &actionStr
 	}
 
-	_, err := m.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO user_notifications (id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, userID, notifType, display, title, message, actionJSON, false, false, time.Now(), expiresAt)
@@ -143,7 +145,7 @@ func (m *UserNotificationModel) GetByID(id string) (*Notification, error) {
 	var actionJSON sql.NullString
 	var expiresAt sql.NullTime
 
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM user_notifications WHERE id = ?
 	`, id).Scan(&notif.ID, &notif.UserID, &notif.Type, &notif.Display, &notif.Title,
@@ -181,7 +183,7 @@ func (m *UserNotificationModel) GetByUserID(userID int, limit, offset int) ([]*N
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := m.DB.Query(query, userID, time.Now(), limit, offset)
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID, time.Now(), limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +201,7 @@ func (m *UserNotificationModel) GetUnread(userID int) ([]*Notification, error) {
 		ORDER BY created_at DESC
 	`
 
-	rows, err := m.DB.Query(query, userID, time.Now())
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +213,7 @@ func (m *UserNotificationModel) GetUnread(userID int) ([]*Notification, error) {
 // GetUnreadCount returns the count of unread notifications for a user
 func (m *UserNotificationModel) GetUnreadCount(userID int) (int, error) {
 	var count int
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM user_notifications
 		WHERE user_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
 	`, userID, time.Now()).Scan(&count)
@@ -220,7 +222,7 @@ func (m *UserNotificationModel) GetUnreadCount(userID int) (int, error) {
 
 // MarkAsRead marks a notification as read
 func (m *UserNotificationModel) MarkAsRead(id string, userID int) error {
-	result, err := m.DB.Exec("UPDATE user_notifications SET read = 1 WHERE id = ? AND user_id = ?", id, userID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE user_notifications SET read = 1 WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return err
 	}
@@ -239,13 +241,13 @@ func (m *UserNotificationModel) MarkAsRead(id string, userID int) error {
 
 // MarkAllAsRead marks all notifications as read for a user
 func (m *UserNotificationModel) MarkAllAsRead(userID int) error {
-	_, err := m.DB.Exec("UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
 	return err
 }
 
 // Dismiss dismisses a notification
 func (m *UserNotificationModel) Dismiss(id string, userID int) error {
-	result, err := m.DB.Exec("UPDATE user_notifications SET dismissed = 1 WHERE id = ? AND user_id = ?", id, userID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE user_notifications SET dismissed = 1 WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return err
 	}
@@ -264,7 +266,7 @@ func (m *UserNotificationModel) Dismiss(id string, userID int) error {
 
 // Delete deletes a notification
 func (m *UserNotificationModel) Delete(id string, userID int) error {
-	result, err := m.DB.Exec("DELETE FROM user_notifications WHERE id = ? AND user_id = ?", id, userID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM user_notifications WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return err
 	}
@@ -283,7 +285,7 @@ func (m *UserNotificationModel) Delete(id string, userID int) error {
 
 // CleanupExpired deletes expired notifications
 func (m *UserNotificationModel) CleanupExpired() (int64, error) {
-	result, err := m.DB.Exec("DELETE FROM user_notifications WHERE expires_at <= ?", time.Now())
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutBulk, "DELETE FROM user_notifications WHERE expires_at <= ?", time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -292,7 +294,7 @@ func (m *UserNotificationModel) CleanupExpired() (int64, error) {
 
 // EnforceLimit enforces the 100 notification limit per user
 func (m *UserNotificationModel) EnforceLimit(userID int, limit int) (int64, error) {
-	result, err := m.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		DELETE FROM user_notifications
 		WHERE user_id = ? AND id NOT IN (
 			SELECT id FROM user_notifications
@@ -315,7 +317,7 @@ func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatisti
 	}
 
 	// Get total and read counts
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT
 			COUNT(*) as total,
 			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
@@ -328,7 +330,7 @@ func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatisti
 	}
 
 	// Get counts by type
-	rows, err := m.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT type, COUNT(*) FROM user_notifications
 		WHERE user_id = ? AND expires_at > ?
 		GROUP BY type
@@ -348,7 +350,7 @@ func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatisti
 	}
 
 	// Get counts by display
-	rows, err = m.DB.Query(`
+	rows, err = database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT display, COUNT(*) FROM user_notifications
 		WHERE user_id = ? AND expires_at > ?
 		GROUP BY display
@@ -427,7 +429,7 @@ func (m *AdminNotificationModel) Create(adminID int, notifType NotificationType,
 		actionJSON = &actionStr
 	}
 
-	_, err := m.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO server_admin_notifications (id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, adminID, notifType, display, title, message, actionJSON, false, false, time.Now(), expiresAt)
@@ -445,7 +447,7 @@ func (m *AdminNotificationModel) GetByID(id string) (*Notification, error) {
 	var actionJSON sql.NullString
 	var expiresAt sql.NullTime
 
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM server_admin_notifications WHERE id = ?
 	`, id).Scan(&notif.ID, &notif.AdminID, &notif.Type, &notif.Display, &notif.Title,
@@ -483,7 +485,7 @@ func (m *AdminNotificationModel) GetByAdminID(adminID int, limit, offset int) ([
 		LIMIT ? OFFSET ?
 	`
 
-	rows, err := m.DB.Query(query, adminID, time.Now(), limit, offset)
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID, time.Now(), limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +503,7 @@ func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error)
 		ORDER BY created_at DESC
 	`
 
-	rows, err := m.DB.Query(query, adminID, time.Now())
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -513,7 +515,7 @@ func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error)
 // GetUnreadCount returns the count of unread notifications for an admin
 func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
 	var count int
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_admin_notifications
 		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
 	`, adminID, time.Now()).Scan(&count)
@@ -522,7 +524,7 @@ func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
 
 // MarkAsRead marks a notification as read
 func (m *AdminNotificationModel) MarkAsRead(id string, adminID int) error {
-	result, err := m.DB.Exec("UPDATE server_admin_notifications SET read = 1 WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE server_admin_notifications SET read = 1 WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -541,13 +543,13 @@ func (m *AdminNotificationModel) MarkAsRead(id string, adminID int) error {
 
 // MarkAllAsRead marks all notifications as read for an admin
 func (m *AdminNotificationModel) MarkAllAsRead(adminID int) error {
-	_, err := m.DB.Exec("UPDATE server_admin_notifications SET read = 1 WHERE admin_id = ? AND read = 0", adminID)
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE server_admin_notifications SET read = 1 WHERE admin_id = ? AND read = 0", adminID)
 	return err
 }
 
 // Dismiss dismisses a notification
 func (m *AdminNotificationModel) Dismiss(id string, adminID int) error {
-	result, err := m.DB.Exec("UPDATE server_admin_notifications SET dismissed = 1 WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "UPDATE server_admin_notifications SET dismissed = 1 WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -566,7 +568,7 @@ func (m *AdminNotificationModel) Dismiss(id string, adminID int) error {
 
 // Delete deletes a notification
 func (m *AdminNotificationModel) Delete(id string, adminID int) error {
-	result, err := m.DB.Exec("DELETE FROM server_admin_notifications WHERE id = ? AND admin_id = ?", id, adminID)
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM server_admin_notifications WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err
 	}
@@ -585,7 +587,7 @@ func (m *AdminNotificationModel) Delete(id string, adminID int) error {
 
 // CleanupExpired deletes expired notifications
 func (m *AdminNotificationModel) CleanupExpired() (int64, error) {
-	result, err := m.DB.Exec("DELETE FROM server_admin_notifications WHERE expires_at <= ?", time.Now())
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutBulk, "DELETE FROM server_admin_notifications WHERE expires_at <= ?", time.Now())
 	if err != nil {
 		return 0, err
 	}
@@ -594,7 +596,7 @@ func (m *AdminNotificationModel) CleanupExpired() (int64, error) {
 
 // EnforceLimit enforces the 100 notification limit per admin
 func (m *AdminNotificationModel) EnforceLimit(adminID int, limit int) (int64, error) {
-	result, err := m.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		DELETE FROM server_admin_notifications
 		WHERE admin_id = ? AND id NOT IN (
 			SELECT id FROM server_admin_notifications
@@ -617,7 +619,7 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	}
 
 	// Get total and read counts
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT
 			COUNT(*) as total,
 			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
@@ -630,7 +632,7 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	}
 
 	// Get counts by type
-	rows, err := m.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT type, COUNT(*) FROM server_admin_notifications
 		WHERE admin_id = ? AND expires_at > ?
 		GROUP BY type
@@ -650,7 +652,7 @@ func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatis
 	}
 
 	// Get counts by display
-	rows, err = m.DB.Query(`
+	rows, err = database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT display, COUNT(*) FROM server_admin_notifications
 		WHERE admin_id = ? AND expires_at > ?
 		GROUP BY display
@@ -725,7 +727,7 @@ func (m *NotificationPreferencesModel) GetUserPreferences(userID int) (*Notifica
 		ToastDurationWarning: 10,
 	}
 
-	err := m.UserDB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.UserDB, database.TimeoutSimpleSelect, `
 		SELECT enable_toast, enable_banner, enable_center, enable_sound,
 		       toast_duration_success, toast_duration_info, toast_duration_warning, updated_at
 		FROM user_notification_preferences
@@ -747,7 +749,7 @@ func (m *NotificationPreferencesModel) GetUserPreferences(userID int) (*Notifica
 
 // UpdateUserPreferences updates notification preferences for a user
 func (m *NotificationPreferencesModel) UpdateUserPreferences(userID int, prefs *NotificationPreferences) error {
-	_, err := m.UserDB.Exec(`
+	_, err := database.ExecContext(context.Background(), m.UserDB, database.TimeoutWrite, `
 		INSERT INTO user_notification_preferences
 		(user_id, enable_toast, enable_banner, enable_center, enable_sound,
 		 toast_duration_success, toast_duration_info, toast_duration_warning, updated_at)
@@ -781,7 +783,7 @@ func (m *NotificationPreferencesModel) GetAdminPreferences(adminID int) (*Notifi
 		ToastDurationWarning: 10,
 	}
 
-	err := m.ServerDB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.ServerDB, database.TimeoutSimpleSelect, `
 		SELECT enable_toast, enable_banner, enable_center, enable_sound,
 		       toast_duration_success, toast_duration_info, toast_duration_warning, updated_at
 		FROM server_admin_notification_preferences
@@ -803,7 +805,7 @@ func (m *NotificationPreferencesModel) GetAdminPreferences(adminID int) (*Notifi
 
 // UpdateAdminPreferences updates notification preferences for an admin
 func (m *NotificationPreferencesModel) UpdateAdminPreferences(adminID int, prefs *NotificationPreferences) error {
-	_, err := m.ServerDB.Exec(`
+	_, err := database.ExecContext(context.Background(), m.ServerDB, database.TimeoutWrite, `
 		INSERT INTO server_admin_notification_preferences
 		(admin_id, enable_toast, enable_banner, enable_center, enable_sound,
 		 toast_duration_success, toast_duration_info, toast_duration_warning, updated_at)
