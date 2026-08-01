@@ -317,3 +317,17 @@ any of the above: `src/graphql/context_keys_test.go`,
     resolvers). Fix: consolidate to one canonical field (or document why both
     are needed) and update all call sites/resolvers/tests together. Read:
     AI.md PART 0 (naming conventions) before starting.
+
+21. TODO (flagged 2026-08-01 while verifying item 12's
+    src/server/model/admin.go pass): `gofmt -l .` reports ~130 pre-existing
+    files across the repo (src/backup, src/cli, src/client, src/cluster,
+    src/database, src/graphql, src/server/handler, src/server/service,
+    src/util, tests/, etc.) as not gofmt-formatted — mostly struct-tag
+    column alignment and import-group ordering drift, unrelated to the
+    DB-timeout migration. Pre-existing (not introduced by item 12's edits);
+    too large/risky to blanket-reformat in this pass since it would touch
+    every package at once outside the current file-by-file commit
+    discipline. Fix: run `gofmt -l .` for the current file list, then
+    `gofmt -w` package-by-package as its own dedicated formatting pass with
+    its own commit(s), verified via `go build`/`go test` after each. Read:
+    ai-rules.md / AI.md PART 0 (formatting requirements) before starting.

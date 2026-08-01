@@ -2,6 +2,7 @@
 package models
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -13,14 +14,14 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/argon2"
 	"github.com/webappsgo/wthr/src/database"
+	"golang.org/x/crypto/argon2"
 )
 
 // Argon2id parameters per TEMPLATE.md PART 0
 // CRITICAL: NEVER use bcrypt - MUST use Argon2id with these exact parameters
 const (
-	argon2Time    = 3
+	argon2Time = 3
 	// 64 MB
 	argon2Memory  = 64 * 1024
 	argon2Threads = 4
@@ -47,8 +48,8 @@ type Admin struct {
 // AdminSession represents an active admin session
 // Per TEMPLATE.md PART 22: Secure session management required
 type AdminSession struct {
-	ID         int64     `json:"id"`
-	AdminID    int64     `json:"admin_id"`
+	ID      int64 `json:"id"`
+	AdminID int64 `json:"admin_id"`
 	// Secure random token
 	SessionID  string    `json:"session_id"`
 	IPAddress  string    `json:"ip_address"`
@@ -60,8 +61,8 @@ type AdminSession struct {
 
 // AdminPreferences stores admin-specific settings
 type AdminPreferences struct {
-	ID                   int64     `json:"id"`
-	AdminID              int64     `json:"admin_id"`
+	ID      int64 `json:"id"`
+	AdminID int64 `json:"admin_id"`
 	// light, dark, auto
 	Theme                string    `json:"theme"`
 	Language             string    `json:"language"`
@@ -74,8 +75,8 @@ type AdminPreferences struct {
 
 // AdminNotification represents a WebUI notification for an admin
 type AdminNotification struct {
-	ID        int64     `json:"id"`
-	AdminID   int64     `json:"admin_id"`
+	ID      int64 `json:"id"`
+	AdminID int64 `json:"admin_id"`
 	// success, info, warning, error, security
 	Type      string    `json:"type"`
 	Title     string    `json:"title"`
@@ -88,15 +89,15 @@ type AdminNotification struct {
 // AdminInvite represents an admin invitation
 // TEMPLATE.md PART 22: 15-minute invite tokens REQUIRED
 type AdminInvite struct {
-	ID           int64      `json:"id"`
-	Token        string     `json:"token"`
-	InvitedEmail string     `json:"invited_email"`
-	InvitedBy    int64      `json:"invited_by"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID           int64     `json:"id"`
+	Token        string    `json:"token"`
+	InvitedEmail string    `json:"invited_email"`
+	InvitedBy    int64     `json:"invited_by"`
+	CreatedAt    time.Time `json:"created_at"`
 	// MUST be 15 minutes from creation
-	ExpiresAt    time.Time  `json:"expires_at"`
-	UsedBy       *int64     `json:"used_by,omitempty"`
-	UsedAt       *time.Time `json:"used_at,omitempty"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedBy    *int64     `json:"used_by,omitempty"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
 }
 
 // HashPassword hashes a password using Argon2id per TEMPLATE.md PART 0
@@ -225,7 +226,7 @@ type AdminModel struct {
 // GetAll returns all admins (with privacy: no passwords, minimal info)
 // TEMPLATE.md PART 22: Admin privacy - can't see other admin details
 func (m *AdminModel) GetAll() ([]Admin, error) {
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		ORDER BY id ASC
@@ -270,7 +271,7 @@ func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
 
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE id = ?
@@ -308,7 +309,7 @@ func (m *AdminModel) GetByEmail(email string) (*Admin, error) {
 	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
 
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE email = ?
@@ -350,7 +351,7 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
 
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE api_token_hash = ? AND is_active = 1
@@ -388,7 +389,7 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 // TEMPLATE.md Part 31: Admins can see count but not details of others
 func (m *AdminModel) GetCount() (int, error) {
 	var count int
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_admin_credentials
 	`).Scan(&count)
 
@@ -420,7 +421,7 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 	tokenPrefix := GetAPITokenPrefix(apiToken)
 
 	// Insert admin into server.db
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_credentials (username, email, password_hash, api_token_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, username, email, passwordHash, tokenHash, tokenPrefix, isSuperAdmin)
@@ -449,7 +450,7 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
 	}
 
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
 		VALUES (?, ?, CURRENT_TIMESTAMP)
 	`, id, string(defaultPrefs))
@@ -470,7 +471,7 @@ func (m *AdminModel) Update(id int64, username, email string, opts ...interface{
 		if !ok1 || !ok2 {
 			return fmt.Errorf("admin update flags must be booleans")
 		}
-		_, err := database.GetServerDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_admin_credentials
 			SET username = ?, email = ?, is_super_admin = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ?
@@ -481,7 +482,7 @@ func (m *AdminModel) Update(id int64, username, email string, opts ...interface{
 		}
 	} else {
 		// Simple update (username and email only)
-		_, err := database.GetServerDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_admin_credentials
 			SET username = ?, email = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ?
@@ -504,7 +505,7 @@ func (m *AdminModel) UpdatePassword(id int64, newPassword string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -529,7 +530,7 @@ func (m *AdminModel) RegenerateAPIToken(id int64) (string, error) {
 	tokenHash := HashAPIToken(apiToken)
 	tokenPrefix := GetAPITokenPrefix(apiToken)
 
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET api_token_hash = ?, api_token_prefix = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -544,7 +545,7 @@ func (m *AdminModel) RegenerateAPIToken(id int64) (string, error) {
 
 // RevokeAPIToken clears the stored API token for an admin.
 func (m *AdminModel) RevokeAPIToken(id int64) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET api_token_hash = NULL, api_token_prefix = NULL, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -561,7 +562,7 @@ func (m *AdminModel) RevokeAPIToken(id int64) error {
 func (m *AdminModel) Delete(id int64) error {
 	// Check if this is the last super admin
 	var superAdminCount int
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_admin_credentials
 		WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
 	`, id).Scan(&superAdminCount)
@@ -580,7 +581,7 @@ func (m *AdminModel) Delete(id int64) error {
 	}
 
 	// Delete admin (cascades to sessions, preferences, etc.)
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_credentials WHERE id = ?
 	`, id)
 
@@ -593,7 +594,7 @@ func (m *AdminModel) Delete(id int64) error {
 
 // UpdateLastLogin updates the last login timestamp
 func (m *AdminModel) UpdateLastLogin(id int64) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET last_login_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -615,7 +616,7 @@ func (m *AdminModel) VerifyCredentials(username, password string) (*Admin, error
 		// Try username field
 		var apiTokenPrefix sql.NullString
 		admin = &Admin{}
-		err = database.GetServerDB().QueryRow(`
+		err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 			SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 			FROM server_admin_credentials
 			WHERE username = ? AND is_active = 1
@@ -677,7 +678,7 @@ func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn
 	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
 	// datetime() cannot parse -- every datetime(expires_at) comparison
 	// elsewhere then silently evaluates to NULL.
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_invites (token, invited_email, invited_by, created_at, expires_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`, tokenHash, email, invitedBy, expiresAt.UTC().Format("2006-01-02 15:04:05"))
@@ -710,7 +711,7 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 	// server_admin_invites has no "id" column (PK is token); use the
 	// implicit SQLite rowid, matching the value CreateInvite already
 	// returns via LastInsertId().
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT rowid, token, invited_email, invited_by, created_at, expires_at, used_by, used_at
 		FROM server_admin_invites
 		WHERE token = ?
@@ -745,7 +746,7 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 
 // MarkInviteUsed marks an invite as used
 func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_invites
 		SET used_by = ?, used_at = CURRENT_TIMESTAMP
 		WHERE token = ?
@@ -761,7 +762,7 @@ func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
 // DeleteExpiredInvites removes expired and used invites (cleanup)
 // Per TEMPLATE.md PART 22: Clean up expired invites regularly
 func (m *AdminInviteModel) DeleteExpiredInvites() error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_admin_invites
 		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
 	`)
@@ -777,7 +778,7 @@ func (m *AdminInviteModel) DeleteExpiredInvites() error {
 func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
 	// server_admin_invites has no "id" column (PK is token); use the
 	// implicit SQLite rowid, matching GetInvite.
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT rowid, token, invited_email, invited_by, created_at, expires_at
 		FROM server_admin_invites
 		WHERE used_at IS NULL AND datetime(expires_at) > datetime('now')
@@ -826,7 +827,7 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 
 	// See AdminInviteModel.CreateInvite for why expires_at must be bound
 	// as SQLite's own canonical text format rather than a raw time.Time.
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`, sessionID, adminID, ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
@@ -855,7 +856,7 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) {
 	var session AdminSession
 
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
 		WHERE id = ?
@@ -888,7 +889,7 @@ func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
 
 // DeleteSession deletes a session (logout)
 func (m *AdminSessionModel) DeleteSession(sessionID string) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_sessions WHERE id = ?
 	`, sessionID)
 
@@ -901,7 +902,7 @@ func (m *AdminSessionModel) DeleteSession(sessionID string) error {
 
 // DeleteAllSessionsForAdmin deletes all sessions for an admin (logout all)
 func (m *AdminSessionModel) DeleteAllSessionsForAdmin(adminID int64) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_sessions WHERE admin_id = ?
 	`, adminID)
 
@@ -914,7 +915,7 @@ func (m *AdminSessionModel) DeleteAllSessionsForAdmin(adminID int64) error {
 
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
 func (m *AdminSessionModel) DeleteExpiredSessions() error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_admin_sessions WHERE datetime(expires_at) < datetime('now')
 	`)
 
@@ -927,7 +928,7 @@ func (m *AdminSessionModel) DeleteExpiredSessions() error {
 
 // GetActiveSessions returns all active sessions for an admin
 func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, error) {
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
 		WHERE admin_id = ? AND datetime(expires_at) > datetime('now')
