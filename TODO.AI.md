@@ -520,6 +520,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     packages still pass, no regressions. Next targets: `dashboard.go`
     (92 lines).
 
+    Progress (2026-08-02, continued): targeted `dashboard.go` (92
+    lines) — `DashboardHandler` has two template-rendering handlers
+    (`ShowDashboard`, `ShowAdminPanel`), both unreachable past their
+    early-return guard clauses without a wired `HTMLRender` (same
+    limitation as the `Show*Settings` handlers). Added
+    `dashboard_test.go` covering only the guard-clause branches that
+    return before any template render:
+    `TestDashboardHandler_ShowDashboard_Unauthenticated` (no user in
+    context → 302 to `/server/auth/login`),
+    `_ShowAdminPanel_MissingAdminID` (no `admin_id` in context → 302 to
+    `/server/admin`), `_ShowAdminPanel_WrongAdminIDType` (non-int
+    `admin_id` → same redirect), and `_ShowAdminPanel_AdminNotFound` (a
+    well-typed `admin_id` with no matching row, via
+    `setGlobalTestDualDB` wiring a real in-memory `database.ServerSchema`
+    DB into `database.GetServerDB()` → same redirect since
+    `adminModel.GetByID` errors). The success paths of both handlers
+    remain untested for the same `HTMLRender`-not-wired reason as the
+    other page handlers in this package. Verified via Docker `gofmt
+    -l`/`go build ./...`/`go vet ./server/handler/...`/`go test -v
+    ./server/handler/...` (new tests pass) and `go test -cover
+    ./server/handler/...` — package coverage 40.5% → 40.7%. Full repo
+    `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Next targets: remaining under-60% files/packages in
+    `src/server/handler` (most are now the `HTMLRender`-blocked
+    `Show*`/page-render handlers), then move on to `src/cli`/`src/email`
+    (55.0%, untouched) and `src/graphql`'s remaining DB/HTTP-dependent
+    functions.
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
