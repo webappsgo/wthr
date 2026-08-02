@@ -180,14 +180,18 @@ any of the above: `src/graphql/context_keys_test.go`,
     item 13). Read: AI.md PART 11 (Cryptographic Keys, Data protection
     matrix), PART 34 (recovery keys / 2FA).
 
-12. TODO (flagged 2026-07-31 during audit): ~722 database calls use the
-    non-Context variants (`Query`/`Exec`/`QueryRow`) rather than
-    `QueryContext`/`ExecContext`/`QueryRowContext` with a timeout. AI.md
-    PART 10 requires every query/transaction wrapped in `context.WithTimeout`
-    (SELECT 5s, JOIN 15s, write 10s, bulk 60s, reports 2m). This is a systemic
-    migration across the whole data layer, not a single-file audit fix — should
-    be done as a dedicated pass (introduce a per-call-site context helper, then
-    convert package by package with tests). Read: AI.md PART 10 (query
+12. DONE (2026-08-02): ~722 database calls used the non-Context variants
+    (`Query`/`Exec`/`QueryRow`) rather than `QueryContext`/`ExecContext`/
+    `QueryRowContext` with a timeout. AI.md PART 10 requires every
+    query/transaction wrapped in `context.WithTimeout` (SELECT 5s, JOIN 15s,
+    write 10s, bulk 60s, reports 2m). Converted package by package across the
+    whole data layer using `database.QueryContext`/`ExecContext`/
+    `QueryRowContext` with the tiered `database.TimeoutX` constants (and
+    `database.WithTimeout()` for raw `*sql.Tx` opened outside
+    `database.WithTransaction`). Final repo-wide grep across `src/` (excluding
+    `_test.go` and gqlgen-generated code) confirms zero remaining raw/
+    unwrapped database call sites. Out-of-scope issues discovered along the
+    way were logged separately as items 17-33. Read: AI.md PART 10 (query
     timeouts / connection pooling).
 
 13. DONE (2026-07-31): pre-existing, unrelated test failure —
