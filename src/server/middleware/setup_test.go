@@ -59,9 +59,11 @@ func openSetupTestServerDB(t *testing.T) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 
 	// SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
-	// all query database.GetServerDB() directly rather than the db parameter
-	// they're constructed with (the same dead DB parameter pattern as
-	// auth.go/server_context.go/admin.go's GetByAPIToken).
+	// all query database.GetServerDB() directly, so they no longer take a
+	// db parameter; this global dual-DB registration is what they actually
+	// read (the same dead DB parameter pattern remains in
+	// auth.go/server_context.go/admin.go's GetByAPIToken, tracked
+	// separately in TODO.AI.md).
 	database.SetGlobalDualDB(&database.DualDB{Server: db})
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
@@ -108,11 +110,11 @@ func newSetupTestRouter() *gin.Engine {
 // TestSetupTokenRequired_NonAdminRouteSkipped verifies a request outside the
 // configured admin path prefix passes straight through untouched.
 func TestSetupTokenRequired_NonAdminRouteSkipped(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 
 	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
@@ -127,11 +129,11 @@ func TestSetupTokenRequired_NonAdminRouteSkipped(t *testing.T) {
 // TestSetupTokenRequired_SetupRouteSkipped verifies the setup wizard route
 // itself is exempted from this middleware (it handles its own auth).
 func TestSetupTokenRequired_SetupRouteSkipped(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 
 	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
@@ -151,7 +153,7 @@ func TestSetupTokenRequired_AdminExistsPassesThrough(t *testing.T) {
 	cfg := testAppConfig()
 
 	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/server/admin/dashboard", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
@@ -167,13 +169,13 @@ func TestSetupTokenRequired_AdminExistsPassesThrough(t *testing.T) {
 // admin account and no setup token file present, the middleware fails
 // closed with a 503 error page rather than silently proceeding.
 func TestSetupTokenRequired_NoAdminNoTokenFileShows503(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 	removeSetupToken(t)
 
 	router := newSetupTestRouter()
 	router.SetHTMLTemplate(template.Must(template.New("error.tmpl").Parse("error stub {{.error}}")))
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/server/admin", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want the 503 error page instead")
 		c.String(http.StatusOK, "reached")
@@ -192,13 +194,13 @@ func TestSetupTokenRequired_NoAdminNoTokenFileShows503(t *testing.T) {
 // with a setup token file present but no verified cookie, the token entry
 // form is rendered.
 func TestSetupTokenRequired_NoAdminTokenFileUnverifiedShowsForm(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
 	router := newSetupTestRouter()
 	router.SetHTMLTemplate(template.Must(template.New("admin/setup_token.tmpl").Parse("token form stub")))
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/server/admin", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want the token entry form instead")
 		c.String(http.StatusOK, "reached")
@@ -217,12 +219,12 @@ func TestSetupTokenRequired_NoAdminTokenFileUnverifiedShowsForm(t *testing.T) {
 // with the setup_token_verified cookie set to "true", the request is
 // redirected straight to the setup wizard.
 func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
 	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(db, cfg))
+	router.Use(SetupTokenRequired(cfg))
 	router.GET("/server/admin", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		c.String(http.StatusOK, "reached")
@@ -250,7 +252,7 @@ func TestBlockSetupAfterComplete_AdminExistsRedirects(t *testing.T) {
 	cfg := testAppConfig()
 
 	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(db, cfg))
+	router.Use(BlockSetupAfterComplete(cfg))
 	router.GET("/server/admin/server/setup", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		c.String(http.StatusOK, "reached")
@@ -272,12 +274,12 @@ func TestBlockSetupAfterComplete_AdminExistsRedirects(t *testing.T) {
 // setup is allowed to proceed when no admin exists yet and the setup token
 // file is still present.
 func TestBlockSetupAfterComplete_NoAdminTokenPresentPassesThrough(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
 	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(db, cfg))
+	router.Use(BlockSetupAfterComplete(cfg))
 	router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
@@ -293,12 +295,12 @@ func TestBlockSetupAfterComplete_NoAdminTokenPresentPassesThrough(t *testing.T) 
 // the inconsistent-state case (no admin, no token file) redirects back to
 // the admin root rather than crashing or looping.
 func TestBlockSetupAfterComplete_NoAdminNoTokenRedirectsToAdminRoot(t *testing.T) {
-	db := openSetupTestServerDB(t)
+	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 	removeSetupToken(t)
 
 	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(db, cfg))
+	router.Use(BlockSetupAfterComplete(cfg))
 	router.GET("/server/admin/server/setup", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		c.String(http.StatusOK, "reached")
@@ -367,7 +369,7 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 		cfg := testAppConfig()
 
 		router := newSetupTestRouter()
-		router.Use(BlockSetupAfterAdminExists(db, cfg))
+		router.Use(BlockSetupAfterAdminExists(cfg))
 		router.GET("/server/admin/server/setup", func(c *gin.Context) {
 			t.Error("wrapped handler reached, want a redirect instead")
 			c.String(http.StatusOK, "reached")
@@ -383,11 +385,11 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 	})
 
 	t.Run("no admin passes through", func(t *testing.T) {
-		db := openSetupTestServerDB(t)
+		openSetupTestServerDB(t)
 		cfg := testAppConfig()
 
 		router := newSetupTestRouter()
-		router.Use(BlockSetupAfterAdminExists(db, cfg))
+		router.Use(BlockSetupAfterAdminExists(cfg))
 		router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 		w := httptest.NewRecorder()

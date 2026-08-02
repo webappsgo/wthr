@@ -1246,7 +1246,7 @@ func main() {
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
 	// AI.md: Step 4: Redirect to /server/{admin_path}/server/setup (setup wizard) after token verified
 	adminSetupRoutes := r.Group("/server/" + cfg.GetAdminPath() + "/server/setup")
-	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(db.DB, cfg))
+	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
 	{
 		// Setup wizard pages - user has already verified token at /admin
@@ -1674,7 +1674,7 @@ func main() {
 	// AI.md: Admin panel at /server/{admin_path} (configurable, default: "admin")
 	adminRoutes := r.Group("/server/" + cfg.GetAdminPath())
 	// AI.md: Show setup token entry at /admin when no admin exists
-	adminRoutes.Use(middleware.SetupTokenRequired(db.DB, cfg))
+	adminRoutes.Use(middleware.SetupTokenRequired(cfg))
 	adminRoutes.Use(middleware.RequireAdminAuth())
 	adminRoutes.Use(middleware.AdminRateLimitMiddleware())
 	// Log all admin actions

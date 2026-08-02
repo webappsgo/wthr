@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"strings"
 
@@ -17,7 +16,7 @@ import (
 // SetupTokenRequired shows setup token entry form at /server/admin when no admin exists
 // AI.md: User navigates to /server/admin → User enters setup token → Redirect to /server/{admin_path}/server/setup
 // AI.md: Admin panel (/server/admin) - YES (requires setup token) - accessible before setup
-func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
+func SetupTokenRequired(cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		reqPath := c.Request.URL.Path
 		adminPath := "/server/" + cfg.GetAdminPath()
@@ -91,7 +90,7 @@ func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 
 // BlockSetupAfterComplete blocks access to setup routes after server setup is complete
 // AI.md: Setup token file deleted after successful setup completion
-func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
+func BlockSetupAfterComplete(cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if any admin exists - setup is complete when admin exists
 		var count int
@@ -137,7 +136,7 @@ func RequireSetupTokenVerified(cfg *config.AppConfig) gin.HandlerFunc {
 }
 
 // BlockSetupAfterAdminExists blocks access to admin setup if admin account already exists
-func BlockSetupAfterAdminExists(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
+func BlockSetupAfterAdminExists(cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if admin exists in server_admin_credentials
 		var count int
