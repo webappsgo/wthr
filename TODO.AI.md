@@ -548,6 +548,39 @@ any of the above: `src/graphql/context_keys_test.go`,
     (55.0%, untouched) and `src/graphql`'s remaining DB/HTTP-dependent
     functions.
 
+    Progress (2026-08-02, continued): repo-wide unfiltered total
+    re-measured at 26.1%, confirming `src/graphql`'s remaining DB/
+    HTTP-dependent mutation resolvers are still the biggest lever.
+    Surveyed `go tool cover -func` across `src/cli`/`src/email`/
+    `src/graphql`; picked two of the lowest-covered, most
+    security-relevant mutations for this pass: `CreateUserToken` (11.1%)
+    and `RevokeUserToken` (20.0%) in `schema.resolvers.go`. Added
+    `schema.resolvers_token_test.go` reusing the existing
+    `newAuthMutationTestDB`/`seedGraphQLUser` fixtures from
+    `schema.resolvers_mutations_test.go` and the `withGraphQLUserContext`
+    helper from `graphql.go` to build an authenticated context directly
+    (no HTTP layer needed). `TestMutationResolver_CreateUserToken` covers
+    the unauthorized-context error, the happy path (plaintext token
+    returned once, correct name), scopes/expiresIn being applied, and the
+    5-tokens-per-user limit being enforced on a 6th create.
+    `TestMutationResolver_RevokeUserToken` covers the unauthorized-context
+    error, an unparseable id, an unknown id returning a non-error
+    `Success: false` response, a successful revoke of an owned token, and
+    the cross-user isolation case (cannot revoke another user's token id).
+    Verified via Docker `gofmt -l ./src/graphql/`/`go build ./...`/`go vet
+    ./src/graphql/...`/`go test ./src/graphql/... -run
+    'TestMutationResolver_CreateUserToken|TestMutationResolver_RevokeUserToken'
+    -v` — all pass — and `go test ./src/graphql/... -coverprofile`:
+    `CreateUserToken` 11.1% → 85.2%, `RevokeUserToken` 20.0% → 86.7%. Full
+    repo `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Next targets: remaining low-coverage `schema.resolvers.go`
+    mutations (`AdminUpdateUser`, `AdminCreateUserInvite`,
+    `CreateSavedLocation`, `FinishUserPasskeyRegistration`,
+    `UpdateUserSettings`, `AdminInviteServerAdmin`,
+    `MarkNotificationRead`, `AdminDeleteUser`, `ToggleLocationAlerts`,
+    the passkey challenge/registration resolvers), then `src/cli`/
+    `src/email` (55.0%, still untouched).
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
