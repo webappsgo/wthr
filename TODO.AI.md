@@ -904,33 +904,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     verified correct against src/database/timeouts.go). Read: AI.md PART 3
     (package naming) and PART 31 (i18n) before starting.
 
-30. TODO (flagged 2026-08-02 by go-lint during item 12's
+30. DONE (2026-08-02, flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/admin_logs_format.go + src/server/handler/debug.go +
     src/server/middleware/admin_auth.go pass): pre-existing, out of scope
     for item 12 (DB timeout wrapping only) —
-    - src/server/handler/admin_logs_format.go line 175: uses
-      `utils.TemplateData()` but the import (line 12) is
-      `"github.com/webappsgo/wthr/src/util"` as `util` — same class of
-      issue as item 28/29 (src/util's internal `package utils` vs the
-      singular directory/import name).
-    - src/server/handler/admin_logs_format.go lines 167-169: `ShowLogFormatPage`
-      calls `database.QueryRowContext(...).Scan(&logFormat)` without
-      capturing/checking the returned error.
-    - src/server/handler/debug.go line 126: `ShowDatabase`'s table-count
-      `database.QueryRowContext(...).Scan(&tableCount)` call doesn't
-      capture/check the returned error.
-    - src/server/handler/debug.go line 139: `ShowDatabase`'s per-table
-      row-count `database.QueryRowContext(...).Scan(&rowCount)` call
-      doesn't capture/check the returned error.
-    - src/server/middleware/admin_auth.go line 296: uses
-      `models.VerifyPassword()` but the import (line 15) is
-      `"github.com/webappsgo/wthr/src/server/model"` as `model` — same
-      class of issue as the src/server/model `package models` mismatch
-      already tracked (see the item covering src/server/model/passkey.go).
-    None of these were introduced by this diff — the unchecked-Scan calls
-    already ignored their error return before conversion, and the
-    import-alias mismatches are pre-existing package-naming issues. Read:
-    AI.md PART 3 (package naming) before starting.
+    - Already resolved by prior sweeps (verified via grep before
+      starting, no code change needed): admin_logs_format.go line 175's
+      `utils.TemplateData()` now correctly calls `util.TemplateData()`
+      (fixed by item 28's bare-importer sweep), and admin_auth.go line
+      296's `models.VerifyPassword()` now correctly calls
+      `model.VerifyPassword()` (fixed alongside the src/server/model
+      `package models` mismatch tracked under the passkey.go item).
+    - DONE (2026-08-02): admin_logs_format.go's `ShowLogFormatPage` and
+      debug.go's `ShowDatabase` now capture and log all three previously
+      unchecked `Scan()` errors (`log.Printf("ERROR: ...")`, matching
+      the existing pattern in admin.go's GetTasksStats), per AI.md
+      PART 9 ("Log everything"). admin_logs_format.go's Scan error
+      skips logging on `sql.ErrNoRows` since that's the expected case
+      that triggers the "apache" format default. Verified: gofmt -l
+      clean, go build/vet clean, go test -count=1
+      ./src/server/handler/... passes. Commit: cc5a6a8778dc.
 
 31. TODO (flagged 2026-08-02, discovered via post-push CI check on commit
     a3cd80ecbf6d): tests/integration's `TestAPI_Search/Valid_search`
