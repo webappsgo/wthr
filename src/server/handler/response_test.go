@@ -37,8 +37,8 @@ func TestRespondError(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v; body=%s", err, w.Body.String())
 		}
-		if resp.Error != "bad field" || resp.Code != ErrInvalidInput || resp.Status != http.StatusBadRequest {
-			t.Errorf("resp = %+v, want Error=bad field Code=%s Status=%d", resp, ErrInvalidInput, http.StatusBadRequest)
+		if resp.OK || resp.Error != ErrInvalidInput || resp.Message != "bad field" {
+			t.Errorf("resp = %+v, want OK=false Error=%s Message=bad field", resp, ErrInvalidInput)
 		}
 		if resp.Details != nil {
 			t.Errorf("Details = %v, want nil when not supplied", resp.Details)
@@ -103,8 +103,9 @@ func TestRespondSuccess(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if !resp.OK || resp.Message != "did the thing" || resp.Data != nil {
-			t.Errorf("resp = %+v, want OK=true Message=%q Data=nil", resp, "did the thing")
+		data, ok := resp.Data.(map[string]interface{})
+		if !resp.OK || !ok || data["message"] != "did the thing" {
+			t.Errorf("resp = %+v, want OK=true Data.message=%q", resp, "did the thing")
 		}
 	})
 
@@ -117,8 +118,8 @@ func TestRespondSuccess(t *testing.T) {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		data, ok := resp.Data.(map[string]interface{})
-		if !ok || data["count"] != float64(3) {
-			t.Errorf("Data = %v, want map with count=3", resp.Data)
+		if !ok || data["count"] != float64(3) || data["message"] != "done" {
+			t.Errorf("Data = %v, want map with count=3 message=done", resp.Data)
 		}
 	})
 
@@ -144,8 +145,9 @@ func TestRespondCreated(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if resp.ID != "item_123" || !resp.OK || resp.Message != "created" {
-		t.Errorf("resp = %+v, want ID=item_123 OK=true Message=created", resp)
+	data, ok := resp.Data.(map[string]interface{})
+	if !ok || data["id"] != "item_123" || !resp.OK || data["message"] != "created" || data["name"] != "x" {
+		t.Errorf("resp = %+v, want Data.id=item_123 OK=true Data.message=created Data.name=x", resp)
 	}
 }
 
@@ -356,8 +358,8 @@ func TestNegotiateErrorResponse(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if resp.Code != ErrNotFound || resp.Error != "missing" {
-			t.Errorf("resp = %+v, want Code=%s Error=missing", resp, ErrNotFound)
+		if resp.Error != ErrNotFound || resp.Message != "missing" {
+			t.Errorf("resp = %+v, want Error=%s Message=missing", resp, ErrNotFound)
 		}
 	})
 
@@ -416,8 +418,8 @@ func TestErrorHelperWrappers(t *testing.T) {
 			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 				t.Fatalf("unmarshal: %v", err)
 			}
-			if resp.Code != tt.wantCode {
-				t.Errorf("Code = %q, want %q", resp.Code, tt.wantCode)
+			if resp.Error != tt.wantCode {
+				t.Errorf("Error = %q, want %q", resp.Error, tt.wantCode)
 			}
 		})
 	}

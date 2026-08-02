@@ -57,7 +57,8 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch templates"})
+		log.Printf("ERROR: ListTemplates: failed to query templates: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch templates")
 		return
 	}
 	defer rows.Close()
@@ -141,7 +142,7 @@ func (h *NotificationTemplateHandler) GetTemplate(c *gin.Context) {
 		&createdAt, &updatedAt)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
@@ -186,19 +187,21 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	// Validate template syntax
 	if err := h.TemplateEngine.ValidateTemplate(req.BodyTemplate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template syntax: " + err.Error()})
+		log.Printf("WARNING: CreateTemplate: invalid template syntax: %v", err)
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid template syntax")
 		return
 	}
 
 	if req.SubjectTemplate != "" {
 		if err := h.TemplateEngine.ValidateTemplate(req.SubjectTemplate); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subject template syntax: " + err.Error()})
+			log.Printf("WARNING: CreateTemplate: invalid subject template syntax: %v", err)
+			RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid subject template syntax")
 			return
 		}
 	}
@@ -225,15 +228,13 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 		req.SubjectTemplate, req.BodyTemplate, string(variablesJSON), req.IsDefault)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create template"})
+		log.Printf("ERROR: CreateTemplate: failed to insert template: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to create template")
 		return
 	}
 
 	id, _ := result.LastInsertId()
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Template created successfully",
-		"id":      id,
-	})
+	RespondCreated(c, "Template created successfully", strconv.FormatInt(id, 10))
 }
 
 // UpdateTemplate updates a template
@@ -250,21 +251,23 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	// Validate template syntax
 	if req.BodyTemplate != "" {
 		if err := h.TemplateEngine.ValidateTemplate(req.BodyTemplate); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template syntax: " + err.Error()})
+			log.Printf("WARNING: UpdateTemplate: invalid template syntax: %v", err)
+			RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid template syntax")
 			return
 		}
 	}
 
 	if req.SubjectTemplate != "" {
 		if err := h.TemplateEngine.ValidateTemplate(req.SubjectTemplate); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subject template syntax: " + err.Error()})
+			log.Printf("WARNING: UpdateTemplate: invalid subject template syntax: %v", err)
+			RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid subject template syntax")
 			return
 		}
 	}
@@ -273,7 +276,7 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 	var channelType string
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT channel_type FROM notification_templates WHERE id = ?", id).Scan(&channelType)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
@@ -304,11 +307,12 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 		req.BodyTemplate, string(variablesJSON), req.IsDefault, id)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update template"})
+		log.Printf("ERROR: UpdateTemplate: failed to update template: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update template")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Template updated successfully"})
+	RespondSuccess(c, "Template updated successfully")
 }
 
 // DeleteTemplate deletes a template
@@ -319,22 +323,23 @@ func (h *NotificationTemplateHandler) DeleteTemplate(c *gin.Context) {
 	var isDefault bool
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT is_default FROM notification_templates WHERE id = ?", id).Scan(&isDefault)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
 	if isDefault {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete default template"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Cannot delete default template")
 		return
 	}
 
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "DELETE FROM notification_templates WHERE id = ?", id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete template"})
+		log.Printf("ERROR: DeleteTemplate: failed to delete template: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete template")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Template deleted successfully"})
+	RespondSuccess(c, "Template deleted successfully")
 }
 
 // PreviewTemplate renders a template with sample data
@@ -346,7 +351,7 @@ func (h *NotificationTemplateHandler) PreviewTemplate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
@@ -356,7 +361,8 @@ func (h *NotificationTemplateHandler) PreviewTemplate(c *gin.Context) {
 	if req.SubjectTemplate != "" {
 		subject, err = h.TemplateEngine.Render(req.SubjectTemplate, req.Variables)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to render subject: " + err.Error()})
+			log.Printf("WARNING: PreviewTemplate: failed to render subject: %v", err)
+			RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Failed to render subject")
 			return
 		}
 	}
@@ -364,7 +370,8 @@ func (h *NotificationTemplateHandler) PreviewTemplate(c *gin.Context) {
 	// Render body
 	body, err := h.TemplateEngine.Render(req.BodyTemplate, req.Variables)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to render body: " + err.Error()})
+		log.Printf("WARNING: PreviewTemplate: failed to render body: %v", err)
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Failed to render body")
 		return
 	}
 
@@ -383,7 +390,7 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
@@ -398,7 +405,7 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 	`, id).Scan(&channelType, &templateType, &subjectTemplate, &bodyTemplate, &variables)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
@@ -412,28 +419,25 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 		variables.String)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clone template"})
+		log.Printf("ERROR: CloneTemplate: failed to clone template: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to clone template")
 		return
 	}
 
 	newID, _ := result.LastInsertId()
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Template cloned successfully",
-		"id":      newID,
-	})
+	RespondCreated(c, "Template cloned successfully", strconv.FormatInt(newID, 10))
 }
 
 // InitializeDefaults initializes default templates
 func (h *NotificationTemplateHandler) InitializeDefaults(c *gin.Context) {
 	err := h.TemplateEngine.InitializeDefaultTemplates()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.Printf("ERROR: InitializeDefaults: failed to initialize default templates: %v", err)
+		RespondError(c, http.StatusInternalServerError, ErrInternal, "Failed to initialize default templates")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Default templates initialized successfully",
-	})
+	RespondSuccess(c, "Default templates initialized successfully")
 }
 
 // GetTemplateVariables returns available template variables
