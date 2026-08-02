@@ -10,10 +10,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
-	"github.com/gin-gonic/gin"
 	"strings"
 	"time"
 
@@ -24,17 +24,17 @@ import (
 type contextKey string
 
 const (
-	ctxKeyRequestIP       contextKey = "request_ip"
-	ctxKeyClientIP        contextKey = "client_ip"
-	ctxKeyRequestHost     contextKey = "request_host"
-	ctxKeyRequestScheme   contextKey = "request_scheme"
+	ctxKeyRequestIP        contextKey = "request_ip"
+	ctxKeyClientIP         contextKey = "client_ip"
+	ctxKeyRequestHost      contextKey = "request_host"
+	ctxKeyRequestScheme    contextKey = "request_scheme"
 	ctxKeyRequestUserAgent contextKey = "request_user_agent"
-	ctxKeyAdminID         contextKey = "admin_id"
-	ctxKeyUserRole        contextKey = "user_role"
-	ctxKeyAdminEmail      contextKey = "admin_email"
-	ctxKeyUserID          contextKey = "user_id"
-	ctxKeyUserSession     contextKey = "user_session"
-	ctxKeyUserSessionID   contextKey = "user_session_id"
+	ctxKeyAdminID          contextKey = "admin_id"
+	ctxKeyUserRole         contextKey = "user_role"
+	ctxKeyAdminEmail       contextKey = "admin_email"
+	ctxKeyUserID           contextKey = "user_id"
+	ctxKeyUserSession      contextKey = "user_session"
+	ctxKeyUserSessionID    contextKey = "user_session_id"
 )
 
 // NewServer creates a gqlgen GraphQL server for the provided resolver tree.
@@ -203,7 +203,7 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 	}
 
 	var adminID int
-	err := serverDB.QueryRow(`
+	err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
 		SELECT admin_id
 		FROM server_admin_sessions
 		WHERE id = ? AND expires_at > CURRENT_TIMESTAMP

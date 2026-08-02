@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -22,7 +23,7 @@ type AdminSettingsHandler struct {
 
 // GetAllSettings returns all settings
 func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT key, value, type, COALESCE(description, '') as description
 		FROM server_config
 		ORDER BY key
@@ -123,7 +124,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 		}
 
 		// Update in database
-		result, err := database.GetServerDB().Exec(`
+		result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_config
 			SET value = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE key = ?
@@ -167,8 +168,8 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"applied":          applied,
-		"failed":           failed,
+		"applied": applied,
+		"failed":  failed,
 		// All settings apply live
 		"requires_restart": []string{},
 		"message":          "Settings applied successfully. Changes are live.",
@@ -189,7 +190,10 @@ func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec("DELETE FROM server_config"); err != nil {
+	txCtx, txCancel := database.WithTimeout(database.TimeoutWrite)
+	defer txCancel()
+
+	if _, err := tx.ExecContext(txCtx, "DELETE FROM server_config"); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to clear settings",
 		})
@@ -217,7 +221,7 @@ func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
 
 // ExportSettings exports configuration as JSON
 func (h *AdminSettingsHandler) ExportSettings(c *gin.Context) {
-	rows, err := database.GetServerDB().Query("SELECT key, value FROM server_config ORDER BY key")
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value FROM server_config ORDER BY key")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to export settings",
@@ -257,7 +261,7 @@ func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
 
 	imported := 0
 	for key, value := range req.Settings {
-		_, err := database.GetServerDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_config
 			SET value = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE key = ?

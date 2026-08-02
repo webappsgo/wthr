@@ -1191,7 +1191,7 @@ func (r *mutationResolver) AdminResetSettings(ctx context.Context) (*GenericResp
 	backupPath := settingsModel.GetString("backup.location", "/data/backups")
 
 	err := database.WithTransaction(ctx, r.ServerDB, func(tx *sql.Tx) error {
-		_, err := tx.Exec("DELETE FROM server_config")
+		_, err := tx.ExecContext(ctx, "DELETE FROM server_config")
 		return err
 	})
 	if err != nil {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
@@ -10,26 +11,27 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/webappsgo/wthr/src/database"
 	"golang.org/x/crypto/argon2"
+	_ "modernc.org/sqlite"
 )
 
 // BackupManifest represents metadata for a backup archive per AI.md PART 24
 type BackupManifest struct {
-	Version          string    `json:"version"`
-	CreatedAt        time.Time `json:"created_at"`
-	CreatedBy        string    `json:"created_by"`
-	AppVersion       string    `json:"app_version"`
-	ServerDB         bool      `json:"server_db"`
-	UsersDB          bool      `json:"users_db"`
-	ConfigFiles      bool      `json:"config_files"`
-	LogsIncluded     bool      `json:"logs_included"`
-	GeoIPIncluded    bool      `json:"geoip_included"`
-	Encrypted        bool      `json:"encrypted"`
+	Version       string    `json:"version"`
+	CreatedAt     time.Time `json:"created_at"`
+	CreatedBy     string    `json:"created_by"`
+	AppVersion    string    `json:"app_version"`
+	ServerDB      bool      `json:"server_db"`
+	UsersDB       bool      `json:"users_db"`
+	ConfigFiles   bool      `json:"config_files"`
+	LogsIncluded  bool      `json:"logs_included"`
+	GeoIPIncluded bool      `json:"geoip_included"`
+	Encrypted     bool      `json:"encrypted"`
 	// "AES-256-GCM"
-	EncryptionMethod string    `json:"encryption_method,omitempty"`
+	EncryptionMethod string `json:"encryption_method,omitempty"`
 	// sha256:...
-	Checksum         string    `json:"checksum"`
+	Checksum string `json:"checksum"`
 }
 
 // MaintenanceCommand handles maintenance operations per AI.md PART 25
@@ -96,7 +98,7 @@ func updateServerConfig() error {
 	}
 	defer db.Close()
 
-	rows, err := db.Query("SELECT key, value FROM settings ORDER BY key")
+	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT key, value FROM settings ORDER BY key")
 	if err != nil {
 		return fmt.Errorf("failed to read settings: %w", err)
 	}
@@ -306,7 +308,7 @@ func adminRecoverySetup() error {
 
 	// Update or create admin account
 	// First, try to update existing admin
-	result, err := db.Exec(`
+	result, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		UPDATE admin_credentials
 		SET username = ?, password_hash = ?, updated_at = ?
 		WHERE id = 1
@@ -323,7 +325,7 @@ func adminRecoverySetup() error {
 
 	// If no rows updated, insert new admin
 	if rowsAffected == 0 {
-		_, err = db.Exec(`
+		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO admin_credentials (id, username, password_hash, created_at, updated_at)
 			VALUES (1, ?, ?, ?, ?)
 		`, username, passwordHash, time.Now(), time.Now())
@@ -342,7 +344,6 @@ func adminRecoverySetup() error {
 
 	return nil
 }
-
 
 // openDatabase opens a SQLite database connection
 func openDatabase(dbPath string) (*sql.DB, error) {
@@ -371,7 +372,7 @@ func hashPasswordArgon2id(password string) (string, error) {
 
 	// Argon2id parameters from TEMPLATE.md Part 0
 	const (
-		time    = 3
+		time = 3
 		// 64 MB
 		memory  = 64 * 1024
 		threads = 4
@@ -563,7 +564,7 @@ func verifyAdminExists(serverDBPath string) error {
 	defer db.Close()
 
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 	if err != nil {
 		return fmt.Errorf("cannot query: %w", err)
 	}
@@ -574,4 +575,3 @@ func verifyAdminExists(serverDBPath string) error {
 
 	return nil
 }
-

@@ -494,3 +494,70 @@ any of the above: `src/graphql/context_keys_test.go`,
     already ignored their error return before conversion, and the
     import-alias mismatches are pre-existing package-naming issues. Read:
     AI.md PART 3 (package naming) before starting.
+
+31. TODO (flagged 2026-08-02, discovered via post-push CI check on commit
+    a3cd80ecbf6d): tests/integration's `TestAPI_Search/Valid_search`
+    (tests/integration/api_test.go:207) failed in CI with a live network
+    timeout — `search error: Get
+    "https://geocoding-api.open-meteo.com/v1/search?...": context
+    deadline exceeded (Client.Timeout exceeded while awaiting headers)`.
+    This is a different failure signature than the known coverage-gate
+    issue (item 16) — it's an integration test making a real outbound
+    HTTP call to a third-party geocoding API, which the CI runner
+    couldn't reach in time. Not caused by this session's item-12 diffs
+    (admin_logs_format.go, debug.go, admin_auth.go, maintenance.go —
+    none touch search/geocoding code). Root problem: PART 29 test rules
+    require Phase 1 (`*_test.go` via `make test`) to be provable without
+    a running app/network dependency — a test that calls a live
+    third-party API will always be flaky in CI (network egress may be
+    restricted/slow/rate-limited) and violates that isolation
+    requirement. Fix requires either mocking/stubbing the geocoding HTTP
+    client in this test, or moving this specific assertion to Phase 2
+    (`tests/run_tests.sh`, which already runs against a live running
+    binary) — a real design decision, out of scope for item 12. Read:
+    AI.md PART 29 (testing strategy, decision rule for *_test.go vs
+    ./tests/*.sh) before starting.
+
+32. TODO (flagged 2026-08-02 by go-lint during item 12's src/cli/maintenance.go
+    pass): pre-existing, out of scope for item 12 (DB timeout wrapping only) —
+    - src/cli/maintenance.go lines 356, 519: `db.Ping()` calls in
+      `openDatabase()`/`verifyDatabaseFile()` have no timeout context — per
+      AI.md PART 10 these should use `database.PingWithTimeout(db)` (already
+      exists in src/database/timeouts.go) instead of the bare `db.Ping()`.
+    - src/cli/maintenance.go lines 19, 37, 303, 365, 373-374, 393: comments
+      reference `TEMPLATE.md` (with PART numbers that don't match AI.md's
+      actual PART numbering) — should reference `AI.md` with the correct
+      PART (e.g. PART 22 Backup & Restore, not PART 24/25). No TEMPLATE.md
+      file exists in this project.
+    Note: go-lint also flagged `sql.Open("sqlite", ...)` at lines 512/560 as
+    using the wrong driver name ("must be sqlite3") — this is a FALSE
+    POSITIVE, verified by grepping the codebase: every other file using
+    `modernc.org/sqlite` (per AI.md PART 3, the mandated CGO-free driver)
+    registers and opens with driver name `"sqlite"`, not `"sqlite3"` — no
+    fix needed there.
+    Not introduced by this diff — the QueryContext/ExecContext conversions
+    at lines 101, 311, 328, 567 were verified correct (proper timeout tier,
+    context.Background() usage). Read: AI.md PART 10 (Query Timeouts)
+    before starting.
+
+33. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/handler/admin_settings.go pass): pre-existing, out of scope
+    for item 12 (DB timeout wrapping only) —
+    - Lines 32, 100, 186, 197, 204, 211, 226, 255: error responses use
+      `{"error": "..."}` instead of the canonical
+      `{"ok": false, "error": "CODE", "message": "..."}` shape required by
+      AI.md PART 14.
+    - Lines 87, 170, 217, 275, 287: success responses don't follow the
+      canonical `{"ok": true, "data": {...}}` shape from AI.md PART 14.
+    - Lines 66, 69: `json.Unmarshal()` return errors are silently
+      discarded in `GetAllSettings()` — should check or explicitly
+      `_`-ignore with a comment.
+    - Line 146: comment references "TEMPLATE.md Part 25" — should
+      reference AI.md with the correct PART number (PART 18, WebUI
+      Notifications) instead; no TEMPLATE.md file exists in this project.
+    Not introduced by this diff — the go-lint agent explicitly confirmed
+    the timeout-wrapping conversion itself (lines 26, 127, 193-196, 224,
+    264) is correct per AI.md PART 10, including the `*sql.Tx`-scoped
+    `database.WithTimeout()` + `tx.ExecContext()` pattern used in
+    `ResetSettings()`. Read: AI.md PART 14 (API error/success response
+    shapes) before starting.
