@@ -753,23 +753,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     passes, `go test ./src/server/handler/... -run TestSetup -v` — all
     12 subtests pass. Committed as 0ebcb22d6548.
 
-24. TODO (flagged 2026-08-01 by go-lint during item 12's src/main.go
-    pass): several DB call sites ignore the returned error:
-    - ~line 1336: `database.ExecContext(...)` (DELETE used verification
-      token) — return value not checked.
-    - ~line 1691: `database.ExecContext(...)` (DELETE admin session on
-      logout) — return value not checked.
-    - ~lines 4000-4002: 3x chained
-      `database.QueryRowContext(...).Scan(...)` in `showServerStatus`
-      (user/location/token counts) — error not checked.
-    Pre-existing pattern (predates the DB-timeout migration; the original
-    `Exec`/`QueryRow(...).Scan(...)` calls already ignored errors the same
-    way) — kept unchanged in the item-12 pass to stay scoped to
-    timeout-wrapping only. Fix: check `err` after each call, log with
-    context per backend-rules.md's "log every error with context" rule
-    (the showServerStatus counts can degrade to 0/"unknown" on error
-    rather than failing the whole status command). Read: AI.md PART 9
-    (error handling) before starting.
+24. DONE (2026-08-02): src/main.go had 5 DB call sites ignoring the
+    returned error (email-verification DELETE, admin-logout DELETE, and
+    3 chained `QueryRowContext(...).Scan(...)` count queries in
+    `showServerStatus`). Read AI.md PART 9 (error handling) before
+    starting. Fixed all 5: each now checks `err` and, on failure, logs
+    `log.Printf("WARNING: <context>: %v", err)` (matching the same
+    stdlib `log` convention used in items 22/23) rather than silently
+    dropping the error; the 3 `showServerStatus` counts degrade to their
+    zero value on error rather than failing the whole status command, as
+    specified. Verified: `gofmt -l src/main.go` clean, `go build ./...`
+    passes, `go vet ./...` passes, `go test ./src -run
+    TestGetDefaultListenAddress -v` passes (no dedicated tests exist for
+    the touched routes/showServerStatus, so build+vet+existing-package-
+    test is the applicable ground truth here). Committed as
+    f3e05dfa42c7.
 
 25. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/notification_templates.go pass): pre-existing,
