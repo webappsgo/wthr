@@ -1,10 +1,13 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NotificationChannel represents a notification channel interface
@@ -138,7 +141,7 @@ func (cm *ChannelManager) InitializeChannels() error {
 	for _, def := range ChannelRegistry {
 		// Check if channel already exists
 		var exists bool
-		err := cm.db.QueryRow("SELECT EXISTS(SELECT 1 FROM notification_channels WHERE channel_type = ?)", def.Type).Scan(&exists)
+		err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, "SELECT EXISTS(SELECT 1 FROM notification_channels WHERE channel_type = ?)", def.Type).Scan(&exists)
 		if err != nil {
 			return fmt.Errorf("failed to check channel existence: %w", err)
 		}
@@ -151,7 +154,7 @@ func (cm *ChannelManager) InitializeChannels() error {
 				"fields":      def.ConfigFields,
 			})
 
-			_, err = cm.db.Exec(`
+			_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 				INSERT INTO notification_channels
 				(channel_type, channel_name, enabled, state, config, created_at, updated_at)
 				VALUES (?, ?, 0, 'disabled', ?, ?, ?)
@@ -186,7 +189,7 @@ func (cm *ChannelManager) ListChannels() []string {
 
 // ListEnabledChannels returns all enabled channels from database
 func (cm *ChannelManager) ListEnabledChannels() ([]string, error) {
-	rows, err := cm.db.Query("SELECT channel_type FROM notification_channels WHERE enabled = 1 AND state = 'enabled'")
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, "SELECT channel_type FROM notification_channels WHERE enabled = 1 AND state = 'enabled'")
 	if err != nil {
 		return nil, err
 	}
@@ -207,13 +210,13 @@ func (cm *ChannelManager) ListEnabledChannels() ([]string, error) {
 // GetChannelState returns the state of a channel from database
 func (cm *ChannelManager) GetChannelState(channelType string) (string, error) {
 	var state string
-	err := cm.db.QueryRow("SELECT state FROM notification_channels WHERE channel_type = ?", channelType).Scan(&state)
+	err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, "SELECT state FROM notification_channels WHERE channel_type = ?", channelType).Scan(&state)
 	return state, err
 }
 
 // UpdateChannelState updates the state of a channel
 func (cm *ChannelManager) UpdateChannelState(channelType, state string) error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET state = ?, updated_at = ?
 		WHERE channel_type = ?
@@ -223,7 +226,7 @@ func (cm *ChannelManager) UpdateChannelState(channelType, state string) error {
 
 // EnableChannel enables a channel
 func (cm *ChannelManager) EnableChannel(channelType string) error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET enabled = 1, state = 'enabled', updated_at = ?
 		WHERE channel_type = ?
@@ -233,7 +236,7 @@ func (cm *ChannelManager) EnableChannel(channelType string) error {
 
 // DisableChannel disables a channel
 func (cm *ChannelManager) DisableChannel(channelType string) error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET enabled = 0, state = 'disabled', updated_at = ?
 		WHERE channel_type = ?
@@ -257,7 +260,7 @@ func (cm *ChannelManager) TestChannel(channelType, recipient string) error {
 	// Update state based on result
 	now := time.Now()
 	if err != nil {
-		_, dbErr := cm.db.Exec(`
+		_, dbErr := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 			UPDATE notification_channels
 			SET state = 'failed',
 				last_test_at = ?,
@@ -274,7 +277,7 @@ func (cm *ChannelManager) TestChannel(channelType, recipient string) error {
 	}
 
 	// Test succeeded
-	_, err = cm.db.Exec(`
+	_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET state = 'enabled',
 			enabled = 1,
@@ -292,7 +295,7 @@ func (cm *ChannelManager) TestChannel(channelType, recipient string) error {
 
 // RecordSuccess records a successful delivery
 func (cm *ChannelManager) RecordSuccess(channelType string) error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET last_success_at = ?,
 			failure_count = 0,
@@ -304,7 +307,7 @@ func (cm *ChannelManager) RecordSuccess(channelType string) error {
 
 // RecordFailure records a failed delivery
 func (cm *ChannelManager) RecordFailure(channelType string, errorMsg string) error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET last_error = ?,
 			failure_count = failure_count + 1,
@@ -325,7 +328,7 @@ func (cm *ChannelManager) GetChannelStats(channelType string) (map[string]interf
 	var lastTestAt, lastSuccessAt sql.NullTime
 	var failureCount int
 
-	err := cm.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT enabled, state, last_test_at, last_success_at, last_error, failure_count
 		FROM notification_channels
 		WHERE channel_type = ?
