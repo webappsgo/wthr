@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -32,7 +33,7 @@ type SettingsModel struct {
 // Get retrieves a setting by key
 func (m *SettingsModel) Get(key string) (*Setting, error) {
 	setting := &Setting{}
-	err := database.GetServerDB().QueryRow(
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key = ?",
 		key,
 	).Scan(&setting.Key, &setting.Value, &setting.Type)
@@ -89,7 +90,7 @@ func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
 
 // Set creates or updates a setting
 func (m *SettingsModel) Set(key, value, settingType string) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?
@@ -100,7 +101,7 @@ func (m *SettingsModel) Set(key, value, settingType string) error {
 
 // SetWithDescription sets a setting with description
 func (m *SettingsModel) SetWithDescription(key, value, settingType, description string) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?, description = ?
@@ -139,13 +140,13 @@ func (m *SettingsModel) SetJSON(key string, value interface{}) error {
 
 // Delete removes a setting
 func (m *SettingsModel) Delete(key string) error {
-	_, err := m.DB.Exec("DELETE FROM settings WHERE key = ?", key)
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM settings WHERE key = ?", key)
 	return err
 }
 
 // List returns all settings
 func (m *SettingsModel) List() ([]*Setting, error) {
-	rows, err := m.DB.Query("SELECT key, value, type FROM settings ORDER BY key")
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, "SELECT key, value, type FROM settings ORDER BY key")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func (m *SettingsModel) List() ([]*Setting, error) {
 
 // ListByPrefix returns all settings with a specific prefix
 func (m *SettingsModel) ListByPrefix(prefix string) ([]*Setting, error) {
-	rows, err := m.DB.Query(
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM settings WHERE key LIKE ? ORDER BY key",
 		prefix+"%",
 	)
