@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -468,12 +469,20 @@ func (h *AdminHandler) GetTasksStats(c *gin.Context) {
 	var totalTasks, enabledTasks, disabledTasks, failedTasks int64
 
 	// Get total count
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks)
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks); err != nil {
+		log.Printf("ERROR: GetTasksStats: failed to count total tasks: %v", err)
+	}
 
 	// Get counts by status
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks)
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 0").Scan(&disabledTasks)
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE last_status = 'failed'").Scan(&failedTasks)
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks); err != nil {
+		log.Printf("ERROR: GetTasksStats: failed to count enabled tasks: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 0").Scan(&disabledTasks); err != nil {
+		log.Printf("ERROR: GetTasksStats: failed to count disabled tasks: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE last_status = 'failed'").Scan(&failedTasks); err != nil {
+		log.Printf("ERROR: GetTasksStats: failed to count failed tasks: %v", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"total":    totalTasks,
@@ -492,10 +501,18 @@ func (h *AdminHandler) GetSystemStats(c *gin.Context) {
 	adminCount, _ := userModel.CountByRole("admin")
 
 	var totalLocations, totalTokens, totalSessions, totalNotifications int
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens").Scan(&totalTokens)
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_sessions").Scan(&totalSessions)
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications)
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
+		log.Printf("ERROR: GetSystemStats: failed to count saved locations: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens").Scan(&totalTokens); err != nil {
+		log.Printf("ERROR: GetSystemStats: failed to count tokens: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_sessions").Scan(&totalSessions); err != nil {
+		log.Printf("ERROR: GetSystemStats: failed to count sessions: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_notifications").Scan(&totalNotifications); err != nil {
+		log.Printf("ERROR: GetSystemStats: failed to count notifications: %v", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"users": gin.H{
@@ -515,7 +532,9 @@ func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
 	// Check if tasks are already seeded (real table is server_scheduler_state
 	// per src/database/server_schema.go - there is no "scheduled_tasks" table)
 	var count int
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&count)
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&count); err != nil {
+		log.Printf("ERROR: GetScheduledTasks: failed to count existing tasks: %v", err)
+	}
 
 	// If no tasks exist, seed them from the known scheduler tasks
 	if count == 0 {
@@ -615,7 +634,7 @@ func (h *AdminHandler) seedScheduledTasks() {
 		`, task.Name, task.Name, task.Schedule)
 
 		if err != nil {
-			// Skip on error
+			log.Printf("ERROR: seedScheduledTasks: failed to seed task %q: %v", task.Name, err)
 			continue
 		}
 	}
