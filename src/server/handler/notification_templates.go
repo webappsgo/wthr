@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -53,7 +55,7 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 		`
 	}
 
-	rows, err := h.DB.Query(query, args...)
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch templates"})
 		return
@@ -128,7 +130,7 @@ func (h *NotificationTemplateHandler) GetTemplate(c *gin.Context) {
 	var variables sql.NullString
 	var createdAt, updatedAt sql.NullTime
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_type, template_name, template_type,
 		       subject_template, body_template, variables, is_default,
 		       created_at, updated_at
@@ -203,7 +205,7 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 
 	// If setting as default, unset other defaults for this channel
 	if req.IsDefault {
-		if _, err := h.DB.Exec(`
+		if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 			UPDATE notification_templates
 			SET is_default = 0
 			WHERE channel_type = ?
@@ -214,7 +216,7 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 
 	variablesJSON, _ := json.Marshal(req.Variables)
 
-	result, err := h.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notification_templates
 		(channel_type, template_name, template_type, subject_template,
 		 body_template, variables, is_default, created_at, updated_at)
@@ -269,7 +271,7 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 
 	// Get current template's channel type
 	var channelType string
-	err := h.DB.QueryRow("SELECT channel_type FROM notification_templates WHERE id = ?", id).Scan(&channelType)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT channel_type FROM notification_templates WHERE id = ?", id).Scan(&channelType)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
 		return
@@ -277,7 +279,7 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 
 	// If setting as default, unset other defaults
 	if req.IsDefault {
-		if _, err := h.DB.Exec(`
+		if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 			UPDATE notification_templates
 			SET is_default = 0
 			WHERE channel_type = ? AND id != ?
@@ -288,7 +290,7 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 
 	variablesJSON, _ := json.Marshal(req.Variables)
 
-	_, err = h.DB.Exec(`
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE notification_templates
 		SET template_name = ?,
 		    template_type = ?,
@@ -315,7 +317,7 @@ func (h *NotificationTemplateHandler) DeleteTemplate(c *gin.Context) {
 
 	// Check if it's a default template
 	var isDefault bool
-	err := h.DB.QueryRow("SELECT is_default FROM notification_templates WHERE id = ?", id).Scan(&isDefault)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT is_default FROM notification_templates WHERE id = ?", id).Scan(&isDefault)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
 		return
@@ -326,7 +328,7 @@ func (h *NotificationTemplateHandler) DeleteTemplate(c *gin.Context) {
 		return
 	}
 
-	_, err = h.DB.Exec("DELETE FROM notification_templates WHERE id = ?", id)
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "DELETE FROM notification_templates WHERE id = ?", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete template"})
 		return
@@ -389,7 +391,7 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 	var channelType, templateType, subjectTemplate, bodyTemplate string
 	var variables sql.NullString
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_type, template_type, subject_template, body_template, variables
 		FROM notification_templates
 		WHERE id = ?
@@ -401,7 +403,7 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 	}
 
 	// Create clone (never set as default)
-	result, err := h.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notification_templates
 		(channel_type, template_name, template_type, subject_template,
 		 body_template, variables, is_default, created_at, updated_at)

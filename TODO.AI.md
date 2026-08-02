@@ -378,3 +378,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     (the showServerStatus counts can degrade to 0/"unknown" on error
     rather than failing the whole status command). Read: AI.md PART 9
     (error handling) before starting.
+
+25. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/handler/notification_templates.go pass): pre-existing,
+    out of scope for item 12 (DB timeout wrapping only):
+    - Lines 60, 144, 189, 228, 233, 253, 276, 307, 327, 333, 349, 415,
+      420, 430, 434: error/success responses use ad-hoc
+      `gin.H{"error": "..."}` / `gin.H{"message": "..."}` shapes instead
+      of the canonical API response shape (`{"ok":false,"error":"CODE",
+      "message":"..."}` / `{"ok":true,"data":{...}}`) per PART 14.
+    - Lines 195, 201, 359, 367: raw `err.Error()` text (template syntax
+      validation errors) is returned directly in the API response body
+      instead of a generic user-facing message with the detail logged
+      internally only, per PART 11's Output Sanitization Pipeline.
+    Not touched by the item-12 diff (only the raw DB calls were
+    converted to timeout-wrapped calls). Fix: adopt canonical response
+    shape and generic error messages across all handlers in this file.
+    Read: AI.md PART 11 (security & logging) and PART 14 (API
+    structure) before starting.
