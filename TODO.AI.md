@@ -324,6 +324,20 @@ any of the above: `src/graphql/context_keys_test.go`,
     gin/DB-heavy admin handlers (`admin_admins.go`, `admin_backup.go`,
     `auth_oidc.go`, `passkey.go`, `setup_wizard.go`, etc.) needing more
     setup/mocking — deferred to a future pass.
+    Progress (2026-08-02, continued): moved to `src/path` (48.5% baseline).
+    Added `src/path/paths_extra_test.go` (genuinely new, 8 test functions)
+    covering every previously-untested exported/unexported function:
+    `Initialize`/`GetInstance` (singleton behavior), all 10 `Get*Dir()`/
+    `IsPrivileged()` global convenience getters, `GetConfigFilePath`,
+    `initializeSubdirectories`, `Override` (env-var precedence + no-op when
+    unset), `EnsurePIDFile`, `EnsureAllDirectories` (including nested SSL/
+    Tor subdirectories), and `PrintPaths` (stdout capture via `os.Pipe`).
+    Reused the existing `resetPathsSingleton`/`setTempDirEnv` test helpers
+    from `paths_test.go` so `Initialize()` never touches real system/user
+    directories. Verified via Docker `gofmt -l`/`go build ./...`/
+    `go vet ./path/`/`go test -v -cover ./path/` — all pass, package
+    coverage 48.5% → 68.1%. Full repo `go test ./...` re-run afterward —
+    all packages still pass, no regressions.
 
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
