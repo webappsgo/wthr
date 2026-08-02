@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NotificationPreferencesHandler handles user notification preferences
@@ -23,7 +25,7 @@ func NewNotificationPreferencesHandler(db *sql.DB) *NotificationPreferencesHandl
 func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
-	rows, err := h.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, enabled, priority,
 		       quiet_hours_start, quiet_hours_end, config
 		FROM user_notification_preferences
@@ -99,7 +101,7 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 
 	configJSON, _ := json.Marshal(req.Config)
 
-	result, err := h.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_notification_preferences
 		SET enabled = ?, priority = ?, quiet_hours_start = ?,
 		    quiet_hours_end = ?, config = ?, updated_at = datetime('now')
@@ -145,7 +147,7 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 
 	configJSON, _ := json.Marshal(req.Config)
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO user_notification_preferences
 		(user_id, channel_type, enabled, priority, quiet_hours_start,
 		 quiet_hours_end, config, created_at, updated_at)
@@ -177,7 +179,7 @@ func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
 		return
 	}
 
-	result, err := h.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		DELETE FROM user_notification_preferences
 		WHERE id = ? AND user_id = ?
 	`, prefID, userID)
@@ -204,7 +206,7 @@ func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
 func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
-	rows, err := h.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, subscription_type, subscription_category, enabled, config
 		FROM notification_subscriptions
 		WHERE user_id = ?
@@ -265,7 +267,7 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 
 	configJSON, _ := json.Marshal(req.Config)
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE notification_subscriptions
 		SET enabled = ?, config = ?, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ?
@@ -297,7 +299,7 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 
 	configJSON, _ := json.Marshal(req.Config)
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notification_subscriptions
 		(user_id, subscription_type, subscription_category, enabled, config,
 		 created_at, updated_at)

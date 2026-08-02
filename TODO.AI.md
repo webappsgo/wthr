@@ -407,3 +407,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     updating every importer across the codebase (large, cross-cutting,
     out of scope for the DB-timeout migration). Read: AI.md PART 3
     (directory naming) before starting.
+
+27. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/handler/template_engine.go and
+    src/server/handler/notification_preferences.go passes): pre-existing,
+    out of scope for item 12 (DB timeout wrapping only) — unchecked
+    error return values on non-DB calls:
+    - src/server/handler/template_engine.go lines 93, 120, 196:
+      `json.Unmarshal()` return errors discarded.
+    - src/server/handler/notification_preferences.go lines 50, 229:
+      `rows.Scan()` return errors discarded.
+    - src/server/handler/notification_preferences.go lines 67, 102, 148,
+      240, 268, 300: `json.Unmarshal()`/`json.Marshal()` return errors
+      discarded.
+    - src/server/handler/notification_preferences.go line 256:
+      `strconv.Atoi()` return error discarded (falls through with a
+      zero value instead of the 400 response the other handlers in
+      this file return for the same parse failure).
+    Not touched by the item-12 diff (only the raw DB calls were
+    converted to timeout-wrapped calls). Fix: check and handle every
+    listed error (400/500 responses as appropriate, matching the
+    pattern already used elsewhere in each file). Read: AI.md PART 9
+    (error handling) before starting.
