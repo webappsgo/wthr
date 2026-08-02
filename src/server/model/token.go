@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -65,7 +66,7 @@ func (m *TokenModel) Create(userID int, name string) (*APIToken, error) {
 	tokenHash := HashUserToken(token)
 	tokenPrefix := GetUserTokenPrefix(token)
 
-	result, err := database.GetUsersDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, userID, tokenHash, tokenPrefix, name, time.Now())
@@ -98,7 +99,7 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 	apiToken := &APIToken{}
 	var lastUsed sql.NullTime
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_prefix, name, created_at, last_used_at
 		FROM user_tokens WHERE token_hash = ?
 	`, tokenHash).Scan(&apiToken.ID, &apiToken.UserID, &apiToken.TokenPrefix, &apiToken.Name,
@@ -120,7 +121,7 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 
 // GetByUserID retrieves all tokens for a user
 func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_prefix, name, created_at, last_used_at
 		FROM user_tokens WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -149,7 +150,7 @@ func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
 
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModel) UpdateLastUsed(tokenID int) error {
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
@@ -158,12 +159,12 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 
 // Delete deletes a token
 func (m *TokenModel) Delete(id int) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_tokens WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ?", id)
 	return err
 }
 
 // DeleteByUserID deletes all tokens for a user
 func (m *TokenModel) DeleteByUserID(userID int) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_tokens WHERE user_id = ?", userID)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE user_id = ?", userID)
 	return err
 }
