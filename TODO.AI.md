@@ -307,6 +307,23 @@ any of the above: `src/graphql/context_keys_test.go`,
     (55.0%), `src/common/banner` (55.2%), and further `src/graphql` work.
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
+    Progress (2026-08-02, continued): `src/server/handler` (39.4-39.8%
+    baseline) had 35 files with no corresponding `_test.go`. Added two
+    genuinely new test files for the smallest, self-contained, pure-logic
+    files in that set: `disk_unix_test.go` (2 tests covering `getDiskUsage`
+    valid-path and statfs-failure-fallback cases) and `history_test.go`
+    (9 test functions/subtests covering `parseHistoricalDate`'s full
+    documented format matrix: empty/today, ISO 8601, US slash with/without
+    year, abbreviated/full month name with/without year, and 4 invalid-input
+    cases). Verified via Docker `gofmt -l`/`go build ./...`/
+    `go vet ./server/handler/`/`go test -v ./server/handler/` (new tests
+    pass) and `go test -cover ./server/handler/` (39.4% → 39.7%, a small
+    bump since these were tiny files relative to the package). Full repo
+    `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Remaining untested files in this package are mostly
+    gin/DB-heavy admin handlers (`admin_admins.go`, `admin_backup.go`,
+    `auth_oidc.go`, `passkey.go`, `setup_wizard.go`, etc.) needing more
+    setup/mocking — deferred to a future pass.
 
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
