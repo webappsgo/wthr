@@ -12,9 +12,29 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 )
+
+// translate looks up a key via the global i18n instance in the server's
+// default language, falling back to fallback when i18n hasn't been
+// initialized yet (e.g. unit tests constructing SMTPService directly).
+// SMTPService has no gin.Context (it also runs from schedulers/GraphQL/CLI
+// paths), so per-request language selection isn't available here — per
+// AI.md PART 31's CLI/Agent/Server Output Translation fallback chain, the
+// server default language is the correct fallback for non-request output.
+func translate(key, fallback string) string {
+	inst := i18n.GetGlobalI18n()
+	if inst == nil {
+		return fallback
+	}
+	text := inst.T(inst.GetDefaultLanguage(), key)
+	if text == key {
+		return fallback
+	}
+	return text
+}
 
 // SMTPConfig represents SMTP configuration
 type SMTPConfig struct {
@@ -164,7 +184,7 @@ func (s *SMTPService) LoadConfig() error {
 	if fromName == "" {
 		fromName = os.Getenv("SMTP_FROM_NAME")
 		if fromName == "" {
-			fromName = "Weather"
+			fromName = translate("app.name", "Weather")
 		}
 	}
 
@@ -321,20 +341,31 @@ func (s *SMTPService) SendEmail(to, subject, body string) error {
 
 // SendTestEmail sends a test email
 func (s *SMTPService) SendTestEmail(to string) error {
-	subject := "Weather SMTP Test"
+	appName := translate("app.name", "Weather")
+
+	subject := strings.ReplaceAll(translate("email.subjects.smtp_test", "{app_name} SMTP Test"), "{app_name}", appName)
+	heading := translate("email.body.smtp_test_heading", "SMTP Test Successful")
+	intro := strings.ReplaceAll(translate("email.body.smtp_test_intro", "This is a test email from the {app_name} notification system."), "{app_name}", appName)
+	success := translate("email.body.smtp_test_success", "If you received this email, your SMTP configuration is working correctly.")
+	configLabel := translate("email.body.smtp_test_config_label", "Configuration:")
+	hostLabel := translate("email.body.smtp_test_host_label", "Host")
+	portLabel := translate("email.body.smtp_test_port_label", "Port")
+	tlsLabel := translate("email.body.smtp_test_tls_label", "TLS")
+	sentAt := strings.ReplaceAll(translate("email.body.smtp_test_sent_at", "Sent at {time}"), "{time}", time.Now().Format(time.RFC1123))
+
 	body := `
 	<html>
 	<body>
-		<h2>SMTP Test Successful</h2>
-		<p>This is a test email from Weather notification system.</p>
-		<p>If you received this email, your SMTP configuration is working correctly.</p>
-		<p><strong>Configuration:</strong></p>
+		<h2>` + heading + `</h2>
+		<p>` + intro + `</p>
+		<p>` + success + `</p>
+		<p><strong>` + configLabel + `</strong></p>
 		<ul>
-			<li>Host: ` + s.config.Host + `</li>
-			<li>Port: ` + s.config.Port + `</li>
-			<li>TLS: ` + fmt.Sprintf("%t", s.config.UseTLS) + `</li>
+			<li>` + hostLabel + `: ` + s.config.Host + `</li>
+			<li>` + portLabel + `: ` + s.config.Port + `</li>
+			<li>` + tlsLabel + `: ` + fmt.Sprintf("%t", s.config.UseTLS) + `</li>
 		</ul>
-		<p><em>Sent at ` + time.Now().Format(time.RFC1123) + `</em></p>
+		<p><em>` + sentAt + `</em></p>
 	</body>
 	</html>
 	`

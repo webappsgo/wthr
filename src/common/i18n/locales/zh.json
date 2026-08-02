@@ -194,5 +194,14 @@
   "footer.privacy": "隐私",
   "footer.terms": "条款",
   "footer.about": "关于",
-  "common.select_language": "选择语言"
+  "common.select_language": "选择语言",
+  "email.subjects.smtp_test": "{app_name} SMTP 测试",
+  "email.body.smtp_test_heading": "SMTP 测试成功",
+  "email.body.smtp_test_intro": "这是来自 {app_name} 通知系统的测试邮件。",
+  "email.body.smtp_test_success": "如果您收到此邮件，说明您的 SMTP 配置工作正常。",
+  "email.body.smtp_test_config_label": "配置：",
+  "email.body.smtp_test_host_label": "主机",
+  "email.body.smtp_test_port_label": "端口",
+  "email.body.smtp_test_tls_label": "TLS",
+  "email.body.smtp_test_sent_at": "发送于 {time}"
 }

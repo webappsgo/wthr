@@ -194,5 +194,14 @@
   "footer.privacy": "プライバシー",
   "footer.terms": "利用規約",
   "footer.about": "概要",
-  "common.select_language": "言語を選択"
+  "common.select_language": "言語を選択",
+  "email.subjects.smtp_test": "{app_name} SMTPテスト",
+  "email.body.smtp_test_heading": "SMTPテスト成功",
+  "email.body.smtp_test_intro": "これは{app_name}通知システムからのテストメールです。",
+  "email.body.smtp_test_success": "このメールを受信した場合、SMTP設定は正常に機能しています。",
+  "email.body.smtp_test_config_label": "設定：",
+  "email.body.smtp_test_host_label": "ホスト",
+  "email.body.smtp_test_port_label": "ポート",
+  "email.body.smtp_test_tls_label": "TLS",
+  "email.body.smtp_test_sent_at": "送信日時: {time}"
 }

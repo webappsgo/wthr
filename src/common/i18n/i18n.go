@@ -177,3 +177,21 @@ func (i *I18n) GetLanguageInfos() []util.LanguageInfo {
 func (i *I18n) GetDefaultLanguage() string {
 	return i.defaultLang
 }
+
+// Global i18n instance for access outside per-request handlers (services,
+// scheduler tasks) that have no gin.Context to read the "i18n"/"lang" keys
+// from. Mirrors config.SetGlobalConfig/GetGlobalConfig and
+// database.SetGlobalDualDB/GetGlobalDualDB.
+var globalI18n *I18n
+
+// SetGlobalI18n sets the global i18n instance.
+func SetGlobalI18n(i *I18n) {
+	globalI18n = i
+}
+
+// GetGlobalI18n returns the global i18n instance, or nil if it has not been
+// initialized yet (e.g. in unit tests that construct services directly).
+// Callers must fall back to a hardcoded default when nil.
+func GetGlobalI18n() *I18n {
+	return globalI18n
+}

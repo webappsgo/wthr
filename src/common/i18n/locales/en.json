@@ -194,5 +194,14 @@
   "footer.privacy": "Privacy",
   "footer.terms": "Terms",
   "footer.about": "About",
-  "common.select_language": "Select language"
+  "common.select_language": "Select language",
+  "email.subjects.smtp_test": "{app_name} SMTP Test",
+  "email.body.smtp_test_heading": "SMTP Test Successful",
+  "email.body.smtp_test_intro": "This is a test email from the {app_name} notification system.",
+  "email.body.smtp_test_success": "If you received this email, your SMTP configuration is working correctly.",
+  "email.body.smtp_test_config_label": "Configuration:",
+  "email.body.smtp_test_host_label": "Host",
+  "email.body.smtp_test_port_label": "Port",
+  "email.body.smtp_test_tls_label": "TLS",
+  "email.body.smtp_test_sent_at": "Sent at {time}"
 }

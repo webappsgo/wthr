@@ -499,6 +499,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize i18n: %v", err)
 	}
+	// Global accessor for services/scheduler tasks with no gin.Context
+	// (e.g. src/server/service/smtp.go's server-initiated emails).
+	i18n.SetGlobalI18n(i18nService)
 	fmt.Printf("🌐 I18n initialized with languages: %v\n", i18nService.GetSupportedLanguages())
 
 	// I18n middleware - per AI.md PART 31 fallback chain:

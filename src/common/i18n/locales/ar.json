@@ -194,5 +194,14 @@
   "footer.privacy": "الخصوصية",
   "footer.terms": "الشروط",
   "footer.about": "حول",
-  "common.select_language": "اختر اللغة"
+  "common.select_language": "اختر اللغة",
+  "email.subjects.smtp_test": "اختبار SMTP لـ {app_name}",
+  "email.body.smtp_test_heading": "نجح اختبار SMTP",
+  "email.body.smtp_test_intro": "هذه رسالة اختبار من نظام إشعارات {app_name}.",
+  "email.body.smtp_test_success": "إذا تلقيت هذه الرسالة، فإن إعدادات SMTP الخاصة بك تعمل بشكل صحيح.",
+  "email.body.smtp_test_config_label": "الإعدادات:",
+  "email.body.smtp_test_host_label": "المضيف",
+  "email.body.smtp_test_port_label": "المنفذ",
+  "email.body.smtp_test_tls_label": "TLS",
+  "email.body.smtp_test_sent_at": "أُرسلت في {time}"
 }
