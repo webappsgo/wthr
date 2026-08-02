@@ -338,6 +338,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     `go vet ./path/`/`go test -v -cover ./path/` — all pass, package
     coverage 48.5% → 68.1%. Full repo `go test ./...` re-run afterward —
     all packages still pass, no regressions.
+    Progress (2026-08-02, continued): moved to `src/scheduler` (54.4%
+    baseline). Added `src/scheduler/cron_test.go` (genuinely new, 12 test
+    functions) covering the entire built-in cron package, which had zero
+    tests despite being the AI.md PART 19-mandated replacement for the
+    external `robfig/cron/v3` dependency: `everySchedule.Next`,
+    `parseSchedule` for `@every` (valid/invalid/non-positive durations),
+    every `@`-descriptor plus the unknown-descriptor error path, empty/
+    whitespace specs, wrong field-count specs, per-field invalid-value
+    errors (minute/hour/dom/month/dow), the dow "7 == Sunday" alias,
+    `cronSchedule.Next` (including a month-rollover case and the
+    `maxScanMinutes`-bounded unreachable-schedule case), `parseField`
+    (wildcard/list/range/step syntax plus out-of-range/inverted-range/
+    non-numeric error paths), and `splitStep` (default step, explicit
+    step, and invalid/non-positive step errors). Verified via Docker
+    `gofmt -l`/`go build ./...`/`go vet ./scheduler/`/
+    `go test -v -cover ./scheduler/` — all pass, package coverage
+    54.4% → 57.3%. Full repo `go test ./...` re-run afterward — all
+    packages still pass, no regressions.
 
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
