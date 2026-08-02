@@ -95,7 +95,7 @@ type InvitedServerAdmin struct {
 }
 
 type ServerInviteCompletion struct {
-	Message string             `json:"message"`
+	Message string              `json:"message"`
 	Admin   *InvitedServerAdmin `json:"admin"`
 }
 

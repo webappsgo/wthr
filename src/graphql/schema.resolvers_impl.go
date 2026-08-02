@@ -36,4 +36,3 @@ func getIPFromContext(ctx context.Context) string {
 func stringPtr(s string) *string {
 	return &s
 }
-

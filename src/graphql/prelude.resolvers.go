@@ -39,4 +39,3 @@ func (r *Resolver) __InputValue() __InputValueResolver { return &inputValueResol
 
 // __Type returns __TypeResolver implementation.
 func (r *Resolver) __Type() __TypeResolver { return &typeResolverImpl{r} }
-

@@ -18,18 +18,18 @@ type Resolver struct {
 	WeatherService *service.WeatherService
 
 	// Handlers (we'll use their logic in resolvers)
-	APIHandler          *handler.APIHandler
-	AuthHandler         *handler.AuthHandler
-	LocationHandler     *handler.LocationHandler
-	NotificationHandler *handler.NotificationHandler
-	AdminHandler        *handler.AdminHandler
-	TorAdminHandler     *handler.TorAdminHandler
-	SettingsHandler     *handler.AdminSettingsHandler
-	SchedulerHandler    *handler.SchedulerHandler
-	EarthquakeHandler   *handler.EarthquakeHandler
-	HurricaneHandler    *handler.HurricaneHandler
+	APIHandler           *handler.APIHandler
+	AuthHandler          *handler.AuthHandler
+	LocationHandler      *handler.LocationHandler
+	NotificationHandler  *handler.NotificationHandler
+	AdminHandler         *handler.AdminHandler
+	TorAdminHandler      *handler.TorAdminHandler
+	SettingsHandler      *handler.AdminSettingsHandler
+	SchedulerHandler     *handler.SchedulerHandler
+	EarthquakeHandler    *handler.EarthquakeHandler
+	HurricaneHandler     *handler.HurricaneHandler
 	SevereWeatherHandler *handler.SevereWeatherHandler
-	MoonHandler         *handler.MoonHandler
+	MoonHandler          *handler.MoonHandler
 }
 
 // NewResolver creates a new root resolver with all dependencies
