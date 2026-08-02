@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
@@ -261,7 +263,7 @@ func ApplyUserSettingsUpdate(db *sql.DB, userID int64, req *UpdateSettingsReques
 
 func (h *UserSettingsHandler) loadSettings(userID int64) (*UserSettingsResponse, error) {
 	user := &models.User{}
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, email, username, display_name, bio, location, website, timezone, language,
 		       role, visibility, is_active, email_verified, created_at, updated_at
 		FROM user_accounts
@@ -364,7 +366,7 @@ type ExtendedPreferences struct {
 func (h *UserSettingsHandler) getOrCreatePreferences(userID int64) (*models.UserPreferences, error) {
 	prefs := &models.UserPreferences{}
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT user_id, theme, language, timezone, temperature_unit, pressure_unit,
 		       wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications,
 		       created_at, updated_at
@@ -393,7 +395,7 @@ func (h *UserSettingsHandler) getOrCreatePreferences(userID int64) (*models.User
 			UpdatedAt:            time.Now(),
 		}
 
-		_, err = h.DB.Exec(`
+		_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 			INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit,
 			                              pressure_unit, wind_speed_unit, precipitation_unit,
 			                              notifications_enabled, email_notifications, created_at, updated_at)
@@ -444,7 +446,7 @@ func (h *UserSettingsHandler) updateAccountSettings(userID int64, settings *Acco
 		settings.Website = "https://" + settings.Website
 	}
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET display_name = ?, bio = ?, location = ?, website = ?, timezone = ?, language = ?, updated_at = ?
 		WHERE id = ?
@@ -457,7 +459,7 @@ func (h *UserSettingsHandler) updateAccountSettings(userID int64, settings *Acco
 // updatePrivacySettings updates privacy settings
 func (h *UserSettingsHandler) updatePrivacySettings(userID int64, settings *PrivacySettings) error {
 	// Update visibility in users table
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET visibility = ?, updated_at = ?
 		WHERE id = ?
@@ -471,7 +473,7 @@ func (h *UserSettingsHandler) updatePrivacySettings(userID int64, settings *Priv
 // updateNotificationSettings updates notification settings
 func (h *UserSettingsHandler) updateNotificationSettings(userID int64, settings *NotificationSettings) error {
 	// email_security is always true and cannot be changed per AI.md PART 34
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_preferences
 		SET notifications_enabled = ?, email_notifications = ?, updated_at = ?
 		WHERE user_id = ?
@@ -488,7 +490,7 @@ func (h *UserSettingsHandler) updateAppearanceSettings(userID int64, settings *A
 		return fmt.Errorf("theme must be one of: dark, light, auto")
 	}
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_preferences
 		SET theme = ?, updated_at = ?
 		WHERE user_id = ?
@@ -510,7 +512,7 @@ type UserToken struct {
 
 // getUserTokens gets all API tokens for a user
 func (h *UserSettingsHandler) getUserTokens(userID int64) ([]UserToken, error) {
-	rows, err := h.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, name, token_prefix, scopes, created_at, expires_at, last_used_at
 		FROM user_tokens WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -581,7 +583,7 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 
 	// Check token limit (max 5 per user per AI.md)
 	var count int
-	h.DB.QueryRow("SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", user.ID).Scan(&count)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", user.ID).Scan(&count)
 	if count >= 5 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 5 tokens per user"})
 		return
@@ -604,7 +606,7 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 		}
 	}
 
-	_, dbErr := h.DB.Exec(`
+	_, dbErr := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, time.Now(), expiresAt)
@@ -642,7 +644,7 @@ func (h *UserSettingsHandler) RevokeToken(c *gin.Context) {
 
 	tokenID := c.Param("id")
 
-	result, err := h.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		DELETE FROM user_tokens WHERE id = ? AND user_id = ?
 	`, tokenID, user.ID)
 
@@ -774,7 +776,7 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 	// avoids depending on SQLite's date parser understanding that format.
 	var ownerID int64
 	var expiresAtRaw string
-	err = h.DB.QueryRow(
+	err = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		`SELECT user_id, expires_at FROM user_sessions WHERE id = ?`,
 		rowID,
 	).Scan(&ownerID, &expiresAtRaw)
