@@ -58,7 +58,7 @@ func (h *AdminNotificationsHandler) UpdateNotificationSettings(c *gin.Context) {
 		"server.notifications.webui.retention_days":         req.WebUIRetentionDays,
 	}
 
-	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
+	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

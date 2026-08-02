@@ -48,13 +48,13 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	}
 
 	// Validate username
-	if err := utils.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(req.Username); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Normalize username
-	username := utils.NormalizeUsername(req.Username)
+	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.Create(username, req.Email, req.Password, req.Role)
@@ -96,13 +96,13 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Validate username
-	if err := utils.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(req.Username); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Normalize username
-	username := utils.NormalizeUsername(req.Username)
+	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Update(id, username, req.Email, req.Role); err != nil {

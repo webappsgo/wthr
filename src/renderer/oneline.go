@@ -17,7 +17,7 @@ func NewOneLineRenderer() *OneLineRenderer {
 }
 
 // RenderOneLine renders a complete one-line weather display
-func (r *OneLineRenderer) RenderOneLine(location utils.LocationData, current utils.CurrentData, units string) string {
+func (r *OneLineRenderer) RenderOneLine(location util.LocationData, current util.CurrentData, units string) string {
 	temp := int(math.Round(current.Temperature))
 	description := current.Condition
 	icon := current.Icon
@@ -39,7 +39,7 @@ func (r *OneLineRenderer) RenderOneLine(location utils.LocationData, current uti
 }
 
 // RenderFormat1 renders format 1: Just weather icon + temp: "🌦  +11°C"
-func (r *OneLineRenderer) RenderFormat1(current utils.CurrentData, units string, noColors bool) string {
+func (r *OneLineRenderer) RenderFormat1(current util.CurrentData, units string, noColors bool) string {
 	temp := int(math.Round(current.Temperature))
 	icon := current.Icon
 	tempUnit := strings.Replace(getTemperatureUnit(units), "°", "", 1)
@@ -55,7 +55,7 @@ func (r *OneLineRenderer) RenderFormat1(current utils.CurrentData, units string,
 }
 
 // RenderFormat2 renders format 2: Weather + details: "🌦  🌡️ +11°C  🌬️ ↓ 4km/h"
-func (r *OneLineRenderer) RenderFormat2(current utils.CurrentData, units string, noColors bool) string {
+func (r *OneLineRenderer) RenderFormat2(current util.CurrentData, units string, noColors bool) string {
 	temp := int(math.Round(current.Temperature))
 	icon := current.Icon
 	tempUnit := getTemperatureUnit(units)
@@ -76,7 +76,7 @@ func (r *OneLineRenderer) RenderFormat2(current utils.CurrentData, units string,
 }
 
 // RenderFormat3 renders format 3: Location + weather: "London, GB:  🌦  +11°C"
-func (r *OneLineRenderer) RenderFormat3(location utils.LocationData, current utils.CurrentData, units string, noColors bool) string {
+func (r *OneLineRenderer) RenderFormat3(location util.LocationData, current util.CurrentData, units string, noColors bool) string {
 	temp := int(math.Round(current.Temperature))
 	icon := current.Icon
 	tempUnit := strings.Replace(getTemperatureUnit(units), "°", "", 1)
@@ -95,7 +95,7 @@ func (r *OneLineRenderer) RenderFormat3(location utils.LocationData, current uti
 }
 
 // RenderFormat4 renders format 4: Location + weather + details: "London, GB:  🌦  🌡️+11°C  🌬️↓4km/h"
-func (r *OneLineRenderer) RenderFormat4(location utils.LocationData, current utils.CurrentData, units string, noColors bool) string {
+func (r *OneLineRenderer) RenderFormat4(location util.LocationData, current util.CurrentData, units string, noColors bool) string {
 	temp := int(math.Round(current.Temperature))
 	icon := current.Icon
 	tempUnit := getTemperatureUnit(units)
@@ -126,7 +126,7 @@ func (r *OneLineRenderer) getWindDirection(degrees int) string {
 }
 
 // getShortLocationName gets the short location name for display
-func (r *OneLineRenderer) getShortLocationName(location utils.LocationData) string {
+func (r *OneLineRenderer) getShortLocationName(location util.LocationData) string {
 	// Use the pre-built short name from enhanced location data
 	if location.ShortName != "" {
 		return location.ShortName

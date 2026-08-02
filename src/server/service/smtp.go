@@ -195,7 +195,7 @@ func (s *SMTPService) AutoDetect() (bool, error) {
 	}
 
 	// AI.md: Detect Docker gateway at runtime, not hardcoded
-	if gwIP := utils.GetDockerGatewayIP(); gwIP != "" {
+	if gwIP := util.GetDockerGatewayIP(); gwIP != "" {
 		candidates = append(candidates, struct {
 			host string
 			port string

@@ -172,7 +172,7 @@ func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
 		logFormat = "apache"
 	}
 
-	c.HTML(http.StatusOK, "admin/admin-logs-format.tmpl", utils.TemplateData(c, gin.H{
+	c.HTML(http.StatusOK, "admin/admin-logs-format.tmpl", util.TemplateData(c, gin.H{
 		"title":          "Log Format Configuration",
 		"page":           "logs-format",
 		"current_format": logFormat,

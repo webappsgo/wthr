@@ -17,14 +17,14 @@ func NewJSONRenderer() *JSONRenderer {
 
 // WeatherResponse represents the full weather API response
 type WeatherResponse struct {
-	Location utils.LocationData   `json:"location"`
-	Current  utils.CurrentData    `json:"current"`
-	Forecast []utils.ForecastData `json:"forecast"`
-	Moon     utils.MoonData       `json:"moon,omitempty"`
+	Location util.LocationData   `json:"location"`
+	Current  util.CurrentData    `json:"current"`
+	Forecast []util.ForecastData `json:"forecast"`
+	Moon     util.MoonData       `json:"moon,omitempty"`
 }
 
 // Render converts weather data to JSON string
-func (r *JSONRenderer) Render(weather *utils.WeatherData) (string, error) {
+func (r *JSONRenderer) Render(weather *util.WeatherData) (string, error) {
 	response := WeatherResponse{
 		Location: weather.Location,
 		Current:  weather.Current,
@@ -41,7 +41,7 @@ func (r *JSONRenderer) Render(weather *utils.WeatherData) (string, error) {
 }
 
 // RenderCompact converts weather data to compact JSON string (no indentation)
-func (r *JSONRenderer) RenderCompact(weather *utils.WeatherData) (string, error) {
+func (r *JSONRenderer) RenderCompact(weather *util.WeatherData) (string, error) {
 	response := WeatherResponse{
 		Location: weather.Location,
 		Current:  weather.Current,
@@ -58,10 +58,10 @@ func (r *JSONRenderer) RenderCompact(weather *utils.WeatherData) (string, error)
 }
 
 // RenderCurrentOnly renders only current weather as JSON
-func (r *JSONRenderer) RenderCurrentOnly(location utils.LocationData, current utils.CurrentData) (string, error) {
+func (r *JSONRenderer) RenderCurrentOnly(location util.LocationData, current util.CurrentData) (string, error) {
 	response := struct {
-		Location utils.LocationData `json:"location"`
-		Current  utils.CurrentData  `json:"current"`
+		Location util.LocationData `json:"location"`
+		Current  util.CurrentData  `json:"current"`
 	}{
 		Location: location,
 		Current:  current,
@@ -76,10 +76,10 @@ func (r *JSONRenderer) RenderCurrentOnly(location utils.LocationData, current ut
 }
 
 // RenderForecastOnly renders only forecast data as JSON
-func (r *JSONRenderer) RenderForecastOnly(location utils.LocationData, forecast []utils.ForecastData) (string, error) {
+func (r *JSONRenderer) RenderForecastOnly(location util.LocationData, forecast []util.ForecastData) (string, error) {
 	response := struct {
-		Location utils.LocationData   `json:"location"`
-		Forecast []utils.ForecastData `json:"forecast"`
+		Location util.LocationData   `json:"location"`
+		Forecast []util.ForecastData `json:"forecast"`
 	}{
 		Location: location,
 		Forecast: forecast,
@@ -125,7 +125,7 @@ type SearchResult struct {
 }
 
 // RenderSearchResults renders location search results as JSON
-func (r *JSONRenderer) RenderSearchResults(results []utils.LocationData) (string, error) {
+func (r *JSONRenderer) RenderSearchResults(results []util.LocationData) (string, error) {
 	searchResults := make([]SearchResult, len(results))
 	for i, loc := range results {
 		searchResults[i] = SearchResult{

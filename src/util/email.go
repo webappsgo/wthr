@@ -1,5 +1,5 @@
 // Package utils provides email validation per AI.md PART 33
-package utils
+package util
 
 import (
 	"errors"

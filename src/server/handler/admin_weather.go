@@ -73,7 +73,7 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(c *gin.Context) {
 		"weather.api.max_historical_days":          req.APIMaxHistoricalDays,
 	}
 
-	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
+	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

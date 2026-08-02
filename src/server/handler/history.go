@@ -29,7 +29,7 @@ func NewHistoryHandler(weatherService *service.WeatherService, settingsModel *mo
 // ShowHistory displays the historical weather page
 func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	if !h.settingsModel.GetBool("history.enabled", true) {
-		c.HTML(http.StatusServiceUnavailable, "page/error.tmpl", utils.TemplateData(c, gin.H{
+		c.HTML(http.StatusServiceUnavailable, "page/error.tmpl", util.TemplateData(c, gin.H{
 			"title":   "Feature Disabled",
 			"code":    503,
 			"message": "Historical weather feature is disabled",
@@ -54,14 +54,14 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	}
 
 	if location == "" && dateStr == "" {
-		NegotiateResponse(c, "page/history.tmpl", utils.TemplateData(c, data))
+		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
 		return
 	}
 
 	month, day, startYear, err := parseHistoricalDate(dateStr)
 	if err != nil {
 		data["error"] = fmt.Sprintf("Invalid date format: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", utils.TemplateData(c, data))
+		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	coords, err := h.weatherService.GetCoordinates(location, "")
 	if err != nil {
 		data["error"] = fmt.Sprintf("Could not find location: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", utils.TemplateData(c, data))
+		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
 		return
 	}
 
@@ -89,7 +89,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	)
 	if err != nil {
 		data["error"] = fmt.Sprintf("Error fetching historical weather: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", utils.TemplateData(c, data))
+		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	data["startYear"] = startYear
 	data["historical"] = historical
 
-	NegotiateResponse(c, "page/history.tmpl", utils.TemplateData(c, data))
+	NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
 }
 
 // parseHistoricalDate parses a date string with smart year detection.

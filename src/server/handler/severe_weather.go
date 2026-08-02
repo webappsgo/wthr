@@ -80,14 +80,14 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 
 	if locationParam != "" {
 		// Try to parse as coordinates first
-		lat, lon, err := utils.ParseCoordinates(locationParam)
+		lat, lon, err := util.ParseCoordinates(locationParam)
 		if err == nil {
 			latitude = lat
 			longitude = lon
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := utils.GetClientIP(c)
+			clientIP := util.GetClientIP(c)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -114,7 +114,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 		if locName, err := c.Cookie("user_location_name"); err == nil {
 			locationName = locName
 			// Re-resolve the location to get full data
-			clientIP := utils.GetClientIP(c)
+			clientIP := util.GetClientIP(c)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -124,7 +124,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 
 	// If still no location, use IP-based geolocation as fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := utils.GetClientIP(c)
+		clientIP := util.GetClientIP(c)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -172,11 +172,11 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 	}
 
 	// Check user agent to determine if browser or console
-	isBrowser := utils.IsBrowser(c)
+	isBrowser := util.IsBrowser(c)
 
 	if isBrowser {
 		// Render HTML template
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 
 		// Create Location object for uniform display
 		var locationData interface{}
@@ -272,14 +272,14 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 
 	if locationParam != "" {
 		// Try to parse as coordinates first
-		lat, lon, err := utils.ParseCoordinates(locationParam)
+		lat, lon, err := util.ParseCoordinates(locationParam)
 		if err == nil {
 			latitude = lat
 			longitude = lon
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := utils.GetClientIP(c)
+			clientIP := util.GetClientIP(c)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -306,7 +306,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 		if locName, err := c.Cookie("user_location_name"); err == nil {
 			locationName = locName
 			// Re-resolve the location to get full data
-			clientIP := utils.GetClientIP(c)
+			clientIP := util.GetClientIP(c)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -316,7 +316,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 
 	// If still no location, use IP-based fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := utils.GetClientIP(c)
+		clientIP := util.GetClientIP(c)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -384,11 +384,11 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 	}
 
 	// Check user agent to determine if browser or console
-	isBrowser := utils.IsBrowser(c)
+	isBrowser := util.IsBrowser(c)
 
 	if isBrowser {
 		// Render HTML template
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 
 		// Create Location object for uniform display
 		var locationData interface{}
@@ -476,13 +476,13 @@ func (h *SevereWeatherHandler) HandleSevereWeatherAPI(c *gin.Context) {
 
 	if locationParam != "" {
 		// Try to parse as coordinates
-		lat, lon, err := utils.ParseCoordinates(locationParam)
+		lat, lon, err := util.ParseCoordinates(locationParam)
 		if err == nil {
 			latitude = lat
 			longitude = lon
 		} else {
 			// Geocode using proper resolution
-			clientIP := utils.GetClientIP(c)
+			clientIP := util.GetClientIP(c)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				latitude = coords.Latitude

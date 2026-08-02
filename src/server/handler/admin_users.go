@@ -54,7 +54,7 @@ func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 		"users.registration.require_email_verification": req.RegistrationRequireEmailVerification,
 	}
 
-	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
+	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

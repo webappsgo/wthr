@@ -226,7 +226,7 @@ func TestWeatherHandler_handleError(t *testing.T) {
 func TestWeatherHandler_handleMoonRequest_NonBrowser(t *testing.T) {
 	h := NewWeatherHandler(nil, nil)
 	c, w := newWeatherTestContext("/moon")
-	// No browser-like Accept/User-Agent header, so utils.IsBrowser(c) is false.
+	// No browser-like Accept/User-Agent header, so util.IsBrowser(c) is false.
 
 	h.handleMoonRequest(c, "moon")
 

@@ -71,8 +71,8 @@ func (s *AdminInviteService) GenerateInviteToken() (string, error) {
 
 // CreateInvite creates a new admin invitation
 func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expiration string) (*model.AdminInvite, string, error) {
-	normalizedEmail := utils.NormalizeEmail(email)
-	if err := utils.ValidateEmail(normalizedEmail); err != nil {
+	normalizedEmail := util.NormalizeEmail(email)
+	if err := util.ValidateEmail(normalizedEmail); err != nil {
 		return nil, "", err
 	}
 
@@ -139,8 +139,8 @@ func (s *AdminInviteService) AcceptInvite(token, username, password string) (*mo
 		return nil, err
 	}
 
-	normalizedUsername := utils.NormalizeUsername(username)
-	if err := utils.ValidateUsername(normalizedUsername); err != nil {
+	normalizedUsername := util.NormalizeUsername(username)
+	if err := util.ValidateUsername(normalizedUsername); err != nil {
 		return nil, err
 	}
 

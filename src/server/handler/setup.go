@@ -62,7 +62,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 
 	// Validate setup token against stored hash
 	configDir := paths.GetConfigDir()
-	valid, err := utils.ValidateSetupToken(configDir, setupToken)
+	valid, err := util.ValidateSetupToken(configDir, setupToken)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", gin.H{
 			"title":      title + " - Setup",
@@ -110,7 +110,7 @@ func (h *SetupHandler) VerifySetupToken(c *gin.Context) {
 
 	// Validate setup token against stored hash
 	configDir := paths.GetConfigDir()
-	valid, err := utils.ValidateSetupToken(configDir, input.SetupToken)
+	valid, err := util.ValidateSetupToken(configDir, input.SetupToken)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Setup token not found or already used"})
 		return
@@ -269,7 +269,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	}
 
 	// Hash password using Argon2id (AI.md PART 3 requirement)
-	hashedPassword, err := utils.HashPassword(password)
+	hashedPassword, err := util.HashPassword(password)
 	if err != nil {
 		h.setupError(c, http.StatusInternalServerError, "Failed to hash password")
 		return
@@ -328,7 +328,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	// Delete setup token file after successful admin creation
 	// AI.md: File deleted after successful setup completion
 	configDir := paths.GetConfigDir()
-	if err := utils.DeleteSetupToken(configDir); err != nil {
+	if err := util.DeleteSetupToken(configDir); err != nil {
 		// Log but don't fail - admin was created successfully
 		log.Printf("WARNING: CreateAdmin: failed to delete setup token file: %v", err)
 	}
@@ -345,7 +345,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	}
 
 	// Hash and store the API token
-	tokenHash := utils.HashAPIToken(apiToken)
+	tokenHash := util.HashAPIToken(apiToken)
 	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET api_token_hash = ?, api_token_prefix = 'adm_', updated_at = CURRENT_TIMESTAMP
@@ -582,7 +582,7 @@ func (h *SetupHandler) ProcessSecurity(c *gin.Context) {
 	// Save backup encryption password if provided
 	if input.BackupPassword != "" {
 		// Hash the backup password
-		hashedPassword, err := utils.HashPassword(input.BackupPassword)
+		hashedPassword, err := util.HashPassword(input.BackupPassword)
 		if err == nil {
 			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
@@ -617,7 +617,7 @@ func (h *SetupHandler) ShowServices(c *gin.Context) {
 	}
 
 	// Check if Tor is available
-	torAvailable := utils.IsTorAvailable()
+	torAvailable := util.IsTorAvailable()
 
 	// Get admin email for SSL contact
 	var adminEmail string

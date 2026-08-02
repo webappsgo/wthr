@@ -58,7 +58,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 					"OnionAddress": onionAddress,
 				},
 			},
-			"HostInfo": utils.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(c),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -78,7 +78,7 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
 			},
-			"HostInfo": utils.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(c),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -99,7 +99,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"GitOrg":  "casapps",
 				"GitRepo": "wthr",
 			},
-			"HostInfo": utils.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(c),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -120,7 +120,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"GitOrg":  "casapps",
 				"GitRepo": "wthr",
 			},
-			"HostInfo": utils.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(c),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -140,7 +140,7 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
 			},
-			"HostInfo": utils.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(c),
 		}
 
 		NegotiateResponse(c, "terms.tmpl", data)
@@ -211,7 +211,7 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		settingsModel := &model.SettingsModel{DB: db.DB}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 		baseURL := hostInfo.ExampleURL
 
 		help := gin.H{

@@ -73,9 +73,9 @@ func showServiceHelp() {
 func installService() error {
 	// Check if running as root/admin, attempt escalation if not
 	// TEMPLATE.md PART 8: Attempt privilege escalation before failing
-	if !utils.IsPrivileged() {
+	if !util.IsPrivileged() {
 		// Attempt privilege escalation
-		attempted, err := utils.EscalatePrivileges(append([]string{"--service", "--install"}, os.Args[1:]...))
+		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--install"}, os.Args[1:]...))
 		if attempted {
 			// Escalation was attempted, command was re-run with privileges
 			// Return the error (if any) from the elevated process
@@ -105,9 +105,9 @@ func installService() error {
 
 func uninstallService() error {
 	// Check if running as root/admin, attempt escalation if not
-	if !utils.IsPrivileged() {
+	if !util.IsPrivileged() {
 		// Attempt privilege escalation
-		attempted, err := utils.EscalatePrivileges(append([]string{"--service", "--uninstall"}, os.Args[1:]...))
+		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--uninstall"}, os.Args[1:]...))
 		if attempted {
 			return err
 		}
@@ -133,9 +133,9 @@ func uninstallService() error {
 }
 
 func disableService() error {
-	if !utils.IsPrivileged() {
+	if !util.IsPrivileged() {
 		// Attempt privilege escalation
-		attempted, err := utils.EscalatePrivileges(append([]string{"--service", "--disable"}, os.Args[1:]...))
+		attempted, err := util.EscalatePrivileges(append([]string{"--service", "--disable"}, os.Args[1:]...))
 		if attempted {
 			return err
 		}

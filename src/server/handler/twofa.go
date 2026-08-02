@@ -92,7 +92,7 @@ func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *model.User) (*
 		return nil, fmt.Errorf("two-factor authentication is already enabled")
 	}
 
-	secret, qrCodeDataURL, err := utils.GenerateTOTPSecret(user.Email, "Weather")
+	secret, qrCodeDataURL, err := util.GenerateTOTPSecret(user.Email, "Weather")
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate 2FA secret")
 	}
@@ -100,7 +100,7 @@ func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *model.User) (*
 	return &TwoFactorSetupResponse{
 		Secret:    secret,
 		QRCode:    qrCodeDataURL,
-		ManualURL: utils.GenerateOTPAuthURL(user.Email, secret, "Weather"),
+		ManualURL: util.GenerateOTPAuthURL(user.Email, secret, "Weather"),
 		Account:   user.Email,
 		Issuer:    "Weather",
 	}, nil
@@ -111,7 +111,7 @@ func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *model.User, secret s
 		return nil, fmt.Errorf("two-factor authentication is already enabled")
 	}
 
-	valid, err := utils.VerifyTOTP(secret, code)
+	valid, err := util.VerifyTOTP(secret, code)
 	if err != nil || !valid {
 		return nil, fmt.Errorf("invalid verification code")
 	}
@@ -163,7 +163,7 @@ func (h *TwoFactorHandler) verifyCurrentUserTwoFactorCode(user *model.User, code
 		return fmt.Errorf("invalid verification code")
 	}
 
-	valid, err := utils.VerifyTOTP(secret, code)
+	valid, err := util.VerifyTOTP(secret, code)
 	if err != nil || !valid {
 		return fmt.Errorf("invalid verification code")
 	}
@@ -181,7 +181,7 @@ func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *model.User, c
 		return nil, fmt.Errorf("invalid verification code")
 	}
 
-	valid, err := utils.VerifyTOTP(secret, code)
+	valid, err := util.VerifyTOTP(secret, code)
 	if err != nil || !valid {
 		return nil, fmt.Errorf("invalid verification code")
 	}
@@ -249,7 +249,7 @@ func (h *TwoFactorHandler) ShowSecurityPage(c *gin.Context) {
 		recoveryKeysCount, _ = recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 	}
 
-	NegotiateResponse(c, "page/user/security.tmpl", utils.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/user/security.tmpl", util.TemplateData(c, gin.H{
 		"title":             "Security Settings",
 		"user":              user,
 		"recoveryKeysCount": recoveryKeysCount,

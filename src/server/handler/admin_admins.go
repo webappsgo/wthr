@@ -286,7 +286,7 @@ func (h *AdminsHandler) ChangePassword(c *gin.Context) {
 	}
 
 	// Hash new password with Argon2id
-	passwordHash, err := utils.HashPassword(request.NewPassword)
+	passwordHash, err := util.HashPassword(request.NewPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
@@ -312,7 +312,7 @@ func (h *AdminsHandler) ShowAdminsPage(c *gin.Context) {
 	count, _ := h.AdminModel.GetCount()
 	pendingInvites, _ := h.InviteService.GetPendingInvites()
 
-	c.HTML(http.StatusOK, "admin/admin_admins.tmpl", utils.TemplateData(c, gin.H{
+	c.HTML(http.StatusOK, "admin/admin_admins.tmpl", util.TemplateData(c, gin.H{
 		"title":           "Admin Management",
 		"page":            "admins",
 		"admins":          admins,
@@ -325,7 +325,7 @@ func (h *AdminsHandler) ShowAdminsPage(c *gin.Context) {
 func (h *AdminsHandler) ShowInviteAcceptPage(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
-		c.HTML(http.StatusBadRequest, "error.tmpl", utils.TemplateData(c, gin.H{
+		c.HTML(http.StatusBadRequest, "error.tmpl", util.TemplateData(c, gin.H{
 			"title":   "Invalid Invite",
 			"message": "No invite token provided",
 		}))
@@ -335,14 +335,14 @@ func (h *AdminsHandler) ShowInviteAcceptPage(c *gin.Context) {
 	// Verify token
 	invite, err := h.InviteService.VerifyInvite(token)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.tmpl", utils.TemplateData(c, gin.H{
+		c.HTML(http.StatusBadRequest, "error.tmpl", util.TemplateData(c, gin.H{
 			"title":   "Invalid Invite",
 			"message": err.Error(),
 		}))
 		return
 	}
 
-	c.HTML(http.StatusOK, "admin/admin-invite-accept.tmpl", utils.TemplateData(c, gin.H{
+	c.HTML(http.StatusOK, "admin/admin-invite-accept.tmpl", util.TemplateData(c, gin.H{
 		"title":   "Accept Admin Invitation",
 		"token":   token,
 		"email":   invite.InvitedEmail,

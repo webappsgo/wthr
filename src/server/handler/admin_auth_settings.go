@@ -63,7 +63,7 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(c *gin.Context) {
 		"server.auth.passkeys.rp_name":   req.PasskeysRPName,
 	}
 
-	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
+	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

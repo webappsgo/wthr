@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	initStatus = &utils.InitializationStatus{
+	initStatus = &util.InitializationStatus{
 		Countries: false,
 		Cities:    false,
 		Weather:   false,
@@ -77,11 +77,11 @@ func IsInitialized() bool {
 }
 
 // GetInitStatus returns current initialization status
-func GetInitStatus() *utils.InitializationStatus {
+func GetInitStatus() *util.InitializationStatus {
 	initMutex.RLock()
 	defer initMutex.RUnlock()
 
-	return &utils.InitializationStatus{
+	return &util.InitializationStatus{
 		Countries: initStatus.Countries,
 		Cities:    initStatus.Cities,
 		Weather:   initStatus.Weather,
@@ -175,8 +175,8 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 			c.Data(statusCode, "text/plain; charset=utf-8", []byte(formatPublicHealthText(response)))
 		case wantsExplicitJSON(c):
 			renderIndentedJSON(c, statusCode, response)
-		case utils.IsBrowser(c):
-			c.HTML(statusCode, "healthz.tmpl", utils.TemplateData(c, gin.H{
+		case util.IsBrowser(c):
+			c.HTML(statusCode, "healthz.tmpl", util.TemplateData(c, gin.H{
 				"title":               "Health Status",
 				"page":                "healthz",
 				"health":              response,
@@ -273,7 +273,7 @@ func DebugInfo(c *gin.Context) {
 			"sys_mb":         fmt.Sprintf("%.2f", float64(m.Sys)/1024/1024),
 			"num_gc":         m.NumGC,
 		},
-		"timestamp": utils.Now(),
+		"timestamp": util.Now(),
 	}
 
 	c.JSON(http.StatusOK, info)
@@ -307,7 +307,7 @@ func ServeLoadingPage(c *gin.Context) {
 				"weather":   status.Weather,
 			},
 			"uptime":    uptime.String(),
-			"timestamp": utils.Now(),
+			"timestamp": util.Now(),
 		})
 		return
 	}
@@ -332,7 +332,7 @@ Tip: Check status with:
 			checkmark(status.Cities),
 			checkmark(status.Weather),
 			uptime.Round(time.Second).String(),
-			utils.GetHostInfo(c).FullHost,
+			util.GetHostInfo(c).FullHost,
 		)
 
 		c.Header("Content-Type", "text/plain; charset=utf-8")
@@ -341,7 +341,7 @@ Tip: Check status with:
 	}
 
 	// Browser gets HTML loading page
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	c.HTML(http.StatusServiceUnavailable, "component/loading.tmpl", gin.H{
 		"Title":    "Starting Up - Weather",
@@ -459,7 +459,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, c *gin.Cont
 		},
 		Uptime:    formatUptime(time.Since(startTime)),
 		Mode:      modeName,
-		Timestamp: utils.Now(),
+		Timestamp: util.Now(),
 		Cluster:   cluster,
 		Features: publicHealthFeatures{
 			MultiUser: config.IsMultiUserEnabled(),
@@ -560,7 +560,7 @@ func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
 		return cluster
 	}
 
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 	cluster.Enabled = true
 	cluster.Primary = hostInfo.FullHost
 	cluster.Nodes = []string{hostInfo.FullHost}

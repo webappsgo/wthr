@@ -400,7 +400,7 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 	})
 }
 
-// sanity-check that util.SetupTokenExists observes the same directory these
+// sanity-check that utils.SetupTokenExists observes the same directory these
 // tests write to/remove from, guarding against a future paths.GetConfigDir()
 // refactor silently breaking this file's assumptions.
 func TestSetupTestHarness_TokenFileToggleObservedByConfigDir(t *testing.T) {

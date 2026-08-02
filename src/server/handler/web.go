@@ -45,7 +45,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 
 	var weatherData interface{}
 	var errorMsg string
-	clientIP := utils.GetClientIP(c)
+	clientIP := util.GetClientIP(c)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)
@@ -129,7 +129,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 		}
 	}
 
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	// Format location for URLs (replace spaces with +, keep commas)
 	locationFormatted := strings.ReplaceAll(location, " ", "+")
@@ -166,7 +166,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 		units = "imperial"
 	}
 
-	clientIP := utils.GetClientIP(c)
+	clientIP := util.GetClientIP(c)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)
@@ -200,7 +200,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	if location == "" {
 		NegotiateResponse(c, "page/moon.tmpl", gin.H{
 			"Title":      "Moon Phase - Weather",
-			"HostInfo":   utils.GetHostInfo(c),
+			"HostInfo":   util.GetHostInfo(c),
 			"Location":   "",
 			"Units":      units,
 			"HideFooter": false,
@@ -217,7 +217,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 		NegotiateErrorResponse(c, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), gin.H{
 			"Title":      "Moon Phase - Weather",
 			"Error":      err.Error(),
-			"HostInfo":   utils.GetHostInfo(c),
+			"HostInfo":   util.GetHostInfo(c),
 			"Location":   location,
 			"Units":      units,
 			"HideFooter": false,
@@ -285,7 +285,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	c.HTML(http.StatusOK, "page/moon.tmpl", gin.H{
 		"Title":             "Moon Phase - " + enhanced.ShortName,
 		"MoonData":          moonData,
-		"HostInfo":          utils.GetHostInfo(c),
+		"HostInfo":          util.GetHostInfo(c),
 		"Location":          displayLocation,
 		"LocationFormatted": strings.ReplaceAll(enhanced.ShortName, " ", "+"),
 		"Units":             units,
@@ -295,7 +295,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 
 // ServeExamplesPage serves the examples/documentation page
 func (h *WebHandler) ServeExamplesPage(c *gin.Context) {
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	c.HTML(http.StatusOK, "examples.tmpl", gin.H{
 		"title":    "Examples - Weather",

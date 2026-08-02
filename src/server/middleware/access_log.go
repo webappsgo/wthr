@@ -12,7 +12,7 @@ import (
 
 // AccessLogger creates middleware for logging HTTP requests
 // TEMPLATE.md Part 25: Supports 7 log formats
-func AccessLogger(logger *utils.Logger) gin.HandlerFunc {
+func AccessLogger(logger *util.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer
 		start := time.Now()
@@ -53,7 +53,7 @@ func AccessLogger(logger *utils.Logger) gin.HandlerFunc {
 
 // AccessLoggerWithFormat creates middleware for logging HTTP requests with configurable format
 // TEMPLATE.md Part 25: Support 7 log formats (apache, nginx, json, fail2ban, syslog, cef, text)
-func AccessLoggerWithFormat(logger *utils.Logger, formatter *service.LogFormatter) gin.HandlerFunc {
+func AccessLoggerWithFormat(logger *util.Logger, formatter *service.LogFormatter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Start timer
 		start := time.Now()

@@ -23,7 +23,7 @@ func NewASCIIRenderer() *ASCIIRenderer {
 }
 
 // RenderFull renders the full weather display with ASCII art
-func (r *ASCIIRenderer) RenderFull(weather *utils.WeatherData, params utils.RenderParams) string {
+func (r *ASCIIRenderer) RenderFull(weather *util.WeatherData, params util.RenderParams) string {
 	// Set noColors flag for this render
 	r.noColors = params.NoColors
 
@@ -70,7 +70,7 @@ func (r *ASCIIRenderer) RenderFull(weather *utils.WeatherData, params utils.Rend
 }
 
 // renderHeader renders the weather report header
-func (r *ASCIIRenderer) renderHeader(location utils.LocationData) string {
+func (r *ASCIIRenderer) renderHeader(location util.LocationData) string {
 	fullLocation := r.getFullLocationName(location)
 	header := fmt.Sprintf("Weather report: %s", r.capitalizeLocation(fullLocation))
 	// Yellow, bold
@@ -107,7 +107,7 @@ func (r *ASCIIRenderer) capitalizeLocation(location string) string {
 }
 
 // getFullLocationName gets the full location display name with coordinates
-func (r *ASCIIRenderer) getFullLocationName(location utils.LocationData) string {
+func (r *ASCIIRenderer) getFullLocationName(location util.LocationData) string {
 	var baseName string
 
 	// Use the pre-built full name from geocoding API if available
@@ -125,7 +125,7 @@ func (r *ASCIIRenderer) getFullLocationName(location utils.LocationData) string 
 }
 
 // renderCurrentWeatherArt renders the current weather with ASCII art
-func (r *ASCIIRenderer) renderCurrentWeatherArt(current utils.CurrentData, params utils.RenderParams) []string {
+func (r *ASCIIRenderer) renderCurrentWeatherArt(current util.CurrentData, params util.RenderParams) []string {
 	temp := int(math.Round(current.Temperature))
 	feelsLike := int(math.Round(current.FeelsLike))
 	tempUnit := getTemperatureUnit(params.Units)
@@ -155,7 +155,7 @@ func (r *ASCIIRenderer) renderCurrentWeatherArt(current utils.CurrentData, param
 }
 
 // renderForecastTable renders the forecast table with adaptive columns
-func (r *ASCIIRenderer) renderForecastTable(forecast []utils.ForecastData, params utils.RenderParams) []string {
+func (r *ASCIIRenderer) renderForecastTable(forecast []util.ForecastData, params util.RenderParams) []string {
 	var lines []string
 
 	if len(forecast) == 0 {
@@ -283,7 +283,7 @@ func (r *ASCIIRenderer) calculateDaysToShow(termWidth, availableDays int) int {
 
 // generateDayPeriods generates forecast data for different periods of the day
 // IMPORTANT: All periods MUST return exactly the same number of lines for proper alignment
-func (r *ASCIIRenderer) generateDayPeriods(day utils.ForecastData, params utils.RenderParams) struct {
+func (r *ASCIIRenderer) generateDayPeriods(day util.ForecastData, params util.RenderParams) struct {
 	morning []string
 	noon    []string
 	evening []string
@@ -466,7 +466,7 @@ func (r *ASCIIRenderer) getWeatherArt(weatherCode int, isDay bool) []string {
 }
 
 // renderFooter renders the footer with attribution
-func (r *ASCIIRenderer) renderFooter(location utils.LocationData) string {
+func (r *ASCIIRenderer) renderFooter(location util.LocationData) string {
 	footer := r.colorize("Weather • Free weather data from Open-Meteo.com", "#6272a4", false)
 	return footer
 }

@@ -46,7 +46,7 @@ func (h *AdminGeoIPHandler) UpdateGeoIPSettings(c *gin.Context) {
 		"server.geoip.databases.city":    req.DatabaseCity,
 	}
 
-	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
+	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

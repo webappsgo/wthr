@@ -134,7 +134,7 @@ func buildAuthUserSummary(user *models.User) *AuthUserSummary {
 	return &AuthUserSummary{
 		ID:       user.ID,
 		Username: user.Username,
-		Email:    utils.MaskEmail(user.Email),
+		Email:    util.MaskEmail(user.Email),
 		Role:     user.Role,
 	}
 }
@@ -297,7 +297,7 @@ func loginWithTwoFactorCode(db *sql.DB, user *models.User, code string, clientIP
 		return nil, fmt.Errorf("invalid two-factor code")
 	}
 
-	verified, err := utils.VerifyTOTP(secret, code)
+	verified, err := util.VerifyTOTP(secret, code)
 	if err != nil || !verified {
 		return nil, fmt.Errorf("invalid two-factor code")
 	}
@@ -400,10 +400,10 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
 
-	if err := utils.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(req.Username); err != nil {
 		return nil, err
 	}
-	if err := utils.ValidateEmail(req.Email); err != nil {
+	if err := util.ValidateEmail(req.Email); err != nil {
 		return nil, err
 	}
 	if len(req.Password) < 8 {
@@ -411,7 +411,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	}
 
 	userModel := &models.UserModel{DB: db}
-	user, err := userModel.Create(utils.NormalizeUsername(req.Username), req.Email, req.Password, "user")
+	user, err := userModel.Create(util.NormalizeUsername(req.Username), req.Email, req.Password, "user")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
 			return nil, fmt.Errorf("username or email already exists")
@@ -503,7 +503,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 
 func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, resetContext *APIPasswordResetContext) error {
 	email := strings.TrimSpace(req.Email)
-	if err := utils.ValidateEmail(email); err != nil {
+	if err := util.ValidateEmail(email); err != nil {
 		return fmt.Errorf("invalid email format")
 	}
 
@@ -584,7 +584,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		return fmt.Errorf("invalid or expired reset token")
 	}
 
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := util.HashPassword(req.Password)
 	if err != nil {
 		return fmt.Errorf("failed to process password")
 	}
@@ -617,7 +617,7 @@ func ValidateAPIUserInvite(db *sql.DB, token string) (*UserInviteValidationRespo
 
 	return &UserInviteValidationResponse{
 		Username:  invite.Username,
-		Email:     utils.MaskEmail(invite.Email),
+		Email:     util.MaskEmail(invite.Email),
 		Role:      invite.Role,
 		ExpiresAt: invite.ExpiresAt,
 	}, nil
@@ -635,12 +635,12 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 		return nil, err
 	}
 
-	username = utils.NormalizeUsername(username)
-	if err := utils.ValidateUsername(username); err != nil {
+	username = util.NormalizeUsername(username)
+	if err := util.ValidateUsername(username); err != nil {
 		return nil, err
 	}
 
-	if invite.Username != "" && username != utils.NormalizeUsername(invite.Username) {
+	if invite.Username != "" && username != util.NormalizeUsername(invite.Username) {
 		return nil, fmt.Errorf("invite username does not match")
 	}
 
@@ -689,7 +689,7 @@ func ValidateAPIServerInvite(token string) (*ServerInviteValidationResponse, err
 	}
 
 	return &ServerInviteValidationResponse{
-		Email:     utils.MaskEmail(invite.InvitedEmail),
+		Email:     util.MaskEmail(invite.InvitedEmail),
 		ExpiresAt: invite.ExpiresAt,
 	}, nil
 }
@@ -711,7 +711,7 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 		Admin: &InvitedAdminSummary{
 			ID:       admin.ID,
 			Username: admin.Username,
-			Email:    utils.MaskEmail(admin.Email),
+			Email:    util.MaskEmail(admin.Email),
 		},
 	}, nil
 }
@@ -1043,7 +1043,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 
 	if err := RequestAPIUserPasswordReset(h.DB, &req, &APIPasswordResetContext{
 		ClientIP: c.ClientIP(),
-		FullHost: utils.GetHostInfo(c).FullHost,
+		FullHost: util.GetHostInfo(c).FullHost,
 	}); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"ok":    false,

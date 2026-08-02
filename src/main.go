@@ -171,7 +171,7 @@ func main() {
 	metrics.Init(Version, CommitID, BuildDate)
 
 	// Get OS-appropriate directory paths
-	dirPaths, err := utils.GetDirectoryPaths()
+	dirPaths, err := util.GetDirectoryPaths()
 	if err != nil {
 		log.Fatalf("Failed to determine directory paths: %v", err)
 	}
@@ -221,7 +221,7 @@ func main() {
 	}
 
 	// Create all required directories
-	if err := utils.CreateDirectories(dirPaths); err != nil {
+	if err := util.CreateDirectories(dirPaths); err != nil {
 		log.Fatalf("Failed to create directories: %v", err)
 	}
 
@@ -231,7 +231,7 @@ func main() {
 	}
 
 	// Initialize logger
-	appLogger, err := utils.NewLogger(dirPaths.Log)
+	appLogger, err := util.NewLogger(dirPaths.Log)
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -242,7 +242,7 @@ func main() {
 	fmt.Printf("🕐 %s\n", startTime.Format("2006-01-02 at 15:04:05"))
 
 	// TEMPLATE.md PART 1: First Run Detection and Auto-Configuration
-	isFirstRun := utils.DetectFirstRun(dirPaths.Data)
+	isFirstRun := util.DetectFirstRun(dirPaths.Data)
 	var setupToken string
 
 	if isFirstRun {
@@ -250,13 +250,13 @@ func main() {
 		fmt.Println("🎉 First run detected - auto-configuring server...")
 
 		// Auto-detect SMTP
-		smtpHost, smtpPort := utils.AutoDetectSMTP()
+		smtpHost, smtpPort := util.AutoDetectSMTP()
 		appLogger.Printf("SMTP auto-detected: %s:%d", smtpHost, smtpPort)
 		fmt.Printf("📧 SMTP auto-detected: %s:%d\n", smtpHost, smtpPort)
 
 		// Create server.yml with auto-detected settings
 		configPath := filepath.Join(dirPaths.Config, "server.yml")
-		if err := utils.CreateDefaultServerYML(configPath, smtpHost, smtpPort); err != nil {
+		if err := util.CreateDefaultServerYML(configPath, smtpHost, smtpPort); err != nil {
 			appLogger.Error("Failed to create server.yml: %v", err)
 			fmt.Printf("⚠️  Failed to create server.yml: %v\n", err)
 		} else {
@@ -265,7 +265,7 @@ func main() {
 		}
 
 		// Generate one-time setup token
-		token, err := utils.GenerateSetupToken()
+		token, err := util.GenerateSetupToken()
 		if err != nil {
 			appLogger.Fatal("Failed to generate setup token: %v", err)
 		}
@@ -300,7 +300,7 @@ func main() {
 	// If first run, store setup token hash in file
 	// AI.md: Setup token stored as SHA-256 hash in {config_dir}/setup_token.txt
 	if isFirstRun && setupToken != "" {
-		if err := utils.SaveSetupToken(dirPaths.Config, setupToken); err != nil {
+		if err := util.SaveSetupToken(dirPaths.Config, setupToken); err != nil {
 			appLogger.Error("Failed to store setup token: %v", err)
 		} else {
 			appLogger.Printf("Setup token hash saved to %s/setup_token.txt", dirPaths.Config)
@@ -332,7 +332,7 @@ func main() {
 
 	// Initialize default settings with proper backup path
 	settingsModel := &model.SettingsModel{DB: db.DB}
-	backupPath := utils.GetBackupPath(dirPaths)
+	backupPath := util.GetBackupPath(dirPaths)
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
 		appLogger.Error("Warning: Could not initialize default settings: %v", err)
 		fmt.Printf("⚠️  Warning: Could not initialize default settings: %v\n", err)
@@ -1001,7 +1001,7 @@ func main() {
 
 	// Get port configuration using comprehensive port manager
 	// Priority: 1) Database saved ports, 2) Config file port, 3) PORT env variable, 4) Random port
-	portManager := utils.NewPortManager(db.DB)
+	portManager := util.NewPortManager(db.DB)
 
 	// Extract port from config (can be int or string)
 	configPort := 0
@@ -1078,8 +1078,8 @@ func main() {
 	appLogger.Info("Log directory: %s", dirPaths.Log)
 
 	// Initialize SSL manager
-	sslCertsDir := utils.GetCertsPath(dirPaths)
-	sslManager := utils.NewSSLManager(db.DB, sslCertsDir)
+	sslCertsDir := util.GetCertsPath(dirPaths)
+	sslManager := util.NewSSLManager(db.DB, sslCertsDir)
 	httpsPort := httpsPortInt
 
 	// Create SSL handler with runtime-detected HTTPS address
@@ -1209,7 +1209,7 @@ func main() {
 	// IP detection endpoint (always available for My Location feature)
 	r.GET("/debug/ip", func(c *gin.Context) {
 		// IP detection for My Location button
-		clientIP := utils.GetClientIP(c)
+		clientIP := util.GetClientIP(c)
 
 		// Try to get location from IP
 		coords, err := weatherService.GetCoordinatesFromIP(clientIP)
@@ -1273,7 +1273,7 @@ func main() {
 
 	// Password reset routes (public)
 	r.GET("/server/auth/password/forgot", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/forgot_password.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/forgot_password.tmpl", util.TemplateData(c, gin.H{
 			"title": "Forgot Password",
 		}))
 	})
@@ -1281,7 +1281,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": "If an account with that email exists, a reset link has been sent"})
 	})
 	r.GET("/server/auth/password/reset", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/reset_password.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/reset_password.tmpl", util.TemplateData(c, gin.H{
 			"title": "Reset Password",
 			"token": c.Query("token"),
 		}))
@@ -1294,7 +1294,7 @@ func main() {
 	r.GET("/server/auth/verify/:code", func(c *gin.Context) {
 		code := c.Param("code")
 		if code == "" {
-			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
 				"title": "Verify Email",
 				"error": "Missing verification code",
 			}))
@@ -1311,7 +1311,7 @@ func main() {
 		`, code, time.Now()).Scan(&verificationID, &userID, &expiresAt)
 
 		if err != nil {
-			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
 				"title": "Verify Email",
 				"error": "Invalid or expired verification link. Please request a new one.",
 			}))
@@ -1325,7 +1325,7 @@ func main() {
 			WHERE id = ?
 		`, userID)
 		if err != nil {
-			c.HTML(http.StatusInternalServerError, "page/verify_email.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
 				"title": "Verify Email",
 				"error": "Failed to verify email. Please try again.",
 			}))
@@ -1342,7 +1342,7 @@ func main() {
 
 	// Two-factor authentication routes (public)
 	r.GET("/server/auth/2fa", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/two_factor.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/two_factor.tmpl", util.TemplateData(c, gin.H{
 			"title": "Two-Factor Authentication",
 		}))
 	})
@@ -1352,14 +1352,14 @@ func main() {
 
 	// Passkey authentication routes (public)
 	r.GET("/server/auth/passkey", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/passkey.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/passkey.tmpl", util.TemplateData(c, gin.H{
 			"title": "Passkey Authentication",
 		}))
 	})
 
 	// Username recovery routes (public)
 	r.GET("/server/auth/username/forgot", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/forgot_username.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/forgot_username.tmpl", util.TemplateData(c, gin.H{
 			"title": "Forgot Username",
 		}))
 	})
@@ -1369,7 +1369,7 @@ func main() {
 
 	// Recovery key usage route (public)
 	r.GET("/server/auth/recovery/use", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/recovery_key.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/recovery_key.tmpl", util.TemplateData(c, gin.H{
 			"title": "Use Recovery Key",
 		}))
 	})
@@ -1384,7 +1384,7 @@ func main() {
 		for key, value := range data {
 			payload[key] = value
 		}
-		c.HTML(status, "page/server_invite.tmpl", utils.TemplateData(c, payload))
+		c.HTML(status, "page/server_invite.tmpl", util.TemplateData(c, payload))
 	}
 
 	renderUserInvitePage := func(c *gin.Context, status int, data gin.H) {
@@ -1394,7 +1394,7 @@ func main() {
 		for key, value := range data {
 			payload[key] = value
 		}
-		c.HTML(status, "page/user_invite.tmpl", utils.TemplateData(c, payload))
+		c.HTML(status, "page/user_invite.tmpl", util.TemplateData(c, payload))
 	}
 
 	// Invite routes (public - token validates)
@@ -1523,8 +1523,8 @@ func main() {
 			return
 		}
 
-		username := utils.NormalizeUsername(req.Username)
-		if err := utils.ValidateUsername(username); err != nil {
+		username := util.NormalizeUsername(req.Username)
+		if err := util.ValidateUsername(username); err != nil {
 			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
 				"code":       token,
 				"username":   req.Username,
@@ -1536,7 +1536,7 @@ func main() {
 			return
 		}
 
-		if invite.Username != "" && username != utils.NormalizeUsername(invite.Username) {
+		if invite.Username != "" && username != util.NormalizeUsername(invite.Username) {
 			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
 				"code":       token,
 				"username":   invite.Username,
@@ -1656,14 +1656,14 @@ func main() {
 		pendingToken, cookieErr := c.Cookie("admin_passkey_pending")
 		if cookieErr != nil || strings.TrimSpace(pendingToken) == "" {
 			// Cookie missing or expired — bail back to login with a clear message.
-			c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Admin Passkey Verification",
 				"admin_path": cfg.GetAdminPath(),
 				"error":      "Session expired or invalid. Please log in again.",
 			}))
 			return
 		}
-		c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", utils.TemplateData(c, gin.H{
+		c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(c, gin.H{
 			"title":                 "Admin Passkey Verification",
 			"admin_path":            cfg.GetAdminPath(),
 			"pending_session_token": pendingToken,
@@ -1707,7 +1707,7 @@ func main() {
 		adminRoutes.GET("/server/web", adminWebHandler.ShowWebSettings)
 
 		adminRoutes.GET("/server/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/users.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/users.tmpl", util.TemplateData(c, gin.H{
 				"title":      "User Management - Admin",
 				"page":       "users",
 				"breadcrumb": "Users",
@@ -1715,7 +1715,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/email", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_email.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Email Settings - Admin",
 				"page":       "email",
 				"breadcrumb": "Email",
@@ -1723,7 +1723,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/database", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_database.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_database.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Database & Cache - Admin",
 				"page":       "database",
 				"breadcrumb": "Database",
@@ -1731,7 +1731,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/info", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_system.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_system.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Server Information - Admin",
 				"page":       "info",
 				"breadcrumb": "Server Info",
@@ -1739,7 +1739,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/security", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_security.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_security.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Security Settings - Admin",
 				"page":       "security",
 				"breadcrumb": "Security",
@@ -1747,7 +1747,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/security/tokens", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/tokens.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/tokens.tmpl", util.TemplateData(c, gin.H{
 				"title":      "API Tokens - Admin",
 				"page":       "tokens",
 				"breadcrumb": "API Tokens",
@@ -1755,7 +1755,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/logs", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_logs.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_logs.tmpl", util.TemplateData(c, gin.H{
 				"title":      "System Logs - Admin",
 				"page":       "logs",
 				"breadcrumb": "System Logs",
@@ -1763,7 +1763,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/logs/audit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/logs.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/logs.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Audit Logs - Admin",
 				"page":       "audit",
 				"breadcrumb": "Audit Logs",
@@ -1771,7 +1771,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/scheduler", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tasks_enhanced.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_tasks_enhanced.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Scheduled Tasks - Admin",
 				"page":       "scheduler",
 				"breadcrumb": "Scheduled Tasks",
@@ -1779,7 +1779,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/ssl", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ssl.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_ssl.tmpl", util.TemplateData(c, gin.H{
 				"title":      "SSL/TLS Management - Admin",
 				"page":       "ssl",
 				"breadcrumb": "SSL/TLS",
@@ -1787,7 +1787,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/backup", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_backup_enhanced.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_backup_enhanced.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Backup Management - Admin",
 				"page":       "backup",
 				"breadcrumb": "Backup",
@@ -1795,7 +1795,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/metrics", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_metrics.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_metrics.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Metrics Configuration - Admin",
 				"page":       "metrics",
 				"breadcrumb": "Metrics",
@@ -1803,7 +1803,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/network/tor", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tor.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_tor.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Tor Hidden Service - Admin",
 				"page":       "tor",
 				"breadcrumb": "Tor Hidden Service",
@@ -1811,7 +1811,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/channels", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_channels.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin_channels.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Notification Channels - Admin",
 				"page":       "channels",
 				"breadcrumb": "Channels",
@@ -1819,7 +1819,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "template_editor.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "template_editor.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Template Editor - Admin",
 				"page":       "templates",
 				"breadcrumb": "Templates",
@@ -1827,7 +1827,7 @@ func main() {
 		})
 
 		adminRoutes.GET("/server/email/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email_editor.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_email_editor.tmpl", util.TemplateData(c, gin.H{
 				"title":      "Email Template Editor - Admin",
 				"page":       "email-templates",
 				"breadcrumb": "Email Templates",
@@ -1843,7 +1843,7 @@ func main() {
 		// Root-level admin routes (per spec: only dashboard, profile, notifications at root)
 		// /{admin_path}/profile - Admin's own profile
 		adminRoutes.GET("/profile", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_profile.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_profile.tmpl", util.TemplateData(c, gin.H{
 				"title": "Admin Profile",
 				"page":  "profile",
 			}))
@@ -1851,7 +1851,7 @@ func main() {
 
 		// /{admin_path}/profile/preferences - Admin preferences
 		adminRoutes.GET("/profile/preferences", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_preferences.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_preferences.tmpl", util.TemplateData(c, gin.H{
 				"title": "Admin Preferences",
 				"page":  "preferences",
 			}))
@@ -1859,7 +1859,7 @@ func main() {
 
 		// /{admin_path}/notifications - Admin notifications page
 		adminRoutes.GET("/notifications", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", util.TemplateData(c, gin.H{
 				"title": "Notifications",
 				"page":  "notifications",
 			}))
@@ -1868,7 +1868,7 @@ func main() {
 		// Additional missing /server/ routes per spec
 		// /{admin_path}/server/branding - Branding & SEO
 		adminRoutes.GET("/server/branding", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_branding.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_branding.tmpl", util.TemplateData(c, gin.H{
 				"title": "Branding & SEO - Admin",
 				"page":  "server-branding",
 			}))
@@ -1876,7 +1876,7 @@ func main() {
 
 		// /{admin_path}/server/pages - Standard pages (about, privacy, contact)
 		adminRoutes.GET("/server/pages", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_pages.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_pages.tmpl", util.TemplateData(c, gin.H{
 				"title": "Standard Pages - Admin",
 				"page":  "server-pages",
 			}))
@@ -1884,7 +1884,7 @@ func main() {
 
 		// /{admin_path}/server/roles - Role definitions
 		adminRoutes.GET("/server/roles", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_roles.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_roles.tmpl", util.TemplateData(c, gin.H{
 				"title": "Role Definitions - Admin",
 				"page":  "server-roles",
 			}))
@@ -1895,7 +1895,7 @@ func main() {
 
 		// /{admin_path}/server/admins - Server admin accounts list
 		adminRoutes.GET("/server/admins", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_admins.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_admins.tmpl", util.TemplateData(c, gin.H{
 				"title": "Server Admins - Admin",
 				"page":  "server-admins",
 			}))
@@ -1903,7 +1903,7 @@ func main() {
 
 		// /{admin_path}/server/admins/invite - Invite new admin
 		adminRoutes.GET("/server/admins/invite", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_invite.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_invite.tmpl", util.TemplateData(c, gin.H{
 				"title": "Invite Admin - Admin",
 				"page":  "server-admins-invite",
 			}))
@@ -1911,7 +1911,7 @@ func main() {
 
 		// /{admin_path}/server/admins/:id - Admin detail
 		adminRoutes.GET("/server/admins/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_detail.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_detail.tmpl", util.TemplateData(c, gin.H{
 				"title":   "Admin Detail - Admin",
 				"page":    "server-admins",
 				"adminID": c.Param("id"),
@@ -1921,7 +1921,7 @@ func main() {
 		renderAdminUserInvitesPage := func(c *gin.Context, status int, data gin.H) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
-				c.HTML(http.StatusInternalServerError, "page/error.tmpl", utils.TemplateData(c, gin.H{
+				c.HTML(http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(c, gin.H{
 					"title":   "User Invites",
 					"message": "Failed to load user invites",
 				}))
@@ -1969,7 +1969,7 @@ func main() {
 				payload[key] = value
 			}
 
-			c.HTML(status, "admin/admin_user_invites.tmpl", utils.TemplateData(c, payload))
+			c.HTML(status, "admin/admin_user_invites.tmpl", util.TemplateData(c, payload))
 		}
 
 		// /{admin_path}/server/users/invites - User invites
@@ -1991,8 +1991,8 @@ func main() {
 				return
 			}
 
-			username := utils.NormalizeUsername(req.Username)
-			if err := utils.ValidateUsername(username); err != nil {
+			username := util.NormalizeUsername(req.Username)
+			if err := util.ValidateUsername(username); err != nil {
 				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
 					"error": err.Error(),
 					"form":  req,
@@ -2000,8 +2000,8 @@ func main() {
 				return
 			}
 
-			email := utils.NormalizeEmail(req.Email)
-			if err := utils.ValidateEmail(email); err != nil {
+			email := util.NormalizeEmail(req.Email)
+			if err := util.ValidateEmail(email); err != nil {
 				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
 					"error": err.Error(),
 					"form":  req,
@@ -2061,7 +2061,7 @@ func main() {
 
 		// /{admin_path}/server/moderation/users - User moderation
 		adminRoutes.GET("/server/moderation/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_moderation.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_moderation.tmpl", util.TemplateData(c, gin.H{
 				"title": "User Moderation - Admin",
 				"page":  "moderation-users",
 			}))
@@ -2069,7 +2069,7 @@ func main() {
 
 		// /{admin_path}/server/moderation/users/:id - User detail
 		adminRoutes.GET("/server/moderation/users/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_user_detail.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_user_detail.tmpl", util.TemplateData(c, gin.H{
 				"title":  "User Detail - Admin",
 				"page":   "moderation-users",
 				"userID": c.Param("id"),
@@ -2078,7 +2078,7 @@ func main() {
 
 		// /{admin_path}/server/security/ratelimit - Rate limiting config
 		adminRoutes.GET("/server/security/ratelimit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ratelimit.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_ratelimit.tmpl", util.TemplateData(c, gin.H{
 				"title": "Rate Limiting - Admin",
 				"page":  "security-ratelimit",
 			}))
@@ -2086,7 +2086,7 @@ func main() {
 
 		// /{admin_path}/server/security/firewall - IP allow/block lists
 		adminRoutes.GET("/server/security/firewall", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_firewall.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_firewall.tmpl", util.TemplateData(c, gin.H{
 				"title": "Firewall - Admin",
 				"page":  "security-firewall",
 			}))
@@ -2094,7 +2094,7 @@ func main() {
 
 		// /{admin_path}/server/network/blocklists - IP/domain blocklists
 		adminRoutes.GET("/server/network/blocklists", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_blocklists.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_blocklists.tmpl", util.TemplateData(c, gin.H{
 				"title": "Blocklists - Admin",
 				"page":  "network-blocklists",
 			}))
@@ -2102,7 +2102,7 @@ func main() {
 
 		// /{admin_path}/server/maintenance - Maintenance mode
 		adminRoutes.GET("/server/maintenance", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_maintenance.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_maintenance.tmpl", util.TemplateData(c, gin.H{
 				"title": "Maintenance Mode - Admin",
 				"page":  "server-maintenance",
 			}))
@@ -2110,7 +2110,7 @@ func main() {
 
 		// /{admin_path}/server/updates - Software updates
 		adminRoutes.GET("/server/updates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_updates.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_updates.tmpl", util.TemplateData(c, gin.H{
 				"title":   "Updates - Admin",
 				"page":    "server-updates",
 				"version": handler.Version,
@@ -2119,7 +2119,7 @@ func main() {
 
 		// /{admin_path}/server/cluster/nodes - Cluster node management
 		adminRoutes.GET("/server/cluster/nodes", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_nodes.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_cluster_nodes.tmpl", util.TemplateData(c, gin.H{
 				"title": "Cluster Nodes - Admin",
 				"page":  "server-cluster-nodes",
 			}))
@@ -2127,7 +2127,7 @@ func main() {
 
 		// /{admin_path}/server/cluster/add - Add cluster node
 		adminRoutes.GET("/server/cluster/add", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_add.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_cluster_add.tmpl", util.TemplateData(c, gin.H{
 				"title": "Add Cluster Node - Admin",
 				"page":  "server-cluster-add",
 			}))
@@ -2135,7 +2135,7 @@ func main() {
 
 		// /{admin_path}/help - Admin help & documentation
 		adminRoutes.GET("/help", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_help.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_help.tmpl", util.TemplateData(c, gin.H{
 				"title": "Help - Admin",
 				"page":  "help",
 			}))
@@ -2145,7 +2145,7 @@ func main() {
 
 	// User profile page (per AI.md PART 14: /users/ is plural)
 	r.GET("/users/profile", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/user/profile.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "page/user/profile.tmpl", util.TemplateData(c, gin.H{
 			"title": "Profile",
 			"page":  "profile",
 		}))
@@ -2157,7 +2157,7 @@ func main() {
 
 	// User notification preferences page (per AI.md PART 14: /users/ is plural)
 	r.GET("/users/preferences", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), func(c *gin.Context) {
-		handler.NegotiateResponse(c, "user_preferences.tmpl", utils.TemplateData(c, gin.H{
+		handler.NegotiateResponse(c, "user_preferences.tmpl", util.TemplateData(c, gin.H{
 			"title": "Preferences",
 			"page":  "preferences",
 		}))
@@ -2214,7 +2214,7 @@ func main() {
 		// Root /api/{api_version} endpoint - return all endpoints
 		// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
 		weatherAPI.GET("", func(c *gin.Context) {
-			hostInfo := utils.GetHostInfo(c)
+			hostInfo := util.GetHostInfo(c)
 			apiBase := hostInfo.FullHost + cfg.GetAPIPath()
 			adminBase := hostInfo.FullHost + cfg.GetAdminAPIPath()
 			handler.RespondNegotiatedData(c, http.StatusOK, gin.H{
@@ -2245,9 +2245,9 @@ func main() {
 	// Public blocklist endpoint (no auth required)
 	apiV1.GET("/blocklist", func(c *gin.Context) {
 		handler.RespondNegotiatedData(c, http.StatusOK, gin.H{
-			"blocklist": utils.UsernameBlocklist,
-			"count":     utils.GetBlocklistSize(),
-			"public":    utils.IsBlocklistPublic(),
+			"blocklist": util.UsernameBlocklist,
+			"count":     util.GetBlocklistSize(),
+			"public":    util.IsBlocklistPublic(),
 			"note":      "These usernames are reserved and cannot be used for registration. The blocklist does not apply to the first user (admin setup).",
 		})
 	})
@@ -2611,14 +2611,14 @@ func main() {
 				return
 			}
 
-			username := utils.NormalizeUsername(req.Username)
-			if err := utils.ValidateUsername(username); err != nil {
+			username := util.NormalizeUsername(req.Username)
+			if err := util.ValidateUsername(username); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 
-			email := utils.NormalizeEmail(req.Email)
-			if err := utils.ValidateEmail(email); err != nil {
+			email := util.NormalizeEmail(req.Email)
+			if err := util.ValidateEmail(email); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
@@ -2925,16 +2925,16 @@ func main() {
 			email := admin.Email
 
 			if req.Username != nil {
-				username = utils.NormalizeUsername(*req.Username)
-				if err := utils.ValidateUsername(username); err != nil {
+				username = util.NormalizeUsername(*req.Username)
+				if err := util.ValidateUsername(username); err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
 			}
 
 			if req.Email != nil {
-				email = utils.NormalizeEmail(*req.Email)
-				if err := utils.ValidateEmail(email); err != nil {
+				email = util.NormalizeEmail(*req.Email)
+				if err := util.ValidateEmail(email); err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
@@ -3682,7 +3682,7 @@ func main() {
 	// Examples endpoint
 	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
 	r.GET("/examples", func(c *gin.Context) {
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 		apiPath := cfg.GetAPIPath()
 		examples := fmt.Sprintf(`Weather API Examples
 
@@ -3866,9 +3866,9 @@ JSON API:
 	}
 
 	if isFirstRun {
-		utils.DisplayFirstRunBanner(httpPortInt, setupToken, utils.IsDockerized(), torOnionAddr)
+		util.DisplayFirstRunBanner(httpPortInt, setupToken, util.IsDockerized(), torOnionAddr)
 	} else {
-		utils.DisplayNormalBanner(Version, BuildDate, httpPortInt, utils.IsDockerized(), torOnionAddr)
+		util.DisplayNormalBanner(Version, BuildDate, httpPortInt, util.IsDockerized(), torOnionAddr)
 	}
 
 	// Setup signal handling

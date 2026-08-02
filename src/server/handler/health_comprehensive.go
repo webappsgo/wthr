@@ -523,7 +523,7 @@ func getRequestStats() gin.H {
 }
 
 func getServerInfo(c *gin.Context, httpPort string, httpsPort int, sslManager interface{}) gin.H {
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	httpsEnabled := false
 	if sslManager != nil {

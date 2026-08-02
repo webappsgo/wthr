@@ -146,14 +146,14 @@ func (i *I18n) GetSupportedLanguages() []string {
 
 // GetLanguageInfos returns metadata for all supported languages, sorted by code.
 // Reads meta.name, meta.native_name, and meta.direction from each locale file.
-func (i *I18n) GetLanguageInfos() []utils.LanguageInfo {
+func (i *I18n) GetLanguageInfos() []util.LanguageInfo {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	infos := make([]utils.LanguageInfo, 0, len(i.supportedLang))
+	infos := make([]util.LanguageInfo, 0, len(i.supportedLang))
 	for _, code := range i.supportedLang {
 		t := i.translations[code]
-		info := utils.LanguageInfo{
+		info := util.LanguageInfo{
 			Code:       code,
 			Name:       t["meta.name"],
 			NativeName: t["meta.native_name"],

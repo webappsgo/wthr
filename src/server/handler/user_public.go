@@ -495,12 +495,12 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 		return fmt.Errorf("failed to verify current password")
 	}
 
-	valid, err := utils.VerifyPassword(req.CurrentPassword, passwordHash)
+	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
 		return fmt.Errorf("current password is incorrect")
 	}
 
-	newHash, err := utils.HashPassword(req.NewPassword)
+	newHash, err := util.HashPassword(req.NewPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash new password")
 	}
@@ -579,7 +579,7 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
 		return
 	}
-	valid, err := utils.VerifyPassword(req.CurrentPassword, passwordHash)
+	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
 		return
@@ -634,7 +634,7 @@ func (h *UserPublicHandler) DeleteAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
 		return
 	}
-	valid, err := utils.VerifyPassword(req.CurrentPassword, passwordHash)
+	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
 		return

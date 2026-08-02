@@ -51,7 +51,7 @@ func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 
 		// No admin exists - check for setup token file
 		configDir := paths.GetConfigDir()
-		if !utils.SetupTokenExists(configDir) {
+		if !util.SetupTokenExists(configDir) {
 			// No setup token file - setup was somehow skipped, show error
 			c.HTML(http.StatusServiceUnavailable, "error.tmpl", gin.H{
 				"error":   "Server setup incomplete",
@@ -106,7 +106,7 @@ func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc 
 
 		// Check if setup token file still exists
 		configDir := paths.GetConfigDir()
-		if !utils.SetupTokenExists(configDir) {
+		if !util.SetupTokenExists(configDir) {
 			// No setup token file and no admin - should not happen
 			adminPath := "/server/" + cfg.GetAdminPath()
 			c.Redirect(http.StatusFound, adminPath)

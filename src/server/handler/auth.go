@@ -79,7 +79,7 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 		return
 	}
 
-	NegotiateResponse(c, "page/login.tmpl", utils.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/login.tmpl", util.TemplateData(c, gin.H{
 		"title":               "Login",
 		"verified":            c.Query("verified") == "1",
 		"pendingVerification": c.Query("pending_verification") == "1",
@@ -90,7 +90,7 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 // ShowRegisterPage renders the registration page
 func (h *AuthHandler) ShowRegisterPage(c *gin.Context) {
 	if !isPublicRegistrationEnabled() {
-		NegotiateErrorResponse(c, http.StatusNotFound, "page/error.tmpl", ErrNotFound, "Registration is not available", utils.TemplateData(c, gin.H{
+		NegotiateErrorResponse(c, http.StatusNotFound, "page/error.tmpl", ErrNotFound, "Registration is not available", util.TemplateData(c, gin.H{
 			"title": "Not Found",
 		}))
 		return
@@ -102,7 +102,7 @@ func (h *AuthHandler) ShowRegisterPage(c *gin.Context) {
 		return
 	}
 
-	NegotiateResponse(c, "page/register.tmpl", utils.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/register.tmpl", util.TemplateData(c, gin.H{
 		"title": "Register",
 	}))
 }
@@ -270,7 +270,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 				})
 			} else {
 				// Render login page with 2FA prompt
-				c.HTML(http.StatusOK, "page/login.tmpl", utils.TemplateData(c, gin.H{
+				c.HTML(http.StatusOK, "page/login.tmpl", util.TemplateData(c, gin.H{
 					"title":       "Login - Two-Factor Required",
 					"require_2fa": true,
 					"identifier":  req.Identifier,
@@ -297,7 +297,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return
 			}
-			verified, err = utils.VerifyTOTP(secret, req.TwoFactorCode)
+			verified, err = util.VerifyTOTP(secret, req.TwoFactorCode)
 			if err != nil {
 				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return
@@ -398,7 +398,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 		return
 	}
 
-	if err := utils.ValidateEmail(req.Email); err != nil {
+	if err := util.ValidateEmail(req.Email); err != nil {
 		respondWithError(c, http.StatusBadRequest, "Please enter a valid email address")
 		return
 	}
@@ -406,13 +406,13 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	userModel := &model.UserModel{DB: h.DB}
 
 	// Validate username
-	if err := utils.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(req.Username); err != nil {
 		respondWithError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	// Normalize username
-	username := utils.NormalizeUsername(req.Username)
+	username := util.NormalizeUsername(req.Username)
 
 	// All users created via /register are regular users.
 	// Admin accounts are created through the /{admin_path}/server/setup wizard on first run.
@@ -627,13 +627,13 @@ func respondWithError(c *gin.Context, statusCode int, message string) {
 		path := c.Request.URL.Path
 
 		if strings.Contains(path, "login") {
-			c.HTML(statusCode, "page/login.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(statusCode, "page/login.tmpl", util.TemplateData(c, gin.H{
 				"title":              "Login",
 				"error":              message,
 				"registrationPublic": isPublicRegistrationEnabled(),
 			}))
 		} else if strings.Contains(path, "register") {
-			c.HTML(statusCode, "page/register.tmpl", utils.TemplateData(c, gin.H{
+			c.HTML(statusCode, "page/register.tmpl", util.TemplateData(c, gin.H{
 				"title": "Register",
 				"error": message,
 			}))

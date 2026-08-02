@@ -243,7 +243,7 @@ func validateSetupToken(token string) error {
 	configDir := paths.GetConfigDir()
 
 	// Validate against stored hash in file
-	valid, err := utils.ValidateSetupToken(configDir, token)
+	valid, err := util.ValidateSetupToken(configDir, token)
 	if err != nil {
 		return fmt.Errorf("setup token not found or already used")
 	}
@@ -259,7 +259,7 @@ func validateSetupToken(token string) error {
 // AI.md: File deleted after successful setup completion
 func deleteSetupToken() error {
 	configDir := paths.GetConfigDir()
-	return utils.DeleteSetupToken(configDir)
+	return util.DeleteSetupToken(configDir)
 }
 
 // markSetupComplete updates the server_setup_state table. The table is a

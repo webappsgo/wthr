@@ -90,7 +90,7 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 
 	// Get client location for map centering and distance calculation
 	// Priority: 1. Saved cookies, 2. IP geolocation
-	clientIP := utils.GetClientIP(c)
+	clientIP := util.GetClientIP(c)
 	var centerLat, centerLon float64 = 0.0, 0.0
 	hasUserLocation := false
 
@@ -139,7 +139,7 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 	earthquakes.SortAndLimit(sortBy, number)
 
 	// Get host info for console commands
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	// Render earthquake page
 	c.HTML(http.StatusOK, "page/earthquake.tmpl", gin.H{
@@ -182,7 +182,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	}
 
 	// Parse location
-	clientIP := utils.GetClientIP(c)
+	clientIP := util.GetClientIP(c)
 	coords, err := h.weatherService.ParseAndResolveLocation(locationInput, clientIP)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "page/error.tmpl", gin.H{
@@ -215,7 +215,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	earthquakes.SortAndLimit(sortBy, number)
 
 	// Get host info for console commands
-	hostInfo := utils.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(c)
 
 	// Create LocationData for uniform display
 	// Format population with commas
@@ -338,7 +338,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 	feedType := c.DefaultQuery("feed", "all_week")
 	earthquakes, err := h.earthquakeService.GetEarthquakes(feedType)
 	if err != nil {
-		if utils.IsBrowser(c) {
+		if util.IsBrowser(c) {
 			c.HTML(http.StatusInternalServerError, "page/error.tmpl", gin.H{
 				"error": "Failed to load earthquake data: " + err.Error(),
 			})
@@ -358,7 +358,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 	}
 
 	if earthquake == nil {
-		if utils.IsBrowser(c) {
+		if util.IsBrowser(c) {
 			c.HTML(http.StatusNotFound, "page/error.tmpl", gin.H{
 				"error": "Earthquake not found",
 			})
@@ -370,7 +370,7 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 
 	// Check format parameter
 	format := c.DefaultQuery("format", "")
-	isBrowser := utils.IsBrowser(c)
+	isBrowser := util.IsBrowser(c)
 
 	if !isBrowser || format != "" {
 		// Console output
@@ -378,9 +378,9 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 		c.String(http.StatusOK, output)
 	} else {
 		// Browser output
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 		title := fmt.Sprintf("Earthquake Detail · %s", earthquake.Place)
-		c.HTML(http.StatusOK, "page/earthquake_detail.tmpl", utils.TemplateData(c, gin.H{
+		c.HTML(http.StatusOK, "page/earthquake_detail.tmpl", util.TemplateData(c, gin.H{
 			"Earthquake": earthquake,
 			"HostInfo":   hostInfo,
 			"title":      title,
@@ -411,7 +411,7 @@ func (h *EarthquakeHandler) HandleEarthquakeRequest(c *gin.Context) {
 		return
 	}
 
-	isBrowser := utils.IsBrowser(c)
+	isBrowser := util.IsBrowser(c)
 
 	if isBrowser {
 		// Browser users get HTML interface
@@ -448,7 +448,7 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 			}
 		}
 
-		clientIP := utils.GetClientIP(c)
+		clientIP := util.GetClientIP(c)
 		coords, err := h.weatherService.ParseAndResolveLocation(locationPath, clientIP)
 		if err != nil {
 			c.String(http.StatusBadRequest, "Location not found: %s\n", locationPath)

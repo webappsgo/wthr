@@ -13,7 +13,7 @@ import (
 	"github.com/webappsgo/wthr/src/util"
 )
 
-func handlePlatformSignal(sig os.Signal, db *database.DB, appLogger *utils.Logger, dirPaths *utils.DirectoryPaths) bool {
+func handlePlatformSignal(sig os.Signal, db *database.DB, appLogger *util.Logger, dirPaths *util.DirectoryPaths) bool {
 	switch sig {
 	case syscall.SIGUSR1:
 		log.Println("INFO: Received SIGUSR1, reopening log files...")

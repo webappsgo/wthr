@@ -61,11 +61,11 @@ func (h *HurricaneHandler) HandleHurricaneRequest(c *gin.Context) {
 	}
 
 	// Check user agent to determine if browser or console
-	isBrowser := utils.IsBrowser(c)
+	isBrowser := util.IsBrowser(c)
 
 	if isBrowser {
 		// Render HTML template
-		hostInfo := utils.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(c)
 		c.HTML(http.StatusOK, "page/hurricane.tmpl", gin.H{
 			"Title":    "Active Hurricanes & Tropical Storms",
 			"Storms":   data.ActiveStorms,
