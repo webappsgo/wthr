@@ -718,24 +718,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     and `go build ./...` succeeds. Read: ai-rules.md / AI.md PART 0
     (formatting requirements).
 
-22. TODO (flagged 2026-08-01 by go-lint during item 12's
-    src/server/handler/admin.go pass): several DB call sites ignore the
-    returned error from `.Scan(...)`/`QueryRowContext(...)`:
-    - `GetTasksStats` (~line 471-476): 4x `QueryRowContext(...).Scan(...)`
-      calls, no error check.
-    - `GetSystemStats` (~line 495-498): 4x `QueryRowContext(...).Scan(...)`
-      calls, no error check.
-    - `GetScheduledTasks` (~line 518): `QueryRowContext(...).Scan(&count)`,
-      no error check before using `count`.
-    - `seedScheduledTasks` (~line 612-620): `ExecContext` errors in the seed
-      loop are silently dropped via a bare `continue`, no logging.
-    Pre-existing pattern (predates the DB-timeout migration; the original
-    `QueryRow`/`Exec` calls already ignored errors the same way) — kept
-    unchanged in the item-12 pass to stay scoped to timeout-wrapping only.
-    Fix: check `err` after each `.Scan()`, return/log on failure per
-    backend-rules.md's "log every error with context" rule; replace the
-    silent `continue` in `seedScheduledTasks` with an error-logged
-    continue. Read: AI.md PART 9 (error handling) before starting.
+22. DONE (2026-08-02): several DB call sites in
+    src/server/handler/admin.go ignored the returned error from
+    `.Scan(...)`/`QueryRowContext(...)`:
+    - `GetTasksStats`: 4x `QueryRowContext(...).Scan(...)` calls, no error
+      check — fixed, each now logs on failure via `log.Printf("ERROR: ...")`.
+    - `GetSystemStats`: 4x `QueryRowContext(...).Scan(...)` calls, no error
+      check — fixed, same pattern.
+    - `GetScheduledTasks`: `QueryRowContext(...).Scan(&count)` used before
+      checking error — fixed, logs on failure before the count is used.
+    - `seedScheduledTasks`: `ExecContext` errors in the seed loop were
+      silently dropped via a bare `continue` — fixed, now logs the task
+      name and error before continuing.
+    Verified via Docker `gofmt -l`/`go build ./...`/`go vet
+    ./src/server/handler/...`/`go test ./src/server/handler/... -run
+    'TestAdminHandler_GetTasksStats|TestAdminHandler_GetSystemStats|TestAdminHandler_GetScheduledTasks'`
+    — all pass. Read: AI.md PART 9 (error handling).
 
 23. TODO (flagged 2026-08-01 by go-lint during item 12's
     src/server/handler/setup.go pass): lines 332, 355, 524, 704 use
