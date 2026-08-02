@@ -434,6 +434,28 @@ any of the above: `src/graphql/context_keys_test.go`,
     `setup_wizard.go`, etc.) needing more setup/mocking — deferred to a
     future pass.
 
+    Progress (2026-08-02, continued): next smallest self-contained file
+    in `src/server/handler` was `admin_notifications.go` (67 lines) —
+    structurally identical to `admin_geoip.go` (`Show*Settings` HTML
+    render paired with `Update*Settings` JSON-bind →
+    `utils.UpdateYAMLConfig` handler). Added `admin_notifications_test.go`
+    with `TestAdminNotificationsHandler_UpdateNotificationSettings_Success`,
+    `_InvalidJSON` (confirms the config file is left untouched on a bad
+    request body), and `_ConfigWriteError` (confirms a missing config
+    path surfaces as 500 rather than panicking), reusing the same
+    `t.TempDir()` YAML config-file pattern. `ShowNotificationSettings`
+    was left untested for the same reason as `ShowGeoIPSettings` — no
+    gin `HTMLRender` wired into `newAPITestContext`. Verified via Docker
+    `gofmt -l`/`go build ./...`/`go vet ./server/handler/...`/`go test -v
+    ./server/handler/...` (new tests pass) and `go test -cover
+    ./server/handler/...` — package coverage 39.9% → 40.0%. Full repo
+    `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Remaining untested files are still the larger
+    gin/DB-heavy admin handlers listed above, plus mid-size candidates
+    like `admin_auth_settings.go` (80 lines), `admin_weather.go` (82
+    lines), `notification_metrics.go` (83 lines), and `dashboard.go` (92
+    lines) — next targets for a follow-up pass.
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
