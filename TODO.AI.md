@@ -226,33 +226,29 @@ any of the above: `src/graphql/context_keys_test.go`,
     `src/server/model/admin_test.go`). Read: AI.md PART 17 (Server Admin),
     PART 24/25 (privilege/service).
 
-15. TODO (flagged 2026-07-31 while fixing item 8's `getUserIDFromContext`/
-    `getIPFromContext` bug): the SAME bare-`string`-vs-typed-`contextKey`
-    mismatch exists much more widely across the GraphQL resolver layer —
-    NOT limited to the two helpers fixed in item 8. Found via grep, NOT
-    fixed (large, security-relevant blast radius; needs its own dedicated
-    session with case-by-case fail-open/fail-closed verification, not a
-    mass find-replace):
-    - `src/graphql/schema.resolvers.go`: ~60+ bare-string lookups, e.g.
-      `ctx.Value("user_role").(string)` (repeated ~35+ times across lines
-      838-3026), `ctx.Value("admin_id").(int)` (lines 1219, 1250, 2703),
-      `ctx.Value("request_user_agent")` (1622, 1644), `ctx.Value("request_ip")`
-      (1643), `ctx.Value("client_ip")` (1971) — none of these match the
-      typed `ctxKeyUserRole` / `ctxKeyAdminID` / `ctxKeyRequestUserAgent` /
-      `ctxKeyRequestIP` / `ctxKeyClientIP` constants defined in `graphql.go`.
-    - `src/graphql/resolvers_helpers.go`: `ctx.Value("user_session")` (451),
-      `ctx.Value("request_host")` (459, 565, 925), `ctx.Value("request_scheme")`
-      (465, 570, 930), `ctx.Value("admin_id")` (474, 839),
-      `ctx.Value("admin_email")` (855) — same mismatch.
-    - `src/graphql/passkey_impl.go`: `ctx.Value("request_host")` (16),
-      `ctx.Value("request_scheme")` (22) — same mismatch.
-    Practical effect: nearly every role-based/admin authorization check and
-    request-metadata lookup in the GraphQL resolver layer may be silently
-    returning zero-value/failed type assertions in production (fail-open or
-    fail-closed depending on how each call site handles the `!ok` case —
-    must be checked individually, not assumed). This is a serious,
-    wide-blast-radius issue distinct from item 8's narrow fix. Read: AI.md
-    PART 9 (defense in depth), PART 11 (authz), PART 34 (multi-user roles).
+15. DONE (2026-08-02): fixed the bare-`string`-vs-typed-`contextKey`
+    mismatch across the entire GraphQL resolver layer (48 call sites in
+    `schema.resolvers.go`, 10 in `resolvers_helpers.go`, 2 in
+    `passkey_impl.go` — 60 total). Verified case-by-case before the bulk
+    fix: every call site's stored type (from `buildGraphQLAuthContext`/
+    `withGraphQLAdminValues`/`withGraphQLUserContext`/
+    `withGraphQLUserSessionContext` in `graphql.go`) matched the type
+    asserted at the read site (`user_role`→string, `admin_id`→int,
+    `admin_email`→string, `client_ip`/`request_ip`/`request_user_agent`/
+    `request_host`/`request_scheme`→string, `user_session`→`*models.Session`),
+    and every read site's `!ok`/zero-value path was fail-closed (returns an
+    `unauthorized`/empty-string error, never a silent privilege grant) —
+    confirmed no fail-open call sites existed, so replacing the bare
+    strings with the typed `ctxKeyUserRole`/`ctxKeyAdminID`/
+    `ctxKeyAdminEmail`/`ctxKeyClientIP`/`ctxKeyRequestIP`/
+    `ctxKeyRequestUserAgent`/`ctxKeyRequestHost`/`ctxKeyRequestScheme`/
+    `ctxKeyUserSession` constants only restores intended behavior (these
+    admin/role checks and passkey host/scheme lookups were previously
+    unreachable/broken in production, not exploitable). Verified via
+    `gofmt -l`/`go build`/`go vet`/`go test ./graphql/... ./server/...`
+    (all pass) in Docker. Read: AI.md PART 9 (defense in depth), PART 11
+    (authz — allowlist context-key pattern at line 17914 confirmed this is
+    the spec's own idiom), PART 34 (multi-user roles).
 
 16. TODO (diagnosed 2026-07-31 after item 8/13's fix push): CI's `test` job
     "Enforce coverage threshold" step (`ci.yml`, 60% gate on
@@ -572,3 +568,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     `database.WithTimeout()` + `tx.ExecContext()` pattern used in
     `ResetSettings()`. Read: AI.md PART 14 (API error/success response
     shapes) before starting.
+
+34. TODO (flagged 2026-08-02 by go-lint during item 15's GraphQL
+    context-key pass): pre-existing, out of scope for item 15 (GraphQL
+    resolver context-key type fixes only) —
+    - `Makefile` line 38: `PLATFORMS ?= linux/amd64,linux/arm64` — must
+      build all 8 platforms (linux/darwin/windows/freebsd ×
+      amd64/arm64) per PART 26.
+    - `Makefile` line 223: coverage threshold hardcoded to 80% in a
+      shell `bc` comparison — PART 26/29 require ≥60%, not a stricter
+      ad-hoc value (this makes the local `make test` gate stricter than
+      CI's `ci.yml` 60% gate, inconsistent enforcement).
+    - `Makefile` line 233-234: `dev` target invokes `$(GO_DOCKER)`
+      without a preceding `@mkdir -p $(GO_CACHE) $(GO_BUILD)` — cache
+      dirs must exist before the docker run mounts them.
+    (The go-lint agent's 4th finding, that `Version`/`CommitID`/
+    `BuildDate` in `src/main.go` are used but never declared, is a false
+    positive — they're declared in `src/version.go`, a separate file in
+    the same package, which the agent didn't check.)
+    Read: AI.md PART 26 (Makefile targets) before starting.

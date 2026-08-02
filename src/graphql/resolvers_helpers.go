@@ -449,7 +449,7 @@ func loadGraphQLCurrentUserAuth(ctx context.Context, db *sql.DB) (*models.User, 
 	return user, nil
 }
 func loadGraphQLCurrentUserSession(ctx context.Context) (*models.Session, error) {
-	sessionValue := ctx.Value("user_session")
+	sessionValue := ctx.Value(ctxKeyUserSession)
 	session, ok := sessionValue.(*models.Session)
 	if !ok || session == nil {
 		return nil, fmt.Errorf("session authentication required")
@@ -457,13 +457,13 @@ func loadGraphQLCurrentUserSession(ctx context.Context) (*models.Session, error)
 	return session, nil
 }
 func graphQLRequestBaseURL(ctx context.Context) string {
-	host, _ := ctx.Value("request_host").(string)
+	host, _ := ctx.Value(ctxKeyRequestHost).(string)
 	host = strings.TrimSpace(host)
 	if host == "" {
 		return ""
 	}
 
-	scheme, _ := ctx.Value("request_scheme").(string)
+	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
 	scheme = strings.TrimSpace(scheme)
 	if scheme == "" {
 		scheme = "http"
@@ -472,7 +472,7 @@ func graphQLRequestBaseURL(ctx context.Context) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 func getGraphQLCurrentAdminID(ctx context.Context) (int64, error) {
-	value := ctx.Value("admin_id")
+	value := ctx.Value(ctxKeyAdminID)
 	switch id := value.(type) {
 	case int:
 		if id > 0 {
@@ -563,12 +563,12 @@ func buildGraphQLServerAdmin(admin *models.Admin) *ServerAdmin {
 	}
 }
 func graphQLServerInviteURL(ctx context.Context, token string) string {
-	scheme, _ := ctx.Value("request_scheme").(string)
+	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
 	if strings.TrimSpace(scheme) == "" {
 		scheme = "http"
 	}
 
-	host, _ := ctx.Value("request_host").(string)
+	host, _ := ctx.Value(ctxKeyRequestHost).(string)
 	if strings.TrimSpace(host) == "" {
 		return ""
 	}
@@ -837,7 +837,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 		}
 	}
 
-	if adminID, ok := ctx.Value("admin_id").(int); ok && adminID > 0 {
+	if adminID, ok := ctx.Value(ctxKeyAdminID).(int); ok && adminID > 0 {
 		var adminEmail string
 		err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
 		SELECT email
@@ -853,7 +853,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 		}
 	}
 
-	if adminEmail, ok := ctx.Value("admin_email").(string); ok {
+	if adminEmail, ok := ctx.Value(ctxKeyAdminEmail).(string); ok {
 		adminEmail = strings.TrimSpace(adminEmail)
 		if adminEmail != "" {
 			return adminEmail, nil
@@ -923,12 +923,12 @@ func graphQLUserInviteStatus(invite *models.UserInvite) string {
 	return "pending"
 }
 func graphQLUserInviteURL(ctx context.Context, token string) string {
-	host, _ := ctx.Value("request_host").(string)
+	host, _ := ctx.Value(ctxKeyRequestHost).(string)
 	if strings.TrimSpace(host) == "" {
 		return ""
 	}
 
-	scheme, _ := ctx.Value("request_scheme").(string)
+	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
 	if strings.TrimSpace(scheme) == "" {
 		scheme = "http"
 	}

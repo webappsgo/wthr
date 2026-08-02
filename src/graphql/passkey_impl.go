@@ -13,13 +13,13 @@ import (
 // (see graphql.buildGraphQLAuthContext) and returns the envelope expected by
 // the passkey helper functions in the handler package.
 func graphQLPasskeyEnvelope(ctx context.Context) (handler.PasskeyEnvelope, error) {
-	host, _ := ctx.Value("request_host").(string)
+	host, _ := ctx.Value(ctxKeyRequestHost).(string)
 	host = strings.TrimSpace(host)
 	if host == "" {
 		return handler.PasskeyEnvelope{}, fmt.Errorf("missing request host")
 	}
 
-	scheme, _ := ctx.Value("request_scheme").(string)
+	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
 	scheme = strings.TrimSpace(scheme)
 	https := strings.EqualFold(scheme, "https")
 
