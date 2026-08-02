@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/md5"
 	"database/sql"
 	"fmt"
@@ -10,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
@@ -70,7 +72,7 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 		CreatedAt     time.Time
 	}
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, username, display_name, email, bio, location, website, visibility,
 		       avatar_type, avatar_url, email_verified, created_at
 		FROM user_accounts
@@ -220,7 +222,7 @@ func (h *UserPublicHandler) loadCurrentUserAvatar(userID int64) (*AvatarResponse
 	var avatarType, avatarURL sql.NullString
 	var email string
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT email, avatar_type, avatar_url
 		FROM user_accounts WHERE id = ?
 	`, userID).Scan(&email, &avatarType, &avatarURL)
@@ -258,7 +260,7 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 		avatarURL = sql.NullString{String: strings.TrimSpace(req.URL), Valid: true}
 	}
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = ?, avatar_url = ?, updated_at = ?
 		WHERE id = ?
@@ -267,7 +269,7 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 }
 
 func (h *UserPublicHandler) resetCurrentUserAvatar(userID int64) error {
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = 'gravatar', avatar_url = NULL, updated_at = ?
 		WHERE id = ?
@@ -301,7 +303,7 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/user_%d.%s", userID, getExtension(contentType))
 
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = 'upload', avatar_url = ?, updated_at = ?
 		WHERE id = ?
@@ -488,7 +490,7 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 	}
 
 	var passwordHash string
-	err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&passwordHash)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&passwordHash)
 	if err != nil {
 		return fmt.Errorf("failed to verify current password")
 	}
@@ -503,7 +505,7 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 		return fmt.Errorf("failed to hash new password")
 	}
 
-	_, err = h.DB.Exec(`
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
@@ -573,7 +575,7 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 
 	// Verify current password before allowing email change
 	var passwordHash string
-	if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
 		return
 	}
@@ -585,14 +587,14 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 
 	// Check the new email is not already in use
 	var existing int64
-	_ = h.DB.QueryRow(`SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
+	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
 	if existing != 0 {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email address is already in use"})
 		return
 	}
 
 	// Update email and mark as unverified until re-verified
-	if _, err := h.DB.Exec(
+	if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		req.NewEmail, user.ID,
 	); err != nil {
@@ -628,7 +630,7 @@ func (h *UserPublicHandler) DeleteAccount(c *gin.Context) {
 
 	// Verify password before allowing deletion
 	var passwordHash string
-	if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
 		return
 	}
