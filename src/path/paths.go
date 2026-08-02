@@ -68,14 +68,14 @@ func getLinuxPaths(appName string) *Paths {
 	// Check if running as root
 	if os.Geteuid() == 0 {
 		return &Paths{
-			DataDir:   filepath.Join("/var/lib", orgNamespace),
-			ConfigDir: filepath.Join("/etc", orgNamespace),
-			LogDir:    filepath.Join("/var/log", orgNamespace),
-			CacheDir:  filepath.Join("/var/cache", orgNamespace),
-			TempDir:   filepath.Join("/tmp", "casapps", appName),
+			DataDir:      filepath.Join("/var/lib", orgNamespace),
+			ConfigDir:    filepath.Join("/etc", orgNamespace),
+			LogDir:       filepath.Join("/var/log", orgNamespace),
+			CacheDir:     filepath.Join("/var/cache", orgNamespace),
+			TempDir:      filepath.Join("/tmp", "casapps", appName),
 			IsPrivileged: true,
-			GOOS:      "linux",
-			AppName:   appName,
+			GOOS:         "linux",
+			AppName:      appName,
 		}
 	}
 
@@ -96,14 +96,14 @@ func getLinuxPaths(appName string) *Paths {
 	}
 
 	return &Paths{
-		DataDir:   filepath.Join(dataHome, orgNamespace),
-		ConfigDir: filepath.Join(configHome, orgNamespace),
-		LogDir:    filepath.Join(dataHome, orgNamespace, "logs"),
-		CacheDir:  filepath.Join(cacheHome, orgNamespace),
-		TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+		DataDir:      filepath.Join(dataHome, orgNamespace),
+		ConfigDir:    filepath.Join(configHome, orgNamespace),
+		LogDir:       filepath.Join(dataHome, orgNamespace, "logs"),
+		CacheDir:     filepath.Join(cacheHome, orgNamespace),
+		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 		IsPrivileged: false,
-		GOOS:      "linux",
-		AppName:   appName,
+		GOOS:         "linux",
+		AppName:      appName,
 	}
 }
 
@@ -118,27 +118,27 @@ func getDarwinPaths(appName string) *Paths {
 	// Check if running as root or system service
 	if os.Geteuid() == 0 {
 		return &Paths{
-			DataDir:   filepath.Join("/Library", "Application Support", orgNamespace, "data"),
-			ConfigDir: filepath.Join("/Library", "Application Support", orgNamespace),
-			LogDir:    filepath.Join("/Library", "Logs", orgNamespace),
-			CacheDir:  filepath.Join("/Library", "Caches", orgNamespace),
-			TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+			DataDir:      filepath.Join("/Library", "Application Support", orgNamespace, "data"),
+			ConfigDir:    filepath.Join("/Library", "Application Support", orgNamespace),
+			LogDir:       filepath.Join("/Library", "Logs", orgNamespace),
+			CacheDir:     filepath.Join("/Library", "Caches", orgNamespace),
+			TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 			IsPrivileged: true,
-			GOOS:      "darwin",
-			AppName:   appName,
+			GOOS:         "darwin",
+			AppName:      appName,
 		}
 	}
 
 	// User-level paths
 	return &Paths{
-		DataDir:   filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
-		ConfigDir: filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
-		LogDir:    filepath.Join(homeDir, "Library", "Logs", orgNamespace),
-		CacheDir:  filepath.Join(homeDir, "Library", "Caches", orgNamespace),
-		TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+		DataDir:      filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
+		ConfigDir:    filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
+		LogDir:       filepath.Join(homeDir, "Library", "Logs", orgNamespace),
+		CacheDir:     filepath.Join(homeDir, "Library", "Caches", orgNamespace),
+		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 		IsPrivileged: false,
-		GOOS:      "darwin",
-		AppName:   appName,
+		GOOS:         "darwin",
+		AppName:      appName,
 	}
 }
 
@@ -157,14 +157,14 @@ func getWindowsPaths(appName string) *Paths {
 	// In service mode, use ProgramData for all paths
 	if os.Getenv("USERDOMAIN") == "NT AUTHORITY" || os.Getenv("USERNAME") == "SYSTEM" {
 		return &Paths{
-			DataDir:   filepath.Join(programData, orgNamespace, "data"),
-			ConfigDir: filepath.Join(programData, orgNamespace),
-			LogDir:    filepath.Join(programData, orgNamespace, "logs"),
-			CacheDir:  filepath.Join(programData, orgNamespace, "cache"),
-			TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+			DataDir:      filepath.Join(programData, orgNamespace, "data"),
+			ConfigDir:    filepath.Join(programData, orgNamespace),
+			LogDir:       filepath.Join(programData, orgNamespace, "logs"),
+			CacheDir:     filepath.Join(programData, orgNamespace, "cache"),
+			TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 			IsPrivileged: true,
-			GOOS:      "windows",
-			AppName:   appName,
+			GOOS:         "windows",
+			AppName:      appName,
 		}
 	}
 
@@ -180,14 +180,14 @@ func getWindowsPaths(appName string) *Paths {
 	}
 
 	return &Paths{
-		DataDir:   filepath.Join(localAppData, orgNamespace),
-		ConfigDir: filepath.Join(appData, orgNamespace),
-		LogDir:    filepath.Join(localAppData, orgNamespace, "logs"),
-		CacheDir:  filepath.Join(localAppData, orgNamespace, "cache"),
-		TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+		DataDir:      filepath.Join(localAppData, orgNamespace),
+		ConfigDir:    filepath.Join(appData, orgNamespace),
+		LogDir:       filepath.Join(localAppData, orgNamespace, "logs"),
+		CacheDir:     filepath.Join(localAppData, orgNamespace, "cache"),
+		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 		IsPrivileged: false,
-		GOOS:      "windows",
-		AppName:   appName,
+		GOOS:         "windows",
+		AppName:      appName,
 	}
 }
 
@@ -202,27 +202,27 @@ func getBSDPaths(appName string) *Paths {
 	// Check if running as root
 	if os.Geteuid() == 0 {
 		return &Paths{
-			DataDir:   filepath.Join("/var/db", orgNamespace),
-			ConfigDir: filepath.Join("/usr/local/etc", orgNamespace),
-			LogDir:    filepath.Join("/var/log", orgNamespace),
-			CacheDir:  filepath.Join("/var/cache", orgNamespace),
-			TempDir:   filepath.Join("/tmp", "casapps", appName),
+			DataDir:      filepath.Join("/var/db", orgNamespace),
+			ConfigDir:    filepath.Join("/usr/local/etc", orgNamespace),
+			LogDir:       filepath.Join("/var/log", orgNamespace),
+			CacheDir:     filepath.Join("/var/cache", orgNamespace),
+			TempDir:      filepath.Join("/tmp", "casapps", appName),
 			IsPrivileged: true,
-			GOOS:      runtime.GOOS,
-			AppName:   appName,
+			GOOS:         runtime.GOOS,
+			AppName:      appName,
 		}
 	}
 
 	// User-level paths
 	return &Paths{
-		DataDir:   filepath.Join(homeDir, ".local", "share", orgNamespace),
-		ConfigDir: filepath.Join(homeDir, ".config", orgNamespace),
-		LogDir:    filepath.Join(homeDir, ".local", "share", orgNamespace, "logs"),
-		CacheDir:  filepath.Join(homeDir, ".cache", orgNamespace),
-		TempDir:   filepath.Join(os.TempDir(), "casapps", appName),
+		DataDir:      filepath.Join(homeDir, ".local", "share", orgNamespace),
+		ConfigDir:    filepath.Join(homeDir, ".config", orgNamespace),
+		LogDir:       filepath.Join(homeDir, ".local", "share", orgNamespace, "logs"),
+		CacheDir:     filepath.Join(homeDir, ".cache", orgNamespace),
+		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
 		IsPrivileged: false,
-		GOOS:      runtime.GOOS,
-		AppName:   appName,
+		GOOS:         runtime.GOOS,
+		AppName:      appName,
 	}
 }
 

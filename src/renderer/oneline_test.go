@@ -143,9 +143,9 @@ func TestGetWindDirection(t *testing.T) {
 		{90, "E"},
 		{180, "S"},
 		{270, "W"},
-		{360, "N"},   // wraparound
-		{359, "N"},   // rounds up to 360 -> wraps to N
-		{11, "N"},    // rounds down within N sector
+		{360, "N"}, // wraparound
+		{359, "N"}, // rounds up to 360 -> wraps to N
+		{11, "N"},  // rounds down within N sector
 		{23, "NNE"},
 	}
 

@@ -23,12 +23,12 @@ func TestSecurityHeaders_AlwaysPresent(t *testing.T) {
 	}
 
 	wantHeaders := map[string]string{
-		"X-Content-Type-Options":   "nosniff",
-		"X-Frame-Options":          "SAMEORIGIN",
-		"X-XSS-Protection":         "1; mode=block",
-		"Referrer-Policy":          "strict-origin-when-cross-origin",
-		"Content-Security-Policy":  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
-		"Permissions-Policy":       "geolocation=(), microphone=(), camera=()",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "SAMEORIGIN",
+		"X-XSS-Protection":        "1; mode=block",
+		"Referrer-Policy":         "strict-origin-when-cross-origin",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'",
+		"Permissions-Policy":      "geolocation=(), microphone=(), camera=()",
 	}
 
 	for _, tt := range tests {

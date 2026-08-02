@@ -47,8 +47,8 @@ func TestColorizeWithFlag(t *testing.T) {
 // TestHexToRGB covers standard, black, white and lowercase/uppercase hex.
 func TestHexToRGB(t *testing.T) {
 	tests := []struct {
-		hex              string
-		r, g, b          int
+		hex     string
+		r, g, b int
 	}{
 		{"#ff0000", 255, 0, 0},
 		{"#00ff00", 0, 255, 0},
@@ -382,7 +382,7 @@ func TestCapitalizeLocation(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"london, gb", "London, Gb"},        // BUG: want "London, GB"
+		{"london, gb", "London, Gb"},             // BUG: want "London, GB"
 		{"new york, ny, us", "New York, Ny, Us"}, // BUG: want "New York, NY, US"
 		{"paris", "Paris"},
 		{"london, GB", "London, GB"}, // already-uppercase input is preserved correctly

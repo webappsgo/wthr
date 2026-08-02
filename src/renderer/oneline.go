@@ -141,4 +141,3 @@ func (r *OneLineRenderer) getShortLocationName(location utils.LocationData) stri
 
 	return fmt.Sprintf("%s, %s", cityName, countryCode)
 }
-
