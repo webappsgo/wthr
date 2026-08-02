@@ -245,10 +245,10 @@ func (cm *ClusterManager) electPrimary() error {
 	// Update local state
 	if newPrimary == cm.nodeID {
 		cm.currentState = NodeStatePrimary
-		log.Printf("[INFO] ✓ Elected as PRIMARY node")
+		log.Printf("[INFO] Elected as PRIMARY node")
 	} else {
 		cm.currentState = NodeStateSecondary
-		log.Printf("[INFO] ✓ Running as SECONDARY node (Primary: %s)", newPrimary)
+		log.Printf("[INFO] Running as SECONDARY node (Primary: %s)", newPrimary)
 	}
 
 	return nil

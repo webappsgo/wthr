@@ -40,7 +40,7 @@ func (cw *ConfigWatcher) Start() error {
 		return err
 	}
 
-	log.Printf("👁️  Watching for config file changes: %s", cw.configPath)
+	log.Printf("INFO: Watching for config file changes: %s", cw.configPath)
 
 	// Start watching in goroutine
 	go func() {
@@ -68,22 +68,22 @@ func (cw *ConfigWatcher) Start() error {
 					}
 
 					debounceTimer = time.AfterFunc(debounceDuration, func() {
-						log.Println("🔄 Config file changed, reloading...")
+						log.Println("INFO: Config file changed, reloading...")
 
 						// Load new config
 						newCfg, err := config.LoadConfig()
 						if err != nil {
-							log.Printf("❌ Failed to load new config: %v", err)
+							log.Printf("ERROR: Failed to load new config: %v", err)
 							return
 						}
 
 						// Trigger reload callback
 						if err := cw.reloadFunc(newCfg); err != nil {
-							log.Printf("❌ Failed to apply new config: %v", err)
+							log.Printf("ERROR: Failed to apply new config: %v", err)
 							return
 						}
 
-						log.Println("✅ Configuration reloaded successfully (live reload - no restart needed)")
+						log.Println("OK: Configuration reloaded successfully (live reload - no restart needed)")
 					})
 				}
 
@@ -91,10 +91,10 @@ func (cw *ConfigWatcher) Start() error {
 				if !ok {
 					return
 				}
-				log.Printf("⚠️  Config watcher error: %v", err)
+				log.Printf("WARNING: Config watcher error: %v", err)
 
 			case <-cw.stopChan:
-				log.Println("👁️  Stopping config file watcher")
+				log.Println("INFO: Stopping config file watcher")
 				return
 			}
 		}

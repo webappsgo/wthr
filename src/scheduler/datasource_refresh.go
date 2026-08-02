@@ -33,43 +33,43 @@ func NewDataSourceRefresher(
 
 // RefreshAllDataSources refreshes all location data sources
 func (dsr *DataSourceRefresher) RefreshAllDataSources() error {
-	log.Println("🔄 Starting data source refresh...")
+	log.Println("INFO: Starting data source refresh...")
 	startTime := time.Now()
 
 	errors := make([]error, 0)
 
 	// Refresh countries and cities (location enhancer)
 	if err := dsr.locationEnhancer.Reload(); err != nil {
-		log.Printf("❌ Failed to refresh countries/cities: %v", err)
+		log.Printf("ERROR: Failed to refresh countries/cities: %v", err)
 		errors = append(errors, fmt.Errorf("countries/cities: %w", err))
 	}
 
 	// Refresh zipcodes
 	if err := dsr.zipcodeService.Reload(); err != nil {
-		log.Printf("❌ Failed to refresh zipcodes: %v", err)
+		log.Printf("ERROR: Failed to refresh zipcodes: %v", err)
 		errors = append(errors, fmt.Errorf("zipcodes: %w", err))
 	}
 
 	// Refresh airports
 	if err := dsr.airportService.Reload(); err != nil {
-		log.Printf("❌ Failed to refresh airports: %v", err)
+		log.Printf("ERROR: Failed to refresh airports: %v", err)
 		errors = append(errors, fmt.Errorf("airports: %w", err))
 	}
 
 	// Refresh GeoIP database
 	if err := dsr.geoipService.Reload(); err != nil {
-		log.Printf("❌ Failed to refresh GeoIP: %v", err)
+		log.Printf("ERROR: Failed to refresh GeoIP: %v", err)
 		errors = append(errors, fmt.Errorf("geoip: %w", err))
 	}
 
 	elapsed := time.Since(startTime)
 
 	if len(errors) > 0 {
-		log.Printf("⚠️  Data source refresh completed with %d error(s) in %.2f seconds", len(errors), elapsed.Seconds())
+		log.Printf("WARNING: Data source refresh completed with %d error(s) in %.2f seconds", len(errors), elapsed.Seconds())
 		return fmt.Errorf("refresh completed with errors: %v", errors)
 	}
 
-	log.Printf("✅ All data sources refreshed successfully in %.2f seconds", elapsed.Seconds())
+	log.Printf("OK: All data sources refreshed successfully in %.2f seconds", elapsed.Seconds())
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (s *Scheduler) ScheduleDataSourceRefresh(refresher *DataSourceRefresher, ta
 	// Calculate initial delay until target time
 	initialDelay := CalculateNextRunTime(targetTime)
 
-	log.Printf("📅 Data source refresh scheduled for %s (next run in %v)", targetTime, initialDelay)
+	log.Printf("INFO: Data source refresh scheduled for %s (next run in %v)", targetTime, initialDelay)
 
 	// Start a goroutine that waits for the initial delay, then runs every 24 hours
 	go func() {
@@ -107,7 +107,7 @@ func (s *Scheduler) ScheduleDataSourceRefresh(refresher *DataSourceRefresher, ta
 
 		// Run the first refresh
 		if err := refresher.RefreshAllDataSources(); err != nil {
-			log.Printf("⚠️  Scheduled data refresh failed: %v", err)
+			log.Printf("WARNING: Scheduled data refresh failed: %v", err)
 		}
 
 		// Then run every 24 hours
@@ -116,7 +116,7 @@ func (s *Scheduler) ScheduleDataSourceRefresh(refresher *DataSourceRefresher, ta
 
 		for range ticker.C {
 			if err := refresher.RefreshAllDataSources(); err != nil {
-				log.Printf("⚠️  Scheduled data refresh failed: %v", err)
+				log.Printf("WARNING: Scheduled data refresh failed: %v", err)
 			}
 		}
 	}()

@@ -147,7 +147,7 @@ func (s *Scheduler) Start() {
 
 	go s.run()
 
-	log.Printf("📅 Task manager has started (%d scheduled tasks)", taskCount)
+	log.Printf("INFO: Task manager has started (%d scheduled tasks)", taskCount)
 }
 
 // run is the scheduler's main loop, driven by a time.Ticker.
@@ -193,7 +193,7 @@ func (s *Scheduler) Stop() {
 		s.mu.Unlock()
 		return
 	}
-	log.Println("🛑 Stopping scheduler...")
+	log.Println("INFO: Stopping scheduler...")
 	s.ticker.Stop()
 	close(s.stopCh)
 	stopped := s.stopped
@@ -202,7 +202,7 @@ func (s *Scheduler) Stop() {
 
 	<-stopped // Wait for the loop goroutine to exit
 
-	log.Println("✅ Scheduler stopped")
+	log.Println("OK: Scheduler stopped")
 }
 
 // isGlobalTask returns true if this task should only run on one node
@@ -242,7 +242,7 @@ func (s *Scheduler) acquireTaskLock(taskName string) bool {
 	`, taskName, taskName, s.nodeID, now, lockExpiry, s.nodeID, s.nodeID, lockExpiry, s.nodeID, now, taskName)
 
 	if err != nil {
-		log.Printf("⚠️  Failed to acquire lock for task '%s': %v", taskName, err)
+		log.Printf("WARNING: Failed to acquire lock for task '%s': %v", taskName, err)
 		return false
 	}
 
@@ -275,7 +275,7 @@ func (s *Scheduler) releaseTaskLock(taskName string) {
 	`, taskName, s.nodeID)
 
 	if err != nil {
-		log.Printf("⚠️  Failed to release lock for task '%s': %v", taskName, err)
+		log.Printf("WARNING: Failed to release lock for task '%s': %v", taskName, err)
 	}
 }
 
@@ -307,9 +307,9 @@ func (s *Scheduler) executeTask(task *Task) {
 	task.mu.Unlock()
 
 	if err != nil {
-		log.Printf("❌ Task '%s' failed after %v: %v", task.Name, elapsed, err)
+		log.Printf("ERROR: Task '%s' failed after %v: %v", task.Name, elapsed, err)
 	} else {
-		log.Printf("✅ Task '%s' completed in %v", task.Name, elapsed)
+		log.Printf("OK: Task '%s' completed in %v", task.Name, elapsed)
 	}
 
 	// Log to audit if enabled
@@ -344,7 +344,7 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 	`, taskName, taskName, details, status)
 
 	if insertErr != nil {
-		log.Printf("⚠️  Failed to log scheduler task: %v", insertErr)
+		log.Printf("WARNING: Failed to log scheduler task: %v", insertErr)
 	}
 }
 
@@ -380,7 +380,7 @@ func CleanupOldSessions(db *sql.DB) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
-		log.Printf("🧹 Cleaned up %d expired sessions", rowsAffected)
+		log.Printf("INFO: Cleaned up %d expired sessions", rowsAffected)
 	}
 
 	return nil
@@ -407,7 +407,7 @@ func CleanupOldAuditLogs(db *sql.DB) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
-		log.Printf("🧹 Cleaned up %d old audit logs (retention: %d days)", rowsAffected, retentionDays)
+		log.Printf("INFO: Cleaned up %d old audit logs (retention: %d days)", rowsAffected, retentionDays)
 	}
 
 	return nil
@@ -439,7 +439,7 @@ func CheckWeatherAlerts(db *sql.DB) error {
 		var userID int
 
 		if err := rows.Scan(&locationID, &name, &latitude, &longitude, &userID); err != nil {
-			log.Printf("⚠️  Failed to scan location: %v", err)
+			log.Printf("WARNING: Failed to scan location: %v", err)
 			continue
 		}
 
@@ -467,7 +467,7 @@ func CheckWeatherAlerts(db *sql.DB) error {
 			return json.NewDecoder(resp.Body).Decode(&weatherData)
 		}()
 		if fetchErr != nil {
-			log.Printf("⚠️  Failed to fetch weather for %s: %v", name, fetchErr)
+			log.Printf("WARNING: Failed to fetch weather for %s: %v", name, fetchErr)
 			continue
 		}
 
@@ -477,7 +477,7 @@ func CheckWeatherAlerts(db *sql.DB) error {
 	}
 
 	if alertCount > 0 {
-		log.Printf("🔔 Created %d weather alerts", alertCount)
+		log.Printf("INFO: Created %d weather alerts", alertCount)
 	}
 
 	return nil
@@ -496,7 +496,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for extreme cold (below 32°F / 0°C)
 	if weather.Current.Temperature < 32 {
-		createNotification(db, userID, "alert", "⚠️ Freezing Temperature Alert",
+		createNotification(db, userID, "alert", "Freezing Temperature Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Bundle up!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -504,7 +504,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for extreme heat (above 95°F / 35°C)
 	if weather.Current.Temperature > 95 {
-		createNotification(db, userID, "alert", "🌡️ Heat Alert",
+		createNotification(db, userID, "alert", "Heat Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Stay hydrated!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -512,7 +512,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for high winds (above 40 mph)
 	if weather.Current.WindSpeed > 40 {
-		createNotification(db, userID, "warning", "💨 High Wind Alert",
+		createNotification(db, userID, "warning", "High Wind Alert",
 			fmt.Sprintf("%s: Wind speed is %.0f mph. Secure loose objects!", locationName, weather.Current.WindSpeed),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -520,7 +520,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for heavy precipitation (above 0.5 inches)
 	if weather.Current.Precipitation > 0.5 {
-		createNotification(db, userID, "info", "🌧️ Heavy Rain Alert",
+		createNotification(db, userID, "info", "Heavy Rain Alert",
 			fmt.Sprintf("%s: Heavy precipitation detected (%.1f in). Prepare for flooding!", locationName, weather.Current.Precipitation),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -528,7 +528,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for severe weather codes (thunderstorms, snow, etc.)
 	if weather.Current.WeatherCode >= 95 {
-		createNotification(db, userID, "alert", "⛈️ Severe Weather Alert",
+		createNotification(db, userID, "alert", "Severe Weather Alert",
 			fmt.Sprintf("%s: Severe weather detected. Stay safe!", locationName),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -545,7 +545,7 @@ func createNotification(db *sql.DB, userID int, notifType, title, message, link 
 	`, userID, notifType, title, message, link)
 
 	if err != nil {
-		log.Printf("⚠️  Failed to create notification: %v", err)
+		log.Printf("WARNING: Failed to create notification: %v", err)
 	}
 }
 
@@ -585,14 +585,14 @@ func CreateSystemBackup(db *sql.DB) error {
 		AppVersion:  "1.0.0",
 	}
 
-	log.Println("💾 Starting automated backup...")
+	log.Println("INFO: Starting automated backup...")
 	backupPath, err := svc.Create(opts)
 	if err != nil {
-		log.Printf("❌ Automated backup failed: %v", err)
+		log.Printf("ERROR: Automated backup failed: %v", err)
 		return fmt.Errorf("backup failed: %w", err)
 	}
 
-	log.Printf("✅ Automated backup completed: %s", backupPath)
+	log.Printf("OK: Automated backup completed: %s", backupPath)
 	return nil
 }
 
@@ -610,7 +610,7 @@ func CleanupExpiredTokens(db *sql.DB) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
-		log.Printf("🧹 Cleaned up %d expired API tokens", rowsAffected)
+		log.Printf("INFO: Cleaned up %d expired API tokens", rowsAffected)
 	}
 
 	// Clean up expired setup tokens
@@ -625,7 +625,7 @@ func CleanupExpiredTokens(db *sql.DB) error {
 
 	rowsAffected2, _ := result2.RowsAffected()
 	if rowsAffected2 > 0 {
-		log.Printf("🧹 Cleaned up %d expired setup tokens", rowsAffected2)
+		log.Printf("INFO: Cleaned up %d expired setup tokens", rowsAffected2)
 	}
 
 	return nil
@@ -650,7 +650,7 @@ func CheckSSLRenewal() error {
 		return nil
 	}
 
-	log.Println("🔐 Checking SSL certificate renewal status...")
+	log.Println("INFO: Checking SSL certificate renewal status...")
 
 	// Get paths
 	p := paths.GetDefaultPaths("wthr")
@@ -681,7 +681,7 @@ func CheckSSLRenewal() error {
 	}
 
 	if certPath == "" {
-		log.Println("⚠️ SSL renewal check: No certificate found")
+		log.Println("WARNING: SSL renewal check: No certificate found")
 		return nil
 	}
 
@@ -701,17 +701,17 @@ func CheckSSLRenewal() error {
 
 	// AI.md PART 19: renew 7 days before expiry
 	if daysRemaining <= 0 {
-		log.Printf("🚨 SSL certificate EXPIRED on %s", x509Cert.NotAfter.Format("2006-01-02"))
+		log.Printf("CRITICAL: SSL certificate EXPIRED on %s", x509Cert.NotAfter.Format("2006-01-02"))
 		return fmt.Errorf("SSL certificate expired")
 	} else if daysRemaining <= 7 {
-		log.Printf("⚠️ SSL certificate expires in %d days (renewing at 7 days)", daysRemaining)
+		log.Printf("WARNING: SSL certificate expires in %d days (renewing at 7 days)", daysRemaining)
 		// Note: Actual renewal is triggered by LetsEncryptService's auto-renewal
 		// This task just logs the status - renewal is handled by the service
 		return fmt.Errorf("SSL certificate needs renewal (%d days remaining)", daysRemaining)
 	} else if daysRemaining <= 30 {
 		log.Printf("ℹ️ SSL certificate expires in %d days", daysRemaining)
 	} else {
-		log.Printf("✅ SSL certificate valid for %d days", daysRemaining)
+		log.Printf("OK: SSL certificate valid for %d days", daysRemaining)
 	}
 
 	return nil
@@ -723,21 +723,21 @@ func SelfHealthCheck() error {
 	// Check database connectivity
 	err := database.PingWithTimeout(database.GetServerDB())
 	if err != nil {
-		log.Printf("⚠️ Self health check: database ping failed: %v", err)
+		log.Printf("WARNING: Self health check: database ping failed: %v", err)
 		return fmt.Errorf("database health check failed: %w", err)
 	}
 
 	// Check disk space - AI.md: alert when disk usage > 85%
 	diskPercent, err := getDiskUsagePercent("/")
 	if err != nil {
-		log.Printf("⚠️ Self health check: disk space check failed: %v", err)
+		log.Printf("WARNING: Self health check: disk space check failed: %v", err)
 		// Don't fail health check if disk check fails, just log it
 	} else {
 		if diskPercent > 95 {
-			log.Printf("🚨 Self health check: CRITICAL disk usage at %d%%", diskPercent)
+			log.Printf("CRITICAL: Self health check: disk usage at %d%%", diskPercent)
 			return fmt.Errorf("critical disk usage: %d%% (threshold: 95%%)", diskPercent)
 		} else if diskPercent > 85 {
-			log.Printf("⚠️ Self health check: WARNING disk usage at %d%%", diskPercent)
+			log.Printf("WARNING: Self health check: disk usage at %d%%", diskPercent)
 			// Log warning but don't fail (AI.md: alert at 85%, critical at 95%)
 		}
 	}
@@ -746,7 +746,7 @@ func SelfHealthCheck() error {
 	usersDB := database.GetUsersDB()
 	if usersDB != nil {
 		if err := database.PingWithTimeout(usersDB); err != nil {
-			log.Printf("⚠️ Self health check: users database ping failed: %v", err)
+			log.Printf("WARNING: Self health check: users database ping failed: %v", err)
 			return fmt.Errorf("users database health check failed: %w", err)
 		}
 	}
@@ -780,13 +780,13 @@ func CheckTorHealth() error {
 	}
 
 	if !torRunning {
-		log.Printf("⚠️ Tor health check: Tor process not running")
+		log.Printf("WARNING: Tor health check: Tor process not running")
 
 		// Check if auto-restart is enabled
 		var restartOnFail string
 		queryErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.restart_on_fail'").Scan(&restartOnFail)
 		if queryErr == nil && restartOnFail == "true" {
-			log.Printf("🧅 Attempting to restart Tor service...")
+			log.Printf("INFO: Attempting to restart Tor service...")
 			// Note: The actual restart is handled by TorService, we just log the status
 			// The TorService has its own monitoring loop that handles restarts
 			return fmt.Errorf("tor process not running (configured for auto-restart)")
@@ -799,7 +799,7 @@ func CheckTorHealth() error {
 	var onionAddress string
 	addrErr := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'tor.onion_address'").Scan(&onionAddress)
 	if addrErr != nil || onionAddress == "" {
-		log.Printf("⚠️ Tor health check: No .onion address configured")
+		log.Printf("WARNING: Tor health check: No .onion address configured")
 		// This might be normal during startup, don't fail
 	}
 
@@ -819,7 +819,7 @@ func CleanupRateLimitCounters(db *sql.DB) error {
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
-		log.Printf("🧹 Cleaned up %d old rate limit counters", rowsAffected)
+		log.Printf("INFO: Cleaned up %d old rate limit counters", rowsAffected)
 	}
 
 	return nil
@@ -828,7 +828,7 @@ func CleanupRateLimitCounters(db *sql.DB) error {
 // UpdateBlocklist updates the IP blocklist database
 // AI.md PART 19: blocklist_update daily at 04:00
 func UpdateBlocklist() error {
-	log.Println("🛡️ Updating IP blocklist database...")
+	log.Println("INFO: Updating IP blocklist database...")
 
 	// Check if blocklist is enabled
 	var blocklistEnabled string
@@ -871,13 +871,13 @@ func UpdateBlocklist() error {
 	for _, source := range sources {
 		resp, err := client.Get(source.url)
 		if err != nil {
-			log.Printf("⚠️ Failed to fetch %s: %v", source.name, err)
+			log.Printf("WARNING: Failed to fetch %s: %v", source.name, err)
 			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			log.Printf("⚠️ Failed to fetch %s: HTTP %d", source.name, resp.StatusCode)
+			log.Printf("WARNING: Failed to fetch %s: HTTP %d", source.name, resp.StatusCode)
 			continue
 		}
 
@@ -922,17 +922,17 @@ func UpdateBlocklist() error {
 		DELETE FROM server_ip_blocklist
 		WHERE updated_at < datetime('now', '-7 days')
 	`); err != nil {
-		log.Printf("⚠️  Failed to prune old blocklist entries: %v", err)
+		log.Printf("WARNING: Failed to prune old blocklist entries: %v", err)
 	}
 
-	log.Printf("🛡️ Blocklist update complete: %d entries processed", totalAdded)
+	log.Printf("INFO: Blocklist update complete: %d entries processed", totalAdded)
 	return nil
 }
 
 // UpdateCVEDatabase updates the CVE vulnerability database
 // AI.md PART 19: cve_update daily at 05:00
 func UpdateCVEDatabase() error {
-	log.Println("🔒 Updating CVE database...")
+	log.Println("INFO: Updating CVE database...")
 
 	// Check if CVE monitoring is enabled
 	var cveEnabled string
@@ -1048,7 +1048,7 @@ func UpdateCVEDatabase() error {
 		}
 	}
 
-	log.Printf("🔒 CVE database update complete: %d CVEs processed", added)
+	log.Printf("INFO: CVE database update complete: %d CVEs processed", added)
 	return nil
 }
 
@@ -1093,7 +1093,7 @@ func (s *Scheduler) EnableTask(taskName string) error {
 	task.mu.Lock()
 	task.enabled = true
 	task.mu.Unlock()
-	log.Printf("✅ Task '%s' enabled", taskName)
+	log.Printf("OK: Task '%s' enabled", taskName)
 	return nil
 }
 
@@ -1110,7 +1110,7 @@ func (s *Scheduler) DisableTask(taskName string) error {
 	task.mu.Lock()
 	task.enabled = false
 	task.mu.Unlock()
-	log.Printf("⏸️  Task '%s' disabled", taskName)
+	log.Printf("INFO: Task '%s' disabled", taskName)
 	return nil
 }
 
@@ -1124,7 +1124,7 @@ func (s *Scheduler) TriggerTask(taskName string) error {
 		return fmt.Errorf("task '%s' not found", taskName)
 	}
 
-	log.Printf("🔄 Manually triggering task '%s'", taskName)
+	log.Printf("INFO: Manually triggering task '%s'", taskName)
 	go s.executeTask(task)
 	return nil
 }

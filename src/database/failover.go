@@ -151,8 +151,8 @@ func (fm *FailoverManager) handlePrimaryFailure(err error) {
 		fm.lastError = err
 		fm.lastErrorAt = time.Now()
 
-		log.Printf("⚠️  DATABASE FAILURE: Switching to read-only mode: %v", err)
-		log.Printf("📝 All writes will be queued and retried when database recovers")
+		log.Printf("WARNING: DATABASE FAILURE: Switching to read-only mode: %v", err)
+		log.Printf("INFO: All writes will be queued and retried when database recovers")
 
 		// Start retry ticker if not already running
 		if fm.retryTicker == nil {
@@ -201,7 +201,7 @@ func (fm *FailoverManager) attemptRecovery() {
 
 	err := fm.primaryDB.PingContext(ctx)
 	if err != nil {
-		log.Printf("⚠️  Database recovery failed: %v (will retry in 30 seconds)", err)
+		log.Printf("WARNING: Database recovery failed: %v (will retry in 30 seconds)", err)
 		return
 	}
 
@@ -209,12 +209,12 @@ func (fm *FailoverManager) attemptRecovery() {
 	var testResult int
 	err = fm.primaryDB.QueryRowContext(ctx, "SELECT 1").Scan(&testResult)
 	if err != nil {
-		log.Printf("⚠️  Database recovery failed: %v (will retry in 30 seconds)", err)
+		log.Printf("WARNING: Database recovery failed: %v (will retry in 30 seconds)", err)
 		return
 	}
 
 	// Database is back online!
-	log.Printf("✅ Database connection recovered!")
+	log.Printf("OK: Database connection recovered!")
 
 	// Replay queued writes
 	fm.replayWrites()
@@ -229,7 +229,7 @@ func (fm *FailoverManager) attemptRecovery() {
 	}
 	fm.mu.Unlock()
 
-	log.Printf("✅ System returned to normal operation")
+	log.Printf("OK: System returned to normal operation")
 }
 
 // replayWrites replays all queued writes
@@ -245,7 +245,7 @@ func (fm *FailoverManager) replayWrites() {
 		return
 	}
 
-	log.Printf("📝 Replaying %d queued writes...", len(queue))
+	log.Printf("INFO: Replaying %d queued writes...", len(queue))
 
 	successCount := 0
 	failCount := 0
@@ -253,7 +253,7 @@ func (fm *FailoverManager) replayWrites() {
 	for _, write := range queue {
 		_, err := ExecContext(context.Background(), fm.primaryDB, TimeoutWrite, write.Query, write.Args...)
 		if err != nil {
-			log.Printf("⚠️  Failed to replay write from %s: %v", write.Timestamp.Format(time.RFC3339), err)
+			log.Printf("WARNING: Failed to replay write from %s: %v", write.Timestamp.Format(time.RFC3339), err)
 			failCount++
 			// Re-queue failed writes
 			fm.queueWrite(write.Query, write.Args...)
@@ -263,9 +263,9 @@ func (fm *FailoverManager) replayWrites() {
 	}
 
 	if failCount > 0 {
-		log.Printf("⚠️  Replayed %d/%d writes (%d failed, re-queued)", successCount, len(queue), failCount)
+		log.Printf("WARNING: Replayed %d/%d writes (%d failed, re-queued)", successCount, len(queue), failCount)
 	} else {
-		log.Printf("✅ Successfully replayed all %d queued writes", successCount)
+		log.Printf("OK: Successfully replayed all %d queued writes", successCount)
 	}
 }
 

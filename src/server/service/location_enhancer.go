@@ -216,23 +216,23 @@ func (le *LocationEnhancer) SetOnInitComplete(callback func(countries, cities bo
 // Reload reloads all location data (countries and cities) from external sources
 // This is used by the scheduler for periodic data refresh
 func (le *LocationEnhancer) Reload() error {
-	log.Println("🔄 Reloading location databases...")
+	log.Println("INFO: Reloading location databases...")
 	startTime := time.Now()
 
 	// Reload countries (blocking)
 	if err := le.loadCountriesData(); err != nil {
 		return fmt.Errorf("failed to reload countries: %w", err)
 	}
-	log.Printf("✅ Countries reloaded (%d entries)", len(le.countriesData))
+	log.Printf("OK: Countries reloaded (%d entries)", len(le.countriesData))
 
 	// Reload cities (blocking for reload)
 	if err := le.loadCitiesData(); err != nil {
 		return fmt.Errorf("failed to reload cities: %w", err)
 	}
-	log.Printf("✅ Cities reloaded (%d entries)", len(le.citiesData))
+	log.Printf("OK: Cities reloaded (%d entries)", len(le.citiesData))
 
 	elapsed := time.Since(startTime)
-	log.Printf("✅ Location databases reloaded in %s", elapsed)
+	log.Printf("OK: Location databases reloaded in %s", elapsed)
 	return nil
 }
 

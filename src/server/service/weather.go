@@ -1302,7 +1302,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 			}
 		} else {
 			// If GeoIP fails, fall through to API services
-			fmt.Printf("⚠️ GeoIP lookup failed: %v, falling back to API services\n", err)
+			fmt.Printf("WARNING: GeoIP lookup failed: %v, falling back to API services\n", err)
 		}
 	}
 
@@ -1316,7 +1316,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 			distanceKM := haversineDistance(geoipCoords.Latitude, geoipCoords.Longitude, coords.Latitude, coords.Longitude)
 			distanceMiles := distanceKM * 0.621371
 			if distanceMiles > 100 {
-				fmt.Printf("⚠️ GeoIP mismatch: %s (GeoIP) vs %s (API), distance: %.0f miles - using API result\n",
+				fmt.Printf("WARNING: GeoIP mismatch: %s (GeoIP) vs %s (API), distance: %.0f miles - using API result\n",
 					geoipCoords.ShortName, coords.ShortName, distanceMiles)
 				// Use API result
 				return coords, nil
@@ -1335,7 +1335,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 			distanceKM := haversineDistance(geoipCoords.Latitude, geoipCoords.Longitude, coords.Latitude, coords.Longitude)
 			distanceMiles := distanceKM * 0.621371
 			if distanceMiles > 100 {
-				fmt.Printf("⚠️ GeoIP mismatch: using API result (%s)\n", coords.ShortName)
+				fmt.Printf("WARNING: GeoIP mismatch: using API result (%s)\n", coords.ShortName)
 				return coords, nil
 			}
 			return geoipCoords, nil
@@ -1350,7 +1350,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 			distanceKM := haversineDistance(geoipCoords.Latitude, geoipCoords.Longitude, coords.Latitude, coords.Longitude)
 			distanceMiles := distanceKM * 0.621371
 			if distanceMiles > 100 {
-				fmt.Printf("⚠️ GeoIP mismatch: using API result (%s)\n", coords.ShortName)
+				fmt.Printf("WARNING: GeoIP mismatch: using API result (%s)\n", coords.ShortName)
 				return coords, nil
 			}
 			return geoipCoords, nil
@@ -1360,7 +1360,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 
 	// If we have GeoIP coords but all APIs failed, use GeoIP
 	if geoipCoords != nil {
-		fmt.Printf("⚠️ All API services failed, using GeoIP result: %s\n", geoipCoords.ShortName)
+		fmt.Printf("WARNING: All API services failed, using GeoIP result: %s\n", geoipCoords.ShortName)
 		return geoipCoords, nil
 	}
 
@@ -1519,21 +1519,21 @@ func (ws *WeatherService) GetHistoricalWeather(latitude, longitude float64, mont
 		// Make API request
 		resp, err := ws.client.Get(apiURL)
 		if err != nil {
-			log.Printf("⚠️  Failed to fetch historical data for %s: %v", targetDate, err)
+			log.Printf("WARNING: Failed to fetch historical data for %s: %v", targetDate, err)
 			continue
 		}
 
 		var apiResp OpenMeteoHistoricalResponse
 		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 			resp.Body.Close()
-			log.Printf("⚠️  Failed to decode historical data for %s: %v", targetDate, err)
+			log.Printf("WARNING: Failed to decode historical data for %s: %v", targetDate, err)
 			continue
 		}
 		resp.Body.Close()
 
 		// Parse the response - should have exactly 1 day of data
 		if len(apiResp.Daily.Time) != 1 {
-			log.Printf("⚠️  Unexpected number of days in response for %s: %d", targetDate, len(apiResp.Daily.Time))
+			log.Printf("WARNING: Unexpected number of days in response for %s: %d", targetDate, len(apiResp.Daily.Time))
 			continue
 		}
 

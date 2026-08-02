@@ -83,7 +83,7 @@ func (vg *VanityGenerator) Start(prefix string) error {
 	// Start generation in background
 	go vg.generate(ctx, prefix)
 
-	log.Printf("🔍 Started vanity address generation for prefix: %s", prefix)
+	log.Printf("INFO: Started vanity address generation for prefix: %s", prefix)
 	return nil
 }
 
@@ -100,7 +100,7 @@ func (vg *VanityGenerator) generate(ctx context.Context, prefix string) {
 			vg.mu.Lock()
 			vg.status.Running = false
 			vg.mu.Unlock()
-			log.Printf("⏹️  Vanity generation cancelled for prefix: %s (attempts: %d)", prefix, vg.status.Attempts)
+			log.Printf("INFO: Vanity generation cancelled for prefix: %s (attempts: %d)", prefix, vg.status.Attempts)
 			return
 
 		case <-ticker.C:
@@ -120,7 +120,7 @@ func (vg *VanityGenerator) generate(ctx context.Context, prefix string) {
 				default:
 				}
 
-				log.Printf("✅ Found vanity address: %s (attempts: %d, time: %v)",
+				log.Printf("OK: Found vanity address: %s (attempts: %d, time: %v)",
 					vg.status.Address, vg.status.Attempts, time.Since(vg.status.StartTime))
 				return
 			}
@@ -133,7 +133,7 @@ func (vg *VanityGenerator) tryGenerate(prefix string) bool {
 	// Generate ed25519 key pair
 	publicKey, privateKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
-		log.Printf("⚠️  Failed to generate key: %v", err)
+		log.Printf("WARNING: Failed to generate key: %v", err)
 		return false
 	}
 

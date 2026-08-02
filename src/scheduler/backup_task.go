@@ -15,7 +15,7 @@ import (
 // Keep max 4 backups per retention policy
 func BackupTask(configDir, dataDir string) func() error {
 	return func() error {
-		log.Println("🔄 Starting automated backup...")
+		log.Println("INFO: Starting automated backup...")
 
 		// Create backup service
 		svc := backup.New(configDir, dataDir)
@@ -43,11 +43,11 @@ func BackupTask(configDir, dataDir string) func() error {
 
 		backupPath, err := svc.Create(opts)
 		if err != nil {
-			log.Printf("❌ Automated backup failed: %v", err)
+			log.Printf("ERROR: Automated backup failed: %v", err)
 			return fmt.Errorf("backup failed: %w", err)
 		}
 
-		log.Printf("✅ Automated backup completed: %s", backupPath)
+		log.Printf("OK: Automated backup completed: %s", backupPath)
 		return nil
 	}
 }
@@ -57,7 +57,7 @@ func BackupTask(configDir, dataDir string) func() error {
 // Creates: {projectname}-hourly.tar.gz[.enc] (single file, replaced each hour)
 func BackupHourlyTask(configDir, dataDir string) func() error {
 	return func() error {
-		log.Println("🔄 Starting hourly backup...")
+		log.Println("INFO: Starting hourly backup...")
 
 		// Create backup service
 		svc := backup.New(configDir, dataDir)
@@ -77,11 +77,11 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 
 		backupPath, err := svc.Create(opts)
 		if err != nil {
-			log.Printf("❌ Hourly backup failed: %v", err)
+			log.Printf("ERROR: Hourly backup failed: %v", err)
 			return fmt.Errorf("hourly backup failed: %w", err)
 		}
 
-		log.Printf("✅ Hourly backup completed: %s", backupPath)
+		log.Printf("OK: Hourly backup completed: %s", backupPath)
 		return nil
 	}
 }
@@ -92,7 +92,7 @@ func RegisterBackupTask(s *Scheduler, enabled bool) {
 	// Get paths per AI.md PART 4
 	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
-		log.Println("⚠️  Failed to get default paths for backup task")
+		log.Println("WARNING: Failed to get default paths for backup task")
 		return
 	}
 
@@ -107,8 +107,8 @@ func RegisterBackupTask(s *Scheduler, enabled bool) {
 	s.AddTask("backup_auto", schedule, taskFn)
 
 	if enabled {
-		log.Println("📅 Automated backup task scheduled (daily at 01:00)")
+		log.Println("INFO: Automated backup task scheduled (daily at 01:00)")
 	} else {
-		log.Println("📅 Automated backup task registered (disabled by default)")
+		log.Println("INFO: Automated backup task registered (disabled by default)")
 	}
 }

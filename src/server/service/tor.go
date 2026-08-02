@@ -39,7 +39,7 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 
 	torDataDir := filepath.Join(dataDir, "tor")
 	if err := os.MkdirAll(torDataDir, 0700); err != nil {
-		log.Printf("⚠️  Failed to create Tor data directory: %v", err)
+		log.Printf("WARNING: Failed to create Tor data directory: %v", err)
 	}
 
 	return &TorService{
@@ -65,7 +65,7 @@ func (ts *TorService) Start(httpPort int) error {
 		return nil
 	}
 
-	log.Println("🧅 Starting Tor hidden service...")
+	log.Println("INFO: Starting Tor hidden service...")
 
 	// Start OUR OWN dedicated Tor process (completely separate from system Tor)
 	// This uses the tor binary but with our own DataDir and random ports
@@ -90,7 +90,7 @@ func (ts *TorService) Start(httpPort int) error {
 
 	log.Println("   Started dedicated Tor process (isolated from system Tor)")
 
-	log.Println("⏳ Waiting for Tor to be ready...")
+	log.Println("INFO: Waiting for Tor to be ready...")
 
 	// Wait for Tor to be ready with timeout
 	readyCtx, readyCancel := context.WithTimeout(ts.ctx, 3*time.Minute)
@@ -101,7 +101,7 @@ func (ts *TorService) Start(httpPort int) error {
 		return fmt.Errorf("failed to enable Tor network: %w", err)
 	}
 
-	log.Println("✅ Tor is ready, creating hidden service...")
+	log.Println("OK: Tor is ready, creating hidden service...")
 
 	// Create or load hidden service
 	onionKey := filepath.Join(ts.dataDir, "site", "private_key")
@@ -132,15 +132,15 @@ func (ts *TorService) Start(httpPort int) error {
 
 	// Save .onion address to database
 	if err := settingsModel.Set("tor.onion_address", onionAddr, "string"); err != nil {
-		log.Printf("⚠️  Failed to save .onion address to database: %v", err)
+		log.Printf("WARNING: Failed to save .onion address to database: %v", err)
 	}
 
 	// Save Tor data directory path
 	if err := settingsModel.Set("tor.data_dir", ts.dataDir, "string"); err != nil {
-		log.Printf("⚠️  Failed to save Tor data directory: %v", err)
+		log.Printf("WARNING: Failed to save Tor data directory: %v", err)
 	}
 
-	log.Printf("🧅 Tor hidden service active: http://%s", onionAddr)
+	log.Printf("INFO: Tor hidden service active: http://%s", onionAddr)
 
 	// Start monitoring in background
 	if ts.monitorEnabled {
@@ -156,7 +156,7 @@ func (ts *TorService) Stop() error {
 		return nil
 	}
 
-	log.Println("🧅 Stopping Tor hidden service...")
+	log.Println("INFO: Stopping Tor hidden service...")
 
 	// Stop monitoring
 	if ts.monitorEnabled {
@@ -168,7 +168,7 @@ func (ts *TorService) Stop() error {
 	}
 
 	if err := ts.tor.Close(); err != nil {
-		log.Printf("⚠️  Error stopping Tor: %v", err)
+		log.Printf("WARNING: Error stopping Tor: %v", err)
 		return err
 	}
 
@@ -179,7 +179,7 @@ func (ts *TorService) Stop() error {
 	ts.healthStatus = "stopped"
 	ts.mu.Unlock()
 
-	log.Println("✅ Tor hidden service stopped")
+	log.Println("OK: Tor hidden service stopped")
 	return nil
 }
 
@@ -219,7 +219,7 @@ func (ts *TorService) GetStatus() map[string]interface{} {
 
 // RegenerateAddress stops the service, deletes keys, and restarts with new address
 func (ts *TorService) RegenerateAddress(httpPort int) error {
-	log.Println("🧅 Regenerating Tor .onion address...")
+	log.Println("INFO: Regenerating Tor .onion address...")
 
 	// Stop current service
 	if err := ts.Stop(); err != nil {
@@ -229,7 +229,7 @@ func (ts *TorService) RegenerateAddress(httpPort int) error {
 	// Delete existing keys
 	keysDir := filepath.Join(ts.dataDir, "site")
 	if err := os.RemoveAll(keysDir); err != nil {
-		log.Printf("⚠️  Failed to delete old keys: %v", err)
+		log.Printf("WARNING: Failed to delete old keys: %v", err)
 	}
 
 	// Restart with new keys
@@ -264,7 +264,7 @@ func (ts *TorService) performHealthCheck() {
 	// bine doesn't expose a direct health check, but we can verify the onion service
 	if ts.onionService == nil || ts.tor == nil {
 		ts.healthStatus = "unhealthy"
-		log.Printf("⚠️  Tor health check failed: service or instance is nil")
+		log.Printf("WARNING: Tor health check failed: service or instance is nil")
 		return
 	}
 

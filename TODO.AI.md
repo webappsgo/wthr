@@ -581,19 +581,29 @@ any of the above: `src/graphql/context_keys_test.go`,
     the passkey challenge/registration resolvers), then `src/cli`/
     `src/email` (55.0%, still untouched).
 
-17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
-    extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
-    `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
-    (~45 call sites, e.g. lines 150, 196, 205, 246, 278, 310) use emoji
-    (⚠️/📝/✅/🛑/📅/❌ etc.) in `log.Printf` log-output lines, unconditionally
-    (no `NO_COLOR` check) — pre-existing, not introduced by item 12's
-    context-timeout conversion; out of scope for that pass since it's a
-    logging-format issue, not a query-timeout issue. Log output must be raw
-    plain text with no emoji/color per the API/logging rules (banners/console
-    may use them, log lines may not), and any place emojis ARE allowed must
-    still honor `NO_COLOR`. Fix: replace the emoji prefixes with plain-text
-    equivalents (e.g. "WARNING:", "INFO:", "OK:") across both files (and any
-    other files found via `grep -rln` for the same pattern while fixing).
+17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
+    `log.Panic*` call across the repo (log output must be raw plain text per
+    AI.md PART 14/PART 11 — banners/console may use emoji, log lines never).
+    Converted each emoji to a plain-text level prefix (WARNING:/INFO:/OK:/
+    ERROR:/CRITICAL:), stripped emoji from `createNotification()` UI title
+    strings (different code path — user-facing text, not a log line, so no
+    log-style prefix was added there). Files fixed: `src/database/failover.go`,
+    `src/scheduler/scheduler.go`, `src/scheduler/backup_task.go`,
+    `src/scheduler/notification_cleanup.go`, `src/scheduler/datasource_refresh.go`,
+    `src/scheduler/task_history.go`, `src/main.go`, `src/signal_handler_unix.go`,
+    `src/cluster/cluster.go`, `src/server/service/tor.go`,
+    `src/server/service/tor_vanity.go`, `src/server/service/weather.go`,
+    `src/server/service/location_enhancer.go`,
+    `src/server/service/config_watcher.go`. Verified via a repo-wide
+    `grep -rnP` broad-Unicode-emoji sweep restricted to `log\.(Print|Printf|
+    Println|Fatal|Fatalf|Panic|Panicf)` call sites — zero matches remain.
+    Note: `weather.go`'s emoji weather-icon map (`"☀️"`, `"🌧️"` etc, lines
+    ~794-844) is display data returned to the frontend, not log output —
+    correctly out of scope, left unmodified. See item 38 for a related but
+    distinct finding (console `fmt.Print*` banner lines not honoring
+    `NO_COLOR`) discovered while verifying this item, logged separately
+    rather than fixed here since it's a different rule (PART 11 `NO_COLOR`
+    on console output, not the PART 14 log-plain-text rule this item covers).
     Read: AI.md PART 14 (log output plain-text rule), PART 11 (`NO_COLOR`).
 
 18. DONE (2026-08-02): fixed `src/server/model/user.go` stale spec references
@@ -1010,3 +1020,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     vanilla JS, accepting reduced IDE features (no schema autocomplete/docs
     explorer). Ask the user which approach before implementing. Read: AI.md
     PART 16 (frontend rules) and PART 14 (API/GraphQL) before starting.
+
+38. TODO (flagged 2026-08-02 while verifying item 17's log-emoji sweep):
+    numerous `fmt.Printf`/`fmt.Println` startup-banner/console lines in
+    `src/main.go` (e.g. lines 162-163, 168, 242, 250-398, 502-729, 849-879,
+    1075-1114, 3797-3972, 4026-4087) and
+    `src/server/service/location_enhancer.go` (lines 93, 105, 109, 125, 130,
+    134) and `src/server/service/weather.go` (lines 1296, 1324) print emoji
+    unconditionally with no `NO_COLOR`/`TERM=dumb`/`--color` check. AI.md
+    PART 11/13/33 allows emoji in console/banner display (as opposed to log
+    output, see item 17) but ONLY when it honors `NO_COLOR` — priority order
+    is CLI flag > config > `NO_COLOR` > auto-detect (TTY + `TERM`). These
+    lines bypass that gate entirely, always printing emoji regardless of
+    `NO_COLOR`/redirected-output/non-TTY context. Fix: route console/banner
+    emoji output through the existing `display`/color-detection helper (or
+    add an equivalent check) so emoji (and any ANSI color) are suppressed
+    when `NO_COLOR` is set, `TERM=dumb`, or output isn't a TTY — same as the
+    startup-banner width-responsive rendering already does elsewhere. Needs
+    a project decision on how deep to route unrelated `fmt.Printf` diagnostic
+    lines through this gate vs. only the true "banner" lines — flag to user
+    if the boundary is unclear once started. Read: AI.md PART 11 (`NO_COLOR`
+    priority order), PART 8/33 (`--color` flag, shared across all binaries).

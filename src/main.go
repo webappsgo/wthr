@@ -719,7 +719,7 @@ func main() {
 		config.SetGlobalConfig(cfg)
 
 		// Port changes require a manual restart to take effect.
-		log.Println("✅ All configuration sections reloaded (branding, SEO, theme, email, notifications, rate limiting, web, Tor, features)")
+		log.Println("OK: All configuration sections reloaded (branding, SEO, theme, email, notifications, rate limiting, web, Tor, features)")
 		fmt.Println("✅ All configuration sections reloaded successfully")
 
 		return nil
@@ -840,7 +840,7 @@ func main() {
 			_, _ = weatherService.GetCurrentWeather(lat, lon, "metric")
 			count++
 		}
-		log.Printf("🌤️  Weather cache refreshed for %d location(s)", count)
+		log.Printf("INFO: Weather cache refreshed for %d location(s)", count)
 		return nil
 	})
 
@@ -1193,7 +1193,7 @@ func main() {
 		// expvar endpoint per AI.md PART 6
 		r.GET("/debug/vars", gin.WrapH(http.DefaultServeMux))
 
-		log.Println("🔧 Debug endpoints enabled:")
+		log.Println("INFO: Debug endpoints enabled:")
 		log.Println("   GET  /debug/routes  - List all routes")
 		log.Println("   GET  /debug/config  - Show configuration")
 		log.Println("   GET  /debug/memory  - Memory statistics")
@@ -3895,7 +3895,7 @@ JSON API:
 	for sig := range sigChan {
 		switch sig {
 		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
-			log.Println("🛑 Received shutdown signal, shutting down gracefully...")
+			log.Println("INFO: Received shutdown signal, shutting down gracefully...")
 
 			// Stop scheduler
 			taskScheduler.Stop()
@@ -3938,7 +3938,7 @@ JSON API:
 			// Returns true if shutdown requested (e.g., SIGRTMIN+3 Docker signal)
 			if handlePlatformSignal(sig, db, appLogger, dirPaths) {
 				// Shutdown requested - execute same graceful shutdown as SIGTERM
-				log.Println("🛑 Platform signal requested shutdown, shutting down gracefully...")
+				log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
 
 				// Stop scheduler
 				taskScheduler.Stop()
@@ -4017,7 +4017,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Perform health checks (AI.md PART 8: --status must check health)
 	isHealthy := true
-	healthStatus := "✅ Healthy"
+	healthStatus := "OK: Healthy"
 
 	// Check database connection
 	dbStatus, _, dbErr := db.HealthCheck()

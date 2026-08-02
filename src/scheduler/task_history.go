@@ -204,7 +204,7 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 
 	rows, _ := result.RowsAffected()
 	if rows > 0 {
-		log.Printf("🗑️  Cleaned up %d old task history records (older than %d days)", rows, days)
+		log.Printf("INFO: Cleaned up %d old task history records (older than %d days)", rows, days)
 	}
 
 	return nil
