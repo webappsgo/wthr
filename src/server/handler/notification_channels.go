@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -32,7 +34,7 @@ func NewNotificationChannelHandler(db *sql.DB) *NotificationChannelHandler {
 
 // ListChannels returns all notification channels
 func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
-	rows, err := h.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_type, channel_name, enabled, state,
 		       last_test_at, last_success_at, last_error, failure_count,
 		       created_at, updated_at
@@ -108,7 +110,7 @@ func (h *NotificationChannelHandler) GetChannel(c *gin.Context) {
 	var lastError sql.NullString
 	var failureCount int
 
-	err := h.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_name, enabled, state, config,
 		       last_test_at, last_success_at, last_error, failure_count
 		FROM notification_channels
@@ -164,7 +166,7 @@ func (h *NotificationChannelHandler) UpdateChannel(c *gin.Context) {
 	configJSON, _ := json.Marshal(req.Config)
 
 	// Update channel
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE notification_channels
 		SET enabled = ?, config = ?, updated_at = datetime('now')
 		WHERE channel_type = ?
@@ -358,18 +360,18 @@ func (h *NotificationChannelHandler) GetQueueStats(c *gin.Context) {
 	}
 
 	// Total
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue").Scan(&stats.Total)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue").Scan(&stats.Total)
 
 	// By state
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')").Scan(&stats.Pending)
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'").Scan(&stats.Sending)
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'").Scan(&stats.Delivered)
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'failed'").Scan(&stats.Failed)
-	h.DB.QueryRow("SELECT COUNT(*) FROM notification_queue WHERE state = 'dead_letter'").Scan(&stats.DeadLetters)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state IN ('created', 'queued')").Scan(&stats.Pending)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'sending'").Scan(&stats.Sending)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'delivered'").Scan(&stats.Delivered)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'failed'").Scan(&stats.Failed)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notification_queue WHERE state = 'dead_letter'").Scan(&stats.DeadLetters)
 
 	// By channel
 	stats.ByChannel = make(map[string]int)
-	rows, err := h.DB.Query("SELECT channel_type, COUNT(*) as count FROM notification_queue GROUP BY channel_type")
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutReport, "SELECT channel_type, COUNT(*) as count FROM notification_queue GROUP BY channel_type")
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -415,7 +417,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 	query += " ORDER BY sent_at DESC LIMIT ?"
 	args = append(args, limit)
 
-	rows, err := h.DB.Query(query, args...)
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
 		return
