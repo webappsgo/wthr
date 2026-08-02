@@ -20,22 +20,22 @@ const (
 
 // ModeConfig holds mode-specific configuration and validation
 type ModeConfig struct {
-	Mode         ModeString
-	IsProduction bool
+	Mode          ModeString
+	IsProduction  bool
 	IsDevelopment bool
 
 	// Security settings per mode
-	AllowInsecure      bool
-	RequireFQDN        bool
+	AllowInsecure        bool
+	RequireFQDN          bool
 	StrictHostValidation bool
-	VerboseLogging     bool
-	DebugEnabled       bool
+	VerboseLogging       bool
+	DebugEnabled         bool
 
 	// Host configuration
-	Host         string
-	Port         int
-	FQDN         string
-	IsValidFQDN  bool
+	Host        string
+	Port        int
+	FQDN        string
+	IsValidFQDN bool
 }
 
 // DetectMode determines the application mode from config and environment
@@ -143,7 +143,7 @@ func (mc *ModeConfig) validateHost() error {
 		if isLocalhost(mc.Host) || isIPAddress(mc.Host) {
 			return fmt.Errorf(
 				"production mode requires a valid FQDN (not localhost or IP address): got '%s'. "+
-				"Set server.host in server.yml to a proper domain name or use mode: development",
+					"Set server.host in server.yml to a proper domain name or use mode: development",
 				mc.Host,
 			)
 		}
@@ -256,9 +256,9 @@ func isValidFQDN(host string) bool {
 func isLocalhost(host string) bool {
 	lower := strings.ToLower(host)
 	return lower == "localhost" ||
-	       lower == "localhost.localdomain" ||
-	       strings.HasPrefix(lower, "127.") ||
-	       lower == "::1"
+		lower == "localhost.localdomain" ||
+		strings.HasPrefix(lower, "127.") ||
+		lower == "::1"
 }
 
 // isIPAddress checks if host is an IP address (IPv4 or IPv6)

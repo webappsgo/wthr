@@ -23,10 +23,10 @@ type DatabaseConfig struct {
 	Username string
 	Password string
 	// For PostgreSQL
-	SSLMode  string
-	Options  map[string]string
+	SSLMode string
+	Options map[string]string
 	// Connection pool settings per AI.md PART 10
-	Pool     PoolConfig
+	Pool PoolConfig
 }
 
 // InitDBWithConfig initializes database connection with explicit configuration

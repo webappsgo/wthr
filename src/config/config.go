@@ -52,10 +52,10 @@ type RegistrationConfig struct {
 
 // AppConfig represents the application configuration from server.yml per AI.md PART 4
 type AppConfig struct {
-	Server  ServerConfig  `yaml:"server"`
-	Web     WebConfig     `yaml:"web"`
+	Server ServerConfig `yaml:"server"`
+	Web    WebConfig    `yaml:"web"`
 	// User/Multi-user settings per AI.md PART 33
-	Users   UsersConfig   `yaml:"users"`
+	Users UsersConfig `yaml:"users"`
 	// Weather-specific settings per AI.md PART 37
 	Weather WeatherConfig `yaml:"weather"`
 }
@@ -64,34 +64,34 @@ type AppConfig struct {
 type ServerConfig struct {
 	// Port: random 64xxx on first run, then persisted
 	// int or string (for dual port "8090,8443")
-	Port     interface{}        `yaml:"port"`
-	FQDN     string             `yaml:"fqdn"`
+	Port interface{} `yaml:"port"`
+	FQDN string      `yaml:"fqdn"`
 	// Default: [::]
-	Address  string             `yaml:"address"`
+	Address string `yaml:"address"`
 	// production or development
-	Mode     string             `yaml:"mode"`
+	Mode string `yaml:"mode"`
 	// AI.md: Admin panel URL path (configurable, default: "admin")
-	AdminPath string            `yaml:"admin_path"`
+	AdminPath string `yaml:"admin_path"`
 	// AI.md: API version prefix (default: "v1")
-	APIVersion string           `yaml:"api_version"`
-	Branding BrandingConfig     `yaml:"branding"`
-	SEO      SEOConfig          `yaml:"seo"`
-	User     string             `yaml:"user"`
-	Group    string             `yaml:"group"`
+	APIVersion string         `yaml:"api_version"`
+	Branding   BrandingConfig `yaml:"branding"`
+	SEO        SEOConfig      `yaml:"seo"`
+	User       string         `yaml:"user"`
+	Group      string         `yaml:"group"`
 	// bool or string path
-	PIDFile  interface{}        `yaml:"pidfile"`
-	Daemonize bool              `yaml:"daemonize"`
-	Admin    AdminConfig        `yaml:"admin"`
-	SSL      SSLConfig          `yaml:"ssl"`
-	Scheduler SchedulerConfig   `yaml:"scheduler"`
-	RateLimit RateLimitConfig   `yaml:"rate_limit"`
-	Database DatabaseConfig     `yaml:"database"`
-	Maintenance MaintenanceConfig `yaml:"maintenance"`
+	PIDFile       interface{}        `yaml:"pidfile"`
+	Daemonize     bool               `yaml:"daemonize"`
+	Admin         AdminConfig        `yaml:"admin"`
+	SSL           SSLConfig          `yaml:"ssl"`
+	Scheduler     SchedulerConfig    `yaml:"scheduler"`
+	RateLimit     RateLimitConfig    `yaml:"rate_limit"`
+	Database      DatabaseConfig     `yaml:"database"`
+	Maintenance   MaintenanceConfig  `yaml:"maintenance"`
 	Notifications NotificationConfig `yaml:"notifications"`
-	Tor      TorConfig          `yaml:"tor"`
-	Features FeatureConfig      `yaml:"features"`
+	Tor           TorConfig          `yaml:"tor"`
+	Features      FeatureConfig      `yaml:"features"`
 	// Security holds project-level at-rest encryption settings per AI.md PART 11
-	Security SecurityConfig     `yaml:"security"`
+	Security SecurityConfig `yaml:"security"`
 }
 
 // SecurityConfig represents the server-wide at-rest encryption settings per
@@ -115,66 +115,66 @@ type AdminConfig struct {
 
 // SSLConfig represents SSL/TLS configuration per AI.md PART 4
 type SSLConfig struct {
-	Enabled    bool              `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Manual cert path (optional)
-	Cert       string            `yaml:"cert"`
+	Cert string `yaml:"cert"`
 	// Manual key path (optional)
-	Key        string            `yaml:"key"`
+	Key string `yaml:"key"`
 	// TLS1.2, TLS1.3
-	MinVersion string            `yaml:"min_version"`
+	MinVersion  string            `yaml:"min_version"`
 	LetsEncrypt LetsEncryptConfig `yaml:"letsencrypt"`
 }
 
 // LetsEncryptConfig represents Let's Encrypt configuration per AI.md PART 4
 type LetsEncryptConfig struct {
-	Enabled   bool   `yaml:"enabled"`
-	Email     string `yaml:"email"`
+	Enabled bool   `yaml:"enabled"`
+	Email   string `yaml:"email"`
 	// http-01, tls-alpn-01, dns-01
 	Challenge string `yaml:"challenge"`
 	// Use staging server for testing
-	Staging   bool   `yaml:"staging"`
+	Staging bool `yaml:"staging"`
 }
 
 // SchedulerConfig represents scheduler configuration per AI.md PART 4
 type SchedulerConfig struct {
-	Enabled bool                   `yaml:"enabled"`
+	Enabled bool                     `yaml:"enabled"`
 	Tasks   map[string]SchedulerTask `yaml:"tasks"`
 }
 
 // SchedulerTask represents a scheduled task per AI.md PART 4
 type SchedulerTask struct {
-	Enabled      bool   `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Cron format or @hourly/@daily
-	Schedule     string `yaml:"schedule"`
-	RetryOnFail  bool   `yaml:"retry_on_fail"`
+	Schedule    string `yaml:"schedule"`
+	RetryOnFail bool   `yaml:"retry_on_fail"`
 	// e.g., "1h"
-	RetryDelay   string `yaml:"retry_delay"`
+	RetryDelay string `yaml:"retry_delay"`
 	// e.g., "30d" (for log_rotation)
-	MaxAge       string `yaml:"max_age"`
+	MaxAge string `yaml:"max_age"`
 	// e.g., "100MB" (for log_rotation)
-	MaxSize      string `yaml:"max_size"`
+	MaxSize string `yaml:"max_size"`
 	// e.g., 4 (for backup)
-	Retention    int    `yaml:"retention"`
+	Retention int `yaml:"retention"`
 	// e.g., "7d" (for ssl_renewal)
-	RenewBefore  string `yaml:"renew_before"`
+	RenewBefore string `yaml:"renew_before"`
 }
 
 // DatabaseConfig represents database configuration per AI.md PART 4
 type DatabaseConfig struct {
 	// file, sqlite, postgres, mysql, mariadb, mssql, mongodb
-	Driver   string `yaml:"driver"`
+	Driver string `yaml:"driver"`
 	// For remote databases
-	Host     string `yaml:"host"`
+	Host string `yaml:"host"`
 	// For remote databases
-	Port     int    `yaml:"port"`
+	Port int `yaml:"port"`
 	// Database name
-	Name     string `yaml:"name"`
+	Name string `yaml:"name"`
 	// For remote databases
 	Username string `yaml:"username"`
 	// For remote databases
 	Password string `yaml:"password"`
 	// For PostgreSQL
-	SSLMode  string `yaml:"sslmode"`
+	SSLMode string `yaml:"sslmode"`
 }
 
 // MaintenanceConfig represents maintenance mode configuration per AI.md PART 4
@@ -187,21 +187,21 @@ type MaintenanceConfig struct {
 
 // SelfHealingConfig represents self-healing settings per AI.md PART 4
 type SelfHealingConfig struct {
-	Enabled       bool `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// seconds between retry attempts
-	RetryInterval int  `yaml:"retry_interval"`
+	RetryInterval int `yaml:"retry_interval"`
 	// 0 = unlimited
-	MaxAttempts   int  `yaml:"max_attempts"`
+	MaxAttempts int `yaml:"max_attempts"`
 }
 
 // CleanupConfig represents auto-cleanup thresholds per AI.md PART 4
 type CleanupConfig struct {
 	// Start cleanup when disk > X% full
-	DiskThreshold     int `yaml:"disk_threshold"`
+	DiskThreshold int `yaml:"disk_threshold"`
 	// Delete logs older than X days
-	LogRetentionDays  int `yaml:"log_retention_days"`
+	LogRetentionDays int `yaml:"log_retention_days"`
 	// Keep last X backups
-	BackupKeepCount   int `yaml:"backup_keep_count"`
+	BackupKeepCount int `yaml:"backup_keep_count"`
 }
 
 // NotifyConfig represents maintenance notification settings per AI.md PART 4
@@ -209,7 +209,7 @@ type NotifyConfig struct {
 	// Notify when entering maintenance mode
 	OnEnter bool `yaml:"on_enter"`
 	// Notify when exiting maintenance mode
-	OnExit  bool `yaml:"on_exit"`
+	OnExit bool `yaml:"on_exit"`
 }
 
 // BackupConfig represents backup settings per AI.md PART 19, PART 24
@@ -222,19 +222,19 @@ type BackupConfig struct {
 // BackupEncryptionConfig represents backup encryption settings per AI.md PART 24
 type BackupEncryptionConfig struct {
 	// true if password was set during setup
-	Enabled bool   `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Optional password hint (e.g., "First pet's name + year")
-	Hint    string `yaml:"hint"`
+	Hint string `yaml:"hint"`
 	// Password is NEVER stored - derived on-demand
 }
 
 // RateLimitConfig represents rate limiting configuration per AI.md PART 4
 type RateLimitConfig struct {
-	Enabled  bool `yaml:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Requests per window
-	Requests int  `yaml:"requests"`
+	Requests int `yaml:"requests"`
 	// Window in seconds
-	Window   int  `yaml:"window"`
+	Window int `yaml:"window"`
 }
 
 // BrandingConfig represents branding configuration per AI.md PART 4
@@ -278,15 +278,15 @@ type NotificationConfig struct {
 // WebConfig represents web-specific configuration per AI.md PART 4
 // WebConfig represents web interface configuration
 type WebConfig struct {
-	UI          UIConfig `yaml:"ui"`
+	UI UIConfig `yaml:"ui"`
 	// CORS setting, e.g., "*"
-	CORS        string   `yaml:"cors"`
+	CORS string `yaml:"cors"`
 	// Custom robots.txt content
-	RobotsTxt   string   `yaml:"robots_txt"`
+	RobotsTxt string `yaml:"robots_txt"`
 	// Custom security.txt content
-	SecurityTxt string   `yaml:"security_txt"`
+	SecurityTxt string `yaml:"security_txt"`
 	// Custom favicon URL (empty = use embedded default)
-	FaviconURL  string   `yaml:"favicon_url"`
+	FaviconURL string `yaml:"favicon_url"`
 }
 
 // UIConfig represents UI configuration per AI.md PART 4
@@ -422,19 +422,19 @@ func LoadConfig() (*AppConfig, error) {
 		},
 		Server: ServerConfig{
 			// Random 64xxx on first run
-			Port:      randomPort(),
-			FQDN:      hostname,
+			Port: randomPort(),
+			FQDN: hostname,
 			// All interfaces IPv4/IPv6
-			Address:   "[::]",
-			Mode:      "production",
+			Address: "[::]",
+			Mode:    "production",
 			// AI.md: Admin panel URL path (configurable, default: "admin")
 			AdminPath: "admin",
 			// AI.md: API version prefix (default: "v1")
 			APIVersion: "v1",
-			User:      "{auto}",
-			Group:     "{auto}",
-			PIDFile:   true,
-			Daemonize: false,
+			User:       "{auto}",
+			Group:      "{auto}",
+			PIDFile:    true,
+			Daemonize:  false,
 			Branding: BrandingConfig{
 				Title:       "wthr",
 				Tagline:     "",
@@ -462,28 +462,28 @@ func LoadConfig() (*AppConfig, error) {
 				Enabled: true,
 				Tasks: map[string]SchedulerTask{
 					"geoip_update": {
-						Enabled:     true,
+						Enabled: true,
 						// Weekly Sunday 3am
 						Schedule:    "0 3 * * 0",
 						RetryOnFail: true,
 						RetryDelay:  "1h",
 					},
 					"blocklist_update": {
-						Enabled:     true,
+						Enabled: true,
 						// Daily 4am
 						Schedule:    "0 4 * * *",
 						RetryOnFail: true,
 						RetryDelay:  "1h",
 					},
 					"cve_update": {
-						Enabled:     true,
+						Enabled: true,
 						// Daily 5am
 						Schedule:    "0 5 * * *",
 						RetryOnFail: true,
 						RetryDelay:  "1h",
 					},
 					"log_rotation": {
-						Enabled:  true,
+						Enabled: true,
 						// Daily midnight
 						Schedule: "0 0 * * *",
 						MaxAge:   "30d",
@@ -494,24 +494,24 @@ func LoadConfig() (*AppConfig, error) {
 						Schedule: "@hourly",
 					},
 					"backup": {
-						Enabled:   true,
+						Enabled: true,
 						// Daily 2am
 						Schedule:  "0 2 * * *",
 						Retention: 4,
 					},
 					"ssl_renewal": {
-						Enabled:     true,
+						Enabled: true,
 						// Daily 3am
 						Schedule:    "0 3 * * *",
 						RenewBefore: "7d",
 					},
 					"health_check": {
-						Enabled:  true,
+						Enabled: true,
 						// Every 5 minutes
 						Schedule: "*/5 * * * *",
 					},
 					"tor_health": {
-						Enabled:  true,
+						Enabled: true,
 						// Every 10 minutes
 						Schedule: "*/10 * * * *",
 					},
@@ -530,13 +530,13 @@ func LoadConfig() (*AppConfig, error) {
 					Enabled:       true,
 					RetryInterval: 30,
 					// Unlimited
-					MaxAttempts:   0,
+					MaxAttempts: 0,
 				},
 				Cleanup: CleanupConfig{
 					DiskThreshold:    90,
 					LogRetentionDays: 7,
 					// AI.md PART 22: Keep max 4 backups (storage management)
-					BackupKeepCount:  4,
+					BackupKeepCount: 4,
 				},
 				Notify: NotifyConfig{
 					OnEnter: true,
@@ -547,7 +547,7 @@ func LoadConfig() (*AppConfig, error) {
 						// Set to true during setup wizard if password provided
 						Enabled: false,
 						// Optional password hint
-						Hint:    "",
+						Hint: "",
 					},
 				},
 			},
@@ -580,7 +580,7 @@ func LoadConfig() (*AppConfig, error) {
 	// Try to load from server.yml
 	configPath := findConfigFile()
 	if configPath == "" {
-// No config file found - create it on first run per AI.md PART 4
+		// No config file found - create it on first run per AI.md PART 4
 
 		// AI.md PART 11: first run, generate the at-rest encryption key
 		// before persisting the default config to disk.
@@ -591,7 +591,7 @@ func LoadConfig() (*AppConfig, error) {
 
 		configPath = getConfigPath()
 		if err := createDefaultConfig(cfg, configPath); err != nil {
-	// Log error but continue with defaults
+			// Log error but continue with defaults
 
 			fmt.Fprintf(os.Stderr, "Warning: Could not create config file: %v\n", err)
 		}
@@ -623,9 +623,9 @@ func LoadConfig() (*AppConfig, error) {
 			cfg.Server.Security.EncryptionKeyVersion = 1
 		}
 		if err := SaveConfig(cfg); err != nil {
-	// Log error but continue with the in-memory key so the process still
-	// starts; the key will simply be regenerated again next restart until
-	// the underlying write failure (e.g. read-only filesystem) is fixed.
+			// Log error but continue with the in-memory key so the process still
+			// starts; the key will simply be regenerated again next restart until
+			// the underlying write failure (e.g. read-only filesystem) is fixed.
 
 			fmt.Fprintf(os.Stderr, "Warning: Could not persist generated encryption key: %v\n", err)
 		}
@@ -638,7 +638,7 @@ func LoadConfig() (*AppConfig, error) {
 func getConfigPath() string {
 	// Check if running as root
 	if os.Geteuid() == 0 {
-// Root user: /etc/casapps/wthr/server.yml
+		// Root user: /etc/casapps/wthr/server.yml
 
 		return "/etc/casapps/wthr/server.yml"
 	}
@@ -646,7 +646,7 @@ func getConfigPath() string {
 	// Regular user: ~/.config/casapps/wthr/server.yml
 	home, err := os.UserHomeDir()
 	if err != nil {
-// Fallback to current directory if home not found
+		// Fallback to current directory if home not found
 
 		return "server.yml"
 	}
@@ -672,7 +672,7 @@ func findConfigFile() string {
 	// Priority 3: Check for server.yaml (migrate to server.yml per AI.md PART 4)
 	yamlPath := filepath.Join(filepath.Dir(standardPath), "server.yaml")
 	if _, err := os.Stat(yamlPath); err == nil {
-// Auto-migrate from .yaml to .yml
+		// Auto-migrate from .yaml to .yml
 
 		if err := os.Rename(yamlPath, standardPath); err == nil {
 			return standardPath

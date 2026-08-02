@@ -15,6 +15,7 @@ import (
 )
 
 // Embedded templates per AI.md line 22772
+//
 //go:embed template/*.txt
 var embeddedTemplates embed.FS
 

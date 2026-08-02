@@ -11,7 +11,7 @@ import (
 
 // FailoverManager handles database failover and read-only mode
 type FailoverManager struct {
-	primaryDB   *sql.DB
+	primaryDB *sql.DB
 	// SQLite fallback
 	cacheDB     *sql.DB
 	readOnly    bool

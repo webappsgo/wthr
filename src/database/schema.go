@@ -362,7 +362,7 @@ var DefaultSettings = map[string]string{
 	// Rate limiting
 	"rate_limit.anonymous": "120",
 	// 1 hour
-	"rate_limit.window":    "3600",
+	"rate_limit.window": "3600",
 
 	// Audit
 	"audit.enabled": "false",
@@ -373,8 +373,8 @@ var DefaultSettings = map[string]string{
 	"notifications.push":    "false",
 
 	// Notification system settings
-	"notifications.enabled":            "true",
-	"notifications.retry_max":          "3",
+	"notifications.enabled":   "true",
+	"notifications.retry_max": "3",
 	// linear or exponential
 	"notifications.retry_backoff":      "exponential",
 	"notifications.queue_workers":      "5",
@@ -383,19 +383,19 @@ var DefaultSettings = map[string]string{
 
 	// SMTP settings (environment variable hints, web UI takes precedence)
 	// SMTP_HOST env var
-	"smtp.host":           "",
+	"smtp.host": "",
 	// SMTP_PORT env var
-	"smtp.port":           "587",
+	"smtp.port": "587",
 	// SMTP_USERNAME env var
-	"smtp.username":       "",
+	"smtp.username": "",
 	// SMTP_PASSWORD env var (encrypted in DB)
-	"smtp.password":       "",
+	"smtp.password": "",
 	// SMTP_FROM_ADDRESS env var
-	"smtp.from_address":   "",
-	"smtp.from_name":      "Weather",
-	"smtp.use_tls":        "true",
+	"smtp.from_address": "",
+	"smtp.from_name":    "Weather",
+	"smtp.use_tls":      "true",
 	// Auto-enable on successful test
-	"smtp.auto_enable":    "true",
+	"smtp.auto_enable": "true",
 	// Test email address
 	"smtp.test_recipient": "",
 
@@ -404,10 +404,10 @@ var DefaultSettings = map[string]string{
 	"weather.refresh_interval": "600",
 	"alerts.enabled":           "true",
 	// 5 minutes
-	"alerts.check_interval":    "300",
+	"alerts.check_interval": "300",
 
 	// Backup settings
-	"backup.enabled":  "true",
+	"backup.enabled": "true",
 	// Daily
 	"backup.interval": "86400",
 
