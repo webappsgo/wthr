@@ -357,6 +357,29 @@ any of the above: `src/graphql/context_keys_test.go`,
     54.4% → 57.3%. Full repo `go test ./...` re-run afterward — all
     packages still pass, no regressions.
 
+    Progress (2026-08-02, continued): moved to `src/common/banner` (55.2%
+    baseline). Three of the package's four render functions (`printCompact`,
+    `printMinimal`, `printMicro`) were structurally unreachable through the
+    public `PrintStartupBanner` API in this Docker/CI test environment,
+    because `terminal.GetTerminalSize()` always falls back to 80x24
+    (`SizeModeStandard` -> `printFull`) when stdout is not a TTY — the
+    existing `banner_test.go` comments explicitly acknowledged this gap.
+    Added `src/common/banner/banner_internal_test.go` (genuinely new,
+    same-package white-box tests calling the unexported renderers
+    directly): `TestPrintCompact` (4 subtests: basic config, config with
+    URLs, ShowSetup true with a token, ShowSetup true with an empty token
+    omitting the setup line), `TestPrintMinimal`, and `TestPrintMicro`.
+    Also corrected the now-stale doc-comment on the pre-existing
+    `captureStdout` helper in `banner_test.go`, which had claimed these
+    three functions were "intentionally not covered here" — updated to
+    explain they're covered directly in the new internal test file instead.
+    Verified via Docker `gofmt -l`/`go build ./...`/`go vet
+    ./common/banner/`/`go test -v -cover ./common/banner/` — all pass
+    (including the pre-existing `TestPrintStartupBanner` 6 subtests and
+    `TestPrintStartupBannerLongURL`), package coverage 55.2% → 86.2%. Full
+    repo `go test ./...` re-run afterward — all packages still pass, no
+    regressions.
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`

@@ -12,9 +12,9 @@ import (
 // mocking terminal.GetTerminalSize(), so in this Docker/CI environment
 // (stdout is never a TTY) term.GetSize always errors and GetTerminalSize
 // falls back to 80x24 -> SizeModeStandard -> printFull is always the path
-// exercised. printCompact/printMinimal/printMicro are unreachable through
-// the public API without production-code changes (no size-mocking seam
-// exists); they are intentionally not covered here.
+// exercised through the public API. printCompact/printMinimal/printMicro
+// are covered directly in banner_internal_test.go instead, since no
+// size-mocking seam exists to reach them through PrintStartupBanner.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 
