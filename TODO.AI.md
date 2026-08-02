@@ -207,17 +207,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     item 8 for the full CI-fix pass this was part of. Read: AI.md PART 34
     (registration modes).
 
-14. TODO (flagged 2026-07-31, out of scope for item 8): `src/server/handler/
-    admin_auth.go`'s admin-auth handlers (e.g. `AdminLogoutAllHandler`,
-    `AdminMeHandler` and others reading an admin from request context) never
-    actually get an admin value injected via `context.WithValue` anywhere in
-    the real request path — only the test file constructs a context with the
-    admin already set. In production these handlers appear to be effectively
-    unreachable / always fail their context lookup. Needs a dedicated
-    investigation: find (or add) the middleware that is supposed to set the
-    admin context value for these routes, and verify each handler's context
-    key matches it. Read: AI.md PART 17 (Server Admin), PART 24/25
-    (privilege/service — for how admin sessions should be established).
+14. DONE (2026-08-02): confirmed via grep that `src/server/handler/
+    admin_auth.go`'s handlers (`AdminLogoutAllHandler`, `AdminMeHandler`,
+    etc.) were entirely dead/unwired code — nothing in production ever sets
+    `adminContextKey` via `context.WithValue`, and none of the file's
+    exported functions were referenced anywhere outside itself and its own
+    test file. The real, wired admin-auth path is
+    `src/server/middleware/admin_auth.go`'s `RequireAdminAuth()`, which
+    stores the admin via Gin's `c.Set("admin_id", ...)`, read by the
+    `getCurrentAdmin(c)` helper already used by every `/profile/*` route in
+    `main.go`. Most of the dead file's functionality was already duplicated
+    by existing routes; added the two genuinely missing ones (`GET
+    /profile/sessions`, `POST /profile/sessions/logout-all`) using the same
+    pattern, then deleted `admin_auth.go` and `admin_auth_test.go` entirely
+    (the schema-mismatch and session-column bugs those tests documented are
+    already fixed in `src/server/model/admin.go`, and the preferences-schema
+    fix is independently covered by `TestAdminModelCreateAndGet` in
+    `src/server/model/admin_test.go`). Read: AI.md PART 17 (Server Admin),
+    PART 24/25 (privilege/service).
 
 15. TODO (flagged 2026-07-31 while fixing item 8's `getUserIDFromContext`/
     `getIPFromContext` bug): the SAME bare-`string`-vs-typed-`contextKey`
