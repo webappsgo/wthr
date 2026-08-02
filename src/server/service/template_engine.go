@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -72,7 +74,7 @@ func (te *TemplateEngine) GetTemplate(channelType, templateName string) (*Notifi
 	var t NotificationTemplate
 	var variablesJSON sql.NullString
 
-	err := te.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
 		       subject_template, body_template, variables, is_default
 		FROM notification_templates
@@ -99,7 +101,7 @@ func (te *TemplateEngine) GetDefaultTemplate(channelType string) (*NotificationT
 	var t NotificationTemplate
 	var variablesJSON sql.NullString
 
-	err := te.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
 		       subject_template, body_template, variables, is_default
 		FROM notification_templates
@@ -125,7 +127,7 @@ func (te *TemplateEngine) GetDefaultTemplate(channelType string) (*NotificationT
 func (te *TemplateEngine) CreateTemplate(t *NotificationTemplate) error {
 	variablesJSON, _ := json.Marshal(t.Variables)
 
-	_, err := te.db.Exec(`
+	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
 		INSERT INTO notification_templates
 		(channel_type, template_name, template_type, subject_template,
 		 body_template, variables, is_default, created_at, updated_at)
@@ -140,7 +142,7 @@ func (te *TemplateEngine) CreateTemplate(t *NotificationTemplate) error {
 func (te *TemplateEngine) UpdateTemplate(t *NotificationTemplate) error {
 	variablesJSON, _ := json.Marshal(t.Variables)
 
-	_, err := te.db.Exec(`
+	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
 		UPDATE notification_templates
 		SET template_name = ?,
 		    template_type = ?,
@@ -158,13 +160,13 @@ func (te *TemplateEngine) UpdateTemplate(t *NotificationTemplate) error {
 
 // DeleteTemplate deletes a template
 func (te *TemplateEngine) DeleteTemplate(id int) error {
-	_, err := te.db.Exec("DELETE FROM notification_templates WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, "DELETE FROM notification_templates WHERE id = ?", id)
 	return err
 }
 
 // ListTemplates lists all templates for a channel type
 func (te *TemplateEngine) ListTemplates(channelType string) ([]*NotificationTemplate, error) {
-	rows, err := te.db.Query(`
+	rows, err := database.QueryContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
 		       subject_template, body_template, variables, is_default
 		FROM notification_templates
@@ -695,7 +697,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 	for _, tmpl := range defaultTemplates {
 		// Check if template already exists
 		var exists bool
-		err := te.db.QueryRow(`
+		err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 			SELECT EXISTS(
 				SELECT 1 FROM notification_templates
 				WHERE channel_type = ? AND template_name = ?
