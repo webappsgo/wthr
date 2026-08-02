@@ -3,19 +3,19 @@ package main
 // Exit codes as specified in TEMPLATE.md PART 33
 const (
 	// Success
-	ExitSuccess      = 0
+	ExitSuccess = 0
 	// General error
 	ExitGeneralError = 1
 	// CLIConfig error
-	ExitConfigError  = 2
+	ExitConfigError = 2
 	// Connection error
-	ExitConnError    = 3
+	ExitConnError = 3
 	// Authentication error
-	ExitAuthError    = 4
+	ExitAuthError = 4
 	// Not found
-	ExitNotFound     = 5
+	ExitNotFound = 5
 	// Usage error
-	ExitUsageError   = 64
+	ExitUsageError = 64
 )
 
 // ExitError represents an error with a specific exit code

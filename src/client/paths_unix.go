@@ -10,4 +10,3 @@ import "os"
 func setDirPermissions(dir string) error {
 	return os.Chmod(dir, 0700)
 }
-

@@ -15,16 +15,16 @@ import (
 
 // setupModel is the bubbletea model for the setup wizard
 type setupModel struct {
-	serverURL      string
-	focusedField   int
-	testing        bool
-	testResult     string
-	testSuccess    bool
-	cancelled      bool
-	done           bool
-	saveToConfig   bool
-	width          int
-	height         int
+	serverURL    string
+	focusedField int
+	testing      bool
+	testResult   string
+	testSuccess  bool
+	cancelled    bool
+	done         bool
+	saveToConfig bool
+	width        int
+	height       int
 }
 
 // setupMsg is a message type for setup wizard events

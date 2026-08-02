@@ -122,7 +122,6 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-
 // handleKeyPress handles keyboard input
 // Per AI.md PART 33 line 46564-46580: Vim-style navigation
 func (m tuiModel) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

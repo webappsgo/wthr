@@ -89,8 +89,8 @@ func TestBuildWeatherPath(t *testing.T) {
 			want:   "",
 		},
 		{
-			name:   "zero zero lat lon treated as unset",
-			lat:    0, lon: 0,
+			name: "zero zero lat lon treated as unset",
+			lat:  0, lon: 0,
 			zip:    "90210",
 			config: &CLIConfig{},
 			want:   "/api/v1/weather?zip=90210",

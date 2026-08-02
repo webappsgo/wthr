@@ -12,10 +12,10 @@ import (
 // HTTPClient wraps the HTTP client with config
 // Per AI.md PART 33: Supports cluster failover
 type HTTPClient struct {
-	CLIConfig      *CLIConfig
-	HTTPClient     *http.Client
-	currentServer  string
-	failedServers  map[string]bool
+	CLIConfig     *CLIConfig
+	HTTPClient    *http.Client
+	currentServer string
+	failedServers map[string]bool
 }
 
 // DefaultTimeout is the default HTTP request timeout

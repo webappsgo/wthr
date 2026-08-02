@@ -318,8 +318,8 @@ func TestGetFloatValue(t *testing.T) {
 
 func TestWrapText(t *testing.T) {
 	tests := []struct {
-		text     string
-		width    int
+		text  string
+		width int
 		// expected number of lines
 		expected int
 	}{
