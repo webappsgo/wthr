@@ -1,11 +1,14 @@
 package cluster
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NodeState represents the state of a cluster node
@@ -19,11 +22,11 @@ const (
 
 // Node represents a cluster node
 type Node struct {
-	ID           string
-	Address      string
+	ID            string
+	Address       string
 	LastHeartbeat time.Time
-	State        NodeState
-	IsHealthy    bool
+	State         NodeState
+	IsHealthy     bool
 }
 
 // ClusterManager manages cluster operations
@@ -142,7 +145,7 @@ func (cm *ClusterManager) heartbeatLoop() {
 
 // sendHeartbeat updates this node's heartbeat timestamp
 func (cm *ClusterManager) sendHeartbeat() error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET last_heartbeat = ?, state = ?
 		WHERE node_id = ?
@@ -156,7 +159,7 @@ func (cm *ClusterManager) checkClusterHealth() error {
 	// Mark nodes as unhealthy if heartbeat is older than 90 seconds (3x heartbeat interval)
 	threshold := time.Now().Add(-90 * time.Second)
 
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET is_healthy = 0
 		WHERE last_heartbeat < ?
@@ -168,7 +171,7 @@ func (cm *ClusterManager) checkClusterHealth() error {
 
 	// Check if primary is unhealthy
 	var primaryHealthy bool
-	err = cm.db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT is_healthy
 		FROM cluster_nodes
 		WHERE state = 'primary'
@@ -194,7 +197,7 @@ func (cm *ClusterManager) electPrimary() error {
 	// Production would use Raft or similar consensus algorithm
 
 	// Get all healthy nodes ordered by node_id
-	rows, err := cm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT node_id, last_heartbeat
 		FROM cluster_nodes
 		WHERE is_healthy = 1
@@ -223,13 +226,13 @@ func (cm *ClusterManager) electPrimary() error {
 	newPrimary := candidates[0]
 
 	// Update all nodes to secondary
-	_, err = cm.db.Exec(`UPDATE cluster_nodes SET state = 'secondary'`)
+	_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `UPDATE cluster_nodes SET state = 'secondary'`)
 	if err != nil {
 		return err
 	}
 
 	// Set the elected node as primary
-	_, err = cm.db.Exec(`
+	_, err = database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET state = 'primary'
 		WHERE node_id = ?
@@ -271,7 +274,7 @@ func (cm *ClusterManager) SyncConfig() error {
 func (cm *ClusterManager) pullConfigFromPrimary() error {
 	// Get primary node address
 	var primaryAddress string
-	err := cm.db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT address
 		FROM cluster_nodes
 		WHERE state = 'primary' AND is_healthy = 1
@@ -286,7 +289,7 @@ func (cm *ClusterManager) pullConfigFromPrimary() error {
 	}
 
 	// Get all server_config settings from local database
-	rows, err := cm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT key, value, type, description
 		FROM server_config
 		ORDER BY updated_at DESC
@@ -318,7 +321,7 @@ func (cm *ClusterManager) pullConfigFromPrimary() error {
 // pushConfigToSecondaries pushes configuration to secondary nodes
 func (cm *ClusterManager) pushConfigToSecondaries() error {
 	// Get all healthy secondary nodes
-	rows, err := cm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT node_id, address
 		FROM cluster_nodes
 		WHERE state = 'secondary' AND is_healthy = 1
@@ -350,7 +353,7 @@ func (cm *ClusterManager) pushConfigToSecondaries() error {
 	}
 
 	// Get all config settings to push
-	configRows, err := cm.db.Query(`
+	configRows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT key, value, type, description, updated_at
 		FROM server_config
 		ORDER BY key
@@ -377,7 +380,7 @@ func (cm *ClusterManager) pushConfigToSecondaries() error {
 
 // initializeClusterTables creates cluster-related database tables
 func (cm *ClusterManager) initializeClusterTables() error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutMigration, `
 		CREATE TABLE IF NOT EXISTS cluster_nodes (
 			node_id TEXT PRIMARY KEY,
 			address TEXT NOT NULL,
@@ -393,7 +396,7 @@ func (cm *ClusterManager) initializeClusterTables() error {
 
 // registerNode registers this node in the cluster
 func (cm *ClusterManager) registerNode() error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		INSERT OR REPLACE INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy)
 		VALUES (?, ?, ?, ?, 1)
 	`, cm.nodeID, cm.nodeAddress, NodeStateSecondary, time.Now())
@@ -403,7 +406,7 @@ func (cm *ClusterManager) registerNode() error {
 
 // unregisterNode marks this node as offline
 func (cm *ClusterManager) unregisterNode() error {
-	_, err := cm.db.Exec(`
+	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET is_healthy = 0, state = 'unknown'
 		WHERE node_id = ?
@@ -414,7 +417,7 @@ func (cm *ClusterManager) unregisterNode() error {
 
 // GetClusterInfo returns information about all cluster nodes
 func (cm *ClusterManager) GetClusterInfo() ([]Node, error) {
-	rows, err := cm.db.Query(`
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
 		SELECT node_id, address, state, last_heartbeat, is_healthy
 		FROM cluster_nodes
 		ORDER BY state DESC, node_id ASC
