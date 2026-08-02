@@ -13,9 +13,9 @@ import (
 // I18n provides internationalization support.
 // AI.md PART 31 - NON-NEGOTIABLE
 type I18n struct {
-	mu           sync.RWMutex
-	translations map[string]map[string]string
-	defaultLang  string
+	mu            sync.RWMutex
+	translations  map[string]map[string]string
+	defaultLang   string
 	supportedLang []string
 }
 

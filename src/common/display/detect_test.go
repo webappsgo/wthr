@@ -251,12 +251,12 @@ func TestIsDumbTerminal(t *testing.T) {
 
 func TestIsAutoDetectDisplayModeHelpers(t *testing.T) {
 	tests := []struct {
-		name       string
-		mode       DisplayMode
-		wantGUI    bool
-		wantTUI    bool
-		wantCLI    bool
-		wantHeadl  bool
+		name      string
+		mode      DisplayMode
+		wantGUI   bool
+		wantTUI   bool
+		wantCLI   bool
+		wantHeadl bool
 	}{
 		{"headless", DisplayModeHeadless, false, false, false, true},
 		{"cli", DisplayModeCLI, false, false, true, false},

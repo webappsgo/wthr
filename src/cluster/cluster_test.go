@@ -380,7 +380,7 @@ func TestSyncConfig_DisabledIsNoop(t *testing.T) {
 	db := newTestDB(t)
 	cm := NewClusterManager(db, "node-1", "x", false)
 
-	if err := cm.SyncConfig() ; err != nil {
+	if err := cm.SyncConfig(); err != nil {
 		t.Fatalf("SyncConfig() error = %v, want nil when disabled", err)
 	}
 }
