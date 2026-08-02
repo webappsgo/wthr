@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	cryptorand "crypto/rand"
 	"database/sql"
 	"encoding/binary"
@@ -36,7 +37,7 @@ func NewPortManager(db *sql.DB) *PortManager {
 // Helper methods for database access (avoiding import cycle with models)
 func (pm *PortManager) getIntSetting(key string, defaultValue int) int {
 	var value int
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
 	if err != nil {
 		return defaultValue
 	}
@@ -44,7 +45,7 @@ func (pm *PortManager) getIntSetting(key string, defaultValue int) int {
 }
 
 func (pm *PortManager) setIntSetting(key string, value int) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, updated_at)
 		VALUES (?, ?, 'integer', ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -57,7 +58,7 @@ func (pm *PortManager) setBoolSetting(key string, value bool) error {
 	if value {
 		boolStr = "true"
 	}
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, updated_at)
 		VALUES (?, ?, 'boolean', ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -98,7 +99,7 @@ func GetRandomAvailablePort() (int, error) {
 func (pm *PortManager) GetOrAssignPort(portType string) (int, error) {
 	// Try to get saved port from database
 	var savedPort int
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", "server.port."+portType).Scan(&savedPort)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "server.port."+portType).Scan(&savedPort)
 
 	if err == nil && savedPort > 0 {
 		// Found saved port, check if it's still available
@@ -115,7 +116,7 @@ func (pm *PortManager) GetOrAssignPort(portType string) (int, error) {
 	}
 
 	// Save to database
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description, updated_at)
 		VALUES (?, ?, 'integer', ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -132,7 +133,7 @@ func (pm *PortManager) GetOrAssignPort(portType string) (int, error) {
 
 // SavePort saves a port to the database
 func (pm *PortManager) SavePort(portType string, port int) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description, updated_at)
 		VALUES (?, ?, 'integer', ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -146,7 +147,7 @@ func (pm *PortManager) SavePort(portType string, port int) error {
 // GetSavedPort retrieves a saved port from the database
 func (pm *PortManager) GetSavedPort(portType string) (int, error) {
 	var savedPort int
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", "server.port."+portType).Scan(&savedPort)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "server.port."+portType).Scan(&savedPort)
 	if err != nil {
 		return 0, err
 	}
