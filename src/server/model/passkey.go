@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -42,7 +43,7 @@ func (m *UserPasskeyModel) getDB() *sql.DB {
 }
 
 func (m *UserPasskeyModel) ensurePasskeySchema() error {
-	rows, err := m.getDB().Query(`PRAGMA table_info(user_passkeys)`)
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(user_passkeys)`)
 	if err != nil {
 		return fmt.Errorf("failed to inspect user_passkeys schema: %w", err)
 	}
@@ -77,25 +78,25 @@ func (m *UserPasskeyModel) ensurePasskeySchema() error {
 	}
 
 	if !hasTransport {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
 			return fmt.Errorf("failed to add user_passkeys.transport: %w", err)
 		}
 	}
 
 	if !hasAttestationType {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("failed to add user_passkeys.attestation_type: %w", err)
 		}
 	}
 
 	if !hasBackupEligible {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
 			return fmt.Errorf("failed to add user_passkeys.backup_eligible: %w", err)
 		}
 	}
 
 	if !hasBackupState {
-		if _, err := m.getDB().Exec(`ALTER TABLE user_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE user_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
 			return fmt.Errorf("failed to add user_passkeys.backup_state: %w", err)
 		}
 	}
@@ -203,7 +204,7 @@ func (m *UserPasskeyModel) ListByUserID(userID int64) ([]*UserPasskey, error) {
 		return nil, err
 	}
 
-	rows, err := m.getDB().Query(`
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
@@ -234,7 +235,7 @@ func (m *UserPasskeyModel) CountByUserID(userID int64) (int, error) {
 	}
 
 	var count int
-	if err := m.getDB().QueryRow(`SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?`, userID).Scan(&count); err != nil {
+	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_passkeys WHERE user_id = ?`, userID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count passkeys: %w", err)
 	}
 
@@ -304,7 +305,7 @@ func (m *UserPasskeyModel) Create(userID int64, name string, credential *webauth
 		return nil, err
 	}
 
-	result, err := m.getDB().Exec(`
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_passkeys (
 			user_id, credential_id, public_key, aaguid, sign_count, name, transport,
 			attestation_type, backup_eligible, backup_state, created_at, last_used_at
@@ -331,7 +332,7 @@ func (m *UserPasskeyModel) Create(userID int64, name string, credential *webauth
 		return nil, fmt.Errorf("failed to load passkey id: %w", err)
 	}
 
-	row := m.getDB().QueryRow(`
+	row := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
@@ -357,7 +358,7 @@ func (m *UserPasskeyModel) UpdateCredential(userID int64, credential *webauthn.C
 		return err
 	}
 
-	result, err := m.getDB().Exec(`
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_passkeys
 		SET sign_count = ?, last_used_at = CURRENT_TIMESTAMP, transport = ?, attestation_type = ?,
 		    backup_eligible = ?, backup_state = ?, aaguid = ?
@@ -392,7 +393,7 @@ func (m *UserPasskeyModel) DeleteByID(userID int64, passkeyID int64) error {
 		return err
 	}
 
-	result, err := m.getDB().Exec(`DELETE FROM user_passkeys WHERE id = ? AND user_id = ?`, passkeyID, userID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_passkeys WHERE id = ? AND user_id = ?`, passkeyID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete passkey: %w", err)
 	}

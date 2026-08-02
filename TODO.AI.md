@@ -396,3 +396,14 @@ any of the above: `src/graphql/context_keys_test.go`,
     shape and generic error messages across all handlers in this file.
     Read: AI.md PART 11 (security & logging) and PART 14 (API
     structure) before starting.
+
+26. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/model/passkey.go pass): pre-existing, repo-wide, out of
+    scope for item 12 — every file in src/server/model/ (directory name
+    singular, per PART 3 Go convention) declares `package models`
+    (plural) instead of `package model` (singular, matching the
+    directory). Not introduced by this diff. Fix requires renaming the
+    package declaration in every file under src/server/model/ and
+    updating every importer across the codebase (large, cross-cutting,
+    out of scope for the DB-timeout migration). Read: AI.md PART 3
+    (directory naming) before starting.
