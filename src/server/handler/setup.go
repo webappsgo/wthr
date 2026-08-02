@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"strings"
@@ -329,7 +330,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	configDir := paths.GetConfigDir()
 	if err := utils.DeleteSetupToken(configDir); err != nil {
 		// Log but don't fail - admin was created successfully
-		fmt.Printf("Warning: failed to delete setup token file: %v\n", err)
+		log.Printf("WARNING: CreateAdmin: failed to delete setup token file: %v", err)
 	}
 
 	// Clear the setup_token_verified cookie
@@ -352,7 +353,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	`, tokenHash, adminID)
 	if err != nil {
 		// Log but don't fail - admin was created successfully
-		fmt.Printf("Warning: failed to store admin API token: %v\n", err)
+		log.Printf("WARNING: CreateAdmin: failed to store admin API token: %v", err)
 	}
 
 	// Store the generated password and token in session for display on next step
@@ -521,7 +522,7 @@ func (h *SetupHandler) ProcessServerConfig(c *gin.Context) {
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
 			`, key, value, value)
 			if err != nil {
-				fmt.Printf("Warning: failed to save setting %s: %v\n", key, err)
+				log.Printf("WARNING: ProcessServerConfig: failed to save setting %s: %v", key, err)
 			}
 		}
 	}
@@ -701,7 +702,7 @@ func (h *SetupHandler) CompleteSetup(c *gin.Context) {
 		ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
 	`)
 	if err != nil {
-		fmt.Printf("Warning: failed to mark setup complete: %v\n", err)
+		log.Printf("WARNING: CompleteSetup: failed to mark setup complete: %v", err)
 	}
 
 	// Get the admin path from config (derive from current URL)
