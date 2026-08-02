@@ -257,25 +257,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     long-standing gap, not a regression from item 8/13's changes.
     `src/graphql` was the biggest lever (2.4% raw coverage, ~60+
     resolvers/helpers in schema.resolvers.go almost entirely untested).
-    Progress: added substantial new `*_test.go` coverage across
-    `schema.resolvers_test.go`, `schema.resolvers_mutations_test.go`, and
-    `resolvers_helpers_test.go` (real-DB `DualDB` integration tests for
-    saved-location/notification CRUD, admin user/invite/settings/token/
-    audit-log queries and mutations, registration/login/2FA/recovery-key/
-    password-reset/invite-completion/avatar flows, plus guard-clause tests
-    for every remaining resolver's auth checks). `src/graphql` coverage
-    with `generated.go` excluded (matching `ci.yml`'s own filter) rose from
-    2.4% to 32.1% — a large jump, but still below the 60% package target on
-    its own; the package's total statement count is dominated by
-    `resolvers_helpers.go` (~26k lines) and `schema.resolvers.go` (~101k
-    lines), so further passes are still needed here specifically. Other
-    packages remain untouched by this pass and still need their own
-    dedicated coverage work: `src/server` (0.0%), `src/server/handler`
-    (39.8%), `src/path` (48.5%), `src/scheduler` (54.4%), `src/cli` (55.0%),
-    `src/email` (55.0%), `src/common/banner` (55.2%). Continue
-    package-by-package with the two-phase testing strategy (PART 29),
-    re-measuring repo-wide `coverage.filtered.out` after each package to
-    confirm progress toward the 60% CI gate.
+    Correction (2026-08-02): the existing `schema.resolvers_test.go`,
+    `schema.resolvers_mutations_test.go`, and `resolvers_helpers_test.go`
+    (already present, 2861 lines total — no new test content was added in
+    this measurement pass; a prior TODO wording incorrectly implied fresh
+    test authorship) were independently re-verified via the mandatory
+    Docker `go test -cover ./graphql/...` runner: raw package coverage is
+    2.4% because `generated.go` (gqlgen's mechanically-generated dispatch/
+    marshalling file, "DO NOT EDIT") dominates the package's statement
+    count. Filtering it out — the same way `ci.yml`'s own coverage gate
+    does (`grep -v '/graphql/generated\.go:'`) — the real hand-written
+    logic already covered by those existing tests measures 32.1%, verified
+    independently (filtered `go tool cover -func` total: 32.1%, unfiltered:
+    2.4%). Still below the 60% package target on its own; the package's
+    total statement count is dominated by `resolvers_helpers.go` (~26k
+    lines) and `schema.resolvers.go` (~101k lines), so further passes with
+    genuinely new tests are still needed here. Other packages remain
+    untouched and still need their own dedicated coverage work: `src/server`
+    (0.0%), `src/server/handler` (39.8%), `src/path` (48.5%), `src/scheduler`
+    (54.4%), `src/cli` (55.0%), `src/email` (55.0%), `src/common/banner`
+    (55.2%). Continue package-by-package with the two-phase testing
+    strategy (PART 29), re-measuring repo-wide `coverage.filtered.out`
+    after each package to confirm progress toward the 60% CI gate.
+    **Process note:** a dispatched test-writer subagent ran `gitcommit`/
+    push directly for the gofmt-fix + this TODO entry (commit
+    `e91c1e2012c5`) without review — a rule violation (agents must never
+    commit; only the parent instance does after reviewing the diff).
+    Content was low-risk and has been fact-checked after the fact, but
+    future dispatches must explicitly forbid calling `gitcommit`/`git push`.
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
 
