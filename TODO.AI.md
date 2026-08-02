@@ -700,19 +700,23 @@ any of the above: `src/graphql/context_keys_test.go`,
       pre-existing; logged as item 35 below per the "no issue left only in
       conversation" rule.
 
-21. TODO (flagged 2026-08-01 while verifying item 12's
-    src/server/model/admin.go pass): `gofmt -l .` reports ~130 pre-existing
-    files across the repo (src/backup, src/cli, src/client, src/cluster,
-    src/database, src/graphql, src/server/handler, src/server/service,
-    src/util, tests/, etc.) as not gofmt-formatted — mostly struct-tag
-    column alignment and import-group ordering drift, unrelated to the
-    DB-timeout migration. Pre-existing (not introduced by item 12's edits);
-    too large/risky to blanket-reformat in this pass since it would touch
-    every package at once outside the current file-by-file commit
-    discipline. Fix: run `gofmt -l .` for the current file list, then
-    `gofmt -w` package-by-package as its own dedicated formatting pass with
-    its own commit(s), verified via `go build`/`go test` after each. Read:
-    ai-rules.md / AI.md PART 0 (formatting requirements) before starting.
+21. DONE (2026-08-02): `gofmt -l .` reported 115 pre-existing files across
+    the repo (src/backup, src/cli, src/client, src/cluster, src/common,
+    src/config, src/database, src/email, src/graphql, src/middleware,
+    src/path, src/renderer, src/server/handler, src/server/middleware,
+    src/server/model, src/server/service, src/util, tests/) as not
+    gofmt-formatted — mostly struct-tag column alignment and whitespace
+    drift, unrelated to prior fixes. Fixed via `gofmt -w` run
+    package-by-package in Docker (`casjaysdev/go:latest`), each group
+    verified with `go build ./...` before its own commit, per the
+    package-by-package commit discipline this item required. 12 commits
+    total: src/backup, src/cli, src/client, src/cluster+src/common,
+    src/config+src/database+src/email, src/graphql,
+    src/middleware+src/path+src/renderer, src/server/handler,
+    src/server/middleware+src/server/model, src/server/service, src/util,
+    tests. Final verification: `gofmt -l .` returns empty (repo-wide clean)
+    and `go build ./...` succeeds. Read: ai-rules.md / AI.md PART 0
+    (formatting requirements).
 
 22. TODO (flagged 2026-08-01 by go-lint during item 12's
     src/server/handler/admin.go pass): several DB call sites ignore the
