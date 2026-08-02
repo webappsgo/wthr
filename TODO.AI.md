@@ -494,6 +494,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     regressions. Next targets: `notification_metrics.go` (83 lines),
     `dashboard.go` (92 lines).
 
+    Progress (2026-08-02, continued): targeted `notification_metrics.go`
+    (83 lines) — a different shape from the prior four files: a
+    DB-query-backed service wrapper (`NotificationMetricsHandler` around
+    `service.NotificationMetrics`), not a YAML-config `Show*/Update*`
+    handler. Added `notification_metrics_test.go` with
+    `TestNotificationMetricsHandler_GetSummary` (seeds a
+    `notification_queue` row via the existing `newTestServerDB(t)`
+    in-memory SQLite fixture and asserts aggregate counts),
+    `_GetChannelMetrics` (seeds a channel-specific row, passes `type` as a
+    gin path param, asserts per-channel counts), `_GetRecentErrors`
+    (seeds a failed row with `error_message` set and asserts it comes
+    back in the JSON `errors` array), `_GetRecentErrors_InvalidLimit`
+    (a non-numeric `limit` query param falls back to the default rather
+    than erroring), and `_GetHealthStatus` (asserts `healthy: true`
+    against an empty queue). All five construct a real
+    `service.NewNotificationMetrics(db)` and
+    `NewNotificationMetricsHandler(metrics)` rather than mocking, since
+    the service's exported struct fields are unexported and the queries
+    are simple enough to run against a real in-memory schema. Verified
+    via Docker `gofmt -l`/`go build ./...`/`go vet
+    ./server/handler/...`/`go test -v ./server/handler/...` (new tests
+    pass) and `go test -cover ./server/handler/...` — package coverage
+    40.3% → 40.5%. Full repo `go test ./...` re-run afterward — all
+    packages still pass, no regressions. Next targets: `dashboard.go`
+    (92 lines).
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
