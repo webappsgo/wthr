@@ -769,23 +769,23 @@ any of the above: `src/graphql/context_keys_test.go`,
     test is the applicable ground truth here). Committed as
     f3e05dfa42c7.
 
-25. TODO (flagged 2026-08-02 by go-lint during item 12's
-    src/server/handler/notification_templates.go pass): pre-existing,
-    out of scope for item 12 (DB timeout wrapping only):
-    - Lines 60, 144, 189, 228, 233, 253, 276, 307, 327, 333, 349, 415,
-      420, 430, 434: error/success responses use ad-hoc
-      `gin.H{"error": "..."}` / `gin.H{"message": "..."}` shapes instead
-      of the canonical API response shape (`{"ok":false,"error":"CODE",
-      "message":"..."}` / `{"ok":true,"data":{...}}`) per PART 14.
-    - Lines 195, 201, 359, 367: raw `err.Error()` text (template syntax
-      validation errors) is returned directly in the API response body
-      instead of a generic user-facing message with the detail logged
-      internally only, per PART 11's Output Sanitization Pipeline.
-    Not touched by the item-12 diff (only the raw DB calls were
-    converted to timeout-wrapped calls). Fix: adopt canonical response
-    shape and generic error messages across all handlers in this file.
-    Read: AI.md PART 11 (security & logging) and PART 14 (API
-    structure) before starting.
+25. DONE (2026-08-02): notification_templates.go's ad-hoc
+    `gin.H{"error": "..."}` / `gin.H{"message": "..."}` responses and
+    raw `err.Error()` leaks fixed per PART 11/14. Fixing this exposed
+    that the shared `RespondError`/`RespondSuccess`/`RespondCreated`
+    helpers in response.go were themselves non-compliant with PART 14
+    (inverted `Error`/`Code` field semantics, `Status` duplicated in
+    body, `id`/`message` not nested under `data`) — corrected the
+    helpers to the true canonical shape and verified the fix rippled
+    cleanly through all 8 other callers (admin_api.go, auth.go,
+    earthquake.go, moon.go, notification_api.go, hurricane.go,
+    severe_weather.go, web.go, api.go) with no caller-side changes
+    needed. Also fixed 4 additional sites in the same file with the
+    identical pattern beyond the originally-flagged lines (UpdateTemplate
+    template/subject syntax errors, CloneTemplate invalid request/not
+    found), per the fix-completeness rule. Verified: gofmt -l clean,
+    go build ./... clean, go vet ./... clean, go test
+    ./src/server/handler/... passes. Committed as 72fea1596add.
 
 26. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/model/passkey.go pass): pre-existing, repo-wide, out of
