@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 
@@ -123,7 +124,9 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 
 	// Count tables
 	var tableCount int
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount); err != nil {
+		log.Printf("ERROR: ShowDatabase: failed to count tables: %v", err)
+	}
 
 	// Get table names and row counts
 	tables := make([]gin.H, 0)
@@ -136,7 +139,9 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 				var rowCount int
 				// Table name is from sqlite_master (safe), but quote for best practice
 				query := fmt.Sprintf("SELECT COUNT(*) FROM \"%s\"", tableName)
-				database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, query).Scan(&rowCount)
+				if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, query).Scan(&rowCount); err != nil {
+					log.Printf("ERROR: ShowDatabase: failed to count rows in table %s: %v", tableName, err)
+				}
 
 				tables = append(tables, gin.H{
 					"name": tableName,

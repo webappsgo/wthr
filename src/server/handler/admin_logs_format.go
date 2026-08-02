@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 	"time"
 
@@ -164,9 +165,12 @@ func (h *LogFormatHandler) PreviewLogFormat(c *gin.Context) {
 func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
 	// Get current format
 	var logFormat string
-	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT value FROM server_config WHERE key = 'logging.format'
 	`).Scan(&logFormat)
+	if err != nil && err != sql.ErrNoRows {
+		log.Printf("ERROR: ShowLogFormatPage: failed to read logging.format: %v", err)
+	}
 
 	if logFormat == "" {
 		logFormat = "apache"
