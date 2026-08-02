@@ -343,16 +343,46 @@ any of the above: `src/graphql/context_keys_test.go`,
     `gofmt -l` only flags the same pre-existing unrelated struct-
     alignment issue (item 34), confirmed via `gofmt -d`.
 
-20. TODO (flagged 2026-08-01 by go-lint during item 12's
-    src/server/model/notification.go pass): `Notification` struct
-    (src/server/model/notification.go ~line 58-59) has both a `Read` and an
-    `IsRead` field representing the same concept under different JSON keys —
-    naming redundancy per ai-rules.md's "names must reveal intent, no
-    duplicate meaning" guidance. Pre-existing, unrelated to the DB-timeout
-    migration; risky to fix inline (touches JSON wire format/GraphQL
-    resolvers). Fix: consolidate to one canonical field (or document why both
-    are needed) and update all call sites/resolvers/tests together. Read:
-    AI.md PART 0 (naming conventions) before starting.
+20. DONE (2026-08-02): `Notification` struct
+    (src/server/model/notification.go) had both a `Read` and an `IsRead`
+    field representing the same concept under different JSON keys — naming
+    redundancy per ai-rules.md's "names must reveal intent, no duplicate
+    meaning" guidance. Read AI.md PART 0 (Naming Conventions /
+    Intent-Revealing Names, lines 4691-4750) before starting, per the TODO
+    item's instruction.
+    - Investigated every call site across the codebase (`grep -rn "IsRead"`)
+      before deciding: `IsRead` was never populated by any of the 4 DB scan
+      sites in notification.go (all 4 scan only `&notif.Read`); the GraphQL
+      schema (`schema.graphqls` line 428: `read: Boolean!`) exposes only a
+      `read` field, and the generated resolver (`generated.go` line 22744)
+      resolves it to `obj.Read`, never `obj.IsRead`; the REST JSON handler
+      (`src/server/handler/notifications.go`) uses its own local struct with
+      only a `Read bool \`json:"read"\`` field; no frontend/JS/template
+      reference to `is_read`/`IsRead` exists anywhere in the repo. `IsRead`
+      was written only in two places (`src/graphql/schema.resolvers.go`
+      lines 792 and 2497: `notification.IsRead = notification.Read` /
+      `notif.IsRead = notif.Read`, immediately after the DB scan) and never
+      read anywhere afterward — confirmed dead code.
+    - Fix: removed the `IsRead` field from the `Notification` struct
+      (kept `Read`, the canonical DB-backed/GraphQL-exposed/REST-exposed
+      field) and removed both now-pointless `notif.IsRead = notif.Read`
+      assignment lines in schema.resolvers.go. `NotificationStatistics.Read`
+      (an unrelated `int` count field on a different struct) was confirmed
+      out of scope and left untouched.
+    - Verified via Docker: `go build ./...` and `go vet ./...` both pass;
+      `gofmt -l` flagged notification.go for unrelated pre-existing
+      struct-alignment drift (tab-column realignment triggered by the field
+      removal, same class of issue as item 21) — ran `gofmt -w` on the one
+      file I edited to fix it, confirmed clean after.
+    - `go test -count=1 ./graphql/...` and `./server/model/...` both pass
+      when run individually; one run of the combined `./server/model/...
+      ./graphql/...` set hit a pre-existing flaky panic in
+      `TestMutationResolver_ResetUserPassword` (nil-DB-pointer SIGSEGV in an
+      async goroutine spawned by `RequestAPIUserPasswordReset` racing test
+      teardown) — reproduced this same panic on the pre-edit code via
+      `git stash` as well, confirming it is unrelated to this fix and
+      pre-existing; logged as item 35 below per the "no issue left only in
+      conversation" rule.
 
 21. TODO (flagged 2026-08-01 while verifying item 12's
     src/server/model/admin.go pass): `gofmt -l .` reports ~130 pre-existing
@@ -598,6 +628,27 @@ any of the above: `src/graphql/context_keys_test.go`,
     `ResetSettings()`. Read: AI.md PART 14 (API error/success response
     shapes) before starting.
 
+35. TODO (flagged 2026-08-02 while verifying item 20's notification.go
+    fix): `TestMutationResolver_ResetUserPassword`
+    (src/graphql/schema.resolvers_test.go) is flaky when run as part of the
+    full `./graphql/...`/`./server/model/...` suite — intermittently panics
+    with a nil-pointer SIGSEGV inside `database/sql.(*DB).conn`, called from
+    `SMTPService.getSetting()` → `SMTPService.LoadConfig()`, invoked from an
+    async goroutine spawned by `RequestAPIUserPasswordReset`
+    (src/server/handler/auth_api.go line 517-545). Root cause: the goroutine
+    that sends the password-reset email loads SMTP config using `m.DB`
+    after the test's DB connection has already been closed/nilled during
+    teardown — a test-isolation race, not a production bug (the real server
+    process's DB lives for the process lifetime). Reproduced identically on
+    unmodified pre-item-20 code via `git stash`, confirming it predates this
+    session's notification.go/schema.resolvers.go changes entirely; passes
+    reliably when run in isolation (`-run TestMutationResolver_ResetUserPassword`)
+    or as the sole package under test. Fix: make `RequestAPIUserPasswordReset`'s
+    async email-send goroutine either be awaited/synchronized in tests, or
+    have the test capture/inject a mock SMTP service instead of relying on
+    the real `m.DB`, so the goroutine can't outlive test teardown. Read:
+    AI.md PART 29 (Testing) before starting.
+
 34. TODO (flagged 2026-08-02 by go-lint during item 15's GraphQL
     context-key pass): pre-existing, out of scope for item 15 (GraphQL
     resolver context-key type fixes only) —
@@ -616,3 +667,33 @@ any of the above: `src/graphql/context_keys_test.go`,
     positive — they're declared in `src/version.go`, a separate file in
     the same package, which the agent didn't check.)
     Read: AI.md PART 26 (Makefile targets) before starting.
+
+36. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
+    check): `src/main.go` uses `log.Fatalf` at ~18 call sites (lines 100,
+    127, 143, 176, 192, 197, 208, 213, 225, 236, 493, 500, 543, 588, 597,
+    880, 1023, 3840) for startup/fatal errors — `log.Fatalf` always exits
+    with code 1 regardless of failure class, but AI.md PART 8 (Binary
+    Rules) requires standard exit codes (0 success, 1 general, 2 config,
+    3 connection, 4 auth, 5 not found, 64 usage). Pre-existing, unrelated
+    to item 20's notification.go/schema.resolvers.go change (item 20 didn't
+    touch main.go at all). Fix: replace each `log.Fatalf` with an explicit
+    log + `os.Exit({correct code})` call, classifying each site by failure
+    type (config load failure → 2, DB/network connection failure → 3, etc.)
+    — requires reading each call site's context individually, not a blind
+    find/replace. Read: AI.md PART 8 (exit codes) before starting.
+
+37. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
+    check): `src/server/handler/graphql.go` lines 171-182 serve the GraphiQL
+    IDE via its standard React-based client-side UI bundle — this conflicts
+    with the project's "no client-side rendering / no JS framework" frontend
+    rule (frontend-rules.md PART 16: vanilla JS only, no React/Vue/etc, one
+    hand-written `static/js/app.js`). However, GraphiQL is the GraphQL
+    Foundation's standard reference IDE and typically ships only as a
+    prebuilt React bundle — no maintained vanilla-JS equivalent exists.
+    Needs a product decision, not a blind fix: either (a) accept GraphiQL's
+    bundled React UI as a documented, scoped exception (it's a developer/
+    admin-only tool, not the public frontend the no-framework rule targets),
+    or (b) replace it with a minimal hand-rolled GraphQL query console using
+    vanilla JS, accepting reduced IDE features (no schema autocomplete/docs
+    explorer). Ask the user which approach before implementing. Read: AI.md
+    PART 16 (frontend rules) and PART 14 (API/GraphQL) before starting.

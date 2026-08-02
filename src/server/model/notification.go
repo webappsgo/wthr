@@ -27,7 +27,7 @@ type NotificationDisplay string
 
 const (
 	// Toast notification (top-right, auto-dismiss)
-	NotificationDisplayToast  NotificationDisplay = "toast"
+	NotificationDisplayToast NotificationDisplay = "toast"
 	// Banner notification (top of page)
 	NotificationDisplayBanner NotificationDisplay = "banner"
 	// Notification center only
@@ -37,36 +37,35 @@ const (
 // Notification represents a WebUI notification (user or admin)
 type Notification struct {
 	// ULID
-	ID         string              `json:"id"`
+	ID string `json:"id"`
 	// NULL for admin notifications
-	UserID     *int                `json:"user_id,omitempty"`
+	UserID *int `json:"user_id,omitempty"`
 	// NULL for user notifications
-	AdminID    *int                `json:"admin_id,omitempty"`
+	AdminID *int `json:"admin_id,omitempty"`
 	// success, info, warning, error, security
-	Type       NotificationType    `json:"type"`
+	Type NotificationType `json:"type"`
 	// toast, banner, center
-	Display    NotificationDisplay `json:"display"`
+	Display NotificationDisplay `json:"display"`
 	// Notification title
-	Title      string              `json:"title"`
+	Title string `json:"title"`
 	// Notification message
-	Message    string              `json:"message"`
+	Message string `json:"message"`
 	// Optional action button
-	Action     *NotificationAction `json:"action,omitempty"`
+	Action *NotificationAction `json:"action,omitempty"`
 	// JSON-encoded action (database field)
-	ActionJSON *string             `json:"-" db:"action_json"`
-	// Whether read (legacy name: Read)
-	Read       bool                `json:"read"`
-	IsRead     bool                `json:"is_read"`
+	ActionJSON *string `json:"-" db:"action_json"`
+	// Whether read
+	Read bool `json:"read"`
 	// When read
-	ReadAt     *time.Time          `json:"read_at,omitempty"`
+	ReadAt *time.Time `json:"read_at,omitempty"`
 	// Whether dismissed
-	Dismissed  bool                `json:"dismissed"`
+	Dismissed bool `json:"dismissed"`
 	// When created
-	CreatedAt  time.Time           `json:"created_at"`
+	CreatedAt time.Time `json:"created_at"`
 	// When last updated
-	UpdatedAt  time.Time           `json:"updated_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 	// When to auto-delete (default: 30 days)
-	ExpiresAt  *time.Time          `json:"expires_at,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 // NotificationAction represents an optional action button
@@ -74,33 +73,33 @@ type NotificationAction struct {
 	// Button label (e.g., "View Details")
 	Label string `json:"label"`
 	// URL to navigate to
-	URL   string `json:"url"`
+	URL string `json:"url"`
 }
 
 // NotificationPreferences represents user/admin notification preferences
 type NotificationPreferences struct {
-	UserID              *int      `json:"user_id,omitempty"`
-	AdminID             *int      `json:"admin_id,omitempty"`
-	EnableToast         bool      `json:"enable_toast"`
-	EnableBanner        bool      `json:"enable_banner"`
-	EnableCenter        bool      `json:"enable_center"`
-	EnableSound         bool      `json:"enable_sound"`
+	UserID       *int `json:"user_id,omitempty"`
+	AdminID      *int `json:"admin_id,omitempty"`
+	EnableToast  bool `json:"enable_toast"`
+	EnableBanner bool `json:"enable_banner"`
+	EnableCenter bool `json:"enable_center"`
+	EnableSound  bool `json:"enable_sound"`
 	// seconds
-	ToastDurationSuccess int      `json:"toast_duration_success"`
+	ToastDurationSuccess int `json:"toast_duration_success"`
 	// seconds
-	ToastDurationInfo   int      `json:"toast_duration_info"`
+	ToastDurationInfo int `json:"toast_duration_info"`
 	// seconds
-	ToastDurationWarning int      `json:"toast_duration_warning"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ToastDurationWarning int       `json:"toast_duration_warning"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // NotificationStatistics represents notification statistics
 type NotificationStatistics struct {
-	Total      int `json:"total"`
-	Unread     int `json:"unread"`
-	Read       int `json:"read"`
-	ByType     map[NotificationType]int    `json:"by_type"`
-	ByDisplay  map[NotificationDisplay]int `json:"by_display"`
+	Total     int                         `json:"total"`
+	Unread    int                         `json:"unread"`
+	Read      int                         `json:"read"`
+	ByType    map[NotificationType]int    `json:"by_type"`
+	ByDisplay map[NotificationDisplay]int `json:"by_display"`
 }
 
 // UserNotificationModel handles user notification database operations

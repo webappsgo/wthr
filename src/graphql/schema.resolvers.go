@@ -789,7 +789,6 @@ func (r *mutationResolver) MarkNotificationRead(ctx context.Context, id string) 
 		return nil, fmt.Errorf("failed to fetch notification: %w", err)
 	}
 	notification.UserID = &notificationUserID
-	notification.IsRead = notification.Read
 
 	return notification, nil
 }
@@ -2494,7 +2493,6 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 			continue
 		}
 		notif.UserID = &notificationUserID
-		notif.IsRead = notif.Read
 		notifications = append(notifications, &notif)
 	}
 
