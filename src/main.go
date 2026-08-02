@@ -3035,6 +3035,37 @@ func main() {
 				"token":   newToken,
 			})
 		})
+		adminAPI.GET("/profile/sessions", func(c *gin.Context) {
+			admin, ok := getCurrentAdmin(c)
+			if !ok {
+				return
+			}
+
+			sessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
+			sessions, err := sessionModel.GetActiveSessions(admin.ID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load sessions"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"ok": true, "sessions": sessions})
+		})
+		adminAPI.POST("/profile/sessions/logout-all", func(c *gin.Context) {
+			admin, ok := getCurrentAdmin(c)
+			if !ok {
+				return
+			}
+
+			sessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
+			if err := sessionModel.DeleteAllSessionsForAdmin(admin.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to log out of all sessions"})
+				return
+			}
+
+			c.SetCookie("admin_session", "", -1, "/", "", c.Request.TLS != nil, true)
+
+			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Logged out of all sessions"})
+		})
 		adminAPI.GET("/profile/preferences", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {

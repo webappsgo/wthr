@@ -48,7 +48,7 @@ func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 	adminModel := &models.AdminModel{DB: database.GetServerDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
-		log.Printf("[ERROR] " + "Failed to count admins: %v", err)
+		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
 		respondJSON(w, http.StatusInternalServerError, SetupWizardResponse{
 			Ok:      false,
 			Error:   "SETUP_CHECK_FAILED",
@@ -75,7 +75,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	adminModel := &models.AdminModel{DB: database.GetServerDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
-		log.Printf("[ERROR] " + "Failed to count admins: %v", err)
+		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
 		respondJSON(w, http.StatusInternalServerError, SetupWizardResponse{
 			Ok:      false,
 			Error:   "SETUP_CHECK_FAILED",
@@ -96,7 +96,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req SetupWizardRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("[ERROR] " + "Failed to decode setup request: %v", err)
+		log.Printf("[ERROR] "+"Failed to decode setup request: %v", err)
 		respondJSON(w, http.StatusBadRequest, SetupWizardResponse{
 			Ok:      false,
 			Error:   "INVALID_REQUEST",
@@ -107,7 +107,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 
 	// AI.md PART 17: Validate setup token before allowing admin creation
 	if err := validateSetupToken(req.SetupToken); err != nil {
-		log.Printf("[ERROR] " + "Invalid setup token: %v", err)
+		log.Printf("[ERROR] "+"Invalid setup token: %v", err)
 		respondJSON(w, http.StatusUnauthorized, SetupWizardResponse{
 			Ok:      false,
 			Error:   "INVALID_SETUP_TOKEN",
@@ -130,7 +130,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	// Per TEMPLATE.md PART 0: Uses Argon2id for password hashing
 	admin, err := adminModel.Create(req.Username, req.Email, req.Password, true)
 	if err != nil {
-		log.Printf("[ERROR] " + "Failed to create admin: %v", err)
+		log.Printf("[ERROR] "+"Failed to create admin: %v", err)
 		respondJSON(w, http.StatusInternalServerError, SetupWizardResponse{
 			Ok:      false,
 			Error:   "ADMIN_CREATE_FAILED",
@@ -141,15 +141,15 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Update setup state in database
 	if err := markSetupComplete(); err != nil {
-		log.Printf("[ERROR] " + "Failed to mark setup complete: %v", err)
+		log.Printf("[ERROR] "+"Failed to mark setup complete: %v", err)
 	}
 
 	// AI.md PART 17: Delete setup token after successful admin creation (one-time use)
 	if err := deleteSetupToken(); err != nil {
-		log.Printf("[ERROR] " + "Failed to delete setup token: %v", err)
+		log.Printf("[ERROR] "+"Failed to delete setup token: %v", err)
 	}
 
-	log.Printf("[INFO] " + "Initial setup completed: Admin created: %s (ID: %d)", admin.Username, admin.ID)
+	log.Printf("[INFO] "+"Initial setup completed: Admin created: %s (ID: %d)", admin.Username, admin.ID)
 
 	// Don't send password hash or API token prefix
 	admin.PasswordHash = ""
@@ -303,7 +303,7 @@ func SetupRequiredMiddleware(next http.Handler) http.Handler {
 		// Check if setup is complete
 		setupComplete, err := IsSetupComplete()
 		if err != nil {
-			log.Printf("[ERROR] " + "Failed to check setup status: %v", err)
+			log.Printf("[ERROR] "+"Failed to check setup status: %v", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -329,4 +329,13 @@ func SetupRequiredMiddleware(next http.Handler) http.Handler {
 		// Setup is complete, continue
 		next.ServeHTTP(w, r)
 	})
+}
+
+// respondJSON is a helper function to send JSON responses
+func respondJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("[ERROR] "+"Failed to encode JSON response: %v", err)
+	}
 }
