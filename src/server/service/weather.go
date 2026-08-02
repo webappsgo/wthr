@@ -181,49 +181,49 @@ type OpenMeteoForecastResponse struct {
 
 // HistoricalDay represents weather data for a single historical day
 type HistoricalDay struct {
-	Date                 string  `json:"date"`
-	Year                 int     `json:"year"`
-	Month                int     `json:"month"`
-	Day                  int     `json:"day"`
-	WeatherCode          int     `json:"weatherCode"`
-	TempMax              float64 `json:"tempMax"`
-	TempMin              float64 `json:"tempMin"`
-	TempAvg              float64 `json:"tempAvg"`
-	ApparentTempMax      float64 `json:"apparentTempMax"`
-	ApparentTempMin      float64 `json:"apparentTempMin"`
-	Precipitation        float64 `json:"precipitation"`
-	Rain                 float64 `json:"rain"`
-	Snowfall             float64 `json:"snowfall"`
-	SnowDepth            float64 `json:"snowDepth"`
-	PrecipitationHours   float64 `json:"precipitationHours"`
-	WindSpeedMax         float64 `json:"windSpeedMax"`
-	WindGustsMax         float64 `json:"windGustsMax"`
-	WindDirection        int     `json:"windDirection"`
-	SunshineDuration     float64 `json:"sunshineDuration"`
-	DaylightDuration     float64 `json:"daylightDuration"`
-	PressureMean         float64 `json:"pressureMean"`
-	HumidityMean         int     `json:"humidityMean"`
-	CloudCoverMean       int     `json:"cloudCoverMean"`
-	SolarRadiation       float64 `json:"solarRadiation"`
+	Date                  string  `json:"date"`
+	Year                  int     `json:"year"`
+	Month                 int     `json:"month"`
+	Day                   int     `json:"day"`
+	WeatherCode           int     `json:"weatherCode"`
+	TempMax               float64 `json:"tempMax"`
+	TempMin               float64 `json:"tempMin"`
+	TempAvg               float64 `json:"tempAvg"`
+	ApparentTempMax       float64 `json:"apparentTempMax"`
+	ApparentTempMin       float64 `json:"apparentTempMin"`
+	Precipitation         float64 `json:"precipitation"`
+	Rain                  float64 `json:"rain"`
+	Snowfall              float64 `json:"snowfall"`
+	SnowDepth             float64 `json:"snowDepth"`
+	PrecipitationHours    float64 `json:"precipitationHours"`
+	WindSpeedMax          float64 `json:"windSpeedMax"`
+	WindGustsMax          float64 `json:"windGustsMax"`
+	WindDirection         int     `json:"windDirection"`
+	SunshineDuration      float64 `json:"sunshineDuration"`
+	DaylightDuration      float64 `json:"daylightDuration"`
+	PressureMean          float64 `json:"pressureMean"`
+	HumidityMean          int     `json:"humidityMean"`
+	CloudCoverMean        int     `json:"cloudCoverMean"`
+	SolarRadiation        float64 `json:"solarRadiation"`
 	ET0Evapotranspiration float64 `json:"et0Evapotranspiration"`
 }
 
 // HistoricalWeather represents historical weather data for a specific day across multiple years
 type HistoricalWeather struct {
 	// MM/DD format
-	Date      string          `json:"date"`
+	Date string `json:"date"`
 	// 1-12
-	Month     int             `json:"month"`
+	Month int `json:"month"`
 	// 1-31
-	Day       int             `json:"day"`
+	Day int `json:"day"`
 	// Year to start from
-	StartYear int             `json:"startYear"`
+	StartYear int `json:"startYear"`
 	// Data for each year
-	Years     []HistoricalDay `json:"years"`
+	Years []HistoricalDay `json:"years"`
 	// Location information
-	Location  Coordinates     `json:"location"`
+	Location Coordinates `json:"location"`
 	// Statistical summary
-	Stats     HistoricalStats `json:"stats"`
+	Stats HistoricalStats `json:"stats"`
 }
 
 // HistoricalStats provides statistical analysis of historical data
@@ -244,28 +244,28 @@ type HistoricalStats struct {
 // OpenMeteoHistoricalResponse represents the Open-Meteo historical archive API response
 type OpenMeteoHistoricalResponse struct {
 	Daily struct {
-		Time                    []string  `json:"time"`
-		WeatherCode             []int     `json:"weather_code"`
-		Temperature2mMax        []float64 `json:"temperature_2m_max"`
-		Temperature2mMin        []float64 `json:"temperature_2m_min"`
-		Temperature2mMean       []float64 `json:"temperature_2m_mean"`
-		ApparentTemperatureMax  []float64 `json:"apparent_temperature_max"`
-		ApparentTemperatureMin  []float64 `json:"apparent_temperature_min"`
-		PrecipitationSum        []float64 `json:"precipitation_sum"`
-		Rain                    []float64 `json:"rain_sum"`
-		Snowfall                []float64 `json:"snowfall_sum"`
-		SnowDepth               []float64 `json:"snow_depth_mean"`
-		PrecipitationHours      []float64 `json:"precipitation_hours"`
-		WindSpeed10mMax         []float64 `json:"wind_speed_10m_max"`
-		WindGusts10mMax         []float64 `json:"wind_gusts_10m_max"`
+		Time                     []string  `json:"time"`
+		WeatherCode              []int     `json:"weather_code"`
+		Temperature2mMax         []float64 `json:"temperature_2m_max"`
+		Temperature2mMin         []float64 `json:"temperature_2m_min"`
+		Temperature2mMean        []float64 `json:"temperature_2m_mean"`
+		ApparentTemperatureMax   []float64 `json:"apparent_temperature_max"`
+		ApparentTemperatureMin   []float64 `json:"apparent_temperature_min"`
+		PrecipitationSum         []float64 `json:"precipitation_sum"`
+		Rain                     []float64 `json:"rain_sum"`
+		Snowfall                 []float64 `json:"snowfall_sum"`
+		SnowDepth                []float64 `json:"snow_depth_mean"`
+		PrecipitationHours       []float64 `json:"precipitation_hours"`
+		WindSpeed10mMax          []float64 `json:"wind_speed_10m_max"`
+		WindGusts10mMax          []float64 `json:"wind_gusts_10m_max"`
 		WindDirection10mDominant []int     `json:"wind_direction_10m_dominant"`
-		SunshineDuration        []float64 `json:"sunshine_duration"`
-		DaylightDuration        []float64 `json:"daylight_duration"`
-		PressureMslMean         []float64 `json:"pressure_msl_mean"`
-		RelativeHumidity2mMean  []int     `json:"relative_humidity_2m_mean"`
-		CloudCoverMean          []int     `json:"cloud_cover_mean"`
-		ShortwaveRadiationSum   []float64 `json:"shortwave_radiation_sum"`
-		ET0Evapotranspiration   []float64 `json:"et0_evapotranspiration"`
+		SunshineDuration         []float64 `json:"sunshine_duration"`
+		DaylightDuration         []float64 `json:"daylight_duration"`
+		PressureMslMean          []float64 `json:"pressure_msl_mean"`
+		RelativeHumidity2mMean   []int     `json:"relative_humidity_2m_mean"`
+		CloudCoverMean           []int     `json:"cloud_cover_mean"`
+		ShortwaveRadiationSum    []float64 `json:"shortwave_radiation_sum"`
+		ET0Evapotranspiration    []float64 `json:"et0_evapotranspiration"`
 	} `json:"daily"`
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
@@ -380,8 +380,8 @@ func (ws *WeatherService) GetCoordinates(location string, country string) (*Coor
 
 	// If no fallback available, provide a default location instead of failing
 	defaultLocation := &Coordinates{
-		Latitude:    40.7128,
-		Longitude:   -74.0060,
+		Latitude:  40.7128,
+		Longitude: -74.0060,
 		// Keep the requested name
 		Name:        location,
 		Country:     "United States",
@@ -1539,30 +1539,30 @@ func (ws *WeatherService) GetHistoricalWeather(latitude, longitude float64, mont
 
 		// Create HistoricalDay struct
 		histDay := HistoricalDay{
-			Date:        apiResp.Daily.Time[0],
-			Year:        year,
-			Month:       month,
-			Day:         day,
-			WeatherCode: safeIntAt(apiResp.Daily.WeatherCode, 0),
-			TempMax:     safeFloatAt(apiResp.Daily.Temperature2mMax, 0),
-			TempMin:     safeFloatAt(apiResp.Daily.Temperature2mMin, 0),
-			TempAvg:     safeFloatAt(apiResp.Daily.Temperature2mMean, 0),
-			ApparentTempMax: safeFloatAt(apiResp.Daily.ApparentTemperatureMax, 0),
-			ApparentTempMin: safeFloatAt(apiResp.Daily.ApparentTemperatureMin, 0),
-			Precipitation:   safeFloatAt(apiResp.Daily.PrecipitationSum, 0),
-			Rain:            safeFloatAt(apiResp.Daily.Rain, 0),
-			Snowfall:        safeFloatAt(apiResp.Daily.Snowfall, 0),
-			SnowDepth:       safeFloatAt(apiResp.Daily.SnowDepth, 0),
-			PrecipitationHours: safeFloatAt(apiResp.Daily.PrecipitationHours, 0),
-			WindSpeedMax:    safeFloatAt(apiResp.Daily.WindSpeed10mMax, 0),
-			WindGustsMax:    safeFloatAt(apiResp.Daily.WindGusts10mMax, 0),
-			WindDirection:   safeIntAt(apiResp.Daily.WindDirection10mDominant, 0),
-			SunshineDuration: safeFloatAt(apiResp.Daily.SunshineDuration, 0),
-			DaylightDuration: safeFloatAt(apiResp.Daily.DaylightDuration, 0),
-			PressureMean:    safeFloatAt(apiResp.Daily.PressureMslMean, 0),
-			HumidityMean:    safeIntAt(apiResp.Daily.RelativeHumidity2mMean, 0),
-			CloudCoverMean:  safeIntAt(apiResp.Daily.CloudCoverMean, 0),
-			SolarRadiation:  safeFloatAt(apiResp.Daily.ShortwaveRadiationSum, 0),
+			Date:                  apiResp.Daily.Time[0],
+			Year:                  year,
+			Month:                 month,
+			Day:                   day,
+			WeatherCode:           safeIntAt(apiResp.Daily.WeatherCode, 0),
+			TempMax:               safeFloatAt(apiResp.Daily.Temperature2mMax, 0),
+			TempMin:               safeFloatAt(apiResp.Daily.Temperature2mMin, 0),
+			TempAvg:               safeFloatAt(apiResp.Daily.Temperature2mMean, 0),
+			ApparentTempMax:       safeFloatAt(apiResp.Daily.ApparentTemperatureMax, 0),
+			ApparentTempMin:       safeFloatAt(apiResp.Daily.ApparentTemperatureMin, 0),
+			Precipitation:         safeFloatAt(apiResp.Daily.PrecipitationSum, 0),
+			Rain:                  safeFloatAt(apiResp.Daily.Rain, 0),
+			Snowfall:              safeFloatAt(apiResp.Daily.Snowfall, 0),
+			SnowDepth:             safeFloatAt(apiResp.Daily.SnowDepth, 0),
+			PrecipitationHours:    safeFloatAt(apiResp.Daily.PrecipitationHours, 0),
+			WindSpeedMax:          safeFloatAt(apiResp.Daily.WindSpeed10mMax, 0),
+			WindGustsMax:          safeFloatAt(apiResp.Daily.WindGusts10mMax, 0),
+			WindDirection:         safeIntAt(apiResp.Daily.WindDirection10mDominant, 0),
+			SunshineDuration:      safeFloatAt(apiResp.Daily.SunshineDuration, 0),
+			DaylightDuration:      safeFloatAt(apiResp.Daily.DaylightDuration, 0),
+			PressureMean:          safeFloatAt(apiResp.Daily.PressureMslMean, 0),
+			HumidityMean:          safeIntAt(apiResp.Daily.RelativeHumidity2mMean, 0),
+			CloudCoverMean:        safeIntAt(apiResp.Daily.CloudCoverMean, 0),
+			SolarRadiation:        safeFloatAt(apiResp.Daily.ShortwaveRadiationSum, 0),
 			ET0Evapotranspiration: safeFloatAt(apiResp.Daily.ET0Evapotranspiration, 0),
 		}
 

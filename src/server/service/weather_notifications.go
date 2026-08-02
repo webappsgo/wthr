@@ -126,7 +126,7 @@ func (wns *WeatherNotificationService) detectSevereWeather(weatherData *CurrentW
 			IssuedAt:     now,
 			Coordinates:  struct{ Latitude, Longitude float64 }{lat, lon},
 		})
-	// <= 0°F / -18°C
+		// <= 0°F / -18°C
 	} else if temp <= 0 {
 		alerts = append(alerts, WeatherAlert{
 			LocationName: location,

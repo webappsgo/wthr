@@ -16,21 +16,21 @@ import (
 
 // TorService manages the Tor hidden service
 type TorService struct {
-	tor            *tor.Tor
-	onionService   *tor.OnionService
-	dataDir        string
-	db             *database.DB
-	ctx            context.Context
-	cancel         context.CancelFunc
-	onionAddress   string
-	isRunning      bool
-	mu             sync.RWMutex
-	startTime      time.Time
+	tor             *tor.Tor
+	onionService    *tor.OnionService
+	dataDir         string
+	db              *database.DB
+	ctx             context.Context
+	cancel          context.CancelFunc
+	onionAddress    string
+	isRunning       bool
+	mu              sync.RWMutex
+	startTime       time.Time
 	lastHealthCheck time.Time
-	healthStatus   string
-	restartCount   int
-	monitorEnabled bool
-	monitorStop    chan struct{}
+	healthStatus    string
+	restartCount    int
+	monitorEnabled  bool
+	monitorStop     chan struct{}
 }
 
 // NewTorService creates a new Tor service instance
@@ -72,7 +72,7 @@ func (ts *TorService) Start(httpPort int) error {
 	// CGO_ENABLED=0 compatible via github.com/cretz/bine
 	conf := &tor.StartConf{
 		// Our isolated data directory
-		DataDir:         ts.dataDir,
+		DataDir: ts.dataDir,
 		// Show startup messages
 		NoHush:          false,
 		TempDataDirBase: filepath.Join(os.TempDir(), "casapps", "wthr-tor"),

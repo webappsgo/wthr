@@ -15,70 +15,70 @@ type LogFormat string
 
 const (
 	// Apache Combined Log Format
-	LogFormatApache   LogFormat = "apache"
+	LogFormatApache LogFormat = "apache"
 	// Nginx access log format
-	LogFormatNginx    LogFormat = "nginx"
+	LogFormatNginx LogFormat = "nginx"
 	// JSON structured logs
-	LogFormatJSON     LogFormat = "json"
+	LogFormatJSON LogFormat = "json"
 	// fail2ban-compatible format
 	LogFormatFail2ban LogFormat = "fail2ban"
 	// RFC 5424 Syslog
-	LogFormatSyslog   LogFormat = "syslog"
+	LogFormatSyslog LogFormat = "syslog"
 	// Common Event Format (ArcSight)
-	LogFormatCEF      LogFormat = "cef"
+	LogFormatCEF LogFormat = "cef"
 	// Custom text format
-	LogFormatText     LogFormat = "text"
+	LogFormatText LogFormat = "text"
 )
 
 // LogEntry represents a single log entry with all fields
 type LogEntry struct {
-	Timestamp      time.Time
-	RemoteAddr     string
-	Method         string
-	Path           string
-	Protocol       string
-	StatusCode     int
-	BytesSent      int
-	Referer        string
-	UserAgent      string
+	Timestamp  time.Time
+	RemoteAddr string
+	Method     string
+	Path       string
+	Protocol   string
+	StatusCode int
+	BytesSent  int
+	Referer    string
+	UserAgent  string
 	// in seconds
-	RequestTime    float64
-	RequestID      string
+	RequestTime float64
+	RequestID   string
 	// For authenticated requests
-	Username       string
+	Username string
 	// For error logs
-	ErrorMessage   string
+	ErrorMessage string
 	// For syslog
-	Facility       string
+	Facility string
 	// For syslog/CEF
-	Severity       string
+	Severity string
 	// For CEF
-	DeviceVendor   string
+	DeviceVendor string
 	// For CEF
-	DeviceProduct  string
+	DeviceProduct string
 	// For CEF
-	DeviceVersion  string
+	DeviceVersion string
 	// For CEF
-	SignatureID    string
+	SignatureID string
 	// For CEF
-	Name           string
+	Name string
 }
 
 // LogFormatter handles different log output formats
 type LogFormatter struct {
-	format         LogFormat
-	deviceVendor   string
-	deviceProduct  string
-	deviceVersion  string
+	format        LogFormat
+	deviceVendor  string
+	deviceProduct string
+	deviceVersion string
 }
 
 // NewLogFormatter creates a new log formatter
 func NewLogFormatter(format LogFormat) *LogFormatter {
 	return &LogFormatter{
-		format:         format,
-		deviceVendor:   "casapps",
-		deviceProduct:  "wthr",
-		deviceVersion:  "1.0",
+		format:        format,
+		deviceVendor:  "casapps",
+		deviceProduct: "wthr",
+		deviceVersion: "1.0",
 	}
 }
 

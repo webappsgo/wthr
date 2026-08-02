@@ -37,9 +37,9 @@ type Earthquake struct {
 	Network       string    `json:"network"`
 	UpdatedTime   time.Time `json:"updated"`
 	// Distance from user location in km (calculated at request time)
-	Distance      float64   `json:"distance,omitempty"`
+	Distance float64 `json:"distance,omitempty"`
 	// Formatted distance string for display
-	DistanceFmt   string    `json:"distanceFmt,omitempty"`
+	DistanceFmt string `json:"distanceFmt,omitempty"`
 }
 
 // EarthquakeCollection represents a collection of earthquakes
@@ -100,7 +100,7 @@ type USGSGeoJSONResponse struct {
 			Title   string   `json:"title"`
 		} `json:"properties"`
 		Geometry struct {
-			Type        string    `json:"type"`
+			Type string `json:"type"`
 			// [longitude, latitude, depth]
 			Coordinates []float64 `json:"coordinates"`
 		} `json:"geometry"`

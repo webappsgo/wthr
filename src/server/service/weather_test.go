@@ -549,9 +549,9 @@ func TestWeatherService_GetHistoricalWeather_Validation(t *testing.T) {
 	ws := newTestWeatherService()
 
 	tests := []struct {
-		name                                          string
-		month, day, startYear, numberOfYears          int
-		wantErrSubstr                                 string
+		name                                 string
+		month, day, startYear, numberOfYears int
+		wantErrSubstr                        string
 	}{
 		{"month too low", 0, 15, 2020, 5, "invalid month"},
 		{"month too high", 13, 15, 2020, 5, "invalid month"},

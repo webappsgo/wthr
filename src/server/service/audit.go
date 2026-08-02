@@ -62,46 +62,46 @@ const (
 	EventUserSuspiciousActivity  EventType = "user.suspicious.activity"
 
 	// Admin Actions (41-80)
-	EventAdminLogin              EventType = "admin.login"
-	EventAdminLogout             EventType = "admin.logout"
-	EventAdminSettingsChange     EventType = "admin.settings.change"
-	EventAdminUserCreate         EventType = "admin.user.create"
-	EventAdminUserUpdate         EventType = "admin.user.update"
-	EventAdminUserDelete         EventType = "admin.user.delete"
-	EventAdminUserImpersonate    EventType = "admin.user.impersonate"
-	EventAdminRoleCreate         EventType = "admin.role.create"
-	EventAdminRoleUpdate         EventType = "admin.role.update"
-	EventAdminRoleDelete         EventType = "admin.role.delete"
-	EventAdminRoleAssign         EventType = "admin.role.assign"
-	EventAdminDatabaseBackup     EventType = "admin.database.backup"
-	EventAdminDatabaseRestore    EventType = "admin.database.restore"
-	EventAdminDatabaseOptimize   EventType = "admin.database.optimize"
-	EventAdminDatabaseVacuum     EventType = "admin.database.vacuum"
-	EventAdminCacheClear         EventType = "admin.cache.clear"
-	EventAdminCacheFlush         EventType = "admin.cache.flush"
-	EventAdminLogsClear          EventType = "admin.logs.clear"
-	EventAdminLogsRotate         EventType = "admin.logs.rotate"
-	EventAdminLogsDownload       EventType = "admin.logs.download"
-	EventAdminEmailTemplateEdit  EventType = "admin.email.template.edit"
-	EventAdminEmailTest          EventType = "admin.email.test"
-	EventAdminNotificationSend   EventType = "admin.notification.send"
-	EventAdminSystemRestart      EventType = "admin.system.restart"
-	EventAdminSystemShutdown     EventType = "admin.system.shutdown"
-	EventAdminConfigReload       EventType = "admin.config.reload"
-	EventAdminConfigExport       EventType = "admin.config.export"
-	EventAdminConfigImport       EventType = "admin.config.import"
-	EventAdminCertObtain         EventType = "admin.cert.obtain"
-	EventAdminCertRenew          EventType = "admin.cert.renew"
-	EventAdminCertRevoke         EventType = "admin.cert.revoke"
-	EventAdminPluginInstall      EventType = "admin.plugin.install"
-	EventAdminPluginUninstall    EventType = "admin.plugin.uninstall"
-	EventAdminPluginEnable       EventType = "admin.plugin.enable"
-	EventAdminPluginDisable      EventType = "admin.plugin.disable"
-	EventAdminTaskEnable         EventType = "admin.task.enable"
-	EventAdminTaskDisable        EventType = "admin.task.disable"
-	EventAdminTaskTrigger        EventType = "admin.task.trigger"
-	EventAdminWebRobotsUpdate    EventType = "admin.web.robots.update"
-	EventAdminWebSecurityUpdate  EventType = "admin.web.security.update"
+	EventAdminLogin             EventType = "admin.login"
+	EventAdminLogout            EventType = "admin.logout"
+	EventAdminSettingsChange    EventType = "admin.settings.change"
+	EventAdminUserCreate        EventType = "admin.user.create"
+	EventAdminUserUpdate        EventType = "admin.user.update"
+	EventAdminUserDelete        EventType = "admin.user.delete"
+	EventAdminUserImpersonate   EventType = "admin.user.impersonate"
+	EventAdminRoleCreate        EventType = "admin.role.create"
+	EventAdminRoleUpdate        EventType = "admin.role.update"
+	EventAdminRoleDelete        EventType = "admin.role.delete"
+	EventAdminRoleAssign        EventType = "admin.role.assign"
+	EventAdminDatabaseBackup    EventType = "admin.database.backup"
+	EventAdminDatabaseRestore   EventType = "admin.database.restore"
+	EventAdminDatabaseOptimize  EventType = "admin.database.optimize"
+	EventAdminDatabaseVacuum    EventType = "admin.database.vacuum"
+	EventAdminCacheClear        EventType = "admin.cache.clear"
+	EventAdminCacheFlush        EventType = "admin.cache.flush"
+	EventAdminLogsClear         EventType = "admin.logs.clear"
+	EventAdminLogsRotate        EventType = "admin.logs.rotate"
+	EventAdminLogsDownload      EventType = "admin.logs.download"
+	EventAdminEmailTemplateEdit EventType = "admin.email.template.edit"
+	EventAdminEmailTest         EventType = "admin.email.test"
+	EventAdminNotificationSend  EventType = "admin.notification.send"
+	EventAdminSystemRestart     EventType = "admin.system.restart"
+	EventAdminSystemShutdown    EventType = "admin.system.shutdown"
+	EventAdminConfigReload      EventType = "admin.config.reload"
+	EventAdminConfigExport      EventType = "admin.config.export"
+	EventAdminConfigImport      EventType = "admin.config.import"
+	EventAdminCertObtain        EventType = "admin.cert.obtain"
+	EventAdminCertRenew         EventType = "admin.cert.renew"
+	EventAdminCertRevoke        EventType = "admin.cert.revoke"
+	EventAdminPluginInstall     EventType = "admin.plugin.install"
+	EventAdminPluginUninstall   EventType = "admin.plugin.uninstall"
+	EventAdminPluginEnable      EventType = "admin.plugin.enable"
+	EventAdminPluginDisable     EventType = "admin.plugin.disable"
+	EventAdminTaskEnable        EventType = "admin.task.enable"
+	EventAdminTaskDisable       EventType = "admin.task.disable"
+	EventAdminTaskTrigger       EventType = "admin.task.trigger"
+	EventAdminWebRobotsUpdate   EventType = "admin.web.robots.update"
+	EventAdminWebSecurityUpdate EventType = "admin.web.security.update"
 
 	// System Events (81-120)
 	EventSystemStartup       EventType = "system.startup"
@@ -146,36 +146,36 @@ const (
 	EventSystemGeoIPError    EventType = "system.geoip.error"
 
 	// API Events (121-150)
-	EventAPIRequest          EventType = "api.request"
-	EventAPIRequestFailed    EventType = "api.request.failed"
-	EventAPIAuthSuccess      EventType = "api.auth.success"
-	EventAPIAuthFailed       EventType = "api.auth.failed"
-	EventAPIRateLimitHit     EventType = "api.ratelimit.hit"
-	EventAPIKeyInvalid       EventType = "api.key.invalid"
-	EventAPIKeyExpired       EventType = "api.key.expired"
-	EventAPIWeatherFetch     EventType = "api.weather.fetch"
-	EventAPIEarthquakeFetch  EventType = "api.earthquake.fetch"
-	EventAPIHurricaneFetch   EventType = "api.hurricane.fetch"
-	EventAPIAlertsFetch      EventType = "api.alerts.fetch"
-	EventAPIMoonFetch        EventType = "api.moon.fetch"
-	EventAPIHistoryFetch     EventType = "api.history.fetch"
-	EventAPILocationSearch   EventType = "api.location.search"
-	EventAPIGeocodeLookup    EventType = "api.geocode.lookup"
-	EventAPIIPLookup         EventType = "api.ip.lookup"
-	EventAPIWebhookCreate    EventType = "api.webhook.create"
-	EventAPIWebhookUpdate    EventType = "api.webhook.update"
-	EventAPIWebhookDelete    EventType = "api.webhook.delete"
-	EventAPIWebhookTrigger   EventType = "api.webhook.trigger"
-	EventAPIWebhookFail      EventType = "api.webhook.fail"
-	EventAPITokenCreate      EventType = "api.token.create"
-	EventAPITokenRevoke      EventType = "api.token.revoke"
-	EventAPITokenRefresh     EventType = "api.token.refresh"
-	EventAPIBatchRequest     EventType = "api.batch.request"
-	EventAPIExportData       EventType = "api.export.data"
-	EventAPIImportData       EventType = "api.import.data"
-	EventAPIInvalidRequest   EventType = "api.request.invalid"
-	EventAPIServerError      EventType = "api.server.error"
-	EventAPITimeout          EventType = "api.timeout"
+	EventAPIRequest         EventType = "api.request"
+	EventAPIRequestFailed   EventType = "api.request.failed"
+	EventAPIAuthSuccess     EventType = "api.auth.success"
+	EventAPIAuthFailed      EventType = "api.auth.failed"
+	EventAPIRateLimitHit    EventType = "api.ratelimit.hit"
+	EventAPIKeyInvalid      EventType = "api.key.invalid"
+	EventAPIKeyExpired      EventType = "api.key.expired"
+	EventAPIWeatherFetch    EventType = "api.weather.fetch"
+	EventAPIEarthquakeFetch EventType = "api.earthquake.fetch"
+	EventAPIHurricaneFetch  EventType = "api.hurricane.fetch"
+	EventAPIAlertsFetch     EventType = "api.alerts.fetch"
+	EventAPIMoonFetch       EventType = "api.moon.fetch"
+	EventAPIHistoryFetch    EventType = "api.history.fetch"
+	EventAPILocationSearch  EventType = "api.location.search"
+	EventAPIGeocodeLookup   EventType = "api.geocode.lookup"
+	EventAPIIPLookup        EventType = "api.ip.lookup"
+	EventAPIWebhookCreate   EventType = "api.webhook.create"
+	EventAPIWebhookUpdate   EventType = "api.webhook.update"
+	EventAPIWebhookDelete   EventType = "api.webhook.delete"
+	EventAPIWebhookTrigger  EventType = "api.webhook.trigger"
+	EventAPIWebhookFail     EventType = "api.webhook.fail"
+	EventAPITokenCreate     EventType = "api.token.create"
+	EventAPITokenRevoke     EventType = "api.token.revoke"
+	EventAPITokenRefresh    EventType = "api.token.refresh"
+	EventAPIBatchRequest    EventType = "api.batch.request"
+	EventAPIExportData      EventType = "api.export.data"
+	EventAPIImportData      EventType = "api.import.data"
+	EventAPIInvalidRequest  EventType = "api.request.invalid"
+	EventAPIServerError     EventType = "api.server.error"
+	EventAPITimeout         EventType = "api.timeout"
 
 	// Security Events (151-180)
 	EventSecurityBruteForce    EventType = "security.bruteforce.detected"
@@ -213,11 +213,11 @@ const (
 // Actor represents who performed an action
 type Actor struct {
 	// admin, user, system, api
-	Type      string `json:"type"`
+	Type string `json:"type"`
 	// Admin username or user ID
-	ID        string `json:"id"`
+	ID string `json:"id"`
 	// IP address
-	IP        string `json:"ip"`
+	IP string `json:"ip"`
 	// Browser/client info
 	UserAgent string `json:"user_agent"`
 }
@@ -227,47 +227,47 @@ type Target struct {
 	// session, user, config, etc.
 	Type string `json:"type"`
 	// Target identifier
-	ID   string `json:"id"`
+	ID string `json:"id"`
 }
 
 // AuditEvent represents a single audit log entry (TEMPLATE.md spec)
 type AuditEvent struct {
 	// ULID format
-	ID       string                 `json:"id"`
+	ID string `json:"id"`
 	// X-Request-ID header value (UUID v4) for request tracing
-	RequestID string                `json:"request_id,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
 	// ISO 8601, UTC
-	Time     time.Time              `json:"time"`
+	Time time.Time `json:"time"`
 	// e.g., "admin.login"
-	Event    string                 `json:"event"`
+	Event string `json:"event"`
 	// authentication, configuration, security
-	Category string                 `json:"category"`
+	Category string `json:"category"`
 	// info, warn, error, critical
-	Severity string                 `json:"severity"`
+	Severity string `json:"severity"`
 	// Who performed the action
-	Actor    Actor                  `json:"actor"`
-	Target   *Target                `json:"target,omitempty"`
-	Details  map[string]interface{} `json:"details,omitempty"`
+	Actor   Actor                  `json:"actor"`
+	Target  *Target                `json:"target,omitempty"`
+	Details map[string]interface{} `json:"details,omitempty"`
 	// success or failure
-	Result   string                 `json:"result"`
+	Result string `json:"result"`
 	// For cluster mode
-	NodeID   string                 `json:"node_id,omitempty"`
+	NodeID string `json:"node_id,omitempty"`
 	// Optional reason
-	Reason   string                 `json:"reason,omitempty"`
+	Reason string `json:"reason,omitempty"`
 
 	// Legacy fields for backwards compatibility
 	// Internal use only
-	UserID    int64     `json:"-"`
+	UserID int64 `json:"-"`
 	// Internal use only
-	Username  string    `json:"-"`
+	Username string `json:"-"`
 	// Use Actor.IP instead
-	IP        string    `json:"-"`
+	IP string `json:"-"`
 	// Use Actor.UserAgent instead
-	UserAgent string    `json:"-"`
+	UserAgent string `json:"-"`
 	// Use Result instead
-	Success   bool      `json:"-"`
+	Success bool `json:"-"`
 	// Use Details instead
-	Error     string    `json:"-"`
+	Error string `json:"-"`
 	// Use Event instead
 	EventType EventType `json:"-"`
 }

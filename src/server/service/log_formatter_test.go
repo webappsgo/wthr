@@ -121,10 +121,10 @@ func TestLogFormatter_formatNginx(t *testing.T) {
 
 func TestLogFormatter_formatJSON(t *testing.T) {
 	tests := []struct {
-		name        string
-		entry       *LogEntry
-		wantKeys    []string
-		absentKeys  []string
+		name       string
+		entry      *LogEntry
+		wantKeys   []string
+		absentKeys []string
 	}{
 		{
 			name:       "optional fields present when set",

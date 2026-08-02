@@ -129,7 +129,7 @@ func (f *deliveryFakeChannel) Send(recipient, subject, body string, metadata map
 	f.sentTo = append(f.sentTo, recipient)
 	return f.sendErr
 }
-func (f *deliveryFakeChannel) Test(recipient string) error                             { return nil }
+func (f *deliveryFakeChannel) Test(recipient string) error                        { return nil }
 func (f *deliveryFakeChannel) ValidateConfig(config map[string]interface{}) error { return nil }
 
 func intPtr(v int) *int { return &v }

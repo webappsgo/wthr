@@ -15,7 +15,7 @@ func TestWebSocketHub_RegisterClient(t *testing.T) {
 
 	userID := 1
 	client := &WebSocketClient{
-		ID:       ClientIDForUser(userID),
+		ID: ClientIDForUser(userID),
 		// Mock connection
 		Conn:     nil,
 		Hub:      hub,

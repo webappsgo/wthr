@@ -27,7 +27,7 @@ type AirportData struct {
 // AirportService handles airport lookups
 type AirportService struct {
 	// Key is ICAO code
-	airports  map[string]*AirportData
+	airports map[string]*AirportData
 	// Index by IATA code
 	iataIndex map[string]*AirportData
 	mu        sync.RWMutex

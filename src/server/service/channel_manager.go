@@ -39,16 +39,16 @@ type ChannelDefinition struct {
 
 // ConfigField defines a configuration field
 type ConfigField struct {
-	Key          string   `json:"key"`
-	Label        string   `json:"label"`
+	Key   string `json:"key"`
+	Label string `json:"label"`
 	// text, password, number, boolean, select
-	Type         string   `json:"type"`
-	Required     bool     `json:"required"`
-	DefaultValue string   `json:"default_value"`
-	Placeholder  string   `json:"placeholder"`
-	HelpText     string   `json:"help_text"`
+	Type         string `json:"type"`
+	Required     bool   `json:"required"`
+	DefaultValue string `json:"default_value"`
+	Placeholder  string `json:"placeholder"`
+	HelpText     string `json:"help_text"`
 	// For select type
-	Options      []string `json:"options,omitempty"`
+	Options []string `json:"options,omitempty"`
 }
 
 // ChannelRegistry contains definitions for 30+ notification channels

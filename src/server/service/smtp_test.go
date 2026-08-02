@@ -177,9 +177,9 @@ func startAcceptAndCloseListener(t *testing.T) (host, port string) {
 // not-found error path.
 func TestSMTP_GetProviderPreset(t *testing.T) {
 	tests := []struct {
-		name    string
-		lookup  string
-		wantErr bool
+		name     string
+		lookup   string
+		wantErr  bool
 		wantHost string
 	}{
 		{"exact match", "Gmail", false, "smtp.gmail.com"},

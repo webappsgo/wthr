@@ -49,18 +49,18 @@ type OIDCClaims struct {
 
 // OIDCService manages OIDC provider configuration and authentication flows.
 type OIDCService struct {
-	settings     *models.SettingsModel
-	mu           sync.Mutex
+	settings      *models.SettingsModel
+	mu            sync.Mutex
 	providerCache map[string]*oidc.Provider
-	cacheExpiry  map[string]time.Time
+	cacheExpiry   map[string]time.Time
 }
 
 // NewOIDCService creates a new OIDCService backed by the given DB.
 func NewOIDCService(db *sql.DB) *OIDCService {
 	return &OIDCService{
-		settings:     &models.SettingsModel{DB: db},
+		settings:      &models.SettingsModel{DB: db},
 		providerCache: make(map[string]*oidc.Provider),
-		cacheExpiry:  make(map[string]time.Time),
+		cacheExpiry:   make(map[string]time.Time),
 	}
 }
 

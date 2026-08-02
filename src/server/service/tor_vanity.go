@@ -22,16 +22,16 @@ type VanityGenerationStatus struct {
 	EstimatedTime string    `json:"estimated_time"`
 	Address       string    `json:"address,omitempty"`
 	// Never expose in JSON
-	PrivateKey    []byte    `json:"-"`
-	PublicKey     []byte    `json:"-"`
+	PrivateKey []byte `json:"-"`
+	PublicKey  []byte `json:"-"`
 }
 
 // VanityGenerator handles vanity .onion address generation
 type VanityGenerator struct {
-	mu       sync.RWMutex
-	status   *VanityGenerationStatus
-	cancel   context.CancelFunc
-	done     chan struct{}
+	mu     sync.RWMutex
+	status *VanityGenerationStatus
+	cancel context.CancelFunc
+	done   chan struct{}
 	// Channel to notify when generation completes
 	notifyCh chan string
 }

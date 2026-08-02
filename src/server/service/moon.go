@@ -18,25 +18,25 @@ func NewMoonService() *MoonService {
 // MoonData represents complete lunar information
 type MoonData struct {
 	// New, Waxing Crescent, First Quarter, etc.
-	Phase          string  `json:"phase"`
+	Phase string `json:"phase"`
 	// 0-100%
-	Illumination   float64 `json:"illumination"`
+	Illumination float64 `json:"illumination"`
 	// Days since new moon (0-29.53)
-	Age            float64 `json:"age"`
+	Age float64 `json:"age"`
 	// Unicode moon emoji
-	Icon           string  `json:"icon"`
+	Icon string `json:"icon"`
 	// HH:MM format
-	Rise           string  `json:"rise"`
+	Rise string `json:"rise"`
 	// HH:MM format
-	Set            string  `json:"set"`
+	Set string `json:"set"`
 	// ISO 8601
-	NextNewMoon    string  `json:"next_new_moon"`
+	NextNewMoon string `json:"next_new_moon"`
 	// ISO 8601
-	NextFullMoon   string  `json:"next_full_moon"`
+	NextFullMoon string `json:"next_full_moon"`
 	// Distance from Earth in km
-	Distance       float64 `json:"distance_km"`
+	Distance float64 `json:"distance_km"`
 	// Angular diameter in degrees
-	AngularSize    float64 `json:"angular_size"`
+	AngularSize float64 `json:"angular_size"`
 }
 
 // Calculate returns moon data for a specific location and time

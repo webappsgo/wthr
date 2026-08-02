@@ -6,12 +6,12 @@ import "testing"
 // lookups against the built-in fallback table.
 func TestLocationFallbacks_ExactMatch(t *testing.T) {
 	tests := []struct {
-		name         string
-		input        string
-		wantName     string
-		wantLat      float64
-		wantLon      float64
-		wantCC       string
+		name     string
+		input    string
+		wantName string
+		wantLat  float64
+		wantLon  float64
+		wantCC   string
 	}{
 		{"lowercase exact", "new york", "New York", 40.7128, -74.0060, "US"},
 		{"uppercase", "LONDON", "London", 51.5074, -0.1278, "GB"},

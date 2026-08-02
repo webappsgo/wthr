@@ -419,14 +419,14 @@ func TestNotificationService_UpdateUserPreferences(t *testing.T) {
 
 	userID := 1
 	newPrefs := &models.NotificationPreferences{
-		UserID:                &userID,
-		EnableToast:           false,
-		EnableBanner:          true,
-		EnableCenter:          true,
-		EnableSound:           true,
-		ToastDurationSuccess:  3,
-		ToastDurationInfo:     7,
-		ToastDurationWarning:  15,
+		UserID:               &userID,
+		EnableToast:          false,
+		EnableBanner:         true,
+		EnableCenter:         true,
+		EnableSound:          true,
+		ToastDurationSuccess: 3,
+		ToastDurationInfo:    7,
+		ToastDurationWarning: 15,
 	}
 
 	err := service.UpdateUserPreferences(userID, newPrefs)
@@ -457,12 +457,12 @@ func TestNotificationService_ShouldSendEmail(t *testing.T) {
 	defer serverDB.Close()
 
 	tests := []struct {
-		name            string
-		userID          int
-		eventType       string
-		severity        string
-		smtpConfigured  bool
-		want            bool
+		name           string
+		userID         int
+		eventType      string
+		severity       string
+		smtpConfigured bool
+		want           bool
 	}{
 		{
 			name:           "No SMTP configured",
@@ -495,7 +495,7 @@ func TestNotificationService_ShouldSendEmail(t *testing.T) {
 			severity:       "info",
 			smtpConfigured: true,
 			// User is offline (not connected to WebSocket)
-			want:           true,
+			want: true,
 		},
 	}
 

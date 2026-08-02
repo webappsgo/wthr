@@ -115,14 +115,14 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 // GetConfig returns current security.txt configuration
 func (s *SecurityTxtService) GetConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"contact":          s.settingsModel.GetString("security.contact", ""),
-		"expires":          s.settingsModel.GetString("security.expires", ""),
-		"languages":        s.settingsModel.GetString("security.languages", "en"),
-		"canonical":        s.settingsModel.GetString("security.canonical", ""),
-		"encryption":       s.settingsModel.GetString("security.encryption", ""),
-		"acknowledgments":  s.settingsModel.GetString("security.acknowledgments", ""),
-		"policy":           s.settingsModel.GetString("security.policy", ""),
-		"hiring":           s.settingsModel.GetString("security.hiring", ""),
+		"contact":         s.settingsModel.GetString("security.contact", ""),
+		"expires":         s.settingsModel.GetString("security.expires", ""),
+		"languages":       s.settingsModel.GetString("security.languages", "en"),
+		"canonical":       s.settingsModel.GetString("security.canonical", ""),
+		"encryption":      s.settingsModel.GetString("security.encryption", ""),
+		"acknowledgments": s.settingsModel.GetString("security.acknowledgments", ""),
+		"policy":          s.settingsModel.GetString("security.policy", ""),
+		"hiring":          s.settingsModel.GetString("security.hiring", ""),
 	}
 }
 

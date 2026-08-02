@@ -33,9 +33,9 @@ type LetsEncryptService struct {
 	mu          sync.RWMutex
 
 	// Challenge providers
-	http01Provider   *HTTP01Provider
+	http01Provider    *HTTP01Provider
 	tlsalpn01Provider *TLSALPN01Provider
-	dns01Provider    *DNS01Provider
+	dns01Provider     *DNS01Provider
 }
 
 // LEUser represents a Let's Encrypt user account
@@ -239,10 +239,10 @@ func NewLetsEncryptService(email, certsDir string, staging bool) (*LetsEncryptSe
 	}
 
 	service := &LetsEncryptService{
-		client:      client,
-		user:        user,
-		certsDir:    certsDir,
-		autoRenew:   true,
+		client:    client,
+		user:      user,
+		certsDir:  certsDir,
+		autoRenew: true,
 		// AI.md PART 21 line 5227: Renew 7 days before expiry
 		renewalDays: 7,
 	}

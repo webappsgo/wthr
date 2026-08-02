@@ -115,10 +115,10 @@ func TestMoon_CalculateIllumination(t *testing.T) {
 	synodic := 29.53058867
 
 	tests := []struct {
-		name    string
-		age     float64
-		want    float64
-		delta   float64
+		name  string
+		age   float64
+		want  float64
+		delta float64
 	}{
 		{"new moon", 0, 0, 1e-6},
 		{"first quarter", synodic / 4, 50, 0.5},

@@ -61,7 +61,7 @@ func (f *fakeChannel) IsEnabled() bool { return f.enabled }
 func (f *fakeChannel) Send(recipient, subject, body string, metadata map[string]interface{}) error {
 	return nil
 }
-func (f *fakeChannel) Test(recipient string) error { return f.testErr }
+func (f *fakeChannel) Test(recipient string) error                        { return f.testErr }
 func (f *fakeChannel) ValidateConfig(config map[string]interface{}) error { return nil }
 
 // TestChannelManager_NewChannelManager covers construction: the returned

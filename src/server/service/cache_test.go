@@ -61,8 +61,8 @@ func TestCache_NewCacheManager_DisabledByDefault(t *testing.T) {
 // disabled), including empty string, garbage, and boundary values.
 func TestCache_NewCacheManager_EnabledFlagParsing(t *testing.T) {
 	tests := []struct {
-		name    string
-		value   string
+		name               string
+		value              string
 		wantEnabledAttempt bool
 	}{
 		{"unset", "", false},

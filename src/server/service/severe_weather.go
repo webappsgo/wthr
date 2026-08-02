@@ -32,18 +32,18 @@ type SevereWeatherData struct {
 
 // Alert represents a severe weather alert
 type Alert struct {
-	ID            string                 `json:"id"`
-	Event         string                 `json:"event"`
-	Headline      string                 `json:"headline"`
-	Description   string                 `json:"description"`
+	ID          string `json:"id"`
+	Event       string `json:"event"`
+	Headline    string `json:"headline"`
+	Description string `json:"description"`
 	// Extreme, Severe, Moderate, Minor
-	Severity      string                 `json:"severity"`
+	Severity string `json:"severity"`
 	// Immediate, Expected, Future
-	Urgency       string                 `json:"urgency"`
+	Urgency string `json:"urgency"`
 	// Actual, Exercise, Test
-	Status        string                 `json:"status"`
+	Status string `json:"status"`
 	// Alert, Update, Cancel
-	MessageType   string                 `json:"messageType"`
+	MessageType string `json:"messageType"`
 	// Met (Meteorological)
 	Category      string                 `json:"category"`
 	AreaDesc      string                 `json:"areaDesc"`

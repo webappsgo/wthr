@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/gorilla/websocket"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // WebSocketMessage represents a message sent over WebSocket
