@@ -59,26 +59,26 @@ func TestEmojiEnabled(t *testing.T) {
 // TestColorEnabled_CLIColorModeOverrides verifies the CLI_COLOR_MODE flag
 // takes priority over everything else, in both directions.
 func TestColorEnabled_CLIColorModeOverrides(t *testing.T) {
-	t.Run("always_forces_true", func(t *testing.T) {
-		t.Setenv("CLI_COLOR_MODE", "always")
+	t.Run("yes_forces_true", func(t *testing.T) {
+		t.Setenv("CLI_COLOR_MODE", "yes")
 		t.Setenv("NO_COLOR", "1")
 		t.Setenv("TERM", "dumb")
 		if !ColorEnabled() {
-			t.Error("ColorEnabled() = false, want true (CLI_COLOR_MODE=always overrides NO_COLOR/TERM)")
+			t.Error("ColorEnabled() = false, want true (CLI_COLOR_MODE=yes overrides NO_COLOR/TERM)")
 		}
 	})
 
-	t.Run("never_forces_false", func(t *testing.T) {
-		t.Setenv("CLI_COLOR_MODE", "never")
+	t.Run("no_forces_false", func(t *testing.T) {
+		t.Setenv("CLI_COLOR_MODE", "no")
 		t.Setenv("NO_COLOR", "")
 		if ColorEnabled() {
-			t.Error("ColorEnabled() = true, want false (CLI_COLOR_MODE=never)")
+			t.Error("ColorEnabled() = true, want false (CLI_COLOR_MODE=no)")
 		}
 	})
 }
 
 // TestColorEnabled_NoColorEnv verifies NO_COLOR disables color when
-// CLI_COLOR_MODE is not "always".
+// CLI_COLOR_MODE is not "yes".
 func TestColorEnabled_NoColorEnv(t *testing.T) {
 	t.Setenv("CLI_COLOR_MODE", "")
 	t.Setenv("NO_COLOR", "1")

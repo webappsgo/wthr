@@ -10,12 +10,12 @@ import (
 // AI.md PART 8: NO_COLOR support
 // Priority: 1. CLI flag -> 2. NO_COLOR env -> 3. Auto-detect
 func ColorEnabled() bool {
-	// 1. CLI flag overrides everything (--color=always|never|auto)
+	// 1. CLI flag overrides everything (--color=auto|yes|no)
 	colorMode := os.Getenv("CLI_COLOR_MODE")
 	switch colorMode {
-	case "always":
+	case "yes":
 		return true
-	case "never":
+	case "no":
 		return false
 	case "auto":
 		// Fall through to auto-detection

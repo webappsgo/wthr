@@ -429,8 +429,8 @@ func SetConfigValue(key, value string) error {
 		}
 		config.Output.Format = value
 	case "output.color":
-		if value != "auto" && value != "always" && value != "never" {
-			return NewConfigError("output.color must be auto, always, or never")
+		if value != "auto" && value != "yes" && value != "no" {
+			return NewConfigError("output.color must be auto, yes, or no")
 		}
 		config.Output.Color = value
 	case "tui.theme":

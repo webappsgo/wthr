@@ -131,7 +131,7 @@ func TestGetEnv(t *testing.T) {
 func newTestConfig(serverURL string) *CLIConfig {
 	return &CLIConfig{
 		Server: ServerConfig{Primary: serverURL, APIVersion: "v1"},
-		Output: OutputConfig{Format: "json", Color: "never"},
+		Output: OutputConfig{Format: "json", Color: "no"},
 	}
 }
 

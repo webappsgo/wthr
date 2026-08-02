@@ -85,7 +85,7 @@ func TestSaveAndLoadConfig(t *testing.T) {
 		},
 		Output: OutputConfig{
 			Format: "json",
-			Color:  "never",
+			Color:  "no",
 		},
 	}
 
@@ -168,7 +168,7 @@ func TestGetConfigValue(t *testing.T) {
 		},
 		Output: OutputConfig{
 			Format: "json",
-			Color:  "never",
+			Color:  "no",
 		},
 		Debug: true,
 	}
@@ -181,7 +181,7 @@ func TestGetConfigValue(t *testing.T) {
 		{"server.primary", "http://test.example.com"},
 		{"auth.token", "test-token"},
 		{"output.format", "json"},
-		{"output.color", "never"},
+		{"output.color", "no"},
 		{"debug", "true"},
 	}
 
@@ -222,7 +222,7 @@ func TestSetConfigValue(t *testing.T) {
 		{"server.primary", "http://new.example.com"},
 		{"auth.token", "new-token"},
 		{"output.format", "json"},
-		{"output.color", "never"},
+		{"output.color", "no"},
 		{"debug", "true"},
 	}
 

@@ -66,7 +66,7 @@ func (c *CLI) Parse(args []string) error {
 		showVersion    = c.flags.Bool("version", false, "Show version information")
 		showStatus     = c.flags.Bool("status", false, "Show server status and health")
 		debug          = c.flags.Bool("debug", false, "Enable debug mode (verbose logging, debug endpoints)")
-		colorMode      = c.flags.String("color", "", "Color output: always, never, auto (default: auto, respects NO_COLOR)")
+		colorMode      = c.flags.String("color", "auto", "Color output: auto, yes, no (default: auto, respects NO_COLOR)")
 		mode           = c.flags.String("mode", "", "Application mode: production or development")
 		configDir      = c.flags.String("config", "", "Configuration directory")
 		dataDir        = c.flags.String("data", "", "Data directory")
@@ -222,7 +222,7 @@ func (c *CLI) ShowHelp() {
 	fmt.Println("      --baseurl PATH                URL path prefix (default: /)")
 	fmt.Println("      --daemon                      Run as daemon (detach from terminal)")
 	fmt.Println("      --debug                       Enable debug mode")
-	fmt.Println("      --color {always|never|auto}   Color output (default: auto)")
+	fmt.Println("      --color {auto|yes|no}         Color output (default: auto)")
 	fmt.Println()
 
 	// Service Management section

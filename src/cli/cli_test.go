@@ -172,7 +172,7 @@ func TestCLI_Parse_EnvVarPropagation(t *testing.T) {
 		"--pid", "/tmp/wthr.pid",
 		"--daemon",
 		"--baseurl", "/wthr",
-		"--color", "always",
+		"--color", "yes",
 	})
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -183,7 +183,7 @@ func TestCLI_Parse_EnvVarPropagation(t *testing.T) {
 		"LISTEN": "127.0.0.1", "CONFIG_DIR": "/tmp/cfg", "DATA_DIR": "/tmp/data",
 		"CACHE_DIR": "/tmp/cache", "LOG_DIR": "/tmp/log", "BACKUP_DIR": "/tmp/backup",
 		"PID_FILE": "/tmp/wthr.pid", "DAEMON": "true", "BASE_URL": "/wthr",
-		"CLI_COLOR_MODE": "always",
+		"CLI_COLOR_MODE": "yes",
 	}
 	for k, v := range want {
 		if got := os.Getenv(k); got != v {

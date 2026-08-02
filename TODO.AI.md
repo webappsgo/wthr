@@ -304,13 +304,44 @@ any of the above: `src/graphql/context_keys_test.go`,
     `go test ./server/model/...` (all pass) in Docker.
     Read: AI.md PART 0 (comment placement, spec-reference rules).
 
-19. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
-    user.go pass): `src/cli/cli.go` line 225 lists `--color` flag values as
-    `{always|never|auto}` — per binary-rules.md PART 7 (sourced from AI.md
-    PART 33), the canonical values are `{auto|yes|no}` with default `auto`.
-    Pre-existing, unrelated to the DB-timeout migration. Fix: update the
-    flag's help text/parsing to accept `auto|yes|no` instead of
-    `always|never|auto`. Read: AI.md PART 33 (`--color` flag spec).
+19. DONE (2026-08-02): `src/cli/cli.go` line 225 listed `--color` flag values
+    as `{always|never|auto}` — per binary-rules.md PART 7 (sourced from AI.md
+    PART 33/8), the canonical values are `{auto|yes|no}` with default `auto`.
+    Fixed the cited line (flag help string + `ShowHelp()` text) in
+    `src/cli/cli.go`. Per the Fix Completeness rule and AI.md's explicit
+    "--color {auto|yes|no} is a shared flag on ALL binaries" requirement,
+    searched (`grep -rn`) and found the identical `always/never/auto`
+    violation in a second, separate binary (the CLI client) and its
+    supporting files, and fixed all of them together:
+    - `src/util/output.go`: `ColorEnabled()` comment + switch cases
+      (`"always"`→`"yes"`, `"never"`→`"no"`).
+    - `src/client/cli.go`: flag default help string, the `--color` switch
+      (case values + `config.Output.Color` assignments), the plain-mode
+      fallback assignment, `ShowHelp()` text, and both
+      `config.Output.Color == "never"` formatter checks (now `"no"`).
+    - `src/client/config.go`: `output.color` validation + error message.
+    - `src/client/commands.go`: 5 `config.Output.Color == "never"` checks
+      (now `"no"`).
+    - Updated matching test literals in `src/cli/cli_test.go`,
+      `src/util/output_test.go`, `src/client/config_test.go`,
+      `src/client/commands_test.go` (all `"always"`/`"never"` color values
+      → `"yes"`/`"no"`; `"auto"` defaults left unchanged).
+    Verified: re-ran `grep -rn` for `always/never` color literals across
+    `src/` and `docs/` — zero remaining matches. Verified via Docker:
+    `go build ./...`, `go vet ./...`, `go test ./...` all pass (all
+    packages `ok`); `gofmt -l` flags only the same pre-existing repo-wide
+    struct-alignment issues already tracked in item 34 (confirmed via
+    `gofmt -d` that the diffs are unrelated lines, not the edited color
+    logic). Read: AI.md PART 8 lines 10670-10719 (`--color`/NO_COLOR spec,
+    priority table, reference implementation) before editing.
+    go-lint gate found one additional issue in `src/cli/cli.go` line 69:
+    the flag's actual default was `""` (empty) not `"auto"`, even though
+    help text and behavior implied `auto` — fixed by setting the
+    `flag.String` default to `"auto"` to match spec and the client
+    binary's equivalent flag. Re-verified via Docker (`go build`,
+    `go vet`, `go test ./cli/... ./client/... ./util/...`) — all pass;
+    `gofmt -l` only flags the same pre-existing unrelated struct-
+    alignment issue (item 34), confirmed via `gofmt -d`.
 
 20. TODO (flagged 2026-08-01 by go-lint during item 12's
     src/server/model/notification.go pass): `Notification` struct

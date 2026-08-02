@@ -36,7 +36,7 @@ func handleCurrentCommand(config *CLIConfig, args []string) error {
 	}
 
 	// Format and print output
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatWeatherCurrent(result))
 
 	return nil
@@ -72,7 +72,7 @@ func handleForecastCommand(config *CLIConfig, args []string) error {
 	}
 
 	// Format and print output
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatForecast(result))
 
 	return nil
@@ -105,7 +105,7 @@ func handleAlertsCommand(config *CLIConfig, args []string) error {
 	}
 
 	// Format and print output
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatAlerts(result))
 
 	return nil
@@ -135,7 +135,7 @@ func handleMoonCommand(config *CLIConfig, args []string) error {
 	}
 
 	// Format and print output
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatMoon(result))
 
 	return nil
@@ -175,7 +175,7 @@ func handleHistoryCommand(config *CLIConfig, args []string) error {
 	}
 
 	// Format and print output (reuse current weather formatter for historical data)
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatWeatherCurrent(result))
 
 	return nil

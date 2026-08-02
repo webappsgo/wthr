@@ -75,7 +75,7 @@ func Execute() error {
 	configFlag := flagSet.String("config", "", "Config profile name")
 	outputFlag := flagSet.String("output", "", "Output format: json, table, plain, yaml, csv")
 	debugFlag := flagSet.Bool("debug", false, "Enable debug mode")
-	colorFlag := flagSet.String("color", "auto", "Color output: always, never, auto")
+	colorFlag := flagSet.String("color", "auto", "Color output: auto, yes, no")
 
 	// Parse flags - supports both --flag=value and --flag value per line 45527-45540
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
@@ -125,16 +125,16 @@ func Execute() error {
 	// Handle --color flag per AI.md line 45482, 9584
 	// Respects NO_COLOR environment variable
 	switch *colorFlag {
-	case "never":
-		config.Output.Color = "never"
-	case "always":
-		config.Output.Color = "always"
+	case "no":
+		config.Output.Color = "no"
+	case "yes":
+		config.Output.Color = "yes"
 	case "auto":
 		// Check NO_COLOR env var (standard: https://no-color.org/)
 		if os.Getenv("NO_COLOR") != "" {
-			config.Output.Color = "never"
+			config.Output.Color = "no"
 		} else if !term.IsTerminal(int(os.Stdout.Fd())) {
-			config.Output.Color = "never"
+			config.Output.Color = "no"
 		} else {
 			config.Output.Color = "auto"
 		}
@@ -160,7 +160,7 @@ func Execute() error {
 		return runTUI(config)
 	case "plain":
 		// Force plain output for non-TTY
-		config.Output.Color = "never"
+		config.Output.Color = "no"
 		fallthrough
 	case "cli":
 		return handleCommand(config, flagSet.Args(), binaryName)
@@ -272,7 +272,7 @@ func printUsage(binaryName string) {
 	fmt.Println("  --config NAME         Config profile name")
 	fmt.Println("  --output FORMAT       Output format: json, table, plain, yaml, csv")
 	fmt.Println("  --debug               Enable debug mode")
-	fmt.Println("  --color MODE          Color output: always, never, auto (default: auto)")
+	fmt.Println("  --color MODE          Color output: auto, yes, no (default: auto)")
 	fmt.Println("  --shell completions   Print shell completions")
 	fmt.Println("  --shell init          Print shell init command")
 	fmt.Println("  -v, --version         Show version information")
@@ -514,7 +514,7 @@ func handleEarthquakesCommand(config *CLIConfig, args []string) error {
 		return err
 	}
 
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatJSON(result))
 
 	return nil
@@ -540,7 +540,7 @@ func handleHurricanesCommand(config *CLIConfig, args []string) error {
 		return err
 	}
 
-	formatter := NewFormatter(config.Output.Format, config.Output.Color == "never")
+	formatter := NewFormatter(config.Output.Format, config.Output.Color == "no")
 	fmt.Println(formatter.FormatJSON(result))
 
 	return nil
