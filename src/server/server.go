@@ -4,6 +4,10 @@ import (
 	"embed"
 	"html/template"
 	"io/fs"
+	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Embed all templates and static files into the binary
@@ -31,6 +35,26 @@ func GetStaticSubFS() (fs.FS, error) {
 }
 
 // LoadTemplates loads all templates from the embedded filesystem
+//
+// The templates reference a shared set of helper functions (upper, lower,
+// title, add, sub, t). Placeholder implementations are registered here so
+// parsing succeeds standalone; callers that need real i18n translation
+// output should call Funcs() on the returned template to override "t"
+// with a translation-service-backed implementation before Execute.
 func LoadTemplates() (*template.Template, error) {
-	return template.ParseFS(templatesFS, "template/**/*.tmpl")
+	funcMap := template.FuncMap{
+		"upper": strings.ToUpper,
+		"lower": strings.ToLower,
+		"title": func(s string) string { return cases.Title(language.English).String(s) },
+		"add": func(a, b int) int {
+			return a + b
+		},
+		"sub": func(a, b int) int {
+			return a - b
+		},
+		"t": func(_, key string) string {
+			return key
+		},
+	}
+	return template.New("").Funcs(funcMap).ParseFS(templatesFS, "template/**/*.tmpl")
 }

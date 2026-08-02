@@ -285,6 +285,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     commit; only the parent instance does after reviewing the diff).
     Content was low-risk and has been fact-checked after the fact, but
     future dispatches must explicitly forbid calling `gitcommit`/`git push`.
+    Progress (2026-08-02): `src/server` (top-level package, `server.go`)
+    had zero tests and 0.0% coverage. Added `src/server/server_test.go`
+    (genuinely new, 4 test functions covering `GetTemplatesFS`,
+    `GetStaticFS`, `GetStaticSubFS`, `LoadTemplates`). Writing the
+    `LoadTemplates` test surfaced a real bug: the function called
+    `template.ParseFS` with no `Funcs` registered, so it failed on the
+    templates' `{{t ...}}` i18n calls every time it was invoked — it was
+    dead/unreachable code (grepped confirmed nothing in the codebase calls
+    `LoadTemplates`; the real template loading path in `src/main.go` lines
+    560-630 builds its own `template.FuncMap` inline). Fixed `server.go` to
+    register the same `upper`/`lower`/`title`/`add`/`sub`/`t` function set
+    `main.go` uses (with `t` as a pass-through placeholder, documented for
+    callers to override via `.Funcs()` before `Execute` if real translation
+    output is needed), so `LoadTemplates` now actually works standalone.
+    Verified via Docker `gofmt -l`/`go build ./...`/`go vet ./server/`/
+    `go test -v -cover ./server/` — all pass, package coverage 0.0% →
+    55.6%. Repo-wide filtered coverage re-measurement still pending after
+    this change. Next packages to tackle: `src/server/handler` (39.8%),
+    `src/path` (48.5%), `src/scheduler` (54.4%), `src/cli`/`src/email`
+    (55.0%), `src/common/banner` (55.2%), and further `src/graphql` work.
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
 
