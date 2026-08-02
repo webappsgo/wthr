@@ -833,17 +833,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     Verified: gofmt -l clean, go build ./... clean, go vet ./... clean,
     go test ./src/server/handler/... and ./src/server/service/... pass.
 
-28. TODO (flagged 2026-08-02 by go-lint during item 12's
-    src/server/handler/health_comprehensive.go pass): pre-existing,
-    repo-wide, out of scope for item 12 — every file in src/util/
-    (directory name singular, per PART 3 Go convention) declares
-    `package utils` (plural) instead of `package util` (singular,
-    matching the directory). Same class of issue as item 26
-    (src/server/model/ vs `package models`). Not introduced by this
-    diff. Fix requires renaming the package declaration in every file
-    under src/util/ and updating every importer across the codebase
-    (large, cross-cutting, out of scope for the DB-timeout migration).
-    Read: AI.md PART 3 (directory naming) before starting.
+28. DONE (2026-08-02): renamed `package utils` -> `package util` in all
+    40 files under src/util/, matching the singular directory name
+    (AI.md PART 3), same class of fix as item 26. Updated every bare
+    importer's call sites from `utils.X` to `util.X` (src/main.go,
+    signal_handler_unix.go, signal_handler_windows.go, src/cli/service.go,
+    src/common/i18n/i18n.go, src/renderer/*.go, most of
+    src/server/handler/*.go, src/server/middleware/access_log.go,
+    src/server/middleware/setup.go, src/server/service/admin_invite.go,
+    src/server/service/smtp.go), plus 2 stale `utils.` references in
+    comments (src/server/service/airport.go,
+    src/server/handler/weather_test.go). Files that alias-import the
+    package as `utils "github.com/webappsgo/wthr/src/util"` (e.g.
+    src/server/model/user.go, src/graphql/schema.resolvers.go, several
+    *_test.go files) were left unchanged — the alias insulates them.
+    Verified: gofmt -l clean, go build ./... clean, go vet ./... clean,
+    go test ./... all pass. Commit: acfceefd819e.
 
 29. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/middleware/setup.go + src/server/service/smtp.go pass):
