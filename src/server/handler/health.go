@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -555,7 +556,7 @@ func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
 	}
 
 	var clusterEnabled string
-	if err := db.DB.QueryRow("SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled); err != nil || clusterEnabled != "true" {
+	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled); err != nil || clusterEnabled != "true" {
 		return cluster
 	}
 
@@ -566,7 +567,7 @@ func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
 	cluster.Role = "member"
 
 	var nodeCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM server_nodes WHERE status IN ('online', 'active')").Scan(&nodeCount); err != nil || nodeCount < 1 {
+	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_nodes WHERE status IN ('online', 'active')").Scan(&nodeCount); err != nil || nodeCount < 1 {
 		nodeCount = 1
 	}
 	cluster.NodeCount = nodeCount
@@ -619,8 +620,8 @@ func getPublicTorStatus(cfg *config.AppConfig) (publicHealthTor, string) {
 func getPublicStats(db *database.DB) publicHealthStats {
 	stats := publicHealthStats{}
 
-	_ = db.DB.QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&stats.RequestsTotal)
-	_ = db.DB.QueryRow("SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= datetime('now', '-24 hours')").Scan(&stats.Requests24H)
+	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&stats.RequestsTotal)
+	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= datetime('now', '-24 hours')").Scan(&stats.Requests24H)
 
 	sessionCount, err := db.GetSessionCount()
 	if err == nil {
