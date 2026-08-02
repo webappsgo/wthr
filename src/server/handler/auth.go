@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -62,7 +63,7 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	if err == nil && adminSessionID != "" {
 		// Validate admin session exists in database
 		var adminID int
-		err := database.GetServerDB().QueryRow(`
+		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 			SELECT admin_id FROM server_admin_sessions
 			WHERE id = ? AND datetime(expires_at) > datetime('now')
 		`, adminSessionID).Scan(&adminID)
@@ -603,7 +604,7 @@ func UpdateCurrentUserProfile(db *sql.DB, userID int64, req *UpdateCurrentUserPr
 func (h *AuthHandler) getSessionTimeout() (int, error) {
 	var timeoutStr string
 
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", "auth.session_timeout").Scan(&timeoutStr)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "auth.session_timeout").Scan(&timeoutStr)
 	if err != nil {
 		return 0, err
 	}
