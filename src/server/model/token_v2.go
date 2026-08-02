@@ -2,6 +2,7 @@
 package models
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -9,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // Token represents an API token per TEMPLATE.md PART 11
@@ -183,7 +186,7 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 	}
 	
 	// Insert into database
-	result, err := m.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, ownerType, ownerID, name, tokenHash, tokenPrefix, scope, expiresAt, time.Now())
@@ -227,7 +230,7 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 	var expiresAt sql.NullTime
 	var lastUsedAt sql.NullTime
 	
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, last_used_at, created_at
 		FROM tokens
 		WHERE token_hash = ?
@@ -260,7 +263,7 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
-	_, err := m.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		UPDATE tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
@@ -269,7 +272,7 @@ func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
 
 // ListTokens lists all tokens for an owner per TEMPLATE.md PART 11
 func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, error) {
-	rows, err := m.DB.Query(`
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, owner_type, owner_id, name, token_prefix, scope, expires_at, last_used_at, created_at
 		FROM tokens
 		WHERE owner_type = ? AND owner_id = ?
@@ -310,7 +313,7 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 
 // DeleteToken deletes a token per TEMPLATE.md PART 11
 func (m *TokenModelV2) DeleteToken(id int64, ownerType string, ownerID int64) error {
-	result, err := m.DB.Exec(`
+	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		DELETE FROM tokens
 		WHERE id = ? AND owner_type = ? AND owner_id = ?
 	`, id, ownerType, ownerID)
@@ -337,7 +340,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	var existing Token
 	var expiresAt sql.NullTime
 	
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, owner_type, owner_id, name, scope, expires_at, created_at
 		FROM tokens
 		WHERE id = ? AND owner_type = ? AND owner_id = ?
@@ -373,7 +376,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	tokenPrefix := GetTokenPrefix(fullToken)
 	
 	// Update token
-	_, err = m.DB.Exec(`
+	_, err = database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		UPDATE tokens
 		SET token_hash = ?, token_prefix = ?, last_used_at = NULL
 		WHERE id = ?
