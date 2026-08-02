@@ -868,10 +868,19 @@ any of the above: `src/graphql/context_keys_test.go`,
       alias-imports as `paths "..."`, left unchanged. Verified: gofmt
       -l clean, go build/vet clean, go test ./... all pass. Commit:
       719d52f9a723.
-    - src/server/middleware/setup.go: `db *sql.DB` parameter unused in
+    - DONE (2026-08-02): removed the unused `db *sql.DB` parameter from
       `SetupTokenRequired`, `BlockSetupAfterComplete`, and
-      `BlockSetupAfterAdminExists` (lines 20, 94, 140) — dead parameter,
-      not introduced by this diff.
+      `BlockSetupAfterAdminExists` in src/server/middleware/setup.go
+      (each queried database.GetServerDB() directly and never referenced
+      the parameter). Updated both call sites in src/main.go and all
+      call sites plus the now-unused `db` local variables in
+      src/server/middleware/setup_test.go. Dropped the unused
+      `database/sql` import from setup.go. The same dead-parameter
+      pattern still exists elsewhere (auth.go, admin_auth.go, audit.go,
+      server_context.go) — logged separately as TODO.AI.md item 40 since
+      it's out of scope for this file-specific fix. Verified: gofmt -l
+      clean, go build/vet clean, go test ./... all pass. Commit:
+      495eacd5a7e3.
     - src/server/service/smtp.go: hardcoded user-facing strings not run
       through i18n `t()` per PART 31 — `"Weather"` fallback title,
       `"Weather SMTP Test"` subject, `"SMTP Test Successful"`, and related
@@ -1085,3 +1094,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     ...})` call in this file with the matching Respond* helper, same
     pattern as item 25's notification_templates.go fix. Read: AI.md PART 14
     (Response Standards) before starting.
+
+40. TODO (flagged 2026-08-02 while fixing item 29's unused-db-parameter
+    sub-issue): the same dead `db *sql.DB` parameter pattern (constructor
+    takes a `*sql.DB` but the returned gin.HandlerFunc queries
+    database.GetServerDB()/GetDualDB() directly instead) still exists in:
+    - src/server/middleware/auth.go: `RequireAuth(db *sql.DB)`,
+      `OptionalAuth(db *sql.DB)`.
+    - src/server/middleware/admin_auth.go: `AdminLoginHandler(db *sql.DB)`.
+    - src/server/middleware/audit.go: `AuditLogger(db *sql.DB)`.
+    - src/server/middleware/server_context.go: `InjectServerContext(db
+      *sql.DB, version string)`.
+    - src/server/model (GetByAPIToken and similar lookups, per the
+      src/server/middleware/setup_test.go / server_context_test.go
+      comments referencing this pattern) — needs a full audit to enumerate
+      every occurrence, not just the ones already called out in test
+      comments.
+    Fix, once addressed: either remove the unused parameter (as done for
+    SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
+    in item 29) or wire the passed `db` through instead of the global
+    accessor — pick one approach and apply it consistently across all
+    call sites in one pass, updating every caller and test. Read: AI.md
+    PART 10 (Database & Cluster) before starting.
