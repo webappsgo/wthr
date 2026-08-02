@@ -360,3 +360,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     `slog`-based logging calls matching the pattern already used
     elsewhere in src/server/handler. Read: AI.md PART 11 (security &
     logging) before starting.
+
+24. TODO (flagged 2026-08-01 by go-lint during item 12's src/main.go
+    pass): several DB call sites ignore the returned error:
+    - ~line 1336: `database.ExecContext(...)` (DELETE used verification
+      token) — return value not checked.
+    - ~line 1691: `database.ExecContext(...)` (DELETE admin session on
+      logout) — return value not checked.
+    - ~lines 4000-4002: 3x chained
+      `database.QueryRowContext(...).Scan(...)` in `showServerStatus`
+      (user/location/token counts) — error not checked.
+    Pre-existing pattern (predates the DB-timeout migration; the original
+    `Exec`/`QueryRow(...).Scan(...)` calls already ignored errors the same
+    way) — kept unchanged in the item-12 pass to stay scoped to
+    timeout-wrapping only. Fix: check `err` after each call, log with
+    context per backend-rules.md's "log every error with context" rule
+    (the showServerStatus counts can degrade to 0/"unknown" on error
+    rather than failing the whole status command). Read: AI.md PART 9
+    (error handling) before starting.

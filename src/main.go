@@ -766,7 +766,7 @@ func main() {
 		if usersDB == nil {
 			return nil
 		}
-		_, err := usersDB.Exec(`DELETE FROM user_weather_alerts WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`)
+		_, err := database.ExecContext(context.Background(), usersDB, database.TimeoutBulk, `DELETE FROM user_weather_alerts WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`)
 		return err
 	})
 
@@ -826,7 +826,7 @@ func main() {
 		if usersDB == nil {
 			return nil
 		}
-		rows, err := usersDB.Query(`SELECT DISTINCT latitude, longitude FROM user_locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 100`)
+		rows, err := database.QueryContext(context.Background(), usersDB, database.TimeoutSimpleSelect, `SELECT DISTINCT latitude, longitude FROM user_locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 100`)
 		if err != nil {
 			return nil
 		}
@@ -1031,7 +1031,7 @@ func main() {
 	if listenAddress == "" {
 		listenAddress = os.Getenv("SERVER_ADDRESS") // Legacy fallback
 	}
-	
+
 	// Check if listenAddress contains a port (e.g., "127.0.0.1:8080" or "[::]:8080")
 	if listenAddress != "" && strings.Contains(listenAddress, ":") {
 		// Try to split host and port
@@ -1045,7 +1045,7 @@ func main() {
 			}
 		}
 	}
-	
+
 	networkMode := ""
 	if listenAddress == "" {
 		// Check for reverse proxy indicator per AI.md PART 5: Boolean Handling
@@ -1304,7 +1304,7 @@ func main() {
 		var verificationID int64
 		var userID int64
 		var expiresAt time.Time
-		err := db.DB.QueryRow(`
+		err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, `
 			SELECT id, user_id, expires_at
 			FROM user_email_verifications
 			WHERE token = ? AND expires_at > ?
@@ -1319,7 +1319,7 @@ func main() {
 		}
 
 		// Mark email as verified
-		_, err = db.DB.Exec(`
+		_, err = database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
 			UPDATE user_accounts
 			SET email_verified = 1, updated_at = CURRENT_TIMESTAMP
 			WHERE id = ?
@@ -1333,7 +1333,7 @@ func main() {
 		}
 
 		// Delete used token
-		db.DB.Exec(`DELETE FROM user_email_verifications WHERE id = ?`, verificationID)
+		database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verificationID)
 
 		c.Redirect(http.StatusFound, "/server/auth/login?verified=1")
 	})
@@ -1560,7 +1560,7 @@ func main() {
 			return
 		}
 
-		if _, err := database.GetUsersDB().Exec(`UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
+		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
 			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
 				"code":       token,
 				"username":   req.Username,
@@ -1688,7 +1688,7 @@ func main() {
 			// Delete admin session from database
 			adminSessionID, err := c.Cookie("admin_session")
 			if err == nil && adminSessionID != "" {
-				database.GetServerDB().Exec("DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID)
+				database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID)
 			}
 			// Clear admin_session cookie
 			c.SetCookie("admin_session", "", -1, "/", "", false, true)
@@ -1981,8 +1981,8 @@ func main() {
 			}
 			if err := c.ShouldBind(&req); err != nil {
 				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
-					"error":   "Invalid form submission",
-					"form":    req,
+					"error": "Invalid form submission",
+					"form":  req,
 				})
 				return
 			}
@@ -2421,7 +2421,7 @@ func main() {
 				return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
 			}
 
-			if _, err := serverDB.Exec(`
+			if _, err := database.ExecContext(context.Background(), serverDB, database.TimeoutWrite, `
 				INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
 				SELECT ?, ?, CURRENT_TIMESTAMP
 				WHERE NOT EXISTS (
@@ -2433,7 +2433,7 @@ func main() {
 
 			var prefsJSON string
 			var updatedAt time.Time
-			err = serverDB.QueryRow(`
+			err = database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect, `
 				SELECT preferences, updated_at
 				FROM server_admin_preferences
 				WHERE admin_id = ?
@@ -2453,7 +2453,7 @@ func main() {
 		}
 
 		getOnlineAdminUsernames := func() ([]string, error) {
-			rows, err := serverDB.Query(`
+			rows, err := database.QueryContext(context.Background(), serverDB, database.TimeoutComplexSelect, `
 				SELECT DISTINCT sac.username
 				FROM server_admin_credentials sac
 				INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
@@ -2483,7 +2483,7 @@ func main() {
 
 		countOtherActiveSuperAdmins := func(excludeID int64) (int, error) {
 			var count int
-			err := serverDB.QueryRow(`
+			err := database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect, `
 				SELECT COUNT(*)
 				FROM server_admin_credentials
 				WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
@@ -2597,10 +2597,10 @@ func main() {
 			}
 
 			var req struct {
-				Username       string `json:"username" binding:"required,min=3"`
-				Email          string `json:"email" binding:"required,email"`
-				Role           string `json:"role"`
-				ExpiresInDays  int    `json:"expires_in_days"`
+				Username      string `json:"username" binding:"required,min=3"`
+				Email         string `json:"email" binding:"required,email"`
+				Role          string `json:"role"`
+				ExpiresInDays int    `json:"expires_in_days"`
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -2646,10 +2646,10 @@ func main() {
 			}
 
 			c.JSON(http.StatusOK, gin.H{
-				"ok":             true,
-				"message":        "User invite created",
-				"invite":         invite,
-				"invite_url":     buildUserInviteURL(c, invite.Token),
+				"ok":              true,
+				"message":         "User invite created",
+				"invite":          invite,
+				"invite_url":      buildUserInviteURL(c, invite.Token),
 				"expires_in_days": expiresInDays,
 			})
 		})
@@ -3126,7 +3126,7 @@ func main() {
 				return
 			}
 
-			if _, err := serverDB.Exec(`
+			if _, err := database.ExecContext(context.Background(), serverDB, database.TimeoutWrite, `
 				UPDATE server_admin_preferences
 				SET preferences = ?, updated_at = CURRENT_TIMESTAMP
 				WHERE admin_id = ?
@@ -3987,7 +3987,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	// Perform health checks (AI.md PART 8: --status must check health)
 	isHealthy := true
 	healthStatus := "✅ Healthy"
-	
+
 	// Check database connection
 	dbStatus, _, dbErr := db.HealthCheck()
 	if dbErr != nil || dbStatus != "connected" {
@@ -3997,9 +3997,9 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Get database statistics
 	var userCount, locationCount, tokenCount int
-	database.GetUsersDB().QueryRow("SELECT COUNT(*) FROM user_accounts").Scan(&userCount)
-	database.GetUsersDB().QueryRow("SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount)
-	database.GetUsersDB().QueryRow("SELECT COUNT(*) FROM user_tokens WHERE expires_at > datetime('now')").Scan(&tokenCount)
+	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts").Scan(&userCount)
+	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount)
+	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE expires_at > datetime('now')").Scan(&tokenCount)
 
 	// Display status
 	fmt.Println("\n╔══════════════════════════════════════════════════════╗")
