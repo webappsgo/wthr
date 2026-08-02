@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"strings"
 	"time"
 
@@ -90,7 +91,9 @@ func (te *TemplateEngine) GetTemplate(channelType, templateName string) (*Notifi
 	}
 
 	if variablesJSON.Valid {
-		json.Unmarshal([]byte(variablesJSON.String), &t.Variables)
+		if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
+			log.Printf("WARNING: GetTemplate: failed to unmarshal variables for template %q (%s): %v", templateName, channelType, err)
+		}
 	}
 
 	return &t, nil
@@ -117,7 +120,9 @@ func (te *TemplateEngine) GetDefaultTemplate(channelType string) (*NotificationT
 	}
 
 	if variablesJSON.Valid {
-		json.Unmarshal([]byte(variablesJSON.String), &t.Variables)
+		if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
+			log.Printf("WARNING: GetDefaultTemplate: failed to unmarshal variables for channel %s: %v", channelType, err)
+		}
 	}
 
 	return &t, nil
@@ -125,9 +130,12 @@ func (te *TemplateEngine) GetDefaultTemplate(channelType string) (*NotificationT
 
 // CreateTemplate creates a new template
 func (te *TemplateEngine) CreateTemplate(t *NotificationTemplate) error {
-	variablesJSON, _ := json.Marshal(t.Variables)
+	variablesJSON, err := json.Marshal(t.Variables)
+	if err != nil {
+		return fmt.Errorf("failed to marshal template variables: %w", err)
+	}
 
-	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
 		INSERT INTO notification_templates
 		(channel_type, template_name, template_type, subject_template,
 		 body_template, variables, is_default, created_at, updated_at)
@@ -140,9 +148,12 @@ func (te *TemplateEngine) CreateTemplate(t *NotificationTemplate) error {
 
 // UpdateTemplate updates an existing template
 func (te *TemplateEngine) UpdateTemplate(t *NotificationTemplate) error {
-	variablesJSON, _ := json.Marshal(t.Variables)
+	variablesJSON, err := json.Marshal(t.Variables)
+	if err != nil {
+		return fmt.Errorf("failed to marshal template variables: %w", err)
+	}
 
-	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
 		UPDATE notification_templates
 		SET template_name = ?,
 		    template_type = ?,
@@ -193,7 +204,9 @@ func (te *TemplateEngine) ListTemplates(channelType string) ([]*NotificationTemp
 		}
 
 		if variablesJSON.Valid {
-			json.Unmarshal([]byte(variablesJSON.String), &t.Variables)
+			if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
+				log.Printf("WARNING: ListTemplates: failed to unmarshal variables for template %q (%s): %v", t.TemplateName, channelType, err)
+			}
 		}
 
 		templates = append(templates, &t)

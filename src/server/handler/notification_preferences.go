@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -47,7 +48,10 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 		var priority int
 		var quietStart, quietEnd, config sql.NullString
 
-		rows.Scan(&id, &channelType, &enabled, &priority, &quietStart, &quietEnd, &config)
+		if err := rows.Scan(&id, &channelType, &enabled, &priority, &quietStart, &quietEnd, &config); err != nil {
+			log.Printf("WARNING: GetUserPreferences: failed to scan row for user %d: %v", userID, err)
+			continue
+		}
 
 		pref := gin.H{
 			"id":           id,
@@ -64,7 +68,9 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 		}
 		if config.Valid {
 			var configMap map[string]interface{}
-			json.Unmarshal([]byte(config.String), &configMap)
+			if err := json.Unmarshal([]byte(config.String), &configMap); err != nil {
+				log.Printf("WARNING: GetUserPreferences: failed to unmarshal config for preference %d: %v", id, err)
+			}
 			pref["config"] = configMap
 		}
 
@@ -99,7 +105,12 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 		return
 	}
 
-	configJSON, _ := json.Marshal(req.Config)
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		log.Printf("WARNING: UpdatePreference: failed to marshal config: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		return
+	}
 
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_notification_preferences
@@ -145,9 +156,14 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 		return
 	}
 
-	configJSON, _ := json.Marshal(req.Config)
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		log.Printf("WARNING: CreatePreference: failed to marshal config: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		return
+	}
 
-	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO user_notification_preferences
 		(user_id, channel_type, enabled, priority, quiet_hours_start,
 		 quiet_hours_end, config, created_at, updated_at)
@@ -226,7 +242,10 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 		var enabled bool
 		var config sql.NullString
 
-		rows.Scan(&id, &subType, &subCategory, &enabled, &config)
+		if err := rows.Scan(&id, &subType, &subCategory, &enabled, &config); err != nil {
+			log.Printf("WARNING: GetSubscriptions: failed to scan row for user %d: %v", userID, err)
+			continue
+		}
 
 		sub := gin.H{
 			"id":                    id,
@@ -237,7 +256,9 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 
 		if config.Valid {
 			var configMap map[string]interface{}
-			json.Unmarshal([]byte(config.String), &configMap)
+			if err := json.Unmarshal([]byte(config.String), &configMap); err != nil {
+				log.Printf("WARNING: GetSubscriptions: failed to unmarshal config for subscription %d: %v", id, err)
+			}
 			sub["config"] = configMap
 		}
 
@@ -253,7 +274,11 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 // UpdateSubscription updates a subscription
 func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 	userID := c.GetInt("user_id")
-	subID, _ := strconv.Atoi(c.Param("id"))
+	subID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subscription id"})
+		return
+	}
 
 	var req struct {
 		Enabled bool                   `json:"enabled"`
@@ -265,9 +290,14 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 		return
 	}
 
-	configJSON, _ := json.Marshal(req.Config)
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		log.Printf("WARNING: UpdateSubscription: failed to marshal config: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		return
+	}
 
-	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE notification_subscriptions
 		SET enabled = ?, config = ?, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ?
@@ -297,9 +327,14 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 		return
 	}
 
-	configJSON, _ := json.Marshal(req.Config)
+	configJSON, err := json.Marshal(req.Config)
+	if err != nil {
+		log.Printf("WARNING: CreateSubscription: failed to marshal config: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		return
+	}
 
-	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notification_subscriptions
 		(user_id, subscription_type, subscription_category, enabled, config,
 		 created_at, updated_at)
