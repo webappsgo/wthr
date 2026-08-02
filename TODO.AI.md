@@ -799,27 +799,39 @@ any of the above: `src/graphql/context_keys_test.go`,
     go build ./... clean, go vet ./... clean, go test ./... passes
     across every package. Committed as e006955e7775.
 
-27. TODO (flagged 2026-08-02 by go-lint during item 12's
-    src/server/handler/template_engine.go and
-    src/server/handler/notification_preferences.go passes): pre-existing,
-    out of scope for item 12 (DB timeout wrapping only) — unchecked
-    error return values on non-DB calls:
-    - src/server/handler/template_engine.go lines 93, 120, 196:
-      `json.Unmarshal()` return errors discarded.
+27. DONE (2026-08-02): fixed all listed unchecked error returns. Note:
+    template_engine.go actually lives at src/server/service/template_engine.go
+    (not src/server/handler/ as originally flagged) — same file, line
+    numbers matched exactly. Fixes:
+    - src/server/service/template_engine.go lines 93, 120, 196 (now
+      94, 123, 201 after the fix): `json.Unmarshal()` errors now logged
+      via log.Printf (service-layer function, no HTTP context to
+      return an error response through).
     - src/server/handler/notification_preferences.go lines 50, 229:
-      `rows.Scan()` return errors discarded.
-    - src/server/handler/notification_preferences.go lines 67, 102, 148,
-      240, 268, 300: `json.Unmarshal()`/`json.Marshal()` return errors
-      discarded.
+      `rows.Scan()` errors now logged and the row skipped (`continue`),
+      matching the pattern already used in
+      src/server/service/template_engine.go's ListTemplates.
+    - src/server/handler/notification_preferences.go lines 67, 240:
+      `json.Unmarshal()` errors now logged via log.Printf.
+    - src/server/handler/notification_preferences.go lines 102, 148,
+      268, 300: `json.Marshal()` errors now checked and return a 400
+      `Invalid config` response instead of silently writing bad data.
     - src/server/handler/notification_preferences.go line 256:
-      `strconv.Atoi()` return error discarded (falls through with a
-      zero value instead of the 400 response the other handlers in
-      this file return for the same parse failure).
-    Not touched by the item-12 diff (only the raw DB calls were
-    converted to timeout-wrapped calls). Fix: check and handle every
-    listed error (400/500 responses as appropriate, matching the
-    pattern already used elsewhere in each file). Read: AI.md PART 9
-    (error handling) before starting.
+      `strconv.Atoi()` error now checked and returns 400
+      `Invalid subscription id`, matching the pattern already used by
+      UpdatePreference/DeletePreference in the same file.
+    Also fixed the identical discarded-`json.Marshal()`-error pattern
+    at src/server/service/template_engine.go CreateTemplate/UpdateTemplate
+    (not in the original flagged list, but same file/same pattern, per
+    the fix-completeness rule) — now returns a wrapped error instead of
+    silently writing bad data.
+    Found but NOT fixed here (out of scope for this item, logged as
+    item 39): src/server/handler/notification_preferences.go uses the
+    same legacy `gin.H{"error": ...}` / `gin.H{"message": ...}` response
+    shape that item 25 fixed in notification_templates.go — needs the
+    same PART 14 canonical-shape treatment.
+    Verified: gofmt -l clean, go build ./... clean, go vet ./... clean,
+    go test ./src/server/handler/... and ./src/server/service/... pass.
 
 28. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/health_comprehensive.go pass): pre-existing,
@@ -1050,3 +1062,15 @@ any of the above: `src/graphql/context_keys_test.go`,
     lines through this gate vs. only the true "banner" lines — flag to user
     if the boundary is unclear once started. Read: AI.md PART 11 (`NO_COLOR`
     priority order), PART 8/33 (`--color` flag, shared across all binaries).
+
+39. TODO (flagged 2026-08-02 while fixing item 27): src/server/handler/
+    notification_preferences.go uses the legacy `gin.H{"error": "..."}` /
+    `gin.H{"message": "..."}` response shape throughout (GetUserPreferences,
+    UpdatePreference, CreatePreference, DeletePreference, GetSubscriptions,
+    UpdateSubscription, CreateSubscription) instead of the canonical PART 14
+    shape (`RespondError`/`RespondSuccess`/`RespondCreated` helpers in
+    response.go, already fixed and used by notification_templates.go per
+    item 25). Fix: replace every `c.JSON(status, gin.H{"error"/"message":
+    ...})` call in this file with the matching Respond* helper, same
+    pattern as item 25's notification_templates.go fix. Read: AI.md PART 14
+    (Response Standards) before starting.
