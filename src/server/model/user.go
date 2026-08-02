@@ -1,4 +1,4 @@
-// Package models provides user models per TEMPLATE.md PART 10
+// Package models provides user models per AI.md PART 10
 package models
 
 import (
@@ -18,50 +18,57 @@ import (
 // Per AI.md PART 9: Users MUST be in users.db, NOT server.db
 // Per AI.md PART 34: Multi-user support with full profile fields
 type User struct {
-	ID              int64      `json:"id"`
-	Username        string     `json:"username"`
-	DisplayName     string     `json:"display_name,omitempty"`
+	ID          int64  `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name,omitempty"`
 	// Account email - used for security & account recovery
 	// Per AI.md PART 34: Password reset, 2FA recovery, security alerts
-	Email           string     `json:"email"`
+	Email string `json:"email"`
 	// Notification email - used for non-security communications
 	// Per AI.md PART 34: Newsletters, updates, marketing, general notifications
-	NotificationEmail string   `json:"notification_email,omitempty"`
-	Phone           string     `json:"phone,omitempty"`
+	NotificationEmail string `json:"notification_email,omitempty"`
+	Phone             string `json:"phone,omitempty"`
 	// Never serialize password hash
-	PasswordHash    string     `json:"-"`
-	EmailVerified   bool       `json:"email_verified"`
-	IsActive        bool       `json:"is_active"`
-	IsBanned        bool       `json:"is_banned"`
-	BanReason       string     `json:"ban_reason,omitempty"`
+	PasswordHash  string `json:"-"`
+	EmailVerified bool   `json:"email_verified"`
+	IsActive      bool   `json:"is_active"`
+	IsBanned      bool   `json:"is_banned"`
+	BanReason     string `json:"ban_reason,omitempty"`
 	// user or admin
-	Role            string     `json:"role"`
+	Role string `json:"role"`
 	// Profile visibility: public or private
 	// Per AI.md PART 34: Private profiles hidden from search/listings/public pages
-	Visibility      string     `json:"visibility"`
-	TwoFactorEnabled bool      `json:"two_factor_enabled"`
+	Visibility       string `json:"visibility"`
+	TwoFactorEnabled bool   `json:"two_factor_enabled"`
 	// Never serialize 2FA secret
-	TwoFactorSecret string     `json:"-"`
+	TwoFactorSecret string `json:"-"`
 	// Avatar settings per AI.md PART 34
-	AvatarType      string     `json:"avatar_type,omitempty"`  // gravatar, upload, url
-	AvatarURL       string     `json:"avatar_url,omitempty"`   // URL or path
+	// AvatarType: gravatar, upload, url
+	AvatarType string `json:"avatar_type,omitempty"`
+	// AvatarURL: URL or path
+	AvatarURL string `json:"avatar_url,omitempty"`
 	// Profile fields per AI.md PART 34
-	Bio             string     `json:"bio,omitempty"`          // Short biography (max 500 chars)
-	Location        string     `json:"location,omitempty"`     // Location (free text)
-	Website         string     `json:"website,omitempty"`      // Personal website URL
-	Timezone        string     `json:"timezone,omitempty"`     // IANA timezone
-	Language        string     `json:"language,omitempty"`     // Preferred language
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-	LastLoginAt     *time.Time `json:"last_login_at,omitempty"`
-	LastLoginIP     string     `json:"last_login_ip,omitempty"`
+	// Bio: Short biography (max 500 chars)
+	Bio string `json:"bio,omitempty"`
+	// Location: Location (free text)
+	Location string `json:"location,omitempty"`
+	// Website: Personal website URL
+	Website string `json:"website,omitempty"`
+	// Timezone: IANA timezone
+	Timezone string `json:"timezone,omitempty"`
+	// Language: Preferred language
+	Language    string     `json:"language,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	LastLoginIP string     `json:"last_login_ip,omitempty"`
 }
 
 // UserSession represents an active user session
-// Per TEMPLATE.md PART 10: Session-based authentication for users
+// Per AI.md PART 10: Session-based authentication for users
 type UserSession struct {
-	ID         int64     `json:"id"`
-	UserID     int64     `json:"user_id"`
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 	// Secure random token
 	SessionID  string    `json:"session_id"`
 	IPAddress  string    `json:"ip_address"`
@@ -73,18 +80,18 @@ type UserSession struct {
 
 // UserPreferences stores user-specific settings
 type UserPreferences struct {
-	ID                   int64     `json:"id"`
-	UserID               int64     `json:"user_id"`
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 	// light, dark, auto
-	Theme                string    `json:"theme"`
-	Language             string    `json:"language"`
-	Timezone             string    `json:"timezone"`
+	Theme    string `json:"theme"`
+	Language string `json:"language"`
+	Timezone string `json:"timezone"`
 	// celsius, fahrenheit
-	TemperatureUnit      string    `json:"temperature_unit"`
+	TemperatureUnit string `json:"temperature_unit"`
 	// hPa, inHg, mmHg
-	PressureUnit         string    `json:"pressure_unit"`
+	PressureUnit string `json:"pressure_unit"`
 	// kmh, mph, ms, kts
-	WindSpeedUnit        string    `json:"wind_speed_unit"`
+	WindSpeedUnit string `json:"wind_speed_unit"`
 	// mm, in
 	PrecipitationUnit    string    `json:"precipitation_unit"`
 	NotificationsEnabled bool      `json:"notifications_enabled"`
@@ -95,11 +102,11 @@ type UserPreferences struct {
 
 // UserEmailVerification represents an email verification token
 type UserEmailVerification struct {
-	ID        int64      `json:"id"`
-	UserID    int64      `json:"user_id"`
-	Token     string     `json:"token"`
-	Email     string     `json:"email"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Token     string    `json:"token"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
 	// 24 hours from creation
 	ExpiresAt time.Time  `json:"expires_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty"`
@@ -107,10 +114,10 @@ type UserEmailVerification struct {
 
 // UserPasswordReset represents a password reset token
 type UserPasswordReset struct {
-	ID        int64      `json:"id"`
-	UserID    int64      `json:"user_id"`
-	Token     string     `json:"token"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Token     string    `json:"token"`
+	CreatedAt time.Time `json:"created_at"`
 	// 1 hour from creation
 	ExpiresAt time.Time  `json:"expires_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty"`
@@ -118,8 +125,8 @@ type UserPasswordReset struct {
 
 // UserActivityLog represents user activity logging
 type UserActivityLog struct {
-	ID           int64     `json:"id"`
-	UserID       int64     `json:"user_id"`
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
 	// login, logout, password_change, etc.
 	ActivityType string    `json:"activity_type"`
 	IPAddress    string    `json:"ip_address"`
@@ -154,13 +161,13 @@ func (r *UserPasswordReset) IsUsed() bool {
 }
 
 // UserModel handles user database operations
-// Per TEMPLATE.md PART 9: All operations MUST use users.db
+// Per AI.md PART 9: All operations MUST use users.db
 type UserModel struct {
 	DB *sql.DB
 }
 
 // Create creates a new user account
-// Per TEMPLATE.md PART 0: Uses Argon2id for password hashing
+// Per AI.md PART 0: Uses Argon2id for password hashing
 func (m *UserModel) Create(username, email, password string, role ...string) (*User, error) {
 	// Default role to "user" if not provided
 	userRole := "user"
@@ -168,7 +175,7 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 		userRole = role[0]
 	}
 
-	// Hash password using Argon2id (TEMPLATE.md PART 0 requirement)
+	// Hash password using Argon2id (AI.md PART 0 requirement)
 	passwordHash, err := HashPassword(password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -506,9 +513,9 @@ func (m *UserModel) Update(id int64, username, email string, role ...string) err
 }
 
 // UpdatePassword updates a user's password using Argon2id
-// Per TEMPLATE.md PART 0: MUST use Argon2id for password hashing
+// Per AI.md PART 0: MUST use Argon2id for password hashing
 func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
-	// Hash with Argon2id (TEMPLATE.md PART 0 requirement)
+	// Hash with Argon2id (AI.md PART 0 requirement)
 	passwordHash, err := HashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
@@ -613,7 +620,7 @@ func (m *UserModel) Delete(id int64) error {
 }
 
 // VerifyCredentials verifies username/password and returns user if valid
-// Per TEMPLATE.md PART 0: Uses Argon2id for password verification
+// Per AI.md PART 0: Uses Argon2id for password verification
 func (m *UserModel) VerifyCredentials(username, password string) (*User, error) {
 	// Get user by username or email
 	user, err := m.GetByUsername(username)
@@ -804,7 +811,7 @@ func hashUserToken(rawToken string) string {
 }
 
 // UserSessionModel handles user session operations
-// Per TEMPLATE.md PART 10: Session-based authentication required
+// Per AI.md PART 10: Session-based authentication required
 type UserSessionModel struct {
 	DB *sql.DB
 }

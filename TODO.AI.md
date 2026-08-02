@@ -290,20 +290,18 @@ any of the above: `src/graphql/context_keys_test.go`,
     other files found via `grep -rln` for the same pattern while fixing).
     Read: AI.md PART 14 (log output plain-text rule), PART 11 (`NO_COLOR`).
 
-18. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
-    user.go pass): `src/server/model/user.go` has stale spec references and
-    an inline-comment violation, pre-existing and not introduced by item 12's
-    context-timeout conversion — out of scope for that pass:
-    - Lines 1, 61, 157, 163, 171, 509, 511, 616, 807 say "TEMPLATE.md PART N"
-      where they should say "AI.md PART 34" (Multi-User) per ai-rules.md's
-      no-stale-spec-reference expectation — the file predates the AI.md/
-      TEMPLATE.md rename and was never updated.
-    - Lines 47-52 (AvatarType, AvatarURL, Bio, Location, Website, Timezone,
-      Language struct fields) use inline trailing comments
-      (`// gravatar, upload, url` etc.) — ai-rules.md PART 0 requires
-      comments ABOVE the code, never on the same line.
-    Fix: rewrite the 9 "TEMPLATE.md" comments to say "AI.md", and move the
-    7 inline struct-field comments to their own line above each field.
+18. DONE (2026-08-02): fixed `src/server/model/user.go` stale spec references
+    and inline-comment violation.
+    - Replaced all 9 "TEMPLATE.md PART N" comments with "AI.md PART N"
+      (kept each line's own existing PART number — the literal rename the
+      Fix instruction specified) via `sed -i 's/TEMPLATE\.md/AI.md/g'`,
+      scoped to this file only.
+    - Moved the 7 inline trailing comments on the AvatarType, AvatarURL,
+      Bio, Location, Website, Timezone, Language struct fields
+      (`// gravatar, upload, url` etc.) to their own line above each field.
+      `gofmt -w` re-aligned the struct block after the edit.
+    Verified via `gofmt -l` (clean), `go build ./...`, `go vet ./...`,
+    `go test ./server/model/...` (all pass) in Docker.
     Read: AI.md PART 0 (comment placement, spec-reference rules).
 
 19. TODO (flagged 2026-07-31 by go-lint during item 12's src/server/model/
