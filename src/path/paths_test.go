@@ -1,5 +1,5 @@
 // Tests for paths.go per AI.md PART 4 (Directory paths) / PART 29 (Testing)
-package paths
+package path
 
 import (
 	"os"

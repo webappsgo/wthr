@@ -561,7 +561,7 @@ func CreateSystemBackup(db *sql.DB) error {
 	}
 
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("wthr")
+	p := path.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths for backup")
 	}
@@ -653,7 +653,7 @@ func CheckSSLRenewal() error {
 	log.Println("INFO: Checking SSL certificate renewal status...")
 
 	// Get paths
-	p := paths.GetDefaultPaths("wthr")
+	p := path.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths")
 	}

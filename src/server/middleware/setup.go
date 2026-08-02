@@ -19,18 +19,18 @@ import (
 // AI.md: Admin panel (/server/admin) - YES (requires setup token) - accessible before setup
 func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
+		reqPath := c.Request.URL.Path
 		adminPath := "/server/" + cfg.GetAdminPath()
 
 		// Only apply to admin routes
-		if !strings.HasPrefix(path, adminPath) {
+		if !strings.HasPrefix(reqPath, adminPath) {
 			c.Next()
 			return
 		}
 
 		// Skip check for setup routes (setup wizard handles its own auth)
 		setupPath := adminPath + "/server/setup"
-		if strings.HasPrefix(path, setupPath) {
+		if strings.HasPrefix(reqPath, setupPath) {
 			c.Next()
 			return
 		}
@@ -50,7 +50,7 @@ func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// No admin exists - check for setup token file
-		configDir := paths.GetConfigDir()
+		configDir := path.GetConfigDir()
 		if !util.SetupTokenExists(configDir) {
 			// No setup token file - setup was somehow skipped, show error
 			c.HTML(http.StatusServiceUnavailable, "error.tmpl", gin.H{
@@ -105,7 +105,7 @@ func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc 
 		}
 
 		// Check if setup token file still exists
-		configDir := paths.GetConfigDir()
+		configDir := path.GetConfigDir()
 		if !util.SetupTokenExists(configDir) {
 			// No setup token file and no admin - should not happen
 			adminPath := "/server/" + cfg.GetAdminPath()

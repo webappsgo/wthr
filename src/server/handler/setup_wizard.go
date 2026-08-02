@@ -240,7 +240,7 @@ func validateSetupToken(token string) error {
 	token = strings.TrimSpace(token)
 
 	// Get config directory
-	configDir := paths.GetConfigDir()
+	configDir := path.GetConfigDir()
 
 	// Validate against stored hash in file
 	valid, err := util.ValidateSetupToken(configDir, token)
@@ -258,7 +258,7 @@ func validateSetupToken(token string) error {
 // deleteSetupToken removes the setup token file after successful admin creation
 // AI.md: File deleted after successful setup completion
 func deleteSetupToken() error {
-	configDir := paths.GetConfigDir()
+	configDir := path.GetConfigDir()
 	return util.DeleteSetupToken(configDir)
 }
 

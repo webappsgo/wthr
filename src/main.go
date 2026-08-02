@@ -797,7 +797,7 @@ func main() {
 		if !cfg.Server.Maintenance.Backup.HourlyEnabled {
 			return nil
 		}
-		p := paths.GetDefaultPaths("wthr")
+		p := path.GetDefaultPaths("wthr")
 		if p == nil {
 			return fmt.Errorf("failed to get paths for hourly backup")
 		}

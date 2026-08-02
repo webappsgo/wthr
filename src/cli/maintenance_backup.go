@@ -43,7 +43,7 @@ func MaintenanceBackupCommand(args []string) error {
 	}
 
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("wthr")
+	p := path.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths")
 	}
@@ -148,7 +148,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	// Get paths per AI.md PART 4
-	p := paths.GetDefaultPaths("wthr")
+	p := path.GetDefaultPaths("wthr")
 	if p == nil {
 		return fmt.Errorf("failed to get default paths")
 	}

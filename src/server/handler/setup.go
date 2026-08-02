@@ -61,7 +61,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 	}
 
 	// Validate setup token against stored hash
-	configDir := paths.GetConfigDir()
+	configDir := path.GetConfigDir()
 	valid, err := util.ValidateSetupToken(configDir, setupToken)
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", gin.H{
@@ -109,7 +109,7 @@ func (h *SetupHandler) VerifySetupToken(c *gin.Context) {
 	}
 
 	// Validate setup token against stored hash
-	configDir := paths.GetConfigDir()
+	configDir := path.GetConfigDir()
 	valid, err := util.ValidateSetupToken(configDir, input.SetupToken)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Setup token not found or already used"})
@@ -327,7 +327,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 
 	// Delete setup token file after successful admin creation
 	// AI.md: File deleted after successful setup completion
-	configDir := paths.GetConfigDir()
+	configDir := path.GetConfigDir()
 	if err := util.DeleteSetupToken(configDir); err != nil {
 		// Log but don't fail - admin was created successfully
 		log.Printf("WARNING: CreateAdmin: failed to delete setup token file: %v", err)

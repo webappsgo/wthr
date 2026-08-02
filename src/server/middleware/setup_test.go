@@ -19,14 +19,14 @@ import (
 )
 
 // setupTestConfigDir is fixed once for the whole test binary, before
-// path.GetInstance()'s sync.Once fires for the first time. paths.Initialize
+// path.GetInstance()'s sync.Once fires for the first time. path.Initialize
 // (src/path/paths.go:373-388) is process-global and one-shot: whichever
 // CONFIG_DIR value is present the first time any code calls
-// paths.GetInstance()/paths.GetConfigDir() wins for the remainder of the
+// path.GetInstance()/path.GetConfigDir() wins for the remainder of the
 // process, so per-test os.Setenv/t.Setenv calls after that point are
 // silently ignored. TestMain pins it to a throwaway temp directory (never
 // the project tree, per PART 29) before any test runs, so setup.go's calls
-// to paths.GetConfigDir() are test-isolated instead of touching a real
+// to path.GetConfigDir() are test-isolated instead of touching a real
 // system config path.
 var setupTestConfigDir string
 
@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("CONFIG_DIR", dir)
 	// Force initialization now, under our controlled CONFIG_DIR, before any
 	// test can race path.GetInstance() with a different expectation.
-	_ = paths.GetConfigDir()
+	_ = path.GetConfigDir()
 
 	code := m.Run()
 	os.RemoveAll(dir)
@@ -401,14 +401,14 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 }
 
 // sanity-check that utils.SetupTokenExists observes the same directory these
-// tests write to/remove from, guarding against a future paths.GetConfigDir()
+// tests write to/remove from, guarding against a future path.GetConfigDir()
 // refactor silently breaking this file's assumptions.
 func TestSetupTestHarness_TokenFileToggleObservedByConfigDir(t *testing.T) {
-	if paths.GetConfigDir() != setupTestConfigDir {
-		t.Fatalf("paths.GetConfigDir() = %q, want the TestMain-pinned %q - "+
+	if path.GetConfigDir() != setupTestConfigDir {
+		t.Fatalf("path.GetConfigDir() = %q, want the TestMain-pinned %q - "+
 			"CONFIG_DIR override was not honored, likely because something "+
 			"else in this test binary called path.GetInstance() before "+
-			"TestMain set CONFIG_DIR", paths.GetConfigDir(), setupTestConfigDir)
+			"TestMain set CONFIG_DIR", path.GetConfigDir(), setupTestConfigDir)
 	}
 
 	removeSetupToken(t)

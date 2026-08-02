@@ -1,7 +1,7 @@
 // Package paths provides OS-specific directory path detection per TEMPLATE.md PART 3
 // Supports: Linux, macOS, BSD (FreeBSD/OpenBSD/NetBSD), Windows
 // Handles both privileged (root/service) and unprivileged (user) scenarios
-package paths
+package path
 
 import (
 	"fmt"
