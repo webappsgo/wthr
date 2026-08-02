@@ -49,9 +49,9 @@ func TestHurricaneCategory(t *testing.T) {
 // unparseable garbage, and whitespace trimming.
 func TestParseGraphQLTime(t *testing.T) {
 	tests := []struct {
-		name    string
-		value   string
-		want    time.Time
+		name     string
+		value    string
+		want     time.Time
 		wantZero bool
 	}{
 		{

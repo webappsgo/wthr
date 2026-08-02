@@ -250,28 +250,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     (authz — allowlist context-key pattern at line 17914 confirmed this is
     the spec's own idiom), PART 34 (multi-user roles).
 
-16. TODO (diagnosed 2026-07-31 after item 8/13's fix push): CI's `test` job
-    "Enforce coverage threshold" step (`ci.yml`, 60% gate on
-    `coverage.filtered.out`) is still failing post-push
-    (`coverage 50% < threshold 60%`, run 30650961406) — but this is a
-    **pre-existing, long-standing gap, not a regression from item 8/13's
-    changes**. Confirmed via `gh run list`: every single CI run in this
-    repo's history has failed the `test` job (item 5 shows coverage as low
-    as 25.9% at one point); the immediately preceding commit's CI run
-    (30643361771) failed for a different reason (an actual `go test` FAIL
-    in `src/graphql`, the exact bug item 8 fixed) but never even reached a
-    passing coverage number either. All packages now report `ok` (no test
-    failures) as of run 30650961406 - the remaining gap is purely coverage
-    volume, concentrated in `src/graphql` (2.4%!, the ~60+ resolvers/
-    helpers in schema.resolvers.go are almost entirely untested - see item
-    15), `src/server` (0.0%), `src/server/handler` (39.8%), `src/path`
-    (48.5%), `src/scheduler` (54.4%), `src/cli` (55.0%), `src/email`
-    (55.0%), `src/common/banner` (55.2%). Closing a 10-point repo-wide gap
-    requires substantial new `*_test.go` coverage across multiple packages
-    (biggest lever: `src/graphql`, which is large enough that even partial
-    coverage there would move the repo average significantly) - this is a
-    dedicated test-writing pass, not a quick CI fix, and should be done
-    package-by-package with the two-phase testing strategy (PART 29).
+16. TODO (diagnosed 2026-07-31 after item 8/13's fix push, updated
+    2026-08-02): CI's `test` job "Enforce coverage threshold" step
+    (`ci.yml`, 60% gate on `coverage.filtered.out`) was failing post-push
+    (`coverage 50% < threshold 60%`, run 30650961406) — a pre-existing,
+    long-standing gap, not a regression from item 8/13's changes.
+    `src/graphql` was the biggest lever (2.4% raw coverage, ~60+
+    resolvers/helpers in schema.resolvers.go almost entirely untested).
+    Progress: added substantial new `*_test.go` coverage across
+    `schema.resolvers_test.go`, `schema.resolvers_mutations_test.go`, and
+    `resolvers_helpers_test.go` (real-DB `DualDB` integration tests for
+    saved-location/notification CRUD, admin user/invite/settings/token/
+    audit-log queries and mutations, registration/login/2FA/recovery-key/
+    password-reset/invite-completion/avatar flows, plus guard-clause tests
+    for every remaining resolver's auth checks). `src/graphql` coverage
+    with `generated.go` excluded (matching `ci.yml`'s own filter) rose from
+    2.4% to 32.1% — a large jump, but still below the 60% package target on
+    its own; the package's total statement count is dominated by
+    `resolvers_helpers.go` (~26k lines) and `schema.resolvers.go` (~101k
+    lines), so further passes are still needed here specifically. Other
+    packages remain untouched by this pass and still need their own
+    dedicated coverage work: `src/server` (0.0%), `src/server/handler`
+    (39.8%), `src/path` (48.5%), `src/scheduler` (54.4%), `src/cli` (55.0%),
+    `src/email` (55.0%), `src/common/banner` (55.2%). Continue
+    package-by-package with the two-phase testing strategy (PART 29),
+    re-measuring repo-wide `coverage.filtered.out` after each package to
+    confirm progress toward the 60% CI gate.
     Read: AI.md PART 29 (testing coverage requirements), PART 26 (Makefile
     coverage gate).
 
