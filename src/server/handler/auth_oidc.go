@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -206,7 +207,7 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 
 	// Look up existing user by external identity mapping
 	var userID int64
-	err = usersDB.QueryRow(`
+	err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect, `
 		SELECT user_id FROM user_oidc_mappings
 		WHERE provider_name = ? AND provider_user_id = ?
 	`, provider, claims.Sub).Scan(&userID)
@@ -262,7 +263,7 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 			emailVerified = 1
 		}
 
-		result, err := usersDB.Exec(`
+		result, err := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_accounts
 				(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'user', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -270,7 +271,7 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		if err != nil {
 			// Username or email collision — generate a unique suffix
 			username = username + "_" + provider
-			result, err = usersDB.Exec(`
+			result, err = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 				INSERT INTO user_accounts
 					(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 				VALUES (?, ?, ?, ?, 'user', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -287,7 +288,7 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		userID, _ = result.LastInsertId()
 
 		// Store OIDC identity mapping
-		_, _ = usersDB.Exec(`
+		_, _ = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_oidc_mappings
 				(user_id, provider_name, provider_user_id, issuer, email, name, created_at, updated_at, last_login_at)
 			VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -302,14 +303,14 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		return
 	} else {
 		// Existing user — update last login and sync identity mapping
-		_, _ = usersDB.Exec(`
+		_, _ = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			UPDATE user_oidc_mappings SET last_login_at = CURRENT_TIMESTAMP, email = ?, name = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE provider_name = ? AND provider_user_id = ?
 		`, claims.Email, claims.Name, provider, claims.Sub)
 
 		// Verify user is still active and not banned
 		var isActive, isBanned bool
-		err = usersDB.QueryRow(
+		err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect,
 			"SELECT is_active, is_banned FROM user_accounts WHERE id = ?", userID,
 		).Scan(&isActive, &isBanned)
 		if err != nil || !isActive || isBanned {
