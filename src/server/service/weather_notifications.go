@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -44,7 +45,7 @@ func NewWeatherNotificationService(db *sql.DB, ws *WeatherService, ds *DeliveryS
 // CheckWeatherAlerts checks all user locations for weather alerts
 func (wns *WeatherNotificationService) CheckWeatherAlerts() error {
 	// Get all locations with alerts enabled
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
 		SELECT l.id, l.user_id, l.name, l.latitude, l.longitude
 		FROM user_saved_locations l
 		WHERE l.alerts_enabled = 1
@@ -198,7 +199,7 @@ func (wns *WeatherNotificationService) detectSevereWeather(weatherData *CurrentW
 // sendWeatherAlert sends a weather alert notification to a user
 func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert WeatherAlert) error {
 	// Get user's enabled notification preferences
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT unp.channel_type
 		FROM user_notification_preferences unp
 		JOIN notification_subscriptions ns ON ns.user_id = unp.user_id
@@ -273,7 +274,7 @@ func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert Weathe
 // hasRecentAlert checks if we've sent this alert type recently
 func (wns *WeatherNotificationService) hasRecentAlert(userID, locationID int, alertType string) bool {
 	var count int
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*)
 		FROM user_weather_alert_history
 		WHERE user_id = ?
@@ -287,7 +288,7 @@ func (wns *WeatherNotificationService) hasRecentAlert(userID, locationID int, al
 
 // recordAlertSent records that we sent an alert
 func (wns *WeatherNotificationService) recordAlertSent(userID, locationID int, alertType string) {
-	_, _ = database.GetUsersDB().Exec(`
+	_, _ = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_weather_alert_history (user_id, location_id, alert_type, sent_at)
 		VALUES (?, ?, ?, datetime('now'))
 	`, userID, locationID, alertType)
@@ -296,7 +297,7 @@ func (wns *WeatherNotificationService) recordAlertSent(userID, locationID int, a
 // SendDailyForecast sends daily forecast to subscribed users
 func (wns *WeatherNotificationService) SendDailyForecast() error {
 	// Get all users subscribed to daily forecast
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT DISTINCT ns.user_id, l.id, l.name, l.latitude, l.longitude
 		FROM notification_subscriptions ns
 		JOIN user_saved_locations l ON l.user_id = ns.user_id
@@ -341,7 +342,7 @@ func (wns *WeatherNotificationService) SendDailyForecast() error {
 // sendDailyForecast sends a daily forecast to a user
 func (wns *WeatherNotificationService) sendDailyForecast(userID int, location string, weatherData *CurrentWeather) error {
 	// Get user's enabled channels
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT channel_type
 		FROM user_notification_preferences
 		WHERE user_id = ? AND enabled = 1
@@ -380,7 +381,7 @@ func (wns *WeatherNotificationService) sendDailyForecast(userID int, location st
 // SendSystemHealthAlert sends system health alerts to admins
 func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message string, severity string) error {
 	// Get all admin users
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT u.id
 		FROM user_accounts u
 		JOIN notification_subscriptions ns ON ns.user_id = u.id
@@ -400,7 +401,7 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 		}
 
 		// Get admin's enabled channels
-		channels, err := database.GetUsersDB().Query(`
+		channels, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 			SELECT channel_type
 			FROM user_notification_preferences
 			WHERE user_id = ? AND enabled = 1
