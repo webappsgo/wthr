@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -52,7 +53,7 @@ func (s *Scheduler) InitTaskHistoryTable() error {
 	CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON server_scheduler_history(start_time DESC);
 	`
 
-	_, err := database.GetServerDB().Exec(query)
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutMigration, query)
 	return err
 }
 
@@ -67,7 +68,7 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 		errorMsg = err.Error()
 	}
 
-	_, dbErr := database.GetServerDB().Exec(`
+	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_scheduler_history (task_name, start_time, end_time, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, taskName, startTime, endTime, duration, status, errorMsg)
@@ -81,7 +82,7 @@ func (s *Scheduler) GetTaskHistory(taskName string, limit int) ([]TaskRun, error
 		limit = 50
 	}
 
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
 		FROM server_scheduler_history
 		WHERE task_name = ?
@@ -111,7 +112,7 @@ func (s *Scheduler) GetTaskHistory(taskName string, limit int) ([]TaskRun, error
 // GetLastTaskRun returns the most recent run for a task
 func (s *Scheduler) GetLastTaskRun(taskName string) (*TaskRun, error) {
 	var run TaskRun
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
 		FROM server_scheduler_history
 		WHERE task_name = ?
@@ -132,7 +133,7 @@ func (s *Scheduler) GetLastTaskRun(taskName string) (*TaskRun, error) {
 
 // GetTaskStats returns statistics for a task
 func (s *Scheduler) GetTaskStats(taskName string) (total, success, errors int, err error) {
-	err = database.GetServerDB().QueryRow(`
+	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT
 			COUNT(*) as total,
 			SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success,
@@ -192,7 +193,7 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 		days = 90
 	}
 
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM server_scheduler_history
 		WHERE start_time < datetime('now', ?)
 	`, fmt.Sprintf("-%d days", days))
