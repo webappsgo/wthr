@@ -456,6 +456,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     lines), `notification_metrics.go` (83 lines), and `dashboard.go` (92
     lines) — next targets for a follow-up pass.
 
+    Progress (2026-08-02, continued): targeted `admin_auth_settings.go`
+    (80 lines) — same `Show*Settings`/`Update*Settings` shape as
+    `admin_geoip.go`/`admin_notifications.go`. Added
+    `admin_auth_settings_test.go` with
+    `TestAdminAuthSettingsHandler_UpdateAuthSettings_Success` (covers
+    OIDC/LDAP/TOTP/Passkeys fields all mapping into
+    `server.auth.*` dot-notation keys), `_InvalidJSON` (confirms the
+    config file is left untouched on a bad request body), and
+    `_ConfigWriteError` (confirms a missing config path surfaces as 500
+    rather than panicking), reusing the same `t.TempDir()` YAML
+    config-file pattern. `ShowAuthSettings` was left untested for the
+    same reason as the other `Show*Settings` handlers — no gin
+    `HTMLRender` wired into `newAPITestContext`. Verified via Docker
+    `gofmt -l`/`go build ./...`/`go vet ./server/handler/...`/`go test -v
+    ./server/handler/...` (new tests pass) and `go test -cover
+    ./server/handler/...` — package coverage 40.0% → 40.1%. Full repo
+    `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Next targets: `admin_weather.go` (82 lines),
+    `notification_metrics.go` (83 lines), `dashboard.go` (92 lines).
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
