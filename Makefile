@@ -34,8 +34,8 @@ RELDIR := releases
 GO_CACHE  ?= $(HOME)/go/pkg/mod
 GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
 
-# Build targets
-PLATFORMS ?= linux/amd64,linux/arm64
+# Build targets (space-separated — consumed by shell for-loops; all 8 platforms)
+PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64 freebsd/arm64
 
 # Docker - Set REGISTRY based on your platform (ghcr.io, registry.gitlab.com, git.example.com)
 REGISTRY ?= ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
@@ -220,10 +220,10 @@ test:
 		go test -v -cover -coverprofile=\$$COVDIR/coverage.out ./... && \
 		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.out | awk '/^total:/{print \$$3}' | sed 's/%//') && \
 		echo \"Coverage: \$$COVERAGE%\" && \
-		if [ \$$(echo \"\$$COVERAGE < 80\" | bc -l) -eq 1 ]; then \
-			echo \"ERROR: Coverage is \$$COVERAGE%, must be >= 80%\"; exit 1; \
+		if [ \$$(echo \"\$$COVERAGE < 60\" | bc -l) -eq 1 ]; then \
+			echo \"ERROR: Coverage is \$$COVERAGE%, must be >= 60%\"; exit 1; \
 		fi && \
-		echo \"Tests complete - Coverage: \$$COVERAGE% (>= 80% required)\""
+		echo \"Tests complete - Coverage: \$$COVERAGE% (>= 60% required)\""
 
 # =============================================================================
 # DEV - Quick build for local development/testing (to random temp dir)
@@ -231,6 +231,7 @@ test:
 # Fast: local platform only, no ldflags, random temp dir for isolation
 # Builds server + CLI + agent (if they exist)
 dev:
+	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@$(GO_DOCKER) go mod tidy
 	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
 		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \

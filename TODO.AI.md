@@ -955,24 +955,31 @@ any of the above: `src/graphql/context_keys_test.go`,
     the real `m.DB`, so the goroutine can't outlive test teardown. Read:
     AI.md PART 29 (Testing) before starting.
 
-34. TODO (flagged 2026-08-02 by go-lint during item 15's GraphQL
-    context-key pass): pre-existing, out of scope for item 15 (GraphQL
-    resolver context-key type fixes only) —
-    - `Makefile` line 38: `PLATFORMS ?= linux/amd64,linux/arm64` — must
-      build all 8 platforms (linux/darwin/windows/freebsd ×
-      amd64/arm64) per PART 26.
-    - `Makefile` line 223: coverage threshold hardcoded to 80% in a
-      shell `bc` comparison — PART 26/29 require ≥60%, not a stricter
-      ad-hoc value (this makes the local `make test` gate stricter than
-      CI's `ci.yml` 60% gate, inconsistent enforcement).
-    - `Makefile` line 233-234: `dev` target invokes `$(GO_DOCKER)`
-      without a preceding `@mkdir -p $(GO_CACHE) $(GO_BUILD)` — cache
-      dirs must exist before the docker run mounts them.
+34. DONE (2026-08-02): fixed 3 Makefile drifts from AI.md PART 26's
+    canonical template (flagged by go-lint during item 15's GraphQL
+    context-key pass):
+    - `PLATFORMS` (line 38) was `linux/amd64,linux/arm64` (comma-joined,
+      2 platforms) — fixed to the canonical space-separated 8-platform
+      list (`linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+      windows/amd64 windows/arm64 freebsd/amd64 freebsd/arm64`); the
+      `build`/`local` targets' `for platform in $(PLATFORMS)` loops
+      require space-separation, not commas, to iterate correctly.
+    - `test` target's coverage gate was hardcoded to 80% in a shell `bc`
+      comparison — PART 26/29 require ≥60% (matching `ci.yml`'s own
+      gate); fixed both the `bc` comparison and the two adjacent
+      echo/error strings to say 60%.
+    - `dev` target invoked `$(GO_DOCKER) go mod tidy` without first
+      creating `$(GO_CACHE)`/`$(GO_BUILD)` (the `build`/`local`/`test`
+      targets all `mkdir -p` these before their first `$(GO_DOCKER)`
+      call; `dev` was the one target missing it) — added the same
+      `@mkdir -p $(GO_CACHE) $(GO_BUILD)` line as the first recipe line.
     (The go-lint agent's 4th finding, that `Version`/`CommitID`/
     `BuildDate` in `src/main.go` are used but never declared, is a false
     positive — they're declared in `src/version.go`, a separate file in
     the same package, which the agent didn't check.)
-    Read: AI.md PART 26 (Makefile targets) before starting.
+    Verified via `make -n dev`/`make -n test` (dry-run, syntax clean).
+    Read: AI.md PART 26 (Makefile targets, canonical template lines
+    38185-38245) before starting.
 
 36. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
     check): `src/main.go` uses `log.Fatalf` at ~18 call sites (lines 100,
