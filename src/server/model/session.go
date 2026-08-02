@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -68,7 +69,7 @@ func (m *SessionModel) Create(userID interface{}, sessionTimeout int) (*Session,
 	expiresAt := time.Now().Add(time.Duration(sessionTimeout) * time.Second)
 	now := time.Now()
 
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at)
 		VALUES (?, ?, ?, ?)
 	`, hashToken(rawToken), uid, expiresAt, now)
@@ -92,7 +93,7 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	session := &Session{}
 	var dataJSON sql.NullString
 
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT token_hash, user_id, data, expires_at, created_at
 		FROM user_sessions WHERE token_hash = ?
 	`, hashToken(rawToken)).Scan(&session.ID, &session.UserID, &dataJSON, &session.ExpiresAt, &session.CreatedAt)
@@ -132,7 +133,7 @@ func (m *SessionModel) UpdateData(rawToken string, data map[string]interface{}) 
 		return fmt.Errorf("failed to marshal session data: %w", err)
 	}
 
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_sessions SET data = ?
 		WHERE token_hash = ?
 	`, string(dataJSON), hashToken(rawToken))
@@ -143,7 +144,7 @@ func (m *SessionModel) UpdateData(rawToken string, data map[string]interface{}) 
 func (m *SessionModel) Extend(rawToken string, sessionTimeout int) error {
 	expiresAt := time.Now().Add(time.Duration(sessionTimeout) * time.Second)
 
-	_, err := database.GetUsersDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE user_sessions SET expires_at = ?
 		WHERE token_hash = ?
 	`, expiresAt, hashToken(rawToken))
@@ -152,18 +153,18 @@ func (m *SessionModel) Extend(rawToken string, sessionTimeout int) error {
 
 // Delete removes a single session by its raw bearer token.
 func (m *SessionModel) Delete(rawToken string) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE token_hash = ?", hashToken(rawToken))
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE token_hash = ?", hashToken(rawToken))
 	return err
 }
 
 // DeleteByUserID removes all sessions belonging to a user.
 func (m *SessionModel) DeleteByUserID(userID int) error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE user_id = ?", userID)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE user_id = ?", userID)
 	return err
 }
 
 // CleanupExpired removes sessions that have passed their expiry time.
 func (m *SessionModel) CleanupExpired() error {
-	_, err := database.GetUsersDB().Exec("DELETE FROM user_sessions WHERE expires_at < ?", time.Now())
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, "DELETE FROM user_sessions WHERE expires_at < ?", time.Now())
 	return err
 }
