@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -46,10 +47,10 @@ type NotificationQueue struct {
 
 // DeliverySystem handles notification delivery with retry logic
 type DeliverySystem struct {
-	db              *sql.DB
-	channelManager  *ChannelManager
-	templateEngine  *TemplateEngine
-	maxRetries      int
+	db             *sql.DB
+	channelManager *ChannelManager
+	templateEngine *TemplateEngine
+	maxRetries     int
 	// "linear" or "exponential"
 	retryBackoff    string
 	queueWorkers    int
@@ -82,7 +83,7 @@ func (ds *DeliverySystem) LoadSettings() error {
 
 	for key, ptr := range settings {
 		var value string
-		err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
+		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
 		if err == nil {
 			var intVal int
 			fmt.Sscanf(value, "%d", &intVal)
@@ -92,7 +93,7 @@ func (ds *DeliverySystem) LoadSettings() error {
 
 	// Get backoff strategy
 	var backoff string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", "notifications.retry_backoff").Scan(&backoff)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", "notifications.retry_backoff").Scan(&backoff)
 	if err == nil {
 		ds.retryBackoff = backoff
 	}
@@ -104,7 +105,7 @@ func (ds *DeliverySystem) LoadSettings() error {
 func (ds *DeliverySystem) Enqueue(userID *int, channelType, subject, body string, priority int, variables map[string]interface{}) (int, error) {
 	variablesJSON, _ := json.Marshal(variables)
 
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO notification_queue
 		(user_id, channel_type, priority, state, subject, body, variables,
 		 retry_count, max_retries, created_at, updated_at)
@@ -124,7 +125,7 @@ func (ds *DeliverySystem) Enqueue(userID *int, channelType, subject, body string
 func (ds *DeliverySystem) ProcessQueue() error {
 	// Get pending notifications (created or ready for retry)
 	now := time.Now()
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, channel_type, template_id, priority, state,
 		       subject, body, variables, retry_count, max_retries,
 		       next_retry_at, created_at, updated_at
@@ -201,7 +202,7 @@ func (ds *DeliverySystem) handleSuccess(nq *NotificationQueue) {
 	now := time.Now()
 
 	// Update queue entry
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE notification_queue
 		SET state = ?, delivered_at = ?, updated_at = ?
 		WHERE id = ?
@@ -227,7 +228,7 @@ func (ds *DeliverySystem) handleFailure(nq *NotificationQueue, err error) {
 	if nq.RetryCount >= nq.MaxRetries {
 		// Move to dead letter queue
 		now := time.Now()
-		_, dbErr := database.GetServerDB().Exec(`
+		_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE notification_queue
 			SET state = ?, failed_at = ?, error_message = ?, retry_count = ?, updated_at = ?
 			WHERE id = ?
@@ -245,7 +246,7 @@ func (ds *DeliverySystem) handleFailure(nq *NotificationQueue, err error) {
 	nextRetry := ds.calculateNextRetry(nq.RetryCount)
 
 	// Update for retry
-	_, dbErr := database.GetServerDB().Exec(`
+	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE notification_queue
 		SET state = ?, retry_count = ?, next_retry_at = ?, error_message = ?, updated_at = ?
 		WHERE id = ?
@@ -280,7 +281,7 @@ func (ds *DeliverySystem) calculateNextRetry(retryCount int) time.Time {
 
 // updateState updates the state of a notification
 func (ds *DeliverySystem) updateState(id int, state DeliveryState) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE notification_queue
 		SET state = ?, updated_at = ?
 		WHERE id = ?
@@ -301,7 +302,7 @@ func (ds *DeliverySystem) recordHistory(nq *NotificationQueue, status, errorMsg 
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_notification_history
 		(queue_id, user_id, channel_type, status, subject, body, sent_at, error_message, metadata)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -316,7 +317,7 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 	// If user_id is set, get user's preferred contact for this channel
 	if nq.UserID.Valid {
 		var recipient string
-		err := database.GetUsersDB().QueryRow(`
+		err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 			SELECT config FROM user_notification_preferences
 			WHERE user_id = ? AND channel_type = ? AND enabled = 1
 			LIMIT 1
@@ -333,7 +334,7 @@ func (ds *DeliverySystem) getRecipient(nq *NotificationQueue) string {
 		// Fallback to user's email
 		if nq.ChannelType == "email" {
 			var email string
-			database.GetUsersDB().QueryRow("SELECT email FROM user_accounts WHERE id = ?", nq.UserID.Int64).Scan(&email)
+			database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT email FROM user_accounts WHERE id = ?", nq.UserID.Int64).Scan(&email)
 			return email
 		}
 	}
@@ -353,7 +354,7 @@ func (ds *DeliverySystem) GetQueueStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// Count by state
-	rows, err := database.GetServerDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutReport, `
 		SELECT state, COUNT(*) as count
 		FROM notification_queue
 		GROUP BY state
@@ -375,7 +376,7 @@ func (ds *DeliverySystem) GetQueueStats() (map[string]interface{}, error) {
 
 	// Total pending (created + queued + failed with retry)
 	var pending int
-	database.GetServerDB().QueryRow(`
+	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*)
 		FROM notification_queue
 		WHERE state IN (?, ?, ?)
@@ -385,7 +386,7 @@ func (ds *DeliverySystem) GetQueueStats() (map[string]interface{}, error) {
 
 	// Dead letters
 	var deadLetters int
-	database.GetServerDB().QueryRow(`
+	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*)
 		FROM notification_queue
 		WHERE state = ?
@@ -399,7 +400,7 @@ func (ds *DeliverySystem) GetQueueStats() (map[string]interface{}, error) {
 func (ds *DeliverySystem) CleanupOld(retentionDays int) error {
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
 
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
 		DELETE FROM notification_queue
 		WHERE state = ? AND delivered_at < ?
 	`, StateDelivered, cutoff)
@@ -431,6 +432,6 @@ func (ds *DeliverySystem) RequeueDeadLetters(ids []int) error {
 	args = append([]interface{}{StateQueued, time.Now()}, args...)
 	args = append(args, StateDeadLetter)
 
-	_, err := database.GetServerDB().Exec(query, args...)
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, query, args...)
 	return err
 }
