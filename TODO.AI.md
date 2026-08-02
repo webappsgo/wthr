@@ -853,15 +853,21 @@ any of the above: `src/graphql/context_keys_test.go`,
 29. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/middleware/setup.go + src/server/service/smtp.go pass):
     pre-existing, out of scope for item 12 (DB timeout wrapping only) —
-    - src/server/middleware/setup.go: imports `path` package aliased
-      differently from its usage — calls use `paths.GetConfigDir()` and
-      `utils.SetupTokenExists()` (lines 53-54, 108-109) but the actual
-      imports are `"github.com/webappsgo/wthr/src/path"` (as `path`) and
-      `"github.com/webappsgo/wthr/src/util"` (as `util`) — `paths`/`utils`
-      don't match the declared import names; this compiles today only if
-      those packages themselves are named `package paths`/`package utils`
-      internally (see item 28 for the analogous src/util package-name
-      mismatch). Needs verification and a consistent fix either way.
+    - DONE (2026-08-02): renamed `package paths` -> `package path` in
+      src/path/paths.go, paths_test.go, paths_extra_test.go, matching
+      the singular directory name (AI.md PART 3), same class of fix as
+      item 26/28. Updated every bare importer's call sites from
+      `paths.X` to `path.X` (src/main.go, src/cli/maintenance_backup.go,
+      src/scheduler/backup_task.go, src/scheduler/scheduler.go,
+      src/server/handler/admin_backup.go, src/server/handler/setup.go,
+      src/server/handler/setup_wizard.go, src/server/middleware/setup.go,
+      src/server/middleware/setup_test.go). Renamed a colliding local
+      variable `path` -> `reqPath` in setup.go's SetupTokenRequired
+      (it shadowed the package within a scope that also calls
+      `path.GetConfigDir()`). src/server/handler/setup_test.go, which
+      alias-imports as `paths "..."`, left unchanged. Verified: gofmt
+      -l clean, go build/vet clean, go test ./... all pass. Commit:
+      719d52f9a723.
     - src/server/middleware/setup.go: `db *sql.DB` parameter unused in
       `SetupTokenRequired`, `BlockSetupAfterComplete`, and
       `BlockSetupAfterAdminExists` (lines 20, 94, 140) — dead parameter,
