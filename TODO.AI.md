@@ -881,10 +881,24 @@ any of the above: `src/graphql/context_keys_test.go`,
       it's out of scope for this file-specific fix. Verified: gofmt -l
       clean, go build/vet clean, go test ./... all pass. Commit:
       495eacd5a7e3.
-    - src/server/service/smtp.go: hardcoded user-facing strings not run
-      through i18n `t()` per PART 31 — `"Weather"` fallback title,
-      `"Weather SMTP Test"` subject, `"SMTP Test Successful"`, and related
-      template text (lines ~167, 324, 329, 337).
+    - DONE (2026-08-02): translated src/server/service/smtp.go's hardcoded
+      strings per PART 31. Added a global i18n accessor
+      (`i18n.SetGlobalI18n`/`GetGlobalI18n` in src/common/i18n/i18n.go,
+      registered in src/main.go) mirroring the existing
+      config.SetGlobalConfig/GetGlobalConfig and
+      database.SetGlobalDualDB/GetGlobalDualDB pattern, since SMTPService
+      has no gin.Context (it also sends from scheduler/GraphQL/CLI paths);
+      falls back to the server default language per PART 31's CLI/Agent/
+      Server Output Translation fallback chain. Added a package-local
+      `translate` helper in smtp.go (falls back to a hardcoded English
+      default when the global instance is nil, e.g. unit tests
+      constructing SMTPService directly). Replaced the hardcoded
+      `"Weather"` From-name fallback with the existing `app.name` key, and
+      replaced SendTestEmail's hardcoded subject/heading/body strings with
+      new `email.subjects.smtp_test` / `email.body.smtp_test_*` keys,
+      added to all 7 locale files (205 keys each, key sets still identical
+      across all languages). Verified: gofmt -l clean, go build/vet clean,
+      go test ./... all pass. Commit: fa94d583038e.
     Not touched by the item-12 diff (only the raw DB calls were converted
     to timeout-wrapped calls; the context.WithTimeout wrapping itself was
     verified correct against src/database/timeouts.go). Read: AI.md PART 3
