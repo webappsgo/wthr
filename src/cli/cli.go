@@ -23,8 +23,8 @@ type Command struct {
 	Name        string
 	Description string
 	// Requires root/admin
-	Privileged  bool
-	Handler     func(args []string) error
+	Privileged bool
+	Handler    func(args []string) error
 }
 
 // CLI manages command-line interface
