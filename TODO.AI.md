@@ -787,16 +787,17 @@ any of the above: `src/graphql/context_keys_test.go`,
     go build ./... clean, go vet ./... clean, go test
     ./src/server/handler/... passes. Committed as 72fea1596add.
 
-26. TODO (flagged 2026-08-02 by go-lint during item 12's
-    src/server/model/passkey.go pass): pre-existing, repo-wide, out of
-    scope for item 12 — every file in src/server/model/ (directory name
-    singular, per PART 3 Go convention) declares `package models`
-    (plural) instead of `package model` (singular, matching the
-    directory). Not introduced by this diff. Fix requires renaming the
-    package declaration in every file under src/server/model/ and
-    updating every importer across the codebase (large, cross-cutting,
-    out of scope for the DB-timeout migration). Read: AI.md PART 3
-    (directory naming) before starting.
+26. DONE (2026-08-02): renamed `package models` to `package model` in
+    every file under src/server/model/ (26 files) per PART 3's singular
+    directory-name convention. Rippled to 29 bare-importer files
+    (`models.` -> `model.`) across src/main.go, src/server/handler/,
+    src/server/middleware/, src/server/service/. 37 alias-importer
+    files (explicit `models "..."` import alias, including
+    src/graphql/generated.go, which must never be manually edited per
+    PART 14) were intentionally left unchanged since the alias
+    insulates them from the package rename. Verified: gofmt -l clean,
+    go build ./... clean, go vet ./... clean, go test ./... passes
+    across every package. Committed as e006955e7775.
 
 27. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/template_engine.go and
