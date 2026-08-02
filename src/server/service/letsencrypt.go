@@ -155,8 +155,8 @@ func (p *DNS01Provider) Present(domain, token, keyAuth string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	fqdn, value := dns01.GetRecord(domain, keyAuth)
-	p.records[fqdn] = value
+	info := dns01.GetChallengeInfo(domain, keyAuth)
+	p.records[info.EffectiveFQDN] = info.Value
 
 	// In a real implementation, this would create DNS TXT records via DNS provider API
 	// Examples: Cloudflare, Route53, DigitalOcean, etc.
@@ -170,8 +170,8 @@ func (p *DNS01Provider) CleanUp(domain, token, keyAuth string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	fqdn, _ := dns01.GetRecord(domain, keyAuth)
-	delete(p.records, fqdn)
+	info := dns01.GetChallengeInfo(domain, keyAuth)
+	delete(p.records, info.EffectiveFQDN)
 
 	return nil
 }
@@ -340,7 +340,9 @@ func (s *LetsEncryptService) RenewCertificate(domain string, challengeType strin
 	}
 
 	// Renew certificate
-	renewed, err := s.client.Certificate.Renew(*cert, true, false, "")
+	renewed, err := s.client.Certificate.RenewWithOptions(*cert, &certificate.RenewOptions{
+		Bundle: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to renew certificate: %w", err)
 	}
