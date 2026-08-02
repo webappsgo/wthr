@@ -12,11 +12,11 @@ type DirectoryPaths struct {
 	// Configuration directory
 	Config string
 	// Data directory (database, user files)
-	Data   string
+	Data string
 	// Log directory
-	Log    string
+	Log string
 	// Cache directory
-	Cache  string
+	Cache string
 }
 
 // GetDirectoryPaths returns the appropriate directory paths based on privileges and OS

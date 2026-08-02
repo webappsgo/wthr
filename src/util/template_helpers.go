@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"github.com/webappsgo/wthr/src/config"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/config"
 )
 
 // LanguageInfo holds metadata about a supported language for UI display.

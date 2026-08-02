@@ -103,7 +103,7 @@ func TestUpdateYAMLConfig(t *testing.T) {
 		}
 
 		err := UpdateYAMLConfig(path, map[string]interface{}{
-			"server.port":         443,
+			"server.port":          443,
 			"server.users.enabled": true,
 		})
 		if err != nil {

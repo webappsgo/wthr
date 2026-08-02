@@ -91,10 +91,10 @@ func TestColorEnabled_NoColorEnv(t *testing.T) {
 // its documented plain-text fallback depending on EmojiEnabled.
 func TestGetIndicators(t *testing.T) {
 	tests := []struct {
-		name    string
-		fn      func() string
-		emoji   string
-		plain   string
+		name  string
+		fn    func() string
+		emoji string
+		plain string
 	}{
 		{"GetOK", GetOK, EmojiOK, PlainOK},
 		{"GetError", GetError, EmojiError, PlainError},

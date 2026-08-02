@@ -63,27 +63,27 @@ type MoonData struct {
 // RenderParams represents rendering parameters for weather output
 type RenderParams struct {
 	// 0-4: different output formats
-	Format     int    `json:"format"`
+	Format int `json:"format"`
 	// metric, imperial, M (m/s)
-	Units      string `json:"units"`
+	Units string `json:"units"`
 	// en, es, fr, etc.
-	Language   string `json:"language"`
+	Language string `json:"language"`
 	// 0, 1, 2 (number of forecast days)
-	Days       int    `json:"days"`
+	Days int `json:"days"`
 	// F: hide footer
-	NoFooter   bool   `json:"noFooter"`
+	NoFooter bool `json:"noFooter"`
 	// q: quiet mode
-	Quiet      bool   `json:"quiet"`
+	Quiet bool `json:"quiet"`
 	// Q: super quiet
-	SuperQuiet bool   `json:"superQuiet"`
+	SuperQuiet bool `json:"superQuiet"`
 	// T: no terminal colors
-	NoColors   bool   `json:"noColors"`
+	NoColors bool `json:"noColors"`
 	// n: narrow output
-	Narrow     bool   `json:"narrow"`
+	Narrow bool `json:"narrow"`
 	// A: force ANSI/terminal
-	ForceANSI  bool   `json:"forceANSI"`
+	ForceANSI bool `json:"forceANSI"`
 	// Terminal width in columns (for adaptive layout)
-	Width      int    `json:"width"`
+	Width int `json:"width"`
 }
 
 // Country represents country data

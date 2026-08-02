@@ -172,4 +172,3 @@ func TestUsernameRegex(t *testing.T) {
 		})
 	}
 }
-

@@ -72,12 +72,12 @@ func TestValidateFQDN(t *testing.T) {
 // TestValidateURL covers scheme/host requirements and hostname extraction.
 func TestValidateURL(t *testing.T) {
 	tests := []struct {
-		name       string
-		rawURL     string
-		devMode    bool
-		wantValid  bool
-		wantHost   string
-		wantErr    bool
+		name      string
+		rawURL    string
+		devMode   bool
+		wantValid bool
+		wantHost  string
+		wantErr   bool
 	}{
 		{"valid_https", "https://example.com/path", false, true, "example.com", false},
 		{"valid_http_dev", "http://localhost:8080", true, true, "localhost", false},

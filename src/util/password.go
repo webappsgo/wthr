@@ -14,7 +14,7 @@ import (
 
 // Argon2id parameters (NON-NEGOTIABLE per TEMPLATE.md Part 0)
 const (
-	argon2Time    = 3
+	argon2Time = 3
 	// 64 MB
 	argon2Memory  = 64 * 1024
 	argon2Threads = 4

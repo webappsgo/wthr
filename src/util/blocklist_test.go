@@ -7,8 +7,8 @@ import (
 // TestIsUsernameBlocked tests the username blocklist per AI.md PART 22
 func TestIsUsernameBlocked(t *testing.T) {
 	tests := []struct {
-		name     string
-		email    string
+		name        string
+		email       string
 		wantBlocked bool
 	}{
 		// Exact matches from blocklist

@@ -9,16 +9,16 @@ import (
 
 // Email validation errors
 var (
-	ErrEmailTooLong           = errors.New("email too long (max 254 characters)")
-	ErrEmailInvalidFormat     = errors.New("invalid email format")
-	ErrEmailLocalPartLength   = errors.New("invalid local part length (1-64 characters)")
-	ErrEmailLocalPartDot      = errors.New("local part cannot start or end with dot")
-	ErrEmailConsecutiveDots   = errors.New("local part cannot have consecutive dots")
-	ErrEmailDomainLength      = errors.New("invalid domain length")
-	ErrEmailDomainNoTLD       = errors.New("domain must have valid TLD")
-	ErrEmailLocalPartChars    = errors.New("invalid characters in local part")
-	ErrEmailDomainFormat      = errors.New("invalid domain format")
-	ErrEmailDisposableDomain  = errors.New("disposable email domains are not allowed")
+	ErrEmailTooLong          = errors.New("email too long (max 254 characters)")
+	ErrEmailInvalidFormat    = errors.New("invalid email format")
+	ErrEmailLocalPartLength  = errors.New("invalid local part length (1-64 characters)")
+	ErrEmailLocalPartDot     = errors.New("local part cannot start or end with dot")
+	ErrEmailConsecutiveDots  = errors.New("local part cannot have consecutive dots")
+	ErrEmailDomainLength     = errors.New("invalid domain length")
+	ErrEmailDomainNoTLD      = errors.New("domain must have valid TLD")
+	ErrEmailLocalPartChars   = errors.New("invalid characters in local part")
+	ErrEmailDomainFormat     = errors.New("invalid domain format")
+	ErrEmailDisposableDomain = errors.New("disposable email domains are not allowed")
 )
 
 // localPartRegex validates allowed characters in local part

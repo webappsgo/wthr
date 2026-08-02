@@ -115,7 +115,7 @@ func (sm *SSLManager) GenerateSelfSignedCert(domain string) error {
 			Organization: []string{"Weather"},
 			CommonName:   domain,
 		},
-		NotBefore:             time.Now(),
+		NotBefore: time.Now(),
 		// 1 year
 		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,

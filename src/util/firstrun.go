@@ -17,14 +17,14 @@ import (
 
 // FirstRunConfig represents first-run auto-detected configuration
 type FirstRunConfig struct {
-	SMTPHost      string
-	SMTPPort      int
-	HTTPPort      int
-	SetupToken    string
-	IsFirstRun    bool
-	IsDockerized  bool
-	TorEnabled    bool
-	OnionAddress  string
+	SMTPHost     string
+	SMTPPort     int
+	HTTPPort     int
+	SetupToken   string
+	IsFirstRun   bool
+	IsDockerized bool
+	TorEnabled   bool
+	OnionAddress string
 }
 
 // DetectFirstRun checks if this is the first time the server is running

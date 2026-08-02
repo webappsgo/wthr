@@ -19,9 +19,9 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 		Units:    "auto",
 		Language: "en",
 		// Default: show 3 days (adaptive based on terminal width)
-		Days:     3,
+		Days: 3,
 		// 0 = auto-detect based on content
-		Width:    0,
+		Width: 0,
 	}
 
 	// Check for combined parameter flags (e.g., ?TFm or ?qn)
