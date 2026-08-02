@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +23,7 @@ import (
 // operation has already completed; logging failure must not roll it back.
 func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
 	details, _ := json.Marshal(map[string]string{"name": passkeyName})
-	_, err := db.Exec(`
+	_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		INSERT INTO server_audit_log
 			(ulid, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
 		VALUES (?, 'admin', ?, ?, 'admin_passkey', ?, ?, ?, ?, 'success')
@@ -309,7 +311,7 @@ func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
 
 	// Fetch the passkey name before deletion so the audit log entry is meaningful.
 	var passkeyName string
-	_ = h.DB.QueryRow(
+	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT name FROM server_admin_passkeys WHERE id = ? AND admin_id = ?",
 		passkeyID, admin.ID,
 	).Scan(&passkeyName)

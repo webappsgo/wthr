@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -8,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webappsgo/wthr/src/backup"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -133,7 +135,7 @@ func OptimizeDatabase(c *gin.Context) {
 	sqlDB := db.(*sql.DB)
 
 	// Run ANALYZE to update statistics
-	if _, err := sqlDB.Exec("ANALYZE"); err != nil {
+	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "ANALYZE"); err != nil {
 		InternalError(c, fmt.Sprintf("Failed to analyze database: %v", err))
 		return
 	}
@@ -179,7 +181,7 @@ func VacuumDatabase(c *gin.Context) {
 	start := time.Now()
 
 	// Run VACUUM to reclaim space
-	if _, err := sqlDB.Exec("VACUUM"); err != nil {
+	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "VACUUM"); err != nil {
 		InternalError(c, fmt.Sprintf("Failed to vacuum database: %v", err))
 		return
 	}

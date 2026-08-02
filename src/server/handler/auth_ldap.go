@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -64,7 +65,7 @@ func (h *LDAPAuthHandler) Login(c *gin.Context) {
 	usersDB := database.GetUsersDB()
 
 	var userID int64
-	err = usersDB.QueryRow(
+	err = database.QueryRowContext(context.Background(), usersDB, database.TimeoutSimpleSelect,
 		"SELECT id FROM user_accounts WHERE username = ? AND is_active = 1 AND is_banned = 0",
 		req.Username,
 	).Scan(&userID)
@@ -86,7 +87,7 @@ func (h *LDAPAuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
 			return
 		}
-		result, insertErr := usersDB.Exec(`
+		result, insertErr := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_accounts (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
 			VALUES (?, ?, ?, ?, 'user', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`, req.Username, email, displayName, pwHash)

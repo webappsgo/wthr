@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -354,7 +355,7 @@ func saveContactToDB(c *gin.Context, name, email, subject, message string) error
 	}
 
 	// Create contact_submissions table if not exists
-	_, err := db.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutMigration, `
 		CREATE TABLE IF NOT EXISTS contact_submissions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			name TEXT NOT NULL,
@@ -372,7 +373,7 @@ func saveContactToDB(c *gin.Context, name, email, subject, message string) error
 	}
 
 	// Insert contact submission
-	_, err = db.DB.Exec(`
+	_, err = database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
 		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`, name, email, subject, message, c.ClientIP(), c.Request.UserAgent())

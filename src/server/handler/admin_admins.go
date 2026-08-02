@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -270,7 +272,7 @@ func (h *AdminsHandler) ChangePassword(c *gin.Context) {
 	// Verify current password
 	if request.CurrentPassword != "" {
 		var currentHash string
-		err := h.DB.QueryRow("SELECT password FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
+		err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT password FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify password"})
 			return
