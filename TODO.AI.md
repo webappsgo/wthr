@@ -350,3 +350,13 @@ any of the above: `src/graphql/context_keys_test.go`,
     backend-rules.md's "log every error with context" rule; replace the
     silent `continue` in `seedScheduledTasks` with an error-logged
     continue. Read: AI.md PART 9 (error handling) before starting.
+
+23. TODO (flagged 2026-08-01 by go-lint during item 12's
+    src/server/handler/setup.go pass): lines 332, 355, 524, 704 use
+    `fmt.Printf()` for server-side output instead of structured logging
+    (`log/slog`) — ai-rules.md/backend-rules.md require structured
+    logging in handlers. Pre-existing, unrelated to the DB-timeout
+    migration; not touched by item 12's edits. Fix: replace with
+    `slog`-based logging calls matching the pattern already used
+    elsewhere in src/server/handler. Read: AI.md PART 11 (security &
+    logging) before starting.

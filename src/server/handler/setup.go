@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
@@ -255,7 +256,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 
 	// Check if admin username already exists in server_admin_credentials
 	var count int
-	err = database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?", username).Scan(&count)
+	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?", username).Scan(&count)
 	if err != nil {
 		h.setupError(c, http.StatusInternalServerError, "Database error")
 		return
@@ -274,7 +275,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	}
 
 	// Create administrator account in server_admin_credentials (NOT user_accounts)
-	result, err := database.GetServerDB().Exec(`
+	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
 		VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, username, email, hashedPassword)
@@ -300,7 +301,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	// 7 days
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
 	`, sessionID, adminID, c.ClientIP(), c.Request.UserAgent(), expiresAt)
@@ -344,7 +345,7 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 
 	// Hash and store the API token
 	tokenHash := utils.HashAPIToken(apiToken)
-	_, err = database.GetServerDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
 		SET api_token_hash = ?, api_token_prefix = 'adm_', updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
@@ -514,7 +515,7 @@ func (h *SetupHandler) ProcessServerConfig(c *gin.Context) {
 
 	for key, value := range settings {
 		if value != "" {
-			_, err := database.GetServerDB().Exec(`
+			_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
 				VALUES (?, ?, datetime('now'))
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
@@ -582,7 +583,7 @@ func (h *SetupHandler) ProcessSecurity(c *gin.Context) {
 		// Hash the backup password
 		hashedPassword, err := utils.HashPassword(input.BackupPassword)
 		if err == nil {
-			database.GetServerDB().Exec(`
+			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
 				VALUES ('backup.encryption_hash', ?, datetime('now'))
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
@@ -619,7 +620,7 @@ func (h *SetupHandler) ShowServices(c *gin.Context) {
 
 	// Get admin email for SSL contact
 	var adminEmail string
-	database.GetServerDB().QueryRow("SELECT email FROM server_admin_credentials LIMIT 1").Scan(&adminEmail)
+	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT email FROM server_admin_credentials LIMIT 1").Scan(&adminEmail)
 
 	c.HTML(http.StatusOK, "page/setup_services.tmpl", gin.H{
 		"Title":        "Optional Services - " + title,
@@ -648,20 +649,20 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 
 	// Save SSL settings
 	if input.EnableSSL {
-		database.GetServerDB().Exec(`
+		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			INSERT INTO server_config (key, value, updated_at)
 			VALUES ('ssl.enabled', 'true', datetime('now'))
 			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
 		`)
 		if input.SSLDomain != "" {
-			database.GetServerDB().Exec(`
+			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
 				VALUES ('ssl.domain', ?, datetime('now'))
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
 			`, input.SSLDomain, input.SSLDomain)
 		}
 		if input.SSLEmail != "" {
-			database.GetServerDB().Exec(`
+			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
 				VALUES ('ssl.email', ?, datetime('now'))
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
@@ -671,13 +672,13 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 
 	// Save multi-user settings
 	if input.EnableMultiUser {
-		database.GetServerDB().Exec(`
+		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			INSERT INTO server_config (key, value, updated_at)
 			VALUES ('features.multiuser', 'true', datetime('now'))
 			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
 		`)
 		if input.RegistrationMode != "" {
-			database.GetServerDB().Exec(`
+			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
 				VALUES ('users.registration_mode', ?, datetime('now'))
 				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
@@ -694,7 +695,7 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 // AI.md: Setup is complete when Primary Admin is created
 func (h *SetupHandler) CompleteSetup(c *gin.Context) {
 	// Mark setup as complete in database
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description, updated_at)
 		VALUES ('setup.completed', 'true', 'bool', 'Server setup completed', datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
@@ -728,7 +729,7 @@ func (h *SetupHandler) GetSetupStatus(c *gin.Context) {
 
 	// Check if a primary admin exists
 	var adminCount int
-	err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
@@ -753,7 +754,7 @@ func (h *SetupHandler) GetSetupStatus(c *gin.Context) {
 
 	// Check if setup is completed
 	var setupComplete string
-	err = database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = 'setup.completed'").Scan(&setupComplete)
+	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'setup.completed'").Scan(&setupComplete)
 
 	// If setup.completed doesn't exist or is not "true", continue the setup wizard
 	if err != nil || setupComplete != "true" {
