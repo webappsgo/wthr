@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"runtime"
@@ -415,28 +416,28 @@ func getSchedulerStatus() gin.H {
 
 	// Count total tasks
 	var totalTasks int
-	err := db.QueryRow("SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks)
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state").Scan(&totalTasks)
 	if err != nil {
 		totalTasks = 0
 	}
 
 	// Count enabled tasks
 	var enabledTasks int
-	err = db.QueryRow("SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE enabled = 1").Scan(&enabledTasks)
 	if err != nil {
 		enabledTasks = 0
 	}
 
 	// Get next scheduled run
 	var nextRun *string
-	err = db.QueryRow("SELECT MIN(next_run) FROM server_scheduler_state WHERE enabled = 1 AND next_run IS NOT NULL").Scan(&nextRun)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT MIN(next_run) FROM server_scheduler_state WHERE enabled = 1 AND next_run IS NOT NULL").Scan(&nextRun)
 	if err != nil {
 		nextRun = nil
 	}
 
 	// Count running tasks (locked)
 	var runningTasks int
-	err = db.QueryRow("SELECT COUNT(*) FROM server_scheduler_state WHERE locked_by IS NOT NULL").Scan(&runningTasks)
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_scheduler_state WHERE locked_by IS NOT NULL").Scan(&runningTasks)
 	if err != nil {
 		runningTasks = 0
 	}
@@ -477,7 +478,7 @@ func getRequestStats() gin.H {
 
 	// Count audit log entries for today (gives us a proxy for activity)
 	var totalToday int
-	err := db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_audit_log
 		WHERE timestamp >= date('now', 'start of day')
 	`).Scan(&totalToday)
@@ -487,7 +488,7 @@ func getRequestStats() gin.H {
 
 	// Count errors today
 	var errorsToday int
-	err = db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_audit_log
 		WHERE timestamp >= date('now', 'start of day')
 		AND status = 'error'
@@ -498,7 +499,7 @@ func getRequestStats() gin.H {
 
 	// Count entries in last minute for rate
 	var lastMinute int
-	err = db.QueryRow(`
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_audit_log
 		WHERE timestamp >= datetime('now', '-1 minute')
 	`).Scan(&lastMinute)

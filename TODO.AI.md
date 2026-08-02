@@ -429,3 +429,15 @@ any of the above: `src/graphql/context_keys_test.go`,
     listed error (400/500 responses as appropriate, matching the
     pattern already used elsewhere in each file). Read: AI.md PART 9
     (error handling) before starting.
+
+28. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/handler/health_comprehensive.go pass): pre-existing,
+    repo-wide, out of scope for item 12 — every file in src/util/
+    (directory name singular, per PART 3 Go convention) declares
+    `package utils` (plural) instead of `package util` (singular,
+    matching the directory). Same class of issue as item 26
+    (src/server/model/ vs `package models`). Not introduced by this
+    diff. Fix requires renaming the package declaration in every file
+    under src/util/ and updating every importer across the codebase
+    (large, cross-cutting, out of scope for the DB-timeout migration).
+    Read: AI.md PART 3 (directory naming) before starting.
