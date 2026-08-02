@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	_ "modernc.org/sqlite"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
+	_ "modernc.org/sqlite"
 )
 
 // initTestDualDB creates in-memory dual databases for testing
@@ -78,9 +78,9 @@ func TestCompleteSetupFlow(t *testing.T) {
 	// Step 1: Create administrator
 	t.Run("1. Create administrator", func(t *testing.T) {
 		payload := map[string]string{
-			"username": "administrator",
-			"email":    "admin@example.com",
-			"password": "AdminPass12345",
+			"username":         "administrator",
+			"email":            "admin@example.com",
+			"password":         "AdminPass12345",
 			"confirm_password": "AdminPass12345",
 		}
 		jsonData, _ := json.Marshal(payload)

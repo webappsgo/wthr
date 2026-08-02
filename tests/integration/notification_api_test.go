@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
-	"github.com/gin-gonic/gin"
 	_ "modernc.org/sqlite"
 )
 
@@ -328,13 +328,13 @@ func TestUserNotificationAPI_UpdatePreferences(t *testing.T) {
 
 	// Prepare request body
 	updateData := models.NotificationPreferences{
-		EnableToast:           false,
-		EnableBanner:          true,
-		EnableCenter:          true,
-		EnableSound:           true,
-		ToastDurationSuccess:  3,
-		ToastDurationInfo:     7,
-		ToastDurationWarning:  15,
+		EnableToast:          false,
+		EnableBanner:         true,
+		EnableCenter:         true,
+		EnableSound:          true,
+		ToastDurationSuccess: 3,
+		ToastDurationInfo:    7,
+		ToastDurationWarning: 15,
 	}
 
 	body, _ := json.Marshal(updateData)

@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	_ "modernc.org/sqlite"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
+	_ "modernc.org/sqlite"
 )
 
 // initTestDualDB creates in-memory dual databases for testing

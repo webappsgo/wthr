@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	_ "modernc.org/sqlite"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	"github.com/webappsgo/wthr/src/server/service"
+	_ "modernc.org/sqlite"
 )
 
 func setupIntegrationTest(t *testing.T) (*gin.Engine, *database.DB) {

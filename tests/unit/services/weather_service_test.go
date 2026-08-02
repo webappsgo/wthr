@@ -1,8 +1,8 @@
 package services_test
 
 import (
-	"testing"
 	"github.com/webappsgo/wthr/src/server/service"
+	"testing"
 )
 
 func TestWeatherService_GetWeatherDescription(t *testing.T) {
