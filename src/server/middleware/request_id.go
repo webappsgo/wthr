@@ -21,20 +21,20 @@ const (
 	RequestIDKey = "request_id"
 
 	// Header names to check for existing request ID (in priority order)
-	HeaderXRequestID       = "X-Request-ID"
-	HeaderXRequestId       = "X-Request-Id"
-	HeaderXCorrelationID   = "X-Correlation-ID"
-	HeaderXCorrelationId   = "X-Correlation-Id"
-	HeaderRequestID        = "Request-ID"
-	HeaderRequestId        = "Request-Id"
+	HeaderXRequestID     = "X-Request-ID"
+	HeaderXRequestId     = "X-Request-Id"
+	HeaderXCorrelationID = "X-Correlation-ID"
+	HeaderXCorrelationId = "X-Correlation-Id"
+	HeaderRequestID      = "Request-ID"
+	HeaderRequestId      = "Request-Id"
 	// Cloudflare request ID
-	HeaderCFRay            = "CF-Ray"
+	HeaderCFRay = "CF-Ray"
 	// AWS request ID
-	HeaderXAmznTraceID     = "X-Amzn-Trace-Id"
+	HeaderXAmznTraceID = "X-Amzn-Trace-Id"
 	// GCP request ID
-	HeaderXCloudTraceCtx   = "X-Cloud-Trace-Context"
+	HeaderXCloudTraceCtx = "X-Cloud-Trace-Context"
 	// Zipkin/B3 trace ID
-	HeaderXB3TraceID       = "X-B3-TraceId"
+	HeaderXB3TraceID = "X-B3-TraceId"
 )
 
 // RequestID returns a middleware that manages request IDs

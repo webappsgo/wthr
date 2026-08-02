@@ -113,14 +113,14 @@ func TestUserNotificationModel_Create(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	tests := []struct {
-		name        string
-		userID      int
-		notifType   NotificationType
-		display     NotificationDisplay
-		title       string
-		message     string
-		action      *NotificationAction
-		wantErr     bool
+		name      string
+		userID    int
+		notifType NotificationType
+		display   NotificationDisplay
+		title     string
+		message   string
+		action    *NotificationAction
+		wantErr   bool
 	}{
 		{
 			name:      "Create success notification",
@@ -429,13 +429,13 @@ func TestNotificationPreferencesModel_UpdateUserPreferences(t *testing.T) {
 
 	// Update preferences
 	newPrefs := &NotificationPreferences{
-		EnableToast:           false,
-		EnableBanner:          true,
-		EnableCenter:          true,
-		EnableSound:           true,
-		ToastDurationSuccess:  3,
-		ToastDurationInfo:     7,
-		ToastDurationWarning:  15,
+		EnableToast:          false,
+		EnableBanner:         true,
+		EnableCenter:         true,
+		EnableSound:          true,
+		ToastDurationSuccess: 3,
+		ToastDurationInfo:    7,
+		ToastDurationWarning: 15,
 	}
 
 	err := model.UpdateUserPreferences(1, newPrefs)

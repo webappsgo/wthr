@@ -13,11 +13,11 @@ import (
 
 // Setting represents a configuration setting
 type Setting struct {
-	ID          int64     `json:"id"`
-	Key         string    `json:"key"`
-	Value       string    `json:"value"`
+	ID    int64  `json:"id"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 	// string, number, boolean, json
-	Type        string    `json:"type"`
+	Type string `json:"type"`
 	// Human-readable description
 	Description string    `json:"description"`
 	Category    string    `json:"category"`
@@ -235,9 +235,9 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 		"app.description": {Value: "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.", Type: "string", Description: "Alias for server.description - Full description"},
 
 		// SEO settings
-		"seo.keywords":        {Value: "weather, forecast, alerts, temperature, humidity, precipitation", Type: "string", Description: "Meta keywords for search engines (comma-separated)"},
-		"seo.author":          {Value: "", Type: "string", Description: "Website author or organization name"},
-		"seo.og_image":        {Value: "", Type: "string", Description: "Social media preview image URL (1200x630px recommended)"},
+		"seo.keywords": {Value: "weather, forecast, alerts, temperature, humidity, precipitation", Type: "string", Description: "Meta keywords for search engines (comma-separated)"},
+		"seo.author":   {Value: "", Type: "string", Description: "Website author or organization name"},
+		"seo.og_image": {Value: "", Type: "string", Description: "Social media preview image URL (1200x630px recommended)"},
 
 		// robots.txt
 		"web.robots_txt": {Value: `User-agent: *

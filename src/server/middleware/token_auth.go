@@ -6,21 +6,21 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // TokenType represents the type of API token per TEMPLATE.md PART 11
 type TokenType int
 
 const (
-	TokenTypeUnknown TokenType = iota
-	TokenTypeAdmin            // adm_
-	TokenTypeUser             // usr_
-	TokenTypeOrg              // org_
-	TokenTypeAdminAgent       // adm_agt_
-	TokenTypeUserAgent        // usr_agt_
-	TokenTypeOrgAgent         // org_agt_
+	TokenTypeUnknown    TokenType = iota
+	TokenTypeAdmin                // adm_
+	TokenTypeUser                 // usr_
+	TokenTypeOrg                  // org_
+	TokenTypeAdminAgent           // adm_agt_
+	TokenTypeUserAgent            // usr_agt_
+	TokenTypeOrgAgent             // org_agt_
 )
 
 // DetectTokenType determines the token type from prefix per TEMPLATE.md PART 11

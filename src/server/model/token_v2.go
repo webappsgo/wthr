@@ -16,19 +16,19 @@ import (
 
 // Token represents an API token per TEMPLATE.md PART 11
 type Token struct {
-	ID         int64      `json:"id"`
-	OwnerType  string     `json:"owner_type"`  // 'admin', 'user', 'org'
-	OwnerID    int64      `json:"owner_id"`
-	Name       string     `json:"name"`
-	TokenHash  string     `json:"-"`           // Never expose hash
-	TokenPrefix string    `json:"token_prefix"` // First 8 chars for display
-	Scope      string     `json:"scope"`       // 'global', 'read-write', 'read'
-	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	
+	ID          int64      `json:"id"`
+	OwnerType   string     `json:"owner_type"` // 'admin', 'user', 'org'
+	OwnerID     int64      `json:"owner_id"`
+	Name        string     `json:"name"`
+	TokenHash   string     `json:"-"`            // Never expose hash
+	TokenPrefix string     `json:"token_prefix"` // First 8 chars for display
+	Scope       string     `json:"scope"`        // 'global', 'read-write', 'read'
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+
 	// Only populated on creation, never stored
-	Token  string     `json:"token,omitempty"`
+	Token string `json:"token,omitempty"`
 }
 
 // TokenScope types per TEMPLATE.md PART 11
@@ -57,7 +57,7 @@ const (
 
 // Expiration options per TEMPLATE.md PART 11
 var ExpirationOptions = map[string]time.Duration{
-	"never":   0,                      // NULL in database
+	"never":   0, // NULL in database
 	"7days":   7 * 24 * time.Hour,
 	"1month":  30 * 24 * time.Hour,
 	"6months": 180 * 24 * time.Hour,
@@ -73,7 +73,7 @@ func GenerateTokenWithPrefix(prefix string) (string, error) {
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("failed to generate random bytes: %w", err)
 	}
-	
+
 	random := hex.EncodeToString(bytes)
 	return prefix + random, nil
 }
@@ -115,16 +115,16 @@ func ValidateTokenFormat(token string) error {
 		}
 		return nil
 	}
-	
+
 	// Standard single-prefix tokens
 	parts := strings.SplitN(token, "_", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("token must have format: {prefix}_{random}")
 	}
-	
+
 	prefix := parts[0] + "_"
 	random := parts[1]
-	
+
 	// Validate prefix
 	switch prefix {
 	case PrefixAdmin, PrefixUser, PrefixOrg:
@@ -132,12 +132,12 @@ func ValidateTokenFormat(token string) error {
 	default:
 		return fmt.Errorf("unknown token prefix: %s", prefix)
 	}
-	
+
 	// Validate random part is 32 chars
 	if len(random) != 32 {
 		return fmt.Errorf("token random part must be 32 characters")
 	}
-	
+
 	return nil
 }
 
@@ -152,12 +152,12 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 	if ownerType != OwnerTypeAdmin && ownerType != OwnerTypeUser && ownerType != OwnerTypeOrg {
 		return nil, fmt.Errorf("invalid owner type: %s", ownerType)
 	}
-	
+
 	// Validate scope
 	if scope != ScopeGlobal && scope != ScopeReadWrite && scope != ScopeRead {
 		return nil, fmt.Errorf("invalid scope: %s", scope)
 	}
-	
+
 	// Generate token with appropriate prefix
 	var prefix string
 	switch ownerType {
@@ -168,38 +168,38 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 	case OwnerTypeOrg:
 		prefix = PrefixOrg
 	}
-	
+
 	fullToken, err := GenerateTokenWithPrefix(prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
-	
+
 	// Hash token for storage (NEVER store plaintext)
 	tokenHash := HashToken(fullToken)
 	tokenPrefix := GetTokenPrefix(fullToken)
-	
+
 	// Calculate expiration
 	var expiresAt *time.Time
 	if expiration > 0 {
 		exp := time.Now().Add(expiration)
 		expiresAt = &exp
 	}
-	
+
 	// Insert into database
 	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, ownerType, ownerID, name, tokenHash, tokenPrefix, scope, expiresAt, time.Now())
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert token: %w", err)
 	}
-	
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token id: %w", err)
 	}
-	
+
 	// Return token with full token value (only shown once)
 	return &Token{
 		ID:          id,
@@ -211,7 +211,7 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 		Scope:       scope,
 		ExpiresAt:   expiresAt,
 		CreatedAt:   time.Now(),
-		Token:   fullToken, // Only returned on creation
+		Token:       fullToken, // Only returned on creation
 	}, nil
 }
 
@@ -221,15 +221,15 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 	if err := ValidateTokenFormat(token); err != nil {
 		return nil, err
 	}
-	
+
 	// Hash token to look up in database
 	tokenHash := HashToken(token)
-	
+
 	// Look up token
 	var t Token
 	var expiresAt sql.NullTime
 	var lastUsedAt sql.NullTime
-	
+
 	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, owner_type, owner_id, name, token_hash, token_prefix, scope, expires_at, last_used_at, created_at
 		FROM tokens
@@ -238,14 +238,14 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 		&t.ID, &t.OwnerType, &t.OwnerID, &t.Name, &t.TokenHash, &t.TokenPrefix,
 		&t.Scope, &expiresAt, &lastUsedAt, &t.CreatedAt,
 	)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("invalid token")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
-	
+
 	// Check expiration
 	if expiresAt.Valid {
 		t.ExpiresAt = &expiresAt.Time
@@ -253,11 +253,11 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 			return nil, fmt.Errorf("token expired")
 		}
 	}
-	
+
 	if lastUsedAt.Valid {
 		t.LastUsedAt = &lastUsedAt.Time
 	}
-	
+
 	return &t, nil
 }
 
@@ -278,18 +278,18 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 		WHERE owner_type = ? AND owner_id = ?
 		ORDER BY created_at DESC
 	`, ownerType, ownerID)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var tokens []*Token
 	for rows.Next() {
 		var t Token
 		var expiresAt sql.NullTime
 		var lastUsedAt sql.NullTime
-		
+
 		err := rows.Scan(
 			&t.ID, &t.OwnerType, &t.OwnerID, &t.Name, &t.TokenPrefix,
 			&t.Scope, &expiresAt, &lastUsedAt, &t.CreatedAt,
@@ -297,17 +297,17 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 		if err != nil {
 			return nil, err
 		}
-		
+
 		if expiresAt.Valid {
 			t.ExpiresAt = &expiresAt.Time
 		}
 		if lastUsedAt.Valid {
 			t.LastUsedAt = &lastUsedAt.Time
 		}
-		
+
 		tokens = append(tokens, &t)
 	}
-	
+
 	return tokens, nil
 }
 
@@ -317,20 +317,20 @@ func (m *TokenModelV2) DeleteToken(id int64, ownerType string, ownerID int64) er
 		DELETE FROM tokens
 		WHERE id = ? AND owner_type = ? AND owner_id = ?
 	`, id, ownerType, ownerID)
-	
+
 	if err != nil {
 		return err
 	}
-	
+
 	rows, err := result.RowsAffected()
 	if err != nil {
 		return err
 	}
-	
+
 	if rows == 0 {
 		return fmt.Errorf("token not found or access denied")
 	}
-	
+
 	return nil
 }
 
@@ -339,7 +339,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	// Get existing token
 	var existing Token
 	var expiresAt sql.NullTime
-	
+
 	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, owner_type, owner_id, name, scope, expires_at, created_at
 		FROM tokens
@@ -348,14 +348,14 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 		&existing.ID, &existing.OwnerType, &existing.OwnerID,
 		&existing.Name, &existing.Scope, &expiresAt, &existing.CreatedAt,
 	)
-	
+
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("token not found")
 	}
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Generate new token with same prefix
 	var prefix string
 	switch ownerType {
@@ -366,35 +366,35 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	case OwnerTypeOrg:
 		prefix = PrefixOrg
 	}
-	
+
 	fullToken, err := GenerateTokenWithPrefix(prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
-	
+
 	tokenHash := HashToken(fullToken)
 	tokenPrefix := GetTokenPrefix(fullToken)
-	
+
 	// Update token
 	_, err = database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		UPDATE tokens
 		SET token_hash = ?, token_prefix = ?, last_used_at = NULL
 		WHERE id = ?
 	`, tokenHash, tokenPrefix, id)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to update token: %w", err)
 	}
-	
+
 	// Return updated token with full token value
 	existing.TokenHash = tokenHash
 	existing.TokenPrefix = tokenPrefix
 	existing.Token = fullToken
 	existing.LastUsedAt = nil
-	
+
 	if expiresAt.Valid {
 		existing.ExpiresAt = &expiresAt.Time
 	}
-	
+
 	return &existing, nil
 }

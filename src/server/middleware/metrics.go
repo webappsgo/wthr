@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/webappsgo/wthr/src/server/metrics"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/metrics"
 )
 
 var (

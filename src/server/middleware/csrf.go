@@ -7,8 +7,8 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // CSRFConfig holds CSRF protection configuration

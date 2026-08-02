@@ -92,17 +92,17 @@ func TestGetLocationFromCookies_PartialOrCorruptCookies(t *testing.T) {
 		{
 			name: "non-numeric latitude",
 			cookies: map[string]string{
-				"user_lat":            "not-a-number",
-				"user_lon":            "-0.1278",
-				"user_location_name":  "London",
+				"user_lat":           "not-a-number",
+				"user_lon":           "-0.1278",
+				"user_location_name": "London",
 			},
 		},
 		{
 			name: "non-numeric longitude",
 			cookies: map[string]string{
-				"user_lat":            "51.5074",
-				"user_lon":            "not-a-number",
-				"user_location_name":  "London",
+				"user_lat":           "51.5074",
+				"user_lon":           "not-a-number",
+				"user_location_name": "London",
 			},
 		},
 	}

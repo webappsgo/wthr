@@ -23,7 +23,7 @@ type APIToken struct {
 	ExpiresAt   sql.NullTime   `json:"expires_at,omitempty"`
 	LastUsedIP  sql.NullString `json:"last_used_ip,omitempty"`
 	// Token only populated on creation, never stored
-	Token       string         `json:"token,omitempty"`
+	Token string `json:"token,omitempty"`
 }
 
 // TokenModel handles API token database operations
@@ -86,7 +86,7 @@ func (m *TokenModel) Create(userID int, name string) (*APIToken, error) {
 		TokenPrefix: tokenPrefix,
 		Name:        name,
 		CreatedAt:   time.Now(),
-		Token:   token,
+		Token:       token,
 	}, nil
 }
 
