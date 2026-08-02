@@ -1333,7 +1333,9 @@ func main() {
 		}
 
 		// Delete used token
-		database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verificationID)
+		if _, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verificationID); err != nil {
+			log.Printf("WARNING: verify-email: failed to delete used verification token %d: %v", verificationID, err)
+		}
 
 		c.Redirect(http.StatusFound, "/server/auth/login?verified=1")
 	})
@@ -1688,7 +1690,9 @@ func main() {
 			// Delete admin session from database
 			adminSessionID, err := c.Cookie("admin_session")
 			if err == nil && adminSessionID != "" {
-				database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID)
+				if _, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID); err != nil {
+					log.Printf("WARNING: admin-logout: failed to delete admin session %s: %v", adminSessionID, err)
+				}
 			}
 			// Clear admin_session cookie
 			c.SetCookie("admin_session", "", -1, "/", "", false, true)
@@ -4028,9 +4032,15 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Get database statistics
 	var userCount, locationCount, tokenCount int
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts").Scan(&userCount)
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount)
-	database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE expires_at > datetime('now')").Scan(&tokenCount)
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts").Scan(&userCount); err != nil {
+		log.Printf("WARNING: showServerStatus: failed to count users: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount); err != nil {
+		log.Printf("WARNING: showServerStatus: failed to count saved locations: %v", err)
+	}
+	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE expires_at > datetime('now')").Scan(&tokenCount); err != nil {
+		log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", err)
+	}
 
 	// Display status
 	fmt.Println("\n╔══════════════════════════════════════════════════════╗")
