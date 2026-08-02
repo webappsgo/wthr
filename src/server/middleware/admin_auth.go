@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -62,7 +63,7 @@ func RequireAdminAuth() gin.HandlerFunc {
 
 		// Query server_admin_sessions table for valid session
 		var adminID int
-		err = db.QueryRow(`
+		err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 			SELECT admin_id
 			FROM server_admin_sessions
 			WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
@@ -135,7 +136,7 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		// Query users.db server_admin_credentials table for username (AI.md PART 23)
 		var adminID int
 		var passwordHash string
-		err := db.QueryRow(`
+		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 			SELECT id, password_hash
 			FROM server_admin_credentials
 			WHERE username = ?
@@ -193,7 +194,7 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 
 		// Create session in server_admin_sessions table (AI.md PART 5)
 		expiresAt := time.Now().Unix() + int64(maxAge)
-		_, err = db.Exec(`
+		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
 			VALUES (?, ?, ?, ?, datetime(?, 'unixepoch'), CURRENT_TIMESTAMP)
 		`, sessionToken, adminID, c.ClientIP(), c.Request.UserAgent(), expiresAt)
@@ -232,7 +233,7 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		)
 
 		// Update last_login timestamp
-		db.Exec("UPDATE server_admin_credentials SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", adminID)
+		database.ExecContext(context.Background(), db, database.TimeoutWrite, "UPDATE server_admin_credentials SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", adminID)
 
 		// Redirect to admin dashboard
 		c.Redirect(http.StatusFound, adminPath+"/dashboard")

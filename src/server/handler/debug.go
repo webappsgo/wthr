@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -60,7 +61,7 @@ func (h *DebugHandlers) ListRoutes(c *gin.Context) {
 // ShowConfig shows current configuration
 func (h *DebugHandlers) ShowConfig(c *gin.Context) {
 	// Query all settings from database
-	rows, err := database.GetServerDB().Query("SELECT key, value, type, category FROM server_config ORDER BY category, key")
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, category FROM server_config ORDER BY category, key")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to query settings",
@@ -122,11 +123,11 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 
 	// Count tables
 	var tableCount int
-	database.GetServerDB().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
 
 	// Get table names and row counts
 	tables := make([]gin.H, 0)
-	rows, err := database.GetServerDB().Query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -135,7 +136,7 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 				var rowCount int
 				// Table name is from sqlite_master (safe), but quote for best practice
 				query := fmt.Sprintf("SELECT COUNT(*) FROM \"%s\"", tableName)
-				database.GetServerDB().QueryRow(query).Scan(&rowCount)
+				database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, query).Scan(&rowCount)
 
 				tables = append(tables, gin.H{
 					"name": tableName,

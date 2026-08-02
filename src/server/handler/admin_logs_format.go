@@ -1,14 +1,15 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
-	"github.com/gin-gonic/gin"
 )
 
 // LogFormatHandler handles log format configuration
@@ -26,7 +27,7 @@ func NewLogFormatHandler(db *sql.DB) *LogFormatHandler {
 func (h *LogFormatHandler) GetLogFormat(c *gin.Context) {
 	// Get log format from server config
 	var logFormat string
-	err := database.GetServerDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT value FROM server_config WHERE key = 'logging.format'
 	`).Scan(&logFormat)
 
@@ -80,7 +81,7 @@ func (h *LogFormatHandler) SetLogFormat(c *gin.Context) {
 	}
 
 	// Update or insert setting
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description, updated_at)
 		VALUES ('logging.format', ?, 'string', 'Log format', ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
@@ -163,7 +164,7 @@ func (h *LogFormatHandler) PreviewLogFormat(c *gin.Context) {
 func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
 	// Get current format
 	var logFormat string
-	database.GetServerDB().QueryRow(`
+	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT value FROM server_config WHERE key = 'logging.format'
 	`).Scan(&logFormat)
 
@@ -172,8 +173,8 @@ func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "admin/admin-logs-format.tmpl", utils.TemplateData(c, gin.H{
-		"title":         "Log Format Configuration",
-		"page":          "logs-format",
+		"title":          "Log Format Configuration",
+		"page":           "logs-format",
 		"current_format": logFormat,
 		"formats": []map[string]string{
 			{"id": "apache", "name": "Apache Combined", "description": "Standard Apache combined log format"},

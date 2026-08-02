@@ -466,3 +466,31 @@ any of the above: `src/graphql/context_keys_test.go`,
     to timeout-wrapped calls; the context.WithTimeout wrapping itself was
     verified correct against src/database/timeouts.go). Read: AI.md PART 3
     (package naming) and PART 31 (i18n) before starting.
+
+30. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/handler/admin_logs_format.go + src/server/handler/debug.go +
+    src/server/middleware/admin_auth.go pass): pre-existing, out of scope
+    for item 12 (DB timeout wrapping only) —
+    - src/server/handler/admin_logs_format.go line 175: uses
+      `utils.TemplateData()` but the import (line 12) is
+      `"github.com/webappsgo/wthr/src/util"` as `util` — same class of
+      issue as item 28/29 (src/util's internal `package utils` vs the
+      singular directory/import name).
+    - src/server/handler/admin_logs_format.go lines 167-169: `ShowLogFormatPage`
+      calls `database.QueryRowContext(...).Scan(&logFormat)` without
+      capturing/checking the returned error.
+    - src/server/handler/debug.go line 126: `ShowDatabase`'s table-count
+      `database.QueryRowContext(...).Scan(&tableCount)` call doesn't
+      capture/check the returned error.
+    - src/server/handler/debug.go line 139: `ShowDatabase`'s per-table
+      row-count `database.QueryRowContext(...).Scan(&rowCount)` call
+      doesn't capture/check the returned error.
+    - src/server/middleware/admin_auth.go line 296: uses
+      `models.VerifyPassword()` but the import (line 15) is
+      `"github.com/webappsgo/wthr/src/server/model"` as `model` — same
+      class of issue as the src/server/model `package models` mismatch
+      already tracked (see the item covering src/server/model/passkey.go).
+    None of these were introduced by this diff — the unchecked-Scan calls
+    already ignored their error return before conversion, and the
+    import-alias mismatches are pre-existing package-naming issues. Read:
+    AI.md PART 3 (package naming) before starting.
