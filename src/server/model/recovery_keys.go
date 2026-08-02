@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -47,7 +48,7 @@ func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
 
 		keyHash := HashAPIToken(formatted) // SHA-256 per AI.md PART 34
 
-		_, err := database.GetUsersDB().Exec(`
+		_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 			INSERT INTO recovery_keys (user_id, key_hash, created_at)
 			VALUES (?, ?, ?)
 		`, userID, keyHash, time.Now())
@@ -72,7 +73,7 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 
 	keyHash := HashAPIToken(key)
 
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id FROM recovery_keys
 		WHERE user_id = ? AND key_hash = ? AND used_at IS NULL
 	`, userID, keyHash)
@@ -91,7 +92,7 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 	}
 	rows.Close()
 
-	_, err = database.GetUsersDB().Exec(`
+	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
 		UPDATE recovery_keys SET used_at = ? WHERE id = ?
 	`, time.Now(), id)
 	if err != nil {
@@ -104,7 +105,7 @@ func (m *RecoveryKeyModel) VerifyAndUseRecoveryKey(userID int, key string) (bool
 // GetUnusedKeysCount returns the count of unused recovery keys for a user.
 func (m *RecoveryKeyModel) GetUnusedKeysCount(userID int) (int, error) {
 	var count int
-	err := database.GetUsersDB().QueryRow(`
+	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM recovery_keys
 		WHERE user_id = ? AND used_at IS NULL
 	`, userID).Scan(&count)
@@ -113,7 +114,7 @@ func (m *RecoveryKeyModel) GetUnusedKeysCount(userID int) (int, error) {
 
 // GetAllKeysForUser returns all recovery keys for a user.
 func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) {
-	rows, err := database.GetUsersDB().Query(`
+	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, key_hash, used_at, created_at
 		FROM recovery_keys
 		WHERE user_id = ?
@@ -141,6 +142,6 @@ func (m *RecoveryKeyModel) GetAllKeysForUser(userID int) ([]RecoveryKey, error) 
 
 // DeleteAllForUser deletes all recovery keys for a user.
 func (m *RecoveryKeyModel) DeleteAllForUser(userID int) error {
-	_, err := database.GetUsersDB().Exec(`DELETE FROM recovery_keys WHERE user_id = ?`, userID)
+	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM recovery_keys WHERE user_id = ?`, userID)
 	return err
 }
