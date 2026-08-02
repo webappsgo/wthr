@@ -407,6 +407,33 @@ any of the above: `src/graphql/context_keys_test.go`,
     `buildGraphQLAuthContext`), deferred to a follow-up pass since they
     need DB/HTTP mocking rather than direct field-access tests.
 
+    Progress (2026-08-02, continued): moved to `src/server/handler`
+    (39.7% baseline, 35 files still without a matching `_test.go`).
+    Targeted the two smallest self-contained (non-gin/DB-heavy admin)
+    remaining files: `openapi.go` (37 lines) and `admin_geoip.go` (55
+    lines). Added `openapi_test.go` (`TestGetSwaggerUIAuto`,
+    `TestPrometheusMetrics` — verifies the Prometheus text-exposition
+    body per AI.md PART 21) and `admin_geoip_test.go`
+    (`TestAdminGeoIPHandler_UpdateGeoIPSettings_Success`,
+    `_InvalidJSON` — confirms the config file is left untouched on a bad
+    request body, and `_ConfigWriteError` — confirms a missing config
+    path surfaces as 500 rather than panicking), using a real `t.TempDir()`
+    YAML file for `AdminGeoIPHandler.ConfigPath` matching the pattern in
+    `admin_web_test.go`/`admin_api_test.go`. `ShowGeoIPSettings` (HTML
+    template render) was left untested — no gin `HTMLRender` is wired up
+    in `newAPITestContext`, so calling it would need either a real
+    template set or its own harness; deferred rather than faking it.
+    Verified via Docker `gofmt -l`/`go build ./...`/`go vet
+    ./server/handler/...`/`go test -v ./server/handler/...` (new tests
+    pass) and `go test -cover ./server/handler/...` — package coverage
+    39.7% → 39.9% (both files are tiny relative to the ~35-file,
+    multi-thousand-line package). Full repo `go test ./...` re-run
+    afterward — all packages still pass, no regressions. Remaining
+    untested files are mostly larger gin/DB-heavy admin handlers
+    (`admin_admins.go`, `admin_backup.go`, `auth_oidc.go`, `passkey.go`,
+    `setup_wizard.go`, etc.) needing more setup/mocking — deferred to a
+    future pass.
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
