@@ -502,4 +502,3 @@ func (s *BackupService) cleanupOldBackups(backupDir string, maxBackups int) erro
 
 	return nil
 }
-
