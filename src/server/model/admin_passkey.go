@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -42,7 +43,7 @@ func (m *AdminPasskeyModel) getDB() *sql.DB {
 }
 
 func (m *AdminPasskeyModel) ensurePasskeySchema() error {
-	rows, err := m.getDB().Query(`PRAGMA table_info(server_admin_passkeys)`)
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `PRAGMA table_info(server_admin_passkeys)`)
 	if err != nil {
 		return fmt.Errorf("failed to inspect server_admin_passkeys schema: %w", err)
 	}
@@ -77,22 +78,22 @@ func (m *AdminPasskeyModel) ensurePasskeySchema() error {
 	}
 
 	if !hasTransport {
-		if _, err := m.getDB().Exec(`ALTER TABLE server_admin_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN transport TEXT NOT NULL DEFAULT '[]'`); err != nil {
 			return fmt.Errorf("failed to add server_admin_passkeys.transport: %w", err)
 		}
 	}
 	if !hasAttestationType {
-		if _, err := m.getDB().Exec(`ALTER TABLE server_admin_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN attestation_type TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("failed to add server_admin_passkeys.attestation_type: %w", err)
 		}
 	}
 	if !hasBackupEligible {
-		if _, err := m.getDB().Exec(`ALTER TABLE server_admin_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN backup_eligible BOOLEAN NOT NULL DEFAULT 0`); err != nil {
 			return fmt.Errorf("failed to add server_admin_passkeys.backup_eligible: %w", err)
 		}
 	}
 	if !hasBackupState {
-		if _, err := m.getDB().Exec(`ALTER TABLE server_admin_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
+		if _, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutMigration, `ALTER TABLE server_admin_passkeys ADD COLUMN backup_state BOOLEAN NOT NULL DEFAULT 0`); err != nil {
 			return fmt.Errorf("failed to add server_admin_passkeys.backup_state: %w", err)
 		}
 	}
@@ -144,7 +145,7 @@ func (m *AdminPasskeyModel) ListByAdminID(adminID int64) ([]*AdminPasskey, error
 		return nil, err
 	}
 
-	rows, err := m.getDB().Query(`
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
@@ -175,7 +176,7 @@ func (m *AdminPasskeyModel) CountByAdminID(adminID int64) (int, error) {
 	}
 
 	var count int
-	if err := m.getDB().QueryRow(`SELECT COUNT(*) FROM server_admin_passkeys WHERE admin_id = ?`, adminID).Scan(&count); err != nil {
+	if err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM server_admin_passkeys WHERE admin_id = ?`, adminID).Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count admin passkeys: %w", err)
 	}
 
@@ -244,7 +245,7 @@ func (m *AdminPasskeyModel) Create(adminID int64, name string, credential *webau
 		return nil, err
 	}
 
-	result, err := m.getDB().Exec(`
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_passkeys (
 			admin_id, credential_id, public_key, aaguid, sign_count, name, transport,
 			attestation_type, backup_eligible, backup_state, created_at, last_used_at
@@ -271,7 +272,7 @@ func (m *AdminPasskeyModel) Create(adminID int64, name string, credential *webau
 		return nil, fmt.Errorf("failed to load admin passkey id: %w", err)
 	}
 
-	row := m.getDB().QueryRow(`
+	row := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, credential_id, public_key, COALESCE(aaguid, ''), sign_count, name,
 		       COALESCE(transport, '[]'), COALESCE(attestation_type, ''), backup_eligible, backup_state,
 		       created_at, last_used_at
@@ -297,7 +298,7 @@ func (m *AdminPasskeyModel) UpdateCredential(adminID int64, credential *webauthn
 		return err
 	}
 
-	result, err := m.getDB().Exec(`
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_passkeys
 		SET sign_count = ?, last_used_at = CURRENT_TIMESTAMP, transport = ?, attestation_type = ?,
 		    backup_eligible = ?, backup_state = ?, aaguid = ?
@@ -332,7 +333,7 @@ func (m *AdminPasskeyModel) DeleteByID(adminID int64, passkeyID int64) error {
 		return err
 	}
 
-	result, err := m.getDB().Exec(`DELETE FROM server_admin_passkeys WHERE id = ? AND admin_id = ?`, passkeyID, adminID)
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM server_admin_passkeys WHERE id = ? AND admin_id = ?`, passkeyID, adminID)
 	if err != nil {
 		return fmt.Errorf("failed to delete admin passkey: %w", err)
 	}
