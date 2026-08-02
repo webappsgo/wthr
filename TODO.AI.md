@@ -476,6 +476,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     regressions. Next targets: `admin_weather.go` (82 lines),
     `notification_metrics.go` (83 lines), `dashboard.go` (92 lines).
 
+    Progress (2026-08-02, continued): targeted `admin_weather.go` (82
+    lines) — same `Show*Settings`/`Update*Settings` shape as the prior
+    three files. Added `admin_weather_test.go` with
+    `TestAdminWeatherHandler_UpdateWeatherSettings_Success` (covers
+    OpenMeteo/USGS/NHC sources, cache, features, alerts, and API-limit
+    fields all mapping into `weather.*` dot-notation keys), `_InvalidJSON`
+    (confirms the config file is left untouched on a bad request body),
+    and `_ConfigWriteError` (confirms a missing config path surfaces as
+    500 rather than panicking), reusing the same `t.TempDir()` YAML
+    config-file pattern. `ShowWeatherSettings` was left untested for the
+    same reason as the other `Show*Settings` handlers. Verified via
+    Docker `gofmt -l`/`go build ./...`/`go vet ./server/handler/...`/`go
+    test -v ./server/handler/...` (new tests pass) and `go test -cover
+    ./server/handler/...` — package coverage 40.1% → 40.3%. Full repo
+    `go test ./...` re-run afterward — all packages still pass, no
+    regressions. Next targets: `notification_metrics.go` (83 lines),
+    `dashboard.go` (92 lines).
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`
