@@ -380,6 +380,33 @@ any of the above: `src/graphql/context_keys_test.go`,
     repo `go test ./...` re-run afterward — all packages still pass, no
     regressions.
 
+    Progress (2026-08-02, continued): moved to `src/graphql` (32.1%
+    filtered baseline, the largest remaining coverage gap of the
+    candidates listed above — `generated.go` is gqlgen-generated dispatch
+    code and excluded from the CI coverage filter, same as `ci.yml` does).
+    Added four table-driven tests to `resolvers_helpers_test.go` for the
+    trivial 0%-coverage field-resolver trampolines in
+    `resolvers_helpers.go`, following the exact same-package
+    `&resolverType{&Resolver{}}` + `context.Background()` pattern already
+    used in `schema.resolvers_test.go` for structurally identical
+    resolvers: `TestGenericResponseResolver_Ok` (2 subtests),
+    `TestAPITokenResolver_Token` (2 subtests), `TestAPITokenResolver_Name`
+    (2 subtests), and `TestNotificationResolver_ReadAt` (2 subtests,
+    unread/read). Verified via Docker `gofmt -l ./graphql/`/`go build
+    ./...`/`go vet ./graphql/...`/`go test ./graphql/... -coverprofile`,
+    then replicated CI's exact filtered-coverage computation (`grep -v
+    '/graphql/generated\.go:'` before `go tool cover -func`) — filtered
+    coverage 32.1% → 32.6%. The remaining gap is concentrated in
+    DB/HTTP-dependent functions (`loadGraphQLOnlineAdminUsernames`,
+    `countGraphQLOtherActiveSuperAdmins`, `buildGraphQLServerAdmin`,
+    `graphQLServerInviteURL`, `buildGraphQLServerAdminInvite`,
+    `updateGraphQLScheduledTaskEnabled`, `loadGraphQLScheduledTask`,
+    `loadGraphQLNotificationChannel`, `loadGraphQLSetting` in
+    `resolvers_helpers.go`, plus `graphql.go`'s `NewServer`/
+    `RegisterRoutes`/`GraphQLHandler`/`PlaygroundHandler`/
+    `buildGraphQLAuthContext`), deferred to a follow-up pass since they
+    need DB/HTTP mocking rather than direct field-access tests.
+
 17. TODO (flagged 2026-07-31 by go-lint during item 12's src/database pass,
     extended 2026-08-01 during item 12's src/scheduler/scheduler.go pass):
     `src/database/failover.go` lines 154-268 and `src/scheduler/scheduler.go`

@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -1292,6 +1293,121 @@ func derefString(p *string) any {
 		return nil
 	}
 	return *p
+}
+
+// --- Trivial trampoline resolver tests -----------------------------------
+// These resolvers only read fields off the passed-in model/type object; no
+// database or handler is touched, so a zero-value embedded *Resolver is safe.
+
+func TestGenericResponseResolver_Ok(t *testing.T) {
+	res := &genericResponseResolver{&Resolver{}}
+
+	tests := []struct {
+		name string
+		obj  *GenericResponse
+		want bool
+	}{
+		{name: "success true", obj: &GenericResponse{Success: true}, want: true},
+		{name: "success false", obj: &GenericResponse{Success: false}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := res.Ok(context.Background(), tt.obj)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAPITokenResolver_Token(t *testing.T) {
+	res := &aPITokenResolver{&Resolver{}}
+
+	tests := []struct {
+		name string
+		obj  *models.APIToken
+		want *string
+	}{
+		{name: "empty token returns nil", obj: &models.APIToken{Token: ""}, want: nil},
+		{name: "non-empty token returns pointer", obj: &models.APIToken{Token: "adm_abc123"}, want: strPtr("adm_abc123")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := res.Token(context.Background(), tt.obj)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !ptrStringEqual(got, tt.want) {
+				t.Fatalf("got %v, want %v", derefString(got), derefString(tt.want))
+			}
+		})
+	}
+}
+
+func TestAPITokenResolver_Name(t *testing.T) {
+	res := &aPITokenResolver{&Resolver{}}
+
+	tests := []struct {
+		name string
+		obj  *models.APIToken
+		want *string
+	}{
+		{name: "empty name returns nil", obj: &models.APIToken{Name: ""}, want: nil},
+		{name: "non-empty name returns pointer", obj: &models.APIToken{Name: "CI token"}, want: strPtr("CI token")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := res.Name(context.Background(), tt.obj)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !ptrStringEqual(got, tt.want) {
+				t.Fatalf("got %v, want %v", derefString(got), derefString(tt.want))
+			}
+		})
+	}
+}
+
+func TestNotificationResolver_ReadAt(t *testing.T) {
+	res := &notificationResolver{&Resolver{}}
+	now := time.Now()
+
+	tests := []struct {
+		name string
+		obj  *models.Notification
+		want *time.Time
+	}{
+		{name: "unread notification has nil ReadAt", obj: &models.Notification{ReadAt: nil}, want: nil},
+		{name: "read notification has ReadAt set", obj: &models.Notification{ReadAt: &now}, want: &now},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := res.ReadAt(context.Background(), tt.obj)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.want == nil {
+				if got != nil {
+					t.Fatalf("got %v, want nil", got)
+				}
+				return
+			}
+			if got == nil || !got.Equal(*tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func strPtr(s string) *string {
+	return &s
 }
 
 func ptrBoolEqual(a, b *bool) bool {
