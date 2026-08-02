@@ -1,5 +1,5 @@
 // Package models provides data models per TEMPLATE.md PART 22
-package models
+package model
 
 import (
 	"context"

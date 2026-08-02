@@ -242,7 +242,7 @@ func (h *UserNotificationHandlers) UpdatePreferences(c *gin.Context) {
 		return
 	}
 
-	var prefs models.NotificationPreferences
+	var prefs model.NotificationPreferences
 	if err := c.ShouldBindJSON(&prefs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return

@@ -35,45 +35,45 @@ type RecoveryKeysResponse struct {
 }
 
 // LoadCurrentUserTwoFactorStatus returns the same payload used by GET /api/v1/users/security/2fa.
-func LoadCurrentUserTwoFactorStatus(db *sql.DB, user *models.User) (*TwoFactorStatusResponse, error) {
+func LoadCurrentUserTwoFactorStatus(db *sql.DB, user *model.User) (*TwoFactorStatusResponse, error) {
 	h := &TwoFactorHandler{DB: db}
 	return h.loadCurrentUserTwoFactorStatus(user)
 }
 
 // PrepareCurrentUserTwoFactorSetup returns the same setup payload used by GET /api/v1/users/security/2fa/setup.
-func PrepareCurrentUserTwoFactorSetup(db *sql.DB, user *models.User) (*TwoFactorSetupResponse, error) {
+func PrepareCurrentUserTwoFactorSetup(db *sql.DB, user *model.User) (*TwoFactorSetupResponse, error) {
 	h := &TwoFactorHandler{DB: db}
 	return h.prepareCurrentUserTwoFactorSetup(user)
 }
 
 // EnableCurrentUserTwoFactor applies the same 2FA enable flow used by POST /api/v1/users/security/2fa/enable.
-func EnableCurrentUserTwoFactor(db *sql.DB, user *models.User, secret string, code string) (*RecoveryKeysResponse, error) {
+func EnableCurrentUserTwoFactor(db *sql.DB, user *model.User, secret string, code string) (*RecoveryKeysResponse, error) {
 	h := &TwoFactorHandler{DB: db}
 	return h.enableCurrentUserTwoFactor(user, secret, code)
 }
 
 // DisableCurrentUserTwoFactor applies the same 2FA disable flow used by POST /api/v1/users/security/2fa/disable.
-func DisableCurrentUserTwoFactor(db *sql.DB, user *models.User, password string) error {
+func DisableCurrentUserTwoFactor(db *sql.DB, user *model.User, password string) error {
 	h := &TwoFactorHandler{DB: db}
 	return h.disableCurrentUserTwoFactor(user, password)
 }
 
 // VerifyCurrentUserTwoFactorCode applies the same verification flow used by POST /api/v1/users/security/2fa/verify.
-func VerifyCurrentUserTwoFactorCode(db *sql.DB, user *models.User, code string) error {
+func VerifyCurrentUserTwoFactorCode(db *sql.DB, user *model.User, code string) error {
 	h := &TwoFactorHandler{DB: db}
 	return h.verifyCurrentUserTwoFactorCode(user, code)
 }
 
 // RegenerateCurrentUserRecoveryKeys applies the same recovery-key regeneration flow used by POST /api/v1/users/security/recovery/regenerate.
-func RegenerateCurrentUserRecoveryKeys(db *sql.DB, user *models.User, code string) (*RecoveryKeysResponse, error) {
+func RegenerateCurrentUserRecoveryKeys(db *sql.DB, user *model.User, code string) (*RecoveryKeysResponse, error) {
 	h := &TwoFactorHandler{DB: db}
 	return h.regenerateCurrentUserRecoveryKeys(user, code)
 }
 
-func (h *TwoFactorHandler) loadCurrentUserTwoFactorStatus(user *models.User) (*TwoFactorStatusResponse, error) {
+func (h *TwoFactorHandler) loadCurrentUserTwoFactorStatus(user *model.User) (*TwoFactorStatusResponse, error) {
 	recoveryKeysCount := 0
 	if user.TwoFactorEnabled {
-		recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+		recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 		count, err := recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 		if err != nil {
 			return nil, err
@@ -87,7 +87,7 @@ func (h *TwoFactorHandler) loadCurrentUserTwoFactorStatus(user *models.User) (*T
 	}, nil
 }
 
-func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *models.User) (*TwoFactorSetupResponse, error) {
+func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *model.User) (*TwoFactorSetupResponse, error) {
 	if user.TwoFactorEnabled {
 		return nil, fmt.Errorf("two-factor authentication is already enabled")
 	}
@@ -106,7 +106,7 @@ func (h *TwoFactorHandler) prepareCurrentUserTwoFactorSetup(user *models.User) (
 	}, nil
 }
 
-func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *models.User, secret string, code string) (*RecoveryKeysResponse, error) {
+func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *model.User, secret string, code string) (*RecoveryKeysResponse, error) {
 	if user.TwoFactorEnabled {
 		return nil, fmt.Errorf("two-factor authentication is already enabled")
 	}
@@ -116,12 +116,12 @@ func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *models.User, secret 
 		return nil, fmt.Errorf("invalid verification code")
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.EnableTwoFactor(user.ID, secret); err != nil {
 		return nil, fmt.Errorf("failed to enable two-factor authentication")
 	}
 
-	recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+	recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 	recoveryKeys, err := recoveryKeyModel.GenerateRecoveryKeys(int(user.ID))
 	if err != nil {
 		userModel.DisableTwoFactor(user.ID)
@@ -134,12 +134,12 @@ func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *models.User, secret 
 	}, nil
 }
 
-func (h *TwoFactorHandler) disableCurrentUserTwoFactor(user *models.User, password string) error {
+func (h *TwoFactorHandler) disableCurrentUserTwoFactor(user *model.User, password string) error {
 	if !user.TwoFactorEnabled {
 		return fmt.Errorf("two-factor authentication is not enabled")
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	if !userModel.CheckPassword(user, password) {
 		return fmt.Errorf("invalid password")
 	}
@@ -148,17 +148,17 @@ func (h *TwoFactorHandler) disableCurrentUserTwoFactor(user *models.User, passwo
 		return fmt.Errorf("failed to disable two-factor authentication")
 	}
 
-	recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+	recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 	recoveryKeyModel.DeleteAllForUser(int(user.ID))
 	return nil
 }
 
-func (h *TwoFactorHandler) verifyCurrentUserTwoFactorCode(user *models.User, code string) error {
+func (h *TwoFactorHandler) verifyCurrentUserTwoFactorCode(user *model.User, code string) error {
 	if !user.TwoFactorEnabled {
 		return fmt.Errorf("two-factor authentication is not enabled")
 	}
 
-	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+	secret, err := model.DecryptTwoFactorSecret(user.TwoFactorSecret)
 	if err != nil {
 		return fmt.Errorf("invalid verification code")
 	}
@@ -171,12 +171,12 @@ func (h *TwoFactorHandler) verifyCurrentUserTwoFactorCode(user *models.User, cod
 	return nil
 }
 
-func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *models.User, code string) (*RecoveryKeysResponse, error) {
+func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *model.User, code string) (*RecoveryKeysResponse, error) {
 	if !user.TwoFactorEnabled {
 		return nil, fmt.Errorf("two-factor authentication is not enabled")
 	}
 
-	secret, err := models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+	secret, err := model.DecryptTwoFactorSecret(user.TwoFactorSecret)
 	if err != nil {
 		return nil, fmt.Errorf("invalid verification code")
 	}
@@ -186,7 +186,7 @@ func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *models.User, 
 		return nil, fmt.Errorf("invalid verification code")
 	}
 
-	recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+	recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 	recoveryKeys, err := recoveryKeyModel.GenerateRecoveryKeys(int(user.ID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate recovery keys")
@@ -238,14 +238,14 @@ func (h *TwoFactorHandler) ShowSecurityPage(c *gin.Context) {
 	// Get recovery keys count if 2FA is enabled
 	var recoveryKeysCount int
 	if user.TwoFactorEnabled {
-		recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+		recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 		recoveryKeysCount, _ = recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 	}
 
-	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
+	passkeyModel := &model.UserPasskeyModel{DB: h.DB}
 	passkeys, _ := passkeyModel.ListByUserID(user.ID)
 	if len(passkeys) > 0 && recoveryKeysCount == 0 {
-		recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+		recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 		recoveryKeysCount, _ = recoveryKeyModel.GetUnusedKeysCount(int(user.ID))
 	}
 

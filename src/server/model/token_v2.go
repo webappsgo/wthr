@@ -1,5 +1,5 @@
 // Package models provides token management per TEMPLATE.md PART 11
-package models
+package model
 
 import (
 	"context"

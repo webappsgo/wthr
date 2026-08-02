@@ -15,11 +15,11 @@ import (
 // HistoryHandler handles the historical weather page
 type HistoryHandler struct {
 	weatherService *service.WeatherService
-	settingsModel  *models.SettingsModel
+	settingsModel  *model.SettingsModel
 }
 
 // NewHistoryHandler creates a new history handler
-func NewHistoryHandler(weatherService *service.WeatherService, settingsModel *models.SettingsModel) *HistoryHandler {
+func NewHistoryHandler(weatherService *service.WeatherService, settingsModel *model.SettingsModel) *HistoryHandler {
 	return &HistoryHandler{
 		weatherService: weatherService,
 		settingsModel:  settingsModel,

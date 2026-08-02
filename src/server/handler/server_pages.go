@@ -36,7 +36,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		user, _ := c.Get("user")
 
 		// Get server configuration
-		settingsModel := &models.SettingsModel{DB: db.DB}
+		settingsModel := &model.SettingsModel{DB: db.DB}
 
 		// Get Tor configuration if available
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
@@ -150,7 +150,7 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 // GetAboutAPI returns about information as JSON (AI.md PART 14: /api/v1/server/about)
 func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		settingsModel := &models.SettingsModel{DB: db.DB}
+		settingsModel := &model.SettingsModel{DB: db.DB}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 
@@ -208,7 +208,7 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 // GetHelpAPI returns help content as JSON (AI.md PART 14: /api/v1/server/help)
 func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		settingsModel := &models.SettingsModel{DB: db.DB}
+		settingsModel := &model.SettingsModel{DB: db.DB}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 		hostInfo := utils.GetHostInfo(c)

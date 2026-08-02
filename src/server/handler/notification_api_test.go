@@ -228,7 +228,7 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 	})
 
 	t.Run("update success", func(t *testing.T) {
-		body := models.NotificationPreferences{
+		body := model.NotificationPreferences{
 			EnableToast:          true,
 			EnableBanner:         false,
 			EnableCenter:         true,
@@ -248,7 +248,7 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 	})
 
 	t.Run("update rejects toast duration outside 1-60", func(t *testing.T) {
-		body := models.NotificationPreferences{
+		body := model.NotificationPreferences{
 			ToastDurationSuccess: 999,
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
@@ -393,7 +393,7 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 	})
 
 	t.Run("update success", func(t *testing.T) {
-		body := models.NotificationPreferences{
+		body := model.NotificationPreferences{
 			EnableToast:          true,
 			EnableBanner:         true,
 			EnableCenter:         true,
@@ -412,7 +412,7 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 	})
 
 	t.Run("update rejects out-of-range toast duration", func(t *testing.T) {
-		body := models.NotificationPreferences{
+		body := model.NotificationPreferences{
 			ToastDurationSuccess: 0,
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,

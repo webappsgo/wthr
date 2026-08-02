@@ -30,11 +30,11 @@ type SetupWizardRequest struct {
 // SetupWizardResponse represents the setup response
 // AI.md PART 14: Use "ok" instead of "success" for API responses
 type SetupWizardResponse struct {
-	Ok        bool          `json:"ok"`
-	Message   string        `json:"message,omitempty"`
-	Error     string        `json:"error,omitempty"`
-	Admin     *models.Admin `json:"admin,omitempty"`
-	SetupDone bool          `json:"setup_done"`
+	Ok        bool         `json:"ok"`
+	Message   string       `json:"message,omitempty"`
+	Error     string       `json:"error,omitempty"`
+	Admin     *model.Admin `json:"admin,omitempty"`
+	SetupDone bool         `json:"setup_done"`
 }
 
 // SetupStatusHandler checks if setup is required
@@ -45,7 +45,7 @@ func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -72,7 +72,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if setup is already done
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to count admins: %v", err)
@@ -282,7 +282,7 @@ func markSetupComplete() error {
 // IsSetupComplete checks if the initial setup has been completed
 // Per TEMPLATE.md PART 22: Required for setup wizard flow
 func IsSetupComplete() (bool, error) {
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	count, err := adminModel.GetCount()
 	if err != nil {
 		return false, fmt.Errorf("failed to count admins: %w", err)

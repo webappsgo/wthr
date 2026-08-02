@@ -79,7 +79,7 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &models.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: h.DB}
 
 	// Load scheduler configuration from settings
 	config := SchedulerConfig{
@@ -154,7 +154,7 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &models.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: h.DB}
 
 	// Validate and save global settings
 	if timezone, ok := config["timezone"].(string); ok {
@@ -402,7 +402,7 @@ func isValidCronField(field string) bool {
 
 // GetSchedulerConfigJSON returns scheduler configuration as JSON for API access
 func (h *AdminHandler) GetSchedulerConfigJSON(c *gin.Context) {
-	settingsModel := &models.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: h.DB}
 
 	config := SchedulerConfig{
 		Timezone:      settingsModel.GetString("scheduler.timezone", "America/New_York"),

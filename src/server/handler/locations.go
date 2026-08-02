@@ -27,7 +27,7 @@ type LocationHandler struct {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} models.Location "List of saved locations"
+// @Success 200 {array} model.Location "List of saved locations"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations [get]
@@ -38,7 +38,7 @@ func (h *LocationHandler) ListLocations(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch locations"})
@@ -56,7 +56,7 @@ func (h *LocationHandler) ListLocations(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path integer true "Location ID"
-// @Success 200 {object} models.Location "Location details"
+// @Success 200 {object} model.Location "Location details"
 // @Failure 400 {object} map[string]interface{} "Invalid location ID"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 403 {object} map[string]interface{} "Access denied"
@@ -75,7 +75,7 @@ func (h *LocationHandler) GetLocation(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
@@ -99,7 +99,7 @@ func (h *LocationHandler) GetLocation(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param location body object true "Location data" SchemaExample({"name": "New York", "latitude": 40.7128, "longitude": -74.0060, "timezone": "America/New_York"})
-// @Success 201 {object} models.Location "Created location"
+// @Success 201 {object} model.Location "Created location"
 // @Failure 400 {object} map[string]interface{} "Invalid request data"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
@@ -138,7 +138,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 
 	// Check location limit per IDEA.md: Save up to 10 locations per user
 	count, err := locationModel.Count(int(user.ID))
@@ -169,7 +169,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 // @Security BearerAuth
 // @Param id path integer true "Location ID"
 // @Param location body object true "Updated location data" SchemaExample({"name": "Updated Name", "latitude": 40.7128, "longitude": -74.0060})
-// @Success 200 {object} models.Location "Updated location"
+// @Success 200 {object} model.Location "Updated location"
 // @Failure 400 {object} map[string]interface{} "Invalid request data"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 403 {object} map[string]interface{} "Access denied"
@@ -213,7 +213,7 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -263,7 +263,7 @@ func (h *LocationHandler) DeleteLocation(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -308,7 +308,7 @@ func (h *LocationHandler) ToggleAlerts(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
@@ -359,7 +359,7 @@ func (h *LocationHandler) ShowEditLocationPage(c *gin.Context) {
 		return
 	}
 
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
 		c.HTML(http.StatusNotFound, "page/error.tmpl", gin.H{"error": "Location not found"})

@@ -1,5 +1,5 @@
 // Package models provides user models per AI.md PART 10
-package models
+package model
 
 import (
 	"context"

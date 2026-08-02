@@ -24,7 +24,7 @@ type AdminHandler struct {
 // User Management APIs
 
 func (h *AdminHandler) ListUsers(c *gin.Context) {
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	users, err := userModel.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
@@ -56,7 +56,7 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	// Normalize username
 	username := utils.NormalizeUsername(req.Username)
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.Create(username, req.Email, req.Password, req.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -104,7 +104,7 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	// Normalize username
 	username := utils.NormalizeUsername(req.Username)
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Update(id, username, req.Email, req.Role); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 		return
@@ -131,7 +131,7 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
 		return
@@ -156,7 +156,7 @@ func (h *AdminHandler) UpdateUserPassword(c *gin.Context) {
 		return
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.UpdatePassword(id, req.Password); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
 		return
@@ -253,7 +253,7 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 
 	if userID != "" {
 		uid, _ := strconv.Atoi(userID)
-		tokenModel := &models.TokenModel{DB: h.DB}
+		tokenModel := &model.TokenModel{DB: h.DB}
 		tokens, err := tokenModel.GetByUserID(uid)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
@@ -320,7 +320,7 @@ func (h *AdminHandler) GenerateToken(c *gin.Context) {
 		return
 	}
 
-	tokenModel := &models.TokenModel{DB: h.DB}
+	tokenModel := &model.TokenModel{DB: h.DB}
 	token, err := tokenModel.Create(req.UserID, req.Name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
@@ -340,7 +340,7 @@ func (h *AdminHandler) RevokeToken(c *gin.Context) {
 		return
 	}
 
-	tokenModel := &models.TokenModel{DB: h.DB}
+	tokenModel := &model.TokenModel{DB: h.DB}
 	if err := tokenModel.Delete(id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
 		return
@@ -495,7 +495,7 @@ func (h *AdminHandler) GetTasksStats(c *gin.Context) {
 // System Stats APIs
 
 func (h *AdminHandler) GetSystemStats(c *gin.Context) {
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 
 	totalUsers, _ := userModel.Count()
 	adminCount, _ := userModel.CountByRole("admin")
@@ -654,7 +654,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 		return
 	}
 
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		c.Redirect(http.StatusFound, "/server/admin")
@@ -662,7 +662,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 	}
 
 	// Load all settings
-	settingsModel := &models.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: h.DB}
 	settings := make(map[string]interface{})
 
 	// Server settings

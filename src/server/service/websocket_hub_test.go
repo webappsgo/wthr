@@ -153,11 +153,11 @@ func TestWebSocketHub_BroadcastToUser(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Create a test notification
-	notification := &models.Notification{
+	notification := &model.Notification{
 		ID:      "test-ulid-123",
 		UserID:  &userID,
-		Type:    models.NotificationTypeSuccess,
-		Display: models.NotificationDisplayToast,
+		Type:    model.NotificationTypeSuccess,
+		Display: model.NotificationDisplayToast,
 		Title:   "Test",
 		Message: "Test message",
 	}
@@ -216,11 +216,11 @@ func TestWebSocketHub_BroadcastToAdmin(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Create a test notification
-	notification := &models.Notification{
+	notification := &model.Notification{
 		ID:      "test-ulid-456",
 		AdminID: &adminID,
-		Type:    models.NotificationTypeInfo,
-		Display: models.NotificationDisplayBanner,
+		Type:    model.NotificationTypeInfo,
+		Display: model.NotificationDisplayBanner,
 		Title:   "Admin Test",
 		Message: "Admin message",
 	}
@@ -386,11 +386,11 @@ func TestWebSocketHub_BroadcastToNonExistentUser(t *testing.T) {
 	// Create a test notification
 	// User that doesn't exist
 	userID := 999
-	notification := &models.Notification{
+	notification := &model.Notification{
 		ID:      "test-ulid-789",
 		UserID:  &userID,
-		Type:    models.NotificationTypeSuccess,
-		Display: models.NotificationDisplayToast,
+		Type:    model.NotificationTypeSuccess,
+		Display: model.NotificationDisplayToast,
 		Title:   "Test",
 		Message: "Test message",
 	}
@@ -405,10 +405,10 @@ func TestWebSocketHub_BroadcastToNonExistentUser(t *testing.T) {
 }
 
 func TestWebSocketMessage_Serialization(t *testing.T) {
-	notification := &models.Notification{
+	notification := &model.Notification{
 		ID:      "test-123",
-		Type:    models.NotificationTypeSuccess,
-		Display: models.NotificationDisplayToast,
+		Type:    model.NotificationTypeSuccess,
+		Display: model.NotificationDisplayToast,
 		Title:   "Test",
 		Message: "Test message",
 	}

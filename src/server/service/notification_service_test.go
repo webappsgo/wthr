@@ -113,9 +113,9 @@ func setupNotificationService(t *testing.T) (*NotificationService, *sql.DB, *sql
 		UserDB:     userDB,
 		ServerDB:   serverDB,
 		WSHub:      wsHub,
-		UserNotif:  &models.UserNotificationModel{DB: userDB},
-		AdminNotif: &models.AdminNotificationModel{DB: serverDB},
-		Prefs:      &models.NotificationPreferencesModel{UserDB: userDB, ServerDB: serverDB},
+		UserNotif:  &model.UserNotificationModel{DB: userDB},
+		AdminNotif: &model.AdminNotificationModel{DB: serverDB},
+		Prefs:      &model.NotificationPreferencesModel{UserDB: userDB, ServerDB: serverDB},
 	}
 
 	return service, userDB, serverDB
@@ -134,10 +134,10 @@ func TestNotificationService_SendSuccessToUser(t *testing.T) {
 	if notif == nil {
 		t.Fatal("SendSuccessToUser() returned nil notification")
 	}
-	if notif.Type != models.NotificationTypeSuccess {
+	if notif.Type != model.NotificationTypeSuccess {
 		t.Errorf("Notification type = %v, want success", notif.Type)
 	}
-	if notif.Display != models.NotificationDisplayToast {
+	if notif.Display != model.NotificationDisplayToast {
 		t.Errorf("Notification display = %v, want toast", notif.Display)
 	}
 	if notif.Title != "Test Success" {
@@ -155,7 +155,7 @@ func TestNotificationService_SendInfoToUser(t *testing.T) {
 		t.Fatalf("SendInfoToUser() error = %v", err)
 	}
 
-	if notif.Type != models.NotificationTypeInfo {
+	if notif.Type != model.NotificationTypeInfo {
 		t.Errorf("Notification type = %v, want info", notif.Type)
 	}
 }
@@ -170,7 +170,7 @@ func TestNotificationService_SendWarningToUser(t *testing.T) {
 		t.Fatalf("SendWarningToUser() error = %v", err)
 	}
 
-	if notif.Type != models.NotificationTypeWarning {
+	if notif.Type != model.NotificationTypeWarning {
 		t.Errorf("Notification type = %v, want warning", notif.Type)
 	}
 }
@@ -185,7 +185,7 @@ func TestNotificationService_SendErrorToUser(t *testing.T) {
 		t.Fatalf("SendErrorToUser() error = %v", err)
 	}
 
-	if notif.Type != models.NotificationTypeError {
+	if notif.Type != model.NotificationTypeError {
 		t.Errorf("Notification type = %v, want error", notif.Type)
 	}
 }
@@ -200,7 +200,7 @@ func TestNotificationService_SendSecurityToUser(t *testing.T) {
 		t.Fatalf("SendSecurityToUser() error = %v", err)
 	}
 
-	if notif.Type != models.NotificationTypeSecurity {
+	if notif.Type != model.NotificationTypeSecurity {
 		t.Errorf("Notification type = %v, want security", notif.Type)
 	}
 }
@@ -221,7 +221,7 @@ func TestNotificationService_SendSuccessToAdmin(t *testing.T) {
 	if notif.AdminID == nil || *notif.AdminID != 1 {
 		t.Errorf("Admin ID = %v, want 1", notif.AdminID)
 	}
-	if notif.Type != models.NotificationTypeSuccess {
+	if notif.Type != model.NotificationTypeSuccess {
 		t.Errorf("Notification type = %v, want success", notif.Type)
 	}
 }
@@ -418,7 +418,7 @@ func TestNotificationService_UpdateUserPreferences(t *testing.T) {
 	defer serverDB.Close()
 
 	userID := 1
-	newPrefs := &models.NotificationPreferences{
+	newPrefs := &model.NotificationPreferences{
 		UserID:               &userID,
 		EnableToast:          false,
 		EnableBanner:         true,

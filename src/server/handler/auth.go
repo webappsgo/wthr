@@ -142,7 +142,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	}
 
 	// Step 1: Check server_admin_credentials FIRST
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, adminErr := adminModel.VerifyCredentials(req.Identifier, req.Password)
 
 	if adminErr == nil && admin != nil {
@@ -201,7 +201,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		cfg := config.GetGlobalConfig()
 		adminPath := "/server/" + cfg.GetAdminPath()
 
-		adminSessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
+		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 		duration := 30 * 24 * time.Hour
 		adminSession, err := adminSessionModel.CreateSession(admin.ID, c.ClientIP(), c.Request.UserAgent(), duration)
 		if err != nil {
@@ -241,7 +241,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	}
 
 	// Step 2: Check user_accounts
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {
 		respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
@@ -283,7 +283,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		var verified bool
 		if req.UseRecoveryKey {
 			// Verify recovery key
-			recoveryKeyModel := &models.RecoveryKeyModel{DB: h.DB}
+			recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 			verified, err = recoveryKeyModel.VerifyAndUseRecoveryKey(int(user.ID), req.TwoFactorCode)
 			if err != nil {
 				respondWithError(c, http.StatusInternalServerError, "Failed to verify recovery key")
@@ -292,7 +292,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		} else {
 			// Verify TOTP code
 			var secret string
-			secret, err = models.DecryptTwoFactorSecret(user.TwoFactorSecret)
+			secret, err = model.DecryptTwoFactorSecret(user.TwoFactorSecret)
 			if err != nil {
 				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return
@@ -318,7 +318,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	}
 
 	// Create user session
-	sessionModel := &models.SessionModel{DB: h.DB}
+	sessionModel := &model.SessionModel{DB: h.DB}
 	session, err := sessionModel.Create(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(c, http.StatusInternalServerError, "Failed to create session")
@@ -403,7 +403,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 		return
 	}
 
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 
 	// Validate username
 	if err := utils.ValidateUsername(req.Username); err != nil {
@@ -461,7 +461,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	}
 
 	// Auto-login after registration
-	sessionModel := &models.SessionModel{DB: h.DB}
+	sessionModel := &model.SessionModel{DB: h.DB}
 	session, err := sessionModel.Create(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(c, http.StatusInternalServerError, "User created but failed to login")
@@ -509,7 +509,7 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 	// Get session from context
 	session, exists := middleware.GetCurrentSession(c)
 	if exists {
-		sessionModel := &models.SessionModel{DB: h.DB}
+		sessionModel := &model.SessionModel{DB: h.DB}
 		sessionModel.Delete(session.ID)
 	}
 
@@ -574,7 +574,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 
 // LoadCurrentUserProfile returns the same current-user payload used by GET /api/v1/users.
 func LoadCurrentUserProfile(db *sql.DB, userID int64) (*CurrentUserProfileResponse, error) {
-	userModel := &models.UserModel{DB: db}
+	userModel := &model.UserModel{DB: db}
 	user, err := userModel.GetByID(userID)
 	if err != nil {
 		return nil, err
@@ -595,7 +595,7 @@ func UpdateCurrentUserProfile(db *sql.DB, userID int64, req *UpdateCurrentUserPr
 		return fmt.Errorf("invalid request")
 	}
 
-	userModel := &models.UserModel{DB: db}
+	userModel := &model.UserModel{DB: db}
 	return userModel.UpdateProfile(userID, strings.TrimSpace(req.DisplayName), strings.TrimSpace(req.Phone))
 }
 
@@ -659,7 +659,7 @@ func requiresEmailVerification() bool {
 	return cfg.Users.Registration.RequireEmailVerification
 }
 
-func createUserEmailVerification(userID int64, email string) (*models.UserEmailVerification, error) {
-	verificationModel := &models.UserEmailVerificationModel{DB: database.GetUsersDB()}
+func createUserEmailVerification(userID int64, email string) (*model.UserEmailVerification, error) {
+	verificationModel := &model.UserEmailVerificationModel{DB: database.GetUsersDB()}
 	return verificationModel.CreateVerification(userID, email)
 }

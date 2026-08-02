@@ -331,7 +331,7 @@ func main() {
 	// Note: Version and BuildDate are embedded in binary via LDFLAGS, not in config file
 
 	// Initialize default settings with proper backup path
-	settingsModel := &models.SettingsModel{DB: db.DB}
+	settingsModel := &model.SettingsModel{DB: db.DB}
 	backupPath := utils.GetBackupPath(dirPaths)
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
 		appLogger.Error("Warning: Could not initialize default settings: %v", err)
@@ -925,7 +925,7 @@ func main() {
 	serverDB := database.GetServerDB()
 	adminPasskeyHandler := handler.NewAdminPasskeyHandler(serverDB)
 	adminInviteService := service.NewAdminInviteService(serverDB, "", smtpService)
-	userInviteModel := &models.UserInviteModel{DB: database.GetUsersDB()}
+	userInviteModel := &model.UserInviteModel{DB: database.GetUsersDB()}
 	locationHandler := &handler.LocationHandler{
 		DB:               db.DB,
 		WeatherService:   weatherService,
@@ -942,9 +942,9 @@ func main() {
 		UserDB:     dualDB.Users,
 		ServerDB:   dualDB.Server,
 		WSHub:      wsHub,
-		UserNotif:  &models.UserNotificationModel{DB: dualDB.Users},
-		AdminNotif: &models.AdminNotificationModel{DB: dualDB.Server},
-		Prefs:      &models.NotificationPreferencesModel{UserDB: dualDB.Users, ServerDB: dualDB.Server},
+		UserNotif:  &model.UserNotificationModel{DB: dualDB.Users},
+		AdminNotif: &model.AdminNotificationModel{DB: dualDB.Server},
+		Prefs:      &model.NotificationPreferencesModel{UserDB: dualDB.Users, ServerDB: dualDB.Server},
 	}
 
 	// Create WebUI notification API handlers (TEMPLATE.md Part 25)
@@ -1548,7 +1548,7 @@ func main() {
 			return
 		}
 
-		userModel := &models.UserModel{DB: db.DB}
+		userModel := &model.UserModel{DB: db.DB}
 		user, err := userModel.Create(username, invite.Email, req.Password, invite.Role)
 		if err != nil {
 			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
@@ -1586,7 +1586,7 @@ func main() {
 			return
 		}
 
-		sessionModel := &models.SessionModel{DB: db.DB}
+		sessionModel := &model.SessionModel{DB: db.DB}
 		session, err := sessionModel.Create(user.ID, 2592000)
 		if err != nil {
 			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
@@ -2009,7 +2009,7 @@ func main() {
 				return
 			}
 
-			userModel := &models.UserModel{DB: db.DB}
+			userModel := &model.UserModel{DB: db.DB}
 			if _, err := userModel.GetByUsername(username); err == nil {
 				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
 					"error": "Username is already in use",
@@ -2386,16 +2386,16 @@ func main() {
 	// Log all admin API actions
 	adminAPI.Use(middleware.AuditLogger(db.DB))
 	{
-		adminModel := &models.AdminModel{DB: serverDB}
+		adminModel := &model.AdminModel{DB: serverDB}
 
-		getCurrentAdmin := func(c *gin.Context) (*models.Admin, bool) {
+		getCurrentAdmin := func(c *gin.Context) (*model.Admin, bool) {
 			adminValue, exists := c.Get("admin")
 			if !exists {
 				c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
 				return nil, false
 			}
 
-			admin, ok := adminValue.(*models.Admin)
+			admin, ok := adminValue.(*model.Admin)
 			if !ok || admin == nil {
 				c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Invalid admin context"})
 				return nil, false
@@ -2408,7 +2408,7 @@ func main() {
 		// preferences as a single JSON blob column (admin_id, preferences,
 		// updated_at) — not individual theme/language/... columns.
 		defaultAdminPreferencesJSON := func(adminID int64) (string, error) {
-			b, err := json.Marshal(models.AdminPreferences{
+			b, err := json.Marshal(model.AdminPreferences{
 				AdminID:              adminID,
 				Theme:                "auto",
 				Language:             "en",
@@ -2419,7 +2419,7 @@ func main() {
 			return string(b), err
 		}
 
-		loadAdminPreferences := func(adminID int64) (*models.AdminPreferences, error) {
+		loadAdminPreferences := func(adminID int64) (*model.AdminPreferences, error) {
 			defaultJSON, err := defaultAdminPreferencesJSON(adminID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
@@ -2446,7 +2446,7 @@ func main() {
 				return nil, fmt.Errorf("failed to load admin preferences: %w", err)
 			}
 
-			prefs := &models.AdminPreferences{}
+			prefs := &model.AdminPreferences{}
 			if err := json.Unmarshal([]byte(prefsJSON), prefs); err != nil {
 				return nil, fmt.Errorf("failed to decode admin preferences: %w", err)
 			}
@@ -2533,7 +2533,7 @@ func main() {
 			return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, token)
 		}
 
-		userInviteStatus := func(invite models.UserInvite) string {
+		userInviteStatus := func(invite model.UserInvite) string {
 			if invite.UsedAt != nil || (invite.MaxUses > 0 && invite.UseCount >= invite.MaxUses) {
 				return "used"
 			}
@@ -2623,12 +2623,12 @@ func main() {
 				return
 			}
 
-			if _, err := (&models.UserModel{DB: db.DB}).GetByUsername(username); err == nil {
+			if _, err := (&model.UserModel{DB: db.DB}).GetByUsername(username); err == nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Username is already in use"})
 				return
 			}
 
-			if _, err := (&models.UserModel{DB: db.DB}).GetByEmail(email); err == nil {
+			if _, err := (&model.UserModel{DB: db.DB}).GetByEmail(email); err == nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Email is already in use"})
 				return
 			}
@@ -2736,7 +2736,7 @@ func main() {
 
 		// Email settings per spec: /api/{api_version}/{admin_path}/server/email/
 		adminAPI.GET("/server/email", func(c *gin.Context) {
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
 				"provider": settingsModel.GetString("email.provider", ""),
@@ -2751,7 +2751,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			for key, value := range settings {
 				if err := settingsModel.Set("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2769,7 +2769,7 @@ func main() {
 
 		// Branding per spec: /api/{api_version}/{admin_path}/server/branding/
 		adminAPI.GET("/server/branding", func(c *gin.Context) {
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
 				"description": settingsModel.GetString("branding.description", cfg.Server.Branding.Description),
@@ -2784,7 +2784,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			for key, value := range settings {
 				if err := settingsModel.Set("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2796,7 +2796,7 @@ func main() {
 
 		// Pages per spec: /api/{api_version}/{admin_path}/server/pages/
 		adminAPI.GET("/server/pages", func(c *gin.Context) {
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"about":   gin.H{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
 				"privacy": gin.H{"enabled": settingsModel.GetBool("pages.privacy.enabled", true)},
@@ -2807,7 +2807,7 @@ func main() {
 		})
 		adminAPI.GET("/server/pages/:name", func(c *gin.Context) {
 			name := c.Param("name")
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"name":    name,
 				"enabled": settingsModel.GetBool("pages."+name+".enabled", true),
@@ -2821,7 +2821,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			for key, value := range settings {
 				if err := settingsModel.Set("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2833,7 +2833,7 @@ func main() {
 
 		// Web settings per spec: /api/{api_version}/{admin_path}/server/web/
 		adminAPI.GET("/server/web", func(c *gin.Context) {
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
@@ -2845,7 +2845,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &models.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: db.DB}
 			for key, value := range settings {
 				if err := settingsModel.Set("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2997,7 +2997,7 @@ func main() {
 				return
 			}
 
-			valid, err := models.VerifyPassword(req.CurrentPassword, fullAdmin.PasswordHash)
+			valid, err := model.VerifyPassword(req.CurrentPassword, fullAdmin.PasswordHash)
 			if err != nil || !valid {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
 				return
@@ -3045,7 +3045,7 @@ func main() {
 				return
 			}
 
-			sessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
+			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			sessions, err := sessionModel.GetActiveSessions(admin.ID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load sessions"})
@@ -3060,7 +3060,7 @@ func main() {
 				return
 			}
 
-			sessionModel := &models.AdminSessionModel{DB: database.GetServerDB()}
+			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			if err := sessionModel.DeleteAllSessionsForAdmin(admin.ID); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to log out of all sessions"})
 				return
@@ -3148,7 +3148,7 @@ func main() {
 				emailNotifications = *req.EmailNotifications
 			}
 
-			updatedJSON, err := json.Marshal(models.AdminPreferences{
+			updatedJSON, err := json.Marshal(model.AdminPreferences{
 				AdminID:              admin.ID,
 				Theme:                theme,
 				Language:             language,

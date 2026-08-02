@@ -15,9 +15,9 @@ type NotificationService struct {
 	WSHub    *WebSocketHub
 
 	// Models
-	UserNotif  *models.UserNotificationModel
-	AdminNotif *models.AdminNotificationModel
-	Prefs      *models.NotificationPreferencesModel
+	UserNotif  *model.UserNotificationModel
+	AdminNotif *model.AdminNotificationModel
+	Prefs      *model.NotificationPreferencesModel
 }
 
 // NewNotificationService creates a new notification service
@@ -26,13 +26,13 @@ func NewNotificationService(userDB, serverDB *sql.DB, wsHub *WebSocketHub) *Noti
 		UserDB:   userDB,
 		ServerDB: serverDB,
 		WSHub:    wsHub,
-		UserNotif: &models.UserNotificationModel{
+		UserNotif: &model.UserNotificationModel{
 			DB: userDB,
 		},
-		AdminNotif: &models.AdminNotificationModel{
+		AdminNotif: &model.AdminNotificationModel{
 			DB: serverDB,
 		},
-		Prefs: &models.NotificationPreferencesModel{
+		Prefs: &model.NotificationPreferencesModel{
 			UserDB:   userDB,
 			ServerDB: serverDB,
 		},
@@ -40,7 +40,7 @@ func NewNotificationService(userDB, serverDB *sql.DB, wsHub *WebSocketHub) *Noti
 }
 
 // SendUserNotification sends a notification to a user
-func (s *NotificationService) SendUserNotification(userID int, notifType models.NotificationType, display models.NotificationDisplay, title, message string, action *models.NotificationAction) (*models.Notification, error) {
+func (s *NotificationService) SendUserNotification(userID int, notifType model.NotificationType, display model.NotificationDisplay, title, message string, action *model.NotificationAction) (*model.Notification, error) {
 	// Get user preferences
 	prefs, err := s.Prefs.GetUserPreferences(userID)
 	if err != nil {
@@ -83,7 +83,7 @@ func (s *NotificationService) SendUserNotification(userID int, notifType models.
 }
 
 // SendAdminNotification sends a notification to an admin
-func (s *NotificationService) SendAdminNotification(adminID int, notifType models.NotificationType, display models.NotificationDisplay, title, message string, action *models.NotificationAction) (*models.Notification, error) {
+func (s *NotificationService) SendAdminNotification(adminID int, notifType model.NotificationType, display model.NotificationDisplay, title, message string, action *model.NotificationAction) (*model.Notification, error) {
 	// Get admin preferences
 	prefs, err := s.Prefs.GetAdminPreferences(adminID)
 	if err != nil {
@@ -126,72 +126,72 @@ func (s *NotificationService) SendAdminNotification(adminID int, notifType model
 }
 
 // SendSuccessToUser sends a success notification to a user
-func (s *NotificationService) SendSuccessToUser(userID int, title, message string) (*models.Notification, error) {
-	return s.SendUserNotification(userID, models.NotificationTypeSuccess, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendSuccessToUser(userID int, title, message string) (*model.Notification, error) {
+	return s.SendUserNotification(userID, model.NotificationTypeSuccess, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendInfoToUser sends an info notification to a user
-func (s *NotificationService) SendInfoToUser(userID int, title, message string) (*models.Notification, error) {
-	return s.SendUserNotification(userID, models.NotificationTypeInfo, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendInfoToUser(userID int, title, message string) (*model.Notification, error) {
+	return s.SendUserNotification(userID, model.NotificationTypeInfo, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendWarningToUser sends a warning notification to a user
-func (s *NotificationService) SendWarningToUser(userID int, title, message string) (*models.Notification, error) {
-	return s.SendUserNotification(userID, models.NotificationTypeWarning, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendWarningToUser(userID int, title, message string) (*model.Notification, error) {
+	return s.SendUserNotification(userID, model.NotificationTypeWarning, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendErrorToUser sends an error notification to a user
-func (s *NotificationService) SendErrorToUser(userID int, title, message string) (*models.Notification, error) {
-	return s.SendUserNotification(userID, models.NotificationTypeError, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendErrorToUser(userID int, title, message string) (*model.Notification, error) {
+	return s.SendUserNotification(userID, model.NotificationTypeError, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendSecurityToUser sends a security notification to a user
-func (s *NotificationService) SendSecurityToUser(userID int, title, message string) (*models.Notification, error) {
-	return s.SendUserNotification(userID, models.NotificationTypeSecurity, models.NotificationDisplayBanner, title, message, nil)
+func (s *NotificationService) SendSecurityToUser(userID int, title, message string) (*model.Notification, error) {
+	return s.SendUserNotification(userID, model.NotificationTypeSecurity, model.NotificationDisplayBanner, title, message, nil)
 }
 
 // SendSuccessToAdmin sends a success notification to an admin
-func (s *NotificationService) SendSuccessToAdmin(adminID int, title, message string) (*models.Notification, error) {
-	return s.SendAdminNotification(adminID, models.NotificationTypeSuccess, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendSuccessToAdmin(adminID int, title, message string) (*model.Notification, error) {
+	return s.SendAdminNotification(adminID, model.NotificationTypeSuccess, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendInfoToAdmin sends an info notification to an admin
-func (s *NotificationService) SendInfoToAdmin(adminID int, title, message string) (*models.Notification, error) {
-	return s.SendAdminNotification(adminID, models.NotificationTypeInfo, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendInfoToAdmin(adminID int, title, message string) (*model.Notification, error) {
+	return s.SendAdminNotification(adminID, model.NotificationTypeInfo, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendWarningToAdmin sends a warning notification to an admin
-func (s *NotificationService) SendWarningToAdmin(adminID int, title, message string) (*models.Notification, error) {
-	return s.SendAdminNotification(adminID, models.NotificationTypeWarning, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendWarningToAdmin(adminID int, title, message string) (*model.Notification, error) {
+	return s.SendAdminNotification(adminID, model.NotificationTypeWarning, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendErrorToAdmin sends an error notification to an admin
-func (s *NotificationService) SendErrorToAdmin(adminID int, title, message string) (*models.Notification, error) {
-	return s.SendAdminNotification(adminID, models.NotificationTypeError, models.NotificationDisplayToast, title, message, nil)
+func (s *NotificationService) SendErrorToAdmin(adminID int, title, message string) (*model.Notification, error) {
+	return s.SendAdminNotification(adminID, model.NotificationTypeError, model.NotificationDisplayToast, title, message, nil)
 }
 
 // SendSecurityToAdmin sends a security notification to an admin
-func (s *NotificationService) SendSecurityToAdmin(adminID int, title, message string) (*models.Notification, error) {
-	return s.SendAdminNotification(adminID, models.NotificationTypeSecurity, models.NotificationDisplayBanner, title, message, nil)
+func (s *NotificationService) SendSecurityToAdmin(adminID int, title, message string) (*model.Notification, error) {
+	return s.SendAdminNotification(adminID, model.NotificationTypeSecurity, model.NotificationDisplayBanner, title, message, nil)
 }
 
 // GetUserNotifications retrieves notifications for a user with pagination
-func (s *NotificationService) GetUserNotifications(userID int, limit, offset int) ([]*models.Notification, error) {
+func (s *NotificationService) GetUserNotifications(userID int, limit, offset int) ([]*model.Notification, error) {
 	return s.UserNotif.GetByUserID(userID, limit, offset)
 }
 
 // GetAdminNotifications retrieves notifications for an admin with pagination
-func (s *NotificationService) GetAdminNotifications(adminID int, limit, offset int) ([]*models.Notification, error) {
+func (s *NotificationService) GetAdminNotifications(adminID int, limit, offset int) ([]*model.Notification, error) {
 	return s.AdminNotif.GetByAdminID(adminID, limit, offset)
 }
 
 // GetUserUnreadNotifications retrieves unread notifications for a user
-func (s *NotificationService) GetUserUnreadNotifications(userID int) ([]*models.Notification, error) {
+func (s *NotificationService) GetUserUnreadNotifications(userID int) ([]*model.Notification, error) {
 	return s.UserNotif.GetUnread(userID)
 }
 
 // GetAdminUnreadNotifications retrieves unread notifications for an admin
-func (s *NotificationService) GetAdminUnreadNotifications(adminID int) ([]*models.Notification, error) {
+func (s *NotificationService) GetAdminUnreadNotifications(adminID int) ([]*model.Notification, error) {
 	return s.AdminNotif.GetUnread(adminID)
 }
 
@@ -246,32 +246,32 @@ func (s *NotificationService) DeleteAdminNotification(notifID string, adminID in
 }
 
 // GetUserStatistics returns notification statistics for a user
-func (s *NotificationService) GetUserStatistics(userID int) (*models.NotificationStatistics, error) {
+func (s *NotificationService) GetUserStatistics(userID int) (*model.NotificationStatistics, error) {
 	return s.UserNotif.GetStatistics(userID)
 }
 
 // GetAdminStatistics returns notification statistics for an admin
-func (s *NotificationService) GetAdminStatistics(adminID int) (*models.NotificationStatistics, error) {
+func (s *NotificationService) GetAdminStatistics(adminID int) (*model.NotificationStatistics, error) {
 	return s.AdminNotif.GetStatistics(adminID)
 }
 
 // GetUserPreferences retrieves notification preferences for a user
-func (s *NotificationService) GetUserPreferences(userID int) (*models.NotificationPreferences, error) {
+func (s *NotificationService) GetUserPreferences(userID int) (*model.NotificationPreferences, error) {
 	return s.Prefs.GetUserPreferences(userID)
 }
 
 // GetAdminPreferences retrieves notification preferences for an admin
-func (s *NotificationService) GetAdminPreferences(adminID int) (*models.NotificationPreferences, error) {
+func (s *NotificationService) GetAdminPreferences(adminID int) (*model.NotificationPreferences, error) {
 	return s.Prefs.GetAdminPreferences(adminID)
 }
 
 // UpdateUserPreferences updates notification preferences for a user
-func (s *NotificationService) UpdateUserPreferences(userID int, prefs *models.NotificationPreferences) error {
+func (s *NotificationService) UpdateUserPreferences(userID int, prefs *model.NotificationPreferences) error {
 	return s.Prefs.UpdateUserPreferences(userID, prefs)
 }
 
 // UpdateAdminPreferences updates notification preferences for an admin
-func (s *NotificationService) UpdateAdminPreferences(adminID int, prefs *models.NotificationPreferences) error {
+func (s *NotificationService) UpdateAdminPreferences(adminID int, prefs *model.NotificationPreferences) error {
 	return s.Prefs.UpdateAdminPreferences(adminID, prefs)
 }
 
@@ -316,13 +316,13 @@ func (s *NotificationService) EnforceLimits() error {
 }
 
 // shouldSendNotification checks if a notification should be sent based on preferences
-func (s *NotificationService) shouldSendNotification(display models.NotificationDisplay, enableToast, enableBanner, enableCenter bool) bool {
+func (s *NotificationService) shouldSendNotification(display model.NotificationDisplay, enableToast, enableBanner, enableCenter bool) bool {
 	switch display {
-	case models.NotificationDisplayToast:
+	case model.NotificationDisplayToast:
 		return enableToast
-	case models.NotificationDisplayBanner:
+	case model.NotificationDisplayBanner:
 		return enableBanner
-	case models.NotificationDisplayCenter:
+	case model.NotificationDisplayCenter:
 		return enableCenter
 	default:
 		return true

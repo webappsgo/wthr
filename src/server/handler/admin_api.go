@@ -38,7 +38,7 @@ func SaveWebSettings(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &models.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -78,7 +78,7 @@ func SaveSecuritySettings(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &models.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -369,7 +369,7 @@ func SaveDatabaseSettings(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &models.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
 
 	// Validate driver value
 	if driver, ok := settings["database.driver"].(string); ok {

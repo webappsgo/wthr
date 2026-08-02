@@ -20,12 +20,12 @@ const (
 // AuthMiddleware checks for valid session or API token
 func AuthMiddleware(db *sql.DB, required bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sessionModel := &models.SessionModel{DB: db}
-		userModel := &models.UserModel{DB: db}
-		tokenModel := &models.TokenModel{DB: db}
+		sessionModel := &model.SessionModel{DB: db}
+		userModel := &model.UserModel{DB: db}
+		tokenModel := &model.TokenModel{DB: db}
 
-		var user *models.User
-		var session *models.Session
+		var user *model.User
+		var session *model.Session
 
 		// First, check for API token in Authorization header
 		authHeader := c.GetHeader("Authorization")
@@ -110,7 +110,7 @@ func RequireAdmin() gin.HandlerFunc {
 			return
 		}
 
-		user, ok := userInterface.(*models.User)
+		user, ok := userInterface.(*model.User)
 		if !ok || user.Role != "admin" {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Admin access required",
@@ -124,24 +124,24 @@ func RequireAdmin() gin.HandlerFunc {
 }
 
 // GetCurrentUser retrieves the current user from context
-func GetCurrentUser(c *gin.Context) (*models.User, bool) {
+func GetCurrentUser(c *gin.Context) (*model.User, bool) {
 	userInterface, exists := c.Get(UserContextKey)
 	if !exists {
 		return nil, false
 	}
 
-	user, ok := userInterface.(*models.User)
+	user, ok := userInterface.(*model.User)
 	return user, ok
 }
 
 // GetCurrentSession retrieves the current session from context
-func GetCurrentSession(c *gin.Context) (*models.Session, bool) {
+func GetCurrentSession(c *gin.Context) (*model.Session, bool) {
 	sessionInterface, exists := c.Get(SessionContextKey)
 	if !exists {
 		return nil, false
 	}
 
-	session, ok := sessionInterface.(*models.Session)
+	session, ok := sessionInterface.(*model.Session)
 	return session, ok
 }
 

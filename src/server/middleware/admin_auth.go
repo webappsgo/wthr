@@ -293,7 +293,7 @@ func generateSecureToken(byteLength int) string {
 func verifyPasswordHash(password, hash string) bool {
 	// Use proper Argon2id verification from model package
 	// AI.md PART 3 requirement: MUST use Argon2id with constant-time comparison
-	valid, err := models.VerifyPassword(password, hash)
+	valid, err := model.VerifyPassword(password, hash)
 	if err != nil {
 		// Log error but don't expose to user
 		return false

@@ -24,8 +24,8 @@ var adminInviteExpirations = map[string]time.Duration{
 // AdminInviteService handles admin invitation logic
 type AdminInviteService struct {
 	DB           *sql.DB
-	InviteModel  *models.AdminInviteModel
-	AdminModel   *models.AdminModel
+	InviteModel  *model.AdminInviteModel
+	AdminModel   *model.AdminModel
 	EmailService *SMTPService
 	BaseURL      string
 }
@@ -34,8 +34,8 @@ type AdminInviteService struct {
 func NewAdminInviteService(db *sql.DB, baseURL string, emailService *SMTPService) *AdminInviteService {
 	return &AdminInviteService{
 		DB:           db,
-		InviteModel:  &models.AdminInviteModel{DB: db},
-		AdminModel:   &models.AdminModel{DB: db},
+		InviteModel:  &model.AdminInviteModel{DB: db},
+		AdminModel:   &model.AdminModel{DB: db},
 		EmailService: emailService,
 		BaseURL:      baseURL,
 	}
@@ -70,7 +70,7 @@ func (s *AdminInviteService) GenerateInviteToken() (string, error) {
 }
 
 // CreateInvite creates a new admin invitation
-func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expiration string) (*models.AdminInvite, string, error) {
+func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expiration string) (*model.AdminInvite, string, error) {
 	normalizedEmail := utils.NormalizeEmail(email)
 	if err := utils.ValidateEmail(normalizedEmail); err != nil {
 		return nil, "", err
@@ -112,7 +112,7 @@ func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expirat
 }
 
 // VerifyInvite checks if an invite token is valid
-func (s *AdminInviteService) VerifyInvite(token string) (*models.AdminInvite, error) {
+func (s *AdminInviteService) VerifyInvite(token string) (*model.AdminInvite, error) {
 	invite, err := s.InviteModel.GetInvite(token)
 	if err != nil {
 		return nil, fmt.Errorf("invalid invite token")
@@ -132,7 +132,7 @@ func (s *AdminInviteService) VerifyInvite(token string) (*models.AdminInvite, er
 }
 
 // AcceptInvite processes an invite acceptance and creates the admin account
-func (s *AdminInviteService) AcceptInvite(token, username, password string) (*models.Admin, error) {
+func (s *AdminInviteService) AcceptInvite(token, username, password string) (*model.Admin, error) {
 	// Verify invite
 	invite, err := s.VerifyInvite(token)
 	if err != nil {
@@ -160,7 +160,7 @@ func (s *AdminInviteService) AcceptInvite(token, username, password string) (*mo
 }
 
 // GetPendingInvites returns all active invites
-func (s *AdminInviteService) GetPendingInvites() ([]models.AdminInvite, error) {
+func (s *AdminInviteService) GetPendingInvites() ([]model.AdminInvite, error) {
 	return s.InviteModel.GetPendingInvites()
 }
 

@@ -33,7 +33,7 @@ type ServerContext struct {
 
 // InjectServerContext adds server configuration to all requests
 func InjectServerContext(db *sql.DB, version string) gin.HandlerFunc {
-	settingsModel := &models.SettingsModel{DB: db}
+	settingsModel := &model.SettingsModel{DB: db}
 
 	return func(c *gin.Context) {
 		// Get server settings

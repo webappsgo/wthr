@@ -26,15 +26,15 @@ func (h *DashboardHandler) ShowDashboard(c *gin.Context) {
 	}
 
 	// Get user's saved locations
-	locationModel := &models.LocationModel{DB: h.DB}
+	locationModel := &model.LocationModel{DB: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
 		// Empty array on error
-		locations = []*models.SavedLocation{}
+		locations = []*model.SavedLocation{}
 	}
 
 	// Get unread notification count
-	notificationModel := &models.NotificationModel{DB: h.DB}
+	notificationModel := &model.NotificationModel{DB: h.DB}
 	unreadCount, err := notificationModel.GetUnreadCount(user.ID)
 	if err != nil {
 		unreadCount = 0
@@ -64,7 +64,7 @@ func (h *DashboardHandler) ShowAdminPanel(c *gin.Context) {
 		return
 	}
 
-	adminModel := &models.AdminModel{DB: database.GetServerDB()}
+	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
 		c.Redirect(http.StatusFound, "/server/admin")
@@ -72,7 +72,7 @@ func (h *DashboardHandler) ShowAdminPanel(c *gin.Context) {
 	}
 
 	// Get system statistics
-	userModel := &models.UserModel{DB: h.DB}
+	userModel := &model.UserModel{DB: h.DB}
 
 	totalUsers, _ := userModel.Count()
 	adminCount, _ := userModel.CountByRole("admin")

@@ -340,7 +340,7 @@ func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(c *gin.Conte
 		return
 	}
 
-	var prefs models.NotificationPreferences
+	var prefs model.NotificationPreferences
 	if err := c.ShouldBindJSON(&prefs); err != nil {
 		BadRequest(c, "invalid request body")
 		return
@@ -577,7 +577,7 @@ func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(c *gin.Cont
 		return
 	}
 
-	var prefs models.NotificationPreferences
+	var prefs model.NotificationPreferences
 	if err := c.ShouldBindJSON(&prefs); err != nil {
 		BadRequest(c, "invalid request body")
 		return
@@ -610,11 +610,11 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 	}
 
 	var req struct {
-		Type    models.NotificationType    `json:"type" binding:"required"`
-		Display models.NotificationDisplay `json:"display" binding:"required"`
-		Title   string                     `json:"title" binding:"required"`
-		Message string                     `json:"message" binding:"required"`
-		Action  *models.NotificationAction `json:"action,omitempty"`
+		Type    model.NotificationType    `json:"type" binding:"required"`
+		Display model.NotificationDisplay `json:"display" binding:"required"`
+		Title   string                    `json:"title" binding:"required"`
+		Message string                    `json:"message" binding:"required"`
+		Action  *model.NotificationAction `json:"action,omitempty"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -623,12 +623,12 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 	}
 
 	// Validate notification type
-	validTypes := map[models.NotificationType]bool{
-		models.NotificationTypeSuccess:  true,
-		models.NotificationTypeInfo:     true,
-		models.NotificationTypeWarning:  true,
-		models.NotificationTypeError:    true,
-		models.NotificationTypeSecurity: true,
+	validTypes := map[model.NotificationType]bool{
+		model.NotificationTypeSuccess:  true,
+		model.NotificationTypeInfo:     true,
+		model.NotificationTypeWarning:  true,
+		model.NotificationTypeError:    true,
+		model.NotificationTypeSecurity: true,
 	}
 	if !validTypes[req.Type] {
 		BadRequest(c, "invalid notification type")
@@ -636,10 +636,10 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 	}
 
 	// Validate display type
-	validDisplays := map[models.NotificationDisplay]bool{
-		models.NotificationDisplayToast:  true,
-		models.NotificationDisplayBanner: true,
-		models.NotificationDisplayCenter: true,
+	validDisplays := map[model.NotificationDisplay]bool{
+		model.NotificationDisplayToast:  true,
+		model.NotificationDisplayBanner: true,
+		model.NotificationDisplayCenter: true,
 	}
 	if !validDisplays[req.Display] {
 		BadRequest(c, "invalid display type")

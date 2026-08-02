@@ -26,24 +26,24 @@ const (
 // DetectTokenType determines the token type from prefix per TEMPLATE.md PART 11
 func DetectTokenType(token string) TokenType {
 	// Check compound agent prefixes first (longer prefixes)
-	if strings.HasPrefix(token, models.PrefixAdminAgt) {
+	if strings.HasPrefix(token, model.PrefixAdminAgt) {
 		return TokenTypeAdminAgent
 	}
-	if strings.HasPrefix(token, models.PrefixUserAgt) {
+	if strings.HasPrefix(token, model.PrefixUserAgt) {
 		return TokenTypeUserAgent
 	}
-	if strings.HasPrefix(token, models.PrefixOrgAgt) {
+	if strings.HasPrefix(token, model.PrefixOrgAgt) {
 		return TokenTypeOrgAgent
 	}
 
 	// Check standard prefixes
-	if strings.HasPrefix(token, models.PrefixAdmin) {
+	if strings.HasPrefix(token, model.PrefixAdmin) {
 		return TokenTypeAdmin
 	}
-	if strings.HasPrefix(token, models.PrefixUser) {
+	if strings.HasPrefix(token, model.PrefixUser) {
 		return TokenTypeUser
 	}
-	if strings.HasPrefix(token, models.PrefixOrg) {
+	if strings.HasPrefix(token, model.PrefixOrg) {
 		return TokenTypeOrg
 	}
 
@@ -93,7 +93,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 		switch tokenType {
 		case TokenTypeAdmin:
 			// Validate admin token (adm_)
-			adminModel := &models.AdminModel{DB: serverDB}
+			adminModel := &model.AdminModel{DB: serverDB}
 			admin, err := adminModel.GetByAPIToken(token)
 			if err != nil {
 				c.JSON(401, gin.H{"ok": false, "error": "invalid admin token"})
@@ -106,7 +106,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 
 		case TokenTypeUser:
 			// Validate user token (usr_) using new token model
-			tokenModelV2 := &models.TokenModelV2{DB: usersDB}
+			tokenModelV2 := &model.TokenModelV2{DB: usersDB}
 			validatedToken, err := tokenModelV2.ValidateToken(token)
 			if err != nil {
 				c.JSON(401, gin.H{"ok": false, "error": "invalid user token"})
@@ -115,7 +115,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 			}
 
 			// Get user
-			userModel := &models.UserModel{DB: usersDB}
+			userModel := &model.UserModel{DB: usersDB}
 			user, err := userModel.GetByID(validatedToken.OwnerID)
 			if err != nil {
 				c.JSON(401, gin.H{"ok": false, "error": "user not found"})

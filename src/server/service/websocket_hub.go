@@ -126,7 +126,7 @@ func (h *WebSocketHub) UnregisterClient(client *WebSocketClient) {
 }
 
 // BroadcastToUser broadcasts a notification to a specific user
-func (h *WebSocketHub) BroadcastToUser(userID int, notification *models.Notification) {
+func (h *WebSocketHub) BroadcastToUser(userID int, notification *model.Notification) {
 	clientID := ClientIDForUser(userID)
 
 	h.clientsMux.RLock()
@@ -143,7 +143,7 @@ func (h *WebSocketHub) BroadcastToUser(userID int, notification *models.Notifica
 }
 
 // BroadcastToAdmin broadcasts a notification to a specific admin
-func (h *WebSocketHub) BroadcastToAdmin(adminID int, notification *models.Notification) {
+func (h *WebSocketHub) BroadcastToAdmin(adminID int, notification *model.Notification) {
 	clientID := ClientIDForAdmin(adminID)
 
 	h.clientsMux.RLock()

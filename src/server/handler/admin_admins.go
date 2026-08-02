@@ -18,7 +18,7 @@ import (
 // TEMPLATE.md Part 31: Multiple admin accounts support
 type AdminsHandler struct {
 	DB            *sql.DB
-	AdminModel    *models.AdminModel
+	AdminModel    *model.AdminModel
 	InviteService *service.AdminInviteService
 }
 
@@ -26,7 +26,7 @@ type AdminsHandler struct {
 func NewAdminsHandler(db *sql.DB, inviteService *service.AdminInviteService) *AdminsHandler {
 	return &AdminsHandler{
 		DB:            db,
-		AdminModel:    &models.AdminModel{DB: db},
+		AdminModel:    &model.AdminModel{DB: db},
 		InviteService: inviteService,
 	}
 }
@@ -278,7 +278,7 @@ func (h *AdminsHandler) ChangePassword(c *gin.Context) {
 			return
 		}
 
-		valid, _ := models.VerifyPassword(request.CurrentPassword, currentHash)
+		valid, _ := model.VerifyPassword(request.CurrentPassword, currentHash)
 		if !valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
 			return

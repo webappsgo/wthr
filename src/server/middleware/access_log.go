@@ -36,7 +36,7 @@ func AccessLogger(logger *utils.Logger) gin.HandlerFunc {
 		// Get username from context (if authenticated)
 		username := ""
 		if user, exists := c.Get(UserContextKey); exists {
-			if u, ok := user.(*models.User); ok && u != nil {
+			if u, ok := user.(*model.User); ok && u != nil {
 				username = u.Username
 			}
 		}
@@ -66,7 +66,7 @@ func AccessLoggerWithFormat(logger *utils.Logger, formatter *service.LogFormatte
 
 		// Get username from context (if authenticated)
 		if user, exists := c.Get(UserContextKey); exists {
-			if u, ok := user.(*models.User); ok && u != nil {
+			if u, ok := user.(*model.User); ok && u != nil {
 				entry.Username = u.Username
 			}
 		}

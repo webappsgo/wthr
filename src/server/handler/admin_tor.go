@@ -13,13 +13,13 @@ import (
 // TorAdminHandler handles Tor administration endpoints
 type TorAdminHandler struct {
 	torService      *service.TorService
-	settingsModel   *models.SettingsModel
+	settingsModel   *model.SettingsModel
 	vanityGenerator *service.VanityGenerator
 	keyManager      *service.TorKeyManager
 }
 
 // NewTorAdminHandler creates a new Tor admin handler
-func NewTorAdminHandler(torService *service.TorService, settingsModel *models.SettingsModel, dataDir string) *TorAdminHandler {
+func NewTorAdminHandler(torService *service.TorService, settingsModel *model.SettingsModel, dataDir string) *TorAdminHandler {
 	return &TorAdminHandler{
 		torService:      torService,
 		settingsModel:   settingsModel,

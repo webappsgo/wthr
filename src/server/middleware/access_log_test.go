@@ -76,7 +76,7 @@ func TestAccessLogger_UsernameNeverPopulatedForRealAuthenticatedUser(t *testing.
 	router.Use(func(c *gin.Context) {
 		// Mirrors exactly what auth.go / token_auth.go set: a *model.User,
 		// not a map[string]interface{}.
-		c.Set(UserContextKey, &models.User{ID: 1, Username: "alice"})
+		c.Set(UserContextKey, &model.User{ID: 1, Username: "alice"})
 		c.Next()
 	})
 	router.Use(AccessLogger(logger))

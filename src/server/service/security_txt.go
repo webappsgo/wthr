@@ -11,11 +11,11 @@ import (
 
 // SecurityTxtService handles security.txt generation per RFC 9116
 type SecurityTxtService struct {
-	settingsModel *models.SettingsModel
+	settingsModel *model.SettingsModel
 }
 
 // NewSecurityTxtService creates a new security.txt service
-func NewSecurityTxtService(settingsModel *models.SettingsModel) *SecurityTxtService {
+func NewSecurityTxtService(settingsModel *model.SettingsModel) *SecurityTxtService {
 	return &SecurityTxtService{
 		settingsModel: settingsModel,
 	}
