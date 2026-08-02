@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -478,7 +479,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		ExpiresAt time.Time
 	}
 
-	err := db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, email, expires_at
 		FROM user_email_verifications
 		WHERE token = ? AND expires_at > ?
@@ -487,7 +488,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		return fmt.Errorf("invalid or expired verification token")
 	}
 
-	_, err = db.Exec(`
+	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET email_verified = 1, updated_at = ?
 		WHERE id = ?
@@ -496,7 +497,7 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		return fmt.Errorf("failed to verify email")
 	}
 
-	_, _ = db.Exec(`DELETE FROM user_email_verifications WHERE id = ?`, verification.ID)
+	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_email_verifications WHERE id = ?`, verification.ID)
 	return nil
 }
 
@@ -519,7 +520,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 			Email string
 		}
 
-		err := db.QueryRow(`
+		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 			SELECT id, email FROM user_accounts WHERE email = ? AND is_active = 1
 		`, emailAddress).Scan(&user.ID, &user.Email)
 		if err != nil {
@@ -531,7 +532,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 			return
 		}
 
-		_, err = db.Exec(`
+		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO user_password_resets (user_id, token, ip_address, created_at, expires_at)
 			VALUES (?, ?, ?, ?, ?)
 		`, user.ID, token, requestIP, time.Now(), time.Now().Add(1*time.Hour))
@@ -574,7 +575,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		ExpiresAt time.Time
 	}
 
-	err := db.QueryRow(`
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, expires_at
 		FROM user_password_resets
 		WHERE token = ? AND expires_at > ?
@@ -588,7 +589,7 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		return fmt.Errorf("failed to process password")
 	}
 
-	_, err = db.Exec(`
+	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
@@ -597,8 +598,8 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		return fmt.Errorf("failed to reset password")
 	}
 
-	_, _ = db.Exec(`DELETE FROM user_password_resets WHERE id = ?`, reset.ID)
-	_, _ = db.Exec(`DELETE FROM user_sessions WHERE user_id = ?`, reset.UserID)
+	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_password_resets WHERE id = ?`, reset.ID)
+	_, _ = database.ExecContext(context.Background(), db, database.TimeoutWrite, `DELETE FROM user_sessions WHERE user_id = ?`, reset.UserID)
 	return nil
 }
 
@@ -653,7 +654,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 		return nil, fmt.Errorf("failed to create account")
 	}
 
-	if _, err := db.Exec(`UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
 		return nil, fmt.Errorf("failed to finalize account")
 	}
 
