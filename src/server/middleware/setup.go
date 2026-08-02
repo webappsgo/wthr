@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strings"
@@ -36,7 +37,7 @@ func SetupTokenRequired(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc {
 
 		// Check if any admin exists
 		var count int
-		err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 		if err != nil {
 			c.Next()
 			return
@@ -94,7 +95,7 @@ func BlockSetupAfterComplete(db *sql.DB, cfg *config.AppConfig) gin.HandlerFunc 
 	return func(c *gin.Context) {
 		// Check if any admin exists - setup is complete when admin exists
 		var count int
-		err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 		if err == nil && count > 0 {
 			// Admin exists - setup complete, redirect to admin dashboard
 			adminPath := "/server/" + cfg.GetAdminPath()
@@ -140,7 +141,7 @@ func BlockSetupAfterAdminExists(db *sql.DB, cfg *config.AppConfig) gin.HandlerFu
 	return func(c *gin.Context) {
 		// Check if admin exists in server_admin_credentials
 		var count int
-		err := database.GetServerDB().QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
+		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 			c.Abort()

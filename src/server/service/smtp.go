@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
@@ -344,7 +345,7 @@ func (s *SMTPService) SendTestEmail(to string) error {
 // EnableChannel enables the SMTP notification channel
 func (s *SMTPService) EnableChannel() error {
 	// Update channel state to enabled
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_notification_channels (channel_type, channel_name, enabled, state, config, updated_at)
 		VALUES ('email', 'Email (SMTP)', 1, 'enabled', ?, ?)
 		ON CONFLICT(channel_type) DO UPDATE SET
@@ -361,12 +362,12 @@ func (s *SMTPService) EnableChannel() error {
 
 func (s *SMTPService) getSetting(key string) (string, error) {
 	var value string
-	err := database.GetServerDB().QueryRow("SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
+	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
 	return value, err
 }
 
 func (s *SMTPService) saveSetting(key, value string) error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, updated_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?

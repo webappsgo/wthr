@@ -441,3 +441,28 @@ any of the above: `src/graphql/context_keys_test.go`,
     under src/util/ and updating every importer across the codebase
     (large, cross-cutting, out of scope for the DB-timeout migration).
     Read: AI.md PART 3 (directory naming) before starting.
+
+29. TODO (flagged 2026-08-02 by go-lint during item 12's
+    src/server/middleware/setup.go + src/server/service/smtp.go pass):
+    pre-existing, out of scope for item 12 (DB timeout wrapping only) —
+    - src/server/middleware/setup.go: imports `path` package aliased
+      differently from its usage — calls use `paths.GetConfigDir()` and
+      `utils.SetupTokenExists()` (lines 53-54, 108-109) but the actual
+      imports are `"github.com/webappsgo/wthr/src/path"` (as `path`) and
+      `"github.com/webappsgo/wthr/src/util"` (as `util`) — `paths`/`utils`
+      don't match the declared import names; this compiles today only if
+      those packages themselves are named `package paths`/`package utils`
+      internally (see item 28 for the analogous src/util package-name
+      mismatch). Needs verification and a consistent fix either way.
+    - src/server/middleware/setup.go: `db *sql.DB` parameter unused in
+      `SetupTokenRequired`, `BlockSetupAfterComplete`, and
+      `BlockSetupAfterAdminExists` (lines 20, 94, 140) — dead parameter,
+      not introduced by this diff.
+    - src/server/service/smtp.go: hardcoded user-facing strings not run
+      through i18n `t()` per PART 31 — `"Weather"` fallback title,
+      `"Weather SMTP Test"` subject, `"SMTP Test Successful"`, and related
+      template text (lines ~167, 324, 329, 337).
+    Not touched by the item-12 diff (only the raw DB calls were converted
+    to timeout-wrapped calls; the context.WithTimeout wrapping itself was
+    verified correct against src/database/timeouts.go). Read: AI.md PART 3
+    (package naming) and PART 31 (i18n) before starting.
