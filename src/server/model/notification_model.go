@@ -1,8 +1,11 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // NotificationModel handles notification-related database operations
@@ -19,7 +22,7 @@ func (m *NotificationModel) GetUnreadCount(userID int64) (int, error) {
 	// parse that and would silently make this comparison always false.
 	// Compare against a like-formatted bound time.Now() instead, matching
 	// every other expiry check in notification.go.
-	err := m.DB.QueryRow(`
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM user_notifications
 		WHERE user_id = ? AND read = 0 AND dismissed = 0
 		  AND (expires_at IS NULL OR expires_at > ?)

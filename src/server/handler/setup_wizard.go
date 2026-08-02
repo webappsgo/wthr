@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -267,7 +268,7 @@ func deleteSetupToken() error {
 // setup_completed_at columns, so writes must go through the key/value shape
 // rather than a fixed-column row.
 func markSetupComplete() error {
-	_, err := database.GetServerDB().Exec(`
+	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_setup_state (key, value, updated_at)
 		VALUES ('setup_completed', '1', CURRENT_TIMESTAMP)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at

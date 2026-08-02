@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oklog/ulid/v2"
@@ -63,7 +65,7 @@ func AuditLogger(db *sql.DB) gin.HandlerFunc {
 		now := time.Now()
 		id := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
-		_, err := db.Exec(`
+		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, status)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, id, now, actorType, actorID, action, resource, "", clientIP, userAgent, status)

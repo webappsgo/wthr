@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
@@ -78,7 +79,7 @@ func (h *DashboardHandler) ShowAdminPanel(c *gin.Context) {
 
 	// Count total locations across all users
 	var totalLocations int
-	h.DB.QueryRow("SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
+	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
 
 	c.HTML(http.StatusOK, "admin/admin.tmpl", utils.TemplateData(c, gin.H{
 		"title":          "Admin Panel - Weather",
