@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/util"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminUsersHandler handles user management settings
@@ -22,9 +22,9 @@ func (h *AdminUsersHandler) ShowUserSettings(c *gin.Context) {
 // UpdateUserSettings updates user management settings in server.yml
 func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 	var req struct {
-		Enabled                      bool   `json:"enabled"`
-		RegistrationMode             string `json:"registration_mode"`
-		RegistrationRequireEmailVerification bool `json:"registration_require_email_verification"`
+		Enabled                              bool   `json:"enabled"`
+		RegistrationMode                     string `json:"registration_mode"`
+		RegistrationRequireEmailVerification bool   `json:"registration_require_email_verification"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,8 +49,8 @@ func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 
 	// Update server.yml
 	updates := map[string]interface{}{
-		"users.enabled":                                req.Enabled,
-		"users.registration.mode":                      req.RegistrationMode,
+		"users.enabled":                                 req.Enabled,
+		"users.registration.mode":                       req.RegistrationMode,
 		"users.registration.require_email_verification": req.RegistrationRequireEmailVerification,
 	}
 

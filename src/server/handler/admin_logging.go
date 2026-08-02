@@ -20,12 +20,12 @@ func NewLoggingHandler(logsDir string) *LoggingHandler {
 
 // LogFormats represents available log formats
 type LogFormats struct {
-	Standard  bool `json:"standard"`
-	JSON      bool `json:"json"`
-	Fail2ban  bool `json:"fail2ban"`
-	Syslog    bool `json:"syslog"`
-	CEF       bool `json:"cef"`
-	Apache    bool `json:"apache"`
+	Standard bool `json:"standard"`
+	JSON     bool `json:"json"`
+	Fail2ban bool `json:"fail2ban"`
+	Syslog   bool `json:"syslog"`
+	CEF      bool `json:"cef"`
+	Apache   bool `json:"apache"`
 }
 
 // GetFormats returns the current logging format configuration

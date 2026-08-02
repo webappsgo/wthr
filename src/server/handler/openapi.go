@@ -18,7 +18,7 @@ func GetSwaggerUIAuto() gin.HandlerFunc {
 	// TEMPLATE.md: Swagger UI must match site theme (Dracula dark)
 	config := ginSwagger.Config{
 		// Relative URL for the JSON spec
-		URL:                      "doc.json",
+		URL:                  "doc.json",
 		DocExpansion:         "list",
 		DeepLinking:          true,
 		PersistAuthorization: true,

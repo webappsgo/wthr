@@ -68,8 +68,8 @@ func TestAdminSettingsHandler_UpdateSettings(t *testing.T) {
 
 		body := map[string]interface{}{
 			"settings": map[string]interface{}{
-				"smtp.host":       "new.example.com",
-				"does.not.exist":  "x",
+				"smtp.host":      "new.example.com",
+				"does.not.exist": "x",
 			},
 		}
 		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/admin/settings", body)

@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/database"
-	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -22,9 +22,9 @@ type OIDCAuthHandler struct {
 }
 
 const (
-	oidcStateCookiePrefix  = "oidc_state_"
-	oidcPKCECookiePrefix   = "oidc_pkce_"
-	oidcCookieMaxAge       = 600 // 10 minutes — enough to complete the OIDC round-trip
+	oidcStateCookiePrefix = "oidc_state_"
+	oidcPKCECookiePrefix  = "oidc_pkce_"
+	oidcCookieMaxAge      = 600 // 10 minutes — enough to complete the OIDC round-trip
 )
 
 // StartLogin initiates the OIDC authorization code flow.

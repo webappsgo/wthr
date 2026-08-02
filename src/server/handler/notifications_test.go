@@ -622,4 +622,3 @@ func TestNotificationPreferencesHandler_Subscriptions(t *testing.T) {
 		}
 	})
 }
-

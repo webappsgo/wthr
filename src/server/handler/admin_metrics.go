@@ -22,7 +22,7 @@ type MetricsConfig struct {
 }
 
 type CustomMetric struct {
-	Name   string   `json:"name"`
+	Name string `json:"name"`
 	// counter, gauge, histogram, summary
 	Type   string   `json:"type"`
 	Help   string   `json:"help"`

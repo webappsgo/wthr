@@ -135,10 +135,10 @@ func (h *UserSettingsHandler) ShowTokensSettings(c *gin.Context) {
 // UserSettingsResponse represents the full user settings response
 // Per AI.md PART 34: GET /api/v1/users/settings
 type UserSettingsResponse struct {
-	Account       AccountSettings       `json:"account"`
-	Privacy       PrivacySettings       `json:"privacy"`
-	Notifications NotificationSettings  `json:"notifications"`
-	Appearance    AppearanceSettings    `json:"appearance"`
+	Account       AccountSettings      `json:"account"`
+	Privacy       PrivacySettings      `json:"privacy"`
+	Notifications NotificationSettings `json:"notifications"`
+	Appearance    AppearanceSettings   `json:"appearance"`
 }
 
 // AccountSettings represents account-related settings
@@ -207,10 +207,10 @@ func (h *UserSettingsHandler) GetSettings(c *gin.Context) {
 
 // UpdateSettingsRequest represents a partial settings update
 type UpdateSettingsRequest struct {
-	Account       *AccountSettings       `json:"account,omitempty"`
-	Privacy       *PrivacySettings       `json:"privacy,omitempty"`
-	Notifications *NotificationSettings  `json:"notifications,omitempty"`
-	Appearance    *AppearanceSettings    `json:"appearance,omitempty"`
+	Account       *AccountSettings      `json:"account,omitempty"`
+	Privacy       *PrivacySettings      `json:"privacy,omitempty"`
+	Notifications *NotificationSettings `json:"notifications,omitempty"`
+	Appearance    *AppearanceSettings   `json:"appearance,omitempty"`
 }
 
 // UpdateSettings updates user settings (partial update)

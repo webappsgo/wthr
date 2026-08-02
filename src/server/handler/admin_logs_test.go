@@ -370,7 +370,7 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
-				Total  int                   `json:"total"`
+				Total  int                  `json:"total"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -397,7 +397,7 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
-				Total  int                   `json:"total"`
+				Total  int                  `json:"total"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -424,7 +424,7 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
-				Total  int                   `json:"total"`
+				Total  int                  `json:"total"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -516,8 +516,8 @@ func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
-				Total  int                   `json:"total"`
-				Limit  int                   `json:"limit"`
+				Total  int                  `json:"total"`
+				Limit  int                  `json:"limit"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
@@ -544,7 +544,7 @@ func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
-				Total  int                   `json:"total"`
+				Total  int                  `json:"total"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {

@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/util"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminWeatherHandler handles weather-specific settings
@@ -30,21 +30,21 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(c *gin.Context) {
 		USGSEarthquakeEnabled  bool   `json:"usgs_earthquake_enabled"`
 		NHCHurricaneEnabled    bool   `json:"nhc_hurricane_enabled"`
 		// Cache
-		CacheEnabled           bool   `json:"cache_enabled"`
-		CacheTTL               int    `json:"cache_ttl"`
-		CacheMaxSize           int    `json:"cache_max_size"`
+		CacheEnabled bool `json:"cache_enabled"`
+		CacheTTL     int  `json:"cache_ttl"`
+		CacheMaxSize int  `json:"cache_max_size"`
 		// Features
-		ForecastEnabled        bool   `json:"forecast_enabled"`
-		CurrentWeatherEnabled  bool   `json:"current_weather_enabled"`
-		HistoricalDataEnabled  bool   `json:"historical_data_enabled"`
+		ForecastEnabled       bool `json:"forecast_enabled"`
+		CurrentWeatherEnabled bool `json:"current_weather_enabled"`
+		HistoricalDataEnabled bool `json:"historical_data_enabled"`
 		// Alerts
-		AlertsEnabled          bool   `json:"alerts_enabled"`
-		AlertsCheckInterval    int    `json:"alerts_check_interval"`
+		AlertsEnabled           bool   `json:"alerts_enabled"`
+		AlertsCheckInterval     int    `json:"alerts_check_interval"`
 		AlertsSeverityThreshold string `json:"alerts_severity_threshold"`
 		// API Limits
-		APIRateLimit           int    `json:"api_rate_limit"`
-		APIMaxForecastDays     int    `json:"api_max_forecast_days"`
-		APIMaxHistoricalDays   int    `json:"api_max_historical_days"`
+		APIRateLimit         int `json:"api_rate_limit"`
+		APIMaxForecastDays   int `json:"api_max_forecast_days"`
+		APIMaxHistoricalDays int `json:"api_max_historical_days"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

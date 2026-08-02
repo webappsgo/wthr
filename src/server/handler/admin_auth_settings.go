@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/util"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminAuthSettingsHandler handles authentication settings
@@ -46,21 +46,21 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{
-		"server.auth.oidc.enabled":      req.OIDCEnabled,
-		"server.auth.ldap.enabled":      req.LDAPEnabled,
-		"server.auth.ldap.server":       req.LDAPServer,
-		"server.auth.ldap.port":         req.LDAPPort,
-		"server.auth.ldap.bind_dn":      req.LDAPBindDN,
+		"server.auth.oidc.enabled":       req.OIDCEnabled,
+		"server.auth.ldap.enabled":       req.LDAPEnabled,
+		"server.auth.ldap.server":        req.LDAPServer,
+		"server.auth.ldap.port":          req.LDAPPort,
+		"server.auth.ldap.bind_dn":       req.LDAPBindDN,
 		"server.auth.ldap.bind_password": req.LDAPBindPassword,
-		"server.auth.ldap.base_dn":      req.LDAPBaseDN,
-		"server.auth.ldap.user_filter":  req.LDAPUserFilter,
-		"server.auth.totp.enabled":      req.TOTPEnabled,
-		"server.auth.totp.issuer":       req.TOTPIssuer,
-		"server.auth.totp.digits":       req.TOTPDigits,
-		"server.auth.totp.period":       req.TOTPPeriod,
-		"server.auth.passkeys.enabled":  req.PasskeysEnabled,
-		"server.auth.passkeys.rp_id":    req.PasskeysRPID,
-		"server.auth.passkeys.rp_name":  req.PasskeysRPName,
+		"server.auth.ldap.base_dn":       req.LDAPBaseDN,
+		"server.auth.ldap.user_filter":   req.LDAPUserFilter,
+		"server.auth.totp.enabled":       req.TOTPEnabled,
+		"server.auth.totp.issuer":        req.TOTPIssuer,
+		"server.auth.totp.digits":        req.TOTPDigits,
+		"server.auth.totp.period":        req.TOTPPeriod,
+		"server.auth.passkeys.enabled":   req.PasskeysEnabled,
+		"server.auth.passkeys.rp_id":     req.PasskeysRPID,
+		"server.auth.passkeys.rp_name":   req.PasskeysRPName,
 	}
 
 	if err := utils.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {

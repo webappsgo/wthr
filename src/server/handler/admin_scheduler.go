@@ -8,29 +8,29 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
-	"github.com/gin-gonic/gin"
 )
 
 // SchedulerConfig represents the complete scheduler configuration
 type SchedulerConfig struct {
-	Timezone       string                 `json:"timezone"`
-	CatchUpWindow  string                 `json:"catch_up_window"`
-	Tasks          SchedulerTasks         `json:"tasks"`
+	Timezone      string         `json:"timezone"`
+	CatchUpWindow string         `json:"catch_up_window"`
+	Tasks         SchedulerTasks `json:"tasks"`
 }
 
 // SchedulerTasks contains configuration for all scheduler tasks
 type SchedulerTasks struct {
-	SSLRenewal      TaskConfigBasic    `json:"ssl_renewal"`
-	GeoIPUpdate     TaskConfigBasic    `json:"geoip_update"`
-	BlocklistUpdate TaskConfigRetry    `json:"blocklist_update"`
-	CVEUpdate       TaskConfigRetry    `json:"cve_update"`
-	SessionCleanup  TaskConfigBasic    `json:"session_cleanup"`
-	TokenCleanup    TaskConfigBasic    `json:"token_cleanup"`
-	LogRotation     TaskConfigLogRot   `json:"log_rotation"`
-	BackupAuto      TaskConfigBackup   `json:"backup_auto"`
-	HealthcheckSelf TaskConfigBasic    `json:"healthcheck_self"`
+	SSLRenewal      TaskConfigBasic     `json:"ssl_renewal"`
+	GeoIPUpdate     TaskConfigBasic     `json:"geoip_update"`
+	BlocklistUpdate TaskConfigRetry     `json:"blocklist_update"`
+	CVEUpdate       TaskConfigRetry     `json:"cve_update"`
+	SessionCleanup  TaskConfigBasic     `json:"session_cleanup"`
+	TokenCleanup    TaskConfigBasic     `json:"token_cleanup"`
+	LogRotation     TaskConfigLogRot    `json:"log_rotation"`
+	BackupAuto      TaskConfigBackup    `json:"backup_auto"`
+	HealthcheckSelf TaskConfigBasic     `json:"healthcheck_self"`
 	TorHealth       TaskConfigTorHealth `json:"tor_health"`
 }
 
@@ -42,10 +42,10 @@ type TaskConfigBasic struct {
 
 // TaskConfigRetry is for tasks with retry capabilities
 type TaskConfigRetry struct {
-	Schedule     string `json:"schedule"`
-	Enabled      bool   `json:"enabled"`
-	RetryOnFail  bool   `json:"retry_on_fail"`
-	RetryDelay   string `json:"retry_delay"`
+	Schedule    string `json:"schedule"`
+	Enabled     bool   `json:"enabled"`
+	RetryOnFail bool   `json:"retry_on_fail"`
+	RetryDelay  string `json:"retry_delay"`
 }
 
 // TaskConfigLogRot is for log rotation task
@@ -89,7 +89,7 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 			SSLRenewal: TaskConfigBasic{
 				Schedule: settingsModel.GetString("scheduler.tasks.ssl_renewal.schedule", "0 3 * * *"),
 				// Always enabled (critical)
-				Enabled:  true,
+				Enabled: true,
 			},
 			GeoIPUpdate: TaskConfigBasic{
 				Schedule: settingsModel.GetString("scheduler.tasks.geoip_update.schedule", "0 3 * * 0"),
@@ -298,16 +298,16 @@ func getTaskConfig(config map[string]interface{}, taskName string) map[string]in
 
 func isValidTimezone(tz string) bool {
 	validTimezones := map[string]bool{
-		"America/New_York":   true,
-		"America/Chicago":    true,
-		"America/Denver":     true,
+		"America/New_York":    true,
+		"America/Chicago":     true,
+		"America/Denver":      true,
 		"America/Los_Angeles": true,
-		"UTC":                true,
-		"Europe/London":      true,
-		"Europe/Paris":       true,
-		"Asia/Tokyo":         true,
-		"Asia/Shanghai":      true,
-		"Australia/Sydney":   true,
+		"UTC":                 true,
+		"Europe/London":       true,
+		"Europe/Paris":        true,
+		"Asia/Tokyo":          true,
+		"Asia/Shanghai":       true,
+		"Australia/Sydney":    true,
 	}
 	return validTimezones[tz]
 }

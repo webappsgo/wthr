@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"github.com/webappsgo/wthr/src/scheduler"
 	"net/http"
 	"strconv"
-	"github.com/webappsgo/wthr/src/scheduler"
 
 	"github.com/gin-gonic/gin"
 )

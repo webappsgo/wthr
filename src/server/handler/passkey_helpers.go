@@ -26,10 +26,10 @@ type PasskeyEnvelope struct {
 // PasskeySummary mirrors the JSON shape returned by the REST passkey list
 // endpoint so REST and GraphQL clients see identical data.
 type PasskeySummary struct {
-	ID         int64       `json:"id"`
-	Name       string      `json:"name"`
-	CreatedAt  string      `json:"created_at"`
-	LastUsedAt *string     `json:"last_used_at,omitempty"`
+	ID         int64               `json:"id"`
+	Name       string              `json:"name"`
+	CreatedAt  string              `json:"created_at"`
+	LastUsedAt *string             `json:"last_used_at,omitempty"`
 	Raw        *models.UserPasskey `json:"-"`
 }
 

@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/renderer"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -295,13 +295,13 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 		}
 
 		enrichedDays[i] = gin.H{
-			"Date":                     day.Date,
-			"DateFormatted":            dateFormatted,
-			"WeatherCode":              day.WeatherCode,
-			"Icon":                     h.weatherService.GetWeatherIcon(day.WeatherCode, true),
-			"Description":              h.weatherService.GetWeatherDescription(day.WeatherCode),
-			"TempMax":                  day.TempMax,
-			"TempMin":                  day.TempMin,
+			"Date":          day.Date,
+			"DateFormatted": dateFormatted,
+			"WeatherCode":   day.WeatherCode,
+			"Icon":          h.weatherService.GetWeatherIcon(day.WeatherCode, true),
+			"Description":   h.weatherService.GetWeatherDescription(day.WeatherCode),
+			"TempMax":       day.TempMax,
+			"TempMin":       day.TempMin,
 			// Use TempMin as morning temp
 			"TempMorn":                 day.TempMin,
 			"FeelsLikeMax":             day.FeelsLikeMax,

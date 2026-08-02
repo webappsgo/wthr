@@ -46,8 +46,8 @@ func newAdminUsersTestHandler(t *testing.T) *AdminUsersHandler {
 func TestAdminUsersHandler_UpdateUserSettings_Success(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{
-		"enabled":                                 true,
-		"registration_mode":                       "disabled",
+		"enabled":           true,
+		"registration_mode": "disabled",
 		"registration_require_email_verification": true,
 	}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", body)

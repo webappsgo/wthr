@@ -38,8 +38,8 @@ type UpdateCurrentUserProfileRequest struct {
 // LoginRequest represents login request payload
 type LoginRequest struct {
 	// Can be username, email, or phone
-	Identifier  string `json:"identifier" binding:"required"`
-	Password    string `json:"password" binding:"required"`
+	Identifier string `json:"identifier" binding:"required"`
+	Password   string `json:"password" binding:"required"`
 	// Two-factor authentication code (TOTP or recovery key)
 	TwoFactorCode string `json:"two_factor_code"`
 	// Set to true if using a recovery key instead of TOTP
@@ -80,10 +80,10 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	}
 
 	NegotiateResponse(c, "page/login.tmpl", utils.TemplateData(c, gin.H{
-		"title":              "Login",
-		"verified":           c.Query("verified") == "1",
+		"title":               "Login",
+		"verified":            c.Query("verified") == "1",
 		"pendingVerification": c.Query("pending_verification") == "1",
-		"registrationPublic": isPublicRegistrationEnabled(),
+		"registrationPublic":  isPublicRegistrationEnabled(),
 	}))
 }
 
@@ -170,13 +170,13 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 
 			if strings.Contains(contentType, "application/json") {
 				c.JSON(http.StatusOK, gin.H{
-					"message":           "Passkey verification required",
-					"type":              "admin",
-					"requires_passkey":  true,
-					"session_token":     pendingToken,
-					"redirect":          adminPath,
+					"message":            "Passkey verification required",
+					"type":               "admin",
+					"requires_passkey":   true,
+					"session_token":      pendingToken,
+					"redirect":           adminPath,
 					"challenge_endpoint": "/api/v1/server/auth/admin/passkey/challenge",
-					"verify_endpoint":   "/api/v1/server/auth/admin/passkey/verify",
+					"verify_endpoint":    "/api/v1/server/auth/admin/passkey/verify",
 				})
 			} else {
 				// Non-JSON callers (HTML form login) get redirected to a
@@ -264,9 +264,9 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		if req.TwoFactorCode == "" {
 			if strings.Contains(contentType, "application/json") {
 				c.JSON(http.StatusUnauthorized, gin.H{
-					"error":           "Two-factor authentication required",
-					"require_2fa":     true,
-					"user_id":         user.ID,
+					"error":       "Two-factor authentication required",
+					"require_2fa": true,
+					"user_id":     user.ID,
 				})
 			} else {
 				// Render login page with 2FA prompt
@@ -477,7 +477,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 		MaxAge:   sessionTimeout,
 		HttpOnly: true,
 		// Secure: auto-detect based on TLS (AI.md: secure: auto)
-		Secure:   c.Request.TLS != nil,
+		Secure: c.Request.TLS != nil,
 		// SameSite: Lax per AI.md session configuration
 		SameSite: http.SameSiteLaxMode,
 	})

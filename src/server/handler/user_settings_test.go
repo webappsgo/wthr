@@ -470,4 +470,3 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		}
 	})
 }
-

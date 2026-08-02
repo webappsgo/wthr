@@ -139,7 +139,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 	}
 
 	locationModel := &models.LocationModel{DB: h.DB}
-	
+
 	// Check location limit per IDEA.md: Save up to 10 locations per user
 	count, err := locationModel.Count(int(user.ID))
 	if err != nil {
@@ -150,7 +150,7 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum of 10 saved locations allowed per user"})
 		return
 	}
-	
+
 	location, err := locationModel.Create(int(user.ID), req.Name, req.Latitude, req.Longitude, req.Timezone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create location"})

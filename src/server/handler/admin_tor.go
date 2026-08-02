@@ -164,7 +164,7 @@ func (h *TorAdminHandler) Enable(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Tor service enabled and started",
 		"status":  h.torService.GetStatus(),
 	})
@@ -196,7 +196,7 @@ func (h *TorAdminHandler) Disable(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Tor service disabled and stopped",
 	})
 }
@@ -251,7 +251,7 @@ func (h *TorAdminHandler) Regenerate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Tor address regenerated successfully",
 		"address": h.torService.GetOnionAddress(),
 	})
@@ -288,7 +288,7 @@ func (h *TorAdminHandler) GenerateVanity(c *gin.Context) {
 	go h.monitorVanityGeneration()
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": fmt.Sprintf("Started generating vanity address with prefix: %s", req.Prefix),
 		"status":  h.vanityGenerator.GetStatus(),
 	})
@@ -339,7 +339,7 @@ func (h *TorAdminHandler) CancelVanity(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Vanity generation cancelled",
 	})
 }
@@ -383,7 +383,7 @@ func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Vanity address applied successfully",
 		"address": h.torService.GetOnionAddress(),
 	})
@@ -439,7 +439,7 @@ func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Keys imported and Tor restarted successfully",
 		"address": h.torService.GetOnionAddress(),
 	})

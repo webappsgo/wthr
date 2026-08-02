@@ -177,9 +177,9 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 			renderIndentedJSON(c, statusCode, response)
 		case utils.IsBrowser(c):
 			c.HTML(statusCode, "healthz.tmpl", utils.TemplateData(c, gin.H{
-				"title":              "Health Status",
-				"page":               "healthz",
-				"health":             response,
+				"title":               "Health Status",
+				"page":                "healthz",
+				"health":              response,
 				"health_status_class": publicHealthStatusClass(response.Status),
 				"health_status_text":  publicHealthStatusText(response.Status),
 			}))

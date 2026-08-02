@@ -15,11 +15,11 @@ import (
 // passkey list endpoint so REST and (eventually) GraphQL clients see the
 // same data. Modelled on PasskeySummary but for the admin side.
 type AdminPasskeySummary struct {
-	ID         int64                 `json:"id"`
-	Name       string                `json:"name"`
-	CreatedAt  string                `json:"created_at"`
-	LastUsedAt *string               `json:"last_used_at,omitempty"`
-	Raw        *models.AdminPasskey  `json:"-"`
+	ID         int64                `json:"id"`
+	Name       string               `json:"name"`
+	CreatedAt  string               `json:"created_at"`
+	LastUsedAt *string              `json:"last_used_at,omitempty"`
+	Raw        *models.AdminPasskey `json:"-"`
 }
 
 func summarizeAdminPasskey(passkey *models.AdminPasskey) *AdminPasskeySummary {

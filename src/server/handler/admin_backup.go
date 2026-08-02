@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/path"
-	"github.com/gin-gonic/gin"
 )
 
 // AdminBackupHandler handles /admin/server/backup page
@@ -51,8 +51,8 @@ func AdminBackupCreateHandler(c *gin.Context) {
 	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok": false,
-			"error":   "Failed to get system paths",
+			"ok":    false,
+			"error": "Failed to get system paths",
 		})
 		return
 	}
@@ -62,24 +62,24 @@ func AdminBackupCreateHandler(c *gin.Context) {
 
 	// Create backup per AI.md PART 25
 	opts := backup.BackupOptions{
-		ConfigDir:   p.ConfigDir,
-		DataDir:     p.DataDir,
+		ConfigDir: p.ConfigDir,
+		DataDir:   p.DataDir,
 		// Auto-generate filename
 		OutputPath:  "",
 		Password:    password,
 		IncludeSSL:  includeSSL,
 		IncludeData: includeData,
 		// From admin panel
-		CreatedBy:   "admin",
+		CreatedBy: "admin",
 		// Version from build info
-		AppVersion:  "1.0.0",
+		AppVersion: "1.0.0",
 	}
 
 	backupPath, err := svc.Create(opts)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok": false,
-			"error":   fmt.Sprintf("Backup failed: %v", err),
+			"ok":    false,
+			"error": fmt.Sprintf("Backup failed: %v", err),
 		})
 		return
 	}
@@ -93,10 +93,10 @@ func AdminBackupCreateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok":       true,
-		"message":  "Backup created successfully",
-		"path":     filepath.Base(backupPath),
-		"size":     fmt.Sprintf("%.2f MB", size),
+		"ok":        true,
+		"message":   "Backup created successfully",
+		"path":      filepath.Base(backupPath),
+		"size":      fmt.Sprintf("%.2f MB", size),
 		"encrypted": password != "",
 	})
 }
@@ -133,8 +133,8 @@ func AdminBackupDeleteHandler(c *gin.Context) {
 	p := paths.GetDefaultPaths("wthr")
 	if p == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok": false,
-			"error":   "Failed to get system paths",
+			"ok":    false,
+			"error": "Failed to get system paths",
 		})
 		return
 	}
@@ -145,8 +145,8 @@ func AdminBackupDeleteHandler(c *gin.Context) {
 	// Check if file exists
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 		c.JSON(http.StatusNotFound, gin.H{
-			"ok": false,
-			"error":   "Backup file not found",
+			"ok":    false,
+			"error": "Backup file not found",
 		})
 		return
 	}
@@ -154,14 +154,14 @@ func AdminBackupDeleteHandler(c *gin.Context) {
 	// Delete file
 	if err := os.Remove(backupPath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"ok": false,
-			"error":   fmt.Sprintf("Failed to delete backup: %v", err),
+			"ok":    false,
+			"error": fmt.Sprintf("Failed to delete backup: %v", err),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Backup deleted successfully",
 	})
 }

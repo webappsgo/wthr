@@ -44,9 +44,9 @@ func (h *AdminsHandler) ListAdmins(c *gin.Context) {
 	count, _ := h.AdminModel.GetCount()
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
-		"count":   count,
-		"admins":  admins,
+		"ok":     true,
+		"count":  count,
+		"admins": admins,
 	})
 }
 
@@ -60,8 +60,8 @@ func (h *AdminsHandler) GetAdminCount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
-		"count":   count,
+		"ok":    true,
+		"count": count,
 	})
 }
 
@@ -125,7 +125,7 @@ func (h *AdminsHandler) AcceptInvite(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Admin account created successfully",
 		"admin": gin.H{
 			"id":       admin.ID,
@@ -144,7 +144,7 @@ func (h *AdminsHandler) GetPendingInvites(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"count":   len(invites),
 		"invites": invites,
 	})
@@ -167,7 +167,7 @@ func (h *AdminsHandler) RevokeInvite(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Invite revoked successfully",
 	})
 }
@@ -200,7 +200,7 @@ func (h *AdminsHandler) UpdateAdmin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Admin updated successfully",
 	})
 }
@@ -236,7 +236,7 @@ func (h *AdminsHandler) DeleteAdmin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Admin deleted successfully",
 	})
 }
@@ -301,7 +301,7 @@ func (h *AdminsHandler) ChangePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "Password updated successfully",
 	})
 }
@@ -313,10 +313,10 @@ func (h *AdminsHandler) ShowAdminsPage(c *gin.Context) {
 	pendingInvites, _ := h.InviteService.GetPendingInvites()
 
 	c.HTML(http.StatusOK, "admin/admin_admins.tmpl", utils.TemplateData(c, gin.H{
-		"title":          "Admin Management",
-		"page":           "admins",
-		"admins":         admins,
-		"admin_count":    count,
+		"title":           "Admin Management",
+		"page":            "admins",
+		"admins":          admins,
+		"admin_count":     count,
 		"pending_invites": pendingInvites,
 	}))
 }

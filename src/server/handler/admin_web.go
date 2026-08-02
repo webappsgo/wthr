@@ -80,7 +80,7 @@ func (h *AdminWebHandler) GetRobotsTxt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"content": robotsTxt,
 	})
 }
@@ -114,7 +114,7 @@ func (h *AdminWebHandler) UpdateRobotsTxt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "robots.txt updated successfully (will auto-reload)",
 	})
 }
@@ -130,7 +130,7 @@ func (h *AdminWebHandler) GetSecurityTxt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"content": securityTxt,
 	})
 }
@@ -164,7 +164,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok": true,
+		"ok":      true,
 		"message": "security.txt updated successfully (will auto-reload)",
 	})
 }

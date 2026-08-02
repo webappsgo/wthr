@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/util"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminNotificationsHandler handles notification preferences
@@ -23,20 +23,20 @@ func (h *AdminNotificationsHandler) ShowNotificationSettings(c *gin.Context) {
 func (h *AdminNotificationsHandler) UpdateNotificationSettings(c *gin.Context) {
 	var req struct {
 		// Email Events
-		EmailStartup         bool `json:"email_startup"`
-		EmailShutdown        bool `json:"email_shutdown"`
-		EmailBackupComplete  bool `json:"email_backup_complete"`
-		EmailBackupFailed    bool `json:"email_backup_failed"`
-		EmailCertRenewal     bool `json:"email_cert_renewal"`
+		EmailStartup        bool `json:"email_startup"`
+		EmailShutdown       bool `json:"email_shutdown"`
+		EmailBackupComplete bool `json:"email_backup_complete"`
+		EmailBackupFailed   bool `json:"email_backup_failed"`
+		EmailCertRenewal    bool `json:"email_cert_renewal"`
 		// Webhook
-		WebhookEnabled       bool     `json:"webhook_enabled"`
-		WebhookURL           string   `json:"webhook_url"`
-		WebhookEvents        []string `json:"webhook_events"`
+		WebhookEnabled bool     `json:"webhook_enabled"`
+		WebhookURL     string   `json:"webhook_url"`
+		WebhookEvents  []string `json:"webhook_events"`
 		// WebUI
-		WebUIPosition        string `json:"webui_position"`
-		WebUIDuration        int    `json:"webui_duration"`
-		WebUIMaxStored       int    `json:"webui_max_stored"`
-		WebUIRetentionDays   int    `json:"webui_retention_days"`
+		WebUIPosition      string `json:"webui_position"`
+		WebUIDuration      int    `json:"webui_duration"`
+		WebUIMaxStored     int    `json:"webui_max_stored"`
+		WebUIRetentionDays int    `json:"webui_retention_days"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

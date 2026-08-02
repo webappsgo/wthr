@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
-	"github.com/gin-gonic/gin"
 )
 
 // UserNotificationHandlers handles user notification endpoints

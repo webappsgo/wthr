@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/webappsgo/wthr/src/util"
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminGeoIPHandler handles GeoIP settings
@@ -22,13 +22,13 @@ func (h *AdminGeoIPHandler) ShowGeoIPSettings(c *gin.Context) {
 // UpdateGeoIPSettings updates GeoIP settings
 func (h *AdminGeoIPHandler) UpdateGeoIPSettings(c *gin.Context) {
 	var req struct {
-		Enabled          bool     `json:"enabled"`
-		Dir              string   `json:"dir"`
-		UpdateFrequency  int      `json:"update_frequency"`
-		DenyCountries    []string `json:"deny_countries"`
-		DatabaseASN      bool     `json:"database_asn"`
-		DatabaseCountry  bool     `json:"database_country"`
-		DatabaseCity     bool     `json:"database_city"`
+		Enabled         bool     `json:"enabled"`
+		Dir             string   `json:"dir"`
+		UpdateFrequency int      `json:"update_frequency"`
+		DenyCountries   []string `json:"deny_countries"`
+		DatabaseASN     bool     `json:"database_asn"`
+		DatabaseCountry bool     `json:"database_country"`
+		DatabaseCity    bool     `json:"database_city"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

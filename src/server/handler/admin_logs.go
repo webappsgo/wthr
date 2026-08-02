@@ -98,12 +98,12 @@ func (h *LogsHandler) GetLogStats(c *gin.Context) {
 	}
 
 	stats := map[string]interface{}{
-		"total":  len(logs),
-		"debug":  0,
-		"info":   0,
-		"warn":   0,
-		"error":  0,
-		"fatal":  0,
+		"total":   len(logs),
+		"debug":   0,
+		"info":    0,
+		"warn":    0,
+		"error":   0,
+		"fatal":   0,
 		"sources": make(map[string]int),
 	}
 
@@ -446,15 +446,15 @@ func (h *LogsHandler) GetAuditStats(c *gin.Context) {
 	}
 
 	stats := map[string]interface{}{
-		"total":             len(events),
-		"successful":        0,
-		"failed":            0,
-		"event_types":       make(map[string]int),
-		"users":             make(map[string]int),
-		"recent_events":     []service.AuditEvent{},
-		"recent_failures":   []service.AuditEvent{},
-		"top_event_types":   []map[string]interface{}{},
-		"hourly_activity":   make(map[string]int),
+		"total":           len(events),
+		"successful":      0,
+		"failed":          0,
+		"event_types":     make(map[string]int),
+		"users":           make(map[string]int),
+		"recent_events":   []service.AuditEvent{},
+		"recent_failures": []service.AuditEvent{},
+		"top_event_types": []map[string]interface{}{},
+		"hourly_activity": make(map[string]int),
 	}
 
 	for _, event := range events {

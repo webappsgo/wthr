@@ -4,18 +4,18 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"fmt"
+	"github.com/webappsgo/wthr/src/server/service"
 	"net/http"
 	"time"
-	"github.com/webappsgo/wthr/src/server/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type SSLHandler struct {
-	certsDir    string
-	leService   *service.LetsEncryptService
-	db          *sql.DB
-	httpsAddr   string // Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
+	certsDir  string
+	leService *service.LetsEncryptService
+	db        *sql.DB
+	httpsAddr string // Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
 }
 
 // NewSSLHandler creates a new SSL handler
@@ -42,21 +42,21 @@ func (h *SSLHandler) InitLetsEncrypt(email string, staging bool) error {
 }
 
 type CertificateInfo struct {
-	Subject     string    `json:"subject"`
-	Issuer      string    `json:"issuer"`
-	NotBefore   time.Time `json:"notBefore"`
-	NotAfter    time.Time `json:"notAfter"`
-	DNSNames    []string  `json:"dnsNames"`
-	IsValid     bool      `json:"isValid"`
-	DaysRemaining int     `json:"daysRemaining"`
+	Subject       string    `json:"subject"`
+	Issuer        string    `json:"issuer"`
+	NotBefore     time.Time `json:"notBefore"`
+	NotAfter      time.Time `json:"notAfter"`
+	DNSNames      []string  `json:"dnsNames"`
+	IsValid       bool      `json:"isValid"`
+	DaysRemaining int       `json:"daysRemaining"`
 }
 
 type SSLStatus struct {
-	Certificate  *CertificateInfo `json:"certificate"`
-	NextCheck    string           `json:"nextCheck"`
-	NextRenewal  string           `json:"nextRenewal"`
-	LastRenewal  string           `json:"lastRenewal"`
-	AutoRenewal  bool             `json:"autoRenewal"`
+	Certificate *CertificateInfo `json:"certificate"`
+	NextCheck   string           `json:"nextCheck"`
+	NextRenewal string           `json:"nextRenewal"`
+	LastRenewal string           `json:"lastRenewal"`
+	AutoRenewal bool             `json:"autoRenewal"`
 }
 
 // GetStatus returns the current SSL certificate status
@@ -76,11 +76,11 @@ func (h *SSLHandler) GetStatus(c *gin.Context) {
 	}
 
 	status := SSLStatus{
-		Certificate:  certInfo,
-		NextCheck:    time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04"),
-		NextRenewal:  calculateNextRenewal(certInfo.NotAfter),
-		LastRenewal:  "Unknown",
-		AutoRenewal:  true,
+		Certificate: certInfo,
+		NextCheck:   time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04"),
+		NextRenewal: calculateNextRenewal(certInfo.NotAfter),
+		LastRenewal: "Unknown",
+		AutoRenewal: true,
 	}
 
 	c.JSON(http.StatusOK, status)
@@ -90,13 +90,13 @@ func (h *SSLHandler) GetStatus(c *gin.Context) {
 // TEMPLATE.md Part 8: Full Let's Encrypt integration with all 3 challenge types
 func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 	var request struct {
-		Domain        string   `json:"domain" binding:"required"`
-		Email         string   `json:"email" binding:"required"`
-		AltNames      []string `json:"altNames"`
+		Domain   string   `json:"domain" binding:"required"`
+		Email    string   `json:"email" binding:"required"`
+		AltNames []string `json:"altNames"`
 		// http-01, tls-alpn-01, dns-01
-		ChallengeType string   `json:"challengeType" binding:"required"`
+		ChallengeType string `json:"challengeType" binding:"required"`
 		// Use staging server for testing
-		Staging       bool     `json:"staging"`
+		Staging bool `json:"staging"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -112,9 +112,9 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 	}
 	if !validChallenges[request.ChallengeType] {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":          "Invalid challenge type",
-			"validTypes":     []string{"http-01", "tls-alpn-01", "dns-01"},
-			"challengeType":  request.ChallengeType,
+			"error":         "Invalid challenge type",
+			"validTypes":    []string{"http-01", "tls-alpn-01", "dns-01"},
+			"challengeType": request.ChallengeType,
 		})
 		return
 	}
@@ -141,12 +141,12 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok":      true,
-		"message": "Certificate obtained successfully",
-		"domain":  request.Domain,
-		"altNames": request.AltNames,
-		"challengeType": request.ChallengeType,
-		"certificate": string(cert.Certificate),
+		"ok":                true,
+		"message":           "Certificate obtained successfully",
+		"domain":            request.Domain,
+		"altNames":          request.AltNames,
+		"challengeType":     request.ChallengeType,
+		"certificate":       string(cert.Certificate),
 		"issuerCertificate": string(cert.IssuerCertificate),
 	})
 }
@@ -158,7 +158,7 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 		Domain        string `json:"domain" binding:"required"`
 		ChallengeType string `json:"challengeType" binding:"required"`
 		// Force renewal even if not needed
-		Force         bool   `json:"force"`
+		Force bool `json:"force"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -204,9 +204,9 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok":      true,
-		"message": "Certificate renewed successfully",
-		"domain":  request.Domain,
+		"ok":          true,
+		"message":     "Certificate renewed successfully",
+		"domain":      request.Domain,
 		"certificate": string(cert.Certificate),
 	})
 }
@@ -241,11 +241,11 @@ func (h *SSLHandler) VerifyCertificate(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"valid":    true,
-		"message":  "Certificate is valid",
-		"subject":  certInfo.Subject,
-		"issuer":   certInfo.Issuer,
-		"notAfter": certInfo.NotAfter,
+		"valid":         true,
+		"message":       "Certificate is valid",
+		"subject":       certInfo.Subject,
+		"issuer":        certInfo.Issuer,
+		"notAfter":      certInfo.NotAfter,
 		"daysRemaining": certInfo.DaysRemaining,
 	})
 }
@@ -271,7 +271,7 @@ func (h *SSLHandler) UpdateSettings(c *gin.Context) {
 
 	// In a real implementation, save these settings to database
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Settings saved successfully",
+		"message":  "Settings saved successfully",
 		"settings": settings,
 	})
 }
@@ -302,7 +302,7 @@ func (h *SSLHandler) ImportCertificate(c *gin.Context) {
 
 	// In a real implementation, validate and save certificate files
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Certificate imported successfully",
+		"message":  "Certificate imported successfully",
 		"certFile": certFile.Filename,
 		"keyFile":  keyFile.Filename,
 	})
@@ -366,9 +366,9 @@ func (h *SSLHandler) StartAutoRenewal(c *gin.Context) {
 	h.leService.StartAutoRenewal(request.Domains, request.ChallengeType)
 
 	c.JSON(http.StatusOK, gin.H{
-		"ok":      true,
-		"message": "Auto-renewal started",
-		"domains": request.Domains,
+		"ok":            true,
+		"message":       "Auto-renewal started",
+		"domains":       request.Domains,
 		"checkInterval": "24 hours",
 	})
 }
