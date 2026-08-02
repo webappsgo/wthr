@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 
 	"github.com/gin-gonic/gin"
@@ -74,7 +76,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
 	args = append(args, limit, offset)
 
-	rows, err := h.DB.Query(query, args...)
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
 		return
@@ -107,7 +109,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	if unreadOnly {
 		countQuery += " AND read = 0"
 	}
-	h.DB.QueryRow(countQuery, countArgs...).Scan(&total)
+	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, countQuery, countArgs...).Scan(&total)
 
 	c.JSON(http.StatusOK, gin.H{
 		"notifications": notifications,
@@ -126,7 +128,7 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 	}
 
 	var count int
-	err := h.DB.QueryRow("SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read = 0", userID).Scan(&count)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read = 0", userID).Scan(&count)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get unread count"})
 		return
@@ -148,7 +150,7 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 
 	// Verify ownership
 	var ownerID int
-	err := h.DB.QueryRow("SELECT user_id FROM notifications WHERE id = ?", notificationID).Scan(&ownerID)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT user_id FROM notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
 		return
@@ -160,7 +162,7 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	}
 
 	// Mark as read
-	_, err = h.DB.Exec("UPDATE notifications SET read = 1 WHERE id = ?", notificationID)
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "UPDATE notifications SET read = 1 WHERE id = ?", notificationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notification as read"})
 		return
@@ -177,7 +179,7 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 		return
 	}
 
-	_, err := h.DB.Exec("UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notifications as read"})
 		return
@@ -197,7 +199,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 
 	// Verify ownership
 	var ownerID int
-	err := h.DB.QueryRow("SELECT user_id FROM notifications WHERE id = ?", notificationID).Scan(&ownerID)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT user_id FROM notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
 		return
@@ -209,7 +211,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	}
 
 	// Delete
-	_, err = h.DB.Exec("DELETE FROM notifications WHERE id = ?", notificationID)
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "DELETE FROM notifications WHERE id = ?", notificationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete notification"})
 		return
@@ -220,7 +222,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 
 // CreateNotification creates a new notification (internal use)
 func (h *NotificationHandler) CreateNotification(userID int, notifType, title, message, link string) error {
-	_, err := h.DB.Exec(`
+	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notifications (user_id, type, title, message, link, read)
 		VALUES (?, ?, ?, ?, ?, 0)
 	`, userID, notifType, title, message, sql.NullString{String: link, Valid: link != ""})
