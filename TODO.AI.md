@@ -1012,7 +1012,7 @@ any of the above: `src/graphql/context_keys_test.go`,
     failure. Commit: f000156dc7ad.
     Read: AI.md PART 10 (Query Timeouts) before starting.
 
-33. TODO (flagged 2026-08-02 by go-lint during item 12's
+33. DONE (2026-08-02, flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/admin_settings.go pass): pre-existing, out of scope
     for item 12 (DB timeout wrapping only) —
     - Lines 32, 100, 186, 197, 204, 211, 226, 255: error responses use
@@ -1033,6 +1033,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     `database.WithTimeout()` + `tx.ExecContext()` pattern used in
     `ResetSettings()`. Read: AI.md PART 14 (API error/success response
     shapes) before starting.
+    - DONE (2026-08-02): all error responses across GetAllSettings,
+      UpdateSettings, ResetSettings, ExportSettings, and ImportSettings
+      converted from raw `c.JSON(status, gin.H{"error": ...})` to the
+      pre-existing canonical helpers in `src/server/handler/response.go`
+      (`InternalError`, `BadRequest`), which already implement the AI.md
+      PART 14 error shape.
+    - DONE (2026-08-02): all action-response success paths (GetAllSettings,
+      UpdateSettings, ResetSettings, ImportSettings, ReloadConfig)
+      converted to `RespondSuccess`, producing the canonical
+      `{"ok":true,"data":{...}}` shape; the ad-hoc `"message"` fields
+      previously embedded in the data payload now flow through
+      `RespondSuccess`'s dedicated message parameter instead. ExportSettings'
+      response was deliberately left as raw `c.JSON` — it's a file-download
+      body (`Content-Disposition: attachment`), not an action response, and
+      was not in the flagged line list.
+    - DONE (2026-08-02): both `json.Unmarshal()` calls in `GetAllSettings()`
+      (for "number" and "json" typed settings) now check their error and
+      log it via `log.Printf("ERROR: GetAllSettings: ...")`, matching the
+      existing error-logging convention from item 30's admin.go fix.
+    - DONE (2026-08-02): the stale "TEMPLATE.md Part 25" comment corrected
+      to "AI.md PART 18 - WebUI Notifications".
+    - Verification: `gofmt -l .`, `go build ./...`, `go vet ./...` all clean
+      (no output) via the GO_DOCKER toolchain; `go test -count=1 ./...`
+      passed across all packages. Committed as abee7c525d31; post-push CI
+      confirmed clean aside from the known item-16 coverage-gate failure
+      (51%<60%, no new failure signature).
 
 35. TODO (flagged 2026-08-02 while verifying item 20's notification.go
     fix): `TestMutationResolver_ResetUserPassword`
