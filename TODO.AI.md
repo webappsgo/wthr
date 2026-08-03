@@ -850,7 +850,7 @@ any of the above: `src/graphql/context_keys_test.go`,
     Verified: gofmt -l clean, go build ./... clean, go vet ./... clean,
     go test ./... all pass. Commit: acfceefd819e.
 
-29. TODO (flagged 2026-08-02 by go-lint during item 12's
+29. DONE (2026-08-02, flagged 2026-08-02 by go-lint during item 12's
     src/server/middleware/setup.go + src/server/service/smtp.go pass):
     pre-existing, out of scope for item 12 (DB timeout wrapping only) —
     - DONE (2026-08-02): renamed `package paths` -> `package path` in
@@ -925,28 +925,44 @@ any of the above: `src/graphql/context_keys_test.go`,
       clean, go build/vet clean, go test -count=1
       ./src/server/handler/... passes. Commit: cc5a6a8778dc.
 
-31. TODO (flagged 2026-08-02, discovered via post-push CI check on commit
-    a3cd80ecbf6d): tests/integration's `TestAPI_Search/Valid_search`
-    (tests/integration/api_test.go:207) failed in CI with a live network
-    timeout — `search error: Get
+31. DONE (2026-08-02, flagged 2026-08-02, discovered via post-push CI
+    check on commit a3cd80ecbf6d): tests/integration's
+    `TestAPI_Search/Valid_search` (tests/integration/api_test.go:207)
+    failed in CI with a live network timeout — `search error: Get
     "https://geocoding-api.open-meteo.com/v1/search?...": context
     deadline exceeded (Client.Timeout exceeded while awaiting headers)`.
-    This is a different failure signature than the known coverage-gate
-    issue (item 16) — it's an integration test making a real outbound
-    HTTP call to a third-party geocoding API, which the CI runner
-    couldn't reach in time. Not caused by this session's item-12 diffs
-    (admin_logs_format.go, debug.go, admin_auth.go, maintenance.go —
-    none touch search/geocoding code). Root problem: PART 29 test rules
-    require Phase 1 (`*_test.go` via `make test`) to be provable without
-    a running app/network dependency — a test that calls a live
-    third-party API will always be flaky in CI (network egress may be
-    restricted/slow/rate-limited) and violates that isolation
-    requirement. Fix requires either mocking/stubbing the geocoding HTTP
-    client in this test, or moving this specific assertion to Phase 2
-    (`tests/run_tests.sh`, which already runs against a live running
-    binary) — a real design decision, out of scope for item 12. Read:
-    AI.md PART 29 (testing strategy, decision rule for *_test.go vs
-    ./tests/*.sh) before starting.
+    Root cause: PART 29 requires Phase 1 (`*_test.go` via `make test`)
+    to be provable without a live network dependency; this subtest
+    called the real geocoding-api.open-meteo.com upstream. Chose "move
+    to Phase 2" over mocking: `WeatherService`/`LocationEnhancer`
+    construct their own `*http.Client` internally with no injection
+    point, so mocking would require a non-trivial service refactor out
+    of scope for this fix.
+    - DONE (2026-08-02): `TestAPI_Search`'s "Valid search" case now
+      `t.Skip()`s with a comment explaining the Phase 2 handoff; the two
+      network-independent cases ("Empty query", "No query param") stay
+      in Phase 1 unchanged.
+    - DONE (2026-08-02): added a Phase 2 check to tests/docker.sh
+      exercising `GET /api/v1/locations/search?q=London` against the
+      live running binary. Confirmed via `grep -rn SearchLocations
+      src/` that the app's actual registered route (src/main.go:2350)
+      is `/api/v1/locations/search` (`locationHandler.SearchLocations`
+      in src/server/handler/locations.go) — NOT `/api/v1/search`, which
+      only exists inside this test file's own self-built gin router
+      (`setupIntegrationTest`, bound to `apiHandler.SearchLocations` in
+      src/server/handler/api.go) and is never mounted by the real
+      server. tests/incus.sh already had equivalent coverage at
+      `/api/v1/locations/search?q=London` in its `PUBLIC_API_ROUTES`
+      array — docker.sh now matches the same production path.
+    - Logged separately as item 41 (script-lint's 11 pre-existing
+      findings on tests/docker.sh, and the same live-network-in-Phase-1
+      pattern in `TestAPI_Weather_Coordinates`/`TestAPI_Weather_CityID`/
+      `TestAPI_Weather_Nearest`/`TestAPI_Forecast`) since both are out
+      of scope for this narrowly-flagged failure.
+    Verified: gofmt -l clean, go build/vet clean, go test -count=1
+    ./tests/integration/... passes (2 run, 1 skipped, no network call).
+    Read: AI.md PART 29 (testing strategy, decision rule for *_test.go
+    vs ./tests/*.sh) before starting.
 
 32. TODO (flagged 2026-08-02 by go-lint during item 12's src/cli/maintenance.go
     pass): pre-existing, out of scope for item 12 (DB timeout wrapping only) —
@@ -1123,3 +1139,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     accessor — pick one approach and apply it consistently across all
     call sites in one pass, updating every caller and test. Read: AI.md
     PART 10 (Database & Cluster) before starting.
+
+41. TODO (flagged 2026-08-02 while fixing item 31): two out-of-scope
+    findings surfaced during item 31's tests/docker.sh edit —
+    - script-lint reported 11 pre-existing findings on tests/docker.sh
+      (none in the lines item 31 added): missing `DOCKER_` prefix on
+      `PROJECTNAME`/`PROJECTORG`/`BUILD_DIR` (lines 6, 7, 11), missing
+      `__` prefix on the `cleanup` function (line 35), missing `--`
+      before the query in six `grep` calls (lines 66, 76, 103, 110,
+      117, 226), and a UUOC `echo "$var" | grep` pattern at line 226
+      (inside a heredoc's embedded `sh -c` block — restructuring to
+      avoid UUOC there may need care since it's nested shell, not bash).
+    - tests/integration/api_test.go's `TestAPI_Weather_Coordinates`,
+      `TestAPI_Weather_CityID`, `TestAPI_Weather_Nearest`, and
+      `TestAPI_Forecast` share the exact same architectural defect that
+      item 31 fixed for `TestAPI_Search` (live network calls to
+      open-meteo.com inside Phase 1 `*_test.go`, per AI.md PART 29)
+      but were not the specifically flagged CI failure. Same fix
+      pattern applies: skip the live-network cases in Phase 1, add
+      matching Phase 2 coverage in tests/docker.sh/tests/incus.sh.
+    Read: AI.md PART 29 (testing strategy) and the tool_conventions.md
+    script-lint rules before starting.
