@@ -189,14 +189,27 @@ func TestAPI_Search(t *testing.T) {
 		name       string
 		query      string
 		wantStatus int
+		liveNet    bool
 	}{
-		{"Valid search", "q=London", http.StatusOK},
-		{"Empty query", "q=", http.StatusBadRequest},
-		{"No query param", "", http.StatusBadRequest},
+		{"Valid search", "q=London", http.StatusOK, true},
+		{"Empty query", "q=", http.StatusBadRequest, false},
+		{"No query param", "", http.StatusBadRequest, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.liveNet {
+				// This case reaches the live geocoding-api.open-meteo.com
+				// upstream, which makes it non-deterministic for the
+				// Phase 1 toolchain gate (AI.md PART 29: Phase 1 must be
+				// provable without a live network dependency). Equivalent
+				// coverage lives in Phase 2 (tests/incus.sh's
+				// PUBLIC_API_ROUTES `/api/v1/locations/search?q=London`
+				// and tests/docker.sh's matching check against the same
+				// production route).
+				t.Skip("live-network case covered in Phase 2 (tests/docker.sh, tests/incus.sh) per AI.md PART 29")
+			}
+
 			url := fmt.Sprintf("/api/v1/search?%s", tt.query)
 			req := httptest.NewRequest("GET", url, nil)
 			w := httptest.NewRecorder()

@@ -203,6 +203,15 @@ docker run --rm \
         echo '✗ FAILED: /api/v1/severe-weather'
     fi
 
+    # Location search API (calls the live geocoding-api.open-meteo.com
+    # upstream, so this real-network assertion lives here in Phase 2
+    # rather than in *_test.go's Phase 1 toolchain gate — AI.md PART 29)
+    if curl -q -LSsf 'http://localhost:64580/api/v1/locations/search?q=London' | jq -e '.' >/dev/null 2>&1; then
+        echo '✓ /api/v1/locations/search returns JSON'
+    else
+        echo '✗ FAILED: /api/v1/locations/search'
+    fi
+
     echo '=== Frontend Smart Detection Tests (AI.md PART 16) ==='
     # Test homepage - CLI should get response
     HOMEPAGE=\$(curl -q -LSsf http://localhost:64580/)
