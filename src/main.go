@@ -97,7 +97,9 @@ func main() {
 
 	// Parse CLI arguments
 	if err := cliInstance.Parse(os.Args[1:]); err != nil {
-		log.Fatalf("Failed to parse CLI: %v", err)
+		// Bad CLI usage (AI.md PART 8: exit code 64 = usage error).
+		log.Printf("Failed to parse CLI: %v", err)
+		os.Exit(64)
 	}
 
 	// Check if this is a command that exits (handled by CLI package)
@@ -124,7 +126,9 @@ func main() {
 			// Fork a new process
 			execPath, err := os.Executable()
 			if err != nil {
-				log.Fatalf("Failed to get executable path for daemon: %v", err)
+				// General startup failure (AI.md PART 8: exit code 1).
+				log.Printf("Failed to get executable path for daemon: %v", err)
+				os.Exit(1)
 			}
 
 			// Set marker so child knows it's the daemon
@@ -140,7 +144,9 @@ func main() {
 
 			proc, err := os.StartProcess(execPath, os.Args, procAttr)
 			if err != nil {
-				log.Fatalf("Failed to start daemon process: %v", err)
+				// General startup failure (AI.md PART 8: exit code 1).
+				log.Printf("Failed to start daemon process: %v", err)
+				os.Exit(1)
 			}
 
 			// Release the child and exit parent
@@ -173,7 +179,9 @@ func main() {
 	// Get OS-appropriate directory paths
 	dirPaths, err := util.GetDirectoryPaths()
 	if err != nil {
-		log.Fatalf("Failed to determine directory paths: %v", err)
+		// Config/path resolution failure (AI.md PART 8: exit code 2).
+		log.Printf("Failed to determine directory paths: %v", err)
+		os.Exit(2)
 	}
 
 	// Apply environment variable overrides (set by CLI or directly)
@@ -189,12 +197,16 @@ func main() {
 		if info, err := os.Stat(envDataDir); err == nil {
 			if !info.IsDir() {
 				if err := os.Remove(envDataDir); err != nil {
-					log.Fatalf("Failed to remove file at %s: %v", envDataDir, err)
+					// Config-directed path (DATA_DIR) unusable (AI.md PART 8: exit code 2).
+					log.Printf("Failed to remove file at %s: %v", envDataDir, err)
+					os.Exit(2)
 				}
 			}
 		}
 		if err := os.MkdirAll(envDataDir, dirPerm); err != nil {
-			log.Fatalf("Failed to create data directory %s: %v", envDataDir, err)
+			// Config-directed path (DATA_DIR) unusable (AI.md PART 8: exit code 2).
+			log.Printf("Failed to create data directory %s: %v", envDataDir, err)
+			os.Exit(2)
 		}
 		dirPaths.Data = envDataDir
 	}
@@ -205,12 +217,16 @@ func main() {
 		if info, err := os.Stat(envConfigDir); err == nil {
 			if !info.IsDir() {
 				if err := os.Remove(envConfigDir); err != nil {
-					log.Fatalf("Failed to remove file at %s: %v", envConfigDir, err)
+					// Config-directed path (CONFIG_DIR) unusable (AI.md PART 8: exit code 2).
+					log.Printf("Failed to remove file at %s: %v", envConfigDir, err)
+					os.Exit(2)
 				}
 			}
 		}
 		if err := os.MkdirAll(envConfigDir, dirPerm); err != nil {
-			log.Fatalf("Failed to create config directory %s: %v", envConfigDir, err)
+			// Config-directed path (CONFIG_DIR) unusable (AI.md PART 8: exit code 2).
+			log.Printf("Failed to create config directory %s: %v", envConfigDir, err)
+			os.Exit(2)
 		}
 		dirPaths.Config = envConfigDir
 	}
@@ -222,7 +238,9 @@ func main() {
 
 	// Create all required directories
 	if err := util.CreateDirectories(dirPaths); err != nil {
-		log.Fatalf("Failed to create directories: %v", err)
+		// Config-directed paths unusable (AI.md PART 8: exit code 2).
+		log.Printf("Failed to create directories: %v", err)
+		os.Exit(2)
 	}
 
 	// Generate server.yml if it doesn't exist (runtime generation per TEMPLATE.md)
@@ -233,7 +251,9 @@ func main() {
 	// Initialize logger
 	appLogger, err := util.NewLogger(dirPaths.Log)
 	if err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
+		// General startup failure (AI.md PART 8: exit code 1).
+		log.Printf("Failed to initialize logger: %v", err)
+		os.Exit(1)
 	}
 
 	// Print startup timestamp
@@ -490,14 +510,18 @@ func main() {
 	// Serve embedded static files from server package
 	staticSubFS, err := server.GetStaticSubFS()
 	if err != nil {
-		log.Fatalf("Failed to get static subdirectory: %v", err)
+		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
+		log.Printf("Failed to get static subdirectory: %v", err)
+		os.Exit(1)
 	}
 	r.StaticFS("/static", http.FS(staticSubFS))
 
 	// Initialize i18n service (TEMPLATE.md PART 29 - NON-NEGOTIABLE)
 	i18nService, err := i18n.NewI18n(localesFS, "en")
 	if err != nil {
-		log.Fatalf("Failed to initialize i18n: %v", err)
+		// General startup failure — embedded locale corruption (AI.md PART 8: exit code 1).
+		log.Printf("Failed to initialize i18n: %v", err)
+		os.Exit(1)
 	}
 	// Global accessor for services/scheduler tasks with no gin.Context
 	// (e.g. src/server/service/smtp.go's server-initiated emails).
@@ -543,7 +567,9 @@ func main() {
 	// Create sub-filesystem starting at "template/" so template names don't include "template/" prefix
 	templatesSubFS, err := fs.Sub(templatesFS, "template")
 	if err != nil {
-		log.Fatalf("Failed to get template subdirectory: %v", err)
+		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
+		log.Printf("Failed to get template subdirectory: %v", err)
+		os.Exit(1)
 	}
 
 	// Walk the filesystem and collect all .tmpl files
@@ -588,7 +614,9 @@ func main() {
 	for _, path := range templatePaths {
 		content, err := fs.ReadFile(templatesSubFS, path)
 		if err != nil {
-			log.Fatalf("Failed to read template %s: %v", path, err)
+			// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
+			log.Printf("Failed to read template %s: %v", path, err)
+			os.Exit(1)
 		}
 		contentStr := string(content)
 		// If template doesn't have {{define}}, wrap it to give it a name matching the path
@@ -597,7 +625,9 @@ func main() {
 		}
 		_, err = tmpl.Parse(contentStr)
 		if err != nil {
-			log.Fatalf("Failed to parse template %s: %v", path, err)
+			// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
+			log.Printf("Failed to parse template %s: %v", path, err)
+			os.Exit(1)
 		}
 	}
 
@@ -880,7 +910,9 @@ func main() {
 	// Initialize task history table for scheduler tracking
 	if err := taskScheduler.InitTaskHistoryTable(); err != nil {
 		fmt.Printf("❌ Failed to initialize task history table: %v\n", err)
-		log.Fatalf("Failed to initialize task history table: %v", err)
+		// DB connection failure (AI.md PART 8: exit code 3).
+		log.Printf("Failed to initialize task history table: %v", err)
+		os.Exit(3)
 	}
 
 	// Start the scheduler
@@ -1023,7 +1055,9 @@ func main() {
 
 	httpPortInt, httpsPortInt, err := portManager.GetServerPortsWithConfig(configPort)
 	if err != nil {
-		log.Fatalf("Failed to configure server ports: %v", err)
+		// Config error — invalid/unavailable port configuration (AI.md PART 8: exit code 2).
+		log.Printf("Failed to configure server ports: %v", err)
+		os.Exit(2)
 	}
 
 	port := fmt.Sprintf("%d", httpPortInt)
@@ -3844,7 +3878,9 @@ JSON API:
 	// Start server in goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			// Listener bind/network failure (AI.md PART 8: exit code 3).
+			log.Printf("Failed to start server: %v", err)
+			os.Exit(3)
 		}
 	}()
 
