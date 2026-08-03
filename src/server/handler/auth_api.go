@@ -501,6 +501,22 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 	return nil
 }
 
+// passwordResetGoroutineDone is a test-only synchronization hook, invoked
+// (if set) after the async password-reset goroutine below finishes, win or
+// lose. Production code never sets it. Tests that exercise
+// RequestAPIUserPasswordReset set it to await the goroutine's completion
+// before tearing down their test DB, instead of racing a leaked goroutine
+// against a closed connection (AI.md PART 29).
+var passwordResetGoroutineDone func()
+
+// SetPasswordResetGoroutineDoneHookForTesting sets (or clears, with nil) the
+// test-only synchronization hook invoked after RequestAPIUserPasswordReset's
+// async goroutine finishes. Only test code in other packages should call
+// this — production code never does.
+func SetPasswordResetGoroutineDoneHookForTesting(hook func()) {
+	passwordResetGoroutineDone = hook
+}
+
 func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, resetContext *APIPasswordResetContext) error {
 	email := strings.TrimSpace(req.Email)
 	if err := util.ValidateEmail(email); err != nil {
@@ -515,6 +531,10 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 	}
 
 	go func(emailAddress string, requestIP string, baseURL string) {
+		if passwordResetGoroutineDone != nil {
+			defer passwordResetGoroutineDone()
+		}
+
 		var user struct {
 			ID    int64
 			Email string

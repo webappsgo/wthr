@@ -10,6 +10,7 @@ import (
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -348,6 +349,15 @@ func TestMutationResolver_RequestPasswordReset(t *testing.T) {
 	t.Run("valid email for existing account queues a reset row asynchronously", func(t *testing.T) {
 		user := seedGraphQLUser(t, ddb, "resetuser", "resetuser@example.com", "correctpass1")
 
+		// The DB insert (and a subsequent best-effort email send) happens in
+		// a detached goroutine. Await its completion via the test-only hook
+		// before this subtest returns, so the goroutine can never outlive
+		// ddb's teardown and race a closed DB connection (AI.md PART 29;
+		// TODO.AI.md item 35).
+		done := make(chan struct{})
+		handler.SetPasswordResetGoroutineDoneHookForTesting(func() { close(done) })
+		t.Cleanup(func() { handler.SetPasswordResetGoroutineDoneHookForTesting(nil) })
+
 		result, err := m.RequestPasswordReset(context.Background(), "resetuser@example.com")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -356,21 +366,18 @@ func TestMutationResolver_RequestPasswordReset(t *testing.T) {
 			t.Fatal("expected Success = true")
 		}
 
-		// The DB insert happens in a detached goroutine; poll briefly with a
-		// bounded deadline instead of sleeping a fixed amount.
-		deadline := time.Now().Add(200 * time.Millisecond)
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for async password-reset goroutine to finish")
+		}
+
 		var count int
-		for time.Now().Before(deadline) {
-			if err := ddb.Users.QueryRow(`SELECT COUNT(*) FROM user_password_resets WHERE user_id = ?`, user.ID).Scan(&count); err != nil {
-				t.Fatalf("query reset rows: %v", err)
-			}
-			if count > 0 {
-				break
-			}
-			time.Sleep(10 * time.Millisecond)
+		if err := ddb.Users.QueryRow(`SELECT COUNT(*) FROM user_password_resets WHERE user_id = ?`, user.ID).Scan(&count); err != nil {
+			t.Fatalf("query reset rows: %v", err)
 		}
 		if count == 0 {
-			t.Fatal("expected a user_password_resets row to be created asynchronously within 200ms")
+			t.Fatal("expected a user_password_resets row to be created asynchronously")
 		}
 	})
 }
