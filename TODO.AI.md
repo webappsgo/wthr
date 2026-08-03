@@ -964,8 +964,9 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read: AI.md PART 29 (testing strategy, decision rule for *_test.go
     vs ./tests/*.sh) before starting.
 
-32. TODO (flagged 2026-08-02 by go-lint during item 12's src/cli/maintenance.go
-    pass): pre-existing, out of scope for item 12 (DB timeout wrapping only) —
+32. DONE (2026-08-02, flagged 2026-08-02 by go-lint during item 12's
+    src/cli/maintenance.go pass): pre-existing, out of scope for item 12 (DB
+    timeout wrapping only) —
     - src/cli/maintenance.go lines 356, 519: `db.Ping()` calls in
       `openDatabase()`/`verifyDatabaseFile()` have no timeout context — per
       AI.md PART 10 these should use `database.PingWithTimeout(db)` (already
@@ -983,8 +984,33 @@ any of the above: `src/graphql/context_keys_test.go`,
     fix needed there.
     Not introduced by this diff — the QueryContext/ExecContext conversions
     at lines 101, 311, 328, 567 were verified correct (proper timeout tier,
-    context.Background() usage). Read: AI.md PART 10 (Query Timeouts)
-    before starting.
+    context.Background() usage).
+    - DONE (2026-08-02): replaced both bare `db.Ping()` calls
+      (`openDatabase()`, `verifyDatabaseFile()`) with
+      `database.PingWithTimeout(db)`, wrapping them in PART 10's 5s
+      `TimeoutPing`.
+    - DONE (2026-08-02): fixed a genuine adjacent bug found in the same
+      function being edited — `openDatabase()` called
+      `sql.Open("sqlite3", dbPath)`, but this project only imports
+      `modernc.org/sqlite` (PART 3's mandated CGO-free driver), which
+      registers itself as `"sqlite"`, not `"sqlite3"`. `sql.Open` doesn't
+      validate the driver name eagerly, so every real call into
+      `openDatabase()` was silently broken until the first `Ping`.
+      Corrected to `sql.Open("sqlite", ...)`, matching every other file in
+      the codebase. Updated the three tests
+      (`TestOpenDatabase_DriverNameBug` → renamed
+      `TestOpenDatabase_Succeeds`, `TestUpdateServerConfig_OpenFails`,
+      `TestAdminRecoverySetup_OpenFails`) that had documented and pinned the
+      old broken behavior, per AI.md PART 29.
+    - DONE (2026-08-02): corrected all six stale PART-number/TEMPLATE.md
+      comments to `AI.md PART 22` (Backup & Restore) or `AI.md PART 3`
+      (Argon2id Parameters) as appropriate.
+    Verified: gofmt -l clean, go build/vet clean, go test -count=1 ./...
+    passes across all 29 packages. Post-push CI on commit f000156dc7ad:
+    only the known item-16 coverage-gate failure (51%<60%), no new
+    regression — `TestAPI_Search/Valid_search` does not appear as a
+    failure. Commit: f000156dc7ad.
+    Read: AI.md PART 10 (Query Timeouts) before starting.
 
 33. TODO (flagged 2026-08-02 by go-lint during item 12's
     src/server/handler/admin_settings.go pass): pre-existing, out of scope
