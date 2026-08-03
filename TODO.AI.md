@@ -1060,26 +1060,36 @@ any of the above: `src/graphql/context_keys_test.go`,
       confirmed clean aside from the known item-16 coverage-gate failure
       (51%<60%, no new failure signature).
 
-35. TODO (flagged 2026-08-02 while verifying item 20's notification.go
-    fix): `TestMutationResolver_ResetUserPassword`
-    (src/graphql/schema.resolvers_test.go) is flaky when run as part of the
-    full `./graphql/...`/`./server/model/...` suite — intermittently panics
-    with a nil-pointer SIGSEGV inside `database/sql.(*DB).conn`, called from
-    `SMTPService.getSetting()` → `SMTPService.LoadConfig()`, invoked from an
-    async goroutine spawned by `RequestAPIUserPasswordReset`
-    (src/server/handler/auth_api.go line 517-545). Root cause: the goroutine
-    that sends the password-reset email loads SMTP config using `m.DB`
-    after the test's DB connection has already been closed/nilled during
-    teardown — a test-isolation race, not a production bug (the real server
-    process's DB lives for the process lifetime). Reproduced identically on
-    unmodified pre-item-20 code via `git stash`, confirming it predates this
-    session's notification.go/schema.resolvers.go changes entirely; passes
-    reliably when run in isolation (`-run TestMutationResolver_ResetUserPassword`)
-    or as the sole package under test. Fix: make `RequestAPIUserPasswordReset`'s
-    async email-send goroutine either be awaited/synchronized in tests, or
-    have the test capture/inject a mock SMTP service instead of relying on
-    the real `m.DB`, so the goroutine can't outlive test teardown. Read:
-    AI.md PART 29 (Testing) before starting.
+35. DONE (2026-08-02, flagged 2026-08-02 while verifying item 20's
+    notification.go fix): `TestMutationResolver_ResetUserPassword`
+    (src/graphql/schema.resolvers_test.go) was flaky when run as part of
+    the full `./graphql/...`/`./server/model/...` suite — intermittently
+    panicked with a nil-pointer SIGSEGV inside `database/sql.(*DB).conn`,
+    called from `SMTPService.getSetting()` → `SMTPService.LoadConfig()`,
+    invoked from an async goroutine spawned by `RequestAPIUserPasswordReset`
+    (src/server/handler/auth_api.go). Root cause: the goroutine that sends
+    the password-reset email loads SMTP config using `m.DB` after the
+    test's DB connection had already been closed/nilled during teardown —
+    a test-isolation race, not a production bug (the real server process's
+    DB lives for the process lifetime).
+    - DONE (2026-08-02): added a nil-by-default, test-only synchronization
+      hook (`passwordResetGoroutineDone`) plus exported setter
+      (`SetPasswordResetGoroutineDoneHookForTesting`) to auth_api.go,
+      invoked via `defer` at the top of the goroutine so every early-return
+      path is covered; production fire-and-forget behavior is unchanged
+    - DONE (2026-08-02): rewrote the "valid email for existing account"
+      subtest in schema.resolvers_mutations_test.go to register the hook
+      and block on a channel (2s timeout guard) until the goroutine fully
+      finishes — including its SMTP send phase — instead of polling for
+      the DB row within a fixed 200ms window that didn't wait for the
+      goroutine's full lifetime
+    - DONE (2026-08-02): verified via `go test -count=5
+      ./src/graphql/... ./src/server/handler/... ./src/server/model/...`
+      (clean, no panics) and a full `go test -count=1 ./...` run (all
+      packages pass); `-race` is unavailable (`CGO_ENABLED=0`, per AI.md
+      PART 2/3), so repeated-run verification was used instead. Fix
+      committed as 94e1a1d0d73e, CI confirmed clean aside from the known
+      item-16 coverage-gate failure
 
 34. DONE (2026-08-02): fixed 3 Makefile drifts from AI.md PART 26's
     canonical template (flagged by go-lint during item 15's GraphQL
@@ -1107,19 +1117,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read: AI.md PART 26 (Makefile targets, canonical template lines
     38185-38245) before starting.
 
-36. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
-    check): `src/main.go` uses `log.Fatalf` at ~18 call sites (lines 100,
-    127, 143, 176, 192, 197, 208, 213, 225, 236, 493, 500, 543, 588, 597,
-    880, 1023, 3840) for startup/fatal errors — `log.Fatalf` always exits
-    with code 1 regardless of failure class, but AI.md PART 8 (Binary
-    Rules) requires standard exit codes (0 success, 1 general, 2 config,
-    3 connection, 4 auth, 5 not found, 64 usage). Pre-existing, unrelated
-    to item 20's notification.go/schema.resolvers.go change (item 20 didn't
-    touch main.go at all). Fix: replace each `log.Fatalf` with an explicit
-    log + `os.Exit({correct code})` call, classifying each site by failure
-    type (config load failure → 2, DB/network connection failure → 3, etc.)
-    — requires reading each call site's context individually, not a blind
-    find/replace. Read: AI.md PART 8 (exit codes) before starting.
+36. DONE (2026-08-02, flagged 2026-08-02 by go-lint during item 20's
+    pre-commit gate check): `src/main.go` used `log.Fatalf` at 18 call
+    sites for startup/fatal errors — `log.Fatalf` always exits with code 1
+    regardless of failure class, but AI.md PART 8 (Binary Rules) requires
+    standard exit codes (0 success, 1 general, 2 config, 3 connection,
+    4 auth, 5 not found, 64 usage). Pre-existing, unrelated to item 20's
+    notification.go/schema.resolvers.go change.
+    - DONE (2026-08-02): replaced all 18 sites with `log.Printf` +
+      `os.Exit({code})`, classified per call site: CLI parse failure -> 64
+      (usage); daemon fork setup (executable path, StartProcess) -> 1
+      (general); directory-path resolution, DATA_DIR/CONFIG_DIR setup,
+      CreateDirectories, server port configuration -> 2 (config); logger
+      init and embedded static/template/i18n asset load/parse failures ->
+      1 (general, not user-fixable config); scheduler task history table
+      init -> 3 (connection, DB operation); HTTP server ListenAndServe
+      bind failure -> 3 (connection)
+    - DONE (2026-08-02): verified via `gofmt -l . && go build ./... &&
+      go vet ./...` (clean, no output) and a full `go test -count=1 ./...`
+      run (all ~30 packages pass). Fix committed as 0ca86a9dd28c, CI
+      confirmed clean aside from the known item-16 coverage-gate failure
 
 37. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
     check): `src/server/handler/graphql.go` lines 171-182 serve the GraphiQL
