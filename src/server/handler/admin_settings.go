@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -29,9 +30,7 @@ func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
 		ORDER BY key
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to fetch settings",
-		})
+		InternalError(c, "Failed to fetch settings")
 		return
 	}
 	defer rows.Close()
@@ -63,10 +62,14 @@ func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
 			parsedValue = value == "true"
 		case "number":
 			var num float64
-			json.Unmarshal([]byte(value), &num)
+			if err := json.Unmarshal([]byte(value), &num); err != nil {
+				log.Printf("ERROR: GetAllSettings: failed to parse number setting %q: %v", key, err)
+			}
 			parsedValue = num
 		case "json":
-			json.Unmarshal([]byte(value), &parsedValue)
+			if err := json.Unmarshal([]byte(value), &parsedValue); err != nil {
+				log.Printf("ERROR: GetAllSettings: failed to parse json setting %q: %v", key, err)
+			}
 		default:
 			parsedValue = value
 		}
@@ -84,7 +87,7 @@ func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	RespondSuccess(c, "", gin.H{
 		"settings":   settings,
 		"categories": categories,
 	})
@@ -97,9 +100,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
-		})
+		BadRequest(c, "Invalid request body")
 		return
 	}
 
@@ -143,7 +144,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
-	// Send success notification to admin (TEMPLATE.md Part 25 - WebUI Notifications)
+	// Send success notification to admin (AI.md PART 18 - WebUI Notifications)
 	if h.NotificationService != nil && len(applied) > 0 {
 		adminIDInterface, exists := c.Get("admin_id")
 		if exists {
@@ -167,12 +168,11 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	RespondSuccess(c, "Settings applied successfully. Changes are live.", gin.H{
 		"applied": applied,
 		"failed":  failed,
 		// All settings apply live
 		"requires_restart": []string{},
-		"message":          "Settings applied successfully. Changes are live.",
 	})
 }
 
@@ -183,9 +183,7 @@ func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
 
 	tx, err := database.GetServerDB().Begin()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to start settings reset",
-		})
+		InternalError(c, "Failed to start settings reset")
 		return
 	}
 	defer tx.Rollback()
@@ -194,38 +192,28 @@ func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
 	defer txCancel()
 
 	if _, err := tx.ExecContext(txCtx, "DELETE FROM server_config"); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to clear settings",
-		})
+		InternalError(c, "Failed to clear settings")
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to commit settings reset",
-		})
+		InternalError(c, "Failed to commit settings reset")
 		return
 	}
 
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to restore default settings",
-		})
+		InternalError(c, "Failed to restore default settings")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Settings reset to defaults",
-	})
+	RespondSuccess(c, "Settings reset to defaults")
 }
 
 // ExportSettings exports configuration as JSON
 func (h *AdminSettingsHandler) ExportSettings(c *gin.Context) {
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value FROM server_config ORDER BY key")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to export settings",
-		})
+		InternalError(c, "Failed to export settings")
 		return
 	}
 	defer rows.Close()
@@ -253,9 +241,7 @@ func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request body",
-		})
+		BadRequest(c, "Invalid request body")
 		return
 	}
 
@@ -272,10 +258,9 @@ func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	RespondSuccess(c, "Settings imported successfully", gin.H{
 		"imported": imported,
 		"total":    len(req.Settings),
-		"message":  "Settings imported successfully",
 	})
 }
 
@@ -284,8 +269,7 @@ func (h *AdminSettingsHandler) ReloadConfig(c *gin.Context) {
 	// Settings are stored in the database and are already live-reloaded on every
 	// request via SettingsModel, so no file I/O is needed here.
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Configuration reload triggered",
-		"note":    "Settings are live-reloaded from database automatically",
+	RespondSuccess(c, "Configuration reload triggered", gin.H{
+		"note": "Settings are live-reloaded from database automatically",
 	})
 }
