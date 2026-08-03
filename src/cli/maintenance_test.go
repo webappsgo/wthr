@@ -333,15 +333,14 @@ func TestVerifyAdminExists(t *testing.T) {
 	})
 }
 
-// TestOpenDatabase_DriverNameBug is a regression/bug-documentation test for
-// a genuine production bug at maintenance.go's openDatabase: it calls
-// sql.Open("sqlite3", dbPath), but the only SQLite driver imported and
-// registered anywhere in this codebase is modernc.org/sqlite, which
-// registers itself as "sqlite" (not "sqlite3"). database/sql.Open does not
-// validate the driver name eagerly, so the failure only surfaces on Ping.
-// This test documents the CURRENT (broken) behavior; it must be updated,
-// not deleted, once the driver name is corrected to "sqlite".
-func TestOpenDatabase_DriverNameBug(t *testing.T) {
+// TestOpenDatabase_Succeeds is a regression test confirming openDatabase
+// opens a real SQLite file: it previously called sql.Open("sqlite3", dbPath),
+// but the only SQLite driver imported and registered anywhere in this
+// codebase is modernc.org/sqlite, which registers itself as "sqlite" (not
+// "sqlite3") -- database/sql.Open does not validate the driver name eagerly,
+// so the mismatch only surfaced on Ping with an "unknown driver" error. Now
+// that openDatabase uses "sqlite" (AI.md PART 3), it must succeed.
+func TestOpenDatabase_Succeeds(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "server.db")
 	setupDB, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -349,13 +348,11 @@ func TestOpenDatabase_DriverNameBug(t *testing.T) {
 	}
 	setupDB.Close()
 
-	_, err = openDatabase(dbPath)
-	if err == nil {
-		t.Fatal("openDatabase() unexpectedly succeeded; if the \"sqlite3\" -> \"sqlite\" driver name bug at maintenance.go:349 was fixed, update this test to assert success instead")
+	db, err := openDatabase(dbPath)
+	if err != nil {
+		t.Fatalf("openDatabase() error = %v, want nil", err)
 	}
-	if !strings.Contains(err.Error(), "unknown driver") {
-		t.Errorf("openDatabase() error = %q, want an \"unknown driver\" error confirming the sqlite3/sqlite mismatch", err.Error())
-	}
+	defer db.Close()
 }
 
 // TestVerifySystem_AllMissing covers the failure path: no server.db, no
@@ -459,10 +456,10 @@ func TestUpdateServerConfig_MissingDatabase(t *testing.T) {
 	}
 }
 
-// TestUpdateServerConfig_OpenFails is a regression companion to
-// TestOpenDatabase_DriverNameBug: even with a valid server.db present at the
-// expected path, updateServerConfig fails at the openDatabase step because
-// of the "sqlite3"/"sqlite" driver-name mismatch documented there.
+// TestUpdateServerConfig_OpenFails covers the failure path once openDatabase
+// succeeds (see TestOpenDatabase_Succeeds): a server.db file is present but
+// empty, so the database opens fine and updateServerConfig fails one step
+// later, reading the (nonexistent) settings table.
 func TestUpdateServerConfig_OpenFails(t *testing.T) {
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
@@ -480,10 +477,10 @@ func TestUpdateServerConfig_OpenFails(t *testing.T) {
 
 	err := updateServerConfig()
 	if err == nil {
-		t.Fatal("updateServerConfig() = nil, want error (see TestOpenDatabase_DriverNameBug)")
+		t.Fatal("updateServerConfig() = nil, want error (empty db has no settings table)")
 	}
-	if !strings.Contains(err.Error(), "failed to open database") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "failed to open database")
+	if !strings.Contains(err.Error(), "failed to read settings") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "failed to read settings")
 	}
 }
 
@@ -501,10 +498,11 @@ func TestAdminRecoverySetup_MissingDatabase(t *testing.T) {
 	}
 }
 
-// TestAdminRecoverySetup_OpenFails is a regression companion to
-// TestOpenDatabase_DriverNameBug: with server.db present, adminRecoverySetup
-// still fails at the openDatabase step (before any stdin prompt) because of
-// the driver-name mismatch.
+// TestAdminRecoverySetup_OpenFails covers the failure path once openDatabase
+// succeeds (see TestOpenDatabase_Succeeds): server.db opens fine, so
+// adminRecoverySetup proceeds to prompt for credentials on stdin; with no
+// input available in the test, the username prompt defaults to "admin" and
+// the password prompt reads empty, which adminRecoverySetup rejects.
 func TestAdminRecoverySetup_OpenFails(t *testing.T) {
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
@@ -521,9 +519,9 @@ func TestAdminRecoverySetup_OpenFails(t *testing.T) {
 
 	err := adminRecoverySetup()
 	if err == nil {
-		t.Fatal("adminRecoverySetup() = nil, want error (see TestOpenDatabase_DriverNameBug)")
+		t.Fatal("adminRecoverySetup() = nil, want error (no stdin input available)")
 	}
-	if !strings.Contains(err.Error(), "failed to open database") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "failed to open database")
+	if !strings.Contains(err.Error(), "password cannot be empty") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "password cannot be empty")
 	}
 }

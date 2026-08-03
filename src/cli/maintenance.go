@@ -16,7 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// BackupManifest represents metadata for a backup archive per AI.md PART 24
+// BackupManifest represents metadata for a backup archive per AI.md PART 22
 type BackupManifest struct {
 	Version       string    `json:"version"`
 	CreatedAt     time.Time `json:"created_at"`
@@ -34,7 +34,7 @@ type BackupManifest struct {
 	Checksum string `json:"checksum"`
 }
 
-// MaintenanceCommand handles maintenance operations per AI.md PART 25
+// MaintenanceCommand handles maintenance operations per AI.md PART 22
 func MaintenanceCommand(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("no maintenance command specified. Use: backup, restore, verify, admin-recovery")
@@ -45,19 +45,19 @@ func MaintenanceCommand(args []string) error {
 
 	switch cmd {
 	case "backup":
-		// Per AI.md PART 25 lines 22351-22467
+		// Per AI.md PART 22 (Backup & Restore)
 		return MaintenanceBackupCommand(remainingArgs)
 
 	case "restore":
-		// Per AI.md PART 25 lines 22588-22649
+		// Per AI.md PART 22 (Backup & Restore)
 		return MaintenanceRestoreCommand(remainingArgs)
 
 	case "verify":
-		// AI.md PART 25: Verify system integrity
+		// AI.md PART 22: Verify system integrity
 		return verifySystem()
 
 	case "admin-recovery", "setup":
-		// AI.md PART 25 lines 22643-22750
+		// AI.md PART 22: sole recovery path for a lost admin password/token
 		return adminRecoverySetup()
 
 	case "update":
@@ -300,7 +300,7 @@ func adminRecoverySetup() error {
 		return fmt.Errorf("passwords do not match")
 	}
 
-	// Hash password with Argon2id (TEMPLATE.md Part 0 requirement)
+	// Hash password with Argon2id (AI.md PART 3 requirement)
 	passwordHash, err := hashPasswordArgon2id(password)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
@@ -347,13 +347,16 @@ func adminRecoverySetup() error {
 
 // openDatabase opens a SQLite database connection
 func openDatabase(dbPath string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	// Driver name must be "sqlite" (modernc.org/sqlite, the mandated CGO-free
+	// driver per AI.md PART 3) — "sqlite3" is only registered by the CGO
+	// mattn/go-sqlite3 driver, which this project never imports.
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// Test connection
-	if err := db.Ping(); err != nil {
+	// Test connection with a timeout per AI.md PART 10 (Query Timeouts)
+	if err := database.PingWithTimeout(db); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -362,7 +365,7 @@ func openDatabase(dbPath string) (*sql.DB, error) {
 }
 
 // hashPasswordArgon2id hashes a password using Argon2id
-// TEMPLATE.md Part 0: Argon2id parameters (time=3, memory=64*1024, threads=4, keyLen=32)
+// AI.md PART 3: Argon2id parameters (time=3, memory=64*1024, threads=4, keyLen=32)
 func hashPasswordArgon2id(password string) (string, error) {
 	// Generate random salt (16 bytes)
 	salt := make([]byte, 16)
@@ -370,7 +373,7 @@ func hashPasswordArgon2id(password string) (string, error) {
 		return "", fmt.Errorf("failed to generate salt: %w", err)
 	}
 
-	// Argon2id parameters from TEMPLATE.md Part 0
+	// Argon2id parameters from AI.md PART 3
 	const (
 		time = 3
 		// 64 MB
@@ -390,7 +393,7 @@ func hashPasswordArgon2id(password string) (string, error) {
 		memory, time, threads, b64Salt, b64Hash), nil
 }
 
-// verifySystem verifies system integrity per TEMPLATE.md PART 6
+// verifySystem verifies system integrity per AI.md PART 22
 func verifySystem() error {
 	fmt.Println("🔍 System Verification")
 	fmt.Println()
@@ -515,8 +518,8 @@ func verifyDatabaseFile(dbPath string) error {
 	}
 	defer db.Close()
 
-	// Try to ping
-	if err := db.Ping(); err != nil {
+	// Try to ping, with a timeout per AI.md PART 10 (Query Timeouts)
+	if err := database.PingWithTimeout(db); err != nil {
 		return fmt.Errorf("database corrupted: %w", err)
 	}
 
