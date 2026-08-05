@@ -600,6 +600,46 @@ any of the above: `src/graphql/context_keys_test.go`,
     coverage is unchanged, gate still correctly fails below 60%; the
     package-by-package coverage-raising work above remains the actual
     path to closing this item.
+    Progress (2026-08-05): dispatched 3 parallel test-writer subagents
+    (Docker-only, no agent commits, scoped to test files, reusing
+    existing fixtures) against `src/util`, `src/graphql`, and
+    `src/server/handler`. Reviewed and committed all three results
+    directly (agents never commit, per rule):
+    - `src/util`: 65.9% -> 73.7% (commit `34abb3b35e33`). New
+      `port_manager_test.go` plus extended coverage for `NewPortManager`,
+      port get/set helpers, `GetOrAssignPort`, `SavePort`/`GetSavedPort`/
+      `GetServerPorts(WithConfig)`, `ParsePortConfig`, `UpdatePort`,
+      PID/privilege/phone/color/logger helpers.
+    - `src/graphql`: 13 previously ~0-20%-covered resolvers/mutations
+      raised to 68-100% (commit `22f3bd8d6724`) — admin user management
+      (`AdminUpdateUser`, `AdminDeleteUser`, `AdminCreateUserInvite`,
+      `AdminInviteServerAdmin`), user features (`CreateSavedLocation`,
+      `ToggleLocationAlerts`, `MarkNotificationRead`,
+      `UpdateUserSettings`), and passkey mutations (registration/
+      challenge begin+finish, delete) using the established
+      `newAuthMutationTestDB`/`seedGraphQLUser`/`withGraphQLUserContext`
+      fixtures. Package total (filtered) still only 42.3% -> 3.1% raw
+      (per-package `generated.go` dominance) — most of
+      `schema.resolvers.go` remains untested and is still the single
+      biggest remaining lever in the repo.
+    - `src/server/handler`: 40.5% -> 43.4% (commit `5fb3428347c2`,
+      largest package in the repo at ~23.5k lines). Covered numerous
+      `NewXHandler` constructors and guard clauses across admin backup,
+      email templates, logging/log-format, metrics, passkey, SSL, debug,
+      hurricane, moon, scheduler, and user-notification handlers. Most
+      `Show*`/page-render handlers remain blocked by `HTMLRender` not
+      being wired in unit tests (pre-existing, documented constraint) —
+      still the largest coverage gap in the repo by raw line count.
+    Repo-wide filtered coverage after all three commits, verified via
+    Docker `go test -coverprofile` + the SPEC.md filter: **53.5%**
+    (up from the 51.5-51.6% baseline), still below the 60% gate. Next
+    targets in priority order: `src` root package (`main.go`, 4289
+    lines, only 0.9% covered — biggest unexploited raw-line opportunity
+    in the repo), more of `src/graphql`'s remaining
+    `schema.resolvers.go` functions, more of `src/server/handler`,
+    then the smaller packages still under 60% (`src/email` 55.0%,
+    `src/cli` 56.3%, `src/scheduler` 57.3%, `src/server` 55.6%,
+    `src/database` 70.1% has headroom too but is already passing).
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
