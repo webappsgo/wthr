@@ -288,6 +288,35 @@ func TestLogger_CleanOldLogs(t *testing.T) {
 	}
 }
 
+// TestLogger_CleanOldLogs_SkipsDirectories verifies cleanOldLogs skips
+// subdirectories inside the log dir (entry.IsDir() branch) instead of
+// trying to os.Remove them as if they were old log files.
+func TestLogger_CleanOldLogs_SkipsDirectories(t *testing.T) {
+	logDir := filepath.Join(t.TempDir(), "logs")
+	t.Setenv("MODE", "production")
+	logger, err := NewLogger(logDir)
+	if err != nil {
+		t.Fatalf("NewLogger: %v", err)
+	}
+
+	oldSubdir := filepath.Join(logDir, "old-subdir")
+	if err := os.Mkdir(oldSubdir, 0755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	oldTime := time.Now().Add(-40 * 24 * time.Hour)
+	if err := os.Chtimes(oldSubdir, oldTime, oldTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	if err := logger.cleanOldLogs(); err != nil {
+		t.Fatalf("cleanOldLogs: %v", err)
+	}
+
+	if _, err := os.Stat(oldSubdir); err != nil {
+		t.Errorf("old subdirectory was removed, want kept (directories must be skipped): %v", err)
+	}
+}
+
 // TestCopyFile verifies the unexported copy helper duplicates content.
 func TestCopyFile(t *testing.T) {
 	dir := t.TempDir()
@@ -305,5 +334,19 @@ func TestCopyFile(t *testing.T) {
 	}
 	if string(data) != "hello world" {
 		t.Errorf("copied content = %q, want %q", data, "hello world")
+	}
+}
+
+// TestCopyFile_MissingSource verifies the error path when the source file
+// does not exist.
+func TestCopyFile_MissingSource(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "does-not-exist.txt")
+	dst := filepath.Join(dir, "dst.txt")
+	if err := copyFile(src, dst); err == nil {
+		t.Error("copyFile with missing source: err = nil, want error")
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Errorf("dst file should not have been created, stat err = %v", err)
 	}
 }

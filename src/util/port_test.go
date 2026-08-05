@@ -52,13 +52,12 @@ func TestGetRandomAvailablePort(t *testing.T) {
 	}
 }
 
-// Coverage gap: PortManager methods (GetOrAssignPort, SavePort,
-// GetSavedPort, GetServerPorts*, ParsePortConfig, UpdatePort) all depend
-// on database.GetServerDB(), a package-level singleton SQLite connection
-// with no dependency-injection seam in this package. Per testing-rules.md
-// (no real databases in unit tests, no external services), and since
-// GetServerDB() cannot be swapped for an in-memory DB from this package,
-// these are left untested here. GetServerIP()/GetServerAddress() are also
-// excluded: GetServerIP() shells out to `hostname -I` and dials
-// 8.8.8.8:80, both of which are host/network-dependent and disallowed by
-// the no-external-services rule for unit tests.
+// PortManager methods (GetOrAssignPort, SavePort, GetSavedPort,
+// GetServerPorts*, ParsePortConfig, UpdatePort) are tested in
+// port_manager_test.go, which wires database.GetServerDB() to an
+// in-memory SQLite database via database.SetGlobalDualDB — the same seam
+// database's own tests use (see src/database/global_test.go).
+// GetServerIP()/GetServerAddress() remain excluded here: GetServerIP()
+// shells out to `hostname -I` and dials 8.8.8.8:80, both of which are
+// host/network-dependent and disallowed by the no-external-services rule
+// for unit tests.

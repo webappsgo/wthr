@@ -132,6 +132,58 @@ func TestNormalizeUsername(t *testing.T) {
 	}
 }
 
+// TestValidatePhone tests phone number validation.
+func TestValidatePhone(t *testing.T) {
+	tests := []struct {
+		name    string
+		phone   string
+		wantErr bool
+	}{
+		{"empty_is_optional", "", false},
+		{"valid_10_digits", "1234567890", false},
+		{"valid_with_formatting", "(123) 456-7890", false},
+		{"valid_with_leading_plus", "+12345678901", false},
+		{"valid_15_digits", "123456789012345", false},
+		{"too_short_9_digits", "123456789", true},
+		{"too_long_16_digits", "1234567890123456", true},
+		{"letters_stripped_leaves_too_short", "call-me-maybe", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePhone(tt.phone)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePhone(%q) error = %v, wantErr %v", tt.phone, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestNormalizePhone tests phone number normalization strips everything
+// except digits and a leading '+'.
+func TestNormalizePhone(t *testing.T) {
+	tests := []struct {
+		name  string
+		phone string
+		want  string
+	}{
+		{"empty", "", ""},
+		{"already_clean", "1234567890", "1234567890"},
+		{"strips_formatting", "(123) 456-7890", "1234567890"},
+		{"keeps_plus", "+1 (234) 567-8901", "+12345678901"},
+		{"strips_letters", "1-800-FLOWERS", "1800"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizePhone(tt.phone)
+			if got != tt.want {
+				t.Errorf("NormalizePhone(%q) = %q, want %q", tt.phone, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestUsernameRegex tests the username regex pattern directly
 func TestUsernameRegex(t *testing.T) {
 	tests := []struct {

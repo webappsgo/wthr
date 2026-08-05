@@ -171,3 +171,27 @@ func TestNewPIDFile_Structural(t *testing.T) {
 		t.Errorf("NewPIDFile(%q).Path = %q, want %q", dataDir, pf.Path, want)
 	}
 }
+
+// TestNewPIDFile_RootBranch exercises the root-euid branch of NewPIDFile.
+// NewPIDFile itself performs no filesystem I/O — it only builds a path —
+// so it is safe to call even though the resulting path targets a real
+// system directory. The test only inspects the returned .Path field and
+// never calls Create()/Check()/Remove() on the result, so no real system
+// path is ever written to or read from.
+func TestNewPIDFile_RootBranch(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("not running as root: NewPIDFile's root branch is not reachable")
+	}
+
+	pf := NewPIDFile(t.TempDir())
+
+	var want string
+	if _, err := os.Stat("/run"); err == nil {
+		want = "/run/casapps/wthr.pid"
+	} else {
+		want = "/var/run/casapps/wthr.pid"
+	}
+	if pf.Path != want {
+		t.Errorf("NewPIDFile(root).Path = %q, want %q", pf.Path, want)
+	}
+}

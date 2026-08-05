@@ -87,6 +87,33 @@ func TestColorEnabled_NoColorEnv(t *testing.T) {
 	}
 }
 
+// TestColorEnabled_AutoDetectDefault verifies the fall-through auto-detect
+// branch: with no CLI_COLOR_MODE/NO_COLOR override and TERM not "dumb",
+// ColorEnabled defers to term.IsTerminal(os.Stdout). Under `go test`,
+// stdout is not a TTY, so this must return false.
+func TestColorEnabled_AutoDetectDefault(t *testing.T) {
+	t.Setenv("CLI_COLOR_MODE", "")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+
+	if ColorEnabled() {
+		t.Error("ColorEnabled() = true under go test (non-TTY stdout), want false")
+	}
+}
+
+// TestColorEnabled_AutoModeFallsThrough verifies CLI_COLOR_MODE=auto does
+// not itself force a value — it falls through to the same auto-detect
+// path as leaving the variable unset.
+func TestColorEnabled_AutoModeFallsThrough(t *testing.T) {
+	t.Setenv("CLI_COLOR_MODE", "auto")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+
+	if ColorEnabled() {
+		t.Error("ColorEnabled() with CLI_COLOR_MODE=auto under go test = true, want false")
+	}
+}
+
 // TestGetIndicators verifies each Get* helper returns either the emoji or
 // its documented plain-text fallback depending on EmojiEnabled.
 func TestGetIndicators(t *testing.T) {
