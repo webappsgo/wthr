@@ -640,6 +640,49 @@ any of the above: `src/graphql/context_keys_test.go`,
     then the smaller packages still under 60% (`src/email` 55.0%,
     `src/cli` 56.3%, `src/scheduler` 57.3%, `src/server` 55.6%,
     `src/database` 70.1% has headroom too but is already passing).
+    Progress (2026-08-05, continued): dispatched 3 more parallel
+    test-writer subagents targeting the `src` root package, more of
+    `src/graphql`, and the remaining sub-60% small packages. Reviewed
+    and committed each package separately (agents never commit, per
+    rule), using the stash-split technique to isolate each package's
+    diff before each `gitcommit --dir {dir} all` call:
+    - `src` root package: 0.9% -> 5.0% (commit `c7f5f1b8016e`). New
+      `src/main_status_test.go` covering `showServerStatus()` (DB
+      health, row counts, listen-address branching, MODE/ENVIRONMENT
+      fallback). `main()` itself intentionally left untested at the
+      unit level — Phase 2 (`tests/run_tests.sh`) territory per PART 29.
+    - `src/cli`: 56.3% -> 60.6% (commit `b1b2c1897782`) — cleared the
+      60% gate on its own.
+    - `src/email`: 55.0% -> 97.5% (commit `f0870e81d95d`), SMTP
+      transport mocked throughout per PART 18.
+    - `src/graphql`: 10 more resolvers covered with real branching
+      (auth guards, cross-user isolation, not-found vs. error
+      semantics) — `UpdateSavedLocation`, `DeleteSavedLocation`,
+      `MarkAllNotificationsRead`, `DeleteNotification`,
+      `UpdateUserProfile`, `ChangeUserPassword`,
+      `AdminDeleteServerAdmin`, `AdminUpdateSetting`,
+      `AdminGenerateToken`, `AdminRevokeToken` (commit `dad6dcd00003`).
+      Package filtered coverage 42.3% -> 46.7% — still below 60%;
+      `AdminDisableServerAdmin`/`AdminEnableServerAdmin`, Query
+      resolvers, and 2FA/avatar mutations remain only guard-level
+      tested.
+    - `src/scheduler`: 57.3% -> 66.3% (commit `605ba6d001eb`) — cleared
+      the gate. A flaky goroutine-leak bug in the new test code itself
+      (not production code) was found and fixed during this pass. A
+      real pre-existing production bug was found and logged as item 45
+      rather than silently fixed (out of scope for a test-only pass).
+    - `src/server` (root package): 55.6% -> 100.0% (commit
+      `55daf799e1d9`).
+    Full-repo verification after all 6 commits (Docker, single run):
+    gofmt clean, `go build ./...` clean, `go vet ./...` clean,
+    `go test ./...` all packages pass. Repo-wide filtered coverage now
+    **54.8%** (up from 53.5%), still below the 60% gate. Remaining
+    priority targets: `src/server/handler` (43.4%, largest package —
+    most `Show*`/page-render handlers still blocked by `HTMLRender` not
+    being wired in unit tests), `src/graphql` (46.7%, most of
+    `schema.resolvers.go`'s Query resolvers and remaining mutations
+    still untested), `src` root package (5.0%, `main()` itself remains
+    the only real remaining lever there but is Phase-2-only by design).
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
@@ -1338,3 +1381,16 @@ any of the above: `src/graphql/context_keys_test.go`,
     `graphqlAliasPath` needs to accept queries too) directly at
     `graphqlAliasPath` instead of redirecting. Read: AI.md PART 14 (API
     structure) before starting.
+
+45. TODO (flagged 2026-08-05 by a test-writer subagent while raising
+    `src/scheduler` coverage for item 16): the session/token/rate-limit
+    cleanup queries (backing `TestCleanupOldSessions`,
+    `TestCleanupExpiredTokens`, `TestCleanupRateLimitCounters`) compare
+    expiry using SQLite's `datetime('now')` against values written from
+    Go's `time.Time`, and the two representations can mismatch enough to
+    over-delete rows that haven't actually expired yet. Pre-existing bug,
+    not introduced by this session's test-only changes — the test file's
+    original author had already partially documented the symptom. Read
+    AI.md PART 10 (database) before fixing; likely fix is comparing
+    against a Go-computed UTC timestamp parameter instead of SQLite's
+    own `now`, or normalizing both sides to the same format/precision.
