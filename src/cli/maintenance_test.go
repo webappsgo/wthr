@@ -484,6 +484,66 @@ func TestUpdateServerConfig_OpenFails(t *testing.T) {
 	}
 }
 
+// TestUpdateServerConfig_Success covers the full happy path: a settings
+// table with multi-segment dotted keys across two sections and a value that
+// requires YAML quoting, written to CONFIG_DIR/server.yml grouped by
+// top-level section.
+func TestUpdateServerConfig_Success(t *testing.T) {
+	dataDir := t.TempDir()
+	configDir := t.TempDir()
+	dbDir := filepath.Join(dataDir, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	dbPath := filepath.Join(dbDir, "server.db")
+	setupDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if _, err := setupDB.Exec("CREATE TABLE settings (key TEXT, value TEXT)"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if _, err := setupDB.Exec(
+		"INSERT INTO settings (key, value) VALUES (?, ?), (?, ?), (?, ?)",
+		"server.mode", "production",
+		"server.baseurl", "http://x",
+		"auth.session.timeout", "24h",
+	); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	setupDB.Close()
+
+	t.Setenv("DATA_DIR", dataDir)
+	t.Setenv("CONFIG_DIR", configDir)
+
+	var err2 error
+	out := captureStdout(t, func() { err2 = updateServerConfig() })
+	if err2 != nil {
+		t.Fatalf("updateServerConfig() error = %v, want nil", err2)
+	}
+	if !strings.Contains(out, "Configuration written to") {
+		t.Errorf("output = %q, want it to report the written path", out)
+	}
+
+	data, err := os.ReadFile(filepath.Join(configDir, "server.yml"))
+	if err != nil {
+		t.Fatalf("server.yml not written: %v", err)
+	}
+	content := string(data)
+
+	for _, want := range []string{
+		"server:", "auth:",
+		"mode: production",
+		`baseurl: "http://x"`,
+		"session.timeout: 24h",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("server.yml content = %q, want substring %q", content, want)
+		}
+	}
+}
+
 // TestAdminRecoverySetup_MissingDatabase covers the error path returned
 // before any database is opened or any stdin prompt is issued.
 func TestAdminRecoverySetup_MissingDatabase(t *testing.T) {
@@ -523,5 +583,106 @@ func TestAdminRecoverySetup_OpenFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "password cannot be empty") {
 		t.Errorf("error = %q, want substring %q", err.Error(), "password cannot be empty")
+	}
+}
+
+// TestAdminRecoverySetup_PasswordMismatch covers the confirmation-mismatch
+// path: a non-empty password whose confirmation differs.
+func TestAdminRecoverySetup_PasswordMismatch(t *testing.T) {
+	dataDir := t.TempDir()
+	dbDir := filepath.Join(dataDir, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dbDir, "server.db"), nil, 0644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	t.Setenv("DATA_DIR", dataDir)
+
+	var err error
+	captureStdout(t, func() {
+		withStdin(t, "admin\nhunter2\ndifferent\n", func() {
+			err = adminRecoverySetup()
+		})
+	})
+	if err == nil {
+		t.Fatal("adminRecoverySetup() with mismatched confirmation = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "passwords do not match") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "passwords do not match")
+	}
+}
+
+// TestAdminRecoverySetup_CreatesAndUpdates covers the two success branches:
+// inserting a brand-new admin_credentials row when none exists (id=1 UPDATE
+// affects zero rows), then updating that same row on a second run.
+func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
+	dataDir := t.TempDir()
+	dbDir := filepath.Join(dataDir, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	dbPath := filepath.Join(dbDir, "server.db")
+
+	setupDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if _, err := setupDB.Exec(`CREATE TABLE admin_credentials (
+		id INTEGER PRIMARY KEY,
+		username TEXT,
+		password_hash TEXT,
+		created_at DATETIME,
+		updated_at DATETIME
+	)`); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	setupDB.Close()
+
+	t.Setenv("DATA_DIR", dataDir)
+
+	var err1 error
+	out1 := captureStdout(t, func() {
+		withStdin(t, "newadmin\nhunter2\nhunter2\n", func() {
+			err1 = adminRecoverySetup()
+		})
+	})
+	if err1 != nil {
+		t.Fatalf("adminRecoverySetup() first run error = %v, want nil", err1)
+	}
+	if !strings.Contains(out1, "New admin account created") {
+		t.Errorf("first run output = %q, want it to report account creation", out1)
+	}
+	if !strings.Contains(out1, "Username: newadmin") {
+		t.Errorf("first run output = %q, want it to echo the username", out1)
+	}
+
+	verifyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("verify open: %v", err)
+	}
+	var count int
+	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM admin_credentials WHERE id = 1 AND username = 'newadmin'").Scan(&count); err != nil {
+		t.Fatalf("verify query: %v", err)
+	}
+	verifyDB.Close()
+	if count != 1 {
+		t.Fatalf("admin_credentials row not created as expected, count = %d", count)
+	}
+
+	var err2 error
+	out2 := captureStdout(t, func() {
+		withStdin(t, "rotated\nnewpass\nnewpass\n", func() {
+			err2 = adminRecoverySetup()
+		})
+	})
+	if err2 != nil {
+		t.Fatalf("adminRecoverySetup() second run error = %v, want nil", err2)
+	}
+	if !strings.Contains(out2, "Admin account updated") {
+		t.Errorf("second run output = %q, want it to report an update (not a create)", out2)
+	}
+	if !strings.Contains(out2, "Username: rotated") {
+		t.Errorf("second run output = %q, want it to echo the rotated username", out2)
 	}
 }
