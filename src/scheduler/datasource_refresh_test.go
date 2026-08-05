@@ -5,12 +5,16 @@ import (
 	"time"
 )
 
-// CalculateNextRunTime is the only directly-testable pure logic in
-// datasource_refresh.go. RefreshAllDataSources() (real network/file I/O via
-// LocationEnhancer/ZipcodeService/AirportService/GeoIPService, no interface
-// seam) and ScheduleDataSourceRefresh() (unexported goroutine driven by a real
-// time.Sleep + time.Ticker, no injectable clock) are not exercised here — see
-// the coverage-gap notes in the final report.
+// CalculateNextRunTime is directly-testable pure logic. RefreshAllDataSources()
+// (real network/file I/O via LocationEnhancer/ZipcodeService/AirportService/
+// GeoIPService, no interface seam) is not exercised here - see the
+// coverage-gap notes in the final report. ScheduleDataSourceRefresh() is
+// exercised below only for its synchronous, non-blocking half (delay
+// calculation, logging, launching the background goroutine); the goroutine's
+// post-Sleep body is intentionally never reached by picking a target time far
+// enough in the future that the real time.Sleep cannot elapse before the test
+// process exits, so refresher.RefreshAllDataSources() (which would nil-panic
+// on the zero-value services below) is never actually called.
 func TestCalculateNextRunTime(t *testing.T) {
 	t.Run("time already passed today rolls over to tomorrow", func(t *testing.T) {
 		past := time.Now().Add(-1 * time.Hour)
@@ -64,4 +68,34 @@ func TestCalculateNextRunTime(t *testing.T) {
 			t.Errorf("CalculateNextRunTime(\"\") = %v, want in [0, 24h]", got)
 		}
 	})
+}
+
+// --- NewDataSourceRefresher / ScheduleDataSourceRefresh -------------------------------
+
+func TestNewDataSourceRefresher(t *testing.T) {
+	dsr := NewDataSourceRefresher(nil, nil, nil, nil)
+	if dsr == nil {
+		t.Fatal("NewDataSourceRefresher() returned nil")
+	}
+}
+
+func TestScheduleDataSourceRefresh_ReturnsImmediately(t *testing.T) {
+	s := NewScheduler(nil)
+	dsr := NewDataSourceRefresher(nil, nil, nil, nil)
+
+	// Far enough in the future that the launched goroutine's time.Sleep never
+	// elapses during this test binary's lifetime - see the file-level comment.
+	target := time.Now().Add(12 * time.Hour).Format("15:04")
+
+	finished := make(chan struct{})
+	go func() {
+		s.ScheduleDataSourceRefresh(dsr, target)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ScheduleDataSourceRefresh() blocked instead of returning after launching its background goroutine")
+	}
 }

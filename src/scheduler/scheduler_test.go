@@ -3,6 +3,7 @@ package scheduler
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -292,6 +293,118 @@ func TestScheduler_TriggerTask(t *testing.T) {
 		if last.Status != "success" {
 			t.Errorf("recorded status = %q, want success", last.Status)
 		}
+	})
+}
+
+// --- Start / run / runDueTasks / Stop (ticker-driven main loop) ----------------------
+
+func TestScheduler_StartStop(t *testing.T) {
+	t.Run("start fires a due task through the real ticker loop, stop drains cleanly", func(t *testing.T) {
+		newSchedulerTestDBs(t)
+		s := NewScheduler(nil)
+		if err := s.InitTaskHistoryTable(); err != nil {
+			t.Fatalf("InitTaskHistoryTable() error: %v", err)
+		}
+
+		ran := make(chan struct{}, 1)
+		// "@every 1s" matches the scheduler's own tickInterval, so the first
+		// real tick after Start() should already be due.
+		if err := s.AddTask("tick-task", "@every 1s", func() error {
+			select {
+			case ran <- struct{}{}:
+			default:
+			}
+			return nil
+		}); err != nil {
+			t.Fatalf("AddTask() error: %v", err)
+		}
+
+		s.Start()
+
+		select {
+		case <-ran:
+		case <-time.After(5 * time.Second):
+			s.Stop()
+			t.Fatal("timed out waiting for the ticker-driven task to fire")
+		}
+
+		// Disable the task immediately so a second real tick (the schedule
+		// interval matches tickInterval) cannot launch another in-flight
+		// executeTask goroutine while we drain the first one below.
+		if err := s.DisableTask("tick-task"); err != nil {
+			t.Fatalf("DisableTask() error: %v", err)
+		}
+
+		// Stop() only waits for the dispatch-loop goroutine, not for any
+		// go s.executeTask(task) goroutines runDueTasks already launched
+		// (documented, intentional graceful-shutdown behavior). Poll until
+		// executeTask's own DB writes (logTaskExecution/RecordTaskRun) have
+		// actually completed before this subtest's DB fixture is torn down -
+		// otherwise that goroutine can outlive the fixture and later panic
+		// on a nil *sql.DB once an unrelated, later test's cleanup runs.
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			run, err := s.GetLastTaskRun("tick-task")
+			if err != nil {
+				t.Fatalf("GetLastTaskRun() error: %v", err)
+			}
+			if run != nil {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("timed out waiting for the ticker-driven task's history write to land")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+
+		s.mu.RLock()
+		running := s.running
+		s.mu.RUnlock()
+		if !running {
+			t.Error("scheduler should report running while its loop goroutine is active")
+		}
+
+		s.Stop()
+
+		s.mu.RLock()
+		running = s.running
+		s.mu.RUnlock()
+		if running {
+			t.Error("scheduler should report not running after Stop()")
+		}
+	})
+
+	t.Run("calling start twice does not replace the running ticker/loop", func(t *testing.T) {
+		s := NewScheduler(nil)
+		s.Start()
+		defer s.Stop()
+
+		s.mu.RLock()
+		firstTicker := s.ticker
+		s.mu.RUnlock()
+
+		s.Start()
+
+		s.mu.RLock()
+		secondTicker := s.ticker
+		s.mu.RUnlock()
+
+		if firstTicker != secondTicker {
+			t.Error("second Start() call should be a no-op, not swap out the running ticker")
+		}
+	})
+
+	t.Run("stop before any start is a safe no-op", func(t *testing.T) {
+		s := NewScheduler(nil)
+		s.Stop()
+	})
+
+	t.Run("stop after start then a second stop is a safe no-op", func(t *testing.T) {
+		s := NewScheduler(nil)
+		s.Start()
+		s.Stop()
+		// Must not panic or block on a second close of already-closed channels.
+		s.Stop()
 	})
 }
 
@@ -754,4 +867,87 @@ func TestUpdateCVEDatabase_DisabledSkipsNetworkCall(t *testing.T) {
 	if err := UpdateCVEDatabase(); err != nil {
 		t.Errorf("UpdateCVEDatabase() = %v, want nil when disabled", err)
 	}
+}
+
+// --- logTaskExecution ------------------------------------------------------------------
+
+func TestSchedulerLogTaskExecution(t *testing.T) {
+	t.Run("audit disabled by default: no row written", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+		s := NewScheduler(nil)
+
+		s.logTaskExecution("task-a", 10*time.Millisecond, nil)
+
+		var count int
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&count); err != nil {
+			t.Fatalf("count audit log: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("audit log rows = %d, want 0 when audit.enabled is unset", count)
+		}
+	})
+
+	t.Run("audit.enabled=false explicitly still skips logging", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','false')"); err != nil {
+			t.Fatalf("seed config: %v", err)
+		}
+		s := NewScheduler(nil)
+
+		s.logTaskExecution("task-a2", 10*time.Millisecond, nil)
+
+		var count int
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_audit_log").Scan(&count); err != nil {
+			t.Fatalf("count audit log: %v", err)
+		}
+		if count != 0 {
+			t.Errorf("audit log rows = %d, want 0 when audit.enabled=false", count)
+		}
+	})
+
+	t.Run("audit enabled records a successful run", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','true')"); err != nil {
+			t.Fatalf("seed config: %v", err)
+		}
+		s := NewScheduler(nil)
+
+		s.logTaskExecution("task-b", 25*time.Millisecond, nil)
+
+		var status, details string
+		if err := serverDB.QueryRow(
+			"SELECT status, details FROM server_audit_log WHERE action = 'task-b' AND resource_id = 'task-b'",
+		).Scan(&status, &details); err != nil {
+			t.Fatalf("query audit log row: %v", err)
+		}
+		if status != "success" {
+			t.Errorf("status = %q, want success", status)
+		}
+		if !strings.Contains(details, "Completed in") {
+			t.Errorf("details = %q, want it to contain %q", details, "Completed in")
+		}
+	})
+
+	t.Run("audit enabled records a failed run with the error message", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+		if _, err := serverDB.Exec("INSERT INTO server_config (key, value) VALUES ('audit.enabled','true')"); err != nil {
+			t.Fatalf("seed config: %v", err)
+		}
+		s := NewScheduler(nil)
+
+		s.logTaskExecution("task-c", 5*time.Millisecond, fmt.Errorf("boom"))
+
+		var status, details string
+		if err := serverDB.QueryRow(
+			"SELECT status, details FROM server_audit_log WHERE action = 'task-c' AND resource_id = 'task-c'",
+		).Scan(&status, &details); err != nil {
+			t.Fatalf("query audit log row: %v", err)
+		}
+		if status != "error" {
+			t.Errorf("status = %q, want error", status)
+		}
+		if !strings.Contains(details, "Failed: boom") {
+			t.Errorf("details = %q, want it to contain %q", details, "Failed: boom")
+		}
+	})
 }

@@ -161,3 +161,48 @@ func TestEnforceLimits(t *testing.T) {
 		t.Errorf("EnforceLimits() = %v, want nil", err)
 	}
 }
+
+// --- ScheduleNotificationCleanup / ScheduleNotificationLimitEnforcement --------------
+//
+// Both schedulers are exercised only for their synchronous, non-blocking half
+// (delay calculation, logging, launching the background goroutine). The
+// goroutine's post-Sleep body (which calls cleaner.CleanupExpiredNotifications()/
+// EnforceLimits() and then loops on a 24h ticker) is intentionally never
+// reached in-test: the target time is picked far enough in the future that
+// the real time.Sleep cannot elapse before the test process exits.
+
+func TestScheduleNotificationCleanup_ReturnsImmediately(t *testing.T) {
+	s := NewScheduler(nil)
+	cleaner, _, _ := newTestNotificationCleaner(t)
+	target := time.Now().Add(12 * time.Hour).Format("15:04")
+
+	finished := make(chan struct{})
+	go func() {
+		s.ScheduleNotificationCleanup(cleaner, target)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ScheduleNotificationCleanup() blocked instead of returning after launching its background goroutine")
+	}
+}
+
+func TestScheduleNotificationLimitEnforcement_ReturnsImmediately(t *testing.T) {
+	s := NewScheduler(nil)
+	cleaner, _, _ := newTestNotificationCleaner(t)
+	target := time.Now().Add(12 * time.Hour).Format("15:04")
+
+	finished := make(chan struct{})
+	go func() {
+		s.ScheduleNotificationLimitEnforcement(cleaner, target)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ScheduleNotificationLimitEnforcement() blocked instead of returning after launching its background goroutine")
+	}
+}
