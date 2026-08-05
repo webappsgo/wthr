@@ -1,11 +1,100 @@
 package email
 
 import (
+	"bufio"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// fakeSMTPServer starts a local loopback TCP listener that accepts exactly
+// one connection and drives it through handleConn. It never talks to a real
+// SMTP server or the network beyond 127.0.0.1, per AI.md PART 26's ban on
+// tests requiring a live SMTP connection - this is a stand-in transport, not
+// a live server. The listener is closed automatically via t.Cleanup.
+func fakeSMTPServer(t *testing.T, handleConn func(r *bufio.Reader, w *bufio.Writer)) (host string, port int) {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start fake SMTP listener: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		handleConn(bufio.NewReader(conn), bufio.NewWriter(conn))
+	}()
+
+	addr := ln.Addr().(*net.TCPAddr)
+	return addr.IP.String(), addr.Port
+}
+
+// smtpSuccessScript drives a minimal but complete SMTP conversation that
+// satisfies net/smtp.SendMail: greeting, EHLO with an AUTH PLAIN extension
+// (PlainAuth requires either TLS or a localhost server name, both true
+// here), AUTH, MAIL FROM, one RCPT TO per recipient, DATA, and QUIT.
+func smtpSuccessScript(recipients int) func(r *bufio.Reader, w *bufio.Writer) {
+	return func(r *bufio.Reader, w *bufio.Writer) {
+		writeLine(w, "220 fake.local ESMTP ready")
+		readLine(r) // EHLO
+		writeLine(w, "250-fake.local Hello")
+		writeLine(w, "250 AUTH PLAIN")
+		readLine(r) // AUTH PLAIN ...
+		writeLine(w, "235 2.7.0 Authentication successful")
+		readLine(r) // MAIL FROM
+		writeLine(w, "250 2.1.0 OK")
+		for i := 0; i < recipients; i++ {
+			readLine(r) // RCPT TO
+			writeLine(w, "250 2.1.5 OK")
+		}
+		readLine(r) // DATA
+		writeLine(w, "354 Start mail input")
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil || line == ".\r\n" {
+				break
+			}
+		}
+		writeLine(w, "250 2.0.0 OK: queued")
+		readLine(r) // QUIT
+		writeLine(w, "221 2.0.0 Bye")
+	}
+}
+
+// smtpRejectSenderScript rejects the MAIL FROM command, exercising the
+// smtp.SendMail error path so Send() must wrap and return that failure.
+func smtpRejectSenderScript() func(r *bufio.Reader, w *bufio.Writer) {
+	return func(r *bufio.Reader, w *bufio.Writer) {
+		writeLine(w, "220 fake.local ESMTP ready")
+		readLine(r) // EHLO
+		writeLine(w, "250-fake.local Hello")
+		writeLine(w, "250 AUTH PLAIN")
+		readLine(r) // AUTH PLAIN ...
+		writeLine(w, "235 2.7.0 Authentication successful")
+		readLine(r) // MAIL FROM
+		writeLine(w, "550 5.1.0 sender rejected")
+	}
+}
+
+// writeLine writes a CRLF-terminated SMTP response line and flushes it.
+func writeLine(w *bufio.Writer, line string) {
+	w.WriteString(line + "\r\n")
+	w.Flush()
+}
+
+// readLine reads and discards a single client command line, ignoring EOF so
+// a client that disconnects early (e.g. after an error) doesn't panic the
+// fake server goroutine.
+func readLine(r *bufio.Reader) {
+	r.ReadString('\n')
+}
 
 // TestNew_Disabled verifies the service stays disabled when SMTP is not
 // configured, per AI.md line 22786: "No SMTP configured -> Email
@@ -382,5 +471,124 @@ func TestLoadTemplate_RenderRoundTrip(t *testing.T) {
 	}
 	if strings.Contains(body, "{app_name}") {
 		t.Errorf("body still contains unreplaced {app_name} placeholder: %q", body)
+	}
+}
+
+// TestNew_ValidatesReachableServer exercises the validateSMTP success path
+// (previously uncovered): a plain TCP listener on loopback that New() can
+// dial successfully must flip the service into the enabled state.
+func TestNew_ValidatesReachableServer(t *testing.T) {
+	host, port := fakeSMTPServer(t, func(r *bufio.Reader, w *bufio.Writer) {
+		// New() only needs the TCP dial to succeed; no protocol required.
+	})
+
+	svc := New(SMTPConfig{Host: host, Port: port})
+	if !svc.IsEnabled() {
+		t.Error("IsEnabled() = false, want true for a reachable non-TLS SMTP server")
+	}
+}
+
+// TestNew_ConnectionRefused exercises the "SMTP connection failed" branch of
+// validateSMTP by pointing at a port nothing is listening on.
+func TestNew_ConnectionRefused(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to allocate a port: %v", err)
+	}
+	addr := ln.Addr().(*net.TCPAddr)
+	// Close immediately so the port is guaranteed to be refused on connect.
+	ln.Close()
+
+	svc := New(SMTPConfig{Host: addr.IP.String(), Port: addr.Port})
+	if svc.IsEnabled() {
+		t.Error("IsEnabled() = true, want false when SMTP server refuses the connection")
+	}
+}
+
+// TestNew_TLSHandshakeFailure exercises the TLS handshake branch of
+// validateSMTP: the config requests TLS but the loopback listener speaks
+// plain TCP, so the handshake must fail and the service must stay disabled.
+func TestNew_TLSHandshakeFailure(t *testing.T) {
+	host, port := fakeSMTPServer(t, func(r *bufio.Reader, w *bufio.Writer) {
+		// Plain TCP peer: read whatever the TLS client hello sends and do
+		// nothing SSL/TLS-aware with it, forcing the handshake to fail.
+		buf := make([]byte, 512)
+		r.Read(buf)
+	})
+
+	svc := New(SMTPConfig{Host: host, Port: port, TLS: true})
+	if svc.IsEnabled() {
+		t.Error("IsEnabled() = true, want false when the TLS handshake fails")
+	}
+}
+
+// TestService_Send_Success drives Send() through an actual (fake, loopback)
+// SMTP conversation, covering the message-construction and smtp.SendMail
+// success paths that TestService_Send_Disabled cannot reach.
+func TestService_Send_Success(t *testing.T) {
+	to := []string{"user1@example.com", "user2@example.com"}
+	host, port := fakeSMTPServer(t, smtpSuccessScript(len(to)))
+
+	svc := &Service{
+		enabled: true,
+		config: SMTPConfig{
+			Host:     host,
+			Port:     port,
+			Username: "sender",
+			Password: "secret",
+			From:     "noreply@example.com",
+			FromName: "WTHR",
+		},
+	}
+
+	if err := svc.Send(to, "Test Subject", "Test Body"); err != nil {
+		t.Fatalf("Send() error = %v, want nil", err)
+	}
+}
+
+// TestService_Send_SMTPFailure verifies Send() wraps a failure surfaced by
+// the SMTP server itself (as opposed to the "disabled" short-circuit) with
+// "failed to send email".
+func TestService_Send_SMTPFailure(t *testing.T) {
+	host, port := fakeSMTPServer(t, smtpRejectSenderScript())
+
+	svc := &Service{
+		enabled: true,
+		config: SMTPConfig{
+			Host: host,
+			Port: port,
+			From: "noreply@example.com",
+		},
+	}
+
+	err := svc.Send([]string{"user@example.com"}, "subject", "body")
+	if err == nil {
+		t.Fatal("Send() error = nil, want error when the SMTP server rejects the sender")
+	}
+	if !strings.Contains(err.Error(), "failed to send email") {
+		t.Errorf("Send() error = %q, want it to mention 'failed to send email'", err.Error())
+	}
+}
+
+// TestService_SendTemplate_Success drives SendTemplate() end to end: load
+// the embedded "test" template, inject vars plus the auto-added
+// timestamp/year, render, and send over a fake SMTP server. This covers the
+// success path of SendTemplate() that TestService_SendTemplate_Disabled and
+// TestService_SendTemplate_LoadTemplateFailure both stop short of.
+func TestService_SendTemplate_Success(t *testing.T) {
+	to := []string{"user@example.com"}
+	host, port := fakeSMTPServer(t, smtpSuccessScript(len(to)))
+
+	svc := &Service{
+		enabled: true,
+		config: SMTPConfig{
+			Host: host,
+			Port: port,
+			From: "noreply@example.com",
+		},
+	}
+
+	if err := svc.SendTemplate(to, "test", map[string]string{"app_name": "WTHR"}); err != nil {
+		t.Fatalf("SendTemplate() error = %v, want nil", err)
 	}
 }
