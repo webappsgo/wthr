@@ -3691,6 +3691,10 @@ func main() {
 	r.POST("/graphql", appgraphql.GraphQLHandler(graphqlServer))
 	r.GET("/graphql", appgraphql.PlaygroundHandler("/graphql"))
 
+	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
+	// never loaded from a CDN, see src/graphql/playground.go.
+	r.GET("/graphql/assets/*filepath", appgraphql.PlaygroundAssetHandler())
+
 	// Temporary compatibility alias while remaining GraphQL consumers are updated.
 	graphqlAliasPath := cfg.GetAPIPath() + "/graphql"
 	r.POST(graphqlAliasPath, appgraphql.GraphQLHandler(graphqlServer))

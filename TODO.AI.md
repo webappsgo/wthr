@@ -1158,21 +1158,36 @@ any of the above: `src/graphql/context_keys_test.go`,
       run (all ~30 packages pass). Fix committed as 0ca86a9dd28c, CI
       confirmed clean aside from the known item-16 coverage-gate failure
 
-37. TODO (flagged 2026-08-02 by go-lint during item 20's pre-commit gate
-    check): `src/server/handler/graphql.go` lines 171-182 serve the GraphiQL
-    IDE via its standard React-based client-side UI bundle — this conflicts
-    with the project's "no client-side rendering / no JS framework" frontend
-    rule (frontend-rules.md PART 16: vanilla JS only, no React/Vue/etc, one
-    hand-written `static/js/app.js`). However, GraphiQL is the GraphQL
-    Foundation's standard reference IDE and typically ships only as a
-    prebuilt React bundle — no maintained vanilla-JS equivalent exists.
-    Needs a product decision, not a blind fix: either (a) accept GraphiQL's
-    bundled React UI as a documented, scoped exception (it's a developer/
-    admin-only tool, not the public frontend the no-framework rule targets),
-    or (b) replace it with a minimal hand-rolled GraphQL query console using
-    vanilla JS, accepting reduced IDE features (no schema autocomplete/docs
-    explorer). Ask the user which approach before implementing. Read: AI.md
-    PART 16 (frontend rules) and PART 14 (API/GraphQL) before starting.
+37. DONE (2026-08-04): corrected diagnosis and fixed. The original flag
+    (2026-08-02) targeted `src/server/handler/graphql.go` — investigation
+    found that file was entirely dead code (a redundant toy GraphQL
+    implementation using `github.com/graphql-go/graphql`/`graphql-go/handler`,
+    hardcoded fake data, never wired into any route in `main.go`; no
+    `_test.go` existed for it). Deleted, and `go mod tidy` removed the two
+    now-unused `graphql-go` dependencies from go.mod/go.sum.
+    The REAL, live playground is `src/graphql/graphql.go`'s
+    `PlaygroundHandler`, which delegated to gqlgen's own
+    `graphql/handler/playground` package — that package serves a hardcoded
+    HTML template loading React/ReactDOM/GraphiQL from `cdn.jsdelivr.net`,
+    violating the same self-contained-binary/CSP `script-src 'self'` rules
+    the dead file did (frontend-rules.md, binary-rules.md). Per the user's
+    "follow AI.md as that is source of truth" answer, fixed by embedding
+    the same GraphiQL/React versions gqlgen itself pins (react@18.2.0,
+    graphiql@3.7.0 — downloaded and verified byte-identical via SRI SHA-256
+    against gqlgen's own pinned hashes) as local `go:embed` assets in
+    `src/graphql/static/`, served at `/graphql/assets/*filepath`
+    (`src/graphql/playground.go`), following the same embedded-third-party-
+    UI precedent already used for Swagger UI. Also fixed: the previously
+    dead `GetDarkThemeCSS`/`GetLightThemeCSS`/`GetTheme` theme wiring in
+    `src/graphql/theme.go` is now actually applied (`theme-dark`/
+    `theme-light`/`theme-auto` class + `graphiql-theme.css`, matching
+    AI.md's `.graphiql-container.theme-*` selectors) — previously the three
+    theme branches in `PlaygroundHandler` were functionally identical
+    no-ops. Init JS reads its endpoint from a `data-endpoint` attribute
+    (no inline `<script>`, CSP-compliant). LICENSE.md and SPEC.md updated
+    with the React/GraphiQL attribution and the local-vendoring override
+    rationale. Verified via `go build ./...`, `gofmt -l .`, `go vet ./...`
+    (all clean) and `go test ./src/graphql/...` (pass).
 
 38. TODO (flagged 2026-08-02 while verifying item 17's log-emoji sweep):
     numerous `fmt.Printf`/`fmt.Println` startup-banner/console lines in

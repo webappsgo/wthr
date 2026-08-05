@@ -4,20 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
 
 	gqlhandler "github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gin-gonic/gin"
+	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
-	"strings"
-	"time"
-
-	"github.com/vektah/gqlparser/v2/ast"
 )
 
 // contextKey is an unexported type used for context keys
@@ -64,6 +63,10 @@ func RegisterRoutes(router *gin.Engine, resolver *Resolver) {
 
 	// GraphiQL playground for GET requests (interactive UI)
 	router.GET("/graphql", PlaygroundHandler("/graphql"))
+
+	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
+	// never loaded from a CDN, see playground.go.
+	router.GET(playgroundAssetPrefix+"*filepath", PlaygroundAssetHandler())
 }
 
 // GraphQLHandler wraps the gqlgen handler for Gin.
@@ -82,26 +85,13 @@ func GraphQLHandler(h *gqlhandler.Server) gin.HandlerFunc {
 	}
 }
 
-// PlaygroundHandler serves the GraphiQL playground with theme support.
+// PlaygroundHandler serves the GraphiQL playground with theme support, from
+// this binary's own embedded assets (see playground.go) rather than a CDN.
 func PlaygroundHandler(endpoint string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get theme preference
 		theme := GetTheme(c)
-
-		// Serve GraphiQL playground with theme
-		if theme == "dark" {
-			// Custom GraphiQL with dark theme
-			playgroundHandler := playground.Handler("GraphQL Playground", endpoint)
-			playgroundHandler.ServeHTTP(c.Writer, c.Request)
-		} else if theme == "light" {
-			// Custom GraphiQL with light theme
-			playgroundHandler := playground.Handler("GraphQL Playground", endpoint)
-			playgroundHandler.ServeHTTP(c.Writer, c.Request)
-		} else {
-			// Auto theme (let browser decide)
-			playgroundHandler := playground.Handler("GraphQL Playground", endpoint)
-			playgroundHandler.ServeHTTP(c.Writer, c.Request)
-		}
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, renderPlaygroundHTML(theme, endpoint))
 	}
 }
 

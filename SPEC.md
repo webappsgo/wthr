@@ -29,3 +29,42 @@ measure code a human actually wrote and can improve.
 **Compliance requirement:** `make test` (local) and `ci.yml` (CI) MUST use
 the identical filter so the coverage percentage a developer sees locally
 matches what CI enforces — see TODO.AI.md item 16.
+
+## GraphQL Playground serves vendored assets, not gqlgen's CDN template
+
+**Background:** `src/graphql/graphql.go`'s `PlaygroundHandler` previously
+delegated to `github.com/99designs/gqlgen/graphql/handler/playground`'s
+`playground.Handler()`, which serves a hardcoded HTML template loading React,
+ReactDOM, and GraphiQL from `cdn.jsdelivr.net`. This violates AI.md's
+self-contained-binary requirement (PART 1/2) and the CSP `script-src 'self'`
+rule (PART 11) — a hostile/offline/air-gapped deployment cannot load the
+playground UI at all, and the CDN script would be blocked by CSP if enforced
+strictly.
+
+**Override:** `PlaygroundHandler` now renders its own HTML
+(`src/graphql/playground.go`), referencing four vendored assets
+(`react.production.min.js`, `react-dom.production.min.js`, `graphiql.min.js`,
+`graphiql.min.css`, all pinned to the same `react@18.2.0`/`graphiql@3.7.0`
+versions gqlgen itself pins, verified byte-identical via SRI SHA-256 against
+gqlgen's own pinned hashes before vendoring) plus a project-authored
+`graphiql-init.js` and `graphiql-theme.css`. All six files live in
+`src/graphql/static/` and are embedded into the binary via `go:embed`, served
+locally at `/graphql/assets/*filepath` — never fetched from a CDN at
+request time. This follows the same embedded-third-party-UI precedent
+already established for Swagger UI (`src/swagger/swagger.go`,
+`github.com/swaggo/files`).
+
+**CSP/no-inline-JS compliance:** the init script reads its GraphQL endpoint
+from a `data-endpoint` attribute on the `#graphiql` container instead of an
+inline `<script>` block, so the page has zero inline JS.
+
+**Theme compliance:** the playground now actually applies the
+`theme-dark`/`theme-light`/`theme-auto` class (from `GetTheme()`) to the
+`#graphiql` container and loads `graphiql-theme.css`, which implements the
+exact `.graphiql-container.theme-*` selectors specified in AI.md's Themes
+section — previously the three theme branches in `PlaygroundHandler` were
+functionally identical (`GetDarkThemeCSS`/`GetLightThemeCSS` in
+`src/graphql/theme.go` existed but were never wired into any response).
+
+**Attribution:** React and GraphiQL license text added to `LICENSE.md` under
+Embedded Third-Party Licenses, matching the Swagger UI precedent.
