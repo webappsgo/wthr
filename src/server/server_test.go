@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"io/fs"
 	"strings"
 	"testing"
@@ -81,5 +82,34 @@ func TestLoadTemplates(t *testing.T) {
 	templates := tmpl.Templates()
 	if len(templates) == 0 {
 		t.Fatal("expected at least one parsed template, got none")
+	}
+}
+
+// TestLoadTemplatesFuncMap verifies the placeholder helper functions
+// registered by LoadTemplates (upper, lower, title, add, sub, t) all
+// produce the expected output when actually invoked through template
+// execution, since parsing alone never calls their bodies.
+func TestLoadTemplatesFuncMap(t *testing.T) {
+	tmpl, err := LoadTemplates()
+	if err != nil {
+		t.Fatalf("LoadTemplates() returned error: %v", err)
+	}
+
+	helperTmpl, err := tmpl.New("helpers").Parse(
+		`{{upper "abc"}}|{{lower "XYZ"}}|{{title "hello world"}}|{{add 2 3}}|{{sub 5 2}}|{{t "" "greeting.hello"}}`,
+	)
+	if err != nil {
+		t.Fatalf("failed to parse helper template: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if err := helperTmpl.Execute(&buf, nil); err != nil {
+		t.Fatalf("failed to execute helper template: %v", err)
+	}
+
+	got := buf.String()
+	want := "ABC|xyz|Hello World|5|3|greeting.hello"
+	if got != want {
+		t.Fatalf("helper template output = %q, want %q", got, want)
 	}
 }
