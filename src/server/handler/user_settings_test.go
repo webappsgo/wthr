@@ -470,3 +470,20 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		}
 	})
 }
+
+// TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated verifies
+// an unauthenticated request (no user in the gin context) is redirected to
+// the login page rather than attempting a template render.
+func TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated(t *testing.T) {
+	h := &UserSettingsHandler{DB: newTestServerDB(t)}
+
+	c, w := newAPITestContext("/users/settings/notifications")
+	h.ShowNotificationSettings(c)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected status 302, got %d", w.Code)
+	}
+	if location := w.Header().Get("Location"); location != "/server/auth/login" {
+		t.Errorf("expected redirect to /server/auth/login, got %q", location)
+	}
+}

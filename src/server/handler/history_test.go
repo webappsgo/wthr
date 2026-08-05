@@ -5,6 +5,21 @@ import (
 	"time"
 )
 
+// TestNewHistoryHandler verifies the constructor wires both dependencies
+// into the returned handler unchanged.
+func TestNewHistoryHandler(t *testing.T) {
+	h := NewHistoryHandler(nil, nil)
+	if h == nil {
+		t.Fatal("expected non-nil handler")
+	}
+	if h.weatherService != nil {
+		t.Errorf("expected weatherService to be nil (as passed), got %v", h.weatherService)
+	}
+	if h.settingsModel != nil {
+		t.Errorf("expected settingsModel to be nil (as passed), got %v", h.settingsModel)
+	}
+}
+
 // TestParseHistoricalDate_Empty verifies that an empty date string resolves
 // to "today" (month/day/year of time.Now()).
 func TestParseHistoricalDate_Empty(t *testing.T) {
