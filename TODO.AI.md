@@ -1264,3 +1264,37 @@ any of the above: `src/graphql/context_keys_test.go`,
       matching Phase 2 coverage in tests/docker.sh/tests/incus.sh.
     Read: AI.md PART 29 (testing strategy) and the tool_conventions.md
     script-lint rules before starting.
+
+42. TODO (flagged 2026-08-04 while fixing item 37): `src/swagger/swagger.go`'s
+    `GetSwaggerUI()` fetches `theme := GetTheme(c)` but then discards it
+    (`_ = theme // Acknowledge theme variable to avoid unused error`) —
+    the resolved theme is never applied to the rendered Swagger UI
+    response, so `theme-dark`/`theme-light`/`theme-auto` has no effect on
+    the Swagger page despite AI.md requiring the shared theme system to
+    cover Swagger/GraphiQL/CLI/TUI/GUI. Same class of bug as the
+    GraphiQL playground theme-wiring bug fixed in item 37 (now-corrected).
+    Fix: apply the theme class/CSS to the rendered Swagger UI HTML the
+    same way `renderPlaygroundHTML` now does for GraphiQL. Read: AI.md
+    PART 16/17 (frontend/theme rules) before starting.
+
+43. TODO (flagged 2026-08-04 while fixing item 37): `src/graphql/graphql.go`'s
+    `RegisterRoutes` function is dead/unreferenced code — `main.go`
+    duplicates its `/graphql` POST/GET route registration logic inline
+    instead of calling `graphql.RegisterRoutes`. Decide whether to delete
+    `RegisterRoutes` (if main.go's inline registration is intentional) or
+    replace main.go's inline registration with a call to it (removing the
+    duplication) — pick one and apply consistently. Read: AI.md PART 1
+    (architecture) before starting.
+
+44. TODO (flagged 2026-08-04 while fixing item 37): `src/main.go`'s
+    `graphqlAliasPath` route handler
+    (`r.GET(graphqlAliasPath, func(c *gin.Context) {
+    c.Redirect(http.StatusMovedPermanently, "/graphql") })`) violates the
+    explicit AI.md/api-rules.md rule "NEVER redirect an unversioned
+    `/api/<thing>` alias to its versioned target — mount the SAME handler
+    at both paths (redirects break POST semantics, double caching,
+    non-redirect-following clients)". Fix: mount
+    `appgraphql.PlaygroundHandler("/graphql")` (and the POST handler, if
+    `graphqlAliasPath` needs to accept queries too) directly at
+    `graphqlAliasPath` instead of redirecting. Read: AI.md PART 14 (API
+    structure) before starting.
