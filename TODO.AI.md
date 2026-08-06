@@ -683,6 +683,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     `schema.resolvers.go`'s Query resolvers and remaining mutations
     still untested), `src` root package (5.0%, `main()` itself remains
     the only real remaining lever there but is Phase-2-only by design).
+    Progress (2026-08-06, continued):
+    - `src/graphql`: 8 more mutation resolvers covered —
+      `AdminDisableServerAdmin`, `AdminEnableServerAdmin`,
+      `EnableUserTwoFactor`, `DisableUserTwoFactor`,
+      `VerifyUserTwoFactor`, `RegenerateUserRecoveryKeys`,
+      `UpdateUserAvatar`, `ResetUserAvatar` (commit `2a5223835da8`).
+      Package filtered coverage 46.7% -> 49.4%. Query-resolver surface
+      (CurrentUser*, Admin* listing, SavedLocations, Notifications,
+      weather/geo/astronomy) still only guard-tested.
+    - `src/server/handler`: 12 new test files covering admin
+      admins/invites, admin passkey helpers/login, admin scheduler
+      config, LDAP/OIDC auth guard paths, notification channels/
+      preferences/templates, user passkeys, server info pages
+      (about/privacy/contact/help/terms), and web/moon interface guard
+      paths + time/distance formatting helpers (commit `2b2a4163a582`).
+      Package coverage 43.4% -> 54.0%.
+    - Both passes were independently verified clean (`gofmt -l`,
+      `go build ./...`, `go vet ./...`, `go test ./...`) before commit.
+      No production bugs found in either pass.
+    Repo-wide filtered coverage now **58.5%** (up from 54.8%), still
+    below the 60% gate but close. Remaining priority targets:
+    `src/server/handler` (54.0%, `Show*` HTML-render handlers still the
+    main gap), `src/graphql` (49.4%, Query resolvers), `src` root
+    package (5.0%, Phase-2-only). A further coverage pass is in progress
+    for `src/graphql` Query resolvers and `src/server/handler`'s
+    remaining low-coverage functions.
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
