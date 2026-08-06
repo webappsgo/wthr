@@ -1361,7 +1361,7 @@ func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg strin
 		}
 
 		_, err = database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
-			UPDATE notification_channels
+			UPDATE server_notification_channels
 			SET config = ?, updated_at = datetime('now')
 			WHERE channel_type = ?
 		`, string(configJSON), typeArg)
@@ -2921,7 +2921,7 @@ func (r *queryResolver) AdminChannels(ctx context.Context) ([]*NotificationChann
 	}
 
 	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT channel_type, enabled, config FROM notification_channels ORDER BY channel_type",
+		"SELECT channel_type, enabled, config FROM server_notification_channels ORDER BY channel_type",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get channels: %w", err)

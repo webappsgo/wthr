@@ -640,7 +640,7 @@ func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, err
 }
 func loadGraphQLNotificationChannel(ctx context.Context, db *sql.DB, channelType string) (*NotificationChannel, error) {
 	return scanGraphQLNotificationChannel(database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT channel_type, enabled, config FROM notification_channels WHERE channel_type = ?",
+		"SELECT channel_type, enabled, config FROM server_notification_channels WHERE channel_type = ?",
 		channelType,
 	).Scan)
 }
