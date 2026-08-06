@@ -567,6 +567,211 @@ func TestMutationResolver_AdminRevokeToken(t *testing.T) {
 	})
 }
 
+// --- AdminDisableServerAdmin --------------------------------------------------
+
+func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
+
+	primary, err := (&models.AdminModel{DB: ddb.Server}).Create("primarydisabler", "primarydisabler@example.com", "password123", true)
+	if err != nil {
+		t.Fatalf("seed primary admin: %v", err)
+	}
+	if primary.ID != 1 {
+		t.Fatalf("expected the first-created admin to get id 1, got %d", primary.ID)
+	}
+
+	t.Run("unauthorized without admin role", func(t *testing.T) {
+		_, err := m.AdminDisableServerAdmin(context.Background(), "2")
+		if err == nil || err.Error() != "unauthorized: admin access required" {
+			t.Fatalf("err = %v, want %q", err, "unauthorized: admin access required")
+		}
+	})
+
+	adminCtx := withGraphQLAdminValues(context.Background(), int(primary.ID), primary.Email)
+
+	t.Run("invalid admin id", func(t *testing.T) {
+		_, err := m.AdminDisableServerAdmin(adminCtx, "nope")
+		if err == nil || err.Error() != "invalid admin id" {
+			t.Fatalf("err = %v, want %q", err, "invalid admin id")
+		}
+	})
+
+	t.Run("cannot disable your own admin account", func(t *testing.T) {
+		result, err := m.AdminDisableServerAdmin(adminCtx, formatGraphQLTestUserID(primary.ID))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected Success = false disabling your own admin account")
+		}
+		if result.Message != "You cannot disable your own admin account" {
+			t.Fatalf("Message = %q, want %q", result.Message, "You cannot disable your own admin account")
+		}
+	})
+
+	t.Run("primary admin account cannot be disabled", func(t *testing.T) {
+		second, err := (&models.AdminModel{DB: ddb.Server}).Create("seconddisabler", "seconddisabler@example.com", "password123", true)
+		if err != nil {
+			t.Fatalf("seed second admin: %v", err)
+		}
+		secondCtx := withGraphQLAdminValues(context.Background(), int(second.ID), second.Email)
+
+		result, err := m.AdminDisableServerAdmin(secondCtx, "1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected Success = false disabling the primary admin account")
+		}
+		if result.Message != "Primary admin account cannot be disabled" {
+			t.Fatalf("Message = %q, want %q", result.Message, "Primary admin account cannot be disabled")
+		}
+	})
+
+	t.Run("unknown admin id returns not-found response, not an error", func(t *testing.T) {
+		result, err := m.AdminDisableServerAdmin(adminCtx, "999999")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected Success = false for an unknown admin id")
+		}
+		if result.Message != "Admin not found" {
+			t.Fatalf("Message = %q, want %q", result.Message, "Admin not found")
+		}
+	})
+
+	t.Run("cannot disable the last active super admin", func(t *testing.T) {
+		soleSuperAdmin, err := (&models.AdminModel{DB: ddb.Server}).Create("solesuperdisable", "solesuperdisable@example.com", "password123", true)
+		if err != nil {
+			t.Fatalf("seed sole super admin: %v", err)
+		}
+		nonSuperCaller, err := (&models.AdminModel{DB: ddb.Server}).Create("nonsupercallerdisable", "nonsupercallerdisable@example.com", "password123", false)
+		if err != nil {
+			t.Fatalf("seed non-super caller admin: %v", err)
+		}
+		callerCtx := withGraphQLAdminValues(context.Background(), int(nonSuperCaller.ID), nonSuperCaller.Email)
+
+		// Deactivate every other active super admin (seeded by earlier subtests
+		// in this test, e.g. "primary" and "second") so soleSuperAdmin is the
+		// only active super admin left.
+		allAdmins, err := (&models.AdminModel{DB: ddb.Server}).GetAll()
+		if err != nil {
+			t.Fatalf("list admins: %v", err)
+		}
+		for _, other := range allAdmins {
+			if other.ID == soleSuperAdmin.ID || !other.IsSuperAdmin || !other.IsActive {
+				continue
+			}
+			if err := (&models.AdminModel{DB: ddb.Server}).Update(other.ID, other.Username, other.Email, other.IsSuperAdmin, false); err != nil {
+				t.Fatalf("deactivate other super admin %d: %v", other.ID, err)
+			}
+		}
+
+		result, err := m.AdminDisableServerAdmin(callerCtx, formatGraphQLTestUserID(soleSuperAdmin.ID))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected Success = false disabling the last active super admin")
+		}
+		if result.Message != "Cannot disable the last active super admin" {
+			t.Fatalf("Message = %q, want %q", result.Message, "Cannot disable the last active super admin")
+		}
+	})
+
+	t.Run("happy path disables a non-super, non-primary, non-self admin", func(t *testing.T) {
+		target, err := (&models.AdminModel{DB: ddb.Server}).Create("disablablesub", "disablablesub@example.com", "password123", false)
+		if err != nil {
+			t.Fatalf("seed disable-able admin: %v", err)
+		}
+
+		result, err := m.AdminDisableServerAdmin(adminCtx, formatGraphQLTestUserID(target.ID))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Success {
+			t.Fatalf("expected Success = true, message: %q", result.Message)
+		}
+
+		fresh, err := (&models.AdminModel{DB: ddb.Server}).GetByID(target.ID)
+		if err != nil {
+			t.Fatalf("reload admin: %v", err)
+		}
+		if fresh.IsActive {
+			t.Fatal("expected the admin to be inactive after disabling")
+		}
+	})
+}
+
+// --- AdminEnableServerAdmin --------------------------------------------------
+
+func TestMutationResolver_AdminEnableServerAdmin(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
+
+	primary, err := (&models.AdminModel{DB: ddb.Server}).Create("primaryenabler", "primaryenabler@example.com", "password123", true)
+	if err != nil {
+		t.Fatalf("seed primary admin: %v", err)
+	}
+
+	t.Run("unauthorized without admin role", func(t *testing.T) {
+		_, err := m.AdminEnableServerAdmin(context.Background(), "2")
+		if err == nil || err.Error() != "unauthorized: admin access required" {
+			t.Fatalf("err = %v, want %q", err, "unauthorized: admin access required")
+		}
+	})
+
+	adminCtx := withGraphQLAdminValues(context.Background(), int(primary.ID), primary.Email)
+
+	t.Run("invalid admin id", func(t *testing.T) {
+		_, err := m.AdminEnableServerAdmin(adminCtx, "nope")
+		if err == nil || err.Error() != "invalid admin id" {
+			t.Fatalf("err = %v, want %q", err, "invalid admin id")
+		}
+	})
+
+	t.Run("unknown admin id returns not-found response, not an error", func(t *testing.T) {
+		result, err := m.AdminEnableServerAdmin(adminCtx, "999999")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Success {
+			t.Fatal("expected Success = false for an unknown admin id")
+		}
+		if result.Message != "Admin not found" {
+			t.Fatalf("Message = %q, want %q", result.Message, "Admin not found")
+		}
+	})
+
+	t.Run("happy path enables a disabled admin, including re-enabling your own account", func(t *testing.T) {
+		target, err := (&models.AdminModel{DB: ddb.Server}).Create("enablablesub", "enablablesub@example.com", "password123", false)
+		if err != nil {
+			t.Fatalf("seed enable-able admin: %v", err)
+		}
+		if err := (&models.AdminModel{DB: ddb.Server}).Update(target.ID, target.Username, target.Email, target.IsSuperAdmin, false); err != nil {
+			t.Fatalf("disable target admin: %v", err)
+		}
+
+		result, err := m.AdminEnableServerAdmin(adminCtx, formatGraphQLTestUserID(target.ID))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Success {
+			t.Fatalf("expected Success = true, message: %q", result.Message)
+		}
+
+		fresh, err := (&models.AdminModel{DB: ddb.Server}).GetByID(target.ID)
+		if err != nil {
+			t.Fatalf("reload admin: %v", err)
+		}
+		if !fresh.IsActive {
+			t.Fatal("expected the admin to be active after enabling")
+		}
+	})
+}
+
 // Keeps the config import in use: AdminCreateUserInvite falls back to this
 // default expiration (7 days) when no explicit expiresInDays is provided,
 // exercised implicitly by the "happy path" subtest above.

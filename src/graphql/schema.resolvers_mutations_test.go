@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -755,4 +756,301 @@ func TestQueryResolver_PublicUserProfile(t *testing.T) {
 			t.Fatalf("profile = %+v, want the owner to see their own private profile", ownProfile)
 		}
 	})
+}
+
+// --- EnableUserTwoFactor -------------------------------------------------------
+
+func TestMutationResolver_EnableUserTwoFactor(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	secret := "JBSWY3DPEHPK3PXP"
+	user := seedGraphQLUser(t, ddb, "enable2fauser", "enable2fauser@example.com", "correctpass1")
+	authedCtx := withGraphQLUserContext(context.Background(), user)
+
+	t.Run("invalid code is rejected", func(t *testing.T) {
+		_, err := m.EnableUserTwoFactor(authedCtx, secret, "000000")
+		if err == nil || err.Error() != "invalid verification code" {
+			t.Fatalf("err = %v, want %q", err, "invalid verification code")
+		}
+	})
+
+	t.Run("happy path enables 2fa and returns recovery keys", func(t *testing.T) {
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+		result, err := m.EnableUserTwoFactor(authedCtx, secret, code)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil || len(result.RecoveryKeys) == 0 {
+			t.Fatalf("result = %+v, want a non-empty set of recovery keys", result)
+		}
+
+		reloaded, err := (&models.UserModel{DB: ddb.Users}).GetByID(user.ID)
+		if err != nil {
+			t.Fatalf("reload user: %v", err)
+		}
+		if !reloaded.TwoFactorEnabled {
+			t.Fatal("expected TwoFactorEnabled = true after enabling 2fa")
+		}
+
+		t.Run("already enabled is rejected", func(t *testing.T) {
+			code, err := totp.GenerateCode(secret, time.Now())
+			if err != nil {
+				t.Fatalf("generate totp code: %v", err)
+			}
+			_, err = m.EnableUserTwoFactor(authedCtx, secret, code)
+			if err == nil || err.Error() != "two-factor authentication is already enabled" {
+				t.Fatalf("err = %v, want %q", err, "two-factor authentication is already enabled")
+			}
+		})
+	})
+}
+
+// --- DisableUserTwoFactor ------------------------------------------------------
+
+func TestMutationResolver_DisableUserTwoFactor(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	secret := "JBSWY3DPEHPK3PXP"
+	user := seedGraphQLUser(t, ddb, "disable2fauser", "disable2fauser@example.com", "correctpass1")
+	authedCtx := withGraphQLUserContext(context.Background(), user)
+
+	t.Run("not enabled is rejected", func(t *testing.T) {
+		_, err := m.DisableUserTwoFactor(authedCtx, "correctpass1")
+		if err == nil || err.Error() != "two-factor authentication is not enabled" {
+			t.Fatalf("err = %v, want %q", err, "two-factor authentication is not enabled")
+		}
+	})
+
+	if _, err := ddb.Users.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, user.ID); err != nil {
+		t.Fatalf("enable 2fa: %v", err)
+	}
+	if _, err := (&models.RecoveryKeyModel{DB: ddb.Users}).GenerateRecoveryKeys(int(user.ID)); err != nil {
+		t.Fatalf("seed recovery keys: %v", err)
+	}
+
+	t.Run("wrong password is rejected", func(t *testing.T) {
+		_, err := m.DisableUserTwoFactor(authedCtx, "wrongpassword")
+		if err == nil || err.Error() != "invalid password" {
+			t.Fatalf("err = %v, want %q", err, "invalid password")
+		}
+	})
+
+	t.Run("happy path disables 2fa and clears recovery keys", func(t *testing.T) {
+		result, err := m.DisableUserTwoFactor(authedCtx, "correctpass1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil || !result.Success {
+			t.Fatalf("result = %+v, want Success = true", result)
+		}
+
+		reloaded, err := (&models.UserModel{DB: ddb.Users}).GetByID(user.ID)
+		if err != nil {
+			t.Fatalf("reload user: %v", err)
+		}
+		if reloaded.TwoFactorEnabled {
+			t.Fatal("expected TwoFactorEnabled = false after disabling 2fa")
+		}
+
+		remaining, err := (&models.RecoveryKeyModel{DB: ddb.Users}).GetUnusedKeysCount(int(user.ID))
+		if err != nil {
+			t.Fatalf("count recovery keys: %v", err)
+		}
+		if remaining != 0 {
+			t.Fatalf("remaining recovery keys = %d, want 0", remaining)
+		}
+	})
+}
+
+// --- VerifyUserTwoFactor -------------------------------------------------------
+
+func TestMutationResolver_VerifyUserTwoFactor(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	secret := "JBSWY3DPEHPK3PXP"
+	user := seedGraphQLUser(t, ddb, "verify2fauser", "verify2fauser@example.com", "correctpass1")
+	authedCtx := withGraphQLUserContext(context.Background(), user)
+
+	t.Run("not enabled is rejected", func(t *testing.T) {
+		_, err := m.VerifyUserTwoFactor(authedCtx, "123456")
+		if err == nil || err.Error() != "two-factor authentication is not enabled" {
+			t.Fatalf("err = %v, want %q", err, "two-factor authentication is not enabled")
+		}
+	})
+
+	if _, err := ddb.Users.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, user.ID); err != nil {
+		t.Fatalf("enable 2fa: %v", err)
+	}
+
+	t.Run("invalid code is rejected", func(t *testing.T) {
+		_, err := m.VerifyUserTwoFactor(authedCtx, "000000")
+		if err == nil || err.Error() != "invalid verification code" {
+			t.Fatalf("err = %v, want %q", err, "invalid verification code")
+		}
+	})
+
+	t.Run("happy path with a valid code", func(t *testing.T) {
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+		result, err := m.VerifyUserTwoFactor(authedCtx, code)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil || !result.Success {
+			t.Fatalf("result = %+v, want Success = true", result)
+		}
+	})
+}
+
+// --- RegenerateUserRecoveryKeys ------------------------------------------------
+
+func TestMutationResolver_RegenerateUserRecoveryKeys(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	secret := "JBSWY3DPEHPK3PXP"
+	user := seedGraphQLUser(t, ddb, "regenkeysuser", "regenkeysuser@example.com", "correctpass1")
+	authedCtx := withGraphQLUserContext(context.Background(), user)
+
+	t.Run("not enabled is rejected", func(t *testing.T) {
+		_, err := m.RegenerateUserRecoveryKeys(authedCtx, "123456")
+		if err == nil || err.Error() != "two-factor authentication is not enabled" {
+			t.Fatalf("err = %v, want %q", err, "two-factor authentication is not enabled")
+		}
+	})
+
+	if _, err := ddb.Users.Exec(`UPDATE user_accounts SET two_factor_enabled = 1, two_factor_secret = ? WHERE id = ?`, secret, user.ID); err != nil {
+		t.Fatalf("enable 2fa: %v", err)
+	}
+	if _, err := (&models.RecoveryKeyModel{DB: ddb.Users}).GenerateRecoveryKeys(int(user.ID)); err != nil {
+		t.Fatalf("seed initial recovery keys: %v", err)
+	}
+
+	t.Run("invalid code is rejected", func(t *testing.T) {
+		_, err := m.RegenerateUserRecoveryKeys(authedCtx, "000000")
+		if err == nil || err.Error() != "invalid verification code" {
+			t.Fatalf("err = %v, want %q", err, "invalid verification code")
+		}
+	})
+
+	t.Run("happy path regenerates keys", func(t *testing.T) {
+		before, err := (&models.RecoveryKeyModel{DB: ddb.Users}).GetUnusedKeysCount(int(user.ID))
+		if err != nil {
+			t.Fatalf("count recovery keys before: %v", err)
+		}
+
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+		result, err := m.RegenerateUserRecoveryKeys(authedCtx, code)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result == nil || len(result.RecoveryKeys) == 0 {
+			t.Fatalf("result = %+v, want a non-empty set of recovery keys", result)
+		}
+
+		after, err := (&models.RecoveryKeyModel{DB: ddb.Users}).GetUnusedKeysCount(int(user.ID))
+		if err != nil {
+			t.Fatalf("count recovery keys after: %v", err)
+		}
+		if after != before {
+			t.Fatalf("unused recovery key count = %d, want unchanged at %d (old keys replaced 1:1)", after, before)
+		}
+	})
+}
+
+// --- UpdateUserAvatar / ResetUserAvatar -----------------------------------------
+
+func TestMutationResolver_UpdateUserAvatar(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	user := seedGraphQLUser(t, ddb, "avatarupdateuser", "avatarupdateuser@example.com", "correctpass1")
+	authedCtx := context.WithValue(context.Background(), ctxKeyUserID, int(user.ID))
+
+	t.Run("invalid avatar type is rejected", func(t *testing.T) {
+		_, err := m.UpdateUserAvatar(authedCtx, "not-a-real-type", nil)
+		if err == nil || err.Error() != "avatar type must be one of: gravatar, url" {
+			t.Fatalf("err = %v, want %q", err, "avatar type must be one of: gravatar, url")
+		}
+	})
+
+	t.Run("url type without a url is rejected", func(t *testing.T) {
+		_, err := m.UpdateUserAvatar(authedCtx, "url", nil)
+		if err == nil || err.Error() != "url is required for url avatar type" {
+			t.Fatalf("err = %v, want %q", err, "url is required for url avatar type")
+		}
+	})
+
+	t.Run("non-https url is rejected", func(t *testing.T) {
+		insecure := "http://example.com/avatar.png"
+		_, err := m.UpdateUserAvatar(authedCtx, "url", &insecure)
+		if err == nil || err.Error() != "avatar url must use HTTPS" {
+			t.Fatalf("err = %v, want %q", err, "avatar url must use HTTPS")
+		}
+	})
+
+	t.Run("happy path with url type", func(t *testing.T) {
+		secureURL := "https://example.com/avatar.png"
+		avatar, err := m.UpdateUserAvatar(authedCtx, "url", &secureURL)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if avatar == nil || avatar.Type != "url" {
+			t.Fatalf("avatar = %+v, want Type = %q", avatar, "url")
+		}
+	})
+
+	t.Run("happy path with gravatar type", func(t *testing.T) {
+		avatar, err := m.UpdateUserAvatar(authedCtx, "gravatar", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if avatar == nil || avatar.Type != "gravatar" {
+			t.Fatalf("avatar = %+v, want Type = %q", avatar, "gravatar")
+		}
+	})
+}
+
+func TestMutationResolver_ResetUserAvatar(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
+
+	user := seedGraphQLUser(t, ddb, "avatarresetuser", "avatarresetuser@example.com", "correctpass1")
+	authedCtx := context.WithValue(context.Background(), ctxKeyUserID, int(user.ID))
+
+	secureURL := "https://example.com/avatar.png"
+	if _, err := m.UpdateUserAvatar(authedCtx, "url", &secureURL); err != nil {
+		t.Fatalf("seed a url avatar: %v", err)
+	}
+
+	result, err := m.ResetUserAvatar(authedCtx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || !result.Success {
+		t.Fatalf("result = %+v, want Success = true", result)
+	}
+
+	var avatarType string
+	var avatarURL sql.NullString
+	if err := ddb.Users.QueryRow(`SELECT avatar_type, avatar_url FROM user_accounts WHERE id = ?`, user.ID).Scan(&avatarType, &avatarURL); err != nil {
+		t.Fatalf("query avatar columns: %v", err)
+	}
+	if avatarType != "gravatar" {
+		t.Fatalf("avatar_type = %q, want %q", avatarType, "gravatar")
+	}
+	if avatarURL.Valid {
+		t.Fatalf("avatar_url = %q, want NULL after reset", avatarURL.String)
+	}
 }
