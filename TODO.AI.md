@@ -755,6 +755,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     issue, not a code defect); tracked separately as item 46. **Item 16
     is now DONE** — repo-wide filtered coverage clears the ≥60% AI.md
     PART 26/29 gate at the current `main` HEAD.
+    Post-push CI verification (2026-08-06), commit `927847046afa`
+    (TODO.AI.md-only doc commit closing out this item): `CI` and
+    `Daily Build` both showed `conclusion: failure`. Per-job breakdown
+    confirmed both failures are isolated to single jobs — `CI`'s
+    `secret-scan` and `Daily Build`'s `build (freebsd, amd64)` — both
+    failing at the "Set up job" step with the identical cause: GitHub's
+    own Actions action-resolution service returning `Service Unavailable`/
+    `Internal Server Error` when fetching pinned-SHA third-party actions
+    (`actions/checkout@9c091bb2...`, `trufflesecurity/trufflehog@00155c9d...`),
+    a transient GitHub-side outage, not a defect in this project's code,
+    workflow YAML, or SHA pins. All other jobs in both runs succeeded,
+    including `CI`'s `test` job (the coverage gate), reconfirming the
+    60.2% coverage fix holds. No code/workflow change made for this;
+    logged here as the closing verification note per the mandatory
+    Post-Push CI Verification rule.
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
