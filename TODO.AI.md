@@ -250,8 +250,8 @@ any of the above: `src/graphql/context_keys_test.go`,
     (authz — allowlist context-key pattern at line 17914 confirmed this is
     the spec's own idiom), PART 34 (multi-user roles).
 
-16. TODO (diagnosed 2026-07-31 after item 8/13's fix push, updated
-    2026-08-02): CI's `test` job "Enforce coverage threshold" step
+16. DONE (2026-08-06, diagnosed 2026-07-31 after item 8/13's fix push,
+    updated 2026-08-02): CI's `test` job "Enforce coverage threshold" step
     (`ci.yml`, 60% gate on `coverage.filtered.out`) was failing post-push
     (`coverage 50% < threshold 60%`, run 30650961406) — a pre-existing,
     long-standing gap, not a regression from item 8/13's changes.
@@ -709,6 +709,52 @@ any of the above: `src/graphql/context_keys_test.go`,
     package (5.0%, Phase-2-only). A further coverage pass is in progress
     for `src/graphql` Query resolvers and `src/server/handler`'s
     remaining low-coverage functions.
+    DONE (2026-08-06): a dispatched test-writer subagent added
+    `src/graphql/schema.resolvers_query_test.go` (~31 test functions
+    covering the previously guard-only-tested Query resolvers —
+    CurrentUser*, Admin* listing, SavedLocations, Notifications,
+    weather/geo/astronomy) and a second round of
+    `src/server/handler` test files (`admin_admins_test.go`,
+    `admin_logging_test.go`, `admin_logs_format_test.go`,
+    `admin_metrics_test.go`). Reviewing the new test file's own
+    explanatory comment for the `AdminPasskeys` case surfaced a genuine
+    defense-in-depth gap: `AdminPasskeys` (Query resolver,
+    `schema.resolvers.go`) read only `ctxKeyAdminID` via
+    `loadGraphQLCurrentAdmin`, never checking `ctxKeyUserRole == "admin"`
+    the way every other `Admin*` query resolver does (see `AdminUsers`
+    for the reference pattern) — masked in production only because
+    `withGraphQLAdminValues` always sets both context keys together, but
+    a real inconsistency if any other code path ever composed a context
+    with a valid `ctxKeyAdminID` paired with a non-"admin"
+    `ctxKeyUserRole`. Fixed directly by adding the missing role check
+    (matching `AdminUsers`'s pattern) rather than merely documenting it.
+    Committed as 5 separate commits (fix-completeness + one-commit-per-
+    finding convention): `fc8a13218e4f` (unrelated pre-existing
+    `user_settings.go` NULL-scan production bug, found and fixed while
+    reviewing this batch), `70e651732d3b` (a second unrelated production
+    bug: `AdminUpdateChannel`/`AdminChannels`/
+    `loadGraphQLNotificationChannel` queried the wrong table name,
+    `notification_channels` instead of the actual schema table
+    `server_notification_channels`), `5f46a9b763b2` (the `AdminPasskeys`
+    role-check fix above), `3b3069eb8f5b` (the new
+    `schema.resolvers_query_test.go` file), `7ae4c09d905e` (the second
+    round of `src/server/handler` test files). Repo-wide filtered
+    coverage, verified via Docker `go test -coverprofile` + the SPEC.md
+    filter at the final commit: **60.2%** — clears the 60% CI gate.
+    Post-push CI verification: commits 2 and 4 (intermediate points in
+    the 5-commit split, before all new test files had landed) each
+    individually measured below 60% (58% and 59% respectively) and
+    failed the "CI" workflow's coverage-threshold step — expected/
+    self-resolving, since coverage rose monotonically once every test
+    file in the set had landed; the final commit's "CI" run passed
+    (confirmed 2026-08-06 via `gh run list --commit
+    7ae4c09d905e0380704ea41a53b1753b577bea46`: `CI` status=completed,
+    conclusion=success). Commit 2 also showed a "Docker Build" failure,
+    confirmed unrelated to this change set — a `403 Forbidden` from
+    `ghcr.io` on the AIO image's blob push (registry auth/permission
+    issue, not a code defect); tracked separately as item 46. **Item 16
+    is now DONE** — repo-wide filtered coverage clears the ≥60% AI.md
+    PART 26/29 gate at the current `main` HEAD.
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
@@ -1420,3 +1466,60 @@ any of the above: `src/graphql/context_keys_test.go`,
     AI.md PART 10 (database) before fixing; likely fix is comparing
     against a Go-computed UTC timestamp parameter instead of SQLite's
     own `now`, or normalizing both sides to the same format/precision.
+
+46. TODO (flagged 2026-08-06, discovered via Post-Push CI Verification
+    while closing out item 16): pushing commit `70e651732d3b` triggered
+    a "Docker Build" workflow failure on the `-aio` (all-in-one) image's
+    push step: `failed to push ghcr.io/webappsgo/wthr:70e6517-aio:
+    unexpected status from HEAD request to https://ghcr.io/v2/
+    webappsgo/wthr/blobs/sha256:...: 403 Forbidden`. This occurred after
+    a full, successful multi-arch build (amd64 + arm64, ~570-975s each)
+    — the failure is specifically on the registry push (blob HEAD
+    check), not the build itself, so it looks like a `GITHUB_TOKEN`
+    `packages: write` permission gap or a transient `ghcr.io` issue
+    rather than a code defect. Not investigated further this pass since
+    it's unrelated to the coverage/resolver work item 16 was tracking.
+    Needs: check `docker.yml`'s job-level `permissions:` block for
+    `packages: write`, and whether the failure reproduces on a fresh
+    push (transient vs. persistent). Read: AI.md PART 27/28 (Docker
+    image build/push) before starting.
+
+47. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
+    commits): `src/main.go` is missing the build-info `var` declarations
+    (`Version`, `CommitID`, `BuildDate`) that binary-rules.md/AI.md
+    PART 8 require `-ldflags -X main.X=...` to target — confirm whether
+    they're declared elsewhere (e.g. a generated file) or genuinely
+    absent, and add them if absent. Read: AI.md PART 8 before starting.
+
+48. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
+    commits): `src/server/handler/health_comprehensive.go` line 318
+    reads `release.txt` at runtime via `os.ReadFile` instead of
+    embedding it via `go:embed`, inconsistent with the project's
+    single-self-contained-binary requirement (AI.md PART 1/8 —
+    zero-config, no external file dependencies at runtime for anything
+    that ships in the repo). Read: AI.md PART 8 before starting.
+
+49. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
+    commits): `src/graphql/schema.resolvers.go` line 1912 has an inline
+    trailing comment (`// Use admin1 as region`) — AI.md/ai-rules.md
+    requires comments always ABOVE the code, never inline. Move it to
+    its own line above the assignment. Read: AI.md PART 0 (comment
+    placement) before starting.
+
+50. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
+    commits): two Makefile/CI drifts found during this pass's lint
+    review, out of scope for item 16's coverage work:
+    - `Makefile` lines 214-215: the `test` target's
+      `mkdir -p $(GO_CACHE) $(GO_BUILD)` cache-dir guard is not the
+      first recipe line, inconsistent with the pattern established by
+      item 34's Makefile fixes (guard should run before any other
+      recipe step that might depend on those dirs existing).
+    - `.gitlab-ci.yml`: 5 issues — line 9 hardcodes
+      `PROJECTNAME="weather"` (should be `wthr`, inferred from git
+      remote per PART 3, not hardcoded); line 11 sets `GOFLAGS=""`
+      (should be omitted or `-buildvcs=false` per the GO_DOCKER
+      pattern); line 14 uses `image: golang:alpine` (should be
+      `casjaysdev/go:latest` per PART 26/28); lines 53-54's `go build`
+      is missing the `-buildvcs=false -trimpath` flags used everywhere
+      else in the project's build tooling.
+    Read: AI.md PART 26 (Makefile) and PART 28 (CI/CD) before starting.
