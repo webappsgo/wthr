@@ -3045,6 +3045,11 @@ func (r *queryResolver) AdminSMTPProviders(ctx context.Context) ([]*SMTPProvider
 // AdminPasskeys is the resolver for the adminPasskeys field.
 // Returns the passkeys registered for the currently authenticated admin.
 func (r *queryResolver) AdminPasskeys(ctx context.Context) ([]*AdminPasskey, error) {
+	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
+	if !ok || userRole != "admin" {
+		return nil, fmt.Errorf("unauthorized: admin access required")
+	}
+
 	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
 	if err != nil {
 		return nil, err
