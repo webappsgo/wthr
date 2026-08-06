@@ -770,6 +770,19 @@ any of the above: `src/graphql/context_keys_test.go`,
     60.2% coverage fix holds. No code/workflow change made for this;
     logged here as the closing verification note per the mandatory
     Post-Push CI Verification rule.
+    Follow-up (2026-08-06, commit `3d29ec50c000`, this TODO note itself):
+    a second, broader wave of failures hit `CI` (`test`, `lint`,
+    `image-scan` jobs), `Daily Build` (`build windows/amd64`), and
+    `Docker Build` (`build-standard`, cancelling `build-aio`) — all
+    failing at the identical "Set up job" → action-resolution step.
+    Confirmed via `https://www.githubstatus.com/api/v2/incidents/
+    unresolved.json`: GitHub has an active, unresolved "Incident with
+    Actions" (critical impact, partial outage, started 2026-08-06
+    15:22:49 UTC, status `investigating` as of 16:19:30 UTC) — this is
+    the root cause of both waves of failures on this session's pushes,
+    confirmed externally rather than assumed. No code/workflow change
+    needed; will re-run the affected workflow runs once GitHub resolves
+    the incident to restore a green record.
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
