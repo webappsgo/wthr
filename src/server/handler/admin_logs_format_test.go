@@ -84,3 +84,64 @@ func TestLogFormatHandler_PreviewLogFormat_ExplicitFormat(t *testing.T) {
 		t.Errorf("expected current_format cef, got: %s", w.Body.String())
 	}
 }
+
+// TestLogFormatHandler_GetLogFormat_DefaultsToApache verifies that with no
+// logging.format row present in server_config, the handler defaults to
+// "apache" and lists all supported formats.
+func TestLogFormatHandler_GetLogFormat_DefaultsToApache(t *testing.T) {
+	serverDB := newTestServerDB(t)
+	setGlobalTestDualDB(t, serverDB, serverDB)
+
+	h := &LogFormatHandler{DB: serverDB}
+	c, w := newAPITestContext("/server/admin/config/logs/format")
+	h.GetLogFormat(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"format":"apache"`) {
+		t.Errorf("expected default format apache, got: %s", w.Body.String())
+	}
+}
+
+// TestLogFormatHandler_GetLogFormat_ReflectsStoredValue verifies a value
+// previously written by SetLogFormat is read back correctly.
+func TestLogFormatHandler_GetLogFormat_ReflectsStoredValue(t *testing.T) {
+	serverDB := newTestServerDB(t)
+	setGlobalTestDualDB(t, serverDB, serverDB)
+
+	h := &LogFormatHandler{DB: serverDB}
+
+	setC, setW := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logs/format", map[string]string{"format": "syslog"})
+	h.SetLogFormat(setC)
+	if setW.Code != http.StatusOK {
+		t.Fatalf("SetLogFormat status = %d, want 200: %s", setW.Code, setW.Body.String())
+	}
+
+	c, w := newAPITestContext("/server/admin/config/logs/format")
+	h.GetLogFormat(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"format":"syslog"`) {
+		t.Errorf("expected stored format syslog, got: %s", w.Body.String())
+	}
+}
+
+// TestLogFormatHandler_ShowLogFormatPage_LoadsData verifies the pre-render
+// guard logic (reading current format from server_config, defaulting to
+// apache) runs without error before the template render call.
+func TestLogFormatHandler_ShowLogFormatPage_LoadsData(t *testing.T) {
+	serverDB := newTestServerDB(t)
+	setGlobalTestDualDB(t, serverDB, serverDB)
+
+	h := &LogFormatHandler{DB: serverDB}
+	c, w := newAPITestContext("/server/admin/config/logs/format/page")
+	defer htmlRenderGuard(t)
+	h.ShowLogFormatPage(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+}

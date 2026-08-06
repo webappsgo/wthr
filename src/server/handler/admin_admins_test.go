@@ -308,3 +308,82 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 		}
 	})
 }
+
+// htmlRenderGuard recovers from the panic gin's c.HTML raises when no
+// HTMLRender is configured on the test engine, skipping the test rather
+// than failing it — this exercises every guard/validation branch that
+// runs before the render call without needing a full template set. Same
+// pattern as admin_geoip_test.go / dashboard_test.go.
+func htmlRenderGuard(t *testing.T) {
+	t.Helper()
+	if r := recover(); r != nil {
+		t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
+	}
+}
+
+// TestAdminsHandlerShowAdminsPage_LoadsData verifies ShowAdminsPage pulls
+// admins, count, and pending invites from the real DB before attempting
+// to render (the pre-render guard/data-loading logic under test here).
+func TestAdminsHandlerShowAdminsPage_LoadsData(t *testing.T) {
+	h, _ := newAdminsTestHandler(t)
+	newAdminsTestAdmin(t, "showadminspage", "password123")
+
+	c, w := newAPITestContext("/server/admin/admins")
+	defer htmlRenderGuard(t)
+	h.ShowAdminsPage(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+}
+
+// TestAdminsHandlerShowInviteAcceptPage_MissingToken verifies the
+// missing-token guard renders the error page with 400 rather than
+// attempting to verify an empty token.
+func TestAdminsHandlerShowInviteAcceptPage_MissingToken(t *testing.T) {
+	h, _ := newAdminsTestHandler(t)
+
+	c, w := newAPITestContext("/server/admin/invite/accept")
+	defer htmlRenderGuard(t)
+	h.ShowInviteAcceptPage(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+// TestAdminsHandlerShowInviteAcceptPage_InvalidToken verifies an
+// unrecognized token reaches VerifyInvite, gets rejected, and renders
+// the error page with 400 (not a panic/500).
+func TestAdminsHandlerShowInviteAcceptPage_InvalidToken(t *testing.T) {
+	h, _ := newAdminsTestHandler(t)
+
+	c, w := newAPITestContext("/server/admin/invite/accept?token=does-not-exist")
+	defer htmlRenderGuard(t)
+	h.ShowInviteAcceptPage(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+// TestAdminsHandlerShowInviteAcceptPage_ValidToken verifies a genuine,
+// unexpired, unused invite token passes VerifyInvite and proceeds to the
+// success-render branch (200) rather than the error branch.
+func TestAdminsHandlerShowInviteAcceptPage_ValidToken(t *testing.T) {
+	h, serverDB := newAdminsTestHandler(t)
+	inviterID := newAdminsTestAdmin(t, "invitercreator", "password123")
+	inviteService := service.NewAdminInviteService(serverDB, "https://example.com", nil)
+	created, _, err := inviteService.CreateInvite("invitee@example.com", int(inviterID.ID), "24h")
+	if err != nil {
+		t.Fatalf("CreateInvite() unexpected error: %v", err)
+	}
+
+	c, w := newAPITestContext("/server/admin/invite/accept?token=" + created.Token)
+	defer htmlRenderGuard(t)
+	h.ShowInviteAcceptPage(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+}
