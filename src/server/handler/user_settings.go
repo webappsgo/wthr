@@ -263,19 +263,26 @@ func ApplyUserSettingsUpdate(db *sql.DB, userID int64, req *UpdateSettingsReques
 
 func (h *UserSettingsHandler) loadSettings(userID int64) (*UserSettingsResponse, error) {
 	user := &models.User{}
+	var displayName, bio, location, website, timezone, language sql.NullString
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, email, username, display_name, bio, location, website, timezone, language,
 		       role, visibility, is_active, email_verified, created_at, updated_at
 		FROM user_accounts
 		WHERE id = ?
 	`, userID).Scan(
-		&user.ID, &user.Email, &user.Username, &user.DisplayName, &user.Bio, &user.Location,
-		&user.Website, &user.Timezone, &user.Language, &user.Role, &user.Visibility,
+		&user.ID, &user.Email, &user.Username, &displayName, &bio, &location,
+		&website, &timezone, &language, &user.Role, &user.Visibility,
 		&user.IsActive, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+	user.DisplayName = displayName.String
+	user.Bio = bio.String
+	user.Location = location.String
+	user.Website = website.String
+	user.Timezone = timezone.String
+	user.Language = language.String
 
 	prefs, err := h.getOrCreatePreferences(userID)
 	if err != nil {
