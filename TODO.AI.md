@@ -783,6 +783,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     confirmed externally rather than assumed. No code/workflow change
     needed; will re-run the affected workflow runs once GitHub resolves
     the incident to restore a green record.
+    Resolution (2026-08-06): GitHub's "Incident with Actions" resolved.
+    Reran the affected jobs: `CI` and `Daily Build` for commit
+    `3d29ec50c000` now show `conclusion: success`, and `Docker Build`
+    (`31117871092`) completed `success`. `CI`/`Daily Build` reruns
+    for commit `927847046afa` (`31116070509`/`31116070803`) came back
+    `cancelled` — expected, since `main`'s concurrency group
+    (`cancel-in-progress`) superseded them with the newer commit's own
+    runs; that commit's `Docker Build` (`31116071317`) had already
+    completed `success` before the outage. This commit's own push (this
+    TODO edit) restores a normal push-triggered CI run for current
+    `HEAD`, since the prior `cf3d3b38af58` push produced zero check runs
+    (silently dropped by GitHub during the outage, confirmed via
+    `commits/{sha}/check-runs` returning empty and `.../status` showing
+    `pending`). Item 16 and the full post-push CI verification loop are
+    now closed with a green record.
 
 17. DONE (2026-08-02): removed emoji from every `log.Print*`/`log.Fatal*`/
     `log.Panic*` call across the repo (log output must be raw plain text per
