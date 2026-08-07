@@ -1019,22 +1019,48 @@
   const Theme = {
     // Available themes: dark (default), light, auto
     THEMES: ['dark', 'light', 'auto'],
+    COOKIE_NAME: 'theme',
 
     /**
-     * Get current theme from localStorage
+     * Read a cookie value by name (AI.md PART 16: theme preference is
+     * persisted server-readable in the theme cookie, never localStorage)
      */
-    get: function() {
-      return localStorage.getItem('theme') || 'dark';
+    getCookie: function(name) {
+      var match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+      return match ? decodeURIComponent(match[1]) : null;
     },
 
     /**
-     * Set theme and persist to localStorage
+     * Write the theme cookie - mirrors what SetThemeHandler (POST /theme)
+     * would set server-side, so the class swaps instantly without a
+     * reload while staying server-readable on the next navigation
+     */
+    setCookie: function(theme) {
+      var secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = this.COOKIE_NAME + '=' + encodeURIComponent(theme) +
+        '; path=/; max-age=31536000; SameSite=Strict' + secure;
+    },
+
+    /**
+     * Get current theme from the server-readable theme cookie. The
+     * server already rendered the correct theme-* class on <html> from
+     * this same cookie (or the DB preference) with zero JS - this getter
+     * exists only so client-side JS enhancements (toggle/cycle) know the
+     * current selection.
+     */
+    get: function() {
+      var cookieTheme = this.getCookie(this.COOKIE_NAME);
+      return this.THEMES.includes(cookieTheme) ? cookieTheme : 'dark';
+    },
+
+    /**
+     * Set theme and persist to the theme cookie (server-readable)
      */
     set: function(theme) {
       if (!this.THEMES.includes(theme)) {
         theme = 'dark';
       }
-      localStorage.setItem('theme', theme);
+      this.setCookie(theme);
       this.apply(theme);
       Utils.dispatchEvent('theme:changed', { theme });
     },
@@ -1049,7 +1075,7 @@
       }
       document.documentElement.className = 'theme-' + effectiveTheme;
       // Update theme-color meta tag
-      var themeColor = effectiveTheme === 'dark' ? '#1a1b26' : '#ffffff';
+      var themeColor = effectiveTheme === 'dark' ? '#282a36' : '#ffffff';
       var metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
         metaThemeColor.setAttribute('content', themeColor);

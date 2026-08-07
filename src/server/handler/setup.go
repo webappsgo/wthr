@@ -27,9 +27,9 @@ type SetupHandler struct {
 // ShowSetupTokenEntry shows the setup token entry form
 // AI.md: First step of setup - user must enter setup token displayed in console
 func (h *SetupHandler) ShowSetupTokenEntry(c *gin.Context) {
-	c.HTML(http.StatusOK, "page/setup_token.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_token.tmpl", util.TemplateData(c, gin.H{
 		"Title": "Server Setup - Enter Setup Token",
-	})
+	}))
 }
 
 // VerifySetupTokenAtAdmin handles setup token verification at /server/admin/verify-token
@@ -49,14 +49,14 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 
 	setupToken := c.PostForm("setup_token")
 	if setupToken == "" {
-		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", util.TemplateData(c, gin.H{
 			"title":      title + " - Setup",
 			"admin_path": adminPath,
 			"branding": gin.H{
 				"Title": title,
 			},
 			"error": "Setup token is required",
-		})
+		}))
 		return
 	}
 
@@ -64,26 +64,26 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 	configDir := path.GetConfigDir()
 	valid, err := util.ValidateSetupToken(configDir, setupToken)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "admin/setup_token.tmpl", util.TemplateData(c, gin.H{
 			"title":      title + " - Setup",
 			"admin_path": adminPath,
 			"branding": gin.H{
 				"Title": title,
 			},
 			"error": "Setup token not found or already used",
-		})
+		}))
 		return
 	}
 
 	if !valid {
-		c.HTML(http.StatusUnauthorized, "admin/setup_token.tmpl", gin.H{
+		c.HTML(http.StatusUnauthorized, "admin/setup_token.tmpl", util.TemplateData(c, gin.H{
 			"title":      title + " - Setup",
 			"admin_path": adminPath,
 			"branding": gin.H{
 				"Title": title,
 			},
 			"error": "Invalid setup token",
-		})
+		}))
 		return
 	}
 
@@ -148,9 +148,9 @@ func (h *SetupHandler) ShowAdminSetup(c *gin.Context) {
 		title = cfg.Server.Branding.Title
 	}
 
-	c.HTML(http.StatusOK, "page/setup_admin.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_admin.tmpl", util.TemplateData(c, gin.H{
 		"Title": "Create Administrator - " + title,
-	})
+	}))
 }
 
 // setupError renders error for form submissions or returns JSON for API
@@ -169,10 +169,10 @@ func (h *SetupHandler) setupError(c *gin.Context, status int, errorMsg string) {
 		title = cfg.Server.Branding.Title
 	}
 
-	c.HTML(status, "page/setup_admin.tmpl", gin.H{
+	c.HTML(status, "page/setup_admin.tmpl", util.TemplateData(c, gin.H{
 		"Title": "Create Administrator - " + title,
 		"error": errorMsg,
-	})
+	}))
 }
 
 // CreateAdmin creates the Primary Admin account
@@ -437,12 +437,12 @@ func (h *SetupHandler) ShowAPIToken(c *gin.Context) {
 	generatedPassword, _ := c.Cookie("setup_generated_password")
 	username, _ := c.Cookie("setup_username")
 
-	c.HTML(http.StatusOK, "page/setup_api_token.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_api_token.tmpl", util.TemplateData(c, gin.H{
 		"Title":             "API Token - " + title,
 		"APIToken":          apiToken,
 		"GeneratedPassword": generatedPassword,
 		"Username":          username,
-	})
+	}))
 }
 
 // ProcessAPIToken handles acknowledgment of API token (Step 2 → Step 3)
@@ -480,13 +480,13 @@ func (h *SetupHandler) ShowServerConfig(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "page/setup_server_config.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_server_config.tmpl", util.TemplateData(c, gin.H{
 		"Title":           "Server Configuration - " + title,
 		"DefaultAppName":  title,
 		"DefaultDomain":   defaultDomain,
 		"DefaultMode":     defaultMode,
 		"DefaultTimezone": defaultTimezone,
-	})
+	}))
 }
 
 // ProcessServerConfig handles server configuration submission (Step 3 → Step 4)
@@ -499,10 +499,10 @@ func (h *SetupHandler) ProcessServerConfig(c *gin.Context) {
 	}
 
 	if err := c.ShouldBind(&input); err != nil {
-		c.HTML(http.StatusBadRequest, "page/setup_server_config.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/setup_server_config.tmpl", util.TemplateData(c, gin.H{
 			"Title": "Server Configuration",
 			"error": "Invalid form data",
-		})
+		}))
 		return
 	}
 
@@ -548,9 +548,9 @@ func (h *SetupHandler) ShowSecurity(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "page/setup_security.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_security.tmpl", util.TemplateData(c, gin.H{
 		"Title": "Security Settings - " + title,
-	})
+	}))
 }
 
 // ProcessSecurity handles security settings submission (Step 4 → Step 5)
@@ -563,19 +563,19 @@ func (h *SetupHandler) ProcessSecurity(c *gin.Context) {
 	}
 
 	if err := c.ShouldBind(&input); err != nil {
-		c.HTML(http.StatusBadRequest, "page/setup_security.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(c, gin.H{
 			"Title": "Security Settings",
 			"error": "Invalid form data",
-		})
+		}))
 		return
 	}
 
 	// Validate backup password match
 	if input.BackupPassword != "" && input.BackupPassword != input.BackupPasswordConfirm {
-		c.HTML(http.StatusBadRequest, "page/setup_security.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(c, gin.H{
 			"Title": "Security Settings",
 			"error": "Backup passwords do not match",
-		})
+		}))
 		return
 	}
 
@@ -623,11 +623,11 @@ func (h *SetupHandler) ShowServices(c *gin.Context) {
 	var adminEmail string
 	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT email FROM server_admin_credentials LIMIT 1").Scan(&adminEmail)
 
-	c.HTML(http.StatusOK, "page/setup_services.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_services.tmpl", util.TemplateData(c, gin.H{
 		"Title":        "Optional Services - " + title,
 		"TorAvailable": torAvailable,
 		"AdminEmail":   adminEmail,
-	})
+	}))
 }
 
 // ProcessServices handles optional services submission (Step 5 → Step 6)
@@ -641,10 +641,10 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 	}
 
 	if err := c.ShouldBind(&input); err != nil {
-		c.HTML(http.StatusBadRequest, "page/setup_services.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/setup_services.tmpl", util.TemplateData(c, gin.H{
 			"Title": "Optional Services",
 			"error": "Invalid form data",
-		})
+		}))
 		return
 	}
 
@@ -714,10 +714,10 @@ func (h *SetupHandler) CompleteSetup(c *gin.Context) {
 		adminPath = "/server/" + parts[2]
 	}
 
-	c.HTML(http.StatusOK, "page/setup_complete.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/setup_complete.tmpl", util.TemplateData(c, gin.H{
 		"Title":     "Setup Complete - Weather",
 		"AdminPath": adminPath,
-	})
+	}))
 }
 
 // GetSetupStatus returns the current setup status as a healthz endpoint

@@ -639,9 +639,9 @@ func respondWithError(c *gin.Context, statusCode int, message string) {
 			}))
 		} else {
 			// Fallback to error page for other cases
-			c.HTML(statusCode, "page/error.tmpl", gin.H{
+			c.HTML(statusCode, "page/error.tmpl", util.TemplateData(c, gin.H{
 				"error": message,
-			})
+			}))
 		}
 	}
 }

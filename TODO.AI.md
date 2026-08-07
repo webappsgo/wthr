@@ -1566,3 +1566,35 @@ any of the above: `src/graphql/context_keys_test.go`,
       is missing the `-buildvcs=false -trimpath` flags used everywhere
       else in the project's build tooling.
     Read: AI.md PART 26 (Makefile) and PART 28 (CI/CD) before starting.
+
+51. TODO (flagged 2026-08-07 during the CSS/theming AI.md PART 16
+    compliance pass): `src/client/tui.go` defines a Dracula ANSI palette
+    (`colorBackground`/`colorForeground`/`colorSelection`/`colorComment`/
+    `colorCyan`/`colorGreen`/`colorPurple`/`colorRed`/`colorYellow` via
+    `lipgloss.Color`) that already matches the web dark theme's palette,
+    and `NO_COLOR` is respected automatically through lipgloss/termenv's
+    own color-profile detection (no extra code needed). What's missing:
+    there is no light-theme ANSI variant and no `--color`/theme-selection
+    wiring in the TUI to switch to it — the TUI is dark-only regardless of
+    the user's saved theme preference. Confirm whether AI.md PART 16/33
+    requires the TUI to honor light/auto in addition to dark before
+    building a `TerminalPalette` abstraction with both variants; if
+    required, mirror `src/common/theme/colors.go`'s light values into a
+    second lipgloss palette and select via the same theme-resolution
+    chain used elsewhere (cookie/DB pref -> `--color`/`--lang`-style flag
+    -> default dark). Read: AI.md PART 16 (Themes) and PART 33 (CLI)
+    before starting.
+
+52. TODO (flagged 2026-08-07 by the CSS-reconciliation pass, out of that
+    pass's scope since it's a Go/template-registration issue, not CSS):
+    two Go templates share the same effective name -
+    `src/server/template/admin/admin_web.tmpl` defines
+    `{{define "admin/admin-web.tmpl"}}` and
+    `src/server/template/page/admin_web.tmpl` also exists, while the
+    handler at `admin_web.go:66` renders the bare name `"admin_web.tmpl"`.
+    Confirm which of the two templates is actually being executed at
+    runtime (embed/template-registration order decides this ambiguously)
+    and rename one of the `{{define}}` blocks/files so the two no longer
+    collide - the wrong one silently winning would serve incorrect markup
+    with no build-time error. Read: AI.md PART 16/17 (frontend/admin
+    routing) before starting.

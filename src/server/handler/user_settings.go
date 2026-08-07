@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
@@ -248,6 +249,15 @@ func (h *UserSettingsHandler) UpdateSettings(c *gin.Context) {
 		}
 		return
 	}
+
+	// Mirror the saved DB theme preference into the theme cookie (AI.md
+	// PART 16) so the global InjectServerContext middleware, which only
+	// reads the cookie, renders the correct <html> class on the next
+	// request without a per-request DB lookup.
+	if req.Appearance != nil && req.Appearance.Theme != "" {
+		server.SetThemeCookie(c, req.Appearance.Theme)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
 }
 

@@ -343,12 +343,12 @@ Tip: Check status with:
 	// Browser gets HTML loading page
 	hostInfo := util.GetHostInfo(c)
 
-	c.HTML(http.StatusServiceUnavailable, "component/loading.tmpl", gin.H{
+	c.HTML(http.StatusServiceUnavailable, "component/loading.tmpl", util.TemplateData(c, gin.H{
 		"Title":    "Starting Up - Weather",
 		"Status":   status,
 		"Uptime":   uptime.String(),
 		"HostInfo": hostInfo,
-	})
+	}))
 }
 
 // Helper functions

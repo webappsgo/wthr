@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error - {{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</title>
     <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/template-overrides.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/public.css">
 </head>
 <body>
     <div class="error-container">

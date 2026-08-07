@@ -228,7 +228,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 		// Always use full detected location for clarity
 		displayLocation := locationName
 
-		c.HTML(http.StatusOK, "page/severe_weather.tmpl", gin.H{
+		c.HTML(http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(c, gin.H{
 			"Title":          "Severe Weather Alerts",
 			"page":           "severe-weather",
 			"Data":           data,
@@ -243,7 +243,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 			"TypeFilter":     typeFilter,
 			"HasLocation":    latitude != 0 && longitude != 0,
 			"HostInfo":       hostInfo,
-		})
+		}))
 	} else {
 		// Render console output
 		output := h.renderConsoleOutput(data, locationName)
@@ -436,7 +436,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 		// Always use full detected location for clarity
 		displayLocation := locationName
 
-		c.HTML(http.StatusOK, "page/severe_weather.tmpl", gin.H{
+		c.HTML(http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(c, gin.H{
 			"Title":          fmt.Sprintf("%s - Severe Weather Alerts", cases.Title(language.English).String(alertType)),
 			"page":           "severe-weather",
 			"Data":           filteredData,
@@ -451,7 +451,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 			"TypeFilter":     strings.ToLower(alertType),
 			"HasLocation":    latitude != 0 && longitude != 0,
 			"HostInfo":       hostInfo,
-		})
+		}))
 	} else {
 		// Render console output
 		output := h.renderConsoleOutput(filteredData, locationName)

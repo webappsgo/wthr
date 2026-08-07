@@ -609,13 +609,13 @@ func (h *WeatherHandler) handleMoonRequest(c *gin.Context, locationInput string)
 		moonData := moonService.Calculate(lat, lon, time.Now())
 
 		// Serve moon HTML page
-		c.HTML(http.StatusOK, "page/moon.tmpl", gin.H{
+		c.HTML(http.StatusOK, "page/moon.tmpl", util.TemplateData(c, gin.H{
 			"Title":    "Moon Phase",
 			"Location": location,
 			"Units":    units,
 			"HostInfo": hostInfo,
 			"MoonData": moonData,
-		})
+		}))
 		return
 	}
 

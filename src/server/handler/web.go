@@ -134,7 +134,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 	// Format location for URLs (replace spaces with +, keep commas)
 	locationFormatted := strings.ReplaceAll(location, " ", "+")
 
-	NegotiateResponse(c, "page/weather.tmpl", gin.H{
+	NegotiateResponse(c, "page/weather.tmpl", util.TemplateData(c, gin.H{
 		"Title":             "Weather",
 		"WeatherData":       weatherData,
 		"HostInfo":          hostInfo,
@@ -143,7 +143,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 		"Units":             units,
 		"Error":             errorMsg,
 		"HideFooter":        false,
-	})
+	}))
 }
 
 // ServeMoonInterface serves the moon phase interface
@@ -198,13 +198,13 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 
 	// If still no location, show empty moon page
 	if location == "" {
-		NegotiateResponse(c, "page/moon.tmpl", gin.H{
+		NegotiateResponse(c, "page/moon.tmpl", util.TemplateData(c, gin.H{
 			"Title":      "Moon Phase - Weather",
 			"HostInfo":   util.GetHostInfo(c),
 			"Location":   "",
 			"Units":      units,
 			"HideFooter": false,
-		})
+		}))
 		return
 	}
 
@@ -214,14 +214,14 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 
 	if err != nil {
-		NegotiateErrorResponse(c, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), gin.H{
+		NegotiateErrorResponse(c, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), util.TemplateData(c, gin.H{
 			"Title":      "Moon Phase - Weather",
 			"Error":      err.Error(),
 			"HostInfo":   util.GetHostInfo(c),
 			"Location":   location,
 			"Units":      units,
 			"HideFooter": false,
-		})
+		}))
 		return
 	}
 
@@ -282,7 +282,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	// This shows "Albany, NY" instead of just "Albany"
 	displayLocation := enhanced.ShortName
 
-	c.HTML(http.StatusOK, "page/moon.tmpl", gin.H{
+	c.HTML(http.StatusOK, "page/moon.tmpl", util.TemplateData(c, gin.H{
 		"Title":             "Moon Phase - " + enhanced.ShortName,
 		"MoonData":          moonData,
 		"HostInfo":          util.GetHostInfo(c),
@@ -290,7 +290,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 		"LocationFormatted": strings.ReplaceAll(enhanced.ShortName, " ", "+"),
 		"Units":             units,
 		"HideFooter":        false,
-	})
+	}))
 }
 
 // ServeExamplesPage serves the examples/documentation page

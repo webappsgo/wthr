@@ -13,6 +13,7 @@ import (
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // OIDCAuthHandler handles OIDC-based authentication per AI.md PART 34.
@@ -41,52 +42,52 @@ func (h *OIDCAuthHandler) StartLogin(c *gin.Context) {
 	provider := c.Param("provider")
 
 	if !h.OIDCService.Enabled() {
-		c.HTML(http.StatusServiceUnavailable, "page/oidc_redirect.tmpl", gin.H{
+		c.HTML(http.StatusServiceUnavailable, "page/oidc_redirect.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Login",
 			"provider": provider,
 			"error":    "OIDC authentication is not enabled.",
-		})
+		}))
 		return
 	}
 
 	cfg, err := h.OIDCService.GetProviderConfig(provider)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/oidc_redirect.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/oidc_redirect.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Login",
 			"provider": provider,
 			"error":    "Unknown OIDC provider.",
-		})
+		}))
 		return
 	}
 
 	state, err := service.GenerateState()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/oidc_redirect.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/oidc_redirect.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Login",
 			"provider": provider,
 			"error":    "Failed to generate state.",
-		})
+		}))
 		return
 	}
 
 	codeVerifier, err := service.GenerateCodeVerifier()
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/oidc_redirect.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/oidc_redirect.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Login",
 			"provider": provider,
 			"error":    "Failed to generate PKCE verifier.",
-		})
+		}))
 		return
 	}
 
 	redirectURL := buildOIDCCallbackURL(c, provider)
 	authURL, err := h.OIDCService.AuthURL(c.Request.Context(), provider, redirectURL, state, codeVerifier)
 	if err != nil {
-		c.HTML(http.StatusServiceUnavailable, "page/oidc_redirect.tmpl", gin.H{
+		c.HTML(http.StatusServiceUnavailable, "page/oidc_redirect.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Login",
 			"provider": provider,
 			"error":    "Failed to connect to identity provider. Please try again later.",
-		})
+		}))
 		return
 	}
 
@@ -113,43 +114,43 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 	provider := c.Param("provider")
 
 	if !h.OIDCService.Enabled() {
-		c.HTML(http.StatusServiceUnavailable, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusServiceUnavailable, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "OIDC authentication is not enabled.",
-		})
+		}))
 		return
 	}
 
 	// Verify state
 	expectedState, err := c.Cookie(oidcStateCookiePrefix + provider)
 	if err != nil || expectedState == "" {
-		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Missing or expired state. Please start the login process again.",
-		})
+		}))
 		return
 	}
 
 	receivedState := c.Query("state")
 	if receivedState != expectedState {
-		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "State mismatch. Please start the login process again.",
-		})
+		}))
 		return
 	}
 
 	// Get PKCE verifier
 	codeVerifier, err := c.Cookie(oidcPKCECookiePrefix + provider)
 	if err != nil || codeVerifier == "" {
-		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Missing PKCE verifier. Please start the login process again.",
-		})
+		}))
 		return
 	}
 
@@ -164,42 +165,42 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		if errDesc == "" {
 			errDesc = errParam
 		}
-		c.HTML(http.StatusUnauthorized, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusUnauthorized, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Authentication declined by identity provider: " + errDesc,
-		})
+		}))
 		return
 	}
 
 	code := c.Query("code")
 	if code == "" {
-		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusBadRequest, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "No authorization code received.",
-		})
+		}))
 		return
 	}
 
 	redirectURL := buildOIDCCallbackURL(c, provider)
 	claims, err := h.OIDCService.ExchangeAndVerify(c.Request.Context(), provider, redirectURL, code, codeVerifier)
 	if err != nil {
-		c.HTML(http.StatusUnauthorized, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusUnauthorized, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Authentication failed. Please try again.",
-		})
+		}))
 		return
 	}
 
 	cfg, err := h.OIDCService.GetProviderConfig(provider)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Provider configuration error.",
-		})
+		}))
 		return
 	}
 
@@ -215,11 +216,11 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 	if err == sql.ErrNoRows {
 		// New external account — provision if auto_register is enabled
 		if !cfg.AutoRegister {
-			c.HTML(http.StatusForbidden, "page/oidc_callback.tmpl", gin.H{
+			c.HTML(http.StatusForbidden, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 				"title":    "OIDC Callback",
 				"provider": provider,
 				"error":    "Automatic registration is disabled for this provider. Contact your administrator.",
-			})
+			}))
 			return
 		}
 
@@ -241,20 +242,20 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		// Generate a random unusable local password — OIDC users authenticate via OIDC only
 		randToken, err := models.GenerateSecureToken(32)
 		if err != nil {
-			c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+			c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 				"title":    "OIDC Callback",
 				"provider": provider,
 				"error":    "Failed to create account.",
-			})
+			}))
 			return
 		}
 		pwHash, err := models.HashPassword(randToken)
 		if err != nil {
-			c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+			c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 				"title":    "OIDC Callback",
 				"provider": provider,
 				"error":    "Failed to create account.",
-			})
+			}))
 			return
 		}
 
@@ -277,11 +278,11 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 				VALUES (?, ?, ?, ?, 'user', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			`, username, email, displayName, pwHash, emailVerified)
 			if err != nil {
-				c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+				c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 					"title":    "OIDC Callback",
 					"provider": provider,
 					"error":    "Failed to create account. Please contact your administrator.",
-				})
+				}))
 				return
 			}
 		}
@@ -295,11 +296,11 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		`, userID, provider, claims.Sub, cfg.Issuer, claims.Email, claims.Name)
 
 	} else if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Database error.",
-		})
+		}))
 		return
 	} else {
 		// Existing user — update last login and sync identity mapping
@@ -314,11 +315,11 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 			"SELECT is_active, is_banned FROM user_accounts WHERE id = ?", userID,
 		).Scan(&isActive, &isBanned)
 		if err != nil || !isActive || isBanned {
-			c.HTML(http.StatusForbidden, "page/oidc_callback.tmpl", gin.H{
+			c.HTML(http.StatusForbidden, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 				"title":    "OIDC Callback",
 				"provider": provider,
 				"error":    "Account is not available. Please contact your administrator.",
-			})
+			}))
 			return
 		}
 	}
@@ -327,11 +328,11 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 	sessionModel := &models.UserSessionModel{DB: usersDB}
 	session, err := sessionModel.CreateSession(userID, c.ClientIP(), c.Request.UserAgent(), 24*time.Hour)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 			"title":    "OIDC Callback",
 			"provider": provider,
 			"error":    "Failed to create session.",
-		})
+		}))
 		return
 	}
 

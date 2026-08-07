@@ -139,10 +139,13 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 		},
 	}
 
+	themeServerCtx, _ := middleware.GetServerContext(c)
+
 	c.HTML(http.StatusOK, "admin/admin_scheduler.tmpl", gin.H{
 		"title":  "Scheduler Configuration",
 		"user":   user,
 		"config": config,
+		"server": themeServerCtx,
 	})
 }
 

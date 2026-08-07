@@ -1,11 +1,13 @@
 {{define "admin/admin-tasks-enhanced.tmpl"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.title}}</title>
     <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
     <div class="admin-page-header">

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/model"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +18,8 @@ type ServerContext struct {
 	Version     string
 	// Current user language (AI.md PART 31)
 	Lang string
+	// Resolved theme class for <html> (AI.md PART 16): theme-dark/theme-light/theme-auto
+	ThemeClass string
 	// SEO fields per AI.md PART 16
 	Keywords      string
 	Author        string
@@ -66,6 +69,9 @@ func InjectServerContext(db *sql.DB, version string) gin.HandlerFunc {
 		verifyPinterest := settingsModel.GetString("seo.verification.pinterest", "")
 		verifyFacebook := settingsModel.GetString("seo.verification.facebook", "")
 
+		// Resolve theme per AI.md PART 16 Theme Detection Flow
+		themeMode := server.ResolveTheme(c)
+
 		// Create server context
 		serverCtx := ServerContext{
 			Title:           title,
@@ -73,6 +79,7 @@ func InjectServerContext(db *sql.DB, version string) gin.HandlerFunc {
 			Description:     description,
 			Version:         version,
 			Lang:            lang.(string),
+			ThemeClass:      server.ThemeClass(themeMode),
 			Keywords:        keywords,
 			Author:          author,
 			OGImage:         ogImage,
@@ -102,6 +109,7 @@ func GetServerContext(c *gin.Context) (ServerContext, bool) {
 			Description: "Weather information service",
 			Version:     "unknown",
 			Lang:        "en",
+			ThemeClass:  "theme-dark",
 			Keywords:    "weather, forecast, alerts",
 		}, false
 	}

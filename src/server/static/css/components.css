@@ -1,9 +1,140 @@
-/**
- * Notification System CSS
- * TEMPLATE.md Part 25 - Dracula Theme
- */
+/* Shared Components per AI.md PART 16 (modals, buttons, toasts) */
 
-/* Dracula Theme Colors */
+/* ========== MODAL / DIALOG (WCAG 2.1 AA) ========== */
+
+[role="dialog"],
+[role="alertdialog"] {
+    position: fixed;
+    z-index: 9999;
+}
+
+/* Modal backdrop */
+[role="dialog"]::before,
+[role="alertdialog"]::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+}
+
+/* ========== PASSWORD STRENGTH METER ========== */
+
+.password-strength {
+    margin-top: 0.5rem;
+    height: 4px;
+    background: var(--color-muted);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.password-strength-bar {
+    height: 100%;
+    width: 0%;
+    transition: all 0.3s ease;
+}
+
+.password-strength-bar.weak {
+    width: 33%;
+    background: var(--color-error);
+}
+
+.password-strength-bar.medium {
+    width: 66%;
+    background: var(--color-warning);
+}
+
+.password-strength-bar.strong {
+    width: 100%;
+    background: var(--color-success);
+}
+
+/* ========== SEARCH RESULTS DROPDOWN ========== */
+
+.results-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: var(--z-dropdown);
+    box-shadow: var(--shadow-lg);
+}
+
+.results-dropdown.active {
+    display: block;
+}
+
+.result-item {
+    padding: var(--space-md);
+    cursor: pointer;
+    border-bottom: 1px solid var(--color-bg);
+    transition: all 0.2s ease;
+}
+
+.result-item:hover {
+    background: var(--color-primary);
+    color: var(--color-bg);
+}
+
+.result-item:last-child {
+    border-bottom: none;
+}
+
+.result-city {
+    font-weight: 700;
+    color: var(--color-info);
+}
+
+.result-item:hover .result-city {
+    color: var(--color-bg);
+}
+
+.result-details {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+    margin-top: var(--space-xs);
+}
+
+.result-item:hover .result-details {
+    color: var(--color-bg);
+    opacity: 0.8;
+}
+
+/* ========== NOTICE BOXES (info / warning) ========== */
+/* NOTE: this generic .info-box name collides with the moon/sun BEM */
+/* .info-box component defined in common.css (.info-box__title etc). */
+/* In the pre-reorg code, template-overrides.css loaded globally after */
+/* common.css and already overrode the BEM version site-wide; loading */
+/* components.css after common.css here preserves that exact cascade. */
+.info-box, .warning-box {
+    padding: 1rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+    line-height: 1.6;
+}
+
+.info-box {
+    background: rgba(189, 147, 249, 0.1);
+    border-left: 3px solid var(--color-primary);
+}
+
+.warning-box {
+    background: rgba(255, 85, 85, 0.1);
+    border-left: 3px solid var(--color-error);
+}
+
+/* ========== TOAST NOTIFICATIONS ========== */
+
+/* Dracula Theme Colors (notification component palette) */
 :root {
     --notif-bg-dark: #282a36;
     --notif-bg-darker: #1e1f28;
@@ -18,8 +149,6 @@
     --notif-yellow: #f1fa8c;
     --notif-selection: #44475a;
 }
-
-/* ========== TOAST NOTIFICATIONS ========== */
 
 .notification-toast-container {
     position: fixed;
@@ -659,17 +788,4 @@
 .notification-center-item-actions button:focus {
     outline: 2px solid var(--notif-cyan);
     outline-offset: 2px;
-}
-
-/* Screen reader only */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
 }

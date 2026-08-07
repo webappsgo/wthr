@@ -11,6 +11,7 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/middleware"
 )
 
 // AdminWebHandler handles web settings administration
@@ -60,12 +61,15 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 	}
 	appURL := scheme + "://" + c.Request.Host
 
+	serverCtx, _ := middleware.GetServerContext(c)
+
 	c.HTML(http.StatusOK, "admin_web.tmpl", gin.H{
 		"Title":       "Web Settings",
 		"RobotsTxt":   robotsTxt,
 		"SecurityTxt": securityTxt,
 		"AppURL":      appURL,
 		"User":        admin,
+		"server":      serverCtx,
 	})
 }
 

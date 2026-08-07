@@ -3807,6 +3807,9 @@ JSON API:
 		c.Next()
 	})
 
+	// Theme toggle (AI.md PART 16 Theme Switching) - POST form, works without JS
+	r.POST("/theme", server.SetThemeHandler)
+
 	// Main weather routes
 	// Uses IP/cookie lookup
 	r.GET("/", weatherHandler.HandleRoot)

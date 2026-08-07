@@ -355,19 +355,19 @@ func (h *LocationHandler) ShowEditLocationPage(c *gin.Context) {
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/error.tmpl", gin.H{"error": "Invalid location ID"})
+		c.HTML(http.StatusBadRequest, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Invalid location ID"}))
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "page/error.tmpl", gin.H{"error": "Location not found"})
+		c.HTML(http.StatusNotFound, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Location not found"}))
 		return
 	}
 
 	if int64(location.UserID) != user.ID {
-		c.HTML(http.StatusForbidden, "page/error.tmpl", gin.H{"error": "Access denied"})
+		c.HTML(http.StatusForbidden, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Access denied"}))
 		return
 	}
 

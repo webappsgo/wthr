@@ -13,36 +13,39 @@
 :root {
   /* --- Dark theme colors (default) --- */
   /* Backgrounds */
-  --color-bg: #1a1b26;
-  --color-bg-secondary: #24283b;
-  --color-bg-card: #1f2335;
-  --color-bg-hover: #2a2f45;
-  --color-bg-active: #364060;
-  --color-bg-code: rgba(255, 255, 255, 0.08);
+  --color-bg: #282a36;
+  --color-bg-secondary: #21222c;
+  --color-bg-card: #2b2d3a;
+  --color-bg-hover: #343746;
+  --color-bg-active: #44475a;
+  --color-bg-code: rgba(255, 255, 255, 0.1);
 
   /* Text */
-  --color-text: #c0caf5;
-  --color-muted: #565f89;
+  --color-text: #f8f8f2;
+  /* 4.57:1 on --color-bg, meets WCAG AA 4.5:1 for normal text (AI.md
+     PART 31) - lightened from Dracula's stock #6272a4 comment color
+     (3.03:1), which was AA-compliant only for large text/UI elements */
+  --color-muted: #8591b8;
 
   /* Borders */
-  --color-border: #414868;
-  --color-border-hover: #565f89;
+  --color-border: #44475a;
+  --color-border-hover: #6272a4;
 
   /* Brand */
-  --color-primary: #7aa2f7;
-  --color-primary-bg: rgba(122, 162, 247, 0.15);
-  --color-secondary: #9ece6a;
-  --color-accent: #bb9af7;
+  --color-primary: #bd93f9;
+  --color-primary-bg: rgba(189, 147, 249, 0.15);
+  --color-secondary: #50fa7b;
+  --color-accent: #ff79c6;
 
   /* Status */
-  --color-success: #9ece6a;
-  --color-success-bg: rgba(158, 206, 106, 0.15);
-  --color-warning: #e0af68;
-  --color-warning-bg: rgba(224, 175, 104, 0.15);
-  --color-error: #f7768e;
-  --color-error-bg: rgba(247, 118, 142, 0.15);
-  --color-info: #7dcfff;
-  --color-info-bg: rgba(125, 207, 255, 0.15);
+  --color-success: #50fa7b;
+  --color-success-bg: rgba(80, 250, 123, 0.15);
+  --color-warning: #ffb86c;
+  --color-warning-bg: rgba(255, 184, 108, 0.15);
+  --color-error: #ff5555;
+  --color-error-bg: rgba(255, 85, 85, 0.15);
+  --color-info: #8be9fd;
+  --color-info-bg: rgba(139, 233, 253, 0.15);
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -87,41 +90,86 @@
 html.theme-light {
   /* Backgrounds */
   --color-bg: #ffffff;
-  --color-bg-secondary: #f5f5f5;
-  --color-bg-card: #e9e9ec;
-  --color-bg-hover: #ebebf0;
-  --color-bg-active: #d8d8e8;
+  --color-bg-secondary: #f6f8fa;
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #eff2f5;
+  --color-bg-active: #e6eaef;
   --color-bg-code: rgba(0, 0, 0, 0.05);
 
   /* Text */
-  --color-text: #1a1b26;
-  --color-muted: #6172b0;
+  --color-text: #1f2328;
+  --color-muted: #59636e;
 
   /* Borders */
-  --color-border: #c0caf5;
-  --color-border-hover: #a9b1d6;
+  --color-border: #d1d9e0;
+  --color-border-hover: #818b98;
 
   /* Brand */
-  --color-primary: #2e7de9;
-  --color-primary-bg: rgba(46, 125, 233, 0.12);
-  --color-secondary: #587539;
-  --color-accent: #7847bd;
+  --color-primary: #0969da;
+  --color-primary-bg: rgba(9, 105, 218, 0.12);
+  --color-secondary: #1a7f37;
+  --color-accent: #8250df;
 
   /* Status */
-  --color-success: #587539;
-  --color-success-bg: rgba(88, 117, 57, 0.12);
-  --color-warning: #8c6c3e;
-  --color-warning-bg: rgba(140, 108, 62, 0.12);
-  --color-error: #c64343;
-  --color-error-bg: rgba(198, 67, 67, 0.12);
-  --color-info: #007197;
-  --color-info-bg: rgba(0, 113, 151, 0.12);
+  --color-success: #1a7f37;
+  --color-success-bg: rgba(26, 127, 55, 0.12);
+  --color-warning: #9a6700;
+  --color-warning-bg: rgba(154, 103, 0, 0.12);
+  --color-error: #d1242f;
+  --color-error-bg: rgba(209, 36, 47, 0.12);
+  --color-info: #0969da;
+  --color-info-bg: rgba(9, 105, 218, 0.12);
 
   /* Lighter shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+
+/* ============================================
+   AUTO THEME — AI.md PART 16
+   Class: html.theme-auto
+   Follows system prefers-color-scheme, pure CSS,
+   zero JS - dark values already apply from :root,
+   so only the light override needs to be re-applied
+   when the system prefers light.
+   ============================================ */
+
+@media (prefers-color-scheme: light) {
+  html.theme-auto {
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f6f8fa;
+    --color-bg-card: #ffffff;
+    --color-bg-hover: #eff2f5;
+    --color-bg-active: #e6eaef;
+    --color-bg-code: rgba(0, 0, 0, 0.05);
+
+    --color-text: #1f2328;
+    --color-muted: #59636e;
+
+    --color-border: #d1d9e0;
+    --color-border-hover: #818b98;
+
+    --color-primary: #0969da;
+    --color-primary-bg: rgba(9, 105, 218, 0.12);
+    --color-secondary: #1a7f37;
+    --color-accent: #8250df;
+
+    --color-success: #1a7f37;
+    --color-success-bg: rgba(26, 127, 55, 0.12);
+    --color-warning: #9a6700;
+    --color-warning-bg: rgba(154, 103, 0, 0.12);
+    --color-error: #d1242f;
+    --color-error-bg: rgba(209, 36, 47, 0.12);
+    --color-info: #0969da;
+    --color-info-bg: rgba(9, 105, 218, 0.12);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  }
 }
 
 /* ============================================
@@ -901,6 +949,37 @@ a.profile-dropdown-item[href="/server/auth/logout"]:hover {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(189, 147, 249, 0.2);
+}
+
+/* Legacy bare-tag form styling for templates that don't apply .form-label/.form-input */
+/* (register, login, setup pages) but still nest plain label/input in .form-group */
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-muted);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 1rem;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.form-group small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
 }
 
 .form-input::placeholder {
@@ -3926,6 +4005,11 @@ a.profile-dropdown-item[href="/server/auth/logout"]:hover {
   color: white;
 }
 
+.tab:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
 .tab-content {
   display: none;
 }
@@ -6830,4 +6914,443 @@ input:disabled + .toggle-slider {
   gap: 10px;
   flex-wrap: wrap;
   margin-top: 15px;
+}
+
+/* ============================================
+   ACCESSIBILITY (WCAG 2.1 AA, from accessibility.css)
+   ============================================ */
+
+/* Skip to Main Content Link (Keyboard Navigation) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #bd93f9;
+  color: #282a36;
+  padding: 8px 16px;
+  text-decoration: none;
+  font-weight: bold;
+  z-index: 10000;
+  border-radius: 0 0 4px 0;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: 3px solid #50fa7b;
+  outline-offset: 2px;
+}
+
+.sr-only-focusable:active,
+.sr-only-focusable:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Enhanced focus styles for all interactive elements (WCAG 2.4.7 Focus Visible) */
+a:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+[tabindex]:focus,
+[role="button"]:focus,
+[role="menuitem"]:focus {
+  outline: 3px solid #50fa7b;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(80, 250, 123, 0.3);
+  transition: outline 0.2s, box-shadow 0.2s;
+}
+
+/* Remove outline on mouse click (keep for keyboard) */
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+select:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+[tabindex]:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Enhanced focus-visible for modern browsers */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #50fa7b;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(80, 250, 123, 0.3);
+}
+
+/* Ensure sufficient contrast for text on backgrounds (WCAG AA 4.5:1) */
+.text-low-contrast {
+  color: #f8f8f2;
+  background-color: #282a36;
+}
+
+/* Reduced Motion (WCAG 2.3.3 - Animation from Interactions) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor;
+  }
+
+  a {
+    text-decoration: underline;
+    font-weight: bold;
+  }
+
+  button {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Form Accessibility */
+label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+/* Required field indicator */
+[required] + label::after,
+label[for] [required]::after {
+  content: " *";
+  color: #ff5555;
+  font-weight: bold;
+}
+
+/* Error state */
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: #ff5555;
+  border-width: 2px;
+}
+
+input[aria-invalid="true"]:focus,
+select[aria-invalid="true"]:focus,
+textarea[aria-invalid="true"]:focus {
+  outline-color: #ff5555;
+  box-shadow: 0 0 0 3px rgba(255, 85, 85, 0.3);
+}
+
+/* Success state */
+input[aria-invalid="false"],
+select[aria-invalid="false"],
+textarea[aria-invalid="false"] {
+  border-color: #50fa7b;
+}
+
+/* Loading States (ARIA live regions) */
+[aria-busy="true"] {
+  cursor: wait;
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+[aria-live="polite"],
+[aria-live="assertive"] {
+  position: relative;
+}
+
+/* Table Accessibility */
+th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #44475a;
+  color: #f8f8f2;
+}
+
+tr:nth-child(even) {
+  background-color: rgba(68, 71, 90, 0.3);
+}
+
+/*
+ * NOTE: accessibility.css previously also had a Dark Mode High Contrast
+ * block keyed on [data-theme="dark"] with its own --text-primary/--bg-primary/
+ * etc custom properties. A repo-wide search found no template or script that
+ * ever sets data-theme="dark" (this project's theme attribute is the
+ * html.theme-dark/theme-light/theme-auto class, not a data-theme attribute),
+ * so that block was dead code and has been dropped rather than migrated here.
+ */
+
+/* Print Styles (Accessibility for printed documents) */
+@media print {
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #555;
+  }
+
+  nav,
+  .skip-link,
+  [aria-hidden="true"] {
+    display: none;
+  }
+}
+
+/* Touch Target Size (WCAG 2.1 AAA 2.5.5 - Target Size) */
+button,
+a,
+input[type="checkbox"],
+input[type="radio"],
+select,
+[role="button"],
+[role="link"] {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+}
+
+/* Exception for inline text links */
+p a,
+li a,
+span a {
+  min-height: auto;
+  min-width: auto;
+  display: inline;
+  padding: 0;
+}
+
+/* Keyboard Navigation Indicators */
+[role="menu"] [role="menuitem"]:focus,
+[role="listbox"] [role="option"]:focus {
+  background-color: #bd93f9;
+  color: #282a36;
+  outline: 2px solid #50fa7b;
+}
+
+[tabindex="0"]:focus {
+  position: relative;
+}
+
+[tabindex="0"]:focus::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 2px dashed #50fa7b;
+  pointer-events: none;
+}
+
+/* ============================================
+   ADDITIONAL UTILITY CLASSES (from template-overrides.css)
+   ============================================ */
+
+.inline-flex {
+  display: inline-flex;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+.width-full {
+  width: 100%;
+}
+
+.width-5rem {
+  width: 5rem;
+}
+
+.margin-y-05 {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.margin-y-1 {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.margin-y-15 {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.margin-y-2 {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
+
+.margin-y-3 {
+  margin-top: 3rem;
+  margin-bottom: 3rem;
+}
+
+.margin-top-05 {
+  margin-top: 0.5rem;
+}
+
+.margin-top-1 {
+  margin-top: 1rem;
+}
+
+.margin-top-15 {
+  margin-top: 1.5rem;
+}
+
+.margin-top-2 {
+  margin-top: 2rem;
+}
+
+.margin-top-3 {
+  margin-top: 3rem;
+}
+
+.margin-bottom-05 {
+  margin-bottom: 0.5rem;
+}
+
+.margin-bottom-1 {
+  margin-bottom: 1rem;
+}
+
+.margin-bottom-15 {
+  margin-bottom: 1.5rem;
+}
+
+.margin-bottom-2 {
+  margin-bottom: 2rem;
+}
+
+.margin-0 {
+  margin: 0;
+}
+
+.padding-1 {
+  padding: 1rem;
+}
+
+.padding-15 {
+  padding: 1.5rem;
+}
+
+.padding-3 {
+  padding: 3rem;
+}
+
+.gap-025 {
+  gap: 0.25rem;
+}
+
+.gap-05 {
+  gap: 0.5rem;
+}
+
+.gap-075 {
+  gap: 0.75rem;
+}
+
+.gap-15 {
+  gap: 1.5rem;
+}
+
+.bg-color-bg {
+  background-color: var(--color-bg);
+}
+
+.bg-color-bg-secondary {
+  background-color: var(--color-bg-secondary);
+}
+
+.border-color-bg-secondary {
+  border-color: var(--color-bg-secondary);
+}
+
+.border-1 {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.border-radius-05 {
+  border-radius: 0.5rem;
+}
+
+.border-radius-0375 {
+  border-radius: 0.375rem;
+}
+
+.border-radius-06 {
+  border-radius: 6px;
+}
+
+.border-radius-08 {
+  border-radius: 8px;
+}
+
+.border-top-1 {
+  border-top: 1px solid;
+}
+
+.border-bottom-1 {
+  border-bottom: 1px solid;
+}
+
+.border-bottom-2 {
+  border-bottom: 2px solid;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+.font-size-0875 {
+  font-size: 0.875rem;
+}
+
+.font-size-09 {
+  font-size: 0.9rem;
+}
+
+.font-size-08125 {
+  font-size: 0.8125rem;
+}
+
+.line-height-16 {
+  line-height: 1.6;
+}
+
+.whitespace-nowrap {
+  white-space: nowrap;
+}
+
+.opacity-06 {
+  opacity: 0.6;
+}
+
+.font-monospace {
+  font-family: monospace;
+}
+
+.word-break-all {
+  word-break: break-all;
 }
