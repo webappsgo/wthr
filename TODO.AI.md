@@ -1598,3 +1598,17 @@ any of the above: `src/graphql/context_keys_test.go`,
     collide - the wrong one silently winning would serve incorrect markup
     with no build-time error. Read: AI.md PART 16/17 (frontend/admin
     routing) before starting.
+
+53. TODO (flagged 2026-08-07 by go-lint, pre-existing violations unrelated
+    to the CSS/theming pass, not fixed now to stay in scope): (a)
+    `src/server/metrics/` is a plural package directory name - AI.md
+    PART 3 requires Go package dirs to be singular (`metric/`), matching
+    `handler/`/`model/`/`middleware/`; rename the directory and update
+    all imports. (b) `src/main.go:290` and `:302` call `appLogger.Fatal()`,
+    which always exits code 1 - PART 8 requires `os.Exit()` with the
+    correct sysexits code per failure class (line 290's setup-token
+    failure is a general error, exit 1 is correct there; line 302's
+    database-init failure is a connection error and should exit 3).
+    Replace both call sites with logging + `os.Exit(<code>)`. Read: AI.md
+    PART 3 (Project Structure) and PART 8 (Binary Exit Codes) before
+    starting.
