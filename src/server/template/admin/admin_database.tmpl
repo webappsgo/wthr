@@ -1,21 +1,8 @@
 {{define "admin/admin_database.tmpl"}}
-<!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-</head>
-<body>
-    {{template "components/admin-header.tmpl" .}}
+{{template "head" .}}
+{{template "navbar" .}}
 
-    <div class="admin-container">
-        {{template "components/admin-sidebar.tmpl" .}}
-
-        <main class="admin-content" role="main">
+    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
                 <h1>🗄️ Database & Cache Management</h1>
                 <p class="subtitle">Optimize database performance and manage caching</p>
@@ -390,7 +377,6 @@
                 </div>
             </section>
         </main>
-    </div>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -846,6 +832,6 @@
         }, 5000);
     }
     </script>
-</body>
-</html>
+
+{{template "footer" .}}
 {{end}}

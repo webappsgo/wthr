@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -66,14 +67,10 @@ func buildProductionLikeTemplate(t *testing.T) map[string]bool {
 }
 
 // mustResolveRenderNames is every template name a handler passes to
-// c.HTML/NegotiateResponse that HAS a structurally complete backing template
-// in the embedded tree. Each MUST register under the production-like loader,
-// otherwise the corresponding route returns a 500 with an empty body.
-//
-// Names deliberately excluded here are the admin routes that currently render
-// a template file that does not yet exist in template/ (unimplemented admin
-// UI) — those are tracked in TODO.AI.md item 52 as pending work, not silently
-// asserted here.
+// c.HTML/NegotiateResponse. Each MUST register under the production-like
+// loader, otherwise the corresponding route returns a 500 with an empty body.
+// Every admin and page render name now has a structurally complete backing
+// template; there is no excluded/unimplemented set.
 var mustResolveRenderNames = []string{
 	"admin/admin.tmpl",
 	"admin/admin_auth_settings.tmpl",
@@ -159,5 +156,44 @@ func TestRenderNamesResolve(t *testing.T) {
 		if !names[want] {
 			t.Errorf("render name %q does not resolve under the production loader (route would 500)", want)
 		}
+	}
+}
+
+// templateRefPattern matches every {{template "NAME" ...}} partial reference,
+// tolerating the {{- whitespace-trim marker and arbitrary surrounding spacing.
+var templateRefPattern = regexp.MustCompile(`\{\{-?\s*template\s+"([^"]+)"`)
+
+// TestTemplatePartialsResolve guarantees every {{template "X"}} reference in
+// every embedded .tmpl points at a template name that actually registers under
+// the production loader. A reference to an undefined partial parses cleanly and
+// even resolves the outer render name, but fails at EXECUTE time with
+// "template ... not defined" — a silent HTTP 500 that name-resolution and the
+// Go build both miss (this is exactly how admin/admin_web.tmpl shipped a broken
+// /server/web referencing the never-defined components/admin-{header,sidebar}).
+func TestTemplatePartialsResolve(t *testing.T) {
+	names := buildProductionLikeTemplate(t)
+	sub, err := fs.Sub(GetTemplatesFS(), "template")
+	if err != nil {
+		t.Fatalf("fs.Sub(template): %v", err)
+	}
+	if err := fs.WalkDir(sub, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
+		content, err := fs.ReadFile(sub, path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, m := range templateRefPattern.FindAllStringSubmatch(string(content), -1) {
+			if ref := m[1]; !names[ref] {
+				t.Errorf("%s references undefined partial %q (route would 500 at execute)", path, ref)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk templates: %v", err)
 	}
 }
