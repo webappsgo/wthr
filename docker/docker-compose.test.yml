@@ -19,10 +19,10 @@ services:
     pull_policy: always
     logging: *default-logging
     environment:
-      - MODE=development
-      - PORT=80
-      - DEBUG=true
-      - TZ=${TZ:-America/New_York}
+      MODE: development
+      PORT: 80
+      DEBUG: true
+      TZ: ${TZ:-America/New_York}
     ports:
       - "64581:80"
     volumes:

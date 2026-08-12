@@ -20,12 +20,12 @@ services:
     logging: *default-logging
     environment:
       # Development: relaxed security, verbose logging, no caching
-      # Does NOT enable debug endpoints - uncomment DEBUG=true for that
-      - MODE=development
-      - PORT=80
-      - TZ=${TZ:-America/New_York}
+      # Does NOT enable debug endpoints - uncomment DEBUG to enable
+      MODE: development
+      PORT: 80
+      TZ: ${TZ:-America/New_York}
       # DEBUG: Uncomment to enable pprof, expvar, detailed request logging
-      # - DEBUG=true
+      # DEBUG: true
     ports:
       # Development: accessible from all interfaces
       - "64580:80"

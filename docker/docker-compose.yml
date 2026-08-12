@@ -20,11 +20,9 @@ services:
     logging: *default-logging
     environment:
       # Production: strict security, minimal logging, caching enabled
-      # NO debug options - debug must be explicitly set via CLI if needed
-      - MODE=production
-      - PORT=80
-      - DEBUG=false
-      - TZ=${TZ:-America/New_York}
+      # Binary defaults to production; MODE/DEBUG are set only in dev/test compose
+      PORT: 80
+      TZ: ${TZ:-America/New_York}
     ports:
       # Production: bound to Docker bridge only (reverse proxy handles external)
       - "172.17.0.1:64580:80"

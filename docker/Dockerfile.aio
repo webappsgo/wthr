@@ -1,5 +1,5 @@
 # All-in-One Dockerfile - includes app + postgresql + valkey + tor
-# Build: golang:alpine (static binary, CGO_ENABLED=0)
+# Build: casjaysdev/go:latest (static binary, CGO_ENABLED=0)
 # Runtime: debian:latest (stable, broad compatibility)
 # Image name: ghcr.io/casapps/wthr:latest-aio
 # PORTS: Only 80 exposed (db/cache are internal-only)
@@ -7,10 +7,7 @@
 # =============================================================================
 # Stage 1: Build Go binary
 # =============================================================================
-FROM golang:alpine AS builder
-
-# Install git (required for go mod download with private repos)
-RUN apk add --no-cache git
+FROM casjaysdev/go:latest AS builder
 
 WORKDIR /build
 
@@ -36,9 +33,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # =============================================================================
 FROM debian:latest
 
-LABEL org.opencontainers.image.source="https://github.com/casapps/wthr"
-LABEL org.opencontainers.image.description="weather - all-in-one (debian + postgresql + valkey + tor)"
-LABEL org.opencontainers.image.licenses="MIT"
+# No LABEL blocks — all image metadata is applied as OCI annotations at build time.
+# LABEL applies only to per-platform layers and is not visible on multiarch pulls;
+# CI passes labels:/annotations: via docker/metadata-action. See PART 27.
 
 # Install dependencies (PostgreSQL + Valkey + Tor + Supervisor)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -74,9 +71,8 @@ RUN chmod +x /usr/local/bin/wthr /usr/local/bin/entrypoint.sh
 
 # Default environment
 # DATABASE_DIR: SQLite location (binary auto-detects container, but explicit is clearer)
-ENV MODE=production \
-    PORT=80 \
-    DEBUG=false \
+# MODE/DEBUG are never baked into the image — binary defaults to production; compose sets them
+ENV PORT=80 \
     TZ=America/New_York \
     DATABASE_DIR=/data/db/sqlite \
     PGDATA=/data/db/postgres \
@@ -88,7 +84,10 @@ ENV MODE=production \
 # Only expose app port - db/cache are internal
 EXPOSE 80
 
+# Stop signal for graceful shutdown (systemd-compatible)
+STOPSIGNAL SIGRTMIN+3
+
 HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=3 \
-    CMD timeout 10s bash -c ':> /dev/tcp/127.0.0.1/80' || exit 1
+    CMD /usr/local/bin/wthr --status || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "-p", "SIGTERM", "--", "/usr/local/bin/entrypoint.sh"]

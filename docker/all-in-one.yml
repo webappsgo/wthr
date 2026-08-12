@@ -19,10 +19,9 @@ services:
     pull_policy: always
     logging: *default-logging
     environment:
-      - MODE=production
-      - PORT=80
-      - DEBUG=false
-      - TZ=${TZ:-America/New_York}
+      # Binary defaults to production; MODE/DEBUG are set only in dev/test compose
+      PORT: 80
+      TZ: ${TZ:-America/New_York}
     volumes:
       - './rootfs/config:/config:z'
       - './rootfs/data:/data:z'
