@@ -325,7 +325,7 @@ func (h *AdminsHandler) ShowAdminsPage(c *gin.Context) {
 func (h *AdminsHandler) ShowInviteAcceptPage(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
-		c.HTML(http.StatusBadRequest, "error.tmpl", util.TemplateData(c, gin.H{
+		c.HTML(http.StatusBadRequest, "page/error.tmpl", util.TemplateData(c, gin.H{
 			"title":   "Invalid Invite",
 			"message": "No invite token provided",
 		}))
@@ -335,7 +335,7 @@ func (h *AdminsHandler) ShowInviteAcceptPage(c *gin.Context) {
 	// Verify token
 	invite, err := h.InviteService.VerifyInvite(token)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "error.tmpl", util.TemplateData(c, gin.H{
+		c.HTML(http.StatusBadRequest, "page/error.tmpl", util.TemplateData(c, gin.H{
 			"title":   "Invalid Invite",
 			"message": err.Error(),
 		}))

@@ -137,9 +137,10 @@ func main() {
 
 			// Create child process
 			procAttr := &os.ProcAttr{
-				Dir:   "/",
-				Env:   env,
-				Files: []*os.File{nil, nil, nil}, // Detach stdin/stdout/stderr
+				Dir: "/",
+				Env: env,
+				// Detach stdin/stdout/stderr
+				Files: []*os.File{nil, nil, nil},
 			}
 
 			proc, err := os.StartProcess(execPath, os.Args, procAttr)
@@ -434,7 +435,8 @@ func main() {
 	// AI.md PART 5: Environment Variables
 	envMode := os.Getenv("MODE")
 	if envMode == "" {
-		envMode = os.Getenv("ENVIRONMENT") // Legacy fallback
+		// Legacy fallback
+		envMode = os.Getenv("ENVIRONMENT")
 	}
 
 	switch envMode {
@@ -1068,7 +1070,8 @@ func main() {
 	// AI.md PART 5: LISTEN env var
 	listenAddress := os.Getenv("LISTEN")
 	if listenAddress == "" {
-		listenAddress = os.Getenv("SERVER_ADDRESS") // Legacy fallback
+		// Legacy fallback
+		listenAddress = os.Getenv("SERVER_ADDRESS")
 	}
 
 	// Check if listenAddress contains a port (e.g., "127.0.0.1:8080" or "[::]:8080")
@@ -1746,7 +1749,7 @@ func main() {
 		adminRoutes.GET("/server/web", adminWebHandler.ShowWebSettings)
 
 		adminRoutes.GET("/server/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/users.tmpl", util.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_users.tmpl", util.TemplateData(c, gin.H{
 				"title":      "User Management - Admin",
 				"page":       "users",
 				"breadcrumb": "Users",
@@ -4043,7 +4046,8 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	envMode := os.Getenv("MODE")
 	if envMode == "" {
-		envMode = os.Getenv("ENVIRONMENT") // Legacy fallback
+		// Legacy fallback
+		envMode = os.Getenv("ENVIRONMENT")
 	}
 	if envMode == "" {
 		envMode = "production"
@@ -4051,7 +4055,8 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	address := os.Getenv("LISTEN")
 	if address == "" {
-		address = os.Getenv("SERVER_ADDRESS") // Legacy fallback
+		// Legacy fallback
+		address = os.Getenv("SERVER_ADDRESS")
 	}
 	addressMode := ""
 	if address == "" {

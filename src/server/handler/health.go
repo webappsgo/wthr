@@ -176,7 +176,7 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 		case wantsExplicitJSON(c):
 			renderIndentedJSON(c, statusCode, response)
 		case util.IsBrowser(c):
-			c.HTML(statusCode, "healthz.tmpl", util.TemplateData(c, gin.H{
+			c.HTML(statusCode, "page/healthz.tmpl", util.TemplateData(c, gin.H{
 				"title":               "Health Status",
 				"page":                "healthz",
 				"health":              response,

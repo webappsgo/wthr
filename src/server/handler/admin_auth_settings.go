@@ -14,7 +14,7 @@ type AdminAuthSettingsHandler struct {
 
 // ShowAuthSettings displays authentication settings page
 func (h *AdminAuthSettingsHandler) ShowAuthSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin_auth_settings.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_auth_settings.tmpl", gin.H{
 		"title": "Authentication Settings",
 	})
 }

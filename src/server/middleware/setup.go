@@ -52,7 +52,7 @@ func SetupTokenRequired(cfg *config.AppConfig) gin.HandlerFunc {
 		configDir := path.GetConfigDir()
 		if !util.SetupTokenExists(configDir) {
 			// No setup token file - setup was somehow skipped, show error
-			c.HTML(http.StatusServiceUnavailable, "error.tmpl", gin.H{
+			c.HTML(http.StatusServiceUnavailable, "page/error.tmpl", gin.H{
 				"error":   "Server setup incomplete",
 				"message": "Please restart the server to generate a setup token.",
 			})

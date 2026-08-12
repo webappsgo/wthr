@@ -13,7 +13,7 @@ import (
 // Embed all templates and static files into the binary
 // Following TEMPLATE.md specification lines 802-816
 
-//go:embed template/**/*.tmpl
+//go:embed all:template
 var templatesFS embed.FS
 
 //go:embed static/*

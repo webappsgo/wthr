@@ -1585,30 +1585,70 @@ any of the above: `src/graphql/context_keys_test.go`,
     -> default dark). Read: AI.md PART 16 (Themes) and PART 33 (CLI)
     before starting.
 
-52. TODO (flagged 2026-08-07 by the CSS-reconciliation pass, out of that
-    pass's scope since it's a Go/template-registration issue, not CSS):
-    two Go templates share the same effective name -
-    `src/server/template/admin/admin_web.tmpl` defines
-    `{{define "admin/admin-web.tmpl"}}` and
-    `src/server/template/page/admin_web.tmpl` also exists, while the
-    handler at `admin_web.go:66` renders the bare name `"admin_web.tmpl"`.
-    Confirm which of the two templates is actually being executed at
-    runtime (embed/template-registration order decides this ambiguously)
-    and rename one of the `{{define}}` blocks/files so the two no longer
-    collide - the wrong one silently winning would serve incorrect markup
-    with no build-time error. Read: AI.md PART 16/17 (frontend/admin
-    routing) before starting.
+52. TEMPLATE RENDER-NAME / EMBED AUDIT (root causes fixed 2026-08-12;
+    remaining subitems are UNSPECIFIED admin UI - do NOT fabricate).
 
-53. TODO (flagged 2026-08-07 by go-lint, pre-existing violations unrelated
-    to the CSS/theming pass, not fixed now to stay in scope): (a)
-    `src/server/metrics/` is a plural package directory name - AI.md
-    PART 3 requires Go package dirs to be singular (`metric/`), matching
-    `handler/`/`model/`/`middleware/`; rename the directory and update
-    all imports. (b) `src/main.go:290` and `:302` call `appLogger.Fatal()`,
-    which always exits code 1 - PART 8 requires `os.Exit()` with the
-    correct sysexits code per failure class (line 290's setup-token
-    failure is a general error, exit 1 is correct there; line 302's
-    database-init failure is a connection error and should exit 3).
-    Replace both call sites with logging + `os.Exit(<code>)`. Read: AI.md
-    PART 3 (Project Structure) and PART 8 (Binary Exit Codes) before
-    starting.
+    FIXED this pass:
+    - `src/server/server.go` `//go:embed template/**/*.tmpl` (matched only
+      depth-2 files) changed to `//go:embed all:template` so the depth-3
+      `template/page/user/*.tmpl` set actually ships in the binary. The
+      two-glob AI.md example cannot reach depth-3; the binding rule is
+      "All templates MUST be embedded" (AI.md line 27312).
+    - All handler render names that pointed at a non-registering name but
+      HAVE a complete backing template were corrected: public pages
+      (`about/privacy/contact/help/terms` -> `page/*`), `healthz` ->
+      `page/healthz`, bare `error.tmpl` -> `page/error.tmpl`, admin bare
+      names -> `admin/*` (`admin_auth_settings`, `admin_notifications`,
+      `admin_weather`, `admin_geoip`), `admin/users` & `admin-users` ->
+      `admin/admin_users`, and `page/user/settings-*` -> `settings_*`.
+    - The 11 admin templates whose `{{define}}` used hyphens while the
+      handler + path used underscores were reconciled to underscore
+      (`admin_backup_enhanced`, `admin_database`, `admin_email`,
+      `admin_email_editor`, `admin_logs`, `admin_metrics`, `admin_scheduler`,
+      `admin_ssl`, `admin_system`, `admin_tasks_enhanced`).
+    - Permanent regression guard added:
+      `src/server/render_names_test.go` (`TestRenderNamesResolve`) asserts
+      every backed render name registers under a production-like loader.
+
+    REMAINING (pending because it is new admin UI not specified anywhere -
+    building it blindly is a red flag; needs data contracts + i18n keys +
+    PART 17 admin layout before implementation):
+
+    (a) ~27 admin/other routes render a template file that does NOT exist
+        in `src/server/template/` and therefore 500 at runtime. Names +
+        primary call sites (main.go = the admin dashboard switch): admin
+        `tokens`, `logs`, `admin_profile`, `admin_preferences`,
+        `admin_branding`, `admin_pages`, `admin_roles`, `admin_admins`
+        (also `admin_admins.go:315`), `admin_invite`, `admin_detail`,
+        `admin_moderation`, `admin_user_detail`, `admin_ratelimit`,
+        `admin_firewall`, `admin_blocklists`, `admin_maintenance`,
+        `admin_updates`, `admin_cluster_nodes`, `admin_cluster_add`,
+        `admin_help`, `admin/backup` (`setup.go`), `admin/admin-invite-accept`
+        (`admin_admins.go`), `admin/admin-logs-format` (`admin_logs`
+        handler), plus non-admin `examples.tmpl`, `template_editor.tmpl`,
+        `admin_channels.tmpl`, `user_preferences.tmpl`. Build the missing
+        templates (or remove the dead routes) per PART 17.
+
+    (b) 5 admin templates reference partials that do NOT exist -
+        `{{template "components/admin-header.tmpl" .}}` and
+        `{{template "components/admin-sidebar.tmpl" .}}` (there is no
+        `template/components/` dir; the real partials are `partial/head`,
+        `partial/navbar`). Affected: `admin/admin_web.tmpl`,
+        `admin/admin_database.tmpl`, `admin/admin_email.tmpl`,
+        `admin/admin_security.tmpl`, `admin/admin_system.tmpl`. These now
+        REGISTER (name resolves) but fail at EXECUTE. Either build the
+        `components/*` partials or convert these 5 to the working
+        `{{template "head" .}}` / `{{template "navbar" .}}` pattern already
+        used by `admin_settings.tmpl` / `admin_notifications.tmpl`, after
+        confirming each handler's data contract.
+
+    (c) admin_web duplication: `page/admin_web.tmpl` (public-layout copy,
+        uses `.Title`) vs `admin/admin_web.tmpl` (admin-layout, still
+        `{{define "admin/admin-web.tmpl"}}`, uses `.title`), while
+        `admin_web.go:66` renders the bare name `"admin_web.tmpl"` (matches
+        neither). Pick the admin-layout file as canonical, reconcile its
+        define to `admin/admin_web.tmpl`, delete the public duplicate, and
+        point the handler at the canonical name. Depends on (b).
+
+    Read AI.md PART 16/17 (frontend/admin routing + admin layout) before
+    starting any subitem.

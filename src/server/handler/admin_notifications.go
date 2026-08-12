@@ -14,7 +14,7 @@ type AdminNotificationsHandler struct {
 
 // ShowNotificationSettings displays notification settings page
 func (h *AdminNotificationsHandler) ShowNotificationSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin_notifications.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", gin.H{
 		"title": "Notification Settings",
 	})
 }

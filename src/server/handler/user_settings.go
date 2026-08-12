@@ -61,7 +61,7 @@ func (h *UserSettingsHandler) ShowPrivacySettings(c *gin.Context) {
 	// Get user preferences for privacy settings
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings-privacy.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/user/settings_privacy.tmpl", util.TemplateData(c, gin.H{
 		"title":       "Privacy Settings",
 		"page":        "settings",
 		"settingsTab": "privacy",
@@ -82,7 +82,7 @@ func (h *UserSettingsHandler) ShowNotificationSettings(c *gin.Context) {
 	// Get user preferences
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings-notifications.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/user/settings_notifications.tmpl", util.TemplateData(c, gin.H{
 		"title":       "Notification Settings",
 		"page":        "settings",
 		"settingsTab": "notifications",
@@ -103,7 +103,7 @@ func (h *UserSettingsHandler) ShowAppearanceSettings(c *gin.Context) {
 	// Get user preferences
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings-appearance.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/user/settings_appearance.tmpl", util.TemplateData(c, gin.H{
 		"title":       "Appearance Settings",
 		"page":        "settings",
 		"settingsTab": "appearance",
@@ -124,7 +124,7 @@ func (h *UserSettingsHandler) ShowTokensSettings(c *gin.Context) {
 	// Get user's API tokens
 	tokens, _ := h.getUserTokens(user.ID)
 
-	NegotiateResponse(c, "page/user/settings-tokens.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(c, "page/user/settings_tokens.tmpl", util.TemplateData(c, gin.H{
 		"title":       "API Tokens",
 		"page":        "settings",
 		"settingsTab": "tokens",

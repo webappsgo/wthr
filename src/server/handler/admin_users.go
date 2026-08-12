@@ -14,7 +14,7 @@ type AdminUsersHandler struct {
 
 // ShowUserSettings displays user management settings page
 func (h *AdminUsersHandler) ShowUserSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin-users.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_users.tmpl", gin.H{
 		"title": "User Management Settings",
 	})
 }

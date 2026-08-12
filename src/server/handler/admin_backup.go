@@ -19,7 +19,7 @@ func AdminBackupHandler(c *gin.Context) {
 	// Get paths
 	p := path.GetDefaultPaths("wthr")
 	if p == nil {
-		c.HTML(http.StatusInternalServerError, "error.tmpl", gin.H{
+		c.HTML(http.StatusInternalServerError, "page/error.tmpl", gin.H{
 			"error": "Failed to get system paths",
 		})
 		return

@@ -62,7 +62,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "about.tmpl", data)
+		NegotiateResponse(c, "page/about.tmpl", data)
 	}
 }
 
@@ -82,7 +82,7 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "privacy.tmpl", data)
+		NegotiateResponse(c, "page/privacy.tmpl", data)
 	}
 }
 
@@ -103,7 +103,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "contact.tmpl", data)
+		NegotiateResponse(c, "page/contact.tmpl", data)
 	}
 }
 
@@ -124,7 +124,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "help.tmpl", data)
+		NegotiateResponse(c, "page/help.tmpl", data)
 	}
 }
 
@@ -143,7 +143,7 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"HostInfo": util.GetHostInfo(c),
 		}
 
-		NegotiateResponse(c, "terms.tmpl", data)
+		NegotiateResponse(c, "page/terms.tmpl", data)
 	}
 }
 
