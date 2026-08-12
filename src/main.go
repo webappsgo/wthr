@@ -287,7 +287,8 @@ func main() {
 		// Generate one-time setup token
 		token, err := util.GenerateSetupToken()
 		if err != nil {
-			appLogger.Fatal("Failed to generate setup token: %v", err)
+			appLogger.Error("Failed to generate setup token: %v", err)
+			os.Exit(1)
 		}
 		setupToken = token
 		appLogger.Printf("Setup token generated (will be displayed in banner)")
@@ -299,7 +300,8 @@ func main() {
 	// users.db = user accounts, tokens, sessions, locations
 	dualDB, err := database.InitDualDB(dirPaths.Data)
 	if err != nil {
-		appLogger.Fatal("Failed to initialize dual database system: %v", err)
+		appLogger.Error("Failed to initialize dual database system: %v", err)
+		os.Exit(3)
 	}
 	defer dualDB.Close()
 
