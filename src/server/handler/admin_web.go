@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
-	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
 )
 
 // AdminWebHandler handles web settings administration
@@ -63,7 +63,7 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 
 	serverCtx, _ := middleware.GetServerContext(c)
 
-	c.HTML(http.StatusOK, "admin_web.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_web.tmpl", gin.H{
 		"Title":       "Web Settings",
 		"RobotsTxt":   robotsTxt,
 		"SecurityTxt": securityTxt,

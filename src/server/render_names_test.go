@@ -96,6 +96,7 @@ var mustResolveRenderNames = []string{
 	"admin/admin_user_invites.tmpl",
 	"admin/admin_users.tmpl",
 	"admin/admin_weather.tmpl",
+	"admin/admin_web.tmpl",
 	"admin/login.tmpl",
 	"admin/setup_token.tmpl",
 	"component/loading.tmpl",
