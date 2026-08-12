@@ -6,12 +6,12 @@ stages:
   - release
 
 variables:
-  PROJECTNAME: weather
+  PROJECTNAME: wthr
   CGO_ENABLED: "0"
-  GOFLAGS: ""
+  GOFLAGS: "-buildvcs=false"
 
 default:
-  image: golang:alpine
+  image: casjaysdev/go:latest
 
 # ─── LINT ────────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,6 @@ test:
   stage: build
   needs: [test]
   before_script:
-    - apk add --no-cache git
     - |
       VERSION=$(cat release.txt 2>/dev/null || echo "0.1.0")
       COMMIT_ID=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -50,8 +49,8 @@ test:
       export LDFLAGS="-s -w -X 'main.Version=$VERSION' -X 'main.CommitID=$COMMIT_ID' -X 'main.BuildDate=$BUILD_DATE' -X 'main.OfficialSite=$OFFICIALSITE'"
   script:
     - mkdir -p binaries
-    - GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o binaries/${PROJECTNAME}-${GOOS}-${GOARCH}${EXT} ./src
-    - GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o binaries/${PROJECTNAME}-cli-${GOOS}-${GOARCH}${EXT} ./src/client
+    - GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o binaries/${PROJECTNAME}-${GOOS}-${GOARCH}${EXT} ./src
+    - GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="$LDFLAGS" -o binaries/${PROJECTNAME}-cli-${GOOS}-${GOARCH}${EXT} ./src/client
   artifacts:
     paths:
       - binaries/

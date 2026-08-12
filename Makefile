@@ -211,8 +211,8 @@ docker:
 # TEST - Run all tests with coverage enforcement (via Docker)
 # =============================================================================
 test:
-	@echo "Running tests with coverage..."
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
+	@echo "Running tests with coverage..."
 	@$(GO_DOCKER) sh -c " \
 		mkdir -p \"\$${TMPDIR:-/tmp}/$(PROJECTORG)\" && \
 		COVDIR=\$$(mktemp -d \"\$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX\") && \

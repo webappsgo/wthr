@@ -1542,24 +1542,6 @@ any of the above: `src/graphql/context_keys_test.go`,
     zero-config, no external file dependencies at runtime for anything
     that ships in the repo). Read: AI.md PART 8 before starting.
 
-50. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
-    commits): two Makefile/CI drifts found during this pass's lint
-    review, out of scope for item 16's coverage work:
-    - `Makefile` lines 214-215: the `test` target's
-      `mkdir -p $(GO_CACHE) $(GO_BUILD)` cache-dir guard is not the
-      first recipe line, inconsistent with the pattern established by
-      item 34's Makefile fixes (guard should run before any other
-      recipe step that might depend on those dirs existing).
-    - `.gitlab-ci.yml`: 5 issues — line 9 hardcodes
-      `PROJECTNAME="weather"` (should be `wthr`, inferred from git
-      remote per PART 3, not hardcoded); line 11 sets `GOFLAGS=""`
-      (should be omitted or `-buildvcs=false` per the GO_DOCKER
-      pattern); line 14 uses `image: golang:alpine` (should be
-      `casjaysdev/go:latest` per PART 26/28); lines 53-54's `go build`
-      is missing the `-buildvcs=false -trimpath` flags used everywhere
-      else in the project's build tooling.
-    Read: AI.md PART 26 (Makefile) and PART 28 (CI/CD) before starting.
-
 51. TODO (flagged 2026-08-07 during the CSS/theming AI.md PART 16
     compliance pass): `src/client/tui.go` defines a Dracula ANSI palette
     (`colorBackground`/`colorForeground`/`colorSelection`/`colorComment`/
