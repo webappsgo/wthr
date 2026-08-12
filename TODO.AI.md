@@ -1612,6 +1612,30 @@ any of the above: `src/graphql/context_keys_test.go`,
       `src/server/render_names_test.go` (`TestRenderNamesResolve`) asserts
       every backed render name registers under a production-like loader.
 
+    FIXED 2026-08-12 (second pass, commit 606e993a):
+    - Subitem (b) RESOLVED: the 6 admin templates that referenced the
+      never-defined `components/admin-header.tmpl` / `components/admin-
+      sidebar.tmpl` / bare `admin_header` partials (admin_web, admin_database,
+      admin_email, admin_security, admin_system, admin_ssl, admin_tor) were
+      converted to the working shared `{{template "head" .}}` +
+      `{{template "navbar" .}}` + `{{template "footer" .}}` pattern (head.tmpl
+      already loads admin.css). Confirmed `util.TemplateData` injects
+      `csrf_token`/`api_path`/`admin_api_path`/`title`, so the pages' data
+      contract is satisfied. These 6 routes previously 500'd at EXECUTE.
+    - Subitem (c) RESOLVED: `admin/admin_web.tmpl` reconciled to the shared-
+      partial admin layout; the stale public duplicate concern was moot
+      (only `admin/admin_web.tmpl` is rendered, by `admin_web.go`). Its
+      `{{define}}` already matched `admin/admin_web.tmpl`.
+    - Dead code removed: `admin/dashboard.tmpl` (rendered by no handler,
+      referenced undefined `admin_layout`), `partial/admin_layout.tmpl`,
+      and the never-wired chrome partials `partial/admin_header.tmpl` /
+      `partial/admin_sidebar.tmpl` / `partial/admin_footer.tmpl` (registered
+      only under full-path names nothing referenced).
+    - Second permanent guard added: `TestTemplatePartialsResolve` walks every
+      embedded .tmpl and asserts each `{{template "X"}}` reference resolves,
+      catching the EXECUTE-time undefined-partial 500 class the Go build and
+      `TestRenderNamesResolve` both miss.
+
     REMAINING (pending because it is new admin UI not specified anywhere -
     building it blindly is a red flag; needs data contracts + i18n keys +
     PART 17 admin layout before implementation):
@@ -1631,26 +1655,45 @@ any of the above: `src/graphql/context_keys_test.go`,
         `admin_channels.tmpl`, `user_preferences.tmpl`. Build the missing
         templates (or remove the dead routes) per PART 17.
 
-    (b) 5 admin templates reference partials that do NOT exist -
-        `{{template "components/admin-header.tmpl" .}}` and
-        `{{template "components/admin-sidebar.tmpl" .}}` (there is no
-        `template/components/` dir; the real partials are `partial/head`,
-        `partial/navbar`). Affected: `admin/admin_web.tmpl`,
-        `admin/admin_database.tmpl`, `admin/admin_email.tmpl`,
-        `admin/admin_security.tmpl`, `admin/admin_system.tmpl`. These now
-        REGISTER (name resolves) but fail at EXECUTE. Either build the
-        `components/*` partials or convert these 5 to the working
-        `{{template "head" .}}` / `{{template "navbar" .}}` pattern already
-        used by `admin_settings.tmpl` / `admin_notifications.tmpl`, after
-        confirming each handler's data contract.
+    (b) RESOLVED 2026-08-12 (commit 606e993a) - see FIXED section above.
 
-    (c) admin_web duplication: `page/admin_web.tmpl` (public-layout copy,
-        uses `.Title`) vs `admin/admin_web.tmpl` (admin-layout, still
-        `{{define "admin/admin-web.tmpl"}}`, uses `.title`), while
-        `admin_web.go:66` renders the bare name `"admin_web.tmpl"` (matches
-        neither). Pick the admin-layout file as canonical, reconcile its
-        define to `admin/admin_web.tmpl`, delete the public duplicate, and
-        point the handler at the canonical name. Depends on (b).
+    (c) RESOLVED 2026-08-12 (commit 606e993a) - see FIXED section above.
+        The `page/admin_web.tmpl` public duplicate was already gone; only
+        `admin/admin_web.tmpl` exists and its define already matched.
+
+    (d) ADMIN CHROME NOT PART-17 COMPLIANT (design gap, pre-existing,
+        project-wide - flagged 2026-08-12 while resolving (b)). AI.md PART 17
+        / frontend-rules specify the admin panel chrome as a header
+        (logo/search/status/admin name/logout) + a collapsible sidebar
+        (Dashboard, Server, Security, Network, Users, Cluster, Help). In
+        reality: ~12 admin pages (admin_settings, admin_users, admin_web,
+        admin_database, admin_email, admin_security, admin_system,
+        admin_geoip, admin_notifications, admin_user_invites, admin_weather,
+        admin_auth_settings) render the PUBLIC user `navbar` (`partial/
+        nav.tmpl` - home/moon/earthquake links + /users/* profile menu, zero
+        admin navigation); only `admin_ssl`/`admin_tor` use the partial
+        `admin_nav` (a top-nav approximation, still not the PART 17 sidebar);
+        the rest are self-contained with their own chrome. No page implements
+        the specified admin header + collapsible sidebar. The (b) 500-fix
+        deliberately used `navbar` to match the dominant existing pattern and
+        make the routes render; building the real PART 17 admin chrome is a
+        separate, larger design task (needs the sidebar partial, its i18n
+        keys, active-section state, and a consistent rollout across all admin
+        pages). Do NOT fabricate piecemeal - design the admin layout per
+        PART 17 first, then convert all admin pages together.
+
+    (e) PERVASIVE INLINE JS / CSP VIOLATION (pre-existing, project-wide -
+        flagged 2026-08-12). frontend-rules (PART 16) and backend-rules
+        (PART 11) mandate CSP `script-src 'self'`, no inline `<script>`, and
+        no inline `onclick`/`onchange` handlers (all JS in
+        `static/js/app.js`, bound via `data-action` delegation). In reality
+        inline `<script>` blocks and inline `on*` handlers are widespread -
+        e.g. `partial/nav.tmpl` alone has an inline `<script>` plus
+        `onchange`/`onclick`/`onkeydown` attributes, and every admin page's
+        page-specific JS lives in an inline `<script>` at the bottom. This
+        would be blocked under a strict CSP. Migrating all page JS to
+        `app.js` + `data-action` delegation is a large, cross-cutting refactor
+        touching nearly every template - scope it as its own task.
 
     Read AI.md PART 16/17 (frontend/admin routing + admin layout) before
     starting any subitem.
