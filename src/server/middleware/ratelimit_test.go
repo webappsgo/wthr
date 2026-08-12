@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -173,6 +174,52 @@ func TestAPIRateLimitMiddleware_IgnoresUserIDContextKey(t *testing.T) {
 		t.Errorf("X-RateLimit-Limit = %q, want %d - ratelimit.go:134-147 checks "+
 			"c.Get(\"user_id\"), a key no middleware ever sets, so authenticated requests "+
 			"are always throttled at the unauthenticated rate instead", got, APIAuthRequestsPerWindow)
+	}
+}
+
+// TestRateLimitMiddleware_CanonicalRejectionShape verifies the 429 response
+// body follows AI.md PART 9/14: canonical error shape ({"ok":false,
+// "error":"RATE_LIMITED"}) plus a Retry-After header carrying the retry
+// timing, and NO ad-hoc top-level body fields (no retry_after in the body).
+func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ip := uniqueTestIP()
+
+	router := gin.New()
+	router.Use(RegistrationRateLimitMiddleware())
+	router.POST("/server/auth/register", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+	// Exhaust the limit so the next request is rejected.
+	for i := 1; i <= RegistrationRequestsPerWindow; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/server/auth/register", nil)
+		req.RemoteAddr = ip
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/server/auth/register", nil)
+	req.RemoteAddr = ip
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", w.Code)
+	}
+	if got := w.Header().Get("Retry-After"); got == "" {
+		t.Errorf("Retry-After header missing; retry timing must be a header, not a body field")
+	}
+
+	var body map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response body is not JSON: %v", err)
+	}
+	if ok, _ := body["ok"].(bool); ok {
+		t.Errorf("body[\"ok\"] = true, want false")
+	}
+	if got, _ := body["error"].(string); got != "RATE_LIMITED" {
+		t.Errorf("body[\"error\"] = %q, want \"RATE_LIMITED\"", got)
+	}
+	if _, present := body["retry_after"]; present {
+		t.Errorf("body must not carry ad-hoc retry_after field; use the Retry-After header")
 	}
 }
 

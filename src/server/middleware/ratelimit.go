@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -192,10 +193,14 @@ func wrapRateLimiter(limiter *httprate.RateLimiter, limit int, window time.Durat
 		// rejected as over the limit.
 		if !nextCalled {
 			retryAfter := int(window.Seconds())
+			// AI.md PART 14: operational metadata (retry timing) goes in the
+			// Retry-After header, never an ad-hoc top-level body field.
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			// AI.md PART 9/14: canonical error shape with the RATE_LIMITED code.
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       "Rate limit exceeded",
-				"message":     "Too many requests. Please try again later.",
-				"retry_after": retryAfter,
+				"ok":      false,
+				"error":   "RATE_LIMITED",
+				"message": "Too many requests. Please try again later.",
 			})
 			c.Abort()
 			return
