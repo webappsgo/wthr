@@ -1,6 +1,6 @@
-// Package metrics tests verify counter/gauge/histogram recording logic and
+// Package metric tests verify counter/gauge/histogram recording logic and
 // Prometheus text-format output per AI.md PART 21.
-package metrics
+package metric
 
 import (
 	"runtime"

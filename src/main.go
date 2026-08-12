@@ -37,7 +37,7 @@ import (
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/handler"
-	"github.com/webappsgo/wthr/src/server/metrics"
+	"github.com/webappsgo/wthr/src/server/metric"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -174,7 +174,7 @@ func main() {
 	fmt.Printf("🔒 Running in mode: %s\n", mode.ModeString())
 
 	// Initialize Prometheus metrics (AI.md PART 21 - NON-NEGOTIABLE)
-	metrics.Init(Version, CommitID, BuildDate)
+	metric.Init(Version, CommitID, BuildDate)
 
 	// Get OS-appropriate directory paths
 	dirPaths, err := util.GetDirectoryPaths()

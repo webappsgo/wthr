@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/webappsgo/wthr/src/server/metrics"
+	"github.com/webappsgo/wthr/src/server/metric"
 )
 
 var (
@@ -24,8 +24,8 @@ func MetricsMiddleware() gin.HandlerFunc {
 		start := time.Now()
 
 		// Track active requests
-		metrics.HTTPActiveRequests.Inc()
-		defer metrics.HTTPActiveRequests.Dec()
+		metric.HTTPActiveRequests.Inc()
+		defer metric.HTTPActiveRequests.Dec()
 
 		// Get normalized path (remove IDs for cardinality control)
 		path := normalizeMetricPath(c.FullPath())
@@ -35,7 +35,7 @@ func MetricsMiddleware() gin.HandlerFunc {
 
 		// Record request size
 		if c.Request.ContentLength > 0 {
-			metrics.HTTPRequestSize.WithLabelValues(c.Request.Method, path).Observe(float64(c.Request.ContentLength))
+			metric.HTTPRequestSize.WithLabelValues(c.Request.Method, path).Observe(float64(c.Request.ContentLength))
 		}
 
 		// Process request
@@ -49,9 +49,9 @@ func MetricsMiddleware() gin.HandlerFunc {
 			responseSize = 0
 		}
 
-		metrics.HTTPRequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
-		metrics.HTTPRequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
-		metrics.HTTPResponseSize.WithLabelValues(c.Request.Method, path).Observe(responseSize)
+		metric.HTTPRequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
+		metric.HTTPRequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
+		metric.HTTPResponseSize.WithLabelValues(c.Request.Method, path).Observe(responseSize)
 	}
 }
 

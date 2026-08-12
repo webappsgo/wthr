@@ -1,6 +1,6 @@
-// Package metrics provides Prometheus-compatible metrics for monitoring
+// Package metric provides Prometheus-compatible metrics for monitoring
 // per AI.md PART 21: METRICS (NON-NEGOTIABLE)
-package metrics
+package metric
 
 import (
 	"runtime"
