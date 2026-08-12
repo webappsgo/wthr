@@ -1697,3 +1697,83 @@ any of the above: `src/graphql/context_keys_test.go`,
 
     Read AI.md PART 16/17 (frontend/admin routing + admin layout) before
     starting any subitem.
+
+53. AMBIGUOUS - ORG-NAME MISMATCH (flagged 2026-08-12 during broad audit
+    cross-file-sync pass; BLOCKS README badge/URL and remaining docs edits
+    until decided). The project identity is contradictory across the tree:
+    - git remote + `go.mod` module path + IDEA.md `project_repo` use
+      `webappsgo/wthr` (verified: `go.mod` module is
+      `github.com/webappsgo/wthr`, commits push to
+      `git@github.com:webappsgo/wthr.git`).
+    - README badges/clone/release/issues URLs, `docs/development.md`
+      (clone URL, `/var/log/casapps/wthr/...`, systemd unit), and
+      `docs/cli.md` use `casapps/wthr`; `src/client/paths.go` uses
+      `casapps` as `internal_org`; IDEA.md itself lists `project_org:
+      casapps` while its `project_repo` is `webappsgo`.
+    PART 3 freezes `{internal_org}`/`{internal_name}` once set (they seed
+    all on-disk paths, systemd unit, plist). The decision needed: is the
+    canonical org `casapps` (branding/internal) or `webappsgo` (repo/module),
+    and does `internal_org` (on-disk paths) intentionally differ from the
+    git org? Until resolved, do NOT mass-rewrite README/docs URLs - a wrong
+    guess churns every doc and possibly on-disk path identifiers. Requires a
+    user decision or an explicit SPEC.md override documenting the split.
+    Read: AI.md PART 3 (§ Variables, § internal_name frozen).
+
+54. AMBIGUOUS - COMPOSE VOLUME PATHS vs AI.md `./volumes/` (flagged
+    2026-08-12). All three compose files mount `./rootfs/config:/config`
+    and `./rootfs/data:/data` (verified docker-compose.yml:32-33,
+    dev:35-36, test:31-32). docker-rules.md (PART 27) uniformly specifies
+    `./volumes/config:/config:z` + `./volumes/data:/data:z`, and PART 3
+    lists `volumes/` as the gitignored runtime dir. The project has a
+    deliberate temp-dir-workflow intent but there is NO SPEC.md override
+    authorizing `./rootfs/` as the compose mount source (a compose comment
+    is not an override mechanism). Decision needed: either switch the three
+    compose files to `./volumes/` (matching AI.md), or add a SPEC.md
+    override documenting `./rootfs/` and why. Do NOT silently change either
+    side without the decision. Read: AI.md PART 27, PART 3.
+
+55. CODE-vs-SPEC - `/server/healthz` canonical route not registered +
+    root alias enabled by default (flagged 2026-08-12; needs code change +
+    tests, so logged not fixed in the doc-sync pass). PART 13 (api-rules)
+    mandates `/server/healthz` as the content-negotiated frontend health
+    route, `/api/{api_version}/server/healthz` as the JSON default, an
+    optional `/healthz` root alias that must be config-gated
+    (`server.healthz.root.enabled: true`) and NEVER enabled by default, and
+    `/api/healthz` as an unversioned alias mounting the same handler.
+    Actual (verified src/main.go): only `/healthz` (1172, root alias,
+    registered unconditionally) and `/api/v1/healthz` (2219) exist -
+    `/server/healthz`, `/api/v1/server/healthz`, and `/api/healthz` are
+    absent, and the root alias is on by default in violation of the
+    "NEVER enable /healthz root alias by default" rule. Fix: register the
+    canonical `/server/healthz` + `/api/v1/server/healthz` (+ unversioned
+    `/api/healthz` alias mounting the same handler, no redirect), and gate
+    the `/healthz` root alias behind `server.healthz.root.enabled`
+    (default false). Add route tests. Read: AI.md PART 13.
+
+56. CODE-vs-SPEC - `--lang` shared flag missing from the server binary
+    (flagged 2026-08-12; needs code change, logged not fixed). binary-rules
+    (PART 7/8/33) lists `--lang` among the shared flags required in ALL
+    binaries (server, client, agent). Verified absent from `src/cli/cli.go`
+    (grep for `"lang"` in the server CLI flag set returns nothing). Add the
+    `--lang` flag to the server binary's flag set, wired to the i18n
+    resolution chain (PART 31 CLI/agent chain: `--lang` > config > LANG/
+    LC_ALL > auto-detect > en). Read: AI.md PART 7, 8, 31, 33.
+
+57. AMBIGUOUS - docs/cli.md server subcommands documented without `--`
+    prefix (flagged 2026-08-12). docs/cli.md:34-40 shows
+    `wthr maintenance` / `wthr update` / `wthr service` (no `--`). Both the
+    bare and `--`-prefixed forms are accepted in code, but the server
+    `--help` advertises only the `--`-prefixed forms. Decision needed on the
+    single canonical documented form, then align docs/cli.md to it. Low
+    stakes; logged rather than guessed. Read: AI.md PART 7, 8.
+
+58. AMBIGUOUS - docs/cli.md env table mislabels CONFIG_DIR/DATA_DIR/LOG_DIR
+    as "client" directories (flagged 2026-08-12; corrects an earlier
+    would-be deletion). docs/cli.md:87-89 labels these three env vars as
+    "the client config/data/log directory". Verified: `src/client` (the
+    standalone `wthr-cli`) does NOT read them; `src/cli/maintenance*.go`
+    (the SERVER binary's maintenance CLI) DOES. So they are real,
+    consumed vars - do NOT delete - but the "client" label is wrong; they
+    are the server binary's directory overrides. Decision: relabel in place
+    under the server binary, or move the rows to the server's env section.
+    Read: AI.md PART 4 (§ Env Vars), PART 33.
