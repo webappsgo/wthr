@@ -14,9 +14,9 @@ Most endpoints are public and don't require authentication. User-specific endpoi
 
 ### Authentication Flow
 
-1. **Login** - `POST /api/v1/auth/login`
+1. **Login** - `POST /api/v1/server/auth/login`
 2. **Access Protected Endpoints** - Include session cookie
-3. **Logout** - `POST /api/v1/auth/logout`
+3. **Logout** - `POST /api/v1/server/auth/logout`
 
 ## API Endpoints
 
@@ -67,8 +67,8 @@ GET /api/v1/weather/:location
 Get 16-day weather forecast.
 
 ```http
-GET /api/v1/forecast
-GET /api/v1/forecast/:location
+GET /api/v1/forecasts
+GET /api/v1/forecasts/:location
 ```
 
 **Response:**
@@ -316,7 +316,7 @@ Requires authentication.
 #### List Saved Locations
 
 ```http
-GET /api/v1/locations
+GET /api/v1/users/locations
 ```
 
 **Response:**
@@ -339,7 +339,7 @@ GET /api/v1/locations
 #### Save Location
 
 ```http
-POST /api/v1/locations
+POST /api/v1/users/locations
 ```
 
 **Request Body:**
@@ -356,13 +356,13 @@ POST /api/v1/locations
 #### Update Location
 
 ```http
-PUT /api/v1/locations/:id
+PUT /api/v1/users/locations/:id
 ```
 
 #### Delete Location
 
 ```http
-DELETE /api/v1/locations/:id
+DELETE /api/v1/users/locations/:id
 ```
 
 ### Authentication Endpoints
@@ -370,7 +370,7 @@ DELETE /api/v1/locations/:id
 #### Login
 
 ```http
-POST /api/v1/auth/login
+POST /api/v1/server/auth/login
 ```
 
 **Request Body:**
@@ -386,11 +386,13 @@ POST /api/v1/auth/login
 
 ```json
 {
-  "success": true,
-  "user": {
-    "id": 1,
-    "username": "user@example.com",
-    "email": "user@example.com"
+  "ok": true,
+  "data": {
+    "user": {
+      "id": 1,
+      "username": "user@example.com",
+      "email": "user@example.com"
+    }
   }
 }
 ```
@@ -398,13 +400,13 @@ POST /api/v1/auth/login
 #### Logout
 
 ```http
-POST /api/v1/auth/logout
+POST /api/v1/server/auth/logout
 ```
 
 #### Register
 
 ```http
-POST /api/v1/auth/register
+POST /api/v1/server/auth/register
 ```
 
 **Request Body:**
@@ -440,7 +442,7 @@ GET /api/v1/ip
 #### Get GeoIP Location
 
 ```http
-GET /api/v1/location
+GET /api/v1/weather/locations
 ```
 
 Returns location for client's IP address.
@@ -481,12 +483,20 @@ X-RateLimit-Remaining: 45
 X-RateLimit-Reset: 1642252800
 ```
 
-When rate limited:
+When rate limited, the response uses the canonical error shape with a
+`RATE_LIMITED` code, and the retry timing is returned in the `Retry-After`
+HTTP header (not in the response body):
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 30
+```
 
 ```json
 {
-  "error": "Rate limit exceeded",
-  "retry_after": 30
+  "ok": false,
+  "error": "RATE_LIMITED",
+  "message": "Too many requests. Please try again later."
 }
 ```
 
@@ -496,8 +506,9 @@ Standard error format:
 
 ```json
 {
-  "error": "Error message",
-  "code": "ERROR_CODE",
+  "ok": false,
+  "error": "ERROR_CODE",
+  "message": "Human-readable error message",
   "details": {}
 }
 ```
@@ -526,19 +537,19 @@ curl -q -LSsf https://wthr.top/api/v1/weather
 curl -q -LSsf https://wthr.top/api/v1/weather/New%20York
 
 # Get forecast
-curl -q -LSsf "https://wthr.top/api/v1/forecast?lat=40.7128&lon=-74.0060"
+curl -q -LSsf "https://wthr.top/api/v1/forecasts?lat=40.7128&lon=-74.0060"
 
 # Get earthquakes
 curl -q -LSsf "https://wthr.top/api/v1/earthquakes?min_magnitude=4.0"
 
 # Login
-curl -q -LSsf -X POST https://wthr.top/api/v1/auth/login \
+curl -q -LSsf -X POST https://wthr.top/api/v1/server/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"user","password":"pass"}' \
   -c cookies.txt
 
 # Use authenticated endpoint
-curl -q -LSsf https://wthr.top/api/v1/locations \
+curl -q -LSsf https://wthr.top/api/v1/users/locations \
   -b cookies.txt
 ```
 
@@ -551,12 +562,12 @@ fetch('https://wthr.top/api/v1/weather')
   .then(data => console.log(data));
 
 // Get forecast
-fetch('https://wthr.top/api/v1/forecast/New%20York')
+fetch('https://wthr.top/api/v1/forecasts/New%20York')
   .then(res => res.json())
   .then(data => console.log(data.forecast));
 
 // Login
-fetch('https://wthr.top/api/v1/auth/login', {
+fetch('https://wthr.top/api/v1/server/auth/login', {
   method: 'POST',
   headers: {'Content-Type': 'application/json'},
   body: JSON.stringify({username: 'user', password: 'pass'})
@@ -576,19 +587,19 @@ weather = response.json()
 print(weather)
 
 # Get forecast
-response = requests.get('https://wthr.top/api/v1/forecast',
+response = requests.get('https://wthr.top/api/v1/forecasts',
                        params={'lat': 40.7128, 'lon': -74.0060})
 forecast = response.json()
 print(forecast)
 
 # Login
 session = requests.Session()
-response = session.post('https://wthr.top/api/v1/auth/login',
+response = session.post('https://wthr.top/api/v1/server/auth/login',
                        json={'username': 'user', 'password': 'pass'})
 print(response.json())
 
 # Use authenticated endpoint
-response = session.get('https://wthr.top/api/v1/locations')
+response = session.get('https://wthr.top/api/v1/users/locations')
 locations = response.json()
 print(locations)
 ```

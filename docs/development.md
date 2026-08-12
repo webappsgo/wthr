@@ -99,11 +99,9 @@ Build Docker image:
 make docker
 ```
 
-Tag and push:
-
-```bash
-make docker-push TAG=v1.2.3
-```
+`make docker` builds and tags the image locally only — it never pushes.
+Pushing images to the registry is handled by CI/CD (see `docker.yml`), not the
+Makefile.
 
 ### Release Build
 
@@ -115,43 +113,29 @@ make release VERSION=1.2.3
 
 ## Testing
 
-### Run All Tests
+Testing is two-phase. `make test` is the toolchain phase (pre-commit gate);
+`./tests/run_tests.sh` is the binary-validation phase (developer-initiated).
+
+### Phase 1: Unit Tests and Coverage
+
+Runs `go test` for every package inside Docker and enforces the ≥60% coverage
+threshold. This is the pre-commit gate.
 
 ```bash
 make test
 ```
 
-### Run Unit Tests
+### Phase 2: Binary Validation
+
+Builds the binaries and exercises the running server (routes, auth, content
+negotiation, CLI/agent) in a container.
 
 ```bash
-make test-unit
+./tests/run_tests.sh
 ```
 
-### Run Integration Tests
-
-```bash
-make test-integration
-```
-
-### Run End-to-End Tests
-
-```bash
-make test-e2e
-```
-
-### Test Coverage
-
-```bash
-make test-coverage
-```
-
-View coverage report:
-
-```bash
-make test-coverage-html
-```
-
-Opens coverage report in browser.
+Prefer `./tests/incus.sh` (full systemd) when available, with
+`./tests/docker.sh` as the fallback.
 
 ## Development Workflow
 
@@ -178,11 +162,8 @@ Edit source files in `src/` directory.
 # Build and run
 make dev
 
-# Run tests
+# Run tests (Phase 1 toolchain gate)
 make test
-
-# Check for issues
-make lint
 ```
 
 ### 4. Commit Changes
@@ -310,11 +291,11 @@ func calc(t, w float64) float64 {
 
 ### Adding a New API Endpoint
 
-1. **Create handler** in `src/handlers/`
+1. **Create handler** in `src/server/handler/`
 
 ```go
-// src/handlers/feature.go
-package handlers
+// src/server/handler/feature.go
+package handler
 
 import (
 	"net/http"
@@ -334,7 +315,7 @@ func GetFeature(c *gin.Context) {
 
 ```go
 // In setupRoutes function
-apiV1.GET("/feature", handlers.GetFeature)
+apiV1.GET("/feature", handler.GetFeature)
 ```
 
 3. **Add tests** in `tests/unit/handlers/`

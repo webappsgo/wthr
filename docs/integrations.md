@@ -23,9 +23,9 @@ data every 1 minute). No API keys, accounts, or registration are required for an
 
 ## GeoIP
 
-wthr embeds the [sapics/ip-location-db](https://github.com/sapics/ip-location-db) GeoLite2-compatible
-databases for automatic location detection from IP address. The embedded database is updated monthly
-via the built-in scheduler.
+wthr uses the [sapics/ip-location-db](https://github.com/sapics/ip-location-db) GeoLite2-compatible
+databases for automatic location detection from IP address. The databases are downloaded on first
+run and updated weekly (Sunday 03:00) via the built-in scheduler — never embedded in the binary.
 
 Databases used:
 
@@ -47,10 +47,10 @@ Full REST API documentation is available at `/swagger/` (OpenAPI/Swagger UI). Ex
 
 ```sh
 # Current weather for a location
-curl https://your-wthr-instance.example.com/api/v1/weather/current?location=New+York
+curl https://your-wthr-instance.example.com/api/v1/weather?location=New+York
 
 # Active severe weather alerts (US)
-curl https://your-wthr-instance.example.com/api/v1/alerts?country=US
+curl https://your-wthr-instance.example.com/api/v1/severe-weather?country=US
 
 # Earthquake data
 curl https://your-wthr-instance.example.com/api/v1/earthquakes?minmagnitude=5
@@ -60,7 +60,7 @@ For authenticated endpoints, pass the session token as a Bearer token:
 
 ```sh
 curl -H "Authorization: Bearer your-token-here" \
-  https://your-wthr-instance.example.com/api/v1/user/locations
+  https://your-wthr-instance.example.com/api/v1/users/locations
 ```
 
 ### GraphQL
@@ -90,8 +90,8 @@ curl https://your-wthr-instance.example.com/:bash.function
 Real-time severe weather and earthquake alerts are pushed over WebSocket at:
 
 ```
-ws://your-wthr-instance.example.com/ws/alerts
-wss://your-wthr-instance.example.com/ws/alerts  (TLS)
+ws://your-wthr-instance.example.com/ws/notifications
+wss://your-wthr-instance.example.com/ws/notifications  (TLS)
 ```
 
 Connect with any WebSocket client. Messages are JSON-encoded alert objects matching the REST API

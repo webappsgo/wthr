@@ -29,7 +29,7 @@ A unified weather information platform that aggregates global meteorological dat
 | OpenAPI/Swagger | Full API documentation at `/swagger/` |
 | i18n | English, Spanish, French, German, Arabic, Japanese, Chinese |
 
-All weather data sources are free/public APIs — no API keys required. GeoIP database is embedded in binary and updated monthly by the scheduler. Single binary deployment — no external dependencies.
+All weather data sources are free/public APIs — no API keys required. GeoIP databases are downloaded on first run and updated weekly by the scheduler (never embedded in the binary). Single binary deployment — no external dependencies.
 
 ## Project variables
 
