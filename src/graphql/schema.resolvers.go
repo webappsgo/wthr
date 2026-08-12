@@ -1909,7 +1909,8 @@ func (r *queryResolver) SearchLocations(ctx context.Context, query string) ([]*L
 	// Convert to GraphQL type
 	results := make([]*LocationSearchResult, 0, len(locations))
 	for _, loc := range locations {
-		region := loc.Admin1 // Use admin1 as region
+		// Use admin1 as region
+		region := loc.Admin1
 		results = append(results, &LocationSearchResult{
 			Name:    loc.Name,
 			Region:  &region,

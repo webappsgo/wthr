@@ -1542,13 +1542,6 @@ any of the above: `src/graphql/context_keys_test.go`,
     zero-config, no external file dependencies at runtime for anything
     that ships in the repo). Read: AI.md PART 8 before starting.
 
-49. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
-    commits): `src/graphql/schema.resolvers.go` line 1912 has an inline
-    trailing comment (`// Use admin1 as region`) — AI.md/ai-rules.md
-    requires comments always ABOVE the code, never inline. Move it to
-    its own line above the assignment. Read: AI.md PART 0 (comment
-    placement) before starting.
-
 50. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
     commits): two Makefile/CI drifts found during this pass's lint
     review, out of scope for item 16's coverage work:
