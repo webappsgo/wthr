@@ -1542,23 +1542,35 @@ any of the above: `src/graphql/context_keys_test.go`,
     zero-config, no external file dependencies at runtime for anything
     that ships in the repo). Read: AI.md PART 8 before starting.
 
-51. TODO (flagged 2026-08-07 during the CSS/theming AI.md PART 16
-    compliance pass): `src/client/tui.go` defines a Dracula ANSI palette
-    (`colorBackground`/`colorForeground`/`colorSelection`/`colorComment`/
-    `colorCyan`/`colorGreen`/`colorPurple`/`colorRed`/`colorYellow` via
-    `lipgloss.Color`) that already matches the web dark theme's palette,
-    and `NO_COLOR` is respected automatically through lipgloss/termenv's
-    own color-profile detection (no extra code needed). What's missing:
-    there is no light-theme ANSI variant and no `--color`/theme-selection
-    wiring in the TUI to switch to it — the TUI is dark-only regardless of
-    the user's saved theme preference. Confirm whether AI.md PART 16/33
-    requires the TUI to honor light/auto in addition to dark before
-    building a `TerminalPalette` abstraction with both variants; if
-    required, mirror `src/common/theme/colors.go`'s light values into a
-    second lipgloss palette and select via the same theme-resolution
-    chain used elsewhere (cookie/DB pref -> `--color`/`--lang`-style flag
-    -> default dark). Read: AI.md PART 16 (Themes) and PART 33 (CLI)
-    before starting.
+51. DONE (2026-08-12): TUI now honors light/dark/system theme per AI.md
+    PART 16. Added `TerminalPalette` (ANSI-index) abstraction with
+    `TerminalPaletteDark`/`TerminalPaletteLight` + `GetTerminalPalette`
+    to `src/common/theme/colors.go` as the single source of truth for
+    TUI role->ANSI-index mapping (dark 15/7/13/10/11/9/12/13, light
+    0/8/4/2/3/1/4/4). `src/client/tui.go` replaced the hardcoded Dracula
+    hex block with `lipgloss.AdaptiveColor{Dark,Light}` values sourced
+    from those palettes, and `applyTUITheme(config.TUI.Theme)` forces
+    `lipgloss.SetHasDarkBackground(false/true)` for explicit light/dark
+    while leaving system/auto to lipgloss COLORFGBG auto-detection.
+    `src/client/setup.go` calls `applyTUITheme` before the wizard runs.
+    `NO_COLOR` remains handled automatically by lipgloss/termenv (AI.md
+    PART 16 line 27584 — no manual gate is added, that would contradict
+    the spec). Verified in Docker: gofmt/vet/build clean, tests pass,
+    make test 60.1%.
+
+53. TODO (flagged 2026-08-12 by go-lint during item 51): TUI/CLI emoji
+    are NOT suppressed under `NO_COLOR`/`TERM=dumb`. lipgloss/termenv
+    strips ANSI color automatically but does not strip emoji runes, so
+    the TUI menu icons (☀ 📅 ⚠ 🌙 📜 🌍 🌀 in `src/client/tui.go`
+    ~lines 79-85) and the setup wizard's ✓/✗ status glyphs
+    (`src/client/setup.go` lines 203/205) still render even when the
+    user has disabled color/emoji. AI.md PART 16 states "NO_COLOR
+    disables colors + emojis" and "TERM=dumb forces CLI mode (no ANSI,
+    no emoji, no TUI, ASCII tables)". Fix: gate emoji glyphs on an
+    emoji-enabled check (NO_COLOR unset AND TERM!=dumb) and fall back to
+    ASCII equivalents; do NOT add manual NO_COLOR *color* gates to the
+    lipgloss styling — only the emoji runes need suppressing. Read:
+    AI.md PART 16 (display env / NO_COLOR / TERM=dumb) before starting.
 
 52. TEMPLATE RENDER-NAME / EMBED AUDIT (root causes fixed 2026-08-12;
     remaining subitems are UNSPECIFIED admin UI - do NOT fabricate).

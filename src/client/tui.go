@@ -9,19 +9,24 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/webappsgo/wthr/src/common/terminal"
+	"github.com/webappsgo/wthr/src/common/theme"
 )
 
-// Dracula theme colors per AI.md PART 16
+// TUI colors map the shared theme's semantic roles to ANSI-safe indices per
+// AI.md PART 16. lipgloss.AdaptiveColor picks the light or dark variant from
+// the detected (or explicitly-set) terminal background — never a forced hex —
+// so both light and dark terminals stay readable. Indices come from the single
+// source of truth in src/common/theme.
 var (
-	colorBackground = lipgloss.Color("#282a36")
-	colorForeground = lipgloss.Color("#f8f8f2")
-	colorSelection  = lipgloss.Color("#44475a")
-	colorComment    = lipgloss.Color("#6272a4")
-	colorCyan       = lipgloss.Color("#8be9fd")
-	colorGreen      = lipgloss.Color("#50fa7b")
-	colorPurple     = lipgloss.Color("#bd93f9")
-	colorRed        = lipgloss.Color("#ff5555")
-	colorYellow     = lipgloss.Color("#f1fa8c")
+	colorBackground = lipgloss.AdaptiveColor{Dark: "0", Light: "15"}
+	colorForeground = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Foreground, Light: theme.TerminalPaletteLight.Foreground}
+	colorSelection  = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Border, Light: theme.TerminalPaletteLight.Border}
+	colorComment    = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Muted, Light: theme.TerminalPaletteLight.Muted}
+	colorCyan       = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Info, Light: theme.TerminalPaletteLight.Info}
+	colorGreen      = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Success, Light: theme.TerminalPaletteLight.Success}
+	colorPurple     = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Primary, Light: theme.TerminalPaletteLight.Primary}
+	colorRed        = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Error, Light: theme.TerminalPaletteLight.Error}
+	colorYellow     = lipgloss.AdaptiveColor{Dark: theme.TerminalPaletteDark.Warning, Light: theme.TerminalPaletteLight.Warning}
 )
 
 // TUI view types
@@ -477,7 +482,8 @@ func (m tuiModel) renderResult() string {
 
 	// Scroll the result if needed
 	lines := strings.Split(m.result, "\n")
-	viewHeight := m.height - 6 // Reserve space for header and footer
+	// Reserve space for header and footer
+	viewHeight := m.height - 6
 	if viewHeight < 3 {
 		viewHeight = 3
 	}
@@ -567,8 +573,23 @@ func (m tuiModel) getHelpText() string {
 	}
 }
 
+// applyTUITheme sets the lipgloss background mode from the configured TUI
+// theme preference per AI.md PART 16's theme-resolution chain. Explicit
+// "dark"/"light" force that background so every AdaptiveColor resolves to the
+// matching variant; "system"/"auto"/unset leaves lipgloss's COLORFGBG-based
+// auto-detection (which itself falls back to dark) untouched.
+func applyTUITheme(pref string) {
+	switch strings.ToLower(strings.TrimSpace(pref)) {
+	case "light":
+		lipgloss.SetHasDarkBackground(false)
+	case "dark":
+		lipgloss.SetHasDarkBackground(true)
+	}
+}
+
 // runTUI starts the TUI
 func runTUI(config *CLIConfig) error {
+	applyTUITheme(config.TUI.Theme)
 	p := tea.NewProgram(
 		newTUIModel(config),
 		tea.WithAltScreen(),

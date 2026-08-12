@@ -57,6 +57,64 @@ var ThemePaletteLight = ThemePalette{
 	Muted:      "#59636e",
 }
 
+// TerminalPalette holds ANSI 16-color indices (0-15) for CLI/TUI output per
+// AI.md PART 16 — never the literal hex ThemePalette. lipgloss.Color() and the
+// ESC[38;5;{n}m escape both accept these indices directly, so a terminal
+// renders them with the user's own configured palette instead of forced hex.
+type TerminalPalette struct {
+	Foreground string `json:"foreground"`
+	Muted      string `json:"muted"`
+	Primary    string `json:"primary"`
+	Success    string `json:"success"`
+	Warning    string `json:"warning"`
+	Error      string `json:"error"`
+	Info       string `json:"info"`
+	Border     string `json:"border"`
+}
+
+// TerminalPaletteDark maps the theme's semantic roles to bright ANSI indices
+// for dark terminals per AI.md PART 16.
+var TerminalPaletteDark = TerminalPalette{
+	Foreground: "15",
+	Muted:      "7",
+	Primary:    "13",
+	Success:    "10",
+	Warning:    "11",
+	Error:      "9",
+	Info:       "12",
+	Border:     "13",
+}
+
+// TerminalPaletteLight maps the theme's semantic roles to standard ANSI
+// indices for light terminals per AI.md PART 16.
+var TerminalPaletteLight = TerminalPalette{
+	Foreground: "0",
+	Muted:      "8",
+	Primary:    "4",
+	Success:    "2",
+	Warning:    "3",
+	Error:      "1",
+	Info:       "4",
+	Border:     "4",
+}
+
+// GetTerminalPalette returns the ANSI terminal palette for the given theme
+// mode. Accepts "dark", "light", or "auto"/"system" (auto uses system
+// detection, falling back to dark when a preference cannot be determined).
+func GetTerminalPalette(themeMode string) TerminalPalette {
+	switch themeMode {
+	case "light":
+		return TerminalPaletteLight
+	case "dark":
+		return TerminalPaletteDark
+	default:
+		if IsSystemDarkTheme() {
+			return TerminalPaletteDark
+		}
+		return TerminalPaletteLight
+	}
+}
+
 // GetThemePalette returns the palette for the given theme mode string.
 // Accepts "dark", "light", or "auto" (which falls back to dark since
 // server-side system-theme detection is not yet available).

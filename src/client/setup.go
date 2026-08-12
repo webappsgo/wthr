@@ -117,7 +117,7 @@ func (m setupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the setup wizard
 func (m setupModel) View() string {
-	// Styles using Dracula theme colors
+	// Styles using the shared theme-aware ANSI palette (AI.md PART 16)
 	titleStyle := lipgloss.NewStyle().
 		Foreground(colorPurple).
 		Bold(true).
@@ -268,6 +268,7 @@ func testConnection(serverURL string) tea.Cmd {
 // runSetupWizard launches the setup wizard
 // Per AI.md PART 33 line 43869-44105
 func runSetupWizard(config *CLIConfig) error {
+	applyTUITheme(config.TUI.Theme)
 	m := newSetupModel()
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
