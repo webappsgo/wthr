@@ -17,12 +17,12 @@ func newHealthComprehensiveTestContext(target string) (*gin.Context, *httptest.R
 	return c, w
 }
 
-// readVersion falls back to "dev" whenever release.txt cannot be read from
-// the current working directory, which is always true inside `go test`.
+// readVersion returns the build-time-injected package Version, which defaults
+// to "dev" when no ldflags value was set — always the case under `go test`.
 func TestReadVersion(t *testing.T) {
 	got := readVersion()
 	if got != "dev" {
-		t.Errorf("readVersion() = %q, want %q (no release.txt in test working dir)", got, "dev")
+		t.Errorf("readVersion() = %q, want %q (Version defaults to dev without ldflags)", got, "dev")
 	}
 }
 

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +27,7 @@ func ComprehensiveHealthCheck(db *database.DB, httpPort string, httpsPort int, s
 		status := GetInitStatus()
 		startTime := status.Started
 
-		// Read version from release.txt
+		// Resolve version from the build-time-injected package var
 		version := readVersion()
 
 		// Overall status determination
@@ -314,13 +313,13 @@ func buildAdminServerStatusResponse(db *database.DB, c *gin.Context, httpPort st
 
 // Helper functions
 
+// readVersion returns the application version resolved at build time via
+// ldflags (-X main.Version), propagated into this package by
+// handler.SetBuildInfo at startup. It never reads a file at runtime, keeping
+// the binary self-contained per AI.md PART 1/8; the package-level Version
+// defaults to "dev" when no ldflags value was injected.
 func readVersion() string {
-	data, err := os.ReadFile("release.txt")
-	if err != nil {
-		return "dev"
-	}
-	// Trim whitespace/newline from version string per AI.md PART 13
-	return strings.TrimSpace(string(data))
+	return Version
 }
 
 // Global variables to store directory paths

@@ -1534,13 +1534,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     they're declared elsewhere (e.g. a generated file) or genuinely
     absent, and add them if absent. Read: AI.md PART 8 before starting.
 
-48. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
-    commits): `src/server/handler/health_comprehensive.go` line 318
-    reads `release.txt` at runtime via `os.ReadFile` instead of
-    embedding it via `go:embed`, inconsistent with the project's
-    single-self-contained-binary requirement (AI.md PART 1/8 —
-    zero-config, no external file dependencies at runtime for anything
-    that ships in the repo). Read: AI.md PART 8 before starting.
+48. DONE (2026-08-12): `readVersion()` in
+    `src/server/handler/health_comprehensive.go` no longer reads
+    `release.txt` at runtime via `os.ReadFile`. It now returns the
+    package-level `Version`, which is injected at build time via
+    `-ldflags -X main.Version` and propagated into the handler package
+    by `handler.SetBuildInfo(Version, ...)` (called at main.go:1169) —
+    the same build-info var already used by the about/status pages. This
+    matches the single-self-contained-binary requirement (AI.md PART 1/8)
+    and removes the last runtime dependency on a repo file. `strings`
+    import dropped (only `readVersion` used it). "dev" fallback preserved
+    (`Version` defaults to "dev" without ldflags). Stale
+    `TestReadVersion` comment updated to describe the ldflags mechanism
+    instead of the release.txt file read. All 4 `readVersion()` callers
+    (admin_settings.go:231, health_comprehensive.go:32/205,
+    health.go:422) are unchanged and get the correct injected version.
+    Note: `go:embed release.txt` was NOT used — release.txt lives at the
+    repo root, outside this package's directory, so go:embed cannot reach
+    it; the ldflags var is the project's canonical version mechanism
+    (src/version.go) and the correct fix.
 
 51. DONE (2026-08-12): TUI now honors light/dark/system theme per AI.md
     PART 16. Added `TerminalPalette` (ANSI-index) abstraction with
