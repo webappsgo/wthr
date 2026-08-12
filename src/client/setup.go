@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // Setup wizard per AI.md PART 33 line 43869-44105
@@ -200,9 +202,9 @@ func (m setupModel) View() string {
 		b.WriteString("\n\n")
 	} else if m.testResult != "" {
 		if m.testSuccess {
-			b.WriteString(successStyle.Render("✓ " + m.testResult))
+			b.WriteString(successStyle.Render(display.Emoji("✓", "[OK]") + " " + m.testResult))
 		} else {
-			b.WriteString(errorStyle.Render("✗ " + m.testResult))
+			b.WriteString(errorStyle.Render(display.Emoji("✗", "[X]") + " " + m.testResult))
 		}
 		b.WriteString("\n\n")
 	}

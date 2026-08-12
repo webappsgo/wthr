@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/common/terminal"
 	"github.com/webappsgo/wthr/src/common/theme"
 )
@@ -81,13 +82,13 @@ func newTUIModel(config *CLIConfig) tuiModel {
 		view:   viewMenu,
 		cursor: 0,
 		menuItems: []menuItem{
-			{label: "Current Weather", command: "current", icon: "☀"},
-			{label: "Forecast", command: "forecast", icon: "📅"},
-			{label: "Alerts", command: "alerts", icon: "⚠"},
-			{label: "Moon Phase", command: "moon", icon: "🌙"},
-			{label: "Historical", command: "history", icon: "📜"},
-			{label: "Earthquakes", command: "earthquakes", icon: "🌍"},
-			{label: "Hurricanes", command: "hurricanes", icon: "🌀"},
+			{label: "Current Weather", command: "current", icon: display.Emoji("☀", "-")},
+			{label: "Forecast", command: "forecast", icon: display.Emoji("📅", "-")},
+			{label: "Alerts", command: "alerts", icon: display.Emoji("⚠", "-")},
+			{label: "Moon Phase", command: "moon", icon: display.Emoji("🌙", "-")},
+			{label: "Historical", command: "history", icon: display.Emoji("📜", "-")},
+			{label: "Earthquakes", command: "earthquakes", icon: display.Emoji("🌍", "-")},
+			{label: "Hurricanes", command: "hurricanes", icon: display.Emoji("🌀", "-")},
 		},
 		width:    80,
 		height:   24,

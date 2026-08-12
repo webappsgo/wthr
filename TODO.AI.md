@@ -1558,19 +1558,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     the spec). Verified in Docker: gofmt/vet/build clean, tests pass,
     make test 60.1%.
 
-53. TODO (flagged 2026-08-12 by go-lint during item 51): TUI/CLI emoji
-    are NOT suppressed under `NO_COLOR`/`TERM=dumb`. lipgloss/termenv
-    strips ANSI color automatically but does not strip emoji runes, so
-    the TUI menu icons (☀ 📅 ⚠ 🌙 📜 🌍 🌀 in `src/client/tui.go`
-    ~lines 79-85) and the setup wizard's ✓/✗ status glyphs
-    (`src/client/setup.go` lines 203/205) still render even when the
-    user has disabled color/emoji. AI.md PART 16 states "NO_COLOR
-    disables colors + emojis" and "TERM=dumb forces CLI mode (no ANSI,
-    no emoji, no TUI, ASCII tables)". Fix: gate emoji glyphs on an
-    emoji-enabled check (NO_COLOR unset AND TERM!=dumb) and fall back to
-    ASCII equivalents; do NOT add manual NO_COLOR *color* gates to the
-    lipgloss styling — only the emoji runes need suppressing. Read:
-    AI.md PART 16 (display env / NO_COLOR / TERM=dumb) before starting.
+53. DONE (2026-08-12): TUI/CLI emoji now suppressed under
+    `NO_COLOR`/`TERM=dumb`. Added a shared, env-only gate
+    `src/common/display/emoji.go` (`EmojiEnabled()` returns false when
+    `NO_COLOR` is non-empty or `TERM=dumb`; `Emoji(emoji, fallback)`
+    returns the ASCII fallback when disabled) — placed in
+    `src/common/display` because `src/util` (the server-side
+    `EmojiEnabled`) pulls in database/config and cannot be imported by
+    the CLI (`package main`). `src/client/tui.go` wraps the 7 menu icons
+    in `display.Emoji(icon, "-")`; `src/client/setup.go` wraps the
+    connection-test ✓/✗ marks in `display.Emoji("✓","[OK]")` /
+    `display.Emoji("✗","[X]")`. lipgloss color styling was left
+    untouched (it already handles NO_COLOR per AI.md PART 16 line
+    27584 — only emoji runes needed gating). Arrows/box-drawing glyphs
+    (↑↓→│•) were intentionally left as-is (box-drawing category, not
+    emoji, not stripped by NO_COLOR). Verified in Docker: gofmt/vet/build
+    clean, go test pass, coverage 60.1%, go-lint clean on all 3 files.
 
 52. TEMPLATE RENDER-NAME / EMBED AUDIT (root causes fixed 2026-08-12;
     remaining subitems are UNSPECIFIED admin UI - do NOT fabricate).
