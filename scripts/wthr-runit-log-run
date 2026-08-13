@@ -1,5 +1,28 @@
 #!/bin/sh
+# shellcheck shell=sh
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  wthr-runit-log-run
+# @@Description      :  runit log run script for the wthr service, installed to /etc/sv/wthr/log/run
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  yes
+# @@Template         :  shell/sh
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # runit log run script for wthr service
 # Installed to /etc/sv/wthr/log/run
 
 exec svlogd -tt /var/log/webappsgo/wthr
+
+# ex: ts=2 sw=2 et filetype=sh

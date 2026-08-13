@@ -1,10 +1,31 @@
 #!/bin/bash
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  entrypoint-aio.sh
+# @@Description      :  Container entrypoint for the all-in-one image; initializes PostgreSQL/Valkey and execs supervisord
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  yes
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 set -e
 
 # Set timezone
 if [ -n "$TZ" ]; then
-    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime
-    echo $TZ > /etc/timezone
+    ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime
+    echo "$TZ" > /etc/timezone
 fi
 
 # Setup directories for EXTERNAL services only (PostgreSQL, Valkey)
@@ -41,3 +62,5 @@ export TOR_ENABLED="${TOR_ENABLED:-false}"
 
 # Start supervisor (manages postgresql + valkey + tor + app)
 exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
+
+# ex: ts=2 sw=2 et filetype=sh

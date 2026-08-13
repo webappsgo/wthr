@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  macos.sh
+# @@Description      :  macOS installer for the wthr weather service with a LaunchAgent
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  no
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # Weather Service - macOS Installer with LaunchAgent
 
 set -e
@@ -32,7 +53,7 @@ echo -e "${GREEN}✓${NC} Detected: darwin/${ARCH_TYPE}"
 # Get latest version
 if [ "${VERSION}" = "latest" ]; then
     echo "🔍 Fetching latest version..."
-    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep -- '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 fi
 
 BINARY_FILE="${BINARY_NAME}-darwin-${ARCH_TYPE}"
@@ -110,3 +131,5 @@ echo ""
 echo "  tail -f '${DATA_DIR}/stdout.log'   # View logs"
 echo ""
 echo "Service will run on: http://localhost:3000"
+
+# ex: ts=2 sw=2 et filetype=sh

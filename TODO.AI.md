@@ -1784,25 +1784,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     under the server binary, or move the rows to the server's env section.
     Read: AI.md PART 4 (§ Env Vars), PART 33.
 
-60. TODO - PROJECT-WIDE SCRIPT-LINT NON-COMPLIANCE (flagged 2026-08-13 by
-    the `script-lint` agent while auditing scripts touched during the
-    org-rename commit; pre-existing, not introduced by that rename).
-    Confirmed pervasive across the whole `scripts/`/`tests/` tree, not just
-    the files edited that pass, e.g. `scripts/audit_non_negotiables.sh` has
-    17 occurrences alone. Three violation classes:
-    - GREP: many `grep`/`grep -q`/`grep -E` calls are missing the
-      required `--` separator before the query pattern (CLAUDE.md Tool
-      Preference: "`grep` always with `--` before the query").
-    - NAMING: `tests/incus.sh` has 14 local functions missing the
-      required `__` prefix (namespace-collision risk when sourced).
-    - VERSION: no script in the project carries a `##@Version` header.
-    Full file list and line numbers from the script-lint pass covering
-    `scripts/install.sh`, `scripts/install-linux.sh`,
-    `scripts/install-bsd.sh`, `scripts/install-macos.sh`,
-    `scripts/linux.sh`, `scripts/macos.sh`, `tests/incus.sh`,
-    `tests/docker.sh` (40 violations total in that subset alone) -
-    re-run the `script-lint` agent per-file to regenerate exact
-    line numbers before fixing, since this list will drift as scripts
-    change. Needs a dedicated pass across every `*.sh` file in the repo,
-    not just these 8 - deferred rather than folded into the org-rename
-    commit to keep that commit scoped to one logical change.
+60. DONE (2026-08-13) - PROJECT-WIDE SCRIPT-LINT NON-COMPLIANCE. Fixed all
+    15 shell scripts in the project (identified by shebang, not just `.sh`
+    extension): `docker/rootfs/usr/local/bin/entrypoint-aio.sh`,
+    `docker/rootfs/usr/local/bin/entrypoint.sh`,
+    `scripts/audit_non_negotiables.sh`, `scripts/install-bsd.sh`,
+    `scripts/install-linux.sh`, `scripts/install-macos.sh`,
+    `scripts/install.sh`, `scripts/linux.sh`, `scripts/macos.sh`,
+    `scripts/weather-runit-run`, `scripts/wthr-runit-log-run`,
+    `tests/docker.sh`, `tests/incus.sh`, `tests/run_tests.sh`,
+    `tests/test-server.sh` (`scripts/i18n-validate.sh` excluded - it's
+    Python, not shell). Fixed:
+    - GREP: every `grep`/`grep -q`/`grep -E`/`grep -Eo` call across all
+      15 files now has `--` before its pattern.
+    - NAMING: `tests/incus.sh` had 14 local functions missing the `__`
+      prefix (not 8 as an earlier partial pass suggested) - all 14
+      renamed with every call site updated; `docker/.../entrypoint.sh`
+      (`log`/`cleanup`), `scripts/audit_non_negotiables.sh` (7
+      functions), `scripts/install-linux.sh` (`detect_init`),
+      `tests/docker.sh` (`cleanup`), `tests/test-server.sh` (`cleanup`)
+      also renamed with call sites updated.
+    - VERSION: every file now carries the full CasjaysDev header block
+      (`##@Version`, WTFPL license, Created date, etc.) plus a trailing
+      vim modeline; shell-appropriate (`shell=bash` vs `shell=sh` for
+      the two `/bin/sh` installers).
+    - Misc: unquoted `$TZ` fixed in `entrypoint-aio.sh`; `$APP_BIN`
+      quoted in `entrypoint.sh`.
+    Verified: `grep -rn` for `grep` calls missing `--` across all 15
+    files returns zero matches; `grep -n` for each renamed function
+    name confirms zero remaining unprefixed call sites; `bash -n`/
+    `sh -n` clean on all 15 files (syntax-only, no execution, per the
+    project's no-host-execution rule).

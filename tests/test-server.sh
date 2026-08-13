@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  test-server.sh
+# @@Description      :  Runs the wthr server locally with an isolated temp data directory for manual testing
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  no
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # Test script that runs the server with isolated temp directory
 
 set -e
@@ -19,7 +40,7 @@ echo -e "Test directory: ${YELLOW}$TEST_DIR${NC}"
 echo ""
 
 # Cleanup function
-cleanup() {
+__cleanup() {
     echo ""
     echo -e "${YELLOW}🧹 Cleaning up...${NC}"
     if [ -n "$SERVER_PID" ]; then
@@ -33,7 +54,7 @@ cleanup() {
     fi
 }
 
-trap cleanup EXIT INT TERM
+trap __cleanup EXIT INT TERM
 
 # Build if needed
 if [ ! -f "./wthr" ]; then
@@ -78,3 +99,5 @@ echo ""
 
 # Follow logs
 tail -f "$TEST_DIR/server.log"
+
+# ex: ts=2 sw=2 et filetype=sh

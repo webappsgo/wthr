@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  docker.sh
+# @@Description      :  AI.md PART 29 full integration testing in a Docker Alpine container
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  no
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # AI.md PART 29: Full integration testing in Docker Alpine container
 set -euo pipefail
 
@@ -32,14 +53,14 @@ docker run --rm \
     set -e
     mkdir -p /tmp/webappsgo
     TEST_DIR=\$(mktemp -d /tmp/webappsgo/wthr-XXXXXX)
-    cleanup() {
+    __cleanup() {
         if [ -n \"\${SERVER_PID:-}\" ] && kill -0 \$SERVER_PID 2>/dev/null; then
             kill \$SERVER_PID 2>/dev/null || true
             wait \$SERVER_PID 2>/dev/null || true
         fi
         rm -rf \"\$TEST_DIR\"
     }
-    trap cleanup EXIT
+    trap __cleanup EXIT
 
     # Install required tools per AI.md PART 29
     apk add --no-cache curl bash file jq >/dev/null 2>&1
@@ -63,7 +84,7 @@ docker run --rm \
     # Test server binary rename
     cp /app/$PROJECTNAME /app/renamed-server
     chmod +x /app/renamed-server
-    if /app/renamed-server --help 2>&1 | grep -q 'renamed-server'; then
+    if /app/renamed-server --help 2>&1 | grep -q -- 'renamed-server'; then
         echo '✓ Server binary rename works (--help shows actual name)'
     else
         echo '✗ FAILED: Server --help does not show renamed binary name'
@@ -73,7 +94,7 @@ docker run --rm \
     # Test CLI binary rename
     cp /app/${PROJECTNAME}-cli /app/renamed-cli
     chmod +x /app/renamed-cli
-    if /app/renamed-cli --help 2>&1 | grep -q 'renamed-cli'; then
+    if /app/renamed-cli --help 2>&1 | grep -q -- 'renamed-cli'; then
         echo '✓ CLI binary rename works (--help shows actual name)'
     else
         echo '✗ FAILED: CLI --help does not show renamed binary name'
@@ -100,21 +121,21 @@ docker run --rm \
 
     echo '=== Static File Tests (AI.md PART 16) ==='
     # robots.txt
-    if curl -q -LSsf http://localhost:64580/robots.txt | grep -q 'User-agent'; then
+    if curl -q -LSsf http://localhost:64580/robots.txt | grep -q -- 'User-agent'; then
         echo '✓ /robots.txt returns valid content'
     else
         echo '✗ FAILED: /robots.txt'
     fi
 
     # security.txt
-    if curl -q -LSsf http://localhost:64580/.well-known/security.txt | grep -q 'Contact'; then
+    if curl -q -LSsf http://localhost:64580/.well-known/security.txt | grep -q -- 'Contact'; then
         echo '✓ /.well-known/security.txt returns valid content'
     else
         echo '✗ FAILED: /.well-known/security.txt'
     fi
 
     # sitemap.xml
-    if curl -q -LSsf http://localhost:64580/sitemap.xml | grep -q 'urlset'; then
+    if curl -q -LSsf http://localhost:64580/sitemap.xml | grep -q -- 'urlset'; then
         echo '✓ /sitemap.xml returns valid XML'
     else
         echo '✗ FAILED: /sitemap.xml'
@@ -153,7 +174,7 @@ docker run --rm \
 
     # Test Accept: text/plain
     PLAIN=\$(curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/v1/healthz)
-    if [ -n \"\$PLAIN\" ] && ! echo \"\$PLAIN\" | grep -q '^{'; then
+    if [ -n \"\$PLAIN\" ] && ! echo \"\$PLAIN\" | grep -q -- '^{'; then
         echo '✓ Accept: text/plain returns plain text'
     else
         echo '✗ FAILED: Accept text/plain'
@@ -223,7 +244,7 @@ docker run --rm \
 
     # Test with Accept: text/html (browser simulation)
     HTML=\$(curl -q -LSsf -H 'Accept: text/html' http://localhost:64580/)
-    if echo \"\$HTML\" | grep -qi 'html'; then
+    if echo \"\$HTML\" | grep -qi -- 'html'; then
         echo '✓ Accept: text/html returns HTML'
     else
         echo '⚠ Accept: text/html (frontend may not implement)'
@@ -256,3 +277,5 @@ docker run --rm \
 "
 
 echo "Docker tests completed successfully"
+
+# ex: ts=2 sw=2 et filetype=sh

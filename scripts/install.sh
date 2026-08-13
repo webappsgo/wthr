@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  install.sh
+# @@Description      :  Generic OS/architecture-detecting installer for the wthr weather service binary
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  yes
+# @@Template         :  shell/bash
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # Weather Service Installer
 # Detects OS and architecture, downloads the appropriate binary
 
@@ -49,7 +70,7 @@ fi
 # Get latest release version if not specified
 if [ "${VERSION}" = "latest" ]; then
     echo "🔍 Fetching latest version..."
-    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep -- '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     if [ -z "${VERSION}" ]; then
         echo -e "${RED}❌ Failed to fetch latest version${NC}"
         exit 1
@@ -92,3 +113,5 @@ echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
 echo "Run: ${BINARY_NAME}"
 echo "Or:  ${BINARY_NAME} --help"
+
+# ex: ts=2 sw=2 et filetype=sh

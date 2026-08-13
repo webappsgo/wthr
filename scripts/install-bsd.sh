@@ -1,4 +1,25 @@
 #!/bin/sh
+# shellcheck shell=sh
+# - - - - - - - - - - - - - - - - - - - - - - - -
+##@Version           :  202608131924-git
+# @@Author           :  Jason Hempstead
+# @@Contact          :  git-admin@casjaysdev.pro
+# @@License          :  WTFPL
+# @@ReadME           :  {scriptname --help | README.md}
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Thursday, August 13, 2026 19:24 EDT
+# @@File             :  install-bsd.sh
+# @@Description      :  BSD installer for the wthr weather service (FreeBSD/OpenBSD/NetBSD, rc.d)
+# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@TODO             :  none
+# @@Other            :  none
+# @@Resource         :  none
+# @@Terminal App     :  yes
+# @@sudo/root        :  yes
+# @@Template         :  shell/sh
+# - - - - - - - - - - - - - - - - - - - - - - - -
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
+# - - - - - - - - - - - - - - - - - - - - - - - -
 # install-bsd.sh - BSD installer for Weather Service
 # Supports: FreeBSD, OpenBSD, NetBSD with rc.d
 
@@ -95,7 +116,7 @@ RCEOF
     chmod +x "${RC_DIR}/${PROJECTNAME}"
 
     # Add to rc.conf
-    if ! grep -q "wthr_enable" /etc/rc.conf 2>/dev/null; then
+    if ! grep -q -- "wthr_enable" /etc/rc.conf 2>/dev/null; then
         echo "wthr_enable=\"YES\"" >> /etc/rc.conf
     else
         # Use sysrc if available
@@ -137,3 +158,5 @@ echo "For more information:"
 echo "  ${PROJECTNAME} --help"
 echo "  ${PROJECTNAME} --version"
 echo
+
+# ex: ts=2 sw=2 et filetype=sh
