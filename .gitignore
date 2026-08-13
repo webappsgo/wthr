@@ -103,7 +103,7 @@ $RECYCLE.BIN/
 **/*.refactor.sh
 
 # ============================================
-# PROJECT-SPECIFIC (casapps/wthr)
+# PROJECT-SPECIFIC (webappsgo/wthr)
 # ============================================
 
 # Build output

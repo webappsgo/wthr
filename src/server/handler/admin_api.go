@@ -198,11 +198,11 @@ func VacuumDatabase(c *gin.Context) {
 func CreateBackup(c *gin.Context) {
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/casapps/wthr"
+		configDir = "/etc/webappsgo/wthr"
 	}
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 
 	svc := backup.New(configDir, dataDir)
@@ -250,7 +250,7 @@ func RestoreBackup(c *gin.Context) {
 func ListBackups(c *gin.Context) {
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 
 	backupDir := filepath.Join(dataDir, "backups")
@@ -299,7 +299,7 @@ func DownloadBackup(c *gin.Context) {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 
 	backupPath := filepath.Join(dataDir, "backups", filename)
@@ -328,7 +328,7 @@ func DeleteBackup(c *gin.Context) {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 
 	backupPath := filepath.Join(dataDir, "backups", filename)

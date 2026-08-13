@@ -147,7 +147,7 @@ func (le *LocationEnhancer) loadData() {
 
 // loadCountriesData loads country data from external source
 func (le *LocationEnhancer) loadCountriesData() error {
-	url := "https://raw.githubusercontent.com/casapps/countries/refs/heads/main/countries.json"
+	url := "https://raw.githubusercontent.com/webappsgo/countries/refs/heads/main/countries.json"
 
 	resp, err := le.client.Get(url)
 	if err != nil {
@@ -174,7 +174,7 @@ func (le *LocationEnhancer) loadCountriesData() error {
 
 // loadCitiesData loads city data from external source
 func (le *LocationEnhancer) loadCitiesData() error {
-	url := "https://raw.githubusercontent.com/casapps/citylist/refs/heads/main/src/data/citylist.json"
+	url := "https://raw.githubusercontent.com/webappsgo/citylist/refs/heads/main/src/data/citylist.json"
 
 	resp, err := le.client.Get(url)
 	if err != nil {

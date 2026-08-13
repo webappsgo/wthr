@@ -2,4 +2,4 @@
 # runit log run script for wthr service
 # Installed to /etc/sv/wthr/log/run
 
-exec svlogd -tt /var/log/casapps/wthr
+exec svlogd -tt /var/log/webappsgo/wthr

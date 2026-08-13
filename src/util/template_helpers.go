@@ -55,7 +55,7 @@ func TemplateData(c *gin.Context, data gin.H) gin.H {
 			"Description": "Unified weather platform: forecasts, alerts, earthquakes, hurricanes",
 			"Version":     "unknown",
 			"Keywords":    "weather, forecast, alerts, earthquakes, hurricanes",
-			"Author":      "casapps",
+			"Author":      "webappsgo",
 			"Lang":        "en",
 		}
 	} else {

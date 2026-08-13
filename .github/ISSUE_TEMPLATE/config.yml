@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security Vulnerability
-    url: https://github.com/casapps/wthr/security/advisories/new
+    url: https://github.com/webappsgo/wthr/security/advisories/new
     about: Report a security vulnerability privately — do not open a public issue
   - name: Support & Questions
-    url: https://github.com/casapps/wthr/discussions
+    url: https://github.com/webappsgo/wthr/discussions
     about: Ask questions and get support in GitHub Discussions
   - name: Documentation
-    url: https://github.com/casapps/wthr/wiki
+    url: https://github.com/webappsgo/wthr/wiki
     about: Read the project documentation

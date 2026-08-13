@@ -22,9 +22,9 @@ func NewPIDFile(dataDir string) *PIDFile {
 	if os.Geteuid() == 0 {
 		// Running as root - use /var/run or /run
 		if _, err := os.Stat("/run"); err == nil {
-			pidPath = "/run/casapps/wthr.pid"
+			pidPath = "/run/webappsgo/wthr.pid"
 		} else {
-			pidPath = "/var/run/casapps/wthr.pid"
+			pidPath = "/var/run/webappsgo/wthr.pid"
 		}
 	} else {
 		// Running as regular user - use data directory

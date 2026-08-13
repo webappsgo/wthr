@@ -130,7 +130,7 @@ func TestSafePath_NormalizesAndRejectsTraversal(t *testing.T) {
 // TestSafeFilePath_RejectsTraversal mirrors TestSafePath_JoinsWithinBase but
 // for the file-path-specific helper (used for on-disk file access).
 func TestSafeFilePath_RejectsTraversal(t *testing.T) {
-	base := "/var/lib/casapps/wthr/uploads"
+	base := "/var/lib/webappsgo/wthr/uploads"
 
 	_, err := SafeFilePath(base, "../../etc/shadow")
 	if err == nil {

@@ -146,7 +146,7 @@ func disableService() error {
 	case "linux":
 		return runCommand("systemctl", "disable", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/com.casapps.wthr.plist")
+		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist")
 	case "freebsd", "openbsd", "netbsd":
 		fmt.Println("Service disabled. Remove from /etc/rc.conf to prevent auto-start.")
 		return nil
@@ -162,7 +162,7 @@ func startService() error {
 	case "linux":
 		return runCommand("systemctl", "start", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "start", "com.casapps.wthr")
+		return runCommand("launchctl", "start", "io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "start")
 	case "windows":
@@ -177,7 +177,7 @@ func stopService() error {
 	case "linux":
 		return runCommand("systemctl", "stop", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "stop", "com.casapps.wthr")
+		return runCommand("launchctl", "stop", "io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "stop")
 	case "windows":
@@ -213,7 +213,7 @@ func reloadService() error {
 	case "linux":
 		return runCommand("systemctl", "reload", "wthr")
 	case "darwin":
-		return runCommand("launchctl", "kickstart", "-k", "system/com.casapps.wthr")
+		return runCommand("launchctl", "kickstart", "-k", "system/io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "reload")
 	case "windows":
@@ -257,7 +257,7 @@ PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/casapps/wthr /var/log/casapps/wthr
+ReadWritePaths=/var/lib/webappsgo/wthr /var/log/webappsgo/wthr
 
 [Install]
 WantedBy=multi-user.target
@@ -307,7 +307,7 @@ func installLaunchdService() error {
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.casapps.wthr</string>
+	<string>io.github.webappsgo.wthr</string>
 	<key>Program</key>
 	<string>/usr/local/bin/wthr</string>
 	<key>RunAtLoad</key>
@@ -315,14 +315,14 @@ func installLaunchdService() error {
 	<key>KeepAlive</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>/Library/Logs/casapps/wthr/wthr.log</string>
+	<string>/Library/Logs/webappsgo/wthr/wthr.log</string>
 	<key>StandardErrorPath</key>
-	<string>/Library/Logs/casapps/wthr/error.log</string>
+	<string>/Library/Logs/webappsgo/wthr/error.log</string>
 </dict>
 </plist>
 `
 
-	plistPath := "/Library/LaunchDaemons/com.casapps.wthr.plist"
+	plistPath := "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist"
 	if err := os.WriteFile(plistPath, []byte(plistContent), 0644); err != nil {
 		return fmt.Errorf("failed to write plist: %w", err)
 	}
@@ -333,12 +333,12 @@ func installLaunchdService() error {
 	}
 
 	fmt.Println("✓ Launchd service installed successfully")
-	fmt.Println("  Use: launchctl start com.casapps.wthr")
+	fmt.Println("  Use: launchctl start io.github.webappsgo.wthr")
 	return nil
 }
 
 func uninstallLaunchdService() error {
-	plistPath := "/Library/LaunchDaemons/com.casapps.wthr.plist"
+	plistPath := "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist"
 
 	// Unload service
 	runCommand("launchctl", "unload", plistPath)
@@ -478,7 +478,7 @@ exec chpst -u wthr:wthr /usr/local/bin/wthr
 
 	// Create log run script
 	logRunScript := `#!/bin/sh
-exec svlogd -tt /var/log/casapps/wthr
+exec svlogd -tt /var/log/webappsgo/wthr
 `
 
 	logRunPath := logDir + "/run"
@@ -487,7 +487,7 @@ exec svlogd -tt /var/log/casapps/wthr
 	}
 
 	// Create log directory
-	if err := os.MkdirAll("/var/log/casapps/wthr", 0755); err != nil {
+	if err := os.MkdirAll("/var/log/webappsgo/wthr", 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -645,10 +645,10 @@ func createBSDUser() error {
 // createServiceDirectories creates required directories with correct ownership
 func createServiceDirectories() error {
 	dirs := []string{
-		"/var/lib/casapps/wthr",
-		"/var/lib/casapps/wthr/db",
-		"/var/log/casapps/wthr",
-		"/etc/casapps/wthr",
+		"/var/lib/webappsgo/wthr",
+		"/var/lib/webappsgo/wthr/db",
+		"/var/log/webappsgo/wthr",
+		"/etc/webappsgo/wthr",
 	}
 
 	for _, dir := range dirs {

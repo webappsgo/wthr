@@ -6,7 +6,7 @@
 set -e
 
 PROJECTNAME="wthr"
-GITHUB_REPO="casapps/wthr"
+GITHUB_REPO="webappsgo/wthr"
 VERSION="latest"
 
 # Colors

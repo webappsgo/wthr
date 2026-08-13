@@ -7,7 +7,7 @@ Weather generates its configuration at runtime with sane defaults and keeps the 
 | File | Location | Purpose |
 |------|----------|---------|
 | `server.yml` | `{config_dir}/server.yml` | Server configuration |
-| `cli.yml` | `~/.config/casapps/wthr/cli.yml` | CLI client configuration |
+| `cli.yml` | `~/.config/webappsgo/wthr/cli.yml` | CLI client configuration |
 
 Use the admin panel for routine changes:
 

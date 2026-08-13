@@ -15,7 +15,7 @@ func TestTorKeys_NewTorKeyManager(t *testing.T) {
 		name    string
 		dataDir string
 	}{
-		{"non-empty dir", "/var/lib/casapps/wthr"},
+		{"non-empty dir", "/var/lib/webappsgo/wthr"},
 		{"empty dir", ""},
 	}
 

@@ -13,7 +13,7 @@ import (
 
 // setSafeConfigDir points config.LoadConfig() at a pre-existing minimal
 // server.yml inside t.TempDir() so it never writes to the real
-// /etc/casapps or ~/.config paths — LoadConfig() creates a default config
+// /etc/webappsgo or ~/.config paths — LoadConfig() creates a default config
 // file on disk when none is found, which would otherwise escape the
 // sandboxed test directory.
 func setSafeConfigDir(t *testing.T) {

@@ -6,7 +6,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/casapps/wthr.git
+git clone https://github.com/webappsgo/wthr.git
 cd wthr
 
 # Build (all 8 platforms)

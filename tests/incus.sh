@@ -41,8 +41,8 @@ set -euo pipefail
 PROJECTNAME="$1"
 BASE_URL="http://127.0.0.1:80"
 FAILURES=0
-mkdir -p /tmp/casapps
-TEST_DIR=$(mktemp -d /tmp/casapps/wthr-XXXXXX)
+mkdir -p /tmp/webappsgo
+TEST_DIR=$(mktemp -d /tmp/webappsgo/wthr-XXXXXX)
 SERVER_PID=""
 SETUP_COOKIE="$TEST_DIR/setup.cookies"
 USER_COOKIE="$TEST_DIR/user.cookies"

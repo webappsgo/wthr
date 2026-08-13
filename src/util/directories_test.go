@@ -13,7 +13,7 @@ func TestGetTestDirectoryPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTestDirectoryPaths: %v", err)
 	}
-	tempBase := filepath.Join(os.TempDir(), "casapps", "wthr-test")
+	tempBase := filepath.Join(os.TempDir(), "webappsgo", "wthr-test")
 	tests := []struct {
 		name string
 		got  string

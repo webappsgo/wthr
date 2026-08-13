@@ -3,7 +3,7 @@
 # Supports: FreeBSD, OpenBSD, NetBSD with rc.d
 
 PROJECTNAME="wthr"
-GITHUB_REPO="casapps/wthr"
+GITHUB_REPO="webappsgo/wthr"
 VERSION="latest"
 
 echo "=== Weather Service Installer for BSD ==="
@@ -29,16 +29,16 @@ echo "BSD variant: $BSD_VARIANT"
 if [ "$(id -u)" -eq 0 ]; then
     IS_ROOT=true
     BIN_DIR="/usr/local/bin"
-    CONFIG_DIR="/usr/local/etc/casapps/${PROJECTNAME}"
-    DATA_DIR="/var/db/casapps/${PROJECTNAME}"
-    LOG_DIR="/var/log/casapps/${PROJECTNAME}"
+    CONFIG_DIR="/usr/local/etc/webappsgo/${PROJECTNAME}"
+    DATA_DIR="/var/db/webappsgo/${PROJECTNAME}"
+    LOG_DIR="/var/log/webappsgo/${PROJECTNAME}"
     RC_DIR="/usr/local/etc/rc.d"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
-    CONFIG_DIR="$HOME/.config/casapps/${PROJECTNAME}"
-    DATA_DIR="$HOME/.local/share/casapps/${PROJECTNAME}"
-    LOG_DIR="$HOME/.local/log/casapps/${PROJECTNAME}"
+    CONFIG_DIR="$HOME/.config/webappsgo/${PROJECTNAME}"
+    DATA_DIR="$HOME/.local/share/webappsgo/${PROJECTNAME}"
+    LOG_DIR="$HOME/.local/log/webappsgo/${PROJECTNAME}"
     RC_DIR=""
 fi
 
@@ -82,9 +82,9 @@ command="/usr/local/bin/wthr"
 pidfile="/var/run/${name}.pid"
 command_args="&"
 
-export CONFIG_DIR="/usr/local/etc/casapps/wthr"
-export DATA_DIR="/var/db/casapps/wthr"
-export LOG_DIR="/var/log/casapps/wthr"
+export CONFIG_DIR="/usr/local/etc/webappsgo/wthr"
+export DATA_DIR="/var/db/webappsgo/wthr"
+export LOG_DIR="/var/log/webappsgo/wthr"
 
 load_rc_config $name
 : ${wthr_enable:="NO"}

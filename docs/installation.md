@@ -18,13 +18,13 @@ docker run -d \
   -p 64580:80 \
   -v ./rootfs/config:/config:z \
   -v ./rootfs/data:/data:z \
-  ghcr.io/casapps/wthr:latest
+  ghcr.io/webappsgo/wthr:latest
 ```
 
 ### Docker Compose
 
 ```bash
-curl -q -LSsf -O https://raw.githubusercontent.com/casapps/wthr/main/docker/docker-compose.yml
+curl -q -LSsf -O https://raw.githubusercontent.com/webappsgo/wthr/main/docker/docker-compose.yml
 docker compose up -d
 ```
 
@@ -33,7 +33,7 @@ docker compose up -d
 ### Download
 
 ```bash
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-linux-amd64
+curl -q -LSsf -O https://github.com/webappsgo/wthr/releases/latest/download/wthr-linux-amd64
 chmod +x wthr-linux-amd64
 sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 ```

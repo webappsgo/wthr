@@ -168,7 +168,7 @@ func LoadTemplate(name string) (*Template, error) {
 	// Try custom template first
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/casapps/wthr"
+		configDir = "/etc/webappsgo/wthr"
 	}
 	customPath := filepath.Join(configDir, "template", "email", name+".txt")
 	if content, err := os.ReadFile(customPath); err == nil {

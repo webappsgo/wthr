@@ -40,7 +40,7 @@ type AirportService struct {
 // Recommended usage: Pass util.GetAirportDataPath(dirPaths) for cachePath
 func NewAirportService(dataURL, cachePath string) *AirportService {
 	if dataURL == "" {
-		dataURL = "https://raw.githubusercontent.com/casapps/airports/refs/heads/main/src/data/airports.json"
+		dataURL = "https://raw.githubusercontent.com/webappsgo/airports/refs/heads/main/src/data/airports.json"
 	}
 	if cachePath == "" {
 		// Fallback to temp for backward compatibility

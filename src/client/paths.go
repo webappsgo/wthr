@@ -11,12 +11,12 @@ import (
 // Platform-specific directory paths for CLI configuration
 
 const (
-	projectOrg  = "casapps"
+	projectOrg  = "webappsgo"
 	projectName = "wthr"
 )
 
 // CLIConfigDir returns the CLI config directory
-// Per AI.md PART 33: ~/.config/casapps/wthr/ (Unix) or %APPDATA%\casapps\weather\ (Windows)
+// Per AI.md PART 33: ~/.config/webappsgo/wthr/ (Unix) or %APPDATA%\webappsgo\weather\ (Windows)
 func CLIConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("APPDATA"), projectOrg, projectName)
@@ -26,7 +26,7 @@ func CLIConfigDir() string {
 }
 
 // CLIDataDir returns the CLI data directory
-// Per AI.md PART 33: ~/.local/share/casapps/wthr/ (Unix) or %LOCALAPPDATA%\casapps\weather\data\ (Windows)
+// Per AI.md PART 33: ~/.local/share/webappsgo/wthr/ (Unix) or %LOCALAPPDATA%\webappsgo\weather\data\ (Windows)
 func CLIDataDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("LOCALAPPDATA"), projectOrg, projectName, "data")
@@ -36,7 +36,7 @@ func CLIDataDir() string {
 }
 
 // CLICacheDir returns the CLI cache directory
-// Per AI.md PART 33: ~/.cache/casapps/wthr/ (Unix) or %LOCALAPPDATA%\casapps\weather\cache\ (Windows)
+// Per AI.md PART 33: ~/.cache/webappsgo/wthr/ (Unix) or %LOCALAPPDATA%\webappsgo\weather\cache\ (Windows)
 func CLICacheDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("LOCALAPPDATA"), projectOrg, projectName, "cache")
@@ -46,7 +46,7 @@ func CLICacheDir() string {
 }
 
 // CLILogDir returns the CLI log directory
-// Per AI.md PART 33: ~/.local/log/casapps/wthr/ (Unix) or %LOCALAPPDATA%\casapps\weather\log\ (Windows)
+// Per AI.md PART 33: ~/.local/log/webappsgo/wthr/ (Unix) or %LOCALAPPDATA%\webappsgo\weather\log\ (Windows)
 func CLILogDir() string {
 	if runtime.GOOS == "windows" {
 		return filepath.Join(os.Getenv("LOCALAPPDATA"), projectOrg, projectName, "log")

@@ -30,7 +30,7 @@ type GitHubRelease struct {
 }
 
 const (
-	githubAPI    = "https://api.github.com/repos/casapps/wthr/releases"
+	githubAPI    = "https://api.github.com/repos/webappsgo/wthr/releases"
 	githubStable = githubAPI + "/latest"
 	githubBeta   = githubAPI + "/tags/beta"
 	githubDaily  = githubAPI + "/tags/daily"
@@ -168,7 +168,7 @@ func performUpdate(branch string) error {
 	fmt.Printf("Downloading: %s (%.2f MB)\n", assetName, float64(assetSize)/(1024*1024))
 
 	// Download binary to org-namespaced temp path per AI.md PART 29
-	tmpDir := filepath.Join(os.TempDir(), "casapps")
+	tmpDir := filepath.Join(os.TempDir(), "webappsgo")
 	if err := os.MkdirAll(tmpDir, 0700); err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}

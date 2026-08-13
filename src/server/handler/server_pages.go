@@ -51,7 +51,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Version":     Version,
 				"BuildDate":   BuildDate,
 				"Mode":        cfg.Server.Mode,
-				"GitOrg":      "casapps",
+				"GitOrg":      "webappsgo",
 				"GitRepo":     "wthr",
 				"Tor": gin.H{
 					"Enabled":      torEnabled,
@@ -96,7 +96,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"page": "contact",
 			"server": gin.H{
 				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "casapps",
+				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
 			},
 			"HostInfo": util.GetHostInfo(c),
@@ -117,7 +117,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 			"page": "help",
 			"server": gin.H{
 				"Title":   cfg.Server.Branding.Title,
-				"GitOrg":  "casapps",
+				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
 			},
 			"HostInfo": util.GetHostInfo(c),

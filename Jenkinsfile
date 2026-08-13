@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         PROJECTNAME = 'wthr'
-        PROJECTORG = 'casapps'
+        PROJECTORG = 'webappsgo'
         BINDIR = 'binaries'
         RELDIR = 'releases'
         // Go cache bind-mounted from host: GO_CACHE (mod) and GO_BUILD (build cache)

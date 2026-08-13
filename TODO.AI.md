@@ -1698,26 +1698,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read AI.md PART 16/17 (frontend/admin routing + admin layout) before
     starting any subitem.
 
-53. AMBIGUOUS - ORG-NAME MISMATCH (flagged 2026-08-12 during broad audit
-    cross-file-sync pass; BLOCKS README badge/URL and remaining docs edits
-    until decided). The project identity is contradictory across the tree:
-    - git remote + `go.mod` module path + IDEA.md `project_repo` use
-      `webappsgo/wthr` (verified: `go.mod` module is
-      `github.com/webappsgo/wthr`, commits push to
-      `git@github.com:webappsgo/wthr.git`).
-    - README badges/clone/release/issues URLs, `docs/development.md`
-      (clone URL, `/var/log/casapps/wthr/...`, systemd unit), and
-      `docs/cli.md` use `casapps/wthr`; `src/client/paths.go` uses
-      `casapps` as `internal_org`; IDEA.md itself lists `project_org:
-      casapps` while its `project_repo` is `webappsgo`.
-    PART 3 freezes `{internal_org}`/`{internal_name}` once set (they seed
-    all on-disk paths, systemd unit, plist). The decision needed: is the
-    canonical org `casapps` (branding/internal) or `webappsgo` (repo/module),
-    and does `internal_org` (on-disk paths) intentionally differ from the
-    git org? Until resolved, do NOT mass-rewrite README/docs URLs - a wrong
-    guess churns every doc and possibly on-disk path identifiers. Requires a
-    user decision or an explicit SPEC.md override documenting the split.
-    Read: AI.md PART 3 (§ Variables, § internal_name frozen).
+59. DONE (2026-08-13): ORG-NAME MISMATCH (was item 53, flagged 2026-08-12
+    during broad audit cross-file-sync pass) - resolved. User confirmed
+    canonical `{project_org}`/`{internal_org}` is `webappsgo`, per AI.md
+    PART 3's rule that git-remote inference (backed by `go.mod` module
+    `github.com/webappsgo/wthr` and remote `git@github.com:webappsgo/wthr.git`)
+    is authoritative over any placeholder/branding string. Every `casapps`
+    reference project-wide replaced with `webappsgo`: Go source
+    (`src/client/paths.go`, `src/path/paths.go` and all OS-specific path
+    functions, `src/util/*`, `src/server/*`, `src/cli/*`, `src/email/*`,
+    `src/config/*`, `src/graphql/generated.go`), tests, `IDEA.md`,
+    `README.md`, `docs/*.md`, `mkdocs.yml`, `LICENSE.md`, `.github/*`,
+    `docker/docker-compose*.yml`, `docker/all-in-one.yml`,
+    `docker/Dockerfile.aio`, `Jenkinsfile`, install scripts
+    (`scripts/install-*.sh`, `scripts/linux.sh`, `scripts/macos.sh`),
+    `scripts/weather.service`, `scripts/wthr-runit-log-run`, HTML templates.
+    As a byproduct, also fixed a related plist Bundle-ID format bug: the
+    macOS LaunchAgent/LaunchDaemon Label was `com.casapps.wthr` /
+    `com.casapps.weather`, which does not match AI.md's required
+    `io.github.{project_org}.{internal_name}` format even after the org
+    rename - corrected to `io.github.webappsgo.wthr` in `src/cli/service.go`,
+    `scripts/install-macos.sh`, `scripts/macos.sh`, and renamed
+    `scripts/com.casapps.wthr.plist` to `scripts/io.github.webappsgo.wthr.plist`.
+    Verified via `go build ./...` and `make test` (60.1% coverage) in Docker,
+    and a final `grep -rln casapps` sweep across all tracked file types
+    showing zero remaining matches outside this file and AI.md's own
+    generic-placeholder example.
 
 54. AMBIGUOUS - COMPOSE VOLUME PATHS vs AI.md `./volumes/` (flagged
     2026-08-12). All three compose files mount `./rootfs/config:/config`
@@ -1777,3 +1783,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     are the server binary's directory overrides. Decision: relabel in place
     under the server binary, or move the rows to the server's env section.
     Read: AI.md PART 4 (§ Env Vars), PART 33.
+
+60. TODO - PROJECT-WIDE SCRIPT-LINT NON-COMPLIANCE (flagged 2026-08-13 by
+    the `script-lint` agent while auditing scripts touched during the
+    org-rename commit; pre-existing, not introduced by that rename).
+    Confirmed pervasive across the whole `scripts/`/`tests/` tree, not just
+    the files edited that pass, e.g. `scripts/audit_non_negotiables.sh` has
+    17 occurrences alone. Three violation classes:
+    - GREP: many `grep`/`grep -q`/`grep -E` calls are missing the
+      required `--` separator before the query pattern (CLAUDE.md Tool
+      Preference: "`grep` always with `--` before the query").
+    - NAMING: `tests/incus.sh` has 14 local functions missing the
+      required `__` prefix (namespace-collision risk when sourced).
+    - VERSION: no script in the project carries a `##@Version` header.
+    Full file list and line numbers from the script-lint pass covering
+    `scripts/install.sh`, `scripts/install-linux.sh`,
+    `scripts/install-bsd.sh`, `scripts/install-macos.sh`,
+    `scripts/linux.sh`, `scripts/macos.sh`, `tests/incus.sh`,
+    `tests/docker.sh` (40 violations total in that subset alone) -
+    re-run the `script-lint` agent per-file to regenerate exact
+    line numbers before fixing, since this list will drift as scripts
+    change. Needs a dedicated pass across every `*.sh` file in the repo,
+    not just these 8 - deferred rather than folded into the org-rename
+    commit to keep that commit scoped to one logical change.

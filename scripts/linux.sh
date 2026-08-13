@@ -6,9 +6,9 @@ set -e
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 SERVICE_USER="${SERVICE_USER:-wthr}"
-DATA_DIR="${DATA_DIR:-/var/lib/wthr}"
-CONFIG_DIR="${CONFIG_DIR:-/etc/wthr}"
-REPO="casapps/wthr"
+DATA_DIR="${DATA_DIR:-/var/lib/webappsgo/wthr}"
+CONFIG_DIR="${CONFIG_DIR:-/etc/webappsgo/wthr}"
+REPO="webappsgo/wthr"
 BINARY_NAME="wthr"
 
 # Colors
@@ -42,7 +42,7 @@ echo -e "${GREEN}✓${NC} Detected: linux/${ARCH_TYPE}"
 # Get latest version
 if [ "${VERSION}" = "latest" ]; then
     echo "🔍 Fetching latest version..."
-    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    VERSION=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep -- '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 fi
 
 BINARY_FILE="${BINARY_NAME}-linux-${ARCH_TYPE}"
@@ -71,12 +71,12 @@ mkdir -p "${DATA_DIR}/db"
 mkdir -p "${DATA_DIR}/backups"
 mkdir -p "${CONFIG_DIR}/certs"
 mkdir -p "${CONFIG_DIR}/databases"
-mkdir -p "/var/log/wthr"
-mkdir -p "/var/cache/wthr/weather"
+mkdir -p "/var/log/webappsgo/wthr"
+mkdir -p "/var/cache/webappsgo/wthr/weather"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${DATA_DIR}"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${CONFIG_DIR}"
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/log/wthr"
-chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/cache/wthr"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/log/webappsgo/wthr"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/cache/webappsgo/wthr"
 
 # Create systemd service
 echo "⚙️  Creating systemd service..."
@@ -105,7 +105,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=${DATA_DIR} ${CONFIG_DIR} /var/log/wthr /var/cache/wthr
+ReadWritePaths=${DATA_DIR} ${CONFIG_DIR} /var/log/webappsgo/wthr /var/cache/webappsgo/wthr
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictRealtime=true

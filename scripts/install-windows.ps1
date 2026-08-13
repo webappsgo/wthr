@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $ProjectName = "Weather"
 $ProjectNameLower = "weather"
-$GitHubRepo = "casapps/wthr"
+$GitHubRepo = "webappsgo/wthr"
 $Version = "latest"
 
 Write-Host "=== Weather Service Installer for Windows ===" -ForegroundColor Green

@@ -39,7 +39,7 @@ Go to: **Repository Settings** → **Actions** → **General** → **Workflow pe
 
 **Additional for Organization Repositories:**
 
-If the repository is under an organization (casapps), also check:
+If the repository is under an organization (webappsgo), also check:
 
 Go to: **Organization Settings** → **Actions** → **General**
 

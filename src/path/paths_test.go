@@ -30,14 +30,14 @@ func TestGetDefaultPaths_CurrentOS(t *testing.T) {
 
 // TestGetLinuxPaths_PrivilegeSplit is the core regression target: root vs
 // non-root must produce structurally different (system vs XDG) paths, and
-// the organization namespace "casapps/wthr" must appear in every path.
+// the organization namespace "webappsgo/wthr" must appear in every path.
 func TestGetLinuxPaths_PrivilegeSplit(t *testing.T) {
 	p := getLinuxPaths("wthr")
 	if p.GOOS != "linux" {
 		t.Errorf("GOOS = %q, want linux", p.GOOS)
 	}
 
-	orgNamespace := filepath.Join("casapps", "wthr")
+	orgNamespace := filepath.Join("webappsgo", "wthr")
 
 	if os.Geteuid() == 0 {
 		if p.IsPrivileged != true {
@@ -87,15 +87,15 @@ func TestGetLinuxPaths_XDGOverride(t *testing.T) {
 
 	p := getLinuxPaths("wthr")
 
-	wantData := filepath.Join("/custom/data", "casapps", "wthr")
+	wantData := filepath.Join("/custom/data", "webappsgo", "wthr")
 	if p.DataDir != wantData {
 		t.Errorf("DataDir = %q, want %q", p.DataDir, wantData)
 	}
-	wantConfig := filepath.Join("/custom/config", "casapps", "wthr")
+	wantConfig := filepath.Join("/custom/config", "webappsgo", "wthr")
 	if p.ConfigDir != wantConfig {
 		t.Errorf("ConfigDir = %q, want %q", p.ConfigDir, wantConfig)
 	}
-	wantCache := filepath.Join("/custom/cache", "casapps", "wthr")
+	wantCache := filepath.Join("/custom/cache", "webappsgo", "wthr")
 	if p.CacheDir != wantCache {
 		t.Errorf("CacheDir = %q, want %q", p.CacheDir, wantCache)
 	}
@@ -107,7 +107,7 @@ func TestGetLinuxPaths_XDGOverride(t *testing.T) {
 	os.Setenv("XDG_CACHE_HOME", "")
 	home, _ := os.UserHomeDir()
 	p2 := getLinuxPaths("wthr")
-	wantDataFallback := filepath.Join(home, ".local", "share", "casapps", "wthr")
+	wantDataFallback := filepath.Join(home, ".local", "share", "webappsgo", "wthr")
 	if p2.DataDir != wantDataFallback {
 		t.Errorf("fallback DataDir = %q, want %q", p2.DataDir, wantDataFallback)
 	}

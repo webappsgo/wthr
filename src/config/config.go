@@ -638,19 +638,19 @@ func LoadConfig() (*AppConfig, error) {
 func getConfigPath() string {
 	// Check if running as root
 	if os.Geteuid() == 0 {
-		// Root user: /etc/casapps/wthr/server.yml
+		// Root user: /etc/webappsgo/wthr/server.yml
 
-		return "/etc/casapps/wthr/server.yml"
+		return "/etc/webappsgo/wthr/server.yml"
 	}
 
-	// Regular user: ~/.config/casapps/wthr/server.yml
+	// Regular user: ~/.config/webappsgo/wthr/server.yml
 	home, err := os.UserHomeDir()
 	if err != nil {
 		// Fallback to current directory if home not found
 
 		return "server.yml"
 	}
-	return filepath.Join(home, ".config", "casapps", "wthr", "server.yml")
+	return filepath.Join(home, ".config", "webappsgo", "wthr", "server.yml")
 }
 
 // findConfigFile searches for server.yml in common locations per AI.md PART 4

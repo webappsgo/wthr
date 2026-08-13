@@ -58,12 +58,12 @@ func GetDefaultPaths(appName string) *Paths {
 }
 
 // getLinuxPaths returns Linux-specific paths (XDG Base Directory spec)
-// Per AI.md PART 4: Paths must include organization namespace (casapps/wthr)
+// Per AI.md PART 4: Paths must include organization namespace (webappsgo/wthr)
 func getLinuxPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("casapps", appName)
+	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root
 	if os.Geteuid() == 0 {
@@ -72,7 +72,7 @@ func getLinuxPaths(appName string) *Paths {
 			ConfigDir:    filepath.Join("/etc", orgNamespace),
 			LogDir:       filepath.Join("/var/log", orgNamespace),
 			CacheDir:     filepath.Join("/var/cache", orgNamespace),
-			TempDir:      filepath.Join("/tmp", "casapps", appName),
+			TempDir:      filepath.Join("/tmp", "webappsgo", appName),
 			IsPrivileged: true,
 			GOOS:         "linux",
 			AppName:      appName,
@@ -100,7 +100,7 @@ func getLinuxPaths(appName string) *Paths {
 		ConfigDir:    filepath.Join(configHome, orgNamespace),
 		LogDir:       filepath.Join(dataHome, orgNamespace, "logs"),
 		CacheDir:     filepath.Join(cacheHome, orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 		IsPrivileged: false,
 		GOOS:         "linux",
 		AppName:      appName,
@@ -113,7 +113,7 @@ func getDarwinPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("casapps", appName)
+	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root or system service
 	if os.Geteuid() == 0 {
@@ -122,7 +122,7 @@ func getDarwinPaths(appName string) *Paths {
 			ConfigDir:    filepath.Join("/Library", "Application Support", orgNamespace),
 			LogDir:       filepath.Join("/Library", "Logs", orgNamespace),
 			CacheDir:     filepath.Join("/Library", "Caches", orgNamespace),
-			TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+			TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 			IsPrivileged: true,
 			GOOS:         "darwin",
 			AppName:      appName,
@@ -135,7 +135,7 @@ func getDarwinPaths(appName string) *Paths {
 		ConfigDir:    filepath.Join(homeDir, "Library", "Application Support", orgNamespace),
 		LogDir:       filepath.Join(homeDir, "Library", "Logs", orgNamespace),
 		CacheDir:     filepath.Join(homeDir, "Library", "Caches", orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 		IsPrivileged: false,
 		GOOS:         "darwin",
 		AppName:      appName,
@@ -151,7 +151,7 @@ func getWindowsPaths(appName string) *Paths {
 	}
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("casapps", appName)
+	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as SYSTEM or Administrator (service mode)
 	// In service mode, use ProgramData for all paths
@@ -161,7 +161,7 @@ func getWindowsPaths(appName string) *Paths {
 			ConfigDir:    filepath.Join(programData, orgNamespace),
 			LogDir:       filepath.Join(programData, orgNamespace, "logs"),
 			CacheDir:     filepath.Join(programData, orgNamespace, "cache"),
-			TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+			TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 			IsPrivileged: true,
 			GOOS:         "windows",
 			AppName:      appName,
@@ -184,7 +184,7 @@ func getWindowsPaths(appName string) *Paths {
 		ConfigDir:    filepath.Join(appData, orgNamespace),
 		LogDir:       filepath.Join(localAppData, orgNamespace, "logs"),
 		CacheDir:     filepath.Join(localAppData, orgNamespace, "cache"),
-		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 		IsPrivileged: false,
 		GOOS:         "windows",
 		AppName:      appName,
@@ -197,7 +197,7 @@ func getBSDPaths(appName string) *Paths {
 	homeDir, _ := os.UserHomeDir()
 
 	// Organization-namespaced paths per AI.md specification
-	orgNamespace := filepath.Join("casapps", appName)
+	orgNamespace := filepath.Join("webappsgo", appName)
 
 	// Check if running as root
 	if os.Geteuid() == 0 {
@@ -206,7 +206,7 @@ func getBSDPaths(appName string) *Paths {
 			ConfigDir:    filepath.Join("/usr/local/etc", orgNamespace),
 			LogDir:       filepath.Join("/var/log", orgNamespace),
 			CacheDir:     filepath.Join("/var/cache", orgNamespace),
-			TempDir:      filepath.Join("/tmp", "casapps", appName),
+			TempDir:      filepath.Join("/tmp", "webappsgo", appName),
 			IsPrivileged: true,
 			GOOS:         runtime.GOOS,
 			AppName:      appName,
@@ -219,7 +219,7 @@ func getBSDPaths(appName string) *Paths {
 		ConfigDir:    filepath.Join(homeDir, ".config", orgNamespace),
 		LogDir:       filepath.Join(homeDir, ".local", "share", orgNamespace, "logs"),
 		CacheDir:     filepath.Join(homeDir, ".cache", orgNamespace),
-		TempDir:      filepath.Join(os.TempDir(), "casapps", appName),
+		TempDir:      filepath.Join(os.TempDir(), "webappsgo", appName),
 		IsPrivileged: false,
 		GOOS:         runtime.GOOS,
 		AppName:      appName,

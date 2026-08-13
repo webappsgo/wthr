@@ -5931,7 +5931,7 @@ func (ec *executionContext) field_Mutation_adminUpdateSettings_argsSettings(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("settings"))
 	if tmp, ok := rawArgs["settings"]; ok {
-		return ec.unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSettingInputᚄ(ctx, tmp)
+		return ec.unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSettingInputᚄ(ctx, tmp)
 	}
 
 	var zeroVal []*SettingInput
@@ -8065,7 +8065,7 @@ func (ec *executionContext) field_Mutation_updateUserSettings_argsAccount(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("account"))
 	if tmp, ok := rawArgs["account"]; ok {
-		return ec.unmarshalOAccountSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAccountSettingsInput(ctx, tmp)
+		return ec.unmarshalOAccountSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAccountSettingsInput(ctx, tmp)
 	}
 
 	var zeroVal *AccountSettingsInput
@@ -8087,7 +8087,7 @@ func (ec *executionContext) field_Mutation_updateUserSettings_argsPrivacy(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("privacy"))
 	if tmp, ok := rawArgs["privacy"]; ok {
-		return ec.unmarshalOPrivacySettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPrivacySettingsInput(ctx, tmp)
+		return ec.unmarshalOPrivacySettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPrivacySettingsInput(ctx, tmp)
 	}
 
 	var zeroVal *PrivacySettingsInput
@@ -8109,7 +8109,7 @@ func (ec *executionContext) field_Mutation_updateUserSettings_argsNotifications(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("notifications"))
 	if tmp, ok := rawArgs["notifications"]; ok {
-		return ec.unmarshalONotificationSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationSettingsInput(ctx, tmp)
+		return ec.unmarshalONotificationSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationSettingsInput(ctx, tmp)
 	}
 
 	var zeroVal *NotificationSettingsInput
@@ -8131,7 +8131,7 @@ func (ec *executionContext) field_Mutation_updateUserSettings_argsAppearance(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("appearance"))
 	if tmp, ok := rawArgs["appearance"]; ok {
-		return ec.unmarshalOAppearanceSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettingsInput(ctx, tmp)
+		return ec.unmarshalOAppearanceSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettingsInput(ctx, tmp)
 	}
 
 	var zeroVal *AppearanceSettingsInput
@@ -10410,7 +10410,7 @@ func (ec *executionContext) _AdminPasskeyRegistrationResult_passkey(ctx context.
 	}
 	res := resTmp.(*AdminPasskey)
 	fc.Result = res
-	return ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx, field.Selections, res)
+	return ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_AdminPasskeyRegistrationResult_passkey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -11346,7 +11346,7 @@ func (ec *executionContext) _AuthResult_user(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*AuthUser)
 	fc.Result = res
-	return ec.marshalOAuthUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx, field.Selections, res)
+	return ec.marshalOAuthUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_AuthResult_user(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -12719,7 +12719,7 @@ func (ec *executionContext) _CurrentWeather_condition(ctx context.Context, field
 	}
 	res := resTmp.(*WeatherCondition)
 	fc.Result = res
-	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
+	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_CurrentWeather_condition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -13319,7 +13319,7 @@ func (ec *executionContext) _DayForecast_condition(ctx context.Context, field gr
 	}
 	res := resTmp.(*WeatherCondition)
 	fc.Result = res
-	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
+	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_DayForecast_condition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14016,7 +14016,7 @@ func (ec *executionContext) _ForecastDay_day(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*DayForecast)
 	fc.Result = res
-	return ec.marshalNDayForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx, field.Selections, res)
+	return ec.marshalNDayForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ForecastDay_day(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14077,7 +14077,7 @@ func (ec *executionContext) _ForecastDay_hour(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*HourForecast)
 	fc.Result = res
-	return ec.marshalOHourForecast2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx, field.Selections, res)
+	return ec.marshalOHourForecast2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ForecastDay_hour(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14140,7 +14140,7 @@ func (ec *executionContext) _ForecastDay_astro(ctx context.Context, field graphq
 	}
 	res := resTmp.(*Astronomy)
 	fc.Result = res
-	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
+	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ForecastDay_astro(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14368,7 +14368,7 @@ func (ec *executionContext) _HealthStatus_database(ctx context.Context, field gr
 	}
 	res := resTmp.(*DatabaseHealth)
 	fc.Result = res
-	return ec.marshalODatabaseHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDatabaseHealth(ctx, field.Selections, res)
+	return ec.marshalODatabaseHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDatabaseHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_database(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14417,7 +14417,7 @@ func (ec *executionContext) _HealthStatus_memory(ctx context.Context, field grap
 	}
 	res := resTmp.(*MemoryHealth)
 	fc.Result = res
-	return ec.marshalOMemoryHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐMemoryHealth(ctx, field.Selections, res)
+	return ec.marshalOMemoryHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐMemoryHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_memory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14466,7 +14466,7 @@ func (ec *executionContext) _HealthStatus_disk(ctx context.Context, field graphq
 	}
 	res := resTmp.(*DiskHealth)
 	fc.Result = res
-	return ec.marshalODiskHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDiskHealth(ctx, field.Selections, res)
+	return ec.marshalODiskHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDiskHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_disk(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14515,7 +14515,7 @@ func (ec *executionContext) _HealthStatus_ssl(ctx context.Context, field graphql
 	}
 	res := resTmp.(*SSLHealth)
 	fc.Result = res
-	return ec.marshalOSSLHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSSLHealth(ctx, field.Selections, res)
+	return ec.marshalOSSLHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSSLHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_ssl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14564,7 +14564,7 @@ func (ec *executionContext) _HealthStatus_scheduler(ctx context.Context, field g
 	}
 	res := resTmp.(*SchedulerHealth)
 	fc.Result = res
-	return ec.marshalOSchedulerHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSchedulerHealth(ctx, field.Selections, res)
+	return ec.marshalOSchedulerHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSchedulerHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_scheduler(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14613,7 +14613,7 @@ func (ec *executionContext) _HealthStatus_sessions(ctx context.Context, field gr
 	}
 	res := resTmp.(*SessionsHealth)
 	fc.Result = res
-	return ec.marshalOSessionsHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSessionsHealth(ctx, field.Selections, res)
+	return ec.marshalOSessionsHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSessionsHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_sessions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14660,7 +14660,7 @@ func (ec *executionContext) _HealthStatus_requests(ctx context.Context, field gr
 	}
 	res := resTmp.(*RequestsHealth)
 	fc.Result = res
-	return ec.marshalORequestsHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐRequestsHealth(ctx, field.Selections, res)
+	return ec.marshalORequestsHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐRequestsHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_requests(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14707,7 +14707,7 @@ func (ec *executionContext) _HealthStatus_locationDatabases(ctx context.Context,
 	}
 	res := resTmp.(*LocationDatabasesHealth)
 	fc.Result = res
-	return ec.marshalOLocationDatabasesHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDatabasesHealth(ctx, field.Selections, res)
+	return ec.marshalOLocationDatabasesHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDatabasesHealth(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HealthStatus_locationDatabases(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14849,7 +14849,7 @@ func (ec *executionContext) _HistoricalWeather_location(ctx context.Context, fie
 	}
 	res := resTmp.(*Location)
 	fc.Result = res
-	return ec.marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
+	return ec.marshalNLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HistoricalWeather_location(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -14953,7 +14953,7 @@ func (ec *executionContext) _HistoricalWeather_day(ctx context.Context, field gr
 	}
 	res := resTmp.(*DayForecast)
 	fc.Result = res
-	return ec.marshalNDayForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx, field.Selections, res)
+	return ec.marshalNDayForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HistoricalWeather_day(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15014,7 +15014,7 @@ func (ec *executionContext) _HistoricalWeather_hour(ctx context.Context, field g
 	}
 	res := resTmp.([]*HourForecast)
 	fc.Result = res
-	return ec.marshalOHourForecast2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx, field.Selections, res)
+	return ec.marshalOHourForecast2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HistoricalWeather_hour(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15077,7 +15077,7 @@ func (ec *executionContext) _HistoricalWeather_astro(ctx context.Context, field 
 	}
 	res := resTmp.(*Astronomy)
 	fc.Result = res
-	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
+	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HistoricalWeather_astro(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15510,7 +15510,7 @@ func (ec *executionContext) _HourForecast_condition(ctx context.Context, field g
 	}
 	res := resTmp.(*WeatherCondition)
 	fc.Result = res
-	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
+	return ec.marshalNWeatherCondition2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_HourForecast_condition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15779,7 +15779,7 @@ func (ec *executionContext) _Hurricane_location(ctx context.Context, field graph
 	}
 	res := resTmp.(*Location)
 	fc.Result = res
-	return ec.marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
+	return ec.marshalNLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Hurricane_location(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15880,7 +15880,7 @@ func (ec *executionContext) _Hurricane_movement(ctx context.Context, field graph
 	}
 	res := resTmp.(*HurricaneMovement)
 	fc.Result = res
-	return ec.marshalOHurricaneMovement2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneMovement(ctx, field.Selections, res)
+	return ec.marshalOHurricaneMovement2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneMovement(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Hurricane_movement(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -15927,7 +15927,7 @@ func (ec *executionContext) _Hurricane_forecast(ctx context.Context, field graph
 	}
 	res := resTmp.([]*HurricaneForecast)
 	fc.Result = res
-	return ec.marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecastᚄ(ctx, field.Selections, res)
+	return ec.marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecastᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Hurricane_forecast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -17302,7 +17302,7 @@ func (ec *executionContext) _LocationDatabasesHealth_countries(ctx context.Conte
 	}
 	res := resTmp.(*LocationDBStatus)
 	fc.Result = res
-	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
+	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_LocationDatabasesHealth_countries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -17351,7 +17351,7 @@ func (ec *executionContext) _LocationDatabasesHealth_cities(ctx context.Context,
 	}
 	res := resTmp.(*LocationDBStatus)
 	fc.Result = res
-	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
+	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_LocationDatabasesHealth_cities(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -17400,7 +17400,7 @@ func (ec *executionContext) _LocationDatabasesHealth_zipcodes(ctx context.Contex
 	}
 	res := resTmp.(*LocationDBStatus)
 	fc.Result = res
-	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
+	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_LocationDatabasesHealth_zipcodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -17449,7 +17449,7 @@ func (ec *executionContext) _LocationDatabasesHealth_geoip(ctx context.Context, 
 	}
 	res := resTmp.(*LocationDBStatus)
 	fc.Result = res
-	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
+	return ec.marshalOLocationDBStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_LocationDatabasesHealth_geoip(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18392,7 +18392,7 @@ func (ec *executionContext) _Mutation_registerUser(ctx context.Context, field gr
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_registerUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18463,7 +18463,7 @@ func (ec *executionContext) _Mutation_loginUser(ctx context.Context, field graph
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_loginUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18534,7 +18534,7 @@ func (ec *executionContext) _Mutation_completeUserTwoFactor(ctx context.Context,
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_completeUserTwoFactor(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18605,7 +18605,7 @@ func (ec *executionContext) _Mutation_useUserRecoveryKey(ctx context.Context, fi
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_useUserRecoveryKey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18676,7 +18676,7 @@ func (ec *executionContext) _Mutation_logoutUser(ctx context.Context, field grap
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_logoutUser(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18726,7 +18726,7 @@ func (ec *executionContext) _Mutation_refreshUserSession(ctx context.Context, fi
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_refreshUserSession(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18786,7 +18786,7 @@ func (ec *executionContext) _Mutation_requestPasswordReset(ctx context.Context, 
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_requestPasswordReset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18847,7 +18847,7 @@ func (ec *executionContext) _Mutation_resetUserPassword(ctx context.Context, fie
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_resetUserPassword(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18908,7 +18908,7 @@ func (ec *executionContext) _Mutation_verifyUserEmail(ctx context.Context, field
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_verifyUserEmail(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -18969,7 +18969,7 @@ func (ec *executionContext) _Mutation_completeUserInvite(ctx context.Context, fi
 	}
 	res := resTmp.(*UserInviteCompletion)
 	fc.Result = res
-	return ec.marshalNUserInviteCompletion2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx, field.Selections, res)
+	return ec.marshalNUserInviteCompletion2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_completeUserInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19032,7 +19032,7 @@ func (ec *executionContext) _Mutation_completeServerInvite(ctx context.Context, 
 	}
 	res := resTmp.(*ServerInviteCompletion)
 	fc.Result = res
-	return ec.marshalNServerInviteCompletion2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx, field.Selections, res)
+	return ec.marshalNServerInviteCompletion2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_completeServerInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19093,7 +19093,7 @@ func (ec *executionContext) _Mutation_updateUserProfile(ctx context.Context, fie
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_updateUserProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19154,7 +19154,7 @@ func (ec *executionContext) _Mutation_uploadUserAvatar(ctx context.Context, fiel
 	}
 	res := resTmp.(*PublicAvatar)
 	fc.Result = res
-	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
+	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_uploadUserAvatar(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19215,7 +19215,7 @@ func (ec *executionContext) _Mutation_updateUserAvatar(ctx context.Context, fiel
 	}
 	res := resTmp.(*PublicAvatar)
 	fc.Result = res
-	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
+	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_updateUserAvatar(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19276,7 +19276,7 @@ func (ec *executionContext) _Mutation_resetUserAvatar(ctx context.Context, field
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_resetUserAvatar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19326,7 +19326,7 @@ func (ec *executionContext) _Mutation_changeUserPassword(ctx context.Context, fi
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_changeUserPassword(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19387,7 +19387,7 @@ func (ec *executionContext) _Mutation_enableUserTwoFactor(ctx context.Context, f
 	}
 	res := resTmp.(*TOTPRecoveryKeys)
 	fc.Result = res
-	return ec.marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx, field.Selections, res)
+	return ec.marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_enableUserTwoFactor(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19448,7 +19448,7 @@ func (ec *executionContext) _Mutation_disableUserTwoFactor(ctx context.Context, 
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_disableUserTwoFactor(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19509,7 +19509,7 @@ func (ec *executionContext) _Mutation_verifyUserTwoFactor(ctx context.Context, f
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_verifyUserTwoFactor(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19570,7 +19570,7 @@ func (ec *executionContext) _Mutation_regenerateUserRecoveryKeys(ctx context.Con
 	}
 	res := resTmp.(*TOTPRecoveryKeys)
 	fc.Result = res
-	return ec.marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx, field.Selections, res)
+	return ec.marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_regenerateUserRecoveryKeys(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19631,7 +19631,7 @@ func (ec *executionContext) _Mutation_beginUserPasskeyRegistration(ctx context.C
 	}
 	res := resTmp.(*PasskeyRegistrationOptions)
 	fc.Result = res
-	return ec.marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx, field.Selections, res)
+	return ec.marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_beginUserPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19698,7 +19698,7 @@ func (ec *executionContext) _Mutation_finishUserPasskeyRegistration(ctx context.
 	}
 	res := resTmp.(*PasskeyRegistrationResult)
 	fc.Result = res
-	return ec.marshalNPasskeyRegistrationResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx, field.Selections, res)
+	return ec.marshalNPasskeyRegistrationResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_finishUserPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19761,7 +19761,7 @@ func (ec *executionContext) _Mutation_deleteUserPasskey(ctx context.Context, fie
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteUserPasskey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19822,7 +19822,7 @@ func (ec *executionContext) _Mutation_beginUserPasskeyChallenge(ctx context.Cont
 	}
 	res := resTmp.(*PasskeyChallengeOptions)
 	fc.Result = res
-	return ec.marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx, field.Selections, res)
+	return ec.marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_beginUserPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19889,7 +19889,7 @@ func (ec *executionContext) _Mutation_finishUserPasskeyChallenge(ctx context.Con
 	}
 	res := resTmp.(*AuthResult)
 	fc.Result = res
-	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
+	return ec.marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_finishUserPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -19960,7 +19960,7 @@ func (ec *executionContext) _Mutation_updateUserSettings(ctx context.Context, fi
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_updateUserSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20021,7 +20021,7 @@ func (ec *executionContext) _Mutation_createUserToken(ctx context.Context, field
 	}
 	res := resTmp.(*UserToken)
 	fc.Result = res
-	return ec.marshalNUserToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx, field.Selections, res)
+	return ec.marshalNUserToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createUserToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20094,7 +20094,7 @@ func (ec *executionContext) _Mutation_revokeUserToken(ctx context.Context, field
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_revokeUserToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20155,7 +20155,7 @@ func (ec *executionContext) _Mutation_createSavedLocation(ctx context.Context, f
 	}
 	res := resTmp.(*models.SavedLocation)
 	fc.Result = res
-	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
+	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createSavedLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20232,7 +20232,7 @@ func (ec *executionContext) _Mutation_updateSavedLocation(ctx context.Context, f
 	}
 	res := resTmp.(*models.SavedLocation)
 	fc.Result = res
-	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
+	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_updateSavedLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20309,7 +20309,7 @@ func (ec *executionContext) _Mutation_deleteSavedLocation(ctx context.Context, f
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteSavedLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20370,7 +20370,7 @@ func (ec *executionContext) _Mutation_toggleLocationAlerts(ctx context.Context, 
 	}
 	res := resTmp.(*models.SavedLocation)
 	fc.Result = res
-	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
+	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_toggleLocationAlerts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20447,7 +20447,7 @@ func (ec *executionContext) _Mutation_markNotificationRead(ctx context.Context, 
 	}
 	res := resTmp.(*models.Notification)
 	fc.Result = res
-	return ec.marshalNNotification2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx, field.Selections, res)
+	return ec.marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_markNotificationRead(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20520,7 +20520,7 @@ func (ec *executionContext) _Mutation_markAllNotificationsRead(ctx context.Conte
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_markAllNotificationsRead(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20570,7 +20570,7 @@ func (ec *executionContext) _Mutation_deleteNotification(ctx context.Context, fi
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteNotification(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20631,7 +20631,7 @@ func (ec *executionContext) _Mutation_adminUpdateUser(ctx context.Context, field
 	}
 	res := resTmp.(*models.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminUpdateUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20706,7 +20706,7 @@ func (ec *executionContext) _Mutation_adminDeleteUser(ctx context.Context, field
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDeleteUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20767,7 +20767,7 @@ func (ec *executionContext) _Mutation_adminCreateUserInvite(ctx context.Context,
 	}
 	res := resTmp.(*UserInvite)
 	fc.Result = res
-	return ec.marshalNUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, field.Selections, res)
+	return ec.marshalNUserInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminCreateUserInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20848,7 +20848,7 @@ func (ec *executionContext) _Mutation_adminDeleteUserInvite(ctx context.Context,
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDeleteUserInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20909,7 +20909,7 @@ func (ec *executionContext) _Mutation_adminInviteServerAdmin(ctx context.Context
 	}
 	res := resTmp.(*ServerAdminInvite)
 	fc.Result = res
-	return ec.marshalNServerAdminInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx, field.Selections, res)
+	return ec.marshalNServerAdminInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminInviteServerAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -20976,7 +20976,7 @@ func (ec *executionContext) _Mutation_adminDeleteServerAdmin(ctx context.Context
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDeleteServerAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21037,7 +21037,7 @@ func (ec *executionContext) _Mutation_adminDisableServerAdmin(ctx context.Contex
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDisableServerAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21098,7 +21098,7 @@ func (ec *executionContext) _Mutation_adminEnableServerAdmin(ctx context.Context
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminEnableServerAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21159,7 +21159,7 @@ func (ec *executionContext) _Mutation_adminUpdateSetting(ctx context.Context, fi
 	}
 	res := resTmp.(*models.Setting)
 	fc.Result = res
-	return ec.marshalNSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
+	return ec.marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminUpdateSetting(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21228,7 +21228,7 @@ func (ec *executionContext) _Mutation_adminUpdateSettings(ctx context.Context, f
 	}
 	res := resTmp.(*BulkResponse)
 	fc.Result = res
-	return ec.marshalNBulkResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx, field.Selections, res)
+	return ec.marshalNBulkResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminUpdateSettings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21293,7 +21293,7 @@ func (ec *executionContext) _Mutation_adminResetSettings(ctx context.Context, fi
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminResetSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21343,7 +21343,7 @@ func (ec *executionContext) _Mutation_adminGenerateToken(ctx context.Context, fi
 	}
 	res := resTmp.(*models.APIToken)
 	fc.Result = res
-	return ec.marshalNAPIToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx, field.Selections, res)
+	return ec.marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminGenerateToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21403,7 +21403,7 @@ func (ec *executionContext) _Mutation_adminRevokeToken(ctx context.Context, fiel
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminRevokeToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21464,7 +21464,7 @@ func (ec *executionContext) _Mutation_adminClearAuditLogs(ctx context.Context, f
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminClearAuditLogs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21514,7 +21514,7 @@ func (ec *executionContext) _Mutation_adminUpdateTask(ctx context.Context, field
 	}
 	res := resTmp.(*ScheduledTask)
 	fc.Result = res
-	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
+	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminUpdateTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21587,7 +21587,7 @@ func (ec *executionContext) _Mutation_adminEnableTask(ctx context.Context, field
 	}
 	res := resTmp.(*ScheduledTask)
 	fc.Result = res
-	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
+	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminEnableTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21660,7 +21660,7 @@ func (ec *executionContext) _Mutation_adminDisableTask(ctx context.Context, fiel
 	}
 	res := resTmp.(*ScheduledTask)
 	fc.Result = res
-	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
+	return ec.marshalNScheduledTask2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDisableTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21733,7 +21733,7 @@ func (ec *executionContext) _Mutation_adminTriggerTask(ctx context.Context, fiel
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminTriggerTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21800,7 +21800,7 @@ func (ec *executionContext) _Mutation_adminUpdateChannel(ctx context.Context, fi
 	}
 	res := resTmp.(*NotificationChannel)
 	fc.Result = res
-	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
+	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminUpdateChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21865,7 +21865,7 @@ func (ec *executionContext) _Mutation_adminEnableChannel(ctx context.Context, fi
 	}
 	res := resTmp.(*NotificationChannel)
 	fc.Result = res
-	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
+	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminEnableChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21930,7 +21930,7 @@ func (ec *executionContext) _Mutation_adminDisableChannel(ctx context.Context, f
 	}
 	res := resTmp.(*NotificationChannel)
 	fc.Result = res
-	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
+	return ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminDisableChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -21995,7 +21995,7 @@ func (ec *executionContext) _Mutation_adminTestChannel(ctx context.Context, fiel
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminTestChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22056,7 +22056,7 @@ func (ec *executionContext) _Mutation_adminInitializeChannels(ctx context.Contex
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminInitializeChannels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22103,7 +22103,7 @@ func (ec *executionContext) _Mutation_adminAutoDetectSMTP(ctx context.Context, f
 	}
 	res := resTmp.(*SMTPProvider)
 	fc.Result = res
-	return ec.marshalOSMTPProvider2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx, field.Selections, res)
+	return ec.marshalOSMTPProvider2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_adminAutoDetectSMTP(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22157,7 +22157,7 @@ func (ec *executionContext) _Mutation_beginAdminPasskeyRegistration(ctx context.
 	}
 	res := resTmp.(*PasskeyRegistrationOptions)
 	fc.Result = res
-	return ec.marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx, field.Selections, res)
+	return ec.marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_beginAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22224,7 +22224,7 @@ func (ec *executionContext) _Mutation_finishAdminPasskeyRegistration(ctx context
 	}
 	res := resTmp.(*AdminPasskeyRegistrationResult)
 	fc.Result = res
-	return ec.marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx, field.Selections, res)
+	return ec.marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_finishAdminPasskeyRegistration(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22285,7 +22285,7 @@ func (ec *executionContext) _Mutation_deleteAdminPasskey(ctx context.Context, fi
 	}
 	res := resTmp.(*GenericResponse)
 	fc.Result = res
-	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
+	return ec.marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteAdminPasskey(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22346,7 +22346,7 @@ func (ec *executionContext) _Mutation_beginAdminPasskeyChallenge(ctx context.Con
 	}
 	res := resTmp.(*PasskeyChallengeOptions)
 	fc.Result = res
-	return ec.marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx, field.Selections, res)
+	return ec.marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_beginAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22413,7 +22413,7 @@ func (ec *executionContext) _Mutation_finishAdminPasskeyChallenge(ctx context.Co
 	}
 	res := resTmp.(*AdminLoginResult)
 	fc.Result = res
-	return ec.marshalNAdminLoginResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx, field.Selections, res)
+	return ec.marshalNAdminLoginResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_finishAdminPasskeyChallenge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -22474,7 +22474,7 @@ func (ec *executionContext) _Mutation_submitContactForm(ctx context.Context, fie
 	}
 	res := resTmp.(*ContactSubmission)
 	fc.Result = res
-	return ec.marshalNContactSubmission2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx, field.Selections, res)
+	return ec.marshalNContactSubmission2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_submitContactForm(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -23010,7 +23010,7 @@ func (ec *executionContext) _NotificationChannel_stats(ctx context.Context, fiel
 	}
 	res := resTmp.(*ChannelStats)
 	fc.Result = res
-	return ec.marshalOChannelStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx, field.Selections, res)
+	return ec.marshalOChannelStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_NotificationChannel_stats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -23631,7 +23631,7 @@ func (ec *executionContext) _PasskeyRegistrationResult_passkey(ctx context.Conte
 	}
 	res := resTmp.(*UserPasskey)
 	fc.Result = res
-	return ec.marshalNUserPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx, field.Selections, res)
+	return ec.marshalNUserPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PasskeyRegistrationResult_passkey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24163,7 +24163,7 @@ func (ec *executionContext) _PublicUserProfile_avatar(ctx context.Context, field
 	}
 	res := resTmp.(*PublicAvatar)
 	fc.Result = res
-	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
+	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_PublicUserProfile_avatar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24424,7 +24424,7 @@ func (ec *executionContext) _Query_health(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(*HealthStatus)
 	fc.Result = res
-	return ec.marshalNHealthStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx, field.Selections, res)
+	return ec.marshalNHealthStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_health(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24494,7 +24494,7 @@ func (ec *executionContext) _Query_weather(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*Weather)
 	fc.Result = res
-	return ec.marshalNWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx, field.Selections, res)
+	return ec.marshalNWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_weather(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24563,7 +24563,7 @@ func (ec *executionContext) _Query_forecast(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*Weather)
 	fc.Result = res
-	return ec.marshalNWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx, field.Selections, res)
+	return ec.marshalNWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_forecast(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24632,7 +24632,7 @@ func (ec *executionContext) _Query_searchLocations(ctx context.Context, field gr
 	}
 	res := resTmp.([]*LocationSearchResult)
 	fc.Result = res
-	return ec.marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResultᚄ(ctx, field.Selections, res)
+	return ec.marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResultᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_searchLocations(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24703,7 +24703,7 @@ func (ec *executionContext) _Query_ipGeolocation(ctx context.Context, field grap
 	}
 	res := resTmp.(*IPGeolocation)
 	fc.Result = res
-	return ec.marshalNIPGeolocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx, field.Selections, res)
+	return ec.marshalNIPGeolocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_ipGeolocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24780,7 +24780,7 @@ func (ec *executionContext) _Query_currentLocation(ctx context.Context, field gr
 	}
 	res := resTmp.(*IPGeolocation)
 	fc.Result = res
-	return ec.marshalNIPGeolocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx, field.Selections, res)
+	return ec.marshalNIPGeolocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentLocation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24846,7 +24846,7 @@ func (ec *executionContext) _Query_historicalWeather(ctx context.Context, field 
 	}
 	res := resTmp.(*HistoricalWeather)
 	fc.Result = res
-	return ec.marshalNHistoricalWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx, field.Selections, res)
+	return ec.marshalNHistoricalWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_historicalWeather(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24913,7 +24913,7 @@ func (ec *executionContext) _Query_lookupZipCode(ctx context.Context, field grap
 	}
 	res := resTmp.(*ZipCodeLookup)
 	fc.Result = res
-	return ec.marshalNZipCodeLookup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx, field.Selections, res)
+	return ec.marshalNZipCodeLookup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_lookupZipCode(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -24982,7 +24982,7 @@ func (ec *executionContext) _Query_lookupCoordinates(ctx context.Context, field 
 	}
 	res := resTmp.(*CoordinatesLookup)
 	fc.Result = res
-	return ec.marshalNCoordinatesLookup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx, field.Selections, res)
+	return ec.marshalNCoordinatesLookup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_lookupCoordinates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25051,7 +25051,7 @@ func (ec *executionContext) _Query_earthquakes(ctx context.Context, field graphq
 	}
 	res := resTmp.([]*Earthquake)
 	fc.Result = res
-	return ec.marshalNEarthquake2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐEarthquakeᚄ(ctx, field.Selections, res)
+	return ec.marshalNEarthquake2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐEarthquakeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_earthquakes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25126,7 +25126,7 @@ func (ec *executionContext) _Query_hurricanes(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*Hurricane)
 	fc.Result = res
-	return ec.marshalNHurricane2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneᚄ(ctx, field.Selections, res)
+	return ec.marshalNHurricane2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_hurricanes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25203,7 +25203,7 @@ func (ec *executionContext) _Query_severeWeather(ctx context.Context, field grap
 	}
 	res := resTmp.([]*SevereWeather)
 	fc.Result = res
-	return ec.marshalNSevereWeather2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSevereWeatherᚄ(ctx, field.Selections, res)
+	return ec.marshalNSevereWeather2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSevereWeatherᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_severeWeather(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25276,7 +25276,7 @@ func (ec *executionContext) _Query_moonPhase(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*MoonPhase)
 	fc.Result = res
-	return ec.marshalNMoonPhase2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx, field.Selections, res)
+	return ec.marshalNMoonPhase2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_moonPhase(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25348,7 +25348,7 @@ func (ec *executionContext) _Query_publicUserProfile(ctx context.Context, field 
 	}
 	res := resTmp.(*PublicUserProfile)
 	fc.Result = res
-	return ec.marshalOPublicUserProfile2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicUserProfile(ctx, field.Selections, res)
+	return ec.marshalOPublicUserProfile2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicUserProfile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_publicUserProfile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25421,7 +25421,7 @@ func (ec *executionContext) _Query_validateUserInvite(ctx context.Context, field
 	}
 	res := resTmp.(*UserInviteValidation)
 	fc.Result = res
-	return ec.marshalNUserInviteValidation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx, field.Selections, res)
+	return ec.marshalNUserInviteValidation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_validateUserInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25486,7 +25486,7 @@ func (ec *executionContext) _Query_validateServerInvite(ctx context.Context, fie
 	}
 	res := resTmp.(*ServerInviteValidation)
 	fc.Result = res
-	return ec.marshalNServerInviteValidation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx, field.Selections, res)
+	return ec.marshalNServerInviteValidation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_validateServerInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25547,7 +25547,7 @@ func (ec *executionContext) _Query_currentUser(ctx context.Context, field graphq
 	}
 	res := resTmp.(*models.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentUser(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25611,7 +25611,7 @@ func (ec *executionContext) _Query_currentUserAvatar(ctx context.Context, field 
 	}
 	res := resTmp.(*PublicAvatar)
 	fc.Result = res
-	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
+	return ec.marshalNPublicAvatar2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentUserAvatar(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25661,7 +25661,7 @@ func (ec *executionContext) _Query_currentUserTwoFactorStatus(ctx context.Contex
 	}
 	res := resTmp.(*TOTPStatus)
 	fc.Result = res
-	return ec.marshalNTOTPStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx, field.Selections, res)
+	return ec.marshalNTOTPStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentUserTwoFactorStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25711,7 +25711,7 @@ func (ec *executionContext) _Query_currentUserTwoFactorSetup(ctx context.Context
 	}
 	res := resTmp.(*TOTPSetup)
 	fc.Result = res
-	return ec.marshalNTOTPSetup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx, field.Selections, res)
+	return ec.marshalNTOTPSetup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentUserTwoFactorSetup(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25767,7 +25767,7 @@ func (ec *executionContext) _Query_currentUserPasskeys(ctx context.Context, fiel
 	}
 	res := resTmp.([]*UserPasskey)
 	fc.Result = res
-	return ec.marshalNUserPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserPasskeyᚄ(ctx, field.Selections, res)
+	return ec.marshalNUserPasskey2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserPasskeyᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_currentUserPasskeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25821,7 +25821,7 @@ func (ec *executionContext) _Query_userSettings(ctx context.Context, field graph
 	}
 	res := resTmp.(*UserSettings)
 	fc.Result = res
-	return ec.marshalNUserSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx, field.Selections, res)
+	return ec.marshalNUserSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_userSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25875,7 +25875,7 @@ func (ec *executionContext) _Query_userTokens(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*UserToken)
 	fc.Result = res
-	return ec.marshalNUserToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserTokenᚄ(ctx, field.Selections, res)
+	return ec.marshalNUserToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserTokenᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_userTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25937,7 +25937,7 @@ func (ec *executionContext) _Query_savedLocations(ctx context.Context, field gra
 	}
 	res := resTmp.([]*models.SavedLocation)
 	fc.Result = res
-	return ec.marshalNSavedLocation2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx, field.Selections, res)
+	return ec.marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_savedLocations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26000,7 +26000,7 @@ func (ec *executionContext) _Query_savedLocation(ctx context.Context, field grap
 	}
 	res := resTmp.(*models.SavedLocation)
 	fc.Result = res
-	return ec.marshalOSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
+	return ec.marshalOSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_savedLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26077,7 +26077,7 @@ func (ec *executionContext) _Query_notifications(ctx context.Context, field grap
 	}
 	res := resTmp.([]*models.Notification)
 	fc.Result = res
-	return ec.marshalNNotification2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx, field.Selections, res)
+	return ec.marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_notifications(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26139,7 +26139,7 @@ func (ec *executionContext) _Query_unreadNotifications(ctx context.Context, fiel
 	}
 	res := resTmp.(*UnreadCount)
 	fc.Result = res
-	return ec.marshalNUnreadCount2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx, field.Selections, res)
+	return ec.marshalNUnreadCount2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_unreadNotifications(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26187,7 +26187,7 @@ func (ec *executionContext) _Query_adminUsers(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*models.User)
 	fc.Result = res
-	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminUsers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26251,7 +26251,7 @@ func (ec *executionContext) _Query_adminServerAdmins(ctx context.Context, field 
 	}
 	res := resTmp.(*ServerAdminOverview)
 	fc.Result = res
-	return ec.marshalNServerAdminOverview2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx, field.Selections, res)
+	return ec.marshalNServerAdminOverview2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminServerAdmins(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26302,7 +26302,7 @@ func (ec *executionContext) _Query_adminServerAdmin(ctx context.Context, field g
 	}
 	res := resTmp.(*ServerAdmin)
 	fc.Result = res
-	return ec.marshalOServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx, field.Selections, res)
+	return ec.marshalOServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminServerAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26375,7 +26375,7 @@ func (ec *executionContext) _Query_adminUserInvites(ctx context.Context, field g
 	}
 	res := resTmp.([]*UserInvite)
 	fc.Result = res
-	return ec.marshalNUserInvite2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteᚄ(ctx, field.Selections, res)
+	return ec.marshalNUserInvite2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminUserInvites(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26442,7 +26442,7 @@ func (ec *executionContext) _Query_adminUserInvite(ctx context.Context, field gr
 	}
 	res := resTmp.(*UserInvite)
 	fc.Result = res
-	return ec.marshalOUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, field.Selections, res)
+	return ec.marshalOUserInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminUserInvite(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26523,7 +26523,7 @@ func (ec *executionContext) _Query_adminSettings(ctx context.Context, field grap
 	}
 	res := resTmp.([]*models.Setting)
 	fc.Result = res
-	return ec.marshalNSetting2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx, field.Selections, res)
+	return ec.marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminSettings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26578,7 +26578,7 @@ func (ec *executionContext) _Query_adminSetting(ctx context.Context, field graph
 	}
 	res := resTmp.(*models.Setting)
 	fc.Result = res
-	return ec.marshalOSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
+	return ec.marshalOSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminSetting(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26647,7 +26647,7 @@ func (ec *executionContext) _Query_adminTokens(ctx context.Context, field graphq
 	}
 	res := resTmp.([]*models.APIToken)
 	fc.Result = res
-	return ec.marshalNAPIToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx, field.Selections, res)
+	return ec.marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26707,7 +26707,7 @@ func (ec *executionContext) _Query_adminAuditLogs(ctx context.Context, field gra
 	}
 	res := resTmp.([]*AuditLog)
 	fc.Result = res
-	return ec.marshalNAuditLog2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuditLogᚄ(ctx, field.Selections, res)
+	return ec.marshalNAuditLog2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuditLogᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminAuditLogs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26780,7 +26780,7 @@ func (ec *executionContext) _Query_adminStats(ctx context.Context, field graphql
 	}
 	res := resTmp.(*SystemStats)
 	fc.Result = res
-	return ec.marshalNSystemStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx, field.Selections, res)
+	return ec.marshalNSystemStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26838,7 +26838,7 @@ func (ec *executionContext) _Query_adminTasks(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*ScheduledTask)
 	fc.Result = res
-	return ec.marshalNScheduledTask2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTaskᚄ(ctx, field.Selections, res)
+	return ec.marshalNScheduledTask2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTaskᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminTasks(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26900,7 +26900,7 @@ func (ec *executionContext) _Query_adminTaskHistory(ctx context.Context, field g
 	}
 	res := resTmp.([]*TaskHistory)
 	fc.Result = res
-	return ec.marshalNTaskHistory2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTaskHistoryᚄ(ctx, field.Selections, res)
+	return ec.marshalNTaskHistory2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTaskHistoryᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminTaskHistory(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -26969,7 +26969,7 @@ func (ec *executionContext) _Query_adminChannels(ctx context.Context, field grap
 	}
 	res := resTmp.([]*NotificationChannel)
 	fc.Result = res
-	return ec.marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannelᚄ(ctx, field.Selections, res)
+	return ec.marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannelᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminChannels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -27020,7 +27020,7 @@ func (ec *executionContext) _Query_adminChannel(ctx context.Context, field graph
 	}
 	res := resTmp.(*NotificationChannel)
 	fc.Result = res
-	return ec.marshalONotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
+	return ec.marshalONotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminChannel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -27082,7 +27082,7 @@ func (ec *executionContext) _Query_adminChannelStats(ctx context.Context, field 
 	}
 	res := resTmp.(*ChannelStats)
 	fc.Result = res
-	return ec.marshalOChannelStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx, field.Selections, res)
+	return ec.marshalOChannelStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminChannelStats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -27145,7 +27145,7 @@ func (ec *executionContext) _Query_adminQueueStats(ctx context.Context, field gr
 	}
 	res := resTmp.(*QueueStats)
 	fc.Result = res
-	return ec.marshalNQueueStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx, field.Selections, res)
+	return ec.marshalNQueueStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminQueueStats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -27199,7 +27199,7 @@ func (ec *executionContext) _Query_adminSMTPProviders(ctx context.Context, field
 	}
 	res := resTmp.([]*SMTPProvider)
 	fc.Result = res
-	return ec.marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProviderᚄ(ctx, field.Selections, res)
+	return ec.marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProviderᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminSMTPProviders(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -27253,7 +27253,7 @@ func (ec *executionContext) _Query_adminPasskeys(ctx context.Context, field grap
 	}
 	res := resTmp.([]*AdminPasskey)
 	fc.Result = res
-	return ec.marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx, field.Selections, res)
+	return ec.marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_adminPasskeys(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -29643,7 +29643,7 @@ func (ec *executionContext) _ServerAdminOverview_currentAdmin(ctx context.Contex
 	}
 	res := resTmp.(*ServerAdmin)
 	fc.Result = res
-	return ec.marshalNServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx, field.Selections, res)
+	return ec.marshalNServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ServerAdminOverview_currentAdmin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -29837,7 +29837,7 @@ func (ec *executionContext) _ServerInviteCompletion_admin(ctx context.Context, f
 	}
 	res := resTmp.(*InvitedServerAdmin)
 	fc.Result = res
-	return ec.marshalNInvitedServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐInvitedServerAdmin(ctx, field.Selections, res)
+	return ec.marshalNInvitedServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐInvitedServerAdmin(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_ServerInviteCompletion_admin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30446,7 +30446,7 @@ func (ec *executionContext) _SevereWeather_location(ctx context.Context, field g
 	}
 	res := resTmp.(*Location)
 	fc.Result = res
-	return ec.marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
+	return ec.marshalNLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SevereWeather_location(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30723,7 +30723,7 @@ func (ec *executionContext) _SystemStats_requests(ctx context.Context, field gra
 	}
 	res := resTmp.(*RequestStats)
 	fc.Result = res
-	return ec.marshalNRequestStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐRequestStats(ctx, field.Selections, res)
+	return ec.marshalNRequestStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐRequestStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SystemStats_requests(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30775,7 +30775,7 @@ func (ec *executionContext) _SystemStats_users(ctx context.Context, field graphq
 	}
 	res := resTmp.(*UserStats)
 	fc.Result = res
-	return ec.marshalNUserStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserStats(ctx, field.Selections, res)
+	return ec.marshalNUserStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SystemStats_users(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30827,7 +30827,7 @@ func (ec *executionContext) _SystemStats_locations(ctx context.Context, field gr
 	}
 	res := resTmp.(*LocationStats)
 	fc.Result = res
-	return ec.marshalNLocationStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationStats(ctx, field.Selections, res)
+	return ec.marshalNLocationStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SystemStats_locations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30877,7 +30877,7 @@ func (ec *executionContext) _SystemStats_notifications(ctx context.Context, fiel
 	}
 	res := resTmp.(*NotificationStats)
 	fc.Result = res
-	return ec.marshalNNotificationStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationStats(ctx, field.Selections, res)
+	return ec.marshalNNotificationStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SystemStats_notifications(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -30927,7 +30927,7 @@ func (ec *executionContext) _SystemStats_database(ctx context.Context, field gra
 	}
 	res := resTmp.(*DatabaseStats)
 	fc.Result = res
-	return ec.marshalNDatabaseStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDatabaseStats(ctx, field.Selections, res)
+	return ec.marshalNDatabaseStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDatabaseStats(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SystemStats_database(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -32665,7 +32665,7 @@ func (ec *executionContext) _UserInviteCompletion_user(ctx context.Context, fiel
 	}
 	res := resTmp.(*AuthUser)
 	fc.Result = res
-	return ec.marshalOAuthUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx, field.Selections, res)
+	return ec.marshalOAuthUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_UserInviteCompletion_user(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33068,7 +33068,7 @@ func (ec *executionContext) _UserSettings_account(ctx context.Context, field gra
 	}
 	res := resTmp.(*AccountSettings)
 	fc.Result = res
-	return ec.marshalNAccountSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAccountSettings(ctx, field.Selections, res)
+	return ec.marshalNAccountSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAccountSettings(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_UserSettings_account(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33130,7 +33130,7 @@ func (ec *executionContext) _UserSettings_privacy(ctx context.Context, field gra
 	}
 	res := resTmp.(*PrivacySettings)
 	fc.Result = res
-	return ec.marshalNPrivacySettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPrivacySettings(ctx, field.Selections, res)
+	return ec.marshalNPrivacySettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPrivacySettings(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_UserSettings_privacy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33188,7 +33188,7 @@ func (ec *executionContext) _UserSettings_notifications(ctx context.Context, fie
 	}
 	res := resTmp.(*NotificationSettings)
 	fc.Result = res
-	return ec.marshalNNotificationSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationSettings(ctx, field.Selections, res)
+	return ec.marshalNNotificationSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationSettings(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_UserSettings_notifications(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33246,7 +33246,7 @@ func (ec *executionContext) _UserSettings_appearance(ctx context.Context, field 
 	}
 	res := resTmp.(*AppearanceSettings)
 	fc.Result = res
-	return ec.marshalNAppearanceSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettings(ctx, field.Selections, res)
+	return ec.marshalNAppearanceSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettings(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_UserSettings_appearance(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33761,7 +33761,7 @@ func (ec *executionContext) _Weather_location(ctx context.Context, field graphql
 	}
 	res := resTmp.(*Location)
 	fc.Result = res
-	return ec.marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
+	return ec.marshalNLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Weather_location(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33821,7 +33821,7 @@ func (ec *executionContext) _Weather_current(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*CurrentWeather)
 	fc.Result = res
-	return ec.marshalNCurrentWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐCurrentWeather(ctx, field.Selections, res)
+	return ec.marshalNCurrentWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐCurrentWeather(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Weather_current(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33888,7 +33888,7 @@ func (ec *executionContext) _Weather_forecast(ctx context.Context, field graphql
 	}
 	res := resTmp.([]*ForecastDay)
 	fc.Result = res
-	return ec.marshalOForecastDay2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐForecastDayᚄ(ctx, field.Selections, res)
+	return ec.marshalOForecastDay2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐForecastDayᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Weather_forecast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -33939,7 +33939,7 @@ func (ec *executionContext) _Weather_alerts(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*WeatherAlert)
 	fc.Result = res
-	return ec.marshalOWeatherAlert2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherAlertᚄ(ctx, field.Selections, res)
+	return ec.marshalOWeatherAlert2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherAlertᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Weather_alerts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -34002,7 +34002,7 @@ func (ec *executionContext) _Weather_astronomy(ctx context.Context, field graphq
 	}
 	res := resTmp.(*Astronomy)
 	fc.Result = res
-	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
+	return ec.marshalOAstronomy2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Weather_astronomy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -43723,11 +43723,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAPIToken2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v models.APIToken) graphql.Marshaler {
 	return ec._APIToken(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.APIToken) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -43751,7 +43751,7 @@ func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthr
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNAPIToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx, sel, v[i])
+			ret[i] = ec.marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -43771,7 +43771,7 @@ func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthr
 	return ret
 }
 
-func (ec *executionContext) marshalNAPIToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v *models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v *models.APIToken) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43781,7 +43781,7 @@ func (ec *executionContext) marshalNAPIToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋ
 	return ec._APIToken(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAccountSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAccountSettings(ctx context.Context, sel ast.SelectionSet, v *AccountSettings) graphql.Marshaler {
+func (ec *executionContext) marshalNAccountSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAccountSettings(ctx context.Context, sel ast.SelectionSet, v *AccountSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43791,11 +43791,11 @@ func (ec *executionContext) marshalNAccountSettings2ᚖgithubᚗcomᚋcasappsᚋ
 	return ec._AccountSettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAdminLoginResult2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v AdminLoginResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminLoginResult2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v AdminLoginResult) graphql.Marshaler {
 	return ec._AdminLoginResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAdminLoginResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v *AdminLoginResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminLoginResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminLoginResult(ctx context.Context, sel ast.SelectionSet, v *AdminLoginResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43805,7 +43805,7 @@ func (ec *executionContext) marshalNAdminLoginResult2ᚖgithubᚗcomᚋcasapps�
 	return ec._AdminLoginResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*AdminPasskey) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*AdminPasskey) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -43829,7 +43829,7 @@ func (ec *executionContext) marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx, sel, v[i])
+			ret[i] = ec.marshalNAdminPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -43849,7 +43849,7 @@ func (ec *executionContext) marshalNAdminPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNAdminPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx context.Context, sel ast.SelectionSet, v *AdminPasskey) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskey(ctx context.Context, sel ast.SelectionSet, v *AdminPasskey) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43859,11 +43859,11 @@ func (ec *executionContext) marshalNAdminPasskey2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._AdminPasskey(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v AdminPasskeyRegistrationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v AdminPasskeyRegistrationResult) graphql.Marshaler {
 	return ec._AdminPasskeyRegistrationResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v *AdminPasskeyRegistrationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAdminPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v *AdminPasskeyRegistrationResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43894,7 +43894,7 @@ func (ec *executionContext) marshalNAny2interface(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNAppearanceSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettings(ctx context.Context, sel ast.SelectionSet, v *AppearanceSettings) graphql.Marshaler {
+func (ec *executionContext) marshalNAppearanceSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettings(ctx context.Context, sel ast.SelectionSet, v *AppearanceSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43904,7 +43904,7 @@ func (ec *executionContext) marshalNAppearanceSettings2ᚖgithubᚗcomᚋcasapps
 	return ec._AppearanceSettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAuditLog2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuditLogᚄ(ctx context.Context, sel ast.SelectionSet, v []*AuditLog) graphql.Marshaler {
+func (ec *executionContext) marshalNAuditLog2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuditLogᚄ(ctx context.Context, sel ast.SelectionSet, v []*AuditLog) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -43928,7 +43928,7 @@ func (ec *executionContext) marshalNAuditLog2ᚕᚖgithubᚗcomᚋcasappsᚋwthr
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNAuditLog2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuditLog(ctx, sel, v[i])
+			ret[i] = ec.marshalNAuditLog2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuditLog(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -43948,7 +43948,7 @@ func (ec *executionContext) marshalNAuditLog2ᚕᚖgithubᚗcomᚋcasappsᚋwthr
 	return ret
 }
 
-func (ec *executionContext) marshalNAuditLog2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuditLog(ctx context.Context, sel ast.SelectionSet, v *AuditLog) graphql.Marshaler {
+func (ec *executionContext) marshalNAuditLog2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuditLog(ctx context.Context, sel ast.SelectionSet, v *AuditLog) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43958,11 +43958,11 @@ func (ec *executionContext) marshalNAuditLog2ᚖgithubᚗcomᚋcasappsᚋwthrᚋ
 	return ec._AuditLog(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNAuthResult2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx context.Context, sel ast.SelectionSet, v AuthResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthResult2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx context.Context, sel ast.SelectionSet, v AuthResult) graphql.Marshaler {
 	return ec._AuthResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAuthResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx context.Context, sel ast.SelectionSet, v *AuthResult) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthResult(ctx context.Context, sel ast.SelectionSet, v *AuthResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43987,11 +43987,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNBulkResponse2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx context.Context, sel ast.SelectionSet, v BulkResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNBulkResponse2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx context.Context, sel ast.SelectionSet, v BulkResponse) graphql.Marshaler {
 	return ec._BulkResponse(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBulkResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx context.Context, sel ast.SelectionSet, v *BulkResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNBulkResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐBulkResponse(ctx context.Context, sel ast.SelectionSet, v *BulkResponse) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44001,11 +44001,11 @@ func (ec *executionContext) marshalNBulkResponse2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._BulkResponse(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNContactSubmission2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx context.Context, sel ast.SelectionSet, v ContactSubmission) graphql.Marshaler {
+func (ec *executionContext) marshalNContactSubmission2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx context.Context, sel ast.SelectionSet, v ContactSubmission) graphql.Marshaler {
 	return ec._ContactSubmission(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNContactSubmission2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx context.Context, sel ast.SelectionSet, v *ContactSubmission) graphql.Marshaler {
+func (ec *executionContext) marshalNContactSubmission2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐContactSubmission(ctx context.Context, sel ast.SelectionSet, v *ContactSubmission) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44015,11 +44015,11 @@ func (ec *executionContext) marshalNContactSubmission2ᚖgithubᚗcomᚋcasapps�
 	return ec._ContactSubmission(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCoordinatesLookup2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx context.Context, sel ast.SelectionSet, v CoordinatesLookup) graphql.Marshaler {
+func (ec *executionContext) marshalNCoordinatesLookup2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx context.Context, sel ast.SelectionSet, v CoordinatesLookup) graphql.Marshaler {
 	return ec._CoordinatesLookup(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCoordinatesLookup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx context.Context, sel ast.SelectionSet, v *CoordinatesLookup) graphql.Marshaler {
+func (ec *executionContext) marshalNCoordinatesLookup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐCoordinatesLookup(ctx context.Context, sel ast.SelectionSet, v *CoordinatesLookup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44029,7 +44029,7 @@ func (ec *executionContext) marshalNCoordinatesLookup2ᚖgithubᚗcomᚋcasapps�
 	return ec._CoordinatesLookup(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNCurrentWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐCurrentWeather(ctx context.Context, sel ast.SelectionSet, v *CurrentWeather) graphql.Marshaler {
+func (ec *executionContext) marshalNCurrentWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐCurrentWeather(ctx context.Context, sel ast.SelectionSet, v *CurrentWeather) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44039,7 +44039,7 @@ func (ec *executionContext) marshalNCurrentWeather2ᚖgithubᚗcomᚋcasappsᚋw
 	return ec._CurrentWeather(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNDatabaseStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDatabaseStats(ctx context.Context, sel ast.SelectionSet, v *DatabaseStats) graphql.Marshaler {
+func (ec *executionContext) marshalNDatabaseStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDatabaseStats(ctx context.Context, sel ast.SelectionSet, v *DatabaseStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44049,7 +44049,7 @@ func (ec *executionContext) marshalNDatabaseStats2ᚖgithubᚗcomᚋcasappsᚋwt
 	return ec._DatabaseStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNDayForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx context.Context, sel ast.SelectionSet, v *DayForecast) graphql.Marshaler {
+func (ec *executionContext) marshalNDayForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDayForecast(ctx context.Context, sel ast.SelectionSet, v *DayForecast) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44059,7 +44059,7 @@ func (ec *executionContext) marshalNDayForecast2ᚖgithubᚗcomᚋcasappsᚋwthr
 	return ec._DayForecast(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNEarthquake2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐEarthquakeᚄ(ctx context.Context, sel ast.SelectionSet, v []*Earthquake) graphql.Marshaler {
+func (ec *executionContext) marshalNEarthquake2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐEarthquakeᚄ(ctx context.Context, sel ast.SelectionSet, v []*Earthquake) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44083,7 +44083,7 @@ func (ec *executionContext) marshalNEarthquake2ᚕᚖgithubᚗcomᚋcasappsᚋwt
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEarthquake2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐEarthquake(ctx, sel, v[i])
+			ret[i] = ec.marshalNEarthquake2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐEarthquake(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44103,7 +44103,7 @@ func (ec *executionContext) marshalNEarthquake2ᚕᚖgithubᚗcomᚋcasappsᚋwt
 	return ret
 }
 
-func (ec *executionContext) marshalNEarthquake2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐEarthquake(ctx context.Context, sel ast.SelectionSet, v *Earthquake) graphql.Marshaler {
+func (ec *executionContext) marshalNEarthquake2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐEarthquake(ctx context.Context, sel ast.SelectionSet, v *Earthquake) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44128,7 +44128,7 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalNForecastDay2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐForecastDay(ctx context.Context, sel ast.SelectionSet, v *ForecastDay) graphql.Marshaler {
+func (ec *executionContext) marshalNForecastDay2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐForecastDay(ctx context.Context, sel ast.SelectionSet, v *ForecastDay) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44138,11 +44138,11 @@ func (ec *executionContext) marshalNForecastDay2ᚖgithubᚗcomᚋcasappsᚋwthr
 	return ec._ForecastDay(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNGenericResponse2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx context.Context, sel ast.SelectionSet, v GenericResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNGenericResponse2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx context.Context, sel ast.SelectionSet, v GenericResponse) graphql.Marshaler {
 	return ec._GenericResponse(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx context.Context, sel ast.SelectionSet, v *GenericResponse) graphql.Marshaler {
+func (ec *executionContext) marshalNGenericResponse2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐGenericResponse(ctx context.Context, sel ast.SelectionSet, v *GenericResponse) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44152,11 +44152,11 @@ func (ec *executionContext) marshalNGenericResponse2ᚖgithubᚗcomᚋcasappsᚋ
 	return ec._GenericResponse(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHealthStatus2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v HealthStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNHealthStatus2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v HealthStatus) graphql.Marshaler {
 	return ec._HealthStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNHealthStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v *HealthStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNHealthStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHealthStatus(ctx context.Context, sel ast.SelectionSet, v *HealthStatus) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44166,11 +44166,11 @@ func (ec *executionContext) marshalNHealthStatus2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._HealthStatus(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHistoricalWeather2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx context.Context, sel ast.SelectionSet, v HistoricalWeather) graphql.Marshaler {
+func (ec *executionContext) marshalNHistoricalWeather2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx context.Context, sel ast.SelectionSet, v HistoricalWeather) graphql.Marshaler {
 	return ec._HistoricalWeather(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNHistoricalWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx context.Context, sel ast.SelectionSet, v *HistoricalWeather) graphql.Marshaler {
+func (ec *executionContext) marshalNHistoricalWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHistoricalWeather(ctx context.Context, sel ast.SelectionSet, v *HistoricalWeather) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44180,7 +44180,7 @@ func (ec *executionContext) marshalNHistoricalWeather2ᚖgithubᚗcomᚋcasapps�
 	return ec._HistoricalWeather(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHourForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHourForecast(ctx context.Context, sel ast.SelectionSet, v *HourForecast) graphql.Marshaler {
+func (ec *executionContext) marshalNHourForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHourForecast(ctx context.Context, sel ast.SelectionSet, v *HourForecast) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44190,7 +44190,7 @@ func (ec *executionContext) marshalNHourForecast2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._HourForecast(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHurricane2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneᚄ(ctx context.Context, sel ast.SelectionSet, v []*Hurricane) graphql.Marshaler {
+func (ec *executionContext) marshalNHurricane2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneᚄ(ctx context.Context, sel ast.SelectionSet, v []*Hurricane) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44214,7 +44214,7 @@ func (ec *executionContext) marshalNHurricane2ᚕᚖgithubᚗcomᚋcasappsᚋwth
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNHurricane2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricane(ctx, sel, v[i])
+			ret[i] = ec.marshalNHurricane2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricane(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44234,7 +44234,7 @@ func (ec *executionContext) marshalNHurricane2ᚕᚖgithubᚗcomᚋcasappsᚋwth
 	return ret
 }
 
-func (ec *executionContext) marshalNHurricane2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricane(ctx context.Context, sel ast.SelectionSet, v *Hurricane) graphql.Marshaler {
+func (ec *executionContext) marshalNHurricane2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricane(ctx context.Context, sel ast.SelectionSet, v *Hurricane) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44244,7 +44244,7 @@ func (ec *executionContext) marshalNHurricane2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._Hurricane(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNHurricaneForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecast(ctx context.Context, sel ast.SelectionSet, v *HurricaneForecast) graphql.Marshaler {
+func (ec *executionContext) marshalNHurricaneForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecast(ctx context.Context, sel ast.SelectionSet, v *HurricaneForecast) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44299,11 +44299,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNIPGeolocation2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx context.Context, sel ast.SelectionSet, v IPGeolocation) graphql.Marshaler {
+func (ec *executionContext) marshalNIPGeolocation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx context.Context, sel ast.SelectionSet, v IPGeolocation) graphql.Marshaler {
 	return ec._IPGeolocation(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNIPGeolocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx context.Context, sel ast.SelectionSet, v *IPGeolocation) graphql.Marshaler {
+func (ec *executionContext) marshalNIPGeolocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐIPGeolocation(ctx context.Context, sel ast.SelectionSet, v *IPGeolocation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44349,7 +44349,7 @@ func (ec *executionContext) marshalNInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) marshalNInvitedServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐInvitedServerAdmin(ctx context.Context, sel ast.SelectionSet, v *InvitedServerAdmin) graphql.Marshaler {
+func (ec *executionContext) marshalNInvitedServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐInvitedServerAdmin(ctx context.Context, sel ast.SelectionSet, v *InvitedServerAdmin) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44359,7 +44359,7 @@ func (ec *executionContext) marshalNInvitedServerAdmin2ᚖgithubᚗcomᚋcasapps
 	return ec._InvitedServerAdmin(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx context.Context, sel ast.SelectionSet, v *Location) graphql.Marshaler {
+func (ec *executionContext) marshalNLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocation(ctx context.Context, sel ast.SelectionSet, v *Location) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44369,7 +44369,7 @@ func (ec *executionContext) marshalNLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋ
 	return ec._Location(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResultᚄ(ctx context.Context, sel ast.SelectionSet, v []*LocationSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResultᚄ(ctx context.Context, sel ast.SelectionSet, v []*LocationSearchResult) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44393,7 +44393,7 @@ func (ec *executionContext) marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋca
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNLocationSearchResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResult(ctx, sel, v[i])
+			ret[i] = ec.marshalNLocationSearchResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResult(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44413,7 +44413,7 @@ func (ec *executionContext) marshalNLocationSearchResult2ᚕᚖgithubᚗcomᚋca
 	return ret
 }
 
-func (ec *executionContext) marshalNLocationSearchResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResult(ctx context.Context, sel ast.SelectionSet, v *LocationSearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNLocationSearchResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationSearchResult(ctx context.Context, sel ast.SelectionSet, v *LocationSearchResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44423,7 +44423,7 @@ func (ec *executionContext) marshalNLocationSearchResult2ᚖgithubᚗcomᚋcasap
 	return ec._LocationSearchResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNLocationStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationStats(ctx context.Context, sel ast.SelectionSet, v *LocationStats) graphql.Marshaler {
+func (ec *executionContext) marshalNLocationStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationStats(ctx context.Context, sel ast.SelectionSet, v *LocationStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44433,11 +44433,11 @@ func (ec *executionContext) marshalNLocationStats2ᚖgithubᚗcomᚋcasappsᚋwt
 	return ec._LocationStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNMoonPhase2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx context.Context, sel ast.SelectionSet, v MoonPhase) graphql.Marshaler {
+func (ec *executionContext) marshalNMoonPhase2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx context.Context, sel ast.SelectionSet, v MoonPhase) graphql.Marshaler {
 	return ec._MoonPhase(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNMoonPhase2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx context.Context, sel ast.SelectionSet, v *MoonPhase) graphql.Marshaler {
+func (ec *executionContext) marshalNMoonPhase2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐMoonPhase(ctx context.Context, sel ast.SelectionSet, v *MoonPhase) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44447,11 +44447,11 @@ func (ec *executionContext) marshalNMoonPhase2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._MoonPhase(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNotification2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v models.Notification) graphql.Marshaler {
 	return ec._Notification(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Notification) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44475,7 +44475,7 @@ func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋcasappsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNotification2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx, sel, v[i])
+			ret[i] = ec.marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44495,7 +44495,7 @@ func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋcasappsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *models.Notification) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44505,11 +44505,11 @@ func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._Notification(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNotificationChannel2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v NotificationChannel) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationChannel2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v NotificationChannel) graphql.Marshaler {
 	return ec._NotificationChannel(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannelᚄ(ctx context.Context, sel ast.SelectionSet, v []*NotificationChannel) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannelᚄ(ctx context.Context, sel ast.SelectionSet, v []*NotificationChannel) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44533,7 +44533,7 @@ func (ec *executionContext) marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋcas
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, sel, v[i])
+			ret[i] = ec.marshalNNotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44553,7 +44553,7 @@ func (ec *executionContext) marshalNNotificationChannel2ᚕᚖgithubᚗcomᚋcas
 	return ret
 }
 
-func (ec *executionContext) marshalNNotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v *NotificationChannel) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v *NotificationChannel) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44563,7 +44563,7 @@ func (ec *executionContext) marshalNNotificationChannel2ᚖgithubᚗcomᚋcasapp
 	return ec._NotificationChannel(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNotificationSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationSettings(ctx context.Context, sel ast.SelectionSet, v *NotificationSettings) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationSettings(ctx context.Context, sel ast.SelectionSet, v *NotificationSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44573,7 +44573,7 @@ func (ec *executionContext) marshalNNotificationSettings2ᚖgithubᚗcomᚋcasap
 	return ec._NotificationSettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNotificationStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationStats(ctx context.Context, sel ast.SelectionSet, v *NotificationStats) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationStats(ctx context.Context, sel ast.SelectionSet, v *NotificationStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44583,11 +44583,11 @@ func (ec *executionContext) marshalNNotificationStats2ᚖgithubᚗcomᚋcasapps�
 	return ec._NotificationStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPasskeyChallengeOptions2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx context.Context, sel ast.SelectionSet, v PasskeyChallengeOptions) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyChallengeOptions2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx context.Context, sel ast.SelectionSet, v PasskeyChallengeOptions) graphql.Marshaler {
 	return ec._PasskeyChallengeOptions(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx context.Context, sel ast.SelectionSet, v *PasskeyChallengeOptions) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyChallengeOptions(ctx context.Context, sel ast.SelectionSet, v *PasskeyChallengeOptions) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44597,11 +44597,11 @@ func (ec *executionContext) marshalNPasskeyChallengeOptions2ᚖgithubᚗcomᚋca
 	return ec._PasskeyChallengeOptions(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPasskeyRegistrationOptions2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx context.Context, sel ast.SelectionSet, v PasskeyRegistrationOptions) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyRegistrationOptions2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx context.Context, sel ast.SelectionSet, v PasskeyRegistrationOptions) graphql.Marshaler {
 	return ec._PasskeyRegistrationOptions(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx context.Context, sel ast.SelectionSet, v *PasskeyRegistrationOptions) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyRegistrationOptions2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationOptions(ctx context.Context, sel ast.SelectionSet, v *PasskeyRegistrationOptions) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44611,11 +44611,11 @@ func (ec *executionContext) marshalNPasskeyRegistrationOptions2ᚖgithubᚗcom�
 	return ec._PasskeyRegistrationOptions(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPasskeyRegistrationResult2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v PasskeyRegistrationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyRegistrationResult2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v PasskeyRegistrationResult) graphql.Marshaler {
 	return ec._PasskeyRegistrationResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPasskeyRegistrationResult2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v *PasskeyRegistrationResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPasskeyRegistrationResult2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPasskeyRegistrationResult(ctx context.Context, sel ast.SelectionSet, v *PasskeyRegistrationResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44625,7 +44625,7 @@ func (ec *executionContext) marshalNPasskeyRegistrationResult2ᚖgithubᚗcomᚋ
 	return ec._PasskeyRegistrationResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrivacySettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPrivacySettings(ctx context.Context, sel ast.SelectionSet, v *PrivacySettings) graphql.Marshaler {
+func (ec *executionContext) marshalNPrivacySettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPrivacySettings(ctx context.Context, sel ast.SelectionSet, v *PrivacySettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44635,11 +44635,11 @@ func (ec *executionContext) marshalNPrivacySettings2ᚖgithubᚗcomᚋcasappsᚋ
 	return ec._PrivacySettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPublicAvatar2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx context.Context, sel ast.SelectionSet, v PublicAvatar) graphql.Marshaler {
+func (ec *executionContext) marshalNPublicAvatar2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx context.Context, sel ast.SelectionSet, v PublicAvatar) graphql.Marshaler {
 	return ec._PublicAvatar(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx context.Context, sel ast.SelectionSet, v *PublicAvatar) graphql.Marshaler {
+func (ec *executionContext) marshalNPublicAvatar2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicAvatar(ctx context.Context, sel ast.SelectionSet, v *PublicAvatar) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44649,11 +44649,11 @@ func (ec *executionContext) marshalNPublicAvatar2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._PublicAvatar(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNQueueStats2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx context.Context, sel ast.SelectionSet, v QueueStats) graphql.Marshaler {
+func (ec *executionContext) marshalNQueueStats2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx context.Context, sel ast.SelectionSet, v QueueStats) graphql.Marshaler {
 	return ec._QueueStats(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNQueueStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx context.Context, sel ast.SelectionSet, v *QueueStats) graphql.Marshaler {
+func (ec *executionContext) marshalNQueueStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐQueueStats(ctx context.Context, sel ast.SelectionSet, v *QueueStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44663,7 +44663,7 @@ func (ec *executionContext) marshalNQueueStats2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._QueueStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNRequestStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐRequestStats(ctx context.Context, sel ast.SelectionSet, v *RequestStats) graphql.Marshaler {
+func (ec *executionContext) marshalNRequestStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐRequestStats(ctx context.Context, sel ast.SelectionSet, v *RequestStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44673,7 +44673,7 @@ func (ec *executionContext) marshalNRequestStats2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._RequestStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProviderᚄ(ctx context.Context, sel ast.SelectionSet, v []*SMTPProvider) graphql.Marshaler {
+func (ec *executionContext) marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProviderᚄ(ctx context.Context, sel ast.SelectionSet, v []*SMTPProvider) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44697,7 +44697,7 @@ func (ec *executionContext) marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋcasappsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSMTPProvider2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx, sel, v[i])
+			ret[i] = ec.marshalNSMTPProvider2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44717,7 +44717,7 @@ func (ec *executionContext) marshalNSMTPProvider2ᚕᚖgithubᚗcomᚋcasappsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNSMTPProvider2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx context.Context, sel ast.SelectionSet, v *SMTPProvider) graphql.Marshaler {
+func (ec *executionContext) marshalNSMTPProvider2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx context.Context, sel ast.SelectionSet, v *SMTPProvider) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44727,11 +44727,11 @@ func (ec *executionContext) marshalNSMTPProvider2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._SMTPProvider(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSavedLocation2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v models.SavedLocation) graphql.Marshaler {
 	return ec._SavedLocation(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SavedLocation) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44755,7 +44755,7 @@ func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋcasapps�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, sel, v[i])
+			ret[i] = ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44775,7 +44775,7 @@ func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋcasapps�
 	return ret
 }
 
-func (ec *executionContext) marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44785,11 +44785,11 @@ func (ec *executionContext) marshalNSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwt
 	return ec._SavedLocation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNScheduledTask2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx context.Context, sel ast.SelectionSet, v ScheduledTask) graphql.Marshaler {
+func (ec *executionContext) marshalNScheduledTask2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx context.Context, sel ast.SelectionSet, v ScheduledTask) graphql.Marshaler {
 	return ec._ScheduledTask(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNScheduledTask2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTaskᚄ(ctx context.Context, sel ast.SelectionSet, v []*ScheduledTask) graphql.Marshaler {
+func (ec *executionContext) marshalNScheduledTask2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTaskᚄ(ctx context.Context, sel ast.SelectionSet, v []*ScheduledTask) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44813,7 +44813,7 @@ func (ec *executionContext) marshalNScheduledTask2ᚕᚖgithubᚗcomᚋcasapps�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, sel, v[i])
+			ret[i] = ec.marshalNScheduledTask2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44833,7 +44833,7 @@ func (ec *executionContext) marshalNScheduledTask2ᚕᚖgithubᚗcomᚋcasapps�
 	return ret
 }
 
-func (ec *executionContext) marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx context.Context, sel ast.SelectionSet, v *ScheduledTask) graphql.Marshaler {
+func (ec *executionContext) marshalNScheduledTask2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐScheduledTask(ctx context.Context, sel ast.SelectionSet, v *ScheduledTask) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44843,7 +44843,7 @@ func (ec *executionContext) marshalNScheduledTask2ᚖgithubᚗcomᚋcasappsᚋwt
 	return ec._ScheduledTask(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx context.Context, sel ast.SelectionSet, v *ServerAdmin) graphql.Marshaler {
+func (ec *executionContext) marshalNServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx context.Context, sel ast.SelectionSet, v *ServerAdmin) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44853,11 +44853,11 @@ func (ec *executionContext) marshalNServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthr
 	return ec._ServerAdmin(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNServerAdminInvite2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx context.Context, sel ast.SelectionSet, v ServerAdminInvite) graphql.Marshaler {
+func (ec *executionContext) marshalNServerAdminInvite2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx context.Context, sel ast.SelectionSet, v ServerAdminInvite) graphql.Marshaler {
 	return ec._ServerAdminInvite(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNServerAdminInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx context.Context, sel ast.SelectionSet, v *ServerAdminInvite) graphql.Marshaler {
+func (ec *executionContext) marshalNServerAdminInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminInvite(ctx context.Context, sel ast.SelectionSet, v *ServerAdminInvite) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44867,11 +44867,11 @@ func (ec *executionContext) marshalNServerAdminInvite2ᚖgithubᚗcomᚋcasapps�
 	return ec._ServerAdminInvite(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNServerAdminOverview2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx context.Context, sel ast.SelectionSet, v ServerAdminOverview) graphql.Marshaler {
+func (ec *executionContext) marshalNServerAdminOverview2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx context.Context, sel ast.SelectionSet, v ServerAdminOverview) graphql.Marshaler {
 	return ec._ServerAdminOverview(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNServerAdminOverview2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx context.Context, sel ast.SelectionSet, v *ServerAdminOverview) graphql.Marshaler {
+func (ec *executionContext) marshalNServerAdminOverview2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdminOverview(ctx context.Context, sel ast.SelectionSet, v *ServerAdminOverview) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44881,11 +44881,11 @@ func (ec *executionContext) marshalNServerAdminOverview2ᚖgithubᚗcomᚋcasapp
 	return ec._ServerAdminOverview(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNServerInviteCompletion2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx context.Context, sel ast.SelectionSet, v ServerInviteCompletion) graphql.Marshaler {
+func (ec *executionContext) marshalNServerInviteCompletion2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx context.Context, sel ast.SelectionSet, v ServerInviteCompletion) graphql.Marshaler {
 	return ec._ServerInviteCompletion(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNServerInviteCompletion2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx context.Context, sel ast.SelectionSet, v *ServerInviteCompletion) graphql.Marshaler {
+func (ec *executionContext) marshalNServerInviteCompletion2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteCompletion(ctx context.Context, sel ast.SelectionSet, v *ServerInviteCompletion) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44895,11 +44895,11 @@ func (ec *executionContext) marshalNServerInviteCompletion2ᚖgithubᚗcomᚋcas
 	return ec._ServerInviteCompletion(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNServerInviteValidation2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx context.Context, sel ast.SelectionSet, v ServerInviteValidation) graphql.Marshaler {
+func (ec *executionContext) marshalNServerInviteValidation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx context.Context, sel ast.SelectionSet, v ServerInviteValidation) graphql.Marshaler {
 	return ec._ServerInviteValidation(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNServerInviteValidation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx context.Context, sel ast.SelectionSet, v *ServerInviteValidation) graphql.Marshaler {
+func (ec *executionContext) marshalNServerInviteValidation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerInviteValidation(ctx context.Context, sel ast.SelectionSet, v *ServerInviteValidation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44909,11 +44909,11 @@ func (ec *executionContext) marshalNServerInviteValidation2ᚖgithubᚗcomᚋcas
 	return ec._ServerInviteValidation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSetting2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v models.Setting) graphql.Marshaler {
 	return ec._Setting(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Setting) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44937,7 +44937,7 @@ func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋcasappsᚋwthr�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, sel, v[i])
+			ret[i] = ec.marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -44957,7 +44957,7 @@ func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ret
 }
 
-func (ec *executionContext) marshalNSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44967,7 +44967,7 @@ func (ec *executionContext) marshalNSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋs
 	return ec._Setting(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSettingInputᚄ(ctx context.Context, v interface{}) ([]*SettingInput, error) {
+func (ec *executionContext) unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSettingInputᚄ(ctx context.Context, v interface{}) ([]*SettingInput, error) {
 	var vSlice []interface{}
 	if v != nil {
 		vSlice = graphql.CoerceList(v)
@@ -44976,7 +44976,7 @@ func (ec *executionContext) unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋcasapps�
 	res := make([]*SettingInput, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNSettingInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSettingInput(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNSettingInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSettingInput(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -44984,12 +44984,12 @@ func (ec *executionContext) unmarshalNSettingInput2ᚕᚖgithubᚗcomᚋcasapps�
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalNSettingInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSettingInput(ctx context.Context, v interface{}) (*SettingInput, error) {
+func (ec *executionContext) unmarshalNSettingInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSettingInput(ctx context.Context, v interface{}) (*SettingInput, error) {
 	res, err := ec.unmarshalInputSettingInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSevereWeather2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSevereWeatherᚄ(ctx context.Context, sel ast.SelectionSet, v []*SevereWeather) graphql.Marshaler {
+func (ec *executionContext) marshalNSevereWeather2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSevereWeatherᚄ(ctx context.Context, sel ast.SelectionSet, v []*SevereWeather) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45013,7 +45013,7 @@ func (ec *executionContext) marshalNSevereWeather2ᚕᚖgithubᚗcomᚋcasapps�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSevereWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSevereWeather(ctx, sel, v[i])
+			ret[i] = ec.marshalNSevereWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSevereWeather(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45033,7 +45033,7 @@ func (ec *executionContext) marshalNSevereWeather2ᚕᚖgithubᚗcomᚋcasapps�
 	return ret
 }
 
-func (ec *executionContext) marshalNSevereWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSevereWeather(ctx context.Context, sel ast.SelectionSet, v *SevereWeather) graphql.Marshaler {
+func (ec *executionContext) marshalNSevereWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSevereWeather(ctx context.Context, sel ast.SelectionSet, v *SevereWeather) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45090,11 +45090,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNSystemStats2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx context.Context, sel ast.SelectionSet, v SystemStats) graphql.Marshaler {
+func (ec *executionContext) marshalNSystemStats2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx context.Context, sel ast.SelectionSet, v SystemStats) graphql.Marshaler {
 	return ec._SystemStats(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSystemStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx context.Context, sel ast.SelectionSet, v *SystemStats) graphql.Marshaler {
+func (ec *executionContext) marshalNSystemStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSystemStats(ctx context.Context, sel ast.SelectionSet, v *SystemStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45104,11 +45104,11 @@ func (ec *executionContext) marshalNSystemStats2ᚖgithubᚗcomᚋcasappsᚋwthr
 	return ec._SystemStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNTOTPRecoveryKeys2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx context.Context, sel ast.SelectionSet, v TOTPRecoveryKeys) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPRecoveryKeys2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx context.Context, sel ast.SelectionSet, v TOTPRecoveryKeys) graphql.Marshaler {
 	return ec._TOTPRecoveryKeys(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx context.Context, sel ast.SelectionSet, v *TOTPRecoveryKeys) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPRecoveryKeys(ctx context.Context, sel ast.SelectionSet, v *TOTPRecoveryKeys) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45118,11 +45118,11 @@ func (ec *executionContext) marshalNTOTPRecoveryKeys2ᚖgithubᚗcomᚋcasapps�
 	return ec._TOTPRecoveryKeys(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNTOTPSetup2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx context.Context, sel ast.SelectionSet, v TOTPSetup) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPSetup2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx context.Context, sel ast.SelectionSet, v TOTPSetup) graphql.Marshaler {
 	return ec._TOTPSetup(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTOTPSetup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx context.Context, sel ast.SelectionSet, v *TOTPSetup) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPSetup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPSetup(ctx context.Context, sel ast.SelectionSet, v *TOTPSetup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45132,11 +45132,11 @@ func (ec *executionContext) marshalNTOTPSetup2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._TOTPSetup(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNTOTPStatus2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx context.Context, sel ast.SelectionSet, v TOTPStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPStatus2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx context.Context, sel ast.SelectionSet, v TOTPStatus) graphql.Marshaler {
 	return ec._TOTPStatus(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTOTPStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx context.Context, sel ast.SelectionSet, v *TOTPStatus) graphql.Marshaler {
+func (ec *executionContext) marshalNTOTPStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTOTPStatus(ctx context.Context, sel ast.SelectionSet, v *TOTPStatus) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45146,7 +45146,7 @@ func (ec *executionContext) marshalNTOTPStatus2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._TOTPStatus(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNTaskHistory2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTaskHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*TaskHistory) graphql.Marshaler {
+func (ec *executionContext) marshalNTaskHistory2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTaskHistoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*TaskHistory) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45170,7 +45170,7 @@ func (ec *executionContext) marshalNTaskHistory2ᚕᚖgithubᚗcomᚋcasappsᚋw
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNTaskHistory2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTaskHistory(ctx, sel, v[i])
+			ret[i] = ec.marshalNTaskHistory2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTaskHistory(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45190,7 +45190,7 @@ func (ec *executionContext) marshalNTaskHistory2ᚕᚖgithubᚗcomᚋcasappsᚋw
 	return ret
 }
 
-func (ec *executionContext) marshalNTaskHistory2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐTaskHistory(ctx context.Context, sel ast.SelectionSet, v *TaskHistory) graphql.Marshaler {
+func (ec *executionContext) marshalNTaskHistory2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐTaskHistory(ctx context.Context, sel ast.SelectionSet, v *TaskHistory) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45215,11 +45215,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNUnreadCount2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx context.Context, sel ast.SelectionSet, v UnreadCount) graphql.Marshaler {
+func (ec *executionContext) marshalNUnreadCount2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx context.Context, sel ast.SelectionSet, v UnreadCount) graphql.Marshaler {
 	return ec._UnreadCount(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUnreadCount2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx context.Context, sel ast.SelectionSet, v *UnreadCount) graphql.Marshaler {
+func (ec *executionContext) marshalNUnreadCount2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUnreadCount(ctx context.Context, sel ast.SelectionSet, v *UnreadCount) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45244,11 +45244,11 @@ func (ec *executionContext) marshalNUpload2githubᚗcomᚋ99designsᚋgqlgenᚋg
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v models.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45272,7 +45272,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋs
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, sel, v[i])
+			ret[i] = ec.marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45292,7 +45292,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋs
 	return ret
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *models.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45302,11 +45302,11 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrc�
 	return ec._User(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserInvite2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v UserInvite) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInvite2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v UserInvite) graphql.Marshaler {
 	return ec._UserInvite(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserInvite2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserInvite) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInvite2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserInvite) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45330,7 +45330,7 @@ func (ec *executionContext) marshalNUserInvite2ᚕᚖgithubᚗcomᚋcasappsᚋwt
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, sel, v[i])
+			ret[i] = ec.marshalNUserInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45350,7 +45350,7 @@ func (ec *executionContext) marshalNUserInvite2ᚕᚖgithubᚗcomᚋcasappsᚋwt
 	return ret
 }
 
-func (ec *executionContext) marshalNUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v *UserInvite) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v *UserInvite) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45360,11 +45360,11 @@ func (ec *executionContext) marshalNUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._UserInvite(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserInviteCompletion2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx context.Context, sel ast.SelectionSet, v UserInviteCompletion) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInviteCompletion2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx context.Context, sel ast.SelectionSet, v UserInviteCompletion) graphql.Marshaler {
 	return ec._UserInviteCompletion(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserInviteCompletion2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx context.Context, sel ast.SelectionSet, v *UserInviteCompletion) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInviteCompletion2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteCompletion(ctx context.Context, sel ast.SelectionSet, v *UserInviteCompletion) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45374,11 +45374,11 @@ func (ec *executionContext) marshalNUserInviteCompletion2ᚖgithubᚗcomᚋcasap
 	return ec._UserInviteCompletion(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserInviteValidation2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx context.Context, sel ast.SelectionSet, v UserInviteValidation) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInviteValidation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx context.Context, sel ast.SelectionSet, v UserInviteValidation) graphql.Marshaler {
 	return ec._UserInviteValidation(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserInviteValidation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx context.Context, sel ast.SelectionSet, v *UserInviteValidation) graphql.Marshaler {
+func (ec *executionContext) marshalNUserInviteValidation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInviteValidation(ctx context.Context, sel ast.SelectionSet, v *UserInviteValidation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45388,7 +45388,7 @@ func (ec *executionContext) marshalNUserInviteValidation2ᚖgithubᚗcomᚋcasap
 	return ec._UserInviteValidation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserPasskeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserPasskey) graphql.Marshaler {
+func (ec *executionContext) marshalNUserPasskey2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserPasskeyᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserPasskey) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45412,7 +45412,7 @@ func (ec *executionContext) marshalNUserPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋw
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUserPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx, sel, v[i])
+			ret[i] = ec.marshalNUserPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45432,7 +45432,7 @@ func (ec *executionContext) marshalNUserPasskey2ᚕᚖgithubᚗcomᚋcasappsᚋw
 	return ret
 }
 
-func (ec *executionContext) marshalNUserPasskey2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx context.Context, sel ast.SelectionSet, v *UserPasskey) graphql.Marshaler {
+func (ec *executionContext) marshalNUserPasskey2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserPasskey(ctx context.Context, sel ast.SelectionSet, v *UserPasskey) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45442,11 +45442,11 @@ func (ec *executionContext) marshalNUserPasskey2ᚖgithubᚗcomᚋcasappsᚋwthr
 	return ec._UserPasskey(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserSettings2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx context.Context, sel ast.SelectionSet, v UserSettings) graphql.Marshaler {
+func (ec *executionContext) marshalNUserSettings2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx context.Context, sel ast.SelectionSet, v UserSettings) graphql.Marshaler {
 	return ec._UserSettings(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserSettings2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx context.Context, sel ast.SelectionSet, v *UserSettings) graphql.Marshaler {
+func (ec *executionContext) marshalNUserSettings2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserSettings(ctx context.Context, sel ast.SelectionSet, v *UserSettings) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45456,7 +45456,7 @@ func (ec *executionContext) marshalNUserSettings2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._UserSettings(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserStats(ctx context.Context, sel ast.SelectionSet, v *UserStats) graphql.Marshaler {
+func (ec *executionContext) marshalNUserStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserStats(ctx context.Context, sel ast.SelectionSet, v *UserStats) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45466,11 +45466,11 @@ func (ec *executionContext) marshalNUserStats2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._UserStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNUserToken2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx context.Context, sel ast.SelectionSet, v UserToken) graphql.Marshaler {
+func (ec *executionContext) marshalNUserToken2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx context.Context, sel ast.SelectionSet, v UserToken) graphql.Marshaler {
 	return ec._UserToken(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserToken2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserTokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserToken) graphql.Marshaler {
+func (ec *executionContext) marshalNUserToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserTokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*UserToken) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45494,7 +45494,7 @@ func (ec *executionContext) marshalNUserToken2ᚕᚖgithubᚗcomᚋcasappsᚋwth
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNUserToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx, sel, v[i])
+			ret[i] = ec.marshalNUserToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45514,7 +45514,7 @@ func (ec *executionContext) marshalNUserToken2ᚕᚖgithubᚗcomᚋcasappsᚋwth
 	return ret
 }
 
-func (ec *executionContext) marshalNUserToken2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx context.Context, sel ast.SelectionSet, v *UserToken) graphql.Marshaler {
+func (ec *executionContext) marshalNUserToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserToken(ctx context.Context, sel ast.SelectionSet, v *UserToken) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45524,11 +45524,11 @@ func (ec *executionContext) marshalNUserToken2ᚖgithubᚗcomᚋcasappsᚋwthr�
 	return ec._UserToken(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWeather2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx context.Context, sel ast.SelectionSet, v Weather) graphql.Marshaler {
+func (ec *executionContext) marshalNWeather2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx context.Context, sel ast.SelectionSet, v Weather) graphql.Marshaler {
 	return ec._Weather(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx context.Context, sel ast.SelectionSet, v *Weather) graphql.Marshaler {
+func (ec *executionContext) marshalNWeather2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeather(ctx context.Context, sel ast.SelectionSet, v *Weather) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45538,7 +45538,7 @@ func (ec *executionContext) marshalNWeather2ᚖgithubᚗcomᚋcasappsᚋwthrᚋs
 	return ec._Weather(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWeatherAlert2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherAlert(ctx context.Context, sel ast.SelectionSet, v *WeatherAlert) graphql.Marshaler {
+func (ec *executionContext) marshalNWeatherAlert2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherAlert(ctx context.Context, sel ast.SelectionSet, v *WeatherAlert) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45548,7 +45548,7 @@ func (ec *executionContext) marshalNWeatherAlert2ᚖgithubᚗcomᚋcasappsᚋwth
 	return ec._WeatherAlert(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWeatherCondition2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx context.Context, sel ast.SelectionSet, v *WeatherCondition) graphql.Marshaler {
+func (ec *executionContext) marshalNWeatherCondition2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherCondition(ctx context.Context, sel ast.SelectionSet, v *WeatherCondition) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45558,11 +45558,11 @@ func (ec *executionContext) marshalNWeatherCondition2ᚖgithubᚗcomᚋcasapps�
 	return ec._WeatherCondition(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNZipCodeLookup2githubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx context.Context, sel ast.SelectionSet, v ZipCodeLookup) graphql.Marshaler {
+func (ec *executionContext) marshalNZipCodeLookup2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx context.Context, sel ast.SelectionSet, v ZipCodeLookup) graphql.Marshaler {
 	return ec._ZipCodeLookup(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNZipCodeLookup2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx context.Context, sel ast.SelectionSet, v *ZipCodeLookup) graphql.Marshaler {
+func (ec *executionContext) marshalNZipCodeLookup2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐZipCodeLookup(ctx context.Context, sel ast.SelectionSet, v *ZipCodeLookup) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45825,7 +45825,7 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
-func (ec *executionContext) unmarshalOAccountSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAccountSettingsInput(ctx context.Context, v interface{}) (*AccountSettingsInput, error) {
+func (ec *executionContext) unmarshalOAccountSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAccountSettingsInput(ctx context.Context, v interface{}) (*AccountSettingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -45849,7 +45849,7 @@ func (ec *executionContext) marshalOAny2interface(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalOAppearanceSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettingsInput(ctx context.Context, v interface{}) (*AppearanceSettingsInput, error) {
+func (ec *executionContext) unmarshalOAppearanceSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAppearanceSettingsInput(ctx context.Context, v interface{}) (*AppearanceSettingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -45857,14 +45857,14 @@ func (ec *executionContext) unmarshalOAppearanceSettingsInput2ᚖgithubᚗcomᚋ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOAstronomy2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx context.Context, sel ast.SelectionSet, v *Astronomy) graphql.Marshaler {
+func (ec *executionContext) marshalOAstronomy2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAstronomy(ctx context.Context, sel ast.SelectionSet, v *Astronomy) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Astronomy(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOAuthUser2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx context.Context, sel ast.SelectionSet, v *AuthUser) graphql.Marshaler {
+func (ec *executionContext) marshalOAuthUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐAuthUser(ctx context.Context, sel ast.SelectionSet, v *AuthUser) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -45897,21 +45897,21 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOChannelStats2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx context.Context, sel ast.SelectionSet, v *ChannelStats) graphql.Marshaler {
+func (ec *executionContext) marshalOChannelStats2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐChannelStats(ctx context.Context, sel ast.SelectionSet, v *ChannelStats) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._ChannelStats(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalODatabaseHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDatabaseHealth(ctx context.Context, sel ast.SelectionSet, v *DatabaseHealth) graphql.Marshaler {
+func (ec *executionContext) marshalODatabaseHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDatabaseHealth(ctx context.Context, sel ast.SelectionSet, v *DatabaseHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._DatabaseHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalODiskHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐDiskHealth(ctx context.Context, sel ast.SelectionSet, v *DiskHealth) graphql.Marshaler {
+func (ec *executionContext) marshalODiskHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐDiskHealth(ctx context.Context, sel ast.SelectionSet, v *DiskHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -45934,7 +45934,7 @@ func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel as
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalOForecastDay2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐForecastDayᚄ(ctx context.Context, sel ast.SelectionSet, v []*ForecastDay) graphql.Marshaler {
+func (ec *executionContext) marshalOForecastDay2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐForecastDayᚄ(ctx context.Context, sel ast.SelectionSet, v []*ForecastDay) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -45961,7 +45961,7 @@ func (ec *executionContext) marshalOForecastDay2ᚕᚖgithubᚗcomᚋcasappsᚋw
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNForecastDay2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐForecastDay(ctx, sel, v[i])
+			ret[i] = ec.marshalNForecastDay2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐForecastDay(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -45981,7 +45981,7 @@ func (ec *executionContext) marshalOForecastDay2ᚕᚖgithubᚗcomᚋcasappsᚋw
 	return ret
 }
 
-func (ec *executionContext) marshalOHourForecast2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx context.Context, sel ast.SelectionSet, v []*HourForecast) graphql.Marshaler {
+func (ec *executionContext) marshalOHourForecast2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHourForecastᚄ(ctx context.Context, sel ast.SelectionSet, v []*HourForecast) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46008,7 +46008,7 @@ func (ec *executionContext) marshalOHourForecast2ᚕᚖgithubᚗcomᚋcasappsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNHourForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHourForecast(ctx, sel, v[i])
+			ret[i] = ec.marshalNHourForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHourForecast(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -46028,7 +46028,7 @@ func (ec *executionContext) marshalOHourForecast2ᚕᚖgithubᚗcomᚋcasappsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecastᚄ(ctx context.Context, sel ast.SelectionSet, v []*HurricaneForecast) graphql.Marshaler {
+func (ec *executionContext) marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecastᚄ(ctx context.Context, sel ast.SelectionSet, v []*HurricaneForecast) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46055,7 +46055,7 @@ func (ec *executionContext) marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋcasap
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNHurricaneForecast2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecast(ctx, sel, v[i])
+			ret[i] = ec.marshalNHurricaneForecast2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneForecast(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -46075,7 +46075,7 @@ func (ec *executionContext) marshalOHurricaneForecast2ᚕᚖgithubᚗcomᚋcasap
 	return ret
 }
 
-func (ec *executionContext) marshalOHurricaneMovement2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐHurricaneMovement(ctx context.Context, sel ast.SelectionSet, v *HurricaneMovement) graphql.Marshaler {
+func (ec *executionContext) marshalOHurricaneMovement2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐHurricaneMovement(ctx context.Context, sel ast.SelectionSet, v *HurricaneMovement) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46098,35 +46098,35 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) marshalOLocationDBStatus2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx context.Context, sel ast.SelectionSet, v *LocationDBStatus) graphql.Marshaler {
+func (ec *executionContext) marshalOLocationDBStatus2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDBStatus(ctx context.Context, sel ast.SelectionSet, v *LocationDBStatus) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._LocationDBStatus(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOLocationDatabasesHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐLocationDatabasesHealth(ctx context.Context, sel ast.SelectionSet, v *LocationDatabasesHealth) graphql.Marshaler {
+func (ec *executionContext) marshalOLocationDatabasesHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐLocationDatabasesHealth(ctx context.Context, sel ast.SelectionSet, v *LocationDatabasesHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._LocationDatabasesHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOMemoryHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐMemoryHealth(ctx context.Context, sel ast.SelectionSet, v *MemoryHealth) graphql.Marshaler {
+func (ec *executionContext) marshalOMemoryHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐMemoryHealth(ctx context.Context, sel ast.SelectionSet, v *MemoryHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._MemoryHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalONotificationChannel2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v *NotificationChannel) graphql.Marshaler {
+func (ec *executionContext) marshalONotificationChannel2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationChannel(ctx context.Context, sel ast.SelectionSet, v *NotificationChannel) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._NotificationChannel(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalONotificationSettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐNotificationSettingsInput(ctx context.Context, v interface{}) (*NotificationSettingsInput, error) {
+func (ec *executionContext) unmarshalONotificationSettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐNotificationSettingsInput(ctx context.Context, v interface{}) (*NotificationSettingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -46134,7 +46134,7 @@ func (ec *executionContext) unmarshalONotificationSettingsInput2ᚖgithubᚗcom�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOPrivacySettingsInput2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPrivacySettingsInput(ctx context.Context, v interface{}) (*PrivacySettingsInput, error) {
+func (ec *executionContext) unmarshalOPrivacySettingsInput2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPrivacySettingsInput(ctx context.Context, v interface{}) (*PrivacySettingsInput, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -46142,63 +46142,63 @@ func (ec *executionContext) unmarshalOPrivacySettingsInput2ᚖgithubᚗcomᚋcas
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOPublicUserProfile2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐPublicUserProfile(ctx context.Context, sel ast.SelectionSet, v *PublicUserProfile) graphql.Marshaler {
+func (ec *executionContext) marshalOPublicUserProfile2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐPublicUserProfile(ctx context.Context, sel ast.SelectionSet, v *PublicUserProfile) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._PublicUserProfile(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalORequestsHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐRequestsHealth(ctx context.Context, sel ast.SelectionSet, v *RequestsHealth) graphql.Marshaler {
+func (ec *executionContext) marshalORequestsHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐRequestsHealth(ctx context.Context, sel ast.SelectionSet, v *RequestsHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._RequestsHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSMTPProvider2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx context.Context, sel ast.SelectionSet, v *SMTPProvider) graphql.Marshaler {
+func (ec *executionContext) marshalOSMTPProvider2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSMTPProvider(ctx context.Context, sel ast.SelectionSet, v *SMTPProvider) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._SMTPProvider(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSSLHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSSLHealth(ctx context.Context, sel ast.SelectionSet, v *SSLHealth) graphql.Marshaler {
+func (ec *executionContext) marshalOSSLHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSSLHealth(ctx context.Context, sel ast.SelectionSet, v *SSLHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._SSLHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSavedLocation2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalOSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._SavedLocation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSchedulerHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSchedulerHealth(ctx context.Context, sel ast.SelectionSet, v *SchedulerHealth) graphql.Marshaler {
+func (ec *executionContext) marshalOSchedulerHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSchedulerHealth(ctx context.Context, sel ast.SelectionSet, v *SchedulerHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._SchedulerHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOServerAdmin2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx context.Context, sel ast.SelectionSet, v *ServerAdmin) graphql.Marshaler {
+func (ec *executionContext) marshalOServerAdmin2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐServerAdmin(ctx context.Context, sel ast.SelectionSet, v *ServerAdmin) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._ServerAdmin(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSessionsHealth2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐSessionsHealth(ctx context.Context, sel ast.SelectionSet, v *SessionsHealth) graphql.Marshaler {
+func (ec *executionContext) marshalOSessionsHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐSessionsHealth(ctx context.Context, sel ast.SelectionSet, v *SessionsHealth) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._SessionsHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSetting2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalOSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46295,14 +46295,14 @@ func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel
 	return res
 }
 
-func (ec *executionContext) marshalOUserInvite2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v *UserInvite) graphql.Marshaler {
+func (ec *executionContext) marshalOUserInvite2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐUserInvite(ctx context.Context, sel ast.SelectionSet, v *UserInvite) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._UserInvite(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOWeatherAlert2ᚕᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherAlertᚄ(ctx context.Context, sel ast.SelectionSet, v []*WeatherAlert) graphql.Marshaler {
+func (ec *executionContext) marshalOWeatherAlert2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherAlertᚄ(ctx context.Context, sel ast.SelectionSet, v []*WeatherAlert) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46329,7 +46329,7 @@ func (ec *executionContext) marshalOWeatherAlert2ᚕᚖgithubᚗcomᚋcasappsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNWeatherAlert2ᚖgithubᚗcomᚋcasappsᚋwthrᚋsrcᚋgraphqlᚐWeatherAlert(ctx, sel, v[i])
+			ret[i] = ec.marshalNWeatherAlert2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋgraphqlᚐWeatherAlert(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)

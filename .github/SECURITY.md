@@ -57,4 +57,4 @@ The following are **not** considered vulnerabilities for this project:
 - **All weather data sources** are public APIs; no API keys are stored
 - **Single binary** with embedded GeoIP database; no external runtime dependencies
 
-> CVE details and technical patch notes are published in [GitHub Security Advisories](https://github.com/casapps/wthr/security/advisories) after the fix is released — never in this file.
+> CVE details and technical patch notes are published in [GitHub Security Advisories](https://github.com/webappsgo/wthr/security/advisories) after the fix is released — never in this file.

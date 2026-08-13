@@ -1,6 +1,6 @@
 # MIT License
 
-Copyright (c) 2024-2026 casapps
+Copyright (c) 2024-2026 webappsgo
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -62,14 +62,14 @@ SOFTWARE.
 
 ### Cities Database
 - **Source**: OpenWeatherMap City List
-- **Repository**: https://github.com/casapps/citylist
+- **Repository**: https://github.com/webappsgo/citylist
 - **License**: CC BY-SA 4.0
 - **Records**: 209,579 cities worldwide
 - **Attribution**: City data compiled from OpenWeatherMap and OpenStreetMap
 
 ### Countries Database
 - **Source**: REST Countries API
-- **Repository**: https://github.com/casapps/countries
+- **Repository**: https://github.com/webappsgo/countries
 - **License**: MPL 2.0 (Mozilla Public License 2.0)
 - **Records**: 247 countries with timezones and metadata
 - **Attribution**: Country data from various open sources
@@ -126,7 +126,7 @@ The service uses system monospace fonts for terminal display:
 
 When using this software, please provide attribution to:
 
-1. **Console Weather Service** - https://github.com/casapps/wthr
+1. **Console Weather Service** - https://github.com/webappsgo/wthr
 2. **Open-Meteo** - Weather data provided by Open-Meteo.com
 3. **OpenStreetMap** - Geocoding data © OpenStreetMap contributors
 
@@ -192,9 +192,9 @@ Special thanks to:
 
 ## Contact and Support
 
-- **Repository**: https://github.com/casapps/wthr
-- **Issues**: https://github.com/casapps/wthr/issues
-- **Discussions**: https://github.com/casapps/wthr/discussions
+- **Repository**: https://github.com/webappsgo/wthr
+- **Issues**: https://github.com/webappsgo/wthr/issues
+- **Discussions**: https://github.com/webappsgo/wthr/discussions
 - **Live Demo**: http://wthr.top
 
 ## Updates

@@ -18,7 +18,7 @@ This guide covers contributing to Weather Service development.
 ### Clone Repository
 
 ```bash
-git clone https://github.com/casapps/wthr.git
+git clone https://github.com/webappsgo/wthr.git
 cd wthr
 ```
 
@@ -450,7 +450,7 @@ Connect from IDE on port 2345.
 
 ```bash
 # Real-time logs
-tail -f /var/log/casapps/wthr/wthr.log
+tail -f /var/log/webappsgo/wthr/wthr.log
 
 # With Docker
 docker logs -f wthr

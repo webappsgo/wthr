@@ -103,8 +103,8 @@ func TestParseConnectionString(t *testing.T) {
 		wantErr    bool
 		wantErrSub string
 	}{
-		{"sqlite double-slash prefix", "sqlite:///var/lib/wthr/server.db", "sqlite", "/var/lib/wthr/server.db", false, ""},
-		{"sqlite short prefix", "sqlite:/var/lib/wthr/server.db", "sqlite", "/var/lib/wthr/server.db", false, ""},
+		{"sqlite double-slash prefix", "sqlite:///var/lib/webappsgo/wthr/server.db", "sqlite", "/var/lib/webappsgo/wthr/server.db", false, ""},
+		{"sqlite short prefix", "sqlite:/var/lib/webappsgo/wthr/server.db", "sqlite", "/var/lib/webappsgo/wthr/server.db", false, ""},
 		{"sqlite relative path prefix", "sqlite://./data/server.db", "sqlite", "./data/server.db", false, ""},
 		{"postgres", "postgres://user:pass@localhost:5432/wthr", "", "", true, "PostgreSQL connection string format is not supported"},
 		{"postgresql alt scheme", "postgresql://user:pass@localhost:5432/wthr", "", "", true, "PostgreSQL connection string format is not supported"},
@@ -113,7 +113,7 @@ func TestParseConnectionString(t *testing.T) {
 		{"mssql alt scheme", "mssql://user:pass@localhost:1433/wthr", "", "", true, "MSSQL connection string format is not supported"},
 		{"mongodb", "mongodb://localhost:27017/wthr", "", "", true, "MongoDB is not supported"},
 		{"mongo alt scheme", "mongo://localhost:27017/wthr", "", "", true, "MongoDB is not supported"},
-		{"raw path fallback", "/var/lib/wthr/server.db", "sqlite", "/var/lib/wthr/server.db", false, ""},
+		{"raw path fallback", "/var/lib/webappsgo/wthr/server.db", "sqlite", "/var/lib/webappsgo/wthr/server.db", false, ""},
 		{"empty string fallback to sqlite", "", "sqlite", "", false, ""},
 	}
 

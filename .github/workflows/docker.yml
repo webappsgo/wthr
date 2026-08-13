@@ -86,8 +86,8 @@ jobs:
             BUILD_DATE=${{ env.BUILD_DATE }}
             COMMIT_ID=${{ env.COMMIT_ID }}
           labels: |
-            org.opencontainers.image.vendor=casapps
-            org.opencontainers.image.authors=casapps
+            org.opencontainers.image.vendor=webappsgo
+            org.opencontainers.image.authors=webappsgo
             org.opencontainers.image.title=${{ env.PROJECTNAME }}
             org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
             org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
@@ -99,8 +99,8 @@ jobs:
             org.opencontainers.image.documentation=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
           annotations: |
-            manifest:org.opencontainers.image.vendor=casapps
-            manifest:org.opencontainers.image.authors=casapps
+            manifest:org.opencontainers.image.vendor=webappsgo
+            manifest:org.opencontainers.image.authors=webappsgo
             manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}
             manifest:org.opencontainers.image.base.name=${{ env.PROJECTNAME }}
             manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - standard image (alpine)
@@ -181,8 +181,8 @@ jobs:
             BUILD_DATE=${{ env.BUILD_DATE }}
             COMMIT_ID=${{ env.COMMIT_ID }}
           labels: |
-            org.opencontainers.image.vendor=casapps
-            org.opencontainers.image.authors=casapps
+            org.opencontainers.image.vendor=webappsgo
+            org.opencontainers.image.authors=webappsgo
             org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
             org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
             org.opencontainers.image.version=${{ env.VERSION }}
@@ -193,8 +193,8 @@ jobs:
             org.opencontainers.image.documentation=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
           annotations: |
-            manifest:org.opencontainers.image.vendor=casapps
-            manifest:org.opencontainers.image.authors=casapps
+            manifest:org.opencontainers.image.vendor=webappsgo
+            manifest:org.opencontainers.image.authors=webappsgo
             manifest:org.opencontainers.image.title=${{ env.PROJECTNAME }}-aio
             manifest:org.opencontainers.image.description=${{ env.PROJECTNAME }} - all-in-one (debian + postgresql + valkey + tor)
             manifest:org.opencontainers.image.version=${{ env.VERSION }}

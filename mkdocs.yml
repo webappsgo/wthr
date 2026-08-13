@@ -1,10 +1,10 @@
 site_name: wthr
-site_url: https://casapps-wthr.readthedocs.io
+site_url: https://webappsgo-wthr.readthedocs.io
 site_description: "Production-grade weather API providing global forecasts, severe weather alerts, earthquake data, moon phases, and hurricane tracking"
-site_author: casapps
+site_author: webappsgo
 
-repo_name: casapps/wthr
-repo_url: https://github.com/casapps/wthr
+repo_name: webappsgo/wthr
+repo_url: https://github.com/webappsgo/wthr
 edit_uri: edit/main/docs/
 
 theme:
@@ -82,7 +82,7 @@ markdown_extensions:
   - pymdownx.keys
   - pymdownx.magiclink:
       repo_url_shorthand: true
-      user: casapps
+      user: webappsgo
       repo: wthr
   - pymdownx.mark
   - pymdownx.smartsymbols
@@ -114,5 +114,5 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/casapps/wthr
+      link: https://github.com/webappsgo/wthr
   generator: false

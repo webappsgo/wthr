@@ -1,9 +1,9 @@
 # Weather Service
 
-[![Build](https://github.com/casapps/wthr/actions/workflows/ci.yml/badge.svg)](https://github.com/casapps/wthr/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/casapps/wthr)](https://github.com/casapps/wthr/releases)
-[![Documentation](https://readthedocs.org/projects/casapps-wthr/badge/?version=latest)](https://casapps-wthr.readthedocs.io)
-[![License](https://img.shields.io/github/license/casapps/wthr)](LICENSE.md)
+[![Build](https://github.com/webappsgo/wthr/actions/workflows/ci.yml/badge.svg)](https://github.com/webappsgo/wthr/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/webappsgo/wthr)](https://github.com/webappsgo/wthr/releases)
+[![Documentation](https://readthedocs.org/projects/webappsgo-wthr/badge/?version=latest)](https://webappsgo-wthr.readthedocs.io)
+[![License](https://img.shields.io/github/license/webappsgo/wthr)](LICENSE.md)
 
 ## About
 
@@ -38,13 +38,13 @@ docker run -d \
   -p 64580:80 \
   -v ./volumes/config:/config:z \
   -v ./volumes/data:/data:z \
-  ghcr.io/casapps/wthr:latest
+  ghcr.io/webappsgo/wthr:latest
 ```
 
 ### Docker Compose
 
 ```bash
-curl -q -LSsf -O https://raw.githubusercontent.com/casapps/wthr/main/docker/docker-compose.yml
+curl -q -LSsf -O https://raw.githubusercontent.com/webappsgo/wthr/main/docker/docker-compose.yml
 docker compose up -d
 ```
 
@@ -52,7 +52,7 @@ docker compose up -d
 
 ```bash
 # Download latest release
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-linux-amd64
+curl -q -LSsf -O https://github.com/webappsgo/wthr/releases/latest/download/wthr-linux-amd64
 
 # Make executable and run
 chmod +x wthr-linux-amd64
@@ -65,8 +65,8 @@ chmod +x wthr-linux-amd64
 # Download and install
 sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 sudo useradd -r -s /bin/false wthr
-sudo mkdir -p /var/lib/casapps/wthr/{data,config}
-sudo chown -R wthr:wthr /var/lib/casapps/wthr
+sudo mkdir -p /var/lib/webappsgo/wthr/{data,config}
+sudo chown -R wthr:wthr /var/lib/webappsgo/wthr
 
 # Create service
 sudo tee /etc/systemd/system/wthr.service > /dev/null <<EOF
@@ -96,7 +96,7 @@ A companion CLI client is available for interacting with the server API.
 
 ```bash
 # Download latest release
-curl -q -LSsf -O https://github.com/casapps/wthr/releases/latest/download/wthr-cli-linux-amd64
+curl -q -LSsf -O https://github.com/webappsgo/wthr/releases/latest/download/wthr-cli-linux-amd64
 chmod +x wthr-cli-linux-amd64
 sudo mv wthr-cli-linux-amd64 /usr/local/bin/wthr-cli
 ```
@@ -104,7 +104,7 @@ sudo mv wthr-cli-linux-amd64 /usr/local/bin/wthr-cli
 ### Configure
 
 ```bash
-# Connect to official server (creates ~/.config/casapps/wthr/cli.yml)
+# Connect to official server (creates ~/.config/webappsgo/wthr/cli.yml)
 wthr-cli --server https://wthr.top --token YOUR_API_TOKEN
 ```
 
@@ -220,8 +220,8 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 
 ### Support
 
-- Documentation: https://casapps-wthr.readthedocs.io
-- Issues: https://github.com/casapps/wthr/issues
+- Documentation: https://webappsgo-wthr.readthedocs.io
+- Issues: https://github.com/webappsgo/wthr/issues
 
 ## Development
 
@@ -236,7 +236,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 
 ```bash
 # Clone
-git clone https://github.com/casapps/wthr
+git clone https://github.com/webappsgo/wthr
 cd wthr
 
 # Quick dev build (outputs to binaries/)

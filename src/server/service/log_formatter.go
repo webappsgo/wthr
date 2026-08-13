@@ -76,7 +76,7 @@ type LogFormatter struct {
 func NewLogFormatter(format LogFormat) *LogFormatter {
 	return &LogFormatter{
 		format:        format,
-		deviceVendor:  "casapps",
+		deviceVendor:  "webappsgo",
 		deviceProduct: "wthr",
 		deviceVersion: "1.0",
 	}

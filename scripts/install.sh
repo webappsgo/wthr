@@ -6,7 +6,7 @@ set -e
 
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-REPO="casapps/wthr"
+REPO="webappsgo/wthr"
 BINARY_NAME="wthr"
 
 # Colors

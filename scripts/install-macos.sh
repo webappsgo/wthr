@@ -5,7 +5,7 @@
 set -e
 
 PROJECTNAME="wthr"
-GITHUB_REPO="casapps/wthr"
+GITHUB_REPO="webappsgo/wthr"
 VERSION="latest"
 
 # Colors
@@ -37,7 +37,7 @@ if [ "$EUID" -eq 0 ]; then
     DATA_DIR="/Library/Application Support/Weather/data"
     LOG_DIR="/Library/Logs/Weather"
     PLIST_DIR="/Library/LaunchDaemons"
-    PLIST_NAME="com.casapps.wthr.plist"
+    PLIST_NAME="io.github.webappsgo.wthr.plist"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
@@ -45,7 +45,7 @@ else
     DATA_DIR="$HOME/Library/Application Support/Weather/data"
     LOG_DIR="$HOME/Library/Logs/Weather"
     PLIST_DIR="$HOME/Library/LaunchAgents"
-    PLIST_NAME="com.casapps.wthr.plist"
+    PLIST_NAME="io.github.webappsgo.wthr.plist"
 fi
 
 echo "Install mode: $([ "$IS_ROOT" = true ] && echo "System (requires sudo)" || echo "User")"
@@ -77,7 +77,7 @@ cat > "${PLIST_DIR}/${PLIST_NAME}" << EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.casapps.wthr</string>
+    <string>io.github.webappsgo.wthr</string>
 
     <key>ProgramArguments</key>
     <array>

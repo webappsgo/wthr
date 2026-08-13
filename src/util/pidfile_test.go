@@ -10,7 +10,7 @@ import (
 
 // newTestPIDFile builds a PIDFile pointed at a path inside t.TempDir(),
 // bypassing NewPIDFile()'s root-vs-user branching (which targets a global
-// system path like /run/casapps/wthr.pid when running as root inside the
+// system path like /run/webappsgo/wthr.pid when running as root inside the
 // Docker verification container) so tests never touch real system paths.
 func newTestPIDFile(t *testing.T) *PIDFile {
 	t.Helper()
@@ -187,9 +187,9 @@ func TestNewPIDFile_RootBranch(t *testing.T) {
 
 	var want string
 	if _, err := os.Stat("/run"); err == nil {
-		want = "/run/casapps/wthr.pid"
+		want = "/run/webappsgo/wthr.pid"
 	} else {
-		want = "/var/run/casapps/wthr.pid"
+		want = "/var/run/webappsgo/wthr.pid"
 	}
 	if pf.Path != want {
 		t.Errorf("NewPIDFile(root).Path = %q, want %q", pf.Path, want)

@@ -55,7 +55,7 @@ func TestIsUsernameBlocked(t *testing.T) {
 
 		// Project-specific
 		{"wthr", "wthr@example.com", true},
-		{"casapps", "casapps@example.com", true},
+		{"webappsgo", "webappsgo@example.com", true},
 	}
 
 	for _, tt := range tests {

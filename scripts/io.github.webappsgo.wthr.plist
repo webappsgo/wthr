@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.casapps.wthr</string>
+    <string>io.github.webappsgo.wthr</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -31,13 +31,13 @@
     <string>Interactive</string>
 
     <key>StandardOutPath</key>
-    <string>/var/log/wthr/stdout.log</string>
+    <string>/var/log/webappsgo/wthr/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/wthr/stderr.log</string>
+    <string>/var/log/webappsgo/wthr/stderr.log</string>
 
     <key>WorkingDirectory</key>
-    <string>/var/lib/wthr</string>
+    <string>/var/lib/webappsgo/wthr</string>
 
     <key>Nice</key>
     <integer>0</integer>

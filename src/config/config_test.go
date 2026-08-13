@@ -154,8 +154,8 @@ func TestAppConfig_GetAdminAPIPath(t *testing.T) {
 func TestGetConfigPath(t *testing.T) {
 	got := getConfigPath()
 	if os.Geteuid() == 0 {
-		if got != "/etc/casapps/wthr/server.yml" {
-			t.Errorf("getConfigPath() as root = %q, want /etc/casapps/wthr/server.yml", got)
+		if got != "/etc/webappsgo/wthr/server.yml" {
+			t.Errorf("getConfigPath() as root = %q, want /etc/webappsgo/wthr/server.yml", got)
 		}
 		return
 	}
@@ -168,7 +168,7 @@ func TestGetConfigPath(t *testing.T) {
 		return
 	}
 
-	want := filepath.Join(home, ".config", "casapps", "wthr", "server.yml")
+	want := filepath.Join(home, ".config", "webappsgo", "wthr", "server.yml")
 	if got != want {
 		t.Errorf("getConfigPath() = %q, want %q", got, want)
 	}
@@ -208,11 +208,11 @@ func TestFindConfigFile(t *testing.T) {
 
 	t.Run("migrates server.yaml to server.yml via standard path", func(t *testing.T) {
 		if os.Geteuid() == 0 {
-			t.Skip("running as root: standard path is /etc/casapps/wthr, skipping to avoid host side effects")
+			t.Skip("running as root: standard path is /etc/webappsgo/wthr, skipping to avoid host side effects")
 		}
 
 		dir := t.TempDir()
-		stdDir := filepath.Join(dir, ".config", "casapps", "wthr")
+		stdDir := filepath.Join(dir, ".config", "webappsgo", "wthr")
 		if err := os.MkdirAll(stdDir, 0755); err != nil {
 			t.Fatalf("setup failed: %v", err)
 		}
@@ -380,7 +380,7 @@ func TestLoadConfig_MalformedYAML(t *testing.T) {
 
 func TestLoadConfig_DefaultsWhenNoFileFound(t *testing.T) {
 	if os.Geteuid() == 0 {
-		t.Skip("running as root: LoadConfig() would write to /etc/casapps/wthr, skipping to avoid host side effects")
+		t.Skip("running as root: LoadConfig() would write to /etc/webappsgo/wthr, skipping to avoid host side effects")
 	}
 
 	dir := t.TempDir()
@@ -404,7 +404,7 @@ func TestLoadConfig_DefaultsWhenNoFileFound(t *testing.T) {
 		t.Errorf("LoadConfig() default registration mode = %q, want invite", cfg.Users.Registration.Mode)
 	}
 
-	created := filepath.Join(dir, ".config", "casapps", "wthr", "server.yml")
+	created := filepath.Join(dir, ".config", "webappsgo", "wthr", "server.yml")
 	if _, err := os.Stat(created); err != nil {
 		t.Errorf("expected default config to be created at %q: %v", created, err)
 	}

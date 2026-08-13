@@ -286,7 +286,7 @@ func TestLogFormatter_formatCEF(t *testing.T) {
 				StatusCode: tt.statusCode,
 			}
 			got := f.formatCEF(entry)
-			prefix := "CEF:0|casapps|wthr|1.0|HTTP_" + itoaHelper(tt.statusCode) + "|HTTP GET|" + tt.wantSeverity + "|"
+			prefix := "CEF:0|webappsgo|wthr|1.0|HTTP_" + itoaHelper(tt.statusCode) + "|HTTP GET|" + tt.wantSeverity + "|"
 			if !strings.HasPrefix(got, prefix) {
 				t.Errorf("formatCEF(status=%d) = %q, want prefix %q", tt.statusCode, got, prefix)
 			}

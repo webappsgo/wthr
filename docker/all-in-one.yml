@@ -12,7 +12,7 @@ x-logging: &default-logging
 
 services:
   wthr:
-    image: ghcr.io/casapps/wthr:latest-aio
+    image: ghcr.io/webappsgo/wthr:latest-aio
     container_name: wthr-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always

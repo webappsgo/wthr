@@ -80,11 +80,11 @@ func updateServerConfig() error {
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/casapps/wthr"
+		configDir = "/etc/webappsgo/wthr"
 	}
 
 	serverDBPath := filepath.Join(dataDir, "db", "server.db")
@@ -186,7 +186,7 @@ func setMaintenanceMode(mode string) error {
 
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/casapps/wthr"
+		configDir = "/etc/webappsgo/wthr"
 	}
 	configPath := filepath.Join(configDir, "server.yml")
 
@@ -259,7 +259,7 @@ func adminRecoverySetup() error {
 	// Get directory paths
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 
 	// Connect to server.db
@@ -405,13 +405,13 @@ func verifySystem() error {
 
 	// Default paths if not set
 	if dataDir == "" {
-		dataDir = "/var/lib/casapps/wthr"
+		dataDir = "/var/lib/webappsgo/wthr"
 	}
 	if configDir == "" {
-		configDir = "/etc/casapps/wthr"
+		configDir = "/etc/webappsgo/wthr"
 	}
 	if logDir == "" {
-		logDir = "/var/log/casapps/wthr"
+		logDir = "/var/log/webappsgo/wthr"
 	}
 
 	errors := 0
