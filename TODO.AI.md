@@ -1815,3 +1815,27 @@ any of the above: `src/graphql/context_keys_test.go`,
     name confirms zero remaining unprefixed call sites; `bash -n`/
     `sh -n` clean on all 15 files (syntax-only, no execution, per the
     project's no-host-execution rule).
+
+61. TODO - CI GOVULNCHECK FAILURE FROM STALE GO TOOLCHAIN IN
+    `casjaysdev/go:latest` (flagged 2026-08-13, pre-existing, not caused
+    by any recent commit - confirmed identical failure on commit
+    `2ea3c8dffee8` (unrelated "Spec: Updated the SPEC for Servers"
+    commit) and on `017bbe16dd78` (script-lint compliance commit); both
+    fail the `ci.yml` `vuln-scan` job with `govulncheck ./...` exit code
+    3. The CI job container image is running Go 1.26.5, which carries 7
+    known stdlib vulnerabilities (GO-2026-6218, GO-2026-6091,
+    GO-2026-6090, GO-2026-6089, GO-2026-6088, GO-2026-5972, GO-2026-5026)
+    all fixed in Go 1.26.6. This is an environment/toolchain-version
+    issue, not an application code issue - project code does not use
+    `github.com/mattn/go-sqlite3` or other CGO/vulnerable deps directly;
+    the flagged call sites (net/url, html/template, crypto/tls,
+    net/http, encoding/xml, encoding/asn1, x/net/idna) are all reached
+    via ordinary stdlib usage (HTTP client/server, TLS, templates, XML
+    parsing) that will be safe as soon as the toolchain image updates.
+    Per CLAUDE.md, `casjaysdev/go:latest` must stay unpinned/floating -
+    the fix is for the image maintainer to rebuild `casjaysdev/go:latest`
+    against a current Go patch release (1.26.6+), not a workaround in
+    this repo. Action: confirm whether a newer `casjaysdev/go:latest`
+    has been published; if not, this blocks `ci.yml`'s `vuln-scan` job
+    project-wide until it is - re-run `gh run list` after any future
+    push to check if it has cleared on its own once the image updates.
