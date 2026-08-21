@@ -28,9 +28,9 @@ Useful commands:
 
 ```bash
 wthr --status
-wthr maintenance
-wthr update
-wthr service
+wthr --maintenance
+wthr --update
+wthr --service
 ```
 
 ## Client CLI
@@ -74,7 +74,8 @@ The CLI honors the project color/plain-output rules, including `NO_COLOR`.
 
 ### Environment Variables
 
-The CLI reads these environment variables (command-line flags take precedence):
+The client binary (`wthr-cli`) reads these environment variables
+(command-line flags take precedence):
 
 | Variable | Purpose |
 |----------|---------|
@@ -84,9 +85,16 @@ The CLI reads these environment variables (command-line flags take precedence):
 | `WTHR_DEBUG` | Enable client debug output |
 | `MYLOCATION_NAME` | Default location name for weather lookups |
 | `MYLOCATION_ZIP` | Default ZIP/postal code for weather lookups |
-| `CONFIG_DIR` | Override the client config directory |
-| `DATA_DIR` | Override the client data directory |
-| `LOG_DIR` | Override the client log directory |
+
+The server binary (`wthr`) reads these directory overrides, used by its
+`--maintenance` subcommands and by first-run directory resolution
+(the matching `--config` / `--data` / `--log` flags take precedence):
+
+| Variable | Purpose |
+|----------|---------|
+| `CONFIG_DIR` | Override the server config directory |
+| `DATA_DIR` | Override the server data directory |
+| `LOG_DIR` | Override the server log directory |
 
 ## Next Steps
 

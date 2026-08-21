@@ -150,8 +150,8 @@ Full API documentation is available at `https://wthr.top/openapi`, with OpenAPI 
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET https://wthr.top/healthz` | Frontend health/status route |
-| `GET https://wthr.top/api/v1/healthz` | API health route |
+| `GET https://wthr.top/server/healthz` | Frontend health/status route |
+| `GET https://wthr.top/api/v1/server/healthz` | API health route (unversioned alias: `/api/healthz`) |
 
 ### Weather Endpoints
 
@@ -215,7 +215,7 @@ curl -q -LSsf https://wthr.top/api/v1/moon
 ### Troubleshooting
 
 - Check logs: `docker logs wthr`
-- Health check: `curl -q -LSsf https://wthr.top/healthz`
+- Health check: `curl -q -LSsf https://wthr.top/server/healthz`
 - Port in use: `netstat -tulpn | grep :80`
 
 ### Support

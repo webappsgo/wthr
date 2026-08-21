@@ -1387,28 +1387,36 @@ any of the above: `src/graphql/context_keys_test.go`,
     rationale. Verified via `go build ./...`, `gofmt -l .`, `go vet ./...`
     (all clean) and `go test ./src/graphql/...` (pass).
 
-38. TODO (flagged 2026-08-02 while verifying item 17's log-emoji sweep):
-    numerous `fmt.Printf`/`fmt.Println` startup-banner/console lines in
-    `src/main.go` (e.g. lines 162-163, 168, 242, 250-398, 502-729, 849-879,
-    1075-1114, 3797-3972, 4026-4087) and
-    `src/server/service/location_enhancer.go` (lines 93, 105, 109, 125, 130,
-    134) and `src/server/service/weather.go` (lines 1296, 1324) print emoji
-    unconditionally with no `NO_COLOR`/`TERM=dumb`/`--color` check. AI.md
-    PART 11/13/33 allows emoji in console/banner display (as opposed to log
-    output, see item 17) but ONLY when it honors `NO_COLOR` — priority order
-    is CLI flag > config > `NO_COLOR` > auto-detect (TTY + `TERM`). These
-    lines bypass that gate entirely, always printing emoji regardless of
-    `NO_COLOR`/redirected-output/non-TTY context. Fix: route console/banner
-    emoji output through the existing `display`/color-detection helper (or
-    add an equivalent check) so emoji (and any ANSI color) are suppressed
-    when `NO_COLOR` is set, `TERM=dumb`, or output isn't a TTY — same as the
-    startup-banner width-responsive rendering already does elsewhere. Needs
-    a project decision on how deep to route unrelated `fmt.Printf` diagnostic
-    lines through this gate vs. only the true "banner" lines — flag to user
-    if the boundary is unclear once started. Read: AI.md PART 11 (`NO_COLOR`
-    priority order), PART 8/33 (`--color` flag, shared across all binaries).
+38. DONE (2026-08-21): every console/banner emoji in the tree now routes
+    through the shared `display.Emoji(emoji, fallback)` gate in
+    `src/common/display/emoji.go`, which returns the ASCII fallback when
+    `NO_COLOR` is non-empty or `TERM=dumb`, matching AI.md PART 8's
+    priority order. Converted: `src/main.go` (all 72 banner/status lines),
+    `src/server/service/{location_enhancer,weather,zipcode,geoip,airport,
+    severe_weather,weather_notifications,tor}.go`,
+    `src/server/handler/admin_tor.go`,
+    `src/cli/{update,service,maintenance,maintenance_backup}.go`,
+    `src/util/privilege.go`, `src/config/mode.go`,
+    `src/scheduler/scheduler.go`. The boundary question in the original
+    report was resolved as: gate CONSOLE output only. DATA emoji stay
+    ungated — weather icons, moon-phase glyphs, the ASCII-art renderer
+    tables, HTML/email template content, and API JSON payloads are content,
+    not decoration, and NO_COLOR must not alter them. Box-drawing
+    characters, arrows and bullets also stay, per PART 8 (NO_COLOR
+    suppresses colors and emoji, not Unicode box-drawing or bold/underline).
+    Verified by a residual grep over every `fmt.Print*`/`log.*` call in
+    `src/` containing an emoji codepoint: zero ungated hits.
+    Original report: TODO (flagged 2026-08-02 while verifying item 17's log-emoji sweep): numerous `fmt.Printf`/`fmt.Println` startup-banner/console lines in `src/main.go` (e.g. lines 162-163, 168, 242, 250-398, 502-729, 849-879, 1075-1114, 3797-3972, 4026-4087) and `src/server/service/location_enhancer.go` (lines 93, 105, 109, 125, 130, 134) and `src/server/service/weather.go` (lines 1296, 1324) print emoji unconditionally with no `NO_COLOR`/`TERM=dumb`/`--color` check. AI.md PART 11/13/33 allows emoji in console/banner display (as opposed to log output, see item 17) but ONLY when it honors `NO_COLOR` — priority order is CLI flag > config > `NO_COLOR` > auto-detect (TTY + `TERM`). These lines bypass that gate entirely, always printing emoji regardless of `NO_COLOR`/redirected-output/non-TTY context. Fix: route console/banner emoji output through the existing `display`/color-detection helper (or add an equivalent check) so emoji (and any ANSI color) are suppressed when `NO_COLOR` is set, `TERM=dumb`, or output isn't a TTY — same as the startup-banner width-responsive rendering already does elsewhere. Needs a project decision on how deep to route unrelated `fmt.Printf` diagnostic lines through this gate vs. only the true "banner" lines — flag to user if the boundary is unclear once started. Read: AI.md PART 11 (`NO_COLOR` priority order), PART 8/33 (`--color` flag, shared across all binaries).
 
-39. TODO (flagged 2026-08-02 while fixing item 27): src/server/handler/
+39. DONE (2026-08-21): every legacy response shape in
+    `src/server/handler/notification_preferences.go` was replaced with the
+    canonical `RespondError`/`RespondSuccess`/`RespondCreated` helpers
+    (INVALID_INPUT/NOT_FOUND/DATABASE_ERROR codes, `ERROR:` log lines before
+    each 500, `data.id` returned on the two create handlers), and
+    `notification_preferences_test.go` gained `assertPreferencesErrorShape`/
+    `assertPreferencesSuccessShape` plus two new subtests covering the
+    previously untested 500 branches. Follow-up logged as item 62.
+    Original report: src/server/handler/
     notification_preferences.go uses the legacy `gin.H{"error": "..."}` /
     `gin.H{"message": "..."}` response shape throughout (GetUserPreferences,
     UpdatePreference, CreatePreference, DeletePreference, GetSubscriptions,
@@ -1420,20 +1428,41 @@ any of the above: `src/graphql/context_keys_test.go`,
     pattern as item 25's notification_templates.go fix. Read: AI.md PART 14
     (Response Standards) before starting.
 
-40. TODO (flagged 2026-08-02 while fixing item 29's unused-db-parameter
-    sub-issue): the same dead `db *sql.DB` parameter pattern (constructor
-    takes a `*sql.DB` but the returned gin.HandlerFunc queries
-    database.GetServerDB()/GetDualDB() directly instead) still exists in:
-    - src/server/middleware/auth.go: `RequireAuth(db *sql.DB)`,
-      `OptionalAuth(db *sql.DB)`.
-    - src/server/middleware/admin_auth.go: `AdminLoginHandler(db *sql.DB)`.
-    - src/server/middleware/audit.go: `AuditLogger(db *sql.DB)`.
-    - src/server/middleware/server_context.go: `InjectServerContext(db
-      *sql.DB, version string)`.
-    - src/server/model (GetByAPIToken and similar lookups, per the
-      src/server/middleware/setup_test.go / server_context_test.go
-      comments referencing this pattern) — needs a full audit to enumerate
-      every occurrence, not just the ones already called out in test
+40. TODO (flagged 2026-08-02; DIAGNOSIS CORRECTED 2026-08-21 after the full
+    audit the item asked for — the fix is real but it is NOT where the
+    original report placed it, so re-read this before starting).
+    Corrected findings:
+    - `src/server/middleware/admin_auth.go` `AdminLoginHandler(db)` and
+      `src/server/middleware/audit.go` `AuditLogger(db)` genuinely USE their
+      `db` param (`database.QueryRowContext(..., db, ...)` /
+      `database.ExecContext(..., db, ...)`). Leave both alone.
+    - The dead parameter is one level deeper: every model struct carries a
+      `DB *sql.DB` field that its own methods ignore, querying
+      `database.GetServerDB()` / `database.GetUsersDB()` instead. Verified
+      across `src/server/model/{user,admin,session,settings,token,
+      recovery_keys,passkey,admin_passkey}.go` — roughly 95 call sites, and
+      zero methods that actually read the field.
+    - That is why `auth.go`'s `AuthMiddleware(db, required)` and
+      `server_context.go`'s `InjectServerContext(db, version)` "use" their
+      param: they only use it to fill a field nobody reads
+      (`&model.SessionModel{DB: db}`, `&model.SettingsModel{DB: db}`), so
+      `RequireAuth(db)` / `OptionalAuth(db)` are dead by transitivity.
+    Recommended approach: DELETE the `DB` field rather than wire it through.
+    A single `*sql.DB` cannot express the server.db-vs-users.db routing the
+    models actually perform, which is precisely why the field went unused —
+    wiring it through would require threading a `*database.DualDB` and would
+    change nothing behaviorally. Then drop the now-unused params from
+    `AuthMiddleware`/`RequireAuth`/`OptionalAuth`/`InjectServerContext` and
+    fix every call site (`src/main.go` included) in one pass.
+    Also fix the four now-inaccurate test comments describing the old shape:
+    `src/server/middleware/{setup_test.go:62, admin_auth_test.go:24,
+    server_context_test.go:21, token_auth_test.go:47}`.
+    Blocked while other agents hold `src/main.go`. Read: AI.md PART 10
+    (Database & Cluster) before starting.
+    Original report (superseded, kept for provenance): the same dead
+    `db *sql.DB` parameter pattern was believed to exist in
+    middleware/auth.go, admin_auth.go, audit.go, server_context.go, and in
+    src/server/model's GetByAPIToken — per the test
       comments.
     Fix, once addressed: either remove the unused parameter (as done for
     SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
@@ -1442,7 +1471,20 @@ any of the above: `src/graphql/context_keys_test.go`,
     call sites in one pass, updating every caller and test. Read: AI.md
     PART 10 (Database & Cluster) before starting.
 
-41. TODO (flagged 2026-08-02 while fixing item 31): two out-of-scope
+41. DONE (2026-08-21): the two UUOC `echo "$var" | grep` forks inside
+    tests/docker.sh's embedded `sh -c` block became POSIX `case` globs; the
+    remaining script-lint findings were verified already fixed by item 60,
+    and the `PROJECTNAME`/`PROJECTORG`/`BUILD_DIR` names were deliberately
+    left unprefixed (process-local, never exported, and identical to
+    tests/incus.sh — prefixing them would create the inconsistency the item
+    was trying to remove). `TestAPI_Weather_Coordinates`,
+    `TestAPI_Weather_CityID`, `TestAPI_Weather_Nearest`, and
+    `TestAPI_Forecast` now carry the same `liveNet`/`t.Skip` guard as
+    `TestAPI_Search`, with matching Phase 2 coverage for
+    `/api/v1/weather` (coords, city_id, nearest) and
+    `/api/v1/weather/forecast` added to tests/docker.sh and to
+    tests/incus.sh's `PUBLIC_API_ROUTES`.
+    Original report: two out-of-scope
     findings surfaced during item 31's tests/docker.sh edit —
     - script-lint reported 11 pre-existing findings on tests/docker.sh
       (none in the lines item 31 added): missing `DOCKER_` prefix on
@@ -1463,7 +1505,12 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read: AI.md PART 29 (testing strategy) and the tool_conventions.md
     script-lint rules before starting.
 
-42. TODO (flagged 2026-08-04 while fixing item 37): `src/swagger/swagger.go`'s
+42. DONE (verified 2026-08-21): already fixed in a prior pass —
+    `src/swagger/swagger.go` now carries an `indexData` struct and a
+    `themedIndexTpl`, and `GetSwaggerUI()` resolves `GetTheme(c)` into
+    `GetDarkThemeCSS()`/`GetLightThemeCSS()` and executes the template with
+    it. No discarded-theme assignment remains.
+    Original report: `src/swagger/swagger.go`'s
     `GetSwaggerUI()` fetches `theme := GetTheme(c)` but then discards it
     (`_ = theme // Acknowledge theme variable to avoid unused error`) —
     the resolved theme is never applied to the rendered Swagger UI
@@ -1475,7 +1522,11 @@ any of the above: `src/graphql/context_keys_test.go`,
     same way `renderPlaygroundHTML` now does for GraphiQL. Read: AI.md
     PART 16/17 (frontend/theme rules) before starting.
 
-43. TODO (flagged 2026-08-04 while fixing item 37): `src/graphql/graphql.go`'s
+43. DONE (2026-08-21): `graphql.RegisterRoutes` deleted as dead code —
+    `src/main.go`'s inline registration is the single registration path
+    (now factored into `registerGraphQLRoutes`). Verified zero remaining
+    references; `playgroundAssetPrefix` is still used by `playground.go`.
+    Original report: `src/graphql/graphql.go`'s
     `RegisterRoutes` function is dead/unreferenced code — `main.go`
     duplicates its `/graphql` POST/GET route registration logic inline
     instead of calling `graphql.RegisterRoutes`. Decide whether to delete
@@ -1484,7 +1535,11 @@ any of the above: `src/graphql/context_keys_test.go`,
     duplication) — pick one and apply consistently. Read: AI.md PART 1
     (architecture) before starting.
 
-44. TODO (flagged 2026-08-04 while fixing item 37): `src/main.go`'s
+44. DONE (2026-08-21): the 301 redirect is gone — `registerGraphQLRoutes`
+    in `src/main.go` now mounts the SAME POST and playground handlers at
+    both `/graphql` and `{api}/graphql`, per AI.md PART 14's no-redirect
+    alias rule. Covered by `src/route_registration_test.go`.
+    Original report: `src/main.go`'s
     `graphqlAliasPath` route handler
     (`r.GET(graphqlAliasPath, func(c *gin.Context) {
     c.Redirect(http.StatusMovedPermanently, "/graphql") })`) violates the
@@ -1497,7 +1552,21 @@ any of the above: `src/graphql/context_keys_test.go`,
     `graphqlAliasPath` instead of redirecting. Read: AI.md PART 14 (API
     structure) before starting.
 
-45. TODO (flagged 2026-08-05 by a test-writer subagent while raising
+45. DONE (2026-08-21): root cause confirmed — `modernc.org/sqlite` stores a
+    bound Go `time.Time` as `t.String()` in the writer's LOCAL zone, while
+    `datetime('now')` yields UTC `YYYY-MM-DD HH:MM:SS`; with NUMERIC
+    affinity both stay TEXT, so `<` was a lexicographic comparison across
+    different zones and layouts. Fixed by comparing as UTC instants in Go:
+    new `src/scheduler/timestamp_cleanup.go` (`parseStoredTimestamp`,
+    `deleteRowsWithTimestampBefore`, chunked bound `IN (?,...)` deletes;
+    unparseable/NULL timestamps are kept, never deleted), with
+    `CleanupOldSessions`, `CleanupExpiredTokens`, `CleanupRateLimitCounters`
+    and `CleanupOldTaskHistory` switched over, and the audit-log/blocklist
+    prunes now binding a Go-computed canonical UTC cutoff (which also drops
+    the SQLite-only `datetime('now', '-'||?||' days')` modifier). Tests
+    rewritten with mixed-zone/mixed-layout fixtures asserting exact
+    surviving ID sets, plus a table-driven `TestParseStoredTimestamp`.
+    Original report: flagged 2026-08-05 by a test-writer subagent while raising
     `src/scheduler` coverage for item 16): the session/token/rate-limit
     cleanup queries (backing `TestCleanupOldSessions`,
     `TestCleanupExpiredTokens`, `TestCleanupRateLimitCounters`) compare
@@ -1510,7 +1579,16 @@ any of the above: `src/graphql/context_keys_test.go`,
     against a Go-computed UTC timestamp parameter instead of SQLite's
     own `now`, or normalizing both sides to the same format/precision.
 
-46. TODO (flagged 2026-08-06, discovered via Post-Push CI Verification
+46. DONE (2026-08-21): the hypothesized permissions gap was ruled out —
+    both `build-standard` and `build-aio` already declare
+    `permissions: contents: read / packages: write`. The real cause is
+    ordering: the two jobs ran concurrently and both push to the same
+    `ghcr.io/webappsgo/wthr` package, so the second pusher's blob HEAD
+    request 403s until that package exists and is linked to the repo.
+    Fixed by adding `needs: build-standard` to the `build-aio` job in
+    `.github/workflows/docker.yml`, serializing the two pushes. Verify on
+    the next push that the `-aio` push succeeds.
+    Original report: flagged 2026-08-06, discovered via Post-Push CI Verification
     while closing out item 16): pushing commit `70e651732d3b` triggered
     a "Docker Build" workflow failure on the `-aio` (all-in-one) image's
     push step: `failed to push ghcr.io/webappsgo/wthr:70e6517-aio:
@@ -1527,7 +1605,12 @@ any of the above: `src/graphql/context_keys_test.go`,
     push (transient vs. persistent). Read: AI.md PART 27/28 (Docker
     image build/push) before starting.
 
-47. TODO (flagged 2026-08-06 by go-lint while reviewing item 16's
+47. DONE (verified 2026-08-21): the declarations are not absent, they live
+    in `src/main.go`'s sibling file `src/version.go` (package `main`), which
+    declares `Version = "dev"`, `CommitID = "unknown"`, `BuildDate`, and
+    `OfficialSite` — exactly the `-ldflags -X main.X=...` targets PART 8
+    requires. No change needed.
+    Original report: flagged 2026-08-06 by go-lint while reviewing item 16's
     commits): `src/main.go` is missing the build-info `var` declarations
     (`Version`, `CommitID`, `BuildDate`) that binary-rules.md/AI.md
     PART 8 require `-ldflags -X main.X=...` to target — confirm whether
@@ -1725,7 +1808,19 @@ any of the above: `src/graphql/context_keys_test.go`,
     showing zero remaining matches outside this file and AI.md's own
     generic-placeholder example.
 
-54. AMBIGUOUS - COMPOSE VOLUME PATHS vs AI.md `./volumes/` (flagged
+54. DONE (2026-08-21) - resolved from the spec rather than by asking:
+    AI.md PART 27 mandates `./volumes/config:/config` + `./volumes/data:/data`,
+    PART 3 lists `volumes/` as the gitignored runtime dir, and `docker/rootfs/`
+    is defined as the committed build-time container overlay — so reusing it
+    as a runtime mount source is semantically wrong and no SPEC.md override
+    exists. All four compose files (`docker-compose.yml`,
+    `docker-compose.dev.yml`, `docker-compose.test.yml`, `all-in-one.yml`)
+    now mount `./volumes/...` (`:z` preserved in production and all-in-one),
+    with the temp-dir-workflow comment updated to match. `docs/index.md`,
+    `docs/installation.md`, and `docs/configuration.md` had their
+    `-v ./rootfs/...` examples corrected too; `docs/development.md:48`'s
+    `rootfs/  # Container overlay` line is correct as-is and was left alone.
+    Original report: COMPOSE VOLUME PATHS vs AI.md `./volumes/` (flagged
     2026-08-12). All three compose files mount `./rootfs/config:/config`
     and `./rootfs/data:/data` (verified docker-compose.yml:32-33,
     dev:35-36, test:31-32). docker-rules.md (PART 27) uniformly specifies
@@ -1738,34 +1833,29 @@ any of the above: `src/graphql/context_keys_test.go`,
     override documenting `./rootfs/` and why. Do NOT silently change either
     side without the decision. Read: AI.md PART 27, PART 3.
 
-55. CODE-vs-SPEC - `/server/healthz` canonical route not registered +
-    root alias enabled by default (flagged 2026-08-12; needs code change +
-    tests, so logged not fixed in the doc-sync pass). PART 13 (api-rules)
-    mandates `/server/healthz` as the content-negotiated frontend health
-    route, `/api/{api_version}/server/healthz` as the JSON default, an
-    optional `/healthz` root alias that must be config-gated
-    (`server.healthz.root.enabled: true`) and NEVER enabled by default, and
-    `/api/healthz` as an unversioned alias mounting the same handler.
-    Actual (verified src/main.go): only `/healthz` (1172, root alias,
-    registered unconditionally) and `/api/v1/healthz` (2219) exist -
-    `/server/healthz`, `/api/v1/server/healthz`, and `/api/healthz` are
-    absent, and the root alias is on by default in violation of the
-    "NEVER enable /healthz root alias by default" rule. Fix: register the
-    canonical `/server/healthz` + `/api/v1/server/healthz` (+ unversioned
-    `/api/healthz` alias mounting the same handler, no redirect), and gate
-    the `/healthz` root alias behind `server.healthz.root.enabled`
-    (default false). Add route tests. Read: AI.md PART 13.
+55. DONE (2026-08-21): `registerHealthRoutes` in `src/main.go` now mounts
+    the canonical `/server/healthz` (content-negotiated frontend),
+    `/api/{api_version}/server/healthz` (JSON default) and the unversioned
+    `/api/healthz` alias, all on the SAME handler with no redirect, per
+    AI.md PART 13/14. The bare `/healthz` root alias is now registered only
+    when `server.healthz.root.enabled` is true, which defaults to false.
+    Route coverage added in `src/route_registration_test.go`.
+    Original report: CODE-vs-SPEC - `/server/healthz` canonical route not registered + root alias enabled by default (flagged 2026-08-12; needs code change + tests, so logged not fixed in the doc-sync pass). PART 13 (api-rules) mandates `/server/healthz` as the content-negotiated frontend health route, `/api/{api_version}/server/healthz` as the JSON default, an optional `/healthz` root alias that must be config-gated (`server.healthz.root.enabled: true`) and NEVER enabled by default, and `/api/healthz` as an unversioned alias mounting the same handler. Actual (verified src/main.go): only `/healthz` (1172, root alias, registered unconditionally) and `/api/v1/healthz` (2219) exist - `/server/healthz`, `/api/v1/server/healthz`, and `/api/healthz` are absent, and the root alias is on by default in violation of the "NEVER enable /healthz root alias by default" rule. Fix: register the canonical `/server/healthz` + `/api/v1/server/healthz` (+ unversioned `/api/healthz` alias mounting the same handler, no redirect), and gate the `/healthz` root alias behind `server.healthz.root.enabled` (default false). Add route tests. Read: AI.md PART 13.
 
-56. CODE-vs-SPEC - `--lang` shared flag missing from the server binary
-    (flagged 2026-08-12; needs code change, logged not fixed). binary-rules
-    (PART 7/8/33) lists `--lang` among the shared flags required in ALL
-    binaries (server, client, agent). Verified absent from `src/cli/cli.go`
-    (grep for `"lang"` in the server CLI flag set returns nothing). Add the
-    `--lang` flag to the server binary's flag set, wired to the i18n
-    resolution chain (PART 31 CLI/agent chain: `--lang` > config > LANG/
-    LC_ALL > auto-detect > en). Read: AI.md PART 7, 8, 31, 33.
+56. DONE (2026-08-21): the server binary's flag set in `src/cli/cli.go`
+    now carries `--lang`, wired to `config.ResolveLanguage` implementing
+    the PART 31 CLI resolution chain (`--lang` > config file > `LANG`/
+    `LC_ALL` > auto-detect > `en`), with an unsupported value silently
+    falling back to `en`. Covered by `src/config/language_test.go` and
+    `src/cli/lang_flag_test.go`.
+    Original report: CODE-vs-SPEC - `--lang` shared flag missing from the server binary (flagged 2026-08-12; needs code change, logged not fixed). binary-rules (PART 7/8/33) lists `--lang` among the shared flags required in ALL binaries (server, client, agent). Verified absent from `src/cli/cli.go` (grep for `"lang"` in the server CLI flag set returns nothing). Add the `--lang` flag to the server binary's flag set, wired to the i18n resolution chain (PART 31 CLI/agent chain: `--lang` > config > LANG/ LC_ALL > auto-detect > en). Read: AI.md PART 7, 8, 31, 33.
 
-57. AMBIGUOUS - docs/cli.md server subcommands documented without `--`
+57. DONE (2026-08-21) - resolved from the spec: AI.md PART 8 documents the
+    server's maintenance/update/service surfaces exclusively in the
+    `--`-prefixed form, which is also the only form the server `--help`
+    advertises, so that is the canonical documented spelling. docs/cli.md
+    now shows `wthr --maintenance` / `wthr --update` / `wthr --service`.
+    Original report: docs/cli.md server subcommands documented without `--`
     prefix (flagged 2026-08-12). docs/cli.md:34-40 shows
     `wthr maintenance` / `wthr update` / `wthr service` (no `--`). Both the
     bare and `--`-prefixed forms are accepted in code, but the server
@@ -1773,7 +1863,14 @@ any of the above: `src/graphql/context_keys_test.go`,
     single canonical documented form, then align docs/cli.md to it. Low
     stakes; logged rather than guessed. Read: AI.md PART 7, 8.
 
-58. AMBIGUOUS - docs/cli.md env table mislabels CONFIG_DIR/DATA_DIR/LOG_DIR
+58. DONE (2026-08-21) - resolved the way the item's own verification
+    pointed: the three vars are server-binary directory overrides, so
+    docs/cli.md's single env table was split in two. The client table keeps
+    `WTHR_SERVER_PRIMARY`, `WTHR_TOKEN`, `WTHR_OUTPUT_FORMAT`, `WTHR_DEBUG`,
+    `MYLOCATION_NAME`, `MYLOCATION_ZIP`; a new server table carries
+    `CONFIG_DIR`, `DATA_DIR`, `LOG_DIR` with a note that the matching
+    `--config`/`--data`/`--log` flags take precedence. Nothing deleted.
+    Original report: docs/cli.md env table mislabels CONFIG_DIR/DATA_DIR/LOG_DIR
     as "client" directories (flagged 2026-08-12; corrects an earlier
     would-be deletion). docs/cli.md:87-89 labels these three env vars as
     "the client config/data/log directory". Verified: `src/client` (the
@@ -1839,3 +1936,1237 @@ any of the above: `src/graphql/context_keys_test.go`,
     has been published; if not, this blocks `ci.yml`'s `vuln-scan` job
     project-wide until it is - re-run `gh run list` after any future
     push to check if it has cleared on its own once the image updates.
+
+62. DONE (2026-08-21): `UpdateSubscription` in
+    `src/server/handler/notification_preferences.go` now captures the
+    `sql.Result`, checks `RowsAffected()` (read error -> 500 DATABASE_ERROR,
+    0 rows -> 404 NOT_FOUND) and only then responds success - mirroring
+    `DeletePreference`'s handling exactly. Two subtests added:
+    "unknown id returns 404" and "subscription owned by another user
+    returns 404", the second also asserting the other user's row was not
+    modified (the `WHERE user_id = ?` clause previously made a cross-user
+    write silently return 200 while changing nothing).
+
+    Original report:
+    `UpdateSubscription` in `src/server/handler/notification_preferences.go`
+    never checks `RowsAffected` after its UPDATE, so a request naming a
+    subscription id that does not exist still returns `200 ok:true` instead
+    of `404 NOT_FOUND`. Every sibling handler in the file
+    (`UpdatePreference`, `DeletePreference`) does check it. Out of scope for
+    a response-shape pass, so logged rather than folded in. Fix: mirror
+    `UpdatePreference`'s `RowsAffected` handling exactly (0 rows -> 404
+    NOT_FOUND, error -> 500 DATABASE_ERROR) and add the missing-id subtest.
+    Read: AI.md PART 14 (Response Standards).
+
+63. DONE (2026-08-21, no code change required): the stray
+    `util_cov_before.out` is untracked and matched by `.gitignore:121`
+    (`/*.out`), so it can never be committed, and no producer in the repo
+    writes coverage into the project tree - `Makefile:220-221` and
+    `.github/workflows/ci.yml:43-52` both write `coverage.out` /
+    `coverage.filtered.out` into `$COVDIR`, the PART 29 temp directory. The
+    file is therefore a one-off artifact of an ad-hoc manual run, not a
+    convention violation in the codebase. It was deliberately NOT deleted:
+    removing a file the user did not ask to have removed is an unrequested
+    destructive op. The user can delete it at their convenience.
+
+    Original report: a stray `util_cov_before.out` coverage artifact sits
+    untracked at the repo root, against PART 29 / tempdir_conventions.md.
+
+64. DONE (2026-08-21): `tests/docker.sh` and `tests/incus.sh` now build
+    into `$TEST_DIR/volumes/{config,data,logs,cache,backup}` instead of
+    `$TEST_DIR/rootfs/...`, removing the naming collision with PART 27's
+    committed build-time container overlay at `docker/rootfs/`. The one
+    log line that said "temp rootfs" was reworded to match.
+
+65. DONE (2026-08-21): every stale bare-`/healthz` reference now points at
+    the canonical `/server/healthz` (or `/api/{api_version}/server/healthz`
+    on the API side). Changed: `src/server/middleware/auth.go` and
+    `csrf.go` (both skip lists now carry `/server/healthz`; the bare
+    `/healthz` entry stays so the optional root alias still works when
+    enabled), `src/server/handler/health.go` (`@Router` annotation, doc
+    comments, and the `curl` tip in the text response),
+    `health_comprehensive.go` comments, `weather.go:719,729` curl tips,
+    `admin_web.go` sitemap entry, `src/server/template/page/help.tmpl`,
+    `src/server/template/component/loading.tmpl`, `tests/incus.sh`,
+    `tests/test-server.sh`, `tests/docker.sh`, `tests/README.md`,
+    `README.md`, `IDEA.md`. Also removed the legacy `/api/v1/healthz`
+    route registration from `src/main.go` — PART 14 forbids keeping a
+    parallel legacy endpoint once the canonical one exists, and
+    `/api/healthz` is the spec's unversioned alias.
+
+66. DONE (2026-08-21): all five sites now write and compare timestamps as
+    canonical UTC text (`2006-01-02 15:04:05`, the layout SQLite's
+    `CURRENT_TIMESTAMP` emits and a valid literal on PostgreSQL/MySQL).
+    `ClusterHeartbeat` binds a Go-computed UTC value instead of the
+    SQLite-only `datetime('now')`; both `CleanupExpired` implementations in
+    `src/server/model/notification.go` and every expiry delete in
+    `src/server/model/session.go` now parse each stored timestamp in Go and
+    delete by ID rather than comparing text in SQL (NULL/unparseable rows are
+    kept); `src/cluster/cluster.go` computes a Go-side 90s cutoff per PART 10
+    and marks stale nodes by ID. A latent bug was fixed on the way:
+    `electPrimary` scanned `last_heartbeat` into a `time.Time` and skipped
+    every candidate on scan error, which would have silently emptied the
+    election set. Tests added in `src/server/model/timestamp_cleanup_test.go`,
+    `src/cluster/cluster_test.go` and `src/scheduler/scheduler_test.go`, the
+    zone cases using fixed -11h/+13h offsets so wall-clock text order and true
+    instant order disagree regardless of host TZ. Original report:
+    the same
+    local-time-vs-UTC SQLite timestamp bug that item 45 fixed still exists
+    at four other sites, none of which were in that pass's write scope.
+    `src/scheduler/scheduler.go:1080-1083` (`ClusterHeartbeat` writes
+    SQLite-only `datetime('now')`), `src/server/model/notification.go:287`
+    and `:589` (expiry deletes compare against a local `time.Now()`),
+    `src/cluster/cluster.go:150` and `:165` (heartbeat freshness compared in
+    local time). Separately, `src/server/model/session.go:73` and
+    `src/server/model/user.go:834` write timestamps in different layouts,
+    so any comparison across the two is lexicographically wrong. Fix: use
+    the same UTC `time.Time` normalization item 45 introduced everywhere a
+    timestamp is written or compared. Read: AI.md PART 10.
+
+67. DONE (2026-08-21): `src/util/output.go`'s duplicate emoji gate now
+    delegates to the canonical one - `util.EmojiEnabled()` returns
+    `display.EmojiEnabled()` and `util.Emoji(emoji, fallback)` returns
+    `display.Emoji(...)`, with both signatures unchanged so no caller
+    moved. The two implementations were logically byte-equivalent (same two
+    env vars, same non-empty-NO_COLOR truthiness, same exact `TERM=="dumb"`
+    match, neither doing TTY detection), so this is a pure no-op
+    behaviorally - only the second source of truth is gone. No import cycle:
+    `src/common/display` imports only stdlib plus `x/term`, and
+    `src/util/privilege.go` already imported `display`. `output_test.go` now
+    drives a shared 7-row table through `TestEmojiEnabled`, `TestEmoji`, and
+    a `TestEmojiEnabled_DelegatesToDisplay` parity test that will fail if a
+    second gate ever reappears. `ColorEnabled()` deliberately left alone -
+    see item 79.
+
+    Original report:
+    `src/util/output.go` carries its own `EmojiEnabled`/`Emoji` pair with
+    the identical `NO_COLOR` + `TERM=dumb` logic already implemented in
+    `src/common/display/emoji.go`, plus a parallel emoji-constant set. Two
+    sources of truth for one gate means a future PART 8 change (e.g. adding
+    the `--color` flag / config tier above the env check) has to be made
+    twice or silently diverges. Fix: delete the duplicate and have
+    `src/util` call `src/common/display`. Read: AI.md PART 8.
+
+68. DONE (2026-08-21): the scheduler's `token_cleanup` task no longer
+    targets tables the running server never creates. `CleanupExpiredTokens`
+    now prunes `user_tokens` on `database.GetUsersDB()` through
+    `dbtime.DeleteRowsWithTimestampBefore`, and the `server_setup_tokens`
+    branch was deleted outright — the setup token is a file
+    (`{config_dir}/setup_token.txt`, `src/util/firstrun.go`) with no expiry
+    row. The bespoke `CREATE TABLE` fixture in `scheduler_test.go` was
+    replaced by `newRealSchemaUsersDB(t)`, which executes the real
+    `database.UsersSchema` constant, so the test can no longer pass against
+    a schema production does not apply.
+
+69. DONE (2026-08-21): every admin handler that rendered a template with a
+    bare `gin.H` now wraps it in `util.TemplateData(c, ...)`, which injects
+    the shared chrome keys (`server`, `user`, `csrf_token`, `current_url`,
+    `admin_path`, `api_path`, `admin_api_path`, `lang`,
+    `available_languages`) and merges caller keys on top so no existing key
+    was changed. 11 call sites across `admin_users.go`, `admin_weather.go`,
+    `admin_notifications.go`, `admin_auth_settings.go`, `admin_geoip.go`,
+    `admin.go`, `admin_scheduler.go`, `admin_web.go`, `admin_backup.go`.
+    Verified: all 15 `c.HTML(` call sites in `src/server/handler/admin*.go`
+    now render through `util.TemplateData`. Pre-auth pages (`auth.go`,
+    `setup.go`) were already correct.
+
+70. DONE (2026-08-21): the 44 translation keys referenced by
+    `admin_chrome.tmpl` and `head.tmpl` but absent from every locale (so the
+    admin panel rendered raw key names) were added to all seven locales in
+    `src/common/i18n/locales/`. Files went 205 -> 249 keys with identical key
+    sets AND identical ordering across all seven, `meta.direction` preserved
+    (`ar` = rtl), real translations in every language, no empty values.
+
+71. DONE (2026-08-21): the same missing-key class affected two public pages
+    and is now fixed — 16 keys added to all seven locales (265 keys each,
+    identical key sets and ordering, real translations in every language,
+    `ar` `meta.direction` still `rtl`), and a re-grep of both templates
+    returns zero keys absent from the locales.
+
+    Original report: `page/dashboard.tmpl` references 13 keys
+    absent from every locale (`btn_edit`, `dashboard_account_role`,
+    `dashboard_add_first_location`, `dashboard_add_location`,
+    `dashboard_alerts_off`, `dashboard_alerts_on`,
+    `dashboard_no_locations_message`, `dashboard_no_locations_title`,
+    `dashboard_saved_locations`, `dashboard_unread_alerts`,
+    `dashboard_view_weather`, `dashboard_welcome_back`,
+    `dashboard_your_saved_locations`) and `page/index.tmpl` references 3
+    (`aria_search_form`, `btn_search`, `label_location`). Both pages render
+    raw key names today. Read: AI.md PART 31.
+
+72. DONE (2026-08-21) - two of three fixed, the third is a different bug:
+    (a) `handler/health_comprehensive.go` now renders `page/healthz.tmpl`
+    via `util.TemplateData` AND with the correct payload shape - the
+    template reads the `publicHealthResponse` struct off `.health`, not the
+    flat `gin.H` the handler was passing, so the old call was doubly broken.
+    It now mirrors `HealthCheck` in `health.go:179`, using the comprehensive
+    `overallStatus` for the badge so it agrees with the returned HTTP
+    status. JSON/text branches untouched.
+    (c) `handler/response.go`'s `NegotiateResponse` and
+    `NegotiateErrorResponse` now enrich via `util.TemplateData` internally,
+    making the contract safe by default. Double-wrapping is provably
+    idempotent (TemplateData merges caller keys last over a fresh map), and
+    `NegotiateErrorResponse` no longer mutates the caller's map. This
+    genuinely fixed the five `server_pages.go` renders (about/privacy/
+    contact/help/terms) which were missing `csrf_token`, `lang`,
+    `admin_path`, `api_path`, `admin_api_path`, `current_url` and
+    `available_languages`.
+    (b) was NOT a wrapping bug - see item 78.
+
+    Original report: three non-admin render
+
+    paths still pass unenriched data to `c.HTML`, so any template using the
+    shared `head`/`navbar`/`footer` partials 500s.
+    (a) `handler/health_comprehensive.go:197` renders `page/healthz.tmpl`
+    with a bare response struct even though that template includes all three
+    partials. (b) `handler/web.go:300` renders `examples.tmpl` with an
+    unwrapped `gin.H` — and no `examples.tmpl` could be located anywhere
+    under `src/server/template/`, so that route may be broken independently.
+    (c) `handler/response.go:255` and `:273` (`NegotiateResponse` /
+    `NegotiateErrorResponse`) forward their `data` argument straight to
+    `c.HTML`; they work today only because every current caller pre-wraps.
+    Enriching inside the helpers makes the contract safe by default.
+
+73. TODO (flagged 2026-08-21 during the admin panel review): the admin route
+    tree in `src/main.go` does not match PART 17's required shape — all
+    server management must live under `/server/{admin_path}/config/*`, with
+    only the admin's own account under
+    `/server/{admin_path}/{admin_username}/*`. Migrating the tree also
+    changes every href in `admin_chrome.tmpl`, so this must be done as one
+    self-contained pass (route registration + template hrefs + any
+    hardcoded admin URLs in handlers/tests together). Read: AI.md PART 17.
+
+74. TODO (flagged 2026-08-21 during the admin panel review): the admin
+    header's global search form GETs `q` to the dashboard, which ignores the
+    parameter entirely — there is no global admin search route or handler.
+    Either implement the search route PART 17 describes or remove the form;
+    a control that silently does nothing is a defect either way.
+    Read: AI.md PART 17.
+
+75. TODO (flagged 2026-08-21 during the admin panel review): the admin
+    sidebar's expand/collapse state does not persist across page loads.
+    Needs either a cookie written by a small handler or the state stored and
+    restored from `static/js/app.js` (no inline JS, no `on*` attributes —
+    PART 16 requires `data-action` delegation and a CSS-first solution where
+    one exists). Read: AI.md PART 16, 17.
+
+76. DONE (2026-08-21): `src/server/model/token_v2.go` was repointed from
+    the legacy-schema-only `tokens` table onto the real `user_tokens` table
+    defined in `database.UsersSchema`, so every `TokenModelV2` operation now
+    runs against a table the running server actually creates. `token_v2.go`
+    is the canonical token model (its `owner_type` column implements the
+    PART 11 `adm_`/`usr_`/`org_` prefix scheme); the legacy `tokens` table
+    survives only inside the dead `database.Schema`, whose complete deletion
+    is tracked as item 97.
+
+77. DONE (2026-08-21): the dead `custom_domains` table and its four
+    indexes were removed from `src/database/server_schema.go`. Its own
+    comment already read "PART 36 - not enabled for this project", and a
+    repo-wide grep confirmed zero Go, template, JSON or YAML references to
+    either `custom_domains` or `CustomDomain` before and after the removal,
+    so nothing read or wrote it. PART 0 / optional-rules require unused
+    optional features to be completely absent.
+
+    Original report: `ServerSchema`
+    defines a `custom_domains` table (`src/database/server_schema.go:368`)
+    even though PART 36 (Custom Domains) is DORMANT for this project per
+    IDEA.md. PART 0 requires unused optional features to be completely
+    absent — no stubs, no dead tables, no toggles. Remove the table from
+    the schema unless IDEA.md is updated to adopt PART 36. Check first
+    whether any code reads or writes it before removing.
+    Read: AI.md PART 0, 36.
+
+78. DONE (2026-08-21): `ServeExamplesPage` was deleted from
+    `src/server/handler/web.go`. It rendered `examples.tmpl`, which exists
+    nowhere under `src/server/template/`, and a repo-wide grep (src, tests,
+    docs, templates) found no route registration and no other reference
+    besides a stale comment in `web_test.go:28`, which was removed with it.
+    It would have returned 500 if it had ever been reachable. No helper was
+    orphaned and every remaining import in `web.go` is still used.
+
+    Original report: `ServeExamplesPage` renders a template that does not
+    exist and is registered on no route - dead code that PART 0 forbids.
+
+79. DONE (2026-08-21): the color gate is now consolidated the same way the
+    emoji gate was. A canonical `ColorEnabled()` was added in the new
+    `src/common/display/color.go`, implementing PART 8's precedence chain
+    (CLI flag via `CLI_COLOR_MODE` > config > `NO_COLOR` > auto-detect via
+    `term.IsTerminal` + `TERM`), together with the exported
+    `ColorModeEnvVar`/`ColorModeAuto`/`ColorModeYes`/`ColorModeNo` constants
+    so the flag plumbing in `src/cli/cli.go` and the gate share one name.
+    `util.ColorEnabled()` is now a one-line delegation with its signature
+    unchanged, and its now-unused `os`/`golang.org/x/term` imports were
+    removed. No behavior changed - the two implementations were already
+    equivalent. `src/util/output_test.go` gained an 11-case table covering
+    the full precedence chain plus a parity test asserting
+    `util.ColorEnabled() == display.ColorEnabled()`, so a second gate cannot
+    silently reappear. No import cycle: `src/common/display` imports only
+    `os` and `golang.org/x/term`.
+
+    Original report: `util.ColorEnabled()` in `src/util/output.go` still
+    carried its own `NO_COLOR` / `TERM=dumb` / TTY logic after the emoji gate
+    was consolidated, leaving two independent color gates that could drift.
+
+80. DONE (2026-08-21): the duplicate health implementation was removed.
+    `HealthCheck` in `src/server/handler/health.go` is the registered one
+    (`src/main.go`) and its `publicHealthResponse` matches PART 13's
+    canonical field order exactly, with real feature flags and vague
+    ok/degraded/error checks. `ComprehensiveHealthCheck` in
+    `health_comprehensive.go` was registered on no route, falsely documented
+    itself as `GET /server/healthz`, and violated PART 13 by exposing
+    filesystem paths (`data_dir.path`, `log_dir.path`), DB engine type,
+    connection-pool internals and DB latency under `checks.*`. It was deleted
+    outright along with the helpers it orphaned (`getFeatureFlags`,
+    `getStatusString`) and `TestGetStatusStringComprehensive`. Nothing was
+    folded in: its extra checks were memory/GC stats and per-directory byte
+    counts that PART 13's `ChecksInfo` has no field for and forbids the
+    detail of. Every other helper in that file is still live.
+
+    Original report: two parallel health implementations existed and only
+    `HealthCheck` was reachable; PART 14 forbids parallel route trees and
+    PART 0 forbids dead code.
+
+81. DONE (2026-08-21): `src/server/handler/notification_preferences.go`
+    and `src/server/handler/notification_channels.go` no longer target the
+    legacy-schema-only shape of `user_notification_preferences`. Both
+    handlers were migrated onto the tables that `UsersSchema`/`ServerSchema`
+    actually create, and their tests now build fixtures by executing the
+    real `database.UsersSchema`/`database.ServerSchema` constants instead of
+    the legacy `database.Schema` — which is what previously hid the runtime
+    failure. Deleting `database.Schema` itself remains open as item 97.
+
+82. DONE (2026-08-21): `src/client/cli.go` no longer hand-rolls a third
+    color gate. Its `--color` value (or, when the flag is absent, an explicit
+    `yes`/`no` from the client config file) is now exported through
+    `display.ColorModeEnvVar`, and the effective answer comes from the single
+    canonical `display.ColorEnabled()`. The tri-state `config.Output.Color`
+    is collapsed to the resolved `yes`/`no` so every `NewFormatter` call
+    downstream reads one already-decided value. `golang.org/x/term` stays
+    imported - it is still used at cli.go:176 and :440.
+
+    Original report: `src/client/cli.go:125-141` duplicated the
+    `NO_COLOR` + `term.IsTerminal` chain instead of calling the canonical
+    gate, giving the project three independent color gates that could drift.
+
+83. DONE (2026-08-21): the exported `handler.GetLogDir()` wrapper and its
+    assertion in the helpers test were deleted. Its only reference repo-wide
+    was that test; the package-private `getLogDir()` it wrapped is still used
+    by `health.go:518` and by `AdminServerStatus`, and the real public
+    accessor lives at `src/path/paths.go:418`. A repo-wide grep for
+    `GetLogDir` under `src/server/` now returns nothing.
+
+    Original report: exported dead code that PART 0 forbids.
+
+84. DONE (2026-08-21): `DebugInfo` in `src/server/handler/health.go` no
+    longer hardcodes `"name": "Weather"` and `"version": "2.0.0-go"`. It now
+    resolves the service name from `cfg.Server.Branding.Title` (falling back
+    to `wthr`) and the version from the ldflags-injected `Version` (falling
+    back to `dev`) - the same two sources `buildPublicHealthResponse` uses,
+    so `/debug/info` and `/server/healthz` can no longer disagree.
+
+    Original report: a stale hardcoded version/name literal in DebugInfo.
+
+85. DONE (2026-08-21): the three misnamed files were renamed with `git mv`
+    now that item 80 removed the comprehensive handler they were named for.
+    `health_comprehensive.go` -> `health_admin.go` (it holds
+    `AdminServerStatus` plus shared helpers), `health_comprehensive_test.go`
+    -> `health_admin_helpers_test.go`, and
+    `health_comprehensive_admin_test.go` -> `health_admin_test.go`. The
+    `newHealthComprehensiveTestContext` helper was renamed to
+    `newHealthAdminTestContext` at all call sites. A repo-wide grep for
+    `health_comprehensive` and for `Comprehensive` now returns only a
+    legitimate Swagger `@Description` line in `health.go:231`.
+
+    Original report: the filename no longer described the contents, against
+    PART 0's names-must-reveal-intent rule.
+
+86. DONE (2026-08-21, found while verifying item 80's admin-route note): a
+    privilege-escalation hole in the admin API was closed.
+    `middleware.TokenAuthMiddleware` accepts BOTH admin (`adm_`) and regular
+    user (`usr_`) tokens, setting only a `auth_type` context value to
+    distinguish them, and `src/main.go:2462` mounted the entire `adminAPI`
+    group behind nothing else. Any authenticated PART 34 user token therefore
+    reached every admin route: server config writes, scheduler enable/disable
+    /trigger, server restart, and `AdminServerStatus` (which discloses
+    `data_dir.path`, `log_dir.path`, DB type and latency). Fix: added
+    `middleware.RequireAdminToken()` in `token_auth.go`, which aborts with a
+    canonical `403 FORBIDDEN` unless `auth_type` equals the new
+    `AuthTypeAdminToken` constant, and chained it onto the `adminAPI` group
+    immediately after `TokenAuthMiddleware`. The literal `"admin_token"` in
+    the middleware now uses that constant. A three-case table test in
+    `token_auth_test.go` covers admin-passes / user-refused /
+    unauthenticated-refused and asserts the canonical error shape. PART 17
+    keeps Server Admin and regular user as separate account types; PART 11
+    requires least privilege on every admin surface.
+
+87. DONE (2026-08-21) - the destructive/comparison half in
+    `src/server/model/admin.go` is FIXED. `CreateInvite`/`CreateSession`
+    now write via `sqlTimestamp()`; `GetInvite`/`GetSession` scan
+    `created_at`/`expires_at`/`used_at` as `interface{}` through
+    `parseStoredTimestamp` instead of `sql.NullTime`, so legacy local-zone
+    rows resolve instead of failing the scan; `DeleteExpiredInvites` and
+    `DeleteExpiredSessions` dropped their `datetime(expires_at) <
+    datetime('now')` predicates for `deleteRowsWithTimestampBefore` (on
+    `rowid` for `server_admin_invites`, which has no `id` column, and on the
+    TEXT `id` for `server_admin_sessions`); `GetPendingInvites` and
+    `GetActiveSessions` reduced their SQL predicates to NULL checks and
+    decide expiry in Go, and both gained the missing `rows.Err()` check.
+    Regression tests are in `src/server/model/admin_timestamp_test.go`
+    using fixed -11h/+13h zones so wall-clock text order and true instant
+    order disagree on every host timezone.
+
+    COMPARISON HALF NOW CLOSED (2026-08-21). Every SQL-side timestamp
+    comparison listed below has been converted to a Go-side comparison
+    through `dbtime.ParseStoredTimestamp`/`dbtime.IsAfter`, failing closed on
+    unparseable values: `src/main.go:845` and `src/main.go:4143` (both
+    verified closed - `grep` finds no remaining `datetime('now')` SQL in
+    `src/main.go`, only the two explanatory comments at :853 and :2567),
+    `src/server/handler/auth.go:68`, and the `datetime('now')` sites in
+    `src/server/service/**`, `src/server/handler/notification_*.go`,
+    `src/server/handler/health_admin.go`, `src/server/handler/admin.go` and
+    `src/graphql/schema.resolvers.go`. The `src/server/setup.go` entry in the
+    original list was wrong - that file does not exist; the real file is
+    `src/server/handler/setup.go` (see item 127).
+
+    The portability-only WRITE half is carved out into item 133 - it is a
+    correctness no-op on SQLite and does not block this item.
+
+    Original report: 51 `datetime('now')` occurrences remained repo-wide,
+    carrying the same local-time-vs-UTC and portability defect item 66
+    fixed. Item 66 normalized `user_sessions` but `server_admin_sessions`,
+    written from `src/server/model/admin.go`, still had the original bug -
+    silently logging admins out early.
+
+88. DONE (2026-08-21): the three duplicated copies of the timestamp
+    helpers are now one stdlib-only leaf package, `src/common/dbtime`
+    (`src/common/dbtime/dbtime.go`). It imports only `context`,
+    `database/sql`, `fmt`, `strings`, `time` - nothing from
+    `github.com/webappsgo/wthr/...` - so `model`, `scheduler` and `cluster`
+    can all depend on it with no import cycle (the existing
+    `scheduler` -> `server/service` -> `model` chain is unaffected).
+
+    Exported API: `SQLTimestampLayout`, `FormatSQLTimestamp`,
+    `ParseStoredTimestamp`, `ParseStoredTimestampText`,
+    `NormalizeScannedRowID`, `DeleteRowsWithTimestampBefore`,
+    `SelectRowIDsWithTimestampBefore`, `IsAfter`. The merged version is a
+    strict superset of all three originals, so no caller lost behavior: row
+    IDs are carried as `interface{}` with `[]byte`->`string` normalization
+    (required by the ULID TEXT primary keys on the notification tables) and
+    the `includeEqual bool` parameter selects `<=` vs `<`. The 11-entry
+    layout list, the monotonic-suffix stripping and the trailing-`Z`
+    handling were byte-identical across all three copies and moved verbatim.
+
+    Each of the three packages keeps a thin delegating wrapper under its
+    original unexported name rather than having the names deleted, because
+    out-of-scope callers still use them - `src/server/model/user.go` (12
+    sites) and `src/scheduler/task_history.go:201`. The scheduler's 5-arg
+    wrapper passes `includeEqual=false`, matching its previous behavior.
+
+    Known cost, deliberately accepted: `dbtime` cannot import
+    `src/database`, so `database.TimeoutComplexSelect`/`TimeoutBulk` are
+    duplicated as local constants (15s/60s) and will drift if those ever
+    change. Tests are in `src/common/dbtime/dbtime_test.go` (table-driven,
+    stdlib only) - a regression fence around the moved code, not
+    would-have-failed-before tests.
+
+    Original report: the timestamp helpers were copy-pasted into three
+    packages with three different signatures and three different feature
+    sets, so a fix in one never reached the other two.
+
+89. DONE (2026-08-21, in two passes): the seven locale files went 265 -> 566
+    keys each. The first pass added the 235 keys the 23 new admin templates
+    reference across 24 `admin.*` namespaces; the second added the 66 keys the
+    two root templates from item 90 reference (`admin.channels.*` 25,
+    `admin.templates.*` 40, `admin.common.api_only`). Independently verified
+    afterwards: every key referenced by any `.tmpl` now resolves, all seven files
+    hold an identical key set in identical order, all are valid UTF-8 with no
+    `\u` escapes and a single trailing newline, and `ar` still carries
+    `meta.direction: rtl`. Both passes were additions-only - no existing key was
+    reordered or re-valued. Original report: 235 keys were added to each of the seven
+    locale files (265 -> 500), covering the 24 `admin.*` namespaces the 23 new
+    admin templates reference; all seven verified to hold an identical key set in
+    identical order, valid UTF-8, no `\u` escapes, single trailing newline, and
+    `ar` still `meta.direction: rtl`. STILL OPEN: the 66 keys referenced by the
+    two root templates from item 90 (`admin.channels.*`, `admin.templates.*`,
+    `admin.common.api_only`) landed after that pass and are still missing from
+    every locale. Original report: the
+    new `admin.*` translation keys those templates reference
+    (`admin.common.*`, `admin.admins.*`, `admin.backup.*`,
+    `admin.logs_format.*`, `admin.invite_accept.*`, `admin.tokens.*`,
+    `admin.audit.*`, `admin.profile.*`, `admin.preferences.*`,
+    `admin.branding.*`, `admin.pages.*`, `admin.roles.*`, `admin.invite.*`,
+    `admin.moderation.*`, `admin.user_detail.*`, `admin.admin_detail.*`,
+    `admin.ratelimit.*`, `admin.firewall.*`, `admin.blocklists.*`,
+    `admin.maintenance.*`, `admin.updates.*`, `admin.cluster_nodes.*`,
+    `admin.cluster_add.*`, `admin.help.*`) are not present in
+    `src/common/i18n/locales/*.json`, so every one of those pages renders raw
+    key text. All seven locales (`en, es, zh, fr, ar, de, ja`) must gain an
+    identical key set in identical order with real translations; `ar` keeps
+    `meta.direction: rtl`. Same class as items 70 and 71.
+    Added 2026-08-21 after item 90 landed - the two new root templates need
+    these on top of the list above: `admin.common.api_only`, the full
+    `admin.channels.*` set (`title`, `intro`, `list_heading`, `empty_title`,
+    `empty_message`, `empty_action`, `read_heading`, `read_list`,
+    `read_definitions`, `read_detail`, `read_stats`, `read_queue`,
+    `read_history`, `write_heading`, `write_caption`, `col_operation`,
+    `col_endpoint`, `col_body`, `op_update`, `op_enable`, `op_disable`,
+    `op_test`, `op_initialize`, `body_none`, `api_only_note`) and the full
+    `admin.templates.*` set (`title`, `intro`, `list_heading`, `empty_title`,
+    `empty_message`, `empty_action`, `endpoints_heading`, `endpoint_list`,
+    `endpoint_detail`, `endpoint_variables`, `endpoint_create`,
+    `endpoint_update`, `endpoint_delete`, `endpoint_clone`,
+    `endpoint_preview`, `endpoint_initialize`, `fields_heading`,
+    `fields_caption`, `col_field`, `col_type`, `col_required`,
+    `col_description`, `type_string`, `type_object`, `type_boolean`,
+    `required_yes`, `required_no`, `field_channel_type_desc`,
+    `field_template_name_desc`, `field_template_type_desc`,
+    `field_body_template_desc`, `field_subject_template_desc`,
+    `field_variables_desc`, `field_is_default_desc`, `update_note_term`,
+    `update_note_desc`, `clone_note_term`, `preview_note_term`,
+    `preview_note_desc`, `api_only_note`). Read: AI.md PART 31.
+
+90. DONE (2026-08-21): both root-level templates were created -
+    `src/server/template/admin_channels.tmpl` (rendered by `GET
+    {admin_path}/server/channels`) and `src/server/template/template_editor.tmpl`
+    (rendered by `GET {admin_path}/server/templates`). They live at the template
+    root rather than under `admin/` because `src/main.go:667` names each template
+    by its path relative to `src/server/template/` and both handlers render the
+    bare name. Neither call site passes any channel or template rows, so both
+    pages render a proper empty state plus an endpoint/field reference instead of
+    fabricating data. Both use only existing CSS classes and the shared chrome
+    partials, and contain zero inline `<script>`, `style=` or `on*` attributes.
+    Original report: two
+    handlers render templates that do not exist on disk, so those routes 500
+    today - `admin_channels.tmpl` and `template_editor.tmpl`, both rendered
+    from the template ROOT rather than `src/server/template/admin/`. Create
+    both in the house style used by the other admin templates (shared chrome
+    partials, no `{{define}}`, hidden `csrf_token` on every POST form, no
+    inline style/script/`on*` handlers). Read: AI.md PART 16, 17.
+
+91. TODO (flagged 2026-08-21 during the admin panel review): nearly every
+    admin mutation endpoint binds its request body with `ShouldBindJSON`, so
+    it accepts only `application/json`. PART 16 requires the frontend to be
+    fully functional with JavaScript disabled, and a plain HTML form submits
+    `application/x-www-form-urlencoded` - so admin CRUD cannot work JS-free
+    today no matter how the templates are written. Fix on the Go side: accept
+    form-encoded input as well as JSON on every admin mutation route
+    (content-type-aware binding), and respond with a POST-redirect-GET flash
+    for non-AJAX submits while keeping the canonical JSON shape for API
+    clients. Read: AI.md PART 16, 14.
+
+92. DONE (2026-08-21): both sidebar entries now exist in
+    `src/server/template/partial/admin_chrome.tmpl`, linking `{{$ap}}/config/
+    channels` (page `"channels"`) and `{{$ap}}/config/templates` (page
+    `"templates"`), each with the `is-active`/`aria-current` highlight and
+    labelled from `admin.nav.channels` / `admin.nav.templates`. Both routes
+    were verified to exist in `src/main.go`, and both keys are present and
+    genuinely translated in all seven locale files.
+
+93. TODO (flagged 2026-08-21 while creating the two root admin templates): the
+    notification-channel and email-template admin pages cannot be made
+    interactive without JavaScript for a second reason beyond item 91 - the whole
+    `adminAPI` group is bearer-token authenticated (`src/main.go:2463-2467`,
+    `TokenAuthMiddleware` + `RequireAdminToken`), not session-cookie
+    authenticated, so a browser form POST would 401 even on the no-body routes
+    (`enable`, `disable`, `initialize`). Fixing item 91 alone is not enough:
+    session-authenticated, form-encoded `POST {admin_path}/server/channels/...`
+    and `.../templates/...` routes that redirect back (POST-redirect-GET) must
+    exist alongside the token-authenticated JSON API. Read: AI.md PART 16, 17.
+
+94. DONE (2026-08-21) for the translation half; the duplicate-template half
+    is carved out into item 134. All 24 admin templates now render every
+    user-facing string through `{{t $lang "..."}}` - headings, labels,
+    buttons, table headers, help and placeholder text, aria-labels, empty
+    states and confirmations. The locale files grew from 585 to 1933 keys,
+    verified identical across all seven (`en, es, zh, fr, ar, de, ja`) with
+    `ar` retaining `meta.direction: rtl`; every key referenced from any of
+    the 124 `.tmpl` files resolves, and no new inline `on*=`/`style=`/
+    `<script>` attributes were introduced by the pass. Originally flagged as:
+    24 admin templates contain ZERO `t` calls and hardcode English UI strings
+    outright, which PART 31 forbids without exception - `admin.tmpl`, `admin_settings.tmpl`,
+    `admin_security.tmpl`, `admin_users.tmpl`, `admin_logs.tmpl`,
+    `admin_metrics.tmpl`, `admin_scheduler.tmpl`, `admin_ssl.tmpl`,
+    `admin_system.tmpl`, `admin_tor.tmpl`, `admin_web.tmpl`,
+    `admin_weather.tmpl`, `admin_database.tmpl`, `admin_email.tmpl`,
+    `admin_email_editor.tmpl`, `admin_geoip.tmpl`, `admin_notifications.tmpl`,
+    `admin_auth_settings.tmpl`, `admin_backup_enhanced.tmpl`,
+    `admin_tasks_enhanced.tmpl`, `admin_passkey_login.tmpl`,
+    `admin_user_invites.tmpl`, `login.tmpl`, `setup_token.tmpl`. Each needs its
+    strings extracted to keys and those keys added to all seven locales.
+    Read: AI.md PART 31, 16.
+
+95. DONE (2026-08-21): the notification subsystem is constructed against
+    the correct database handle. `src/main.go` now passes `dualDB.Server` to
+    `NewSMTPService` (both call sites), `NewChannelManager`,
+    `NewTemplateEngine`, `NewDeliverySystem`, `NewNotificationMetrics`,
+    `NewNotificationChannelHandler` and `NewNotificationTemplateHandler` —
+    every one of which queries `ServerSchema` tables. The genuinely
+    user-scoped constructors (`NewWeatherNotificationService`,
+    `NewNotificationPreferencesHandler`, `NotificationHandler`) now name
+    `dualDB.Users` explicitly rather than inheriting it from the shared
+    `db` wrapper, so the wiring documents which schema each service reads.
+    No constructor signature needed changing.
+
+96. DONE (2026-08-21): the `notification_templates` table name is gone from
+    production code. `src/server/service/template_engine.go` (7 statements)
+    and `src/server/handler/notification_templates.go` (10 statements) were
+    repointed in one pass onto the real `server_notification_templates`
+    table in `ServerSchema`, with the column drift corrected:
+    `subject_template` -> `subject` and `body_template` -> `body`, both
+    nullable in the real DDL and therefore now scanned as
+    `sql.NullString` (the previous plain-`string` scan would have errored on
+    NULL). Timestamps are scanned as `sql.NullString` and parsed with
+    `dbtime.ParseStoredTimestamp`; all four `datetime('now')` sites were
+    writes, not comparisons, and are now bound
+    `dbtime.FormatSQLTimestamp(time.Now())` parameters. The compatibility
+    `CREATE TABLE notification_templates` block was deleted from
+    `template_engine_test.go`, whose helper now applies only
+    `database.ServerSchema`. See item 109 for the one client-visible
+    behavior change this required.
+
+97. DONE (2026-08-21): the legacy single-database schema is deleted.
+    `src/server/model/settings.go` was migrated first - `Delete`, `List` and
+    `ListByPrefix` had been querying the legacy `settings` table through the
+    injected `m.DB` field and now use `server_config` via
+    `database.GetServerDB()`. `server_config` turned out to be a strict
+    superset of the legacy table (it adds `updated_by`), so nothing was
+    lost. `settings_test.go` dropped its `db.Exec(database.Schema)` helper
+    and now builds fixtures from the real `database.ServerSchema` constant.
+    A repo-wide grep then confirmed every compile-level reference lived
+    inside the write scope, so `SchemaVersion`, `Schema`, `DefaultSettings`,
+    `runMigrations`, `migrateToV2`, `InitDB`, `InitDBFromConnectionString`
+    and `InitDBWithConfig` were removed, along with six orphaned `*DB`
+    methods that existed only for legacy tables and had zero non-test
+    callers. The live helpers (`DB`, `IsFirstRun`, `HealthCheck`,
+    `ParseConnectionString`, and all of `timeouts.go`) survive untouched,
+    and the two database tests were trimmed to the cases that still
+    exercise live code rather than deleted outright. `SettingsModel.DB` was
+    deliberately kept - roughly 40 out-of-scope construction sites still
+    pass it - and is now documented as unread; its removal is item 40.
+
+98. DONE (2026-08-21): the stale test asserting the old broken behavior is
+    gone. `src/server/handler/admin_test.go` now carries
+    `TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers`,
+    which seeds tokens for more than one user into the real `user_tokens`
+    table (built from the `database.UsersSchema` constant, not a hand-rolled
+    `CREATE TABLE`) and asserts the admin-wide listing returns all of them.
+
+99. DONE (2026-08-21): verified closed by audit rather than by further
+    edits. `GetNotificationHistory` now emits `created_at`, the real column
+    in `notification_history`. A repo-wide grep for `sent_at` across every
+    `.go`, `.tmpl`, `.js` and `.md` file returns only three classes of hit,
+    none of which is a consumer of that payload: the dead legacy
+    `database/schema.go` (deletion tracked as item 97), the translation key
+    `email.body.smtp_test_sent_at` in `service/smtp.go`, and
+    `user_weather_alert_history`, a different table whose `sent_at` column
+    genuinely exists in `UsersSchema`. The Swagger definitions, the GraphQL
+    schema, `src/client/`, `static/`, `docs/` and the admin templates never
+    referenced the old key at all.
+
+100. DONE (2026-08-21): `.claude/rules/optional-rules.md` no longer claims
+    "There is no `SPEC.md` in this repo". The sentence now states that
+    SPEC.md exists and outranks AI.md, that its two active overrides (the
+    `src/graphql/generated.go` coverage exclusion and the vendored GraphQL
+    Playground assets) say nothing about PART 34/35/36, and that activation
+    for those three PARTs is therefore declared in IDEA.md. The PART 34
+    ACTIVE / PART 35 DORMANT / PART 36 DORMANT conclusion is unchanged.
+
+    Original report: the cheatsheet opened its activation section with a
+    factually wrong claim that SPEC.md did not exist, which risked a future
+    session skipping the one file that outranks AI.md.
+
+101. DONE (2026-08-21; flagged while converting the scheduler's timestamp
+    handling): five scheduler SQL statements name columns the real schema
+    does not have, so each errors at runtime. `scheduler.go:231`
+    `acquireTaskLock` omits the NOT NULL `schedule` column on insert.
+    `:343` `logTaskExecution` writes a nonexistent `user_id`; the real audit
+    table needs `ulid`/`actor_type`/`actor_id`/`timestamp` — the canonical
+    insert pattern is `src/server/middleware/audit.go:69`. `:410`
+    `CleanupOldAuditLogs` filters on `created_at` where the column is
+    `timestamp`. `:553` the `user_notifications` insert uses a nonexistent
+    `link` column, omits the NOT NULL `id TEXT PRIMARY KEY` and `display`
+    columns, and passes `type` values such as `"alert"` that violate the
+    table's CHECK constraint — canonical pattern is
+    `src/server/model/notification.go:130`. `:1080` the `server_nodes`
+    insert omits the NOT NULL `hostname`. Fix each against the real DDL in
+    `src/database/{server,users}_schema.go` and convert the affected tests
+    to real-schema fixtures. Read: AI.md PART 10, 19.
+
+102. DONE (2026-08-21): `src/server/service/oidc_test.go`'s
+    `setupOIDCTestDB` now executes the real `database.ServerSchema`
+    constant instead of hand-rolling `CREATE TABLE server_config`. The real
+    DDL turned out to be identical in shape to the bespoke copy, so no
+    seeded row needed adjusting and no code/test disagreement surfaced -
+    but the fixture can no longer drift away from production.
+103. TODO (flagged 2026-08-21 while verifying the admin route migration):
+    AI.md contradicts itself about what may sit directly under the admin
+    path. Line 30017 states that the admin's own account is the only direct
+    child and that everything else lives under
+    `/server/{admin_path}/config/*`, but lines 31022-31049 enumerate
+    `/server/{admin_path}/help` as a direct child. The implementation
+    currently follows line 30017. AI.md is read-only, so this cannot be
+    fixed here — it needs a user decision, and the resolution belongs in
+    SPEC.md, which outranks AI.md. Read: AI.md PART 17.
+
+104. DONE (2026-08-21): the dead `const ADMIN_PATH` declaration is deleted
+    from the inline `<script>` block in
+    `src/server/template/admin/admin.tmpl`. A repo-wide grep confirms zero
+    remaining references to the identifier. The two constants beside it
+    (`API_PATH`, `ADMIN_API_PATH`) are genuinely read by the same block and
+    stay until item 52(e) migrates the whole inline script into
+    `static/js/app.js`.
+
+105. DONE (2026-08-21): `src/server/handler/notifications.go` no longer
+    queries a `notifications` table that nothing creates. All nine
+    statements were repointed at the real `user_notifications` table in
+    `UsersSchema`, and the column drift was substantial rather than
+    cosmetic: the handler assumed an INTEGER `id` where the real column is
+    a ULID `TEXT PRIMARY KEY`, assumed a `link TEXT` column that does not
+    exist (now stored as `action_json`), treated `type` as free text where
+    the real column is CHECK-constrained to
+    success/info/warning/error/security, and knew nothing about the NOT NULL
+    `display` column, `dismissed`, or `expires_at`. The hand-rolled INSERT
+    was deleted in favor of `model.UserNotificationModel.Create`, which owns
+    the canonical row shape. The DB handle was already correct
+    (`src/main.go:1051` passes `dualDB.Users`). Three real bugs were fixed
+    in the same pass: unauthenticated requests now return 401 on all five
+    methods instead of silently scoping to `user_id=0`; pagination is
+    clamped, where an unparseable `limit` previously reached SQLite as
+    `LIMIT -1`, i.e. unbounded; and the mark-read and delete UPDATE/DELETE
+    statements are now scoped `AND user_id = ?` rather than trusting a prior
+    ownership SELECT. The new `notifications_test.go` builds its fixture
+    from the real `database.UsersSchema` with seeded `user_accounts` FK
+    parents.
+106. TODO (flagged 2026-08-21 by the notification DB-handle fix): three
+    services store an injected `*sql.DB` that is never read —
+    `DeliverySystem.db` (`src/server/service/delivery_system.go:50`),
+    `SMTPService.db` (`src/server/service/smtp.go:54`) and
+    `WeatherNotificationService.db` (`src/server/service/weather_notifications.go:15`).
+    All three query exclusively through `database.GetServerDB()` /
+    `database.GetUsersDB()`, so the handle their constructors accept has no
+    effect and can silently disagree with the schema they actually read.
+    Either use the field or drop it from the struct and the constructor
+    signature. Same class as item 40, which covers the model structs. Read:
+    AI.md PART 10.
+
+107. DONE (2026-08-21; flagged by a repo-wide sweep for SQL-side time
+    comparisons): three session-validity checks still compare timestamps in
+    SQL rather than in Go, which is a security defect and not merely a
+    portability nit. `src/server/middleware/admin_auth.go:69` and
+    `src/graphql/graphql.go:183` both use
+    `WHERE id = ? AND expires_at > CURRENT_TIMESTAMP`, and
+    `src/graphql/resolvers_helpers.go:513` uses
+    `sas.expires_at > CURRENT_TIMESTAMP`. That is a lexicographic text
+    comparison: for a row written with a local-zone value behind UTC an
+    already-expired session compares as still valid (authentication
+    bypass), and for a zone ahead of UTC a valid session is rejected.
+    Convert each to select `expires_at` with the row, scan it as
+    `interface{}`, and validate with `dbtime.IsAfter` — failing CLOSED on a
+    NULL or unparseable value. Reference implementation:
+    `src/server/model/admin.go`. A fourth, non-security site,
+    `src/server/handler/notification_channels.go:171`
+    (`updated_at = datetime('now')`), is a write and needs only
+    parameterizing with `dbtime.FormatSQLTimestamp` for PostgreSQL/MySQL
+    portability. Regression tests must use the fixed -11h/+13h zone-offset
+    fixtures from `src/server/model/admin_timestamp_test.go` so they fail on
+    any host timezone if a text comparison is reintroduced. Read: AI.md
+    PART 10, 11.
+
+108. DONE (2026-08-21; flagged while completing item 96, fixture now applies
+    `database.ServerSchema` verbatim and the four bare `notification_channels`
+    queries were retargeted at `server_notification_channels`):
+    `src/server/handler/notification_channels_test.go:39-43` string-replaces
+    a legacy `notification_channels` table definition on top of
+    `database.ServerSchema` — the same compatibility-shim pattern that was
+    just deleted from `template_engine_test.go`, and the same one that hid
+    items 68, 76, 81 and 105. A shim like this exists only because the code
+    under test disagrees with the real DDL, so investigate
+    `src/server/handler/notification_channels.go` for table/column drift
+    first, fix the production code, and only then let the fixture execute
+    the unmodified schema constant. Read: AI.md PART 10, 29.
+
+109. TODO (flagged 2026-08-21 by item 96 - NEEDS A USER DECISION BEFORE THE
+    NEXT RELEASE): `server_notification_templates` has no `is_default`
+    column, so item 96 could not preserve the old write path. Rather than
+    invent a column, the flag is now DERIVED: a template is the default when
+    its `template_name` equals the new exported
+    `service.DefaultTemplateName` ("default"), which matches all six
+    `InitializeDefaultTemplates` seeds and the existing
+    `GetDefaultTemplate` semantics. Consequences: the `is_default` JSON
+    field is unchanged on READ, but it was REMOVED from the create and
+    update request structs, so a client makes a template the default by
+    naming it `default` instead of posting `"is_default": true`; the two
+    `UPDATE ... SET is_default = 0` "clear other defaults" blocks were
+    deleted, with singularity now enforced by the table's own
+    `UNIQUE(channel_type, template_name, template_type)`; and
+    `CloneTemplate` gained a 400 guard rejecting the reserved name.
+    Remaining work is the decision only: a repo-wide grep for `is_default`
+    across every `.go`, `.tmpl`, `.js` and `.md` file finds no consumer
+    outside the dead legacy `database/schema.go`, so no admin template,
+    `static/js/app.js`, CLI, Swagger definition, GraphQL schema or
+    `docs/api.md` change is required. Confirm with the user that deriving
+    the flag from the reserved template name is preferred over adding a
+    real `is_default` column to `ServerSchema`; if a column is preferred,
+    this entry reverses cleanly. Read: AI.md PART 14, 18.
+
+110. DONE (2026-08-21; flagged while deleting the legacy schema in item 97):
+    `database.GetSessionCount` (`src/database/schema.go`) queries
+    `SELECT COUNT(*) FROM sessions`, and no live schema creates a `sessions`
+    table — `ServerSchema` defines `server_admin_sessions` and `UsersSchema`
+    defines `user_sessions`. Unlike the rest of the legacy code it is not
+    dead: `src/server/handler/health.go:638` and
+    `src/server/handler/health_admin.go:77` both call it, so the health
+    endpoints fail or report a wrong count at runtime. Its old test passed
+    only because the deleted legacy schema created the table. Decide whether
+    the health page wants admin sessions, user sessions, or the sum, then
+    repoint the function at the real table(s) on the correct handles and add
+    a test built from the real schema constants. Read: AI.md PART 13.
+
+    RESOLVED (2026-08-21): both callers want a total, so `GetSessionCount`
+    now sums unexpired rows from `user_sessions` (via `GetUsersDB()`) and
+    `server_admin_sessions` (via `GetServerDB()`) through a new
+    `countActiveSessions` helper. It reads the global handles rather than the
+    receiver's own connection because a `*DB` may be bound to either
+    database, and expiry is decided in Go with `dbtime.IsAfter` rather than
+    SQL-side, so a non-canonical stored value fails closed instead of
+    counting as never-expiring. A nil handle contributes zero, keeping a
+    single-database deployment working. `TestDB_GetSessionCount` in
+    `src/database/schema_test.go` covers the sum, expiry exclusion, the
+    zone-inverted text cases, the unparseable fail-closed case, the missing
+    users handle, and asserts the two tables really exist in the schema
+    constants while a bare `sessions` table still does not.
+
+111. DONE (2026-08-21; flagged while deleting the legacy schema in item 97):
+    `src/cli/maintenance.go:102` runs
+    `SELECT key, value FROM settings ORDER BY key` against a table nothing
+    creates — the real table is `server_config` in `ServerSchema`. The bug
+    is hidden by `src/cli/maintenance_test.go:504`, which hand-rolls
+    `CREATE TABLE settings (key TEXT, value TEXT)`. Same class as items 68,
+    76, 81, 105 and 108. Repoint the query at `server_config`, name the
+    columns explicitly, and rebuild the fixture from the real
+    `database.ServerSchema` constant. Read: AI.md PART 10.
+
+112. DONE (2026-08-21): the three doc comments in
+    `src/server/middleware/token_auth_test.go` that described the deleted
+    `database.Schema` and `InitDBWithConfig` were rewritten. The fixture
+    helper now says it applies the same schemas `database.InitDualDB`
+    applies in production, and the `usr_` token regression comment describes
+    the legacy single-database schema as deleted rather than as something a
+    reader could still go look at. The four remaining inaccurate comments in
+    this directory are still item 40's.
+
+113. TODO (flagged 2026-08-21 by item 97, verify before the next release):
+    package `database` lost fifteen legacy-only test cases when `InitDB`,
+    `InitDBFromConnectionString`, `InitDBWithConfig` and the migration
+    helpers were deleted. The code they covered was deleted with them, so
+    both numerator and denominator shrink, but the package's absolute test
+    count drops noticeably. Confirm the repo still clears the 60% coverage
+    gate the next time `make test` runs — and note that per SPEC.md the gate
+    filters `src/graphql/generated.go` out of `coverage.out` first. Read:
+    AI.md PART 26, 29.
+
+114. DONE (2026-08-21, app-breaking, fixed on discovery): no middleware
+    anywhere set the `user_id` gin context key, yet handlers across
+    `src/server/handler/` read it via `c.GetInt("user_id")`.
+    `AuthMiddleware` and `TokenAuthMiddleware` set only `UserContextKey`
+    ("user") to a `*model.User`, and `admin_auth.go` sets `admin_id`. Two
+    test files already documented the gap in comments
+    (`src/server/middleware/csrf_test.go:176-180`,
+    `ratelimit_test.go:140-150`) without anyone fixing it. Every affected
+    route therefore acted as user 0 - an IDOR reading and writing another
+    account's rows - and would have started returning 401 to genuinely
+    logged-in users the moment item 105 added its authentication guard. Fix:
+    a new exported `middleware.UserIDContextKey` constant, set alongside
+    `UserContextKey` at all three authentication sites (API token and
+    session in `auth.go`, user token in `token_auth.go`). It is stored as
+    `int(user.ID)` deliberately - `model.User.ID` is `int64`, which
+    `c.GetInt` cannot type-assert, so setting the raw value would have
+    silently kept returning 0. `token_auth.go`'s bare `c.Set("user", ...)`
+    string literal was replaced with the constant at the same time. This
+    also activates the previously dead `user_id` checks in the CSRF and
+    rate-limiting middleware. Read: AI.md PART 5, 11.
+
+115. DONE (2026-08-21; all twelve sites now filter in Go via
+    `countUnexpiredRows`/`tallyNotificationStatistics`/
+    `scanUnexpiredNotifications`, with OFFSET/LIMIT applied after the expiry
+    filter so an expired row can no longer consume a page slot): twelve sites in
+    `src/server/model/notification.go` (lines 180, 199, 217, 326, 335, 355,
+    483, 502, 520, 628, 637, 657) filter on `expires_at > ?` with the
+    threshold bound as SQL text. That is a lexicographic comparison, safe
+    only while every stored `expires_at` is in the canonical
+    `2006-01-02 15:04:05` UTC layout - a row written by an older
+    local-zone writer compares wrong in either direction. Same class as
+    item 107. Convert to select the column and compare in Go via
+    `dbtime.ParseStoredTimestamp`/`dbtime.IsAfter`, following
+    `src/server/model/admin.go`. Read: AI.md PART 10.
+
+116. TODO (flagged 2026-08-21 by the notifications repoint): the entire
+    `src/server/handler/` package has no i18n. Every JSON error string it
+    returns is hardcoded English - for example
+    `src/server/handler/user_notifications.go:30,45,69,88,108` - while
+    PART 31 requires that every human-readable string, explicitly including
+    HTTP errors and API JSON messages, resolve through `t()`. This is not a
+    handful of sites; it is the package-wide default. `en.json` currently
+    carries only `error.generic`, `error.not_found`,
+    `error.invalid_location`, `error.network`, `error.server` and
+    `error.try_again`, so the fix needs a proper `errors.*` key family
+    added to all seven locale files first, then a sweep of the package. The
+    key set must stay identical across every locale or `make i18n-validate`
+    fails. Read: AI.md PART 31.
+
+117. DONE (2026-08-21; `acquireTaskLock` now reads `locked_by`/`locked_at`,
+    judges staleness in Go, and steals with a compare-and-swap on the observed
+    holder. An unparseable or NULL `locked_at` on a foreign lock is treated as
+    HELD, not stale: a wrong "stale" verdict runs a global task twice on two
+    nodes, a wrong "held" verdict only skips one tick): `src/scheduler/
+    scheduler.go:243,247` - `acquireTaskLock` still compares `locked_at < ?`
+    as SQL text with a bound `time.Time`, exactly the mixed-layout hazard
+    `src/common/dbtime` exists to prevent. Convert to select the column and
+    compare in Go via `dbtime.ParseStoredTimestamp`/`dbtime.IsAfter`. Left
+    out of the schema fix deliberately because it changes lock semantics.
+    Read: AI.md PART 10, PART 19.
+
+118. TODO (flagged 2026-08-21 by the scheduler schema fix): `src/scheduler/
+    scheduler.go:521-557,575` - the weather alert titles, messages and the
+    "View forecast" action label are hardcoded English, violating the PART 31
+    no-hardcoded-strings rule. Same key-family dependency as item 116: the
+    locale files need the keys before the sweep. Read: AI.md PART 31.
+
+119. DONE (2026-08-21; the unread `db` parameters were removed from the
+    affected task signatures and every call site updated): `src/scheduler/
+    scheduler.go:441` - `CheckWeatherAlerts(db *sql.DB)` ignores its own `db`
+    parameter and uses `database.GetUsersDB()`; the same holds for the `db`
+    threaded into `checkAndCreateAlerts`/`createNotification`. Dead parameter
+    across the task registry - same class as item 40. Read: AI.md PART 19.
+
+120. DONE (2026-08-21; `server_scheduler_history` plus its two indexes moved
+    into `ServerSchema` and `InitTaskHistoryTable` demoted to a presence check
+    that errors instead of issuing DDL):
+    `server_scheduler_history` is created by `src/scheduler/task_history.go:41`
+    at runtime rather than by the `database.ServerSchema` constant. Every
+    other table lives in the schema constants; this is schema-definition
+    drift and the same class as item 123. Read: AI.md PART 10.
+
+121. TODO (flagged 2026-08-21, NEEDS A USER DECISION): the scheduler's weather
+    alerts previously used a three-tier severity ladder - `info` (rain),
+    `warning` (wind), `alert` (freeze, heat, severe). `user_notifications.type`
+    is CHECK-constrained to success/info/warning/error/security, so `alert` is
+    not storable. The fix mapped freeze/heat/severe to
+    `model.NotificationTypeError` to preserve three distinct tiers rather than
+    collapsing them into `warning`. Confirm that is the wanted mapping; the
+    alternative (`warning` for all five non-rain alerts) is a one-line change.
+
+122. DONE (2026-08-21, verified rather than re-fixed): item 133's conversion
+    pass already covered this site. `src/server/middleware/audit.go` binds
+    `dbtime.FormatSQLTimestamp(now)` for `server_audit_log.timestamp`, with
+    a comment recording why. A sweep of all three writers of that column
+    found one remaining gap, fixed here: `logAdminPasskeyAudit` in
+    `src/server/handler/admin_passkey.go` omitted `timestamp` from its
+    column list entirely and relied on the column DEFAULT (item 129's exact
+    failure mode), so passkey audit rows were the one producer still able to
+    land in a foreign layout. It now names and binds the column. All three
+    producers of `server_audit_log.timestamp` write canonical UTC text.
+
+123. DONE (2026-08-21; `contact_submissions` plus its two indexes moved into
+    `ServerSchema` with the SQLite-only `strftime('%s','now')` epoch default
+    replaced by a portable `DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`, and
+    `ensureGraphQLContactSubmissionsTable` demoted to a presence check.
+    `ServerSchemaVersion` bumped 6 -> 7. Binding `created_at` explicitly at the
+    two insert sites is carved out to item 141):
+    `src/graphql/resolvers_helpers.go:839` -
+    `ensureGraphQLContactSubmissionsTable` runs `CREATE TABLE IF NOT EXISTS`
+    at request time from inside a resolver helper, and its `created_at
+    INTEGER NOT NULL DEFAULT (strftime('%s','now'))` default is SQLite-only.
+    Two issues: runtime DDL belongs in the central startup schema per PART 10
+    (same class as item 120), and the SQLite-only default breaks the
+    PostgreSQL/MySQL drivers the project supports. Read: AI.md PART 10.
+
+124. TODO (flagged 2026-08-21 by the session-expiry conversion):
+    `src/server/middleware/admin_auth_test.go:58` and `:156` still seed
+    fixtures with `CURRENT_TIMESTAMP` / `datetime(?, 'unixepoch')`. Harmless
+    today (both yield canonical text that parses fine) but inconsistent with
+    the `dbtime.FormatSQLTimestamp` convention the rest of the suite now
+    follows. Low priority. Read: AI.md PART 10.
+
+125. TODO (flagged 2026-08-21 by the CLI legacy-table fix): `adminRecoverySetup`
+    in `src/cli/maintenance.go` diverges from AI.md PART 22 - the spec says
+    `{project_name} --maintenance setup` clears the admin credentials and
+    prints a one-time setup token for re-authentication, leaving all user
+    data untouched. The implementation instead prompts for a new username and
+    password and writes them directly, which is a different (and weaker)
+    recovery model. Feature-level fix. Read: AI.md PART 22.
+
+126. TODO (flagged 2026-08-21 by the CLI legacy-table fix): the entire
+    `src/cli` package emits user-facing strings via raw `fmt.Println`/
+    `fmt.Printf` with no i18n helper, violating PART 31, which explicitly
+    covers CLI output. Same key-family dependency as items 116 and 118 - the
+    `errors.*`/`cli.*` families must land in all seven locale files first.
+    Read: AI.md PART 31.
+
+127. DONE (2026-08-21): item 87's original file list named
+    `src/server/setup.go`, which does not exist and never did - the real file
+    is `src/server/handler/setup.go`. A pass burned a full agent run looking
+    for the phantom path before establishing this. The reference in item 87
+    is corrected; recorded here so the same dead end is not walked again.
+
+128. DONE (2026-08-21). DECISION: keep the skew window; the finding's premise
+    was wrong. It does NOT widen the reported stats window - re-reading
+    `loadGraphQLRequestStats` in `src/graphql/resolvers_helpers.go`, the
+    15-hour margin bounds only the SQL SCAN, and every returned row is then
+    resolved to a real instant and re-bounded against `startOfDay` /
+    `lastMinuteStart` in Go. The three totals are exact no matter how far
+    back the prefilter reaches, so the margin costs a slightly larger scan
+    and buys nothing but safety. Removing it would actively regress
+    correctness for databases created before the timestamp normalization,
+    whose legacy local-zone rows would sort below a tight bound and vanish
+    from today's counts. The constant's comment now states this explicitly
+    so it is not "cleaned up" by a future pass.
+
+129. DONE (2026-08-21). DECISION: keep the `DEFAULT CURRENT_TIMESTAMP` in the
+    `CREATE TABLE` body, and require every writer to bind the column
+    explicitly. Rationale: AI.md PART 10's own example schema declares
+    exactly this default, so removing it would put the schema at odds with
+    the spec, and a NOT NULL column with no default turns a forgotten bind
+    into a hard insert failure at runtime rather than a wrong-but-working
+    row. The default's real risk is not the DDL, it is an INSERT that omits
+    the column - so the fix is at the call sites. All three writers of
+    `server_audit_log.timestamp` now name and bind it (see item 122, which
+    closed the last gap in `logAdminPasskeyAudit`), and the two
+    `contact_submissions` inserts are covered by item 141. The default is
+    now only a backstop that nothing in the codebase relies on. This
+    unblocks item 128.
+
+130. DONE (2026-08-21): `contains` and `findSubstring` are deleted from
+    `src/server/middleware/audit.go`; `getActionFromRequest` now calls
+    `strings.Contains`, and `getResourceFromPath`'s segment split uses
+    `strings.Cut`. The two references in
+    `src/server/middleware/access_log_test.go` (lines 48 and 98) that
+    depended on the deleted helper were converted in the same pass, with
+    `strings` added to that file's imports.
+
+131. DONE (2026-08-21): both `isAdminRoute` and `getResourceFromPath` now
+    take their prefixes from a shared `adminRoutePrefixes()` helper that
+    resolves `cfg.GetAdminPath()` through `config.LoadConfig()`, so the two
+    can never drift again. The magic lengths 20 and 13 are gone in favour of
+    `strings.HasPrefix`/`strings.TrimPrefix`; the API prefix is tested first
+    because it contains the web prefix as a suffix. Regression test
+    `TestGetResourceFromPath_ConfiguredAdminPathNotDefault` in
+    `audit_test.go` pins the behaviour under `admin_path: backoffice`,
+    mirroring the existing `TestIsAdminRoute_ConfiguredAdminPathNotDefault`
+    config fixture. Under the old code every admin action on a customized
+    admin path recorded the resource as `server`, making the audit trail
+    unable to distinguish one action from another.
+
+132. DONE (2026-08-21): the failed-insert branch now emits a `log.Printf`
+    carrying action, resource, actor type, actor id, client IP and the error,
+    replacing the `c.Error(err)` that nothing in this project ever read. The
+    request still succeeds - a broken audit table must not take the server
+    down - but the drop is no longer silent. Covered by
+    `TestAuditLogger_ReportsFailedWrite`, which runs the middleware against a
+    schemaless database and asserts both the 201 response and the presence of
+    the `audit:` log line.
+
+133. DONE (2026-08-21). RESOLVED: every non-schema `CURRENT_TIMESTAMP` write
+    site across all 26 listed files now binds `dbtime.FormatSQLTimestamp(
+    time.Now())` as a parameter. The model/middleware slice
+    (`src/server/model/{session,admin,admin_passkey,user,passkey}.go`,
+    `src/server/middleware/admin_auth.go`) also turned up three real
+    behavioural defects that were fixed with regression tests in
+    `src/server/model/user_timestamp_test.go`: `GetRowIDByToken` and
+    `GetActiveSessions` filtered `expires_at > ?` by lexicographic TEXT
+    comparison of two incompatible layouts, so a session stored in a
+    negative-offset rendering was rejected while still live and one stored in
+    a positive-offset rendering was accepted after expiry - both now decide
+    expiry in Go via `dbtime.IsAfter` and fail closed on unparseable values;
+    `GetActiveSessions` additionally sorted by `ORDER BY last_used_at DESC`
+    (text) and now sorts by parsed instant. The last four sites
+    (`src/scheduler/scheduler.go` blocklist and CVE upserts) were converted in
+    this pass. What remains under this heading is only `DEFAULT
+    CURRENT_TIMESTAMP` inside `CREATE TABLE` bodies (`src/database/*_schema.go`,
+    `src/cluster/cluster.go`, `src/scheduler/scheduler.go`), which AI.md PART
+    10's own example schema uses verbatim and which is therefore deliberate.
+
+147. TODO (found 2026-08-21 while closing item 133):
+    `src/scheduler/scheduler.go` writes `server_cve_alerts.published_at`
+    straight from the NVD API's `published` JSON string (RFC-3339-ish with
+    fractional seconds, e.g. `2024-01-15T10:30:00.000`), not canonical
+    `dbtime` text. Nothing in Go reads that column today, so it is latent
+    rather than broken - but it is the exact mixed-layout condition dbtime
+    exists to prevent, and the first consumer to sort or compare it will get
+    silently wrong results. Parse it best-effort and store
+    `dbtime.FormatSQLTimestamp` output, keeping the row (with a NULL
+    `published_at`) when the upstream value will not parse rather than
+    dropping the CVE alert. Read: AI.md PART 10.
+
+134. TODO (carved out of item 94): `src/server/template/admin/backup.tmpl` is
+    a dead duplicate. `admin_backup_enhanced.tmpl` is canonical - it is the
+    template actually rendered by the live `GET {admin}/config/backup` route
+    in `src/main.go`. `backup.tmpl` is reachable only through
+    `AdminBackupHandler` in `src/server/handler/admin_backup.go`, and all
+    four handlers in that file (`AdminBackupHandler`,
+    `AdminBackupCreateHandler`, `AdminBackupDownloadHandler`,
+    `AdminBackupDeleteHandler`) are registered nowhere outside their own file
+    and their test. The larger implication is that the create/download/delete
+    backup ACTIONS are unreachable from the live page, so PART 22 backup
+    management may be non-functional in the browser. Determine whether the
+    enhanced page has its own working action routes; if it does, delete
+    `backup.tmpl` and the four dead handlers outright (PART 0 forbids dead
+    parallel implementations). If it does not, wire the handlers up instead.
+    Read: AI.md PART 22, 17.
+
+135. TODO (flagged 2026-08-21 during the item 94 locale pass): the non-admin
+    templates under `src/server/template/page/**` and
+    `src/server/template/email/**` still contain zero `t` calls and hardcode
+    English. PART 31 is project-wide and explicitly covers email templates,
+    so this is the same violation item 94 fixed, just outside its
+    admin-only scope. Read: AI.md PART 31, 18.
+
+136. TODO (flagged 2026-08-21 during the item 94 locale pass):
+    `src/server/template/admin/admin_auth_settings.tmpl` carries
+    `onclick="addOIDCProvider()"`, an inline handler the CSP in PART 11
+    blocks outright - the button is dead in any browser enforcing the policy.
+    This is a concrete instance of item 52(e); move the handler into
+    `static/js/app.js` and bind it via `data-action` delegation. Read: AI.md
+    PART 16, 11.
+
+137. DONE (2026-08-21): `getPublicStats` in
+    `src/server/handler/health.go` now computes the 24-hour cutoff in Go with
+    `dbtime.FormatSQLTimestamp(time.Now().Add(-24 * time.Hour))` and binds it
+    as a parameter (`WHERE timestamp >= ?`), replacing
+    `datetime('now', '-24 hours')`. Every producer of
+    `server_audit_log.timestamp` now writes canonical fixed-width UTC text, so
+    a plain text comparison against a cutoff in the same layout orders
+    correctly - and unlike `datetime()`, it works unchanged on PostgreSQL and
+    MySQL. Counting in SQL rather than reducing in Go was chosen deliberately
+    here: the audit log is the largest table in the server database and
+    streaming every row into the process on a public health request would be a
+    trivially reachable memory-pressure lever. A follow-up grep confirmed this
+    was the last live `datetime('now'` site outside comments; no
+    `julianday(` sites exist.
+
+138. TODO (flagged 2026-08-21 by the timestamp conversion agents): several
+    test fixtures build their "wrong zone" timestamps with
+    `time.FixedZone("EST13", ...)` (or `"FARWEST"`/`"FAREAST"`). Formatted
+    through a layout carrying the `MST` element, those produce text that
+    `time.Parse` cannot read - it consumes only the letters and chokes on the
+    trailing digits, and it rejects names longer than six characters - so
+    every such fixture is silently exercising the unparseable fail-closed
+    path instead of the instant-comparison path it was written to test. Three
+    files were already renamed to `"EAST"`
+    (`src/server/service/weather_notifications_test.go`,
+    `src/graphql/graphql_test.go`, `src/graphql/schema.resolvers_test.go`);
+    the same defect remains in `src/server/model/admin_timestamp_test.go`,
+    `src/server/middleware/admin_auth_test.go`,
+    `src/server/handler/auth_test.go`, `src/scheduler/scheduler_test.go`,
+    `src/common/dbtime/dbtime_test.go`, and `src/cluster/cluster_test.go`.
+    Rename to 3-5 uppercase letters, and re-check each affected assertion:
+    a case that "passed" while inert may assert the wrong outcome once the
+    fixture starts parsing. Read: AI.md PART 29.
+
+139. TODO (flagged 2026-08-21 by the scheduler schema fix):
+    `src/scheduler/task_history.go:76` - `RecordTaskRun` binds `startTime` and
+    `endTime` as raw `time.Time`, so the driver renders them in the host's
+    local zone, and `GetTaskHistory`/`GetLastTaskRun` then
+    `ORDER BY start_time DESC` in SQL. That is the mixed-layout ordering bug:
+    the history list is sorted by wall-clock text, so entries written under a
+    different offset interleave wrongly and `GetLastTaskRun` can return a run
+    that is not the most recent. Bind both columns with
+    `dbtime.FormatSQLTimestamp` and re-check the ordering once the on-disk
+    layout is uniform. Read: AI.md PART 19, 10.
+
+140. TODO (flagged 2026-08-21 by the graphql timestamp conversion): roughly
+    eight `ORDER BY created_at DESC` / `timestamp DESC` clauses in
+    `src/graphql/schema.resolvers.go` sort mixed on-disk layouts
+    lexicographically rather than by instant. The one paired with `LIMIT 50`
+    is the sharpest: it can return the wrong rows entirely, not merely in the
+    wrong order. Sorting is a different class from filtering and changing it
+    reshapes pagination, so this needs a deliberate decision - either
+    normalize every producer first (items 133/139) and keep SQL ordering, or
+    move the sort into Go. Read: AI.md PART 14, 10.
+
+141. TODO (flagged 2026-08-21 by the scheduler schema fix): the two
+    `contact_submissions` inserts - `src/graphql/schema.resolvers.go:1666` and
+    `src/server/handler/server_pages.go:377` - omit `created_at` and rely on
+    the column's `DEFAULT CURRENT_TIMESTAMP`, which is a third implicit
+    producer no application-side discipline reaches (same class as item 129).
+    Bind the value explicitly with `dbtime.FormatSQLTimestamp`. Read: AI.md
+    PART 10.
+
+142. TODO (flagged 2026-08-21 by the graphql timestamp conversion):
+    `GetRecentErrors` in `src/server/service/notification_metrics.go` scans
+    `created_at` into a plain `string` and hands the raw stored text straight
+    to API consumers, so whatever layout happened to be on disk leaks outward
+    and the API emits inconsistent timestamp formats. Parse with
+    `dbtime.ParseStoredTimestamp` and emit one canonical form. Read: AI.md
+    PART 14, 10.
+
+143. DONE (2026-08-21). RESOLVED: the handler was the side that had to change,
+    since PART 11 requires tokens to be stored SHA-256 hashed. Three call
+    sites in `src/server/handler/auth_api.go` now use
+    `models.HashAPIToken(...)`: `VerifyAPIUserEmail`'s lookup,
+    `ResetAPIUserPassword`'s lookup, and - the security half of the finding -
+    `RequestAPIUserPasswordReset`'s INSERT, which had been persisting the
+    password-reset token in PLAINTEXT, so read access to `users.db` was
+    equivalent to the ability to take over any account. Two defects were
+    fixed at once: email verification was outright non-functional (the model
+    is the only writer of `user_email_verifications`, so no emailed link
+    could ever be redeemed), and password reset worked only because the
+    handler was both writer and reader of its own unhashed rows, which meant
+    a reset issued through `UserPasswordResetModel.CreateReset` was equally
+    unredeemable. Regression test `TestTokenHashingRoundTrip` in
+    `src/server/handler/auth_api_test.go` drives both flows model-writes ->
+    handler-reads end to end and asserts the stored column is never equal to
+    the issued token. The three fixtures in that file that previously seeded
+    raw tokens now seed `models.HashAPIToken(...)` to match production.
+    A closing sweep of every non-test `WHERE token = ?` / `token_hash = ?`
+    site found one more instance of the same break outside the handler
+    package: `lookupEmailVerification` in `src/main.go`, which backs the
+    browser route `GET /server/auth/verify/:code`, bound the raw code from
+    the URL. That is the only user-facing email-verification path a browser
+    ever reaches, and it could never match a row. It now hashes with
+    `model.HashAPIToken(token)`, and the fixtures in
+    `src/main_timestamp_test.go` seed the hashed token so they exercise the
+    shipped column contents instead of the bug. All remaining `token_hash`
+    lookups were confirmed to bind a hash (`hashToken`, `hashUserToken`, or
+    a caller-computed `tokenHash`); `src/server/model/admin.go:799,842`
+    were already correct.
+
+144. DONE (2026-08-21, verified rather than re-fixed): the finding was
+    already resolved in the same conversion pass that reported it.
+    `getOrCreatePreferences` in `src/server/handler/user_settings.go` now
+    selects exactly the twelve columns `database.UsersSchema` declares for
+    `user_preferences` (`user_id` through `updated_at`, no `id`), and the
+    model's `ID` field is filled from `userID` afterwards since the table's
+    primary key IS `user_id`. Column list confirmed against the schema
+    constant column by column.
+
+145. DONE (2026-08-21, fixed immediately rather than deferred - it is a
+    stored-XSS hole, not a style nit): `image/svg+xml` is removed from the
+    avatar upload allowlist in `src/server/handler/user_public.go`, so an
+    uploaded SVG now hits the existing "invalid image type" rejection. An
+    uploaded SVG is served from our own origin, and SVG is an XML document
+    that can carry `<script>`, event handlers and external references - it
+    was stored XSS against every viewer of that profile. The now-unreachable
+    `image/svg+xml` case was also dropped from `getExtension`, and the two
+    icon MIME types were given a real `ico` case (they were silently stored
+    under a `.png` name that misdescribed their contents). The external-URL
+    avatar path in `updateCurrentUserAvatar` additionally rejects a URL whose
+    path ends in `.svg`, query string stripped first; that one is explicitly
+    best-effort, since the URL is never fetched and the extension is the only
+    signal available.
+
+146. DONE (2026-08-21). RESOLVED: all three hand-rolled
+    `CREATE TABLE IF NOT EXISTS` blocks in
+    `src/server/handler/auth_api_test.go` (two for
+    `user_email_verifications`, one for `user_password_resets`) are deleted.
+    `newAuthAPITestHandler` builds its users handle through
+    `newTestUsersDB`, which executes `database.UsersSchema` verbatim, so the
+    real schema is now the only definition those fixtures see. The
+    divergence was already material and not merely hypothetical: the
+    hand-rolled copies declared `token TEXT NOT NULL` where the live schema
+    declares `token TEXT UNIQUE NOT NULL`, and omitted `created_at`,
+    `used_at` and the `ON DELETE CASCADE` foreign key entirely. A comment at
+    the first site records why a fixture must never redeclare a production
+    table. Verified by grep: no `CREATE TABLE` statement remains anywhere in
+    `src/server/handler/*_test.go` (the two surviving matches are comments
+    explaining this same rule).

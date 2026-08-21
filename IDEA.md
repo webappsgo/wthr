@@ -353,9 +353,9 @@ text for CLI/curl, JSON on request).
 - `PUT /api/v1/users/locations/:id/alerts` — Configure per-location alerts
 
 **System & discovery:**
-- `GET /healthz` / `GET /health` / `GET /health/ready` / `GET /health/full`
+- `GET /server/healthz` / `GET /health` / `GET /health/ready` / `GET /health/full`
   — Liveness/readiness/full status (content-negotiated)
-- `GET /api/v1/healthz` — Health check (JSON)
+- `GET /api/v1/server/healthz` — Health check (JSON, unversioned alias `/api/healthz`)
 - `GET /metrics` — Prometheus metrics (internal only)
 - `GET /graphql` (+ `POST /graphql`) — GraphQL endpoint
 - `GET /docs` / `GET /openapi` / `GET /openapi.json` — OpenAPI documentation

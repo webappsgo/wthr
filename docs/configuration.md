@@ -148,8 +148,8 @@ Weather separates configuration, data, and logs:
 Docker deployments typically mount:
 
 ```bash
--v ./rootfs/config:/config:z
--v ./rootfs/data:/data:z
+-v ./volumes/config:/config:z
+-v ./volumes/data:/data:z
 ```
 
 ## Language and Theme

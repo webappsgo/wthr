@@ -146,7 +146,7 @@ make test
 ./tests/test-server.sh
 
 # In another terminal, test endpoints:
-curl -q -LSsf http://localhost:3053/healthz
+curl -q -LSsf http://localhost:3053/server/healthz
 curl -q -LSsf "http://localhost:3053/api/v1/weather?lat=40.7128&lon=-74.0060"
 curl -q -LSsf "http://localhost:3053/api/v1/weather?city_id=5128581"
 curl -q -LSsf "http://localhost:3053/api/v1/weather?lat=40.7128&lon=-74.0060&nearest=true"

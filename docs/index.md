@@ -24,8 +24,8 @@ Weather Service is a production-grade weather API providing global weather forec
     docker run -d \
       --name wthr \
       -p 64580:80 \
-      -v ./rootfs/config:/config:z \
-      -v ./rootfs/data:/data:z \
+      -v ./volumes/config:/config:z \
+      -v ./volumes/data:/data:z \
       ghcr.io/webappsgo/wthr:latest
     ```
 
@@ -50,8 +50,8 @@ Weather Service is a production-grade weather API providing global weather forec
         ports:
           - "64580:80"
         volumes:
-          - ./rootfs/config:/config:z
-          - ./rootfs/data:/data:z
+          - ./volumes/config:/config:z
+          - ./volumes/data:/data:z
         restart: unless-stopped
     ```
 
