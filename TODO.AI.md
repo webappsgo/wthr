@@ -2648,6 +2648,45 @@ any of the above: `src/graphql/context_keys_test.go`,
     Either use the field or drop it from the struct and the constructor
     signature. Same class as item 40, which covers the model structs. Read:
     AI.md PART 10.
+    DONE (2026-08-21). RESOLVED by using the field rather than dropping it:
+    each service gained one private accessor (`serverDB()` / `usersDB()`)
+    that returns the injected handle when non-nil and falls back to the
+    process-global accessor otherwise, documented in its doc-comment.
+    Constructor signatures are unchanged. All 15 server.db sites in
+    `delivery_system.go`, all 3 in `smtp.go` and all 8 users.db sites in
+    `weather_notifications.go` now route through it. Two sites in
+    `delivery_system.go` deliberately keep `database.GetUsersDB()` - they are
+    genuine cross-database reads (`user_notification_channel_preferences`,
+    `user_accounts`) that the injected server handle cannot serve; each
+    carries a comment naming the database and why.
+    Every table each service touches was inventoried against
+    `database.ServerSchema`/`UsersSchema`; none was orphaned from both.
+    Anti-regression tests wire the process-global handle to a SECOND,
+    different database seeded with contradicting values, so ignoring the
+    injected field again fails the test rather than passing by luck:
+    `TestDeliverySystem_UsesInjectedServerDB`,
+    `TestSMTPService_UsesInjectedServerDB`,
+    `TestWeatherNotifications_UsesInjectedUsersDB`, plus three
+    `*_NilInjectedDBFallsBackToGlobal` companions pinning the documented
+    fallback. Both databases in each test are built from the real schema
+    constants verbatim. The 12 `NewWeatherNotificationService` calls in
+    `weather_notifications_test.go` were switched from the server handle to
+    the users handle, which is what that service actually reads.
+    An APP-BREAKING call site this exposed was fixed immediately:
+    `src/server/handler/auth_api.go:598` built its SMTP service from the
+    `db` in scope, which is the USERS handle for every caller
+    (`schema.resolvers.go` passes `r.UsersDB`, `auth_api.go:1117` passes
+    `h.DB`, and the same handle writes the `user_password_resets` row just
+    above). The SMTP service reads `server_config` and
+    `server_notification_channels`, both `ServerSchema` tables, so it was
+    looking for its configuration in the wrong database and finding no SMTP
+    settings - no password-reset email could be sent. It now takes
+    `database.GetServerDB()`, with a comment recording why. The other two
+    call sites the sweep flagged were verified correct and left alone:
+    `src/main.go:774` passes `dualDB.Users` to
+    `NewWeatherNotificationService`, whose tables are all in `UsersSchema`,
+    and `notification_channels.go:28` is only ever called with
+    `dualDB.Server`.
 
 107. DONE (2026-08-21; flagged by a repo-wide sweep for SQL-side time
     comparisons): three session-validity checks still compare timestamps in
@@ -2997,6 +3036,33 @@ any of the above: `src/graphql/context_keys_test.go`,
     `dbtime.FormatSQLTimestamp` output, keeping the row (with a NULL
     `published_at`) when the upstream value will not parse rather than
     dropping the CVE alert. Read: AI.md PART 10.
+    DONE (2026-08-21). RESOLVED as specified: `parseNVDPublished` accepts the
+    documented millisecond form, the second-precision form and RFC 3339,
+    normalizes to UTC and is stored via `dbtime.FormatSQLTimestamp`; an
+    unreadable value is bound as a nil `interface{}` (SQL NULL) and logged at
+    WARN, and the CVE row is still written. `published_at = excluded.published_at`
+    was added to the upsert, which had silently never updated the column.
+    `TestParseNVDPublished` in `src/scheduler/scheduler_test.go` covers all
+    three layouts, offset normalization, and the error path.
+    TWO APP-BREAKING BUGS were found in the same function and fixed
+    immediately rather than deferred, since `UpdateCVEDatabase` could not
+    have worked at all:
+    (a) the task created `server_cve_alerts` itself at task time, and the
+    statement named a column `references` - a reserved word that is a hard
+    syntax error as a bare identifier (verified directly against SQLite). The
+    task therefore aborted at its first statement on every run where CVE
+    monitoring was enabled, and no CVE was ever stored. The table now lives
+    in `database.ServerSchema` (column renamed `reference_urls`, plus
+    severity/published/acknowledged indexes, `NOT NULL` on the defaulted
+    columns), `ServerSchemaVersion` is bumped 7 -> 8, and the task-time DDL is
+    replaced with the same presence check used in items 123 and 148.
+    (b) the NVD response was decoded with `cve.descriptions` modelled as an
+    object wrapping a `description_data` array - the shape of the retired 1.0
+    feed. API 2.0 returns a bare `[{lang, value}]` array, so the field never
+    bound and every stored CVE would have had an empty description. The
+    struct now matches the 2.0 shape.
+    Nothing else in the repo references `server_cve_alerts`, so no reader
+    needed updating alongside the rename.
 
 134. TODO (carved out of item 94): `src/server/template/admin/backup.tmpl` is
     a dead duplicate. `admin_backup_enhanced.tmpl` is canonical - it is the
@@ -3062,17 +3128,51 @@ any of the above: `src/graphql/context_keys_test.go`,
     Rename to 3-5 uppercase letters, and re-check each affected assertion:
     a case that "passed" while inert may assert the wrong outcome once the
     fixture starts parsing. Read: AI.md PART 29.
+    DONE (2026-08-21): every remaining fixture renamed - `WST`/`EAT`/`EAST`
+    across `src/server/model/admin_timestamp_test.go`,
+    `src/server/middleware/admin_auth_test.go`,
+    `src/server/handler/auth_test.go`, `src/common/dbtime/dbtime_test.go`,
+    `src/cluster/cluster_test.go` and `src/scheduler/scheduler_test.go`
+    (`EST13` -> `EAST`). No expected value had to change anywhere: every
+    previously-inert case already asserted the outcome instant comparison
+    produces, so they now exercise that path instead of the fail-closed one.
+    The naming rule is recorded in a comment at each site - `time.Parse`'s
+    `MST` element accepts only 3-5 uppercase letters (5 must end in `T`), so
+    a digit or a sixth letter makes the whole value unparseable.
+    Verified by grep: the only surviving `FixedZone` name outside that set is
+    `src/database/schema_test.go`'s `"fixture"`, which is formatted with a
+    numeric-offset-only layout carrying no `MST` element and is therefore
+    parseable as written.
 
-139. TODO (flagged 2026-08-21 by the scheduler schema fix):
-    `src/scheduler/task_history.go:76` - `RecordTaskRun` binds `startTime` and
-    `endTime` as raw `time.Time`, so the driver renders them in the host's
-    local zone, and `GetTaskHistory`/`GetLastTaskRun` then
-    `ORDER BY start_time DESC` in SQL. That is the mixed-layout ordering bug:
-    the history list is sorted by wall-clock text, so entries written under a
-    different offset interleave wrongly and `GetLastTaskRun` can return a run
-    that is not the most recent. Bind both columns with
-    `dbtime.FormatSQLTimestamp` and re-check the ordering once the on-disk
-    layout is uniform. Read: AI.md PART 19, 10.
+139. DONE (2026-08-21). RESOLVED: `RecordTaskRun` in
+    `src/scheduler/task_history.go` now binds
+    `dbtime.FormatSQLTimestamp(startTime)`/`(endTime)` instead of raw
+    `time.Time` values the driver rendered through `time.Time.String()` in
+    the host's local zone.
+    DECISION on ordering: sort in Go, not SQL. Fixing the writer cannot fix
+    ordering while rows written by earlier builds remain on disk in the old
+    local-zone layout - SQL compares the two encodings as text, by wall clock
+    and leading character rather than by instant, so a text `ORDER BY`
+    interleaves legacy and current rows wrongly and an SQL `LIMIT` stacked on
+    it discards rows off the wrong end. That is exactly how `GetLastTaskRun`
+    could return a run that was not the newest. New
+    `loadTaskRunsNewestFirst` selects the task's rows (`ORDER BY id DESC` as
+    a tie-break only), resolves both timestamps with
+    `dbtime.ParseStoredTimestamp`, sorts by true instant with
+    `sort.SliceStable` and applies the limit in Go; `GetTaskHistory` and
+    `GetLastTaskRun` are thin wrappers on it. Rows with a NULL or unparseable
+    `start_time` keep the zero value, so they sort last and can never be
+    reported as newest, but are still listed rather than silently hidden.
+    Scan volume stays bounded - filtered to one task by index, and the table
+    is pruned on a schedule.
+    Regressions in `src/scheduler/task_history_test.go`, all seeded through
+    the real `database.ServerSchema` table:
+    `TestRecordTaskRun_WritesCanonicalTimestamps` (asserts the stored text is
+    the UTC rendering for a run built in +13:00),
+    `TestTaskHistoryOrderingAcrossStoredLayouts` (a true-newest row stored at
+    -11:00 that text-sorts older than a 10h-older row stored at +13:00, plus
+    an unparseable row) and `TestGetAllTaskInfoUsesTrueLastRun`. All three
+    fail under the old SQL text ordering.
 
 140. TODO (flagged 2026-08-21 by the graphql timestamp conversion): roughly
     eight `ORDER BY created_at DESC` / `timestamp DESC` clauses in
@@ -3084,21 +3184,31 @@ any of the above: `src/graphql/context_keys_test.go`,
     normalize every producer first (items 133/139) and keep SQL ordering, or
     move the sort into Go. Read: AI.md PART 14, 10.
 
-141. TODO (flagged 2026-08-21 by the scheduler schema fix): the two
-    `contact_submissions` inserts - `src/graphql/schema.resolvers.go:1666` and
-    `src/server/handler/server_pages.go:377` - omit `created_at` and rely on
-    the column's `DEFAULT CURRENT_TIMESTAMP`, which is a third implicit
-    producer no application-side discipline reaches (same class as item 129).
-    Bind the value explicitly with `dbtime.FormatSQLTimestamp`. Read: AI.md
-    PART 10.
+141. DONE (2026-08-21): both `contact_submissions` inserts now name
+    `created_at` and bind `dbtime.FormatSQLTimestamp(time.Now())` -
+    `SubmitContactForm` in `src/graphql/schema.resolvers.go` and
+    `saveContactToDB` in `src/server/handler/server_pages.go`. Neither
+    relies on the column default any longer; the `DEFAULT CURRENT_TIMESTAMP`
+    in the `CREATE TABLE` body stays as a backstop nothing reaches (see the
+    decision recorded in item 129). A residual contradiction found in the
+    same pass is carved out to item 148.
 
-142. TODO (flagged 2026-08-21 by the graphql timestamp conversion):
-    `GetRecentErrors` in `src/server/service/notification_metrics.go` scans
-    `created_at` into a plain `string` and hands the raw stored text straight
-    to API consumers, so whatever layout happened to be on disk leaks outward
-    and the API emits inconsistent timestamp formats. Parse with
-    `dbtime.ParseStoredTimestamp` and emit one canonical form. Read: AI.md
-    PART 14, 10.
+142. DONE (2026-08-21): `GetRecentErrors` in
+    `src/server/service/notification_metrics.go` no longer scans `created_at`
+    into a plain `string` and hands the raw stored text outward. It scans
+    into `interface{}`, resolves the value with `dbtime.ParseStoredTimestamp`
+    and emits one canonical form - RFC 3339 UTC, chosen because the value
+    crosses an API boundary and PART 14 requires existing standards rather
+    than an ad-hoc format. An unparseable or NULL value yields an empty
+    string rather than leaking the raw text or dropping the row: the error
+    message is the point of the endpoint, and the field keeps a stable type
+    for consumers. Documented in a comment above the code. Regression test
+    `TestNotificationMetrics_GetRecentErrors_CanonicalTimestamps` seeds three
+    rows in three different on-disk layouts (canonical UTC, a legacy
+    local-zone value at a fixed +13:00 offset, and `"not-a-timestamp"`) and
+    asserts every returned timestamp is RFC 3339 UTC and re-parses cleanly.
+    Assertions key on `subject` rather than result order, since the query's
+    `ORDER BY updated_at DESC` sorts mixed-layout text unreliably by design.
 
 143. DONE (2026-08-21). RESOLVED: the handler was the side that had to change,
     since PART 11 requires tokens to be stored SHA-256 hashed. Three call
@@ -3170,3 +3280,35 @@ any of the above: `src/graphql/context_keys_test.go`,
     table. Verified by grep: no `CREATE TABLE` statement remains anywhere in
     `src/server/handler/*_test.go` (the two surviving matches are comments
     explaining this same rule).
+
+148. DONE (2026-08-21, fixed in the same session it was flagged).
+    FINDING: `saveContactToDB` in `src/server/handler/server_pages.go` still
+    runs its own request-time `CREATE TABLE IF NOT EXISTS
+    contact_submissions`, and the definition it would create declares
+    `created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))`. That
+    contradicts `database.ServerSchema`, which declares the same column as
+    `DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP` and whose comment states
+    the strftime epoch form was deliberately removed. On any deployment
+    where the handler's DDL wins the race, the column holds integers while
+    every reader and both writers now assume canonical UTC text. The GraphQL
+    side of this exact problem was already resolved by item 123, which
+    demoted its copy to a presence check (`ensureGraphQLContactSubmissionsTable`,
+    covered by tests in `resolvers_helpers_test.go`); the handler side was
+    never migrated. RESOLVED: the request-time `CREATE TABLE` is deleted and
+    replaced with the same presence check the GraphQL side uses -
+    `SELECT COUNT(*) FROM contact_submissions WHERE 1 = 0` at
+    `database.TimeoutSimpleSelect` - so a database missing the schema still
+    fails with a named error instead of a bare "no such table", but the
+    handler can no longer create a table that disagrees with
+    `database.ServerSchema`. A comment above the check records why a
+    request-time redefinition is never acceptable. The five-minute
+    `database.TimeoutMigration` this path spent per submission is gone with
+    it; that constant is no longer referenced from this file. Regression test
+    `TestSaveContactToDBMissingSchema` in
+    `src/server/handler/server_pages_test.go` drives the handler against a
+    database that never had `ServerSchema` applied and asserts both halves of
+    the contract: the returned error names `contact_submissions`, and
+    `sqlite_master` still has no such table afterwards. The existing
+    `TestHandleContactFormSubmission` success case already ran against a
+    fixture built from `database.ServerSchema`, so it needed no change and
+    now exercises the presence check for real.
