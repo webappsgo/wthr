@@ -108,7 +108,7 @@
           <div class="modal modal-${size}">
             <div class="modal-header">
               <h3 class="modal-title">${title}</h3>
-              ${closeable ? `<button class="modal-close" onclick="Modal.close('${modalId}')">&times;</button>` : ''}
+              ${closeable ? `<button class="modal-close" data-action="modal-close" aria-label="Close">&times;</button>` : ''}
             </div>
             <div class="modal-body">
               ${body}
@@ -226,7 +226,7 @@
             ${title ? `<div class="toast-title">${title}</div>` : ''}
             <div class="toast-message">${message}</div>
           </div>
-          ${dismissible ? '<button class="toast-close" onclick="Toast.dismiss(\'' + toastId + '\')">&times;</button>' : ''}
+          ${dismissible ? '<button class="toast-close" data-action="toast-dismiss" aria-label="Dismiss">&times;</button>' : ''}
         </div>
       `;
 
@@ -304,7 +304,7 @@
             ${title ? `<div class="alert-title">${title}</div>` : ''}
             <div class="alert-message">${message}</div>
           </div>
-          ${dismissible ? '<button class="alert-close" onclick="Alert.dismiss(\'' + alertId + '\')">&times;</button>' : ''}
+          ${dismissible ? '<button class="alert-close" data-action="alert-dismiss" aria-label="Dismiss">&times;</button>' : ''}
         </div>
       `;
 
@@ -779,11 +779,11 @@
    */
   window.showAlert = function(message, title = 'Alert') {
     return new Promise((resolve) => {
-      const modalId = Modal.create({
+      Modal.create({
         title: title,
         body: `<p class="modal-body-text">${message}</p>`,
         footer: `
-          <button class="btn btn-primary" onclick="Modal.close('${modalId}'); window._alertResolve();">
+          <button class="btn btn-primary" data-action="dialog-alert-ok">
             OK
           </button>
         `,
@@ -799,14 +799,14 @@
    */
   window.showConfirm = function(message, title = 'Confirm') {
     return new Promise((resolve) => {
-      const modalId = Modal.create({
+      Modal.create({
         title: title,
         body: `<p class="modal-body-text">${message}</p>`,
         footer: `
-          <button class="btn btn-secondary" onclick="Modal.close('${modalId}'); window._confirmResolve(false);">
+          <button class="btn btn-secondary" data-action="dialog-confirm-cancel">
             Cancel
           </button>
-          <button class="btn btn-primary" onclick="Modal.close('${modalId}'); window._confirmResolve(true);">
+          <button class="btn btn-primary" data-action="dialog-confirm-ok">
             OK
           </button>
         `,
@@ -831,14 +831,10 @@
                  placeholder="Enter value...">
         `,
         footer: `
-          <button class="btn btn-secondary" onclick="Modal.close('${modalId}'); window._promptResolve(null);">
+          <button class="btn btn-secondary" data-action="dialog-prompt-cancel">
             Cancel
           </button>
-          <button class="btn btn-primary" onclick="
-            const value = document.getElementById('${inputId}').value;
-            Modal.close('${modalId}');
-            window._promptResolve(value);
-          ">
+          <button class="btn btn-primary" data-action="dialog-prompt-ok" data-input-id="${inputId}">
             OK
           </button>
         `,
@@ -995,6 +991,54 @@
         case 'remove-oidc-provider':
           AdminAuthSettings.removeOIDCProvider(btn);
           break;
+        case 'modal-close':
+        case 'modal-cancel': {
+          const overlay = btn.closest('.modal-overlay');
+          if (overlay) Modal.close(overlay.id);
+          break;
+        }
+        case 'toast-dismiss': {
+          const toast = btn.closest('.toast');
+          if (toast) Toast.dismiss(toast.id);
+          break;
+        }
+        case 'alert-dismiss': {
+          const alertEl = btn.closest('.alert');
+          if (alertEl) Alert.dismiss(alertEl.id);
+          break;
+        }
+        case 'dialog-alert-ok': {
+          const overlay = btn.closest('.modal-overlay');
+          if (overlay) Modal.close(overlay.id);
+          if (window._alertResolve) window._alertResolve();
+          break;
+        }
+        case 'dialog-confirm-cancel': {
+          const overlay = btn.closest('.modal-overlay');
+          if (overlay) Modal.close(overlay.id);
+          if (window._confirmResolve) window._confirmResolve(false);
+          break;
+        }
+        case 'dialog-confirm-ok': {
+          const overlay = btn.closest('.modal-overlay');
+          if (overlay) Modal.close(overlay.id);
+          if (window._confirmResolve) window._confirmResolve(true);
+          break;
+        }
+        case 'dialog-prompt-cancel': {
+          const overlay = btn.closest('.modal-overlay');
+          if (overlay) Modal.close(overlay.id);
+          if (window._promptResolve) window._promptResolve(null);
+          break;
+        }
+        case 'dialog-prompt-ok': {
+          const overlay = btn.closest('.modal-overlay');
+          const input = document.getElementById(btn.dataset.inputId);
+          const value = input ? input.value : null;
+          if (overlay) Modal.close(overlay.id);
+          if (window._promptResolve) window._promptResolve(value);
+          break;
+        }
       }
     });
   });
@@ -1009,7 +1053,7 @@
       title: 'Confirm Action',
       body: `<p class="modal-body-text">${message}</p>`,
       footer: `
-        <button class="btn btn-secondary" onclick="Modal.close(this.closest('.modal-overlay').id)">Cancel</button>
+        <button class="btn btn-secondary" data-action="modal-cancel">Cancel</button>
         <button class="btn btn-danger" id="confirmActionBtn">Confirm</button>
       `,
       size: 'sm',

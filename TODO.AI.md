@@ -3097,15 +3097,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     Passkeys) may not currently persist changes via the browser. See items
     156 and 157 below.
 
-156. TODO: `src/server/middleware/security_headers.go`'s CSP `script-src`
-    directive includes `'unsafe-inline'` and `https://unpkg.com`, violating
-    PART 11's "CSP default `script-src 'self'` (no inline)" rule. Multiple
-    call sites currently rely on this laxity (dynamically-built
-    `onclick="Modal.close(...)"` strings in `app.js`'s `showAlert`/
-    `showConfirm`/`showPrompt`, and an inline `<script>` block in
-    `admin_backup_enhanced.tmpl`) and must be converted to `data-action`
-    delegation / external script before `'unsafe-inline'` and the CDN
-    source can be removed. Read: AI.md PART 11, 16.
+156. PARTIALLY DONE (2026-08-22): `src/server/middleware/security_headers.go`'s
+    CSP `script-src` directive still includes `'unsafe-inline'` and
+    `https://unpkg.com`, violating PART 11's "CSP default `script-src 'self'`
+    (no inline)" rule. Fixed so far: all 9 inline `onclick="..."` handlers in
+    `src/server/static/js/app.js` (the `Modal`/`Toast`/`Alert` close buttons,
+    `showAlert`/`showConfirm`/`showPrompt`'s footer buttons, and
+    `window.confirmAction`'s Cancel button) converted to `data-action`
+    delegation via the existing `document.addEventListener('click', ...)`
+    switch (same pattern as `AdminAuthSettings`) - new actions: `modal-close`,
+    `modal-cancel`, `toast-dismiss`, `alert-dismiss`, `dialog-alert-ok`,
+    `dialog-confirm-cancel`, `dialog-confirm-ok`, `dialog-prompt-cancel`,
+    `dialog-prompt-ok`. Verified zero `onclick=` remain in app.js
+    (`grep -c onclick= app.js` -> 0) and the file still parses
+    (`node --check` inside `node:alpine`, no host Node used). NOT fixed, and
+    much larger than this item's original text implied: `grep -rn onclick=
+    src/server/template/` shows 152 more `onclick=` occurrences across 27
+    `.tmpl` files, and `grep -rl '<script>' src/server/template/` shows 54
+    templates with inline `<script>` blocks (not just
+    `admin_backup_enhanced.tmpl` as originally cited) - most of those inline
+    scripts interpolate server-side template data (`{{t $lang "..."}}`,
+    `{{.admin_api_path}}`, etc.) directly into JS, so moving them to external
+    static files requires a data-passing mechanism first (e.g. `data-*`
+    attributes or a `<script type="application/json">` payload read by
+    `app.js`) - this is a large, separate refactor, tracked as new item 163.
+    The CSP header itself (`'unsafe-inline'`, `https://unpkg.com` removal) is
+    NOT changed yet - it still must stay until item 163's template-level work
+    is done, since 152+ sites and 54 files still depend on it. Read: AI.md
+    PART 11, 16.
 
 158. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
     pass): `src/client/version.go` declares `GitCommit` but the shared
@@ -3572,3 +3591,56 @@ any of the above: `src/graphql/context_keys_test.go`,
     Needs a `Makefile` target (or a `go test` in `src/common/i18n/`) that
     loads all 7 locale files and fails on any key-set mismatch. Read:
     AI.md PART 31.
+
+163. TODO (flagged 2026-08-22 while working item 156): 152 `onclick=`
+    occurrences remain across 27 files under `src/server/template/`, and 54
+    templates embed inline `<script>` blocks (`grep -rl '<script>'
+    src/server/template/`), most interpolating server-side data
+    (`{{t $lang "..."}}`, `{{.admin_api_path}}`, etc.) directly into the
+    script body. This blocks removing `'unsafe-inline'`/`https://unpkg.com`
+    from the CSP `script-src` directive (item 156). Needs: (a) convert every
+    template-level `onclick=` to `data-action` delegation in `app.js`
+    following the pattern already used for `AdminAuthSettings` and the
+    9 sites fixed in item 156; (b) for inline `<script>` blocks that need
+    server-rendered data, adopt a data-passing convention (e.g. a
+    `<script type="application/json" id="...">` payload or `data-*`
+    attributes on a container element) so the JS logic itself can move to
+    `static/js/`, since CSP nonces/hashes are not an option once external
+    JS also needs the translated strings; (c) only after (a) and (b) cover
+    every remaining site, tighten the CSP header. This is large and touches
+    most of the admin panel and several public pages - treat as its own
+    scoped pass, not a quick fix. Read: AI.md PART 11, 16, 31.
+
+164. TODO (flagged 2026-08-22 while working item 156): `src/middleware/
+    security.go` defines a second, separate `SecurityHeaders(sslEnabled
+    bool) gin.HandlerFunc` in package `src/middleware`, distinct from the
+    live one in `src/server/middleware/security_headers.go`. `main.go`
+    only imports `"github.com/webappsgo/wthr/src/server/middleware"`
+    (confirmed via `grep -n '"wthr\|/middleware"' src/main.go`) - the
+    `src/middleware/security.go` copy is never wired up and appears to be
+    dead code left over from an earlier refactor. Needs a decision: delete
+    it, or confirm it's still needed for something not yet found. Read:
+    AI.md PART 11.
+
+165. TODO (flagged 2026-08-22 while working item 156, needs a user
+    decision before any code changes - architectural divergence, not a
+    quick fix): `grep -rln 'gin-gonic/gin' src --include=*.go | wc -l`
+    shows 139 Go files importing `gin-gonic/gin` project-wide, while
+    `grep -rln 'go-chi/chi/v5' src --include=*.go` returns zero files.
+    AI.md's project-rules.md "Required pure-Go libraries" list explicitly
+    names `go-chi/chi/v5` as the mandated router, not gin. This is a
+    pre-existing, project-wide architectural choice made before this
+    backlog was tracked, not something to silently rewrite - ask the user
+    whether to (a) migrate the whole router layer to chi (large, invasive,
+    touches every handler registration), or (b) treat gin as an
+    intentional, accepted project-specific override and update SPEC.md (or
+    equivalent) to document the exception. Do not start (a) without
+    explicit confirmation. Read: AI.md PART 2, 3 (project-rules.md).
+
+166. TODO (flagged 2026-08-22 by the item 155 i18n review agent,
+    incidental finding, not a wrong-key-value bug): `src/server/template/
+    template_editor.tmpl` around line 152, the `clone_note_term`
+    definition-list term pairs with a raw untranslated
+    `&lt;code&gt;{"new_name": "..."}&lt;/code&gt;` string instead of going
+    through `t $lang`. Needs a translation key added and the template
+    updated to use it. Read: AI.md PART 31.
