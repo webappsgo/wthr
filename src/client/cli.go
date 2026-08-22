@@ -301,6 +301,7 @@ func printUsage(binaryName string) {
 func printVersion(binaryName string) error {
 	fmt.Printf("%s v%s\n", binaryName, Version)
 	fmt.Printf("Built: %s\n", BuildDate)
+	fmt.Printf("Commit: %s\n", CommitID)
 	fmt.Printf("Go: %s\n", runtime.Version())
 	fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	return nil

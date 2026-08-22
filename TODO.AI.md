@@ -3126,16 +3126,19 @@ any of the above: `src/graphql/context_keys_test.go`,
     is done, since 152+ sites and 54 files still depend on it. Read: AI.md
     PART 11, 16.
 
-158. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
-    pass): `src/client/version.go` declares `GitCommit` but the shared
-    `Makefile` `LDFLAGS` (line 23) targets `-X 'main.CommitID=...'` —
-    name mismatch means the CLI binary's commit ID is silently never
-    set (stays "unknown"). `src/client/version.go` also has no
-    `OfficialSite` var at all, though `LDFLAGS` (line 24) also targets
-    `-X 'main.OfficialSite=...'` for it. Rename `GitCommit` to
-    `CommitID` and add the missing `OfficialSite` var, matching
-    `src/version.go`'s pattern for the server binary. Read: AI.md
-    PART 8 (binary-rules.md) before starting.
+158. DONE (2026-08-22): `src/client/version.go` declared `GitCommit` but
+    the shared `Makefile` `LDFLAGS` (line 23) targets
+    `-X 'main.CommitID=...'` — name mismatch meant the CLI binary's
+    commit ID was silently never set (stayed "unknown"), and it was never
+    printed anywhere in `printVersion` either. Renamed `GitCommit` to
+    `CommitID` in `src/client/version.go` and added a `Commit: %s` line to
+    `printVersion` in `src/client/cli.go`. The `OfficialSite` half of the
+    original report was stale — `src/client/cli.go` already declares
+    `var OfficialSite = "https://wthr.top"` in the same `package main`, so
+    `-X main.OfficialSite=...` already overrides it correctly at build
+    time; nothing to add there. Verified: `grep -rn GitCommit src/` returns
+    nothing, `make test` (re-run after this fix) passes at 61.3%
+    coverage. Read: AI.md PART 8 (binary-rules.md).
 
 159. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
     pass): `tests/docker.sh` line 40 uses `golang:alpine` instead of
@@ -3644,3 +3647,15 @@ any of the above: `src/graphql/context_keys_test.go`,
     `&lt;code&gt;{"new_name": "..."}&lt;/code&gt;` string instead of going
     through `t $lang`. Needs a translation key added and the template
     updated to use it. Read: AI.md PART 31.
+
+167. TODO (flagged 2026-08-22 by go-lint during item 158's pre-commit
+    pass): `site.txt` at project root contains bare `wthr.top` instead of
+    the full `https://wthr.top`. The Makefile's `OFFICIALSITE` var reads
+    `site.txt` verbatim and feeds it to `-X 'main.OfficialSite=...'`
+    (line 25), which would silently override `src/client/cli.go`'s
+    correct `var OfficialSite = "https://wthr.top"` default with a
+    scheme-less value on any ldflags-linked build. Fix `site.txt` to read
+    `https://wthr.top`. Read: AI.md PART 26 (makefile-rules.md) — `NEVER
+    guess/assume site.txt / OFFICIAL_SITE — must be explicitly created by
+    the user`, so confirm with the user before editing this file since it
+    is user-owned per that rule.
