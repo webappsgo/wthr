@@ -38,13 +38,13 @@ func SaveWebSettings(c *gin.Context) {
 	}
 
 	// Get database from context
-	db, exists := c.Get("db")
+	_, exists := c.Get("db")
 	if !exists {
 		InternalError(c, "Database connection not available")
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -78,13 +78,13 @@ func SaveSecuritySettings(c *gin.Context) {
 	}
 
 	// Get database from context
-	db, exists := c.Get("db")
+	_, exists := c.Get("db")
 	if !exists {
 		InternalError(c, "Database connection not available")
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Save each setting to database
 	for key, value := range settings {
@@ -738,7 +738,7 @@ func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
 	if !ok || handle == nil {
 		return nil, fmt.Errorf("database connection not available")
 	}
-	return &model.SettingsModel{DB: handle}, nil
+	return &model.SettingsModel{DB: database.GetServerDB()}, nil
 }
 
 // SaveDatabaseSettings handles saving database configuration
@@ -750,13 +750,13 @@ func SaveDatabaseSettings(c *gin.Context) {
 	}
 
 	// Get database from context
-	db, exists := c.Get("db")
+	_, exists := c.Get("db")
 	if !exists {
 		InternalError(c, "Database connection not available")
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: db.(*sql.DB)}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Validate driver value
 	if driver, ok := settings["database.driver"].(string); ok {

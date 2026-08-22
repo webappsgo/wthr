@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/model"
 
@@ -36,7 +37,7 @@ type ServerContext struct {
 
 // InjectServerContext adds server configuration to all requests
 func InjectServerContext(db *sql.DB, version string) gin.HandlerFunc {
-	settingsModel := &model.SettingsModel{DB: db}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	return func(c *gin.Context) {
 		// Get server settings

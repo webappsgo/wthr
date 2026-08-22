@@ -27,30 +27,15 @@ type Setting struct {
 
 // SettingsModel handles settings operations
 type SettingsModel struct {
-	// Retained for construction-site compatibility only; every query in this
-	// model resolves its handle through serverDB() because server_config lives
-	// in the server database.
+	// DB must be the SERVER database handle (server.db) since server_config
+	// lives in database.ServerSchema, not the users database.
 	DB *sql.DB
-}
-
-// serverDB returns the process-global server.db handle. The only table
-// SettingsModel touches (server_config) is declared in database.ServerSchema,
-// but nearly every construction site injects the users handle instead: src/
-// main.go builds its shared *database.DB from dualDB.Users, and that handle is
-// what reaches SettingsModel through the request context, the admin handlers and
-// the scheduler handlers. Honoring the injected field would therefore point this
-// model at users.db and break server_config lookups in production, so the field
-// is deliberately ignored and the correct database is resolved globally.
-// Fixing the injection sites is out of scope here; they live outside src/server/
-// model/ and are tracked as the wrong-handle finding for TODO item 40.
-func (m *SettingsModel) serverDB() *sql.DB {
-	return database.GetServerDB()
 }
 
 // Get retrieves a setting by key
 func (m *SettingsModel) Get(key string) (*Setting, error) {
 	setting := &Setting{}
-	err := database.QueryRowContext(context.Background(), m.serverDB(), database.TimeoutSimpleSelect,
+	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key = ?",
 		key,
 	).Scan(&setting.Key, &setting.Value, &setting.Type)
@@ -107,7 +92,7 @@ func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
 
 // Set creates or updates a setting
 func (m *SettingsModel) Set(key, value, settingType string) error {
-	_, err := database.ExecContext(context.Background(), m.serverDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?
@@ -118,7 +103,7 @@ func (m *SettingsModel) Set(key, value, settingType string) error {
 
 // SetWithDescription sets a setting with description
 func (m *SettingsModel) SetWithDescription(key, value, settingType, description string) error {
-	_, err := database.ExecContext(context.Background(), m.serverDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?, description = ?
@@ -157,13 +142,13 @@ func (m *SettingsModel) SetJSON(key string, value interface{}) error {
 
 // Delete removes a setting
 func (m *SettingsModel) Delete(key string) error {
-	_, err := database.ExecContext(context.Background(), m.serverDB(), database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
+	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
 	return err
 }
 
 // List returns all settings
 func (m *SettingsModel) List() ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.serverDB(), database.TimeoutSimpleSelect, "SELECT key, value, type FROM server_config ORDER BY key")
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, "SELECT key, value, type FROM server_config ORDER BY key")
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +168,7 @@ func (m *SettingsModel) List() ([]*Setting, error) {
 
 // ListByPrefix returns all settings with a specific prefix
 func (m *SettingsModel) ListByPrefix(prefix string) ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.serverDB(), database.TimeoutSimpleSelect,
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key LIKE ? ORDER BY key",
 		prefix+"%",
 	)

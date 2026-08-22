@@ -57,7 +57,7 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 
 // Start initializes and starts the Tor hidden service
 func (ts *TorService) Start(httpPort int) error {
-	settingsModel := &model.SettingsModel{DB: ts.db.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Check if Tor is enabled
 	enabled := settingsModel.GetBool("tor.enabled", true)

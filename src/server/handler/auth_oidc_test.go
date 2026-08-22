@@ -211,7 +211,7 @@ func TestOIDCServicePureHelpers(t *testing.T) {
 	})
 
 	t.Run("IsAdminGroup matches case-insensitively", func(t *testing.T) {
-		svc := service.NewOIDCService(newTestServerDB(t))
+		svc := service.NewOIDCService()
 		cfg := &service.OIDCProviderConfig{AdminGroups: []string{"Admins", "ops"}}
 
 		if !svc.IsAdminGroup(cfg, []string{"ADMINS"}) {
@@ -235,7 +235,7 @@ func TestOIDCServicePureHelpers(t *testing.T) {
 func TestOIDCAuthHandlerStartLogin_Disabled(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService(serverDB)}
+	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService()}
 
 	c, _ := newAPITestContext("/server/auth/oidc/okta/start")
 	c.Params = gin.Params{{Key: "provider", Value: "okta"}}
@@ -253,7 +253,7 @@ func TestOIDCAuthHandlerStartLogin_Disabled(t *testing.T) {
 func TestOIDCAuthHandlerCallback_Disabled(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService(serverDB)}
+	h := &OIDCAuthHandler{DB: serverDB, OIDCService: service.NewOIDCService()}
 
 	c, _ := newAPITestContext("/server/auth/oidc/okta/callback")
 	c.Params = gin.Params{{Key: "provider", Value: "okta"}}

@@ -13,7 +13,7 @@ import (
 func TestLDAPAuthHandlerLogin_MissingCredentials(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService(serverDB)}
+	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService()}
 
 	c, w := newTestContextJSON(t, http.MethodPost, "/auth/ldap", map[string]string{"username": "alice"})
 
@@ -29,7 +29,7 @@ func TestLDAPAuthHandlerLogin_MissingCredentials(t *testing.T) {
 func TestLDAPAuthHandlerLogin_MalformedBody(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService(serverDB)}
+	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService()}
 
 	c, w := newTestContextJSON(t, http.MethodPost, "/auth/ldap", "not json")
 
@@ -46,7 +46,7 @@ func TestLDAPAuthHandlerLogin_MalformedBody(t *testing.T) {
 func TestLDAPAuthHandlerLogin_Disabled(t *testing.T) {
 	serverDB := newTestServerDB(t)
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService(serverDB)}
+	h := &LDAPAuthHandler{DB: serverDB, LDAPService: service.NewLDAPService()}
 
 	c, w := newTestContextJSON(t, http.MethodPost, "/auth/ldap", LDAPLoginRequest{
 		Username: "alice",

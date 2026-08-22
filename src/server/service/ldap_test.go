@@ -43,7 +43,7 @@ func TestLDAP_Config_Defaults(t *testing.T) {
 	db := setupLDAPServerDB(t)
 	wireLDAPGlobalDB(t, db)
 
-	svc := NewLDAPService(db)
+	svc := NewLDAPService()
 	cfg := svc.Config()
 
 	if cfg.Enabled {
@@ -91,7 +91,7 @@ func TestLDAP_Config_SeededValues(t *testing.T) {
 		}
 	}
 
-	svc := NewLDAPService(db)
+	svc := NewLDAPService()
 	cfg := svc.Config()
 
 	if !cfg.Enabled {
@@ -205,7 +205,7 @@ func TestLDAP_Authenticate_GuardClauses(t *testing.T) {
 				}
 			}
 
-			svc := NewLDAPService(db)
+			svc := NewLDAPService()
 			email, displayName, err := svc.Authenticate(tt.username, tt.password)
 
 			if err == nil {

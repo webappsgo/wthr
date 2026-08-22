@@ -385,7 +385,7 @@ func main() {
 	// Note: Version and BuildDate are embedded in binary via LDFLAGS, not in config file
 
 	// Initialize default settings with proper backup path
-	settingsModel := &model.SettingsModel{DB: db.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 	backupPath := util.GetBackupPath(dirPaths)
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
 		appLogger.Error("Warning: Could not initialize default settings: %v", err)
@@ -400,10 +400,10 @@ func main() {
 	}
 
 	// LDAP authentication service per AI.md PART 11
-	ldapService := service.NewLDAPService(db.DB)
+	ldapService := service.NewLDAPService()
 	ldapAuthHandler := &handler.LDAPAuthHandler{DB: db.DB, LDAPService: ldapService}
 
-	oidcService := service.NewOIDCService(db.DB)
+	oidcService := service.NewOIDCService()
 	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db.DB, OIDCService: oidcService}
 
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
@@ -2812,7 +2812,7 @@ func main() {
 
 		// Email settings per spec: /api/{api_version}/{admin_path}/config/email/
 		adminAPI.GET("/config/email", func(c *gin.Context) {
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			c.JSON(http.StatusOK, gin.H{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
 				"provider": settingsModel.GetString("email.provider", ""),
@@ -2827,7 +2827,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2845,7 +2845,7 @@ func main() {
 
 		// Branding per spec: /api/{api_version}/{admin_path}/config/branding/
 		adminAPI.GET("/config/branding", func(c *gin.Context) {
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			c.JSON(http.StatusOK, gin.H{
 				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
 				"description": settingsModel.GetString("branding.description", cfg.Server.Branding.Description),
@@ -2860,7 +2860,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2872,7 +2872,7 @@ func main() {
 
 		// Pages per spec: /api/{api_version}/{admin_path}/config/pages/
 		adminAPI.GET("/config/pages", func(c *gin.Context) {
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			c.JSON(http.StatusOK, gin.H{
 				"about":   gin.H{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
 				"privacy": gin.H{"enabled": settingsModel.GetBool("pages.privacy.enabled", true)},
@@ -2883,7 +2883,7 @@ func main() {
 		})
 		adminAPI.GET("/config/pages/:name", func(c *gin.Context) {
 			name := c.Param("name")
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			c.JSON(http.StatusOK, gin.H{
 				"name":    name,
 				"enabled": settingsModel.GetBool("pages."+name+".enabled", true),
@@ -2897,7 +2897,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
@@ -2909,7 +2909,7 @@ func main() {
 
 		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
 		adminAPI.GET("/config/web", func(c *gin.Context) {
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			c.JSON(http.StatusOK, gin.H{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
@@ -2921,7 +2921,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 				return
 			}
-			settingsModel := &model.SettingsModel{DB: db.DB}
+			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})

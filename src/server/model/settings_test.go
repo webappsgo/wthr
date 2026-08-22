@@ -10,7 +10,7 @@ import (
 func TestSettingsModel_GetSetFamily(t *testing.T) {
 	serverDB := newModelServerDB(t)
 	setModelGlobalDualDB(t, serverDB, nil)
-	model := &SettingsModel{}
+	model := &SettingsModel{DB: serverDB}
 
 	t.Run("Get missing key errors", func(t *testing.T) {
 		if _, err := model.Get("missing.key"); err == nil {
@@ -143,7 +143,7 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 	db := newModelServerDB(t)
 	setModelGlobalDualDB(t, db, nil)
-	model := &SettingsModel{}
+	model := &SettingsModel{DB: db}
 
 	t.Run("List on empty table", func(t *testing.T) {
 		list, err := model.List()
@@ -225,7 +225,7 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 func TestSettingsModel_InitializeDefaults(t *testing.T) {
 	serverDB := newModelServerDB(t)
 	setModelGlobalDualDB(t, serverDB, nil)
-	model := &SettingsModel{}
+	model := &SettingsModel{DB: serverDB}
 
 	if err := model.InitializeDefaults("/custom/backups"); err != nil {
 		t.Fatalf("InitializeDefaults() error = %v", err)

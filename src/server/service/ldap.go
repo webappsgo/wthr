@@ -3,12 +3,12 @@ package service
 
 import (
 	"crypto/tls"
-	"database/sql"
 	"fmt"
 	"strings"
 
 	ldap "github.com/go-ldap/ldap/v3"
 
+	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -28,9 +28,10 @@ type LDAPService struct {
 	settings *models.SettingsModel
 }
 
-// NewLDAPService creates a new LDAPService backed by the given DB.
-func NewLDAPService(db *sql.DB) *LDAPService {
-	return &LDAPService{settings: &models.SettingsModel{DB: db}}
+// NewLDAPService creates a new LDAPService. LDAP settings live in server_config,
+// so the settings model always resolves the server database.
+func NewLDAPService() *LDAPService {
+	return &LDAPService{settings: &models.SettingsModel{DB: database.GetServerDB()}}
 }
 
 // Config reads LDAP settings from server_config.

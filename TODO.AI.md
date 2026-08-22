@@ -3440,21 +3440,36 @@ any of the above: `src/graphql/context_keys_test.go`,
     repo, activation for PART 34/35/36 is declared in `IDEA.md`. PART 34
     (Multi-User) stays the only active optional PART; 35/36 remain dormant.
 
-153. TODO (flagged 2026-08-21 by the model-injection agent): `SettingsModel`
-    reads `server_config`, which lives in `ServerSchema`, but is constructed
-    almost everywhere with the users handle - the root cause is
-    `src/main.go:346` (`db := &database.DB{DB: dualDB.Users}`), which then
-    propagates through `main.go` (388, 403, 406, 536, 2815-2924),
-    `middleware/server_context.go:39`, `service/tor.go:60`,
-    `handler/server_pages.go` (40, 154, 212), `handler/health.go` (597, 656),
-    `handler/admin.go:715`, `handler/admin_scheduler.go` (83, 161, 409) and
-    `handler/admin_api.go` (41, 81, 372). Only `handler/admin_settings.go:185`
-    and `graphql/schema.resolvers.go:1216` inject the right handle. Every
-    other model type now honours its injected handle; `SettingsModel` alone
-    resolves the server handle globally instead, because honouring the
-    injected one would point settings at `users.db` and break
-    `server_config` in production. The injection sites are the fix and they
-    are outside that agent's scope. Read: AI.md PART 10.
+153. DONE (2026-08-22). RESOLVED: every `SettingsModel{DB: ...}` construction
+    site across `src/main.go` (10 sites), `middleware/server_context.go`,
+    `service/tor.go`, `handler/server_pages.go`, `handler/health.go`,
+    `handler/admin.go`, `handler/admin_scheduler.go`, and `handler/admin_api.go`
+    (incl. the `adminSettingsModel()` helper) now passes
+    `database.GetServerDB()` - the correct server-DB handle - instead of the
+    users-DB-derived handle (`db.DB`/`h.DB`/`db.(*sql.DB)`) that reached them
+    via `main.go`'s general-purpose `db := &database.DB{DB: dualDB.Users}`.
+    That general `db` variable itself is untouched (still correct for its many
+    other users-DB purposes); only the SettingsModel/server_config-reading
+    sites changed. `src/server/model/settings.go`: removed the `serverDB()`
+    global-resolve workaround entirely - all 6 methods (`Get`, `Set`,
+    `SetWithDescription`, `Delete`, `List`, `ListByPrefix`) now use `m.DB`
+    directly like every other model, per AI.md PART 10; struct doc comment
+    updated to require `DB` be the server handle. `service/ldap.go` /
+    `service/oidc.go`: `NewLDAPService`/`NewOIDCService` also constructed
+    `SettingsModel` with the wrong handle internally; since LDAP/OIDC settings
+    live in `server_config` too, both now resolve `database.GetServerDB()`
+    internally and their now-unused `db *sql.DB` parameters were removed
+    (dead parameter after the fix), with all call sites in `main.go` and the
+    relevant `*_test.go` files updated to match. Test files updated to match
+    the new (non-workaround) contract: `model/injected_db_test.go` (renamed
+    `TestSettingsModelAlwaysUsesGlobalServerDB` ->
+    `TestSettingsModelUsesInjectedServerDB`), `model/settings_test.go` (3
+    sites now inject an explicit `DB` instead of relying on the removed nil-DB
+    global fallback). `make test`: all 32 packages `ok`, zero `FAIL`. Verified
+    via `grep -rn "model.SettingsModel{"`/`"models.SettingsModel{"` across
+    `src/` that every construction site (production and test) now passes a
+    correct server-DB handle; `grep -n "serverDB" src/server/model/settings.go`
+    returns zero matches. Read: AI.md PART 10.
 
 154. TODO (flagged 2026-08-21): `server_audit_log` has no bounded retention.
     Rows accumulate without limit and no scheduler task prunes them, so the

@@ -712,7 +712,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 	}
 
 	// Load all settings
-	settingsModel := &model.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 	settings := make(map[string]interface{})
 
 	// Server settings

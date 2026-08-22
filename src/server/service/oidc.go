@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +16,7 @@ import (
 	oidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
+	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -55,10 +55,11 @@ type OIDCService struct {
 	cacheExpiry   map[string]time.Time
 }
 
-// NewOIDCService creates a new OIDCService backed by the given DB.
-func NewOIDCService(db *sql.DB) *OIDCService {
+// NewOIDCService creates a new OIDCService. OIDC settings live in server_config,
+// so the settings model always resolves the server database.
+func NewOIDCService() *OIDCService {
 	return &OIDCService{
-		settings:      &models.SettingsModel{DB: db},
+		settings:      &models.SettingsModel{DB: database.GetServerDB()},
 		providerCache: make(map[string]*oidc.Provider),
 		cacheExpiry:   make(map[string]time.Time),
 	}

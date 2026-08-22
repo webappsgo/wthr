@@ -484,21 +484,18 @@ func TestModelHandleAccessors(t *testing.T) {
 	}
 }
 
-// TestSettingsModelAlwaysUsesGlobalServerDB pins the deliberate exception
-// documented on SettingsModel.serverDB: server_config lives in server.db, but
-// callers systematically construct SettingsModel with the users handle, so the
-// injected field is ignored and the global server handle is used instead.
-func TestSettingsModelAlwaysUsesGlobalServerDB(t *testing.T) {
+// TestSettingsModelUsesInjectedServerDB pins the documented contract on
+// SettingsModel.DB: it must be the SERVER database handle (server_config
+// lives in server.db, not the users database), and the model uses whatever
+// handle is injected directly, with no fallback or override.
+func TestSettingsModelUsesInjectedServerDB(t *testing.T) {
 	serverDB := newModelServerDB(t)
 	usersDB := newModelUsersDB(t)
 	setModelGlobalDualDB(t, serverDB, usersDB)
 
-	// The users handle is what production injects here; it has no server_config
-	// table at all, so honoring it would break every settings lookup.
-	model := &SettingsModel{DB: usersDB}
-	if got := model.serverDB(); got != serverDB {
-		t.Fatal("serverDB() did not resolve the global server handle")
-	}
+	// Callers must inject the server handle explicitly; the model no longer
+	// resolves the global server handle on its own.
+	model := &SettingsModel{DB: serverDB}
 
 	if err := model.Set("unit.test.key", "from-server-db", "string"); err != nil {
 		t.Fatalf("Set: %v", err)

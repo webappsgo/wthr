@@ -594,7 +594,7 @@ func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
 }
 
 func getPublicGeoIPStatus(db *database.DB) bool {
-	settingsModel := &models.SettingsModel{DB: db.DB}
+	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
 	return settingsModel.GetBool("geoip.enabled", true)
 }
 
@@ -653,7 +653,7 @@ func getPublicStats(db *database.DB) publicHealthStats {
 }
 
 func getMaintenanceMode(db *database.DB) bool {
-	settingsModel := &models.SettingsModel{DB: db.DB}
+	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
 	return settingsModel.GetBool("maintenance.mode", false)
 }
 

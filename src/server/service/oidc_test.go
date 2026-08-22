@@ -158,8 +158,8 @@ func TestOIDC_IsAdminGroup(t *testing.T) {
 // unset, and reflecting the stored boolean when set.
 func TestOIDC_Enabled(t *testing.T) {
 	t.Run("defaults to false when unset", func(t *testing.T) {
-		db := setupOIDCTestDB(t)
-		s := NewOIDCService(db)
+		_ = setupOIDCTestDB(t)
+		s := NewOIDCService()
 		if s.Enabled() {
 			t.Error("Enabled() = true, want false when server.auth.oidc.enabled is unset")
 		}
@@ -168,7 +168,7 @@ func TestOIDC_Enabled(t *testing.T) {
 	t.Run("true when explicitly enabled", func(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		setConfig(t, db, "server.auth.oidc.enabled", "true", "boolean")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 		if !s.Enabled() {
 			t.Error("Enabled() = false, want true")
 		}
@@ -177,7 +177,7 @@ func TestOIDC_Enabled(t *testing.T) {
 	t.Run("false when explicitly disabled", func(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		setConfig(t, db, "server.auth.oidc.enabled", "false", "boolean")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 		if s.Enabled() {
 			t.Error("Enabled() = true, want false")
 		}
@@ -188,8 +188,8 @@ func TestOIDC_Enabled(t *testing.T) {
 // happy-path decode cases.
 func TestOIDC_GetProviderConfigs(t *testing.T) {
 	t.Run("nil when unset", func(t *testing.T) {
-		db := setupOIDCTestDB(t)
-		s := NewOIDCService(db)
+		_ = setupOIDCTestDB(t)
+		s := NewOIDCService()
 		if got := s.GetProviderConfigs(); got != nil {
 			t.Errorf("GetProviderConfigs() = %v, want nil", got)
 		}
@@ -198,7 +198,7 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 	t.Run("nil on malformed json", func(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		setConfig(t, db, "server.auth.oidc.providers", `not valid json`, "json")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 		if got := s.GetProviderConfigs(); got != nil {
 			t.Errorf("GetProviderConfigs() = %v, want nil on malformed json", got)
 		}
@@ -208,7 +208,7 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		raw := `[{"name":"google","display_name":"Google","issuer":"https://accounts.google.com","client_id":"cid","client_secret":"secret","scopes":["openid","email"]}]`
 		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 		got := s.GetProviderConfigs()
 		if len(got) != 1 {
 			t.Fatalf("len(GetProviderConfigs()) = %d, want 1", len(got))
@@ -221,7 +221,7 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 	t.Run("empty array decodes to empty non-nil slice", func(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		setConfig(t, db, "server.auth.oidc.providers", `[]`, "json")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 		got := s.GetProviderConfigs()
 		if len(got) != 0 {
 			t.Errorf("len(GetProviderConfigs()) = %d, want 0", len(got))
@@ -233,8 +233,8 @@ func TestOIDC_GetProviderConfigs(t *testing.T) {
 // empty-providers boundary) lookup paths.
 func TestOIDC_GetProviderConfig(t *testing.T) {
 	t.Run("not found when no providers configured", func(t *testing.T) {
-		db := setupOIDCTestDB(t)
-		s := NewOIDCService(db)
+		_ = setupOIDCTestDB(t)
+		s := NewOIDCService()
 		if _, err := s.GetProviderConfig("google"); err == nil {
 			t.Fatal("expected error for missing provider, got nil")
 		}
@@ -244,7 +244,7 @@ func TestOIDC_GetProviderConfig(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		raw := `[{"name":"google","issuer":"https://accounts.google.com"},{"name":"github","issuer":"https://github.com"}]`
 		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 
 		cfg, err := s.GetProviderConfig("github")
 		if err != nil {
@@ -259,7 +259,7 @@ func TestOIDC_GetProviderConfig(t *testing.T) {
 		db := setupOIDCTestDB(t)
 		raw := `[{"name":"google","issuer":"https://accounts.google.com"}]`
 		setConfig(t, db, "server.auth.oidc.providers", raw, "json")
-		s := NewOIDCService(db)
+		s := NewOIDCService()
 
 		if _, err := s.GetProviderConfig("nonexistent"); err == nil {
 			t.Fatal("expected error for unmatched provider name, got nil")
@@ -270,8 +270,8 @@ func TestOIDC_GetProviderConfig(t *testing.T) {
 // TestOIDC_AuthURL_UnknownProvider covers the error path where the provider
 // name does not resolve to a configured provider.
 func TestOIDC_AuthURL_UnknownProvider(t *testing.T) {
-	db := setupOIDCTestDB(t)
-	s := NewOIDCService(db)
+	_ = setupOIDCTestDB(t)
+	s := NewOIDCService()
 
 	_, err := s.AuthURL(context.Background(), "nonexistent", "https://example.com/callback", "state", "verifier")
 	if err == nil {
@@ -283,8 +283,8 @@ func TestOIDC_AuthURL_UnknownProvider(t *testing.T) {
 // provider name does not resolve, verifying the lookup failure short-circuits
 // before any network call is attempted.
 func TestOIDC_ExchangeAndVerify_UnknownProvider(t *testing.T) {
-	db := setupOIDCTestDB(t)
-	s := NewOIDCService(db)
+	_ = setupOIDCTestDB(t)
+	s := NewOIDCService()
 
 	_, err := s.ExchangeAndVerify(context.Background(), "nonexistent", "https://example.com/callback", "code", "verifier")
 	if err == nil {
@@ -391,8 +391,8 @@ func TestOIDC_GetOIDCProvider_ExpiredCache_FailsWithoutNetwork(t *testing.T) {
 
 // TestOIDC_NewOIDCService covers the constructor's initial state.
 func TestOIDC_NewOIDCService(t *testing.T) {
-	db := setupOIDCTestDB(t)
-	s := NewOIDCService(db)
+	_ = setupOIDCTestDB(t)
+	s := NewOIDCService()
 	if s.settings == nil {
 		t.Fatal("settings should be initialized")
 	}

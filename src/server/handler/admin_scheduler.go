@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
@@ -80,7 +81,7 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Load scheduler configuration from settings
 	config := SchedulerConfig{
@@ -158,7 +159,7 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		return
 	}
 
-	settingsModel := &model.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Validate and save global settings
 	if timezone, ok := config["timezone"].(string); ok {
@@ -406,7 +407,7 @@ func isValidCronField(field string) bool {
 
 // GetSchedulerConfigJSON returns scheduler configuration as JSON for API access
 func (h *AdminHandler) GetSchedulerConfigJSON(c *gin.Context) {
-	settingsModel := &model.SettingsModel{DB: h.DB}
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	config := SchedulerConfig{
 		Timezone:      settingsModel.GetString("scheduler.timezone", "America/New_York"),
