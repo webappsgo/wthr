@@ -1,0 +1,56 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.search.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.search.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="search-results-heading">
+    <div class="section-header">
+      <h2 id="search-results-heading">{{t $lang "admin.search.results_heading"}}</h2>
+    </div>
+    {{- /* The header form GETs here, so the page renders one of three states. */}}
+    {{if not .query}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128269;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.search.no_query_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.search.no_query_message"}}</p>
+    </div>
+    {{else if not .results}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128269;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.search.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.search.empty_message"}} <span class="admin-break-all">{{.query}}</span></p>
+      <a class="btn btn-secondary" href="{{$ap}}">{{t $lang "admin.search.empty_action"}}</a>
+    </div>
+    {{else}}
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <caption class="admin-table-caption">{{t $lang "admin.search.table_caption"}} <span class="admin-break-all">{{.query}}</span></caption>
+        <thead class="admin-table-header">
+          <tr class="admin-table-head-row">
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.search.col_category"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.search.col_result"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.search.col_detail"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .results}}
+          <tr class="admin-table-body-row">
+            <td class="admin-table-body-cell">{{.Category}}</td>
+            <th class="admin-table-body-cell" scope="row">
+              <a href="{{.URL}}">{{.Title}}</a>
+            </th>
+            <td class="admin-table-body-cell admin-break-all">{{.Detail}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </section>
+{{template "admin_footer" .}}

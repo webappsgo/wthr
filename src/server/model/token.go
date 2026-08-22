@@ -32,6 +32,21 @@ type TokenModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. The only
+// table TokenModel touches (user_tokens) is declared in database.UsersSchema,
+// so the injected handle is the correct database for every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *TokenModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // GenerateToken creates a cryptographically secure random token with usr_ prefix
 // AI.md PART 11: Format is usr_{32_alphanumeric}
 func GenerateToken() (string, error) {
@@ -66,7 +81,7 @@ func (m *TokenModel) Create(userID int, name string) (*APIToken, error) {
 	tokenHash := HashUserToken(token)
 	tokenPrefix := GetUserTokenPrefix(token)
 
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, created_at)
 		VALUES (?, ?, ?, ?, ?)
 	`, userID, tokenHash, tokenPrefix, name, time.Now())
@@ -99,7 +114,7 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 	apiToken := &APIToken{}
 	var lastUsed sql.NullTime
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_prefix, name, created_at, last_used_at
 		FROM user_tokens WHERE token_hash = ?
 	`, tokenHash).Scan(&apiToken.ID, &apiToken.UserID, &apiToken.TokenPrefix, &apiToken.Name,
@@ -121,7 +136,7 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 
 // GetByUserID retrieves all tokens for a user
 func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_prefix, name, created_at, last_used_at
 		FROM user_tokens WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -150,7 +165,7 @@ func (m *TokenModel) GetByUserID(userID int) ([]*APIToken, error) {
 
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModel) UpdateLastUsed(tokenID int) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
@@ -159,12 +174,12 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 
 // Delete deletes a token
 func (m *TokenModel) Delete(id int) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ?", id)
 	return err
 }
 
 // DeleteByUserID deletes all tokens for a user
 func (m *TokenModel) DeleteByUserID(userID int) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE user_id = ?", userID)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE user_id = ?", userID)
 	return err
 }

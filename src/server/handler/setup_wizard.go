@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -268,11 +270,14 @@ func deleteSetupToken() error {
 // setup_completed_at columns, so writes must go through the key/value shape
 // rather than a fixed-column row.
 func markSetupComplete() error {
+	// updated_at is bound as canonical UTC text rather than produced by SQL's
+	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+	// MySQL and SQL Server than it does on SQLite.
 	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_setup_state (key, value, updated_at)
-		VALUES ('setup_completed', '1', CURRENT_TIMESTAMP)
+		VALUES ('setup_completed', '1', ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-	`)
+	`, dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
 		return fmt.Errorf("failed to mark setup complete: %w", err)
 	}

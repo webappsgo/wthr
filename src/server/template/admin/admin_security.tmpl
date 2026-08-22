@@ -1,28 +1,29 @@
 {{define "admin/admin_security.tmpl"}}
 {{template "head" .}}
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
-                <h1>🔒 Security Settings</h1>
-                <p class="subtitle">Configure security headers, CORS, rate limiting, and access controls</p>
+                <h1>🔒 {{t $lang "admin.security.title"}}</h1>
+                <p class="subtitle">{{t $lang "admin.security.subtitle"}}</p>
             </div>
 
             <!-- Security Headers Section -->
             <section class="admin-card" aria-labelledby="headers-heading">
                 <div class="card-header">
-                    <h2 id="headers-heading">Security Headers</h2>
-                    <p class="card-description">HTTP security headers protect against common web vulnerabilities</p>
+                    <h2 id="headers-heading">{{t $lang "admin.security.headers_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.headers_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="headers-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="alert alert-info" role="status">
-                            <strong>Security headers</strong> are automatically applied to all responses. These settings control their values.
+                            <strong>{{t $lang "admin.security.headers_alert_strong"}}</strong> {{t $lang "admin.security.headers_alert_text"}}
                         </div>
 
                         <div class="form-group">
-                            <label for="csp">Content-Security-Policy (CSP)</label>
+                            <label for="csp">{{t $lang "admin.security.csp_label"}}</label>
                             <textarea
                                 id="csp"
                                 name="security.csp"
@@ -32,12 +33,12 @@
                                 spellcheck="false"
                             >default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;</textarea>
                             <small id="csp_help" class="form-text">
-                                Prevents XSS attacks by controlling which resources can be loaded
+                                {{t $lang "admin.security.csp_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="hsts">Strict-Transport-Security (HSTS)</label>
+                            <label for="hsts">{{t $lang "admin.security.hsts_label"}}</label>
                             <input
                                 type="text"
                                 id="hsts"
@@ -47,49 +48,49 @@
                                 aria-describedby="hsts_help"
                             >
                             <small id="hsts_help" class="form-text">
-                                Forces HTTPS connections. Only applies when HTTPS is enabled.
+                                {{t $lang "admin.security.hsts_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="x_frame_options">X-Frame-Options</label>
+                            <label for="x_frame_options">{{t $lang "admin.security.x_frame_options_label"}}</label>
                             <select id="x_frame_options" name="security.x_frame_options" class="form-control" aria-describedby="x_frame_help">
-                                <option value="DENY">DENY (Prevents all framing)</option>
-                                <option value="SAMEORIGIN">SAMEORIGIN (Allows same-origin framing)</option>
-                                <option value="ALLOW-FROM">ALLOW-FROM (Specify allowed origins)</option>
+                                <option value="DENY">{{t $lang "admin.security.x_frame_deny_option"}}</option>
+                                <option value="SAMEORIGIN">{{t $lang "admin.security.x_frame_sameorigin_option"}}</option>
+                                <option value="ALLOW-FROM">{{t $lang "admin.security.x_frame_allowfrom_option"}}</option>
                             </select>
                             <small id="x_frame_help" class="form-text">
-                                Prevents clickjacking attacks by controlling iframe embedding
+                                {{t $lang "admin.security.x_frame_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="x_content_type">X-Content-Type-Options</label>
+                            <label for="x_content_type">{{t $lang "admin.security.x_content_type_label"}}</label>
                             <select id="x_content_type" name="security.x_content_type" class="form-control" aria-describedby="x_content_type_help">
-                                <option value="nosniff">nosniff (Recommended)</option>
-                                <option value="">Disabled</option>
+                                <option value="nosniff">{{t $lang "admin.security.x_content_type_nosniff_option"}}</option>
+                                <option value="">{{t $lang "admin.common.disabled"}}</option>
                             </select>
                             <small id="x_content_type_help" class="form-text">
-                                Prevents MIME type sniffing vulnerabilities
+                                {{t $lang "admin.security.x_content_type_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="referrer_policy">Referrer-Policy</label>
+                            <label for="referrer_policy">{{t $lang "admin.security.referrer_policy_label"}}</label>
                             <select id="referrer_policy" name="security.referrer_policy" class="form-control" aria-describedby="referrer_policy_help">
-                                <option value="strict-origin-when-cross-origin">strict-origin-when-cross-origin (Recommended)</option>
-                                <option value="no-referrer">no-referrer (Most private)</option>
+                                <option value="strict-origin-when-cross-origin">{{t $lang "admin.security.referrer_strict_option"}}</option>
+                                <option value="no-referrer">{{t $lang "admin.security.referrer_no_referrer_option"}}</option>
                                 <option value="no-referrer-when-downgrade">no-referrer-when-downgrade</option>
                                 <option value="same-origin">same-origin</option>
                                 <option value="origin">origin</option>
                             </select>
                             <small id="referrer_policy_help" class="form-text">
-                                Controls how much referrer information is sent with requests
+                                {{t $lang "admin.security.referrer_policy_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="permissions_policy">Permissions-Policy</label>
+                            <label for="permissions_policy">{{t $lang "admin.security.permissions_policy_label"}}</label>
                             <textarea
                                 id="permissions_policy"
                                 name="security.permissions_policy"
@@ -99,12 +100,12 @@
                                 spellcheck="false"
                             >geolocation=(), microphone=(), camera=()</textarea>
                             <small id="permissions_policy_help" class="form-text">
-                                Controls which browser features can be used (formerly Feature-Policy)
+                                {{t $lang "admin.security.permissions_policy_help"}}
                             </small>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save security headers">
-                            💾 Save Headers
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.security.save_headers_label"}}">
+                            💾 {{t $lang "admin.security.save_headers_button"}}
                         </button>
                     </form>
                 </div>
@@ -113,8 +114,8 @@
             <!-- CORS Settings Section -->
             <section class="admin-card" aria-labelledby="cors-heading">
                 <div class="card-header">
-                    <h2 id="cors-heading">CORS (Cross-Origin Resource Sharing)</h2>
-                    <p class="card-description">Control which external domains can access your API</p>
+                    <h2 id="cors-heading">{{t $lang "admin.security.cors_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.cors_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="cors-form" class="settings-form">
@@ -129,16 +130,16 @@
                                     aria-describedby="cors_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
-                                Enable CORS
+                                {{t $lang "admin.security.cors_enabled_label"}}
                             </label>
                             <small id="cors_enabled_help" class="form-text">
-                                Allow external websites to make API requests to this server
+                                {{t $lang "admin.security.cors_enabled_help"}}
                             </small>
                         </div>
 
                         <div id="cors-fields" class="cors-fields">
                             <div class="form-group">
-                                <label for="cors_origins">Allowed Origins</label>
+                                <label for="cors_origins">{{t $lang "admin.security.cors_origins_label"}}</label>
                                 <textarea
                                     id="cors_origins"
                                     name="security.cors_origins"
@@ -148,12 +149,12 @@
                                     aria-describedby="cors_origins_help"
                                 ></textarea>
                                 <small id="cors_origins_help" class="form-text">
-                                    One origin per line. Use <code>*</code> to allow all origins (not recommended for production).
+                                    {{t $lang "admin.security.cors_origins_help_prefix"}} <code>*</code> {{t $lang "admin.security.cors_origins_help_suffix"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="cors_methods">Allowed Methods</label>
+                                <label for="cors_methods">{{t $lang "admin.security.cors_methods_label"}}</label>
                                 <input
                                     type="text"
                                     id="cors_methods"
@@ -163,12 +164,12 @@
                                     aria-describedby="cors_methods_help"
                                 >
                                 <small id="cors_methods_help" class="form-text">
-                                    Comma-separated list of HTTP methods
+                                    {{t $lang "admin.security.cors_methods_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="cors_headers">Allowed Headers</label>
+                                <label for="cors_headers">{{t $lang "admin.security.cors_headers_label"}}</label>
                                 <input
                                     type="text"
                                     id="cors_headers"
@@ -178,7 +179,7 @@
                                     aria-describedby="cors_headers_help"
                                 >
                                 <small id="cors_headers_help" class="form-text">
-                                    Comma-separated list of allowed request headers
+                                    {{t $lang "admin.security.cors_headers_help"}}
                                 </small>
                             </div>
 
@@ -192,15 +193,15 @@
                                         aria-describedby="cors_credentials_help"
                                     >
                                     <span class="toggle-slider"></span>
-                                    Allow Credentials
+                                    {{t $lang "admin.security.cors_credentials_label"}}
                                 </label>
                                 <small id="cors_credentials_help" class="form-text">
-                                    Allow cookies and authentication headers in cross-origin requests
+                                    {{t $lang "admin.security.cors_credentials_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="cors_max_age">Preflight Cache Duration (seconds)</label>
+                                <label for="cors_max_age">{{t $lang "admin.security.cors_max_age_label"}}</label>
                                 <input
                                     type="number"
                                     id="cors_max_age"
@@ -212,13 +213,13 @@
                                     aria-describedby="cors_max_age_help"
                                 >
                                 <small id="cors_max_age_help" class="form-text">
-                                    How long browsers can cache preflight responses (default: 3600)
+                                    {{t $lang "admin.security.cors_max_age_help"}}
                                 </small>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save CORS settings">
-                            💾 Save CORS Settings
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.security.save_cors_label"}}">
+                            💾 {{t $lang "admin.security.save_cors_button"}}
                         </button>
                     </form>
                 </div>
@@ -227,8 +228,8 @@
             <!-- Rate Limiting Section -->
             <section class="admin-card" aria-labelledby="ratelimit-heading">
                 <div class="card-header">
-                    <h2 id="ratelimit-heading">Rate Limiting</h2>
-                    <p class="card-description">Prevent abuse by limiting request rates</p>
+                    <h2 id="ratelimit-heading">{{t $lang "admin.security.ratelimit_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.ratelimit_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="ratelimit-form" class="settings-form">
@@ -243,16 +244,16 @@
                                     aria-describedby="ratelimit_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
-                                Enable Rate Limiting
+                                {{t $lang "admin.security.ratelimit_enabled_label"}}
                             </label>
                             <small id="ratelimit_enabled_help" class="form-text">
-                                Protect your server from abuse and DDoS attacks
+                                {{t $lang "admin.security.ratelimit_enabled_help"}}
                             </small>
                         </div>
 
                         <div id="ratelimit-fields" class="ratelimit-fields">
                             <div class="form-group">
-                                <label for="ratelimit_global">Global Rate Limit (requests/second)</label>
+                                <label for="ratelimit_global">{{t $lang "admin.security.ratelimit_global_label"}}</label>
                                 <input
                                     type="number"
                                     id="ratelimit_global"
@@ -264,12 +265,12 @@
                                     aria-describedby="ratelimit_global_help"
                                 >
                                 <small id="ratelimit_global_help" class="form-text">
-                                    Maximum requests per second for all users combined
+                                    {{t $lang "admin.security.ratelimit_global_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="ratelimit_per_ip">Per-IP Rate Limit (requests/minute)</label>
+                                <label for="ratelimit_per_ip">{{t $lang "admin.security.ratelimit_per_ip_label"}}</label>
                                 <input
                                     type="number"
                                     id="ratelimit_per_ip"
@@ -281,12 +282,12 @@
                                     aria-describedby="ratelimit_per_ip_help"
                                 >
                                 <small id="ratelimit_per_ip_help" class="form-text">
-                                    Maximum requests per minute from a single IP address
+                                    {{t $lang "admin.security.ratelimit_per_ip_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="ratelimit_api">API Rate Limit (requests/minute)</label>
+                                <label for="ratelimit_api">{{t $lang "admin.security.ratelimit_api_label"}}</label>
                                 <input
                                     type="number"
                                     id="ratelimit_api"
@@ -298,12 +299,12 @@
                                     aria-describedby="ratelimit_api_help"
                                 >
                                 <small id="ratelimit_api_help" class="form-text">
-                                    Rate limit for authenticated API requests
+                                    {{t $lang "admin.security.ratelimit_api_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="ratelimit_admin">Admin Rate Limit (requests/minute)</label>
+                                <label for="ratelimit_admin">{{t $lang "admin.security.ratelimit_admin_label"}}</label>
                                 <input
                                     type="number"
                                     id="ratelimit_admin"
@@ -315,17 +316,17 @@
                                     aria-describedby="ratelimit_admin_help"
                                 >
                                 <small id="ratelimit_admin_help" class="form-text">
-                                    Higher limit for admin users (more permissive)
+                                    {{t $lang "admin.security.ratelimit_admin_help"}}
                                 </small>
                             </div>
 
                             <div class="alert alert-warning" role="alert">
-                                <strong>Note:</strong> Rate limiting changes take effect immediately. Be careful not to lock yourself out!
+                                <strong>{{t $lang "admin.security.ratelimit_note_strong"}}</strong> {{t $lang "admin.security.ratelimit_note_text"}}
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save rate limiting settings">
-                            💾 Save Rate Limits
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.security.save_ratelimit_label"}}">
+                            💾 {{t $lang "admin.security.save_ratelimit_button"}}
                         </button>
                     </form>
                 </div>
@@ -334,14 +335,14 @@
             <!-- Authentication Settings Section -->
             <section class="admin-card" aria-labelledby="auth-heading">
                 <div class="card-header">
-                    <h2 id="auth-heading">Authentication & Sessions</h2>
-                    <p class="card-description">Configure login security and session management</p>
+                    <h2 id="auth-heading">{{t $lang "admin.security.auth_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.auth_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="auth-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="session_timeout">Session Timeout (seconds)</label>
+                            <label for="session_timeout">{{t $lang "admin.security.session_timeout_label"}}</label>
                             <input
                                 type="number"
                                 id="session_timeout"
@@ -353,12 +354,12 @@
                                 aria-describedby="session_timeout_help"
                             >
                             <small id="session_timeout_help" class="form-text">
-                                How long users stay logged in (default: 2592000 = 30 days)
+                                {{t $lang "admin.security.session_timeout_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="max_login_attempts">Max Login Attempts</label>
+                            <label for="max_login_attempts">{{t $lang "admin.security.max_login_attempts_label"}}</label>
                             <input
                                 type="number"
                                 id="max_login_attempts"
@@ -370,12 +371,12 @@
                                 aria-describedby="max_login_attempts_help"
                             >
                             <small id="max_login_attempts_help" class="form-text">
-                                Maximum failed login attempts before account lockout
+                                {{t $lang "admin.security.max_login_attempts_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="lockout_duration">Lockout Duration (minutes)</label>
+                            <label for="lockout_duration">{{t $lang "admin.security.lockout_duration_label"}}</label>
                             <input
                                 type="number"
                                 id="lockout_duration"
@@ -387,12 +388,12 @@
                                 aria-describedby="lockout_duration_help"
                             >
                             <small id="lockout_duration_help" class="form-text">
-                                How long to lock account after max failed attempts
+                                {{t $lang "admin.security.lockout_duration_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="password_min_length">Minimum Password Length</label>
+                            <label for="password_min_length">{{t $lang "admin.security.password_min_length_label"}}</label>
                             <input
                                 type="number"
                                 id="password_min_length"
@@ -404,12 +405,12 @@
                                 aria-describedby="password_min_length_help"
                             >
                             <small id="password_min_length_help" class="form-text">
-                                Minimum characters required for passwords (recommended: 8+)
+                                {{t $lang "admin.security.password_min_length_help"}}
                             </small>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save authentication settings">
-                            💾 Save Auth Settings
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.security.save_auth_label"}}">
+                            💾 {{t $lang "admin.security.save_auth_button"}}
                         </button>
                     </form>
                 </div>
@@ -418,57 +419,56 @@
             <!-- Admin Passkey Management Section -->
             <section class="admin-card" aria-labelledby="passkeys-heading">
                 <div class="card-header">
-                    <h2 id="passkeys-heading">Passkeys (WebAuthn)</h2>
-                    <p class="card-description">Manage passkeys used for admin login. Passkeys replace one-time codes as the second factor after your password.</p>
+                    <h2 id="passkeys-heading">{{t $lang "admin.security.passkeys_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.security.passkeys_description"}}</p>
                 </div>
                 <div class="card-body">
-                    <div id="passkeys-status" class="alert alert-info" role="status">Loading passkeys…</div>
+                    <div id="passkeys-status" class="alert alert-info" role="status">{{t $lang "admin.security.passkeys_loading"}}</div>
 
                     <div id="passkeys-list" class="margin-y-md" style="display:none">
-                        <h3 style="font-size:1rem;font-weight:600;margin-bottom:0.75rem">Registered Passkeys</h3>
+                        <h3 style="font-size:1rem;font-weight:600;margin-bottom:0.75rem">{{t $lang "admin.security.passkeys_registered_heading"}}</h3>
                         <div id="passkeys-items"></div>
                     </div>
 
                     <div class="form-group" style="margin-top:1.5rem">
-                        <label for="adminPasskeyName">New Passkey Name</label>
+                        <label for="adminPasskeyName">{{t $lang "admin.security.passkey_name_label"}}</label>
                         <input
                             type="text"
                             id="adminPasskeyName"
                             class="form-control"
-                            placeholder="e.g. MacBook Touch ID"
+                            placeholder="{{t $lang "admin.security.passkey_name_placeholder"}}"
                             aria-describedby="adminPasskeyName_help"
                             maxlength="64"
                         >
-                        <small id="adminPasskeyName_help" class="form-text">A friendly label to identify this passkey later</small>
+                        <small id="adminPasskeyName_help" class="form-text">{{t $lang "admin.security.passkey_name_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="adminPasskeyPassword">Confirm Admin Password</label>
+                        <label for="adminPasskeyPassword">{{t $lang "admin.security.passkey_password_label"}}</label>
                         <input
                             type="password"
                             id="adminPasskeyPassword"
                             class="form-control"
-                            placeholder="Enter your admin password"
+                            placeholder="{{t $lang "admin.security.passkey_password_placeholder"}}"
                             aria-describedby="adminPasskeyPassword_help"
                             autocomplete="current-password"
                         >
-                        <small id="adminPasskeyPassword_help" class="form-text">Required to authorize passkey registration</small>
+                        <small id="adminPasskeyPassword_help" class="form-text">{{t $lang "admin.security.passkey_password_help"}}</small>
                     </div>
 
                     <button
                         type="button"
                         class="btn btn-primary"
                         id="registerPasskeyBtn"
-                        aria-label="Register a new admin passkey"
+                        aria-label="{{t $lang "admin.security.passkey_register_label"}}"
                         onclick="registerAdminPasskey()"
                     >
-                        🔑 Add Passkey
+                        🔑 {{t $lang "admin.security.passkey_add_button"}}
                     </button>
 
                     <div id="passkey-op-status" class="alert" style="display:none;margin-top:1rem" role="status"></div>
                 </div>
             </section>
-        </main>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -792,5 +792,5 @@
     });
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

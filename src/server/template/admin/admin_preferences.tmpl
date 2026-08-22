@@ -1,0 +1,54 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $self := $ap -}}
+{{- if .admin_self_path}}{{$self = .admin_self_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.preferences.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.preferences.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="preferences-language-heading">
+    <div class="section-header">
+      <h2 id="preferences-language-heading">{{t $lang "admin.preferences.language_heading"}}</h2>
+    </div>
+    {{if .available_languages}}
+    <form class="settings-form" method="GET" action="{{$self}}/preferences">
+      <div class="form-group">
+        <label class="form-label" for="preferences-lang">{{t $lang "admin.preferences.language_label"}}</label>
+        <select class="form-select" id="preferences-lang" name="lang" aria-describedby="preferences-lang-hint">
+          {{range .available_languages}}
+          <option value="{{.Code}}"{{if eq .Code $lang}} selected{{end}}>{{.NativeName}}</option>
+          {{end}}
+        </select>
+        <p class="form-hint" id="preferences-lang-hint">{{t $lang "admin.preferences.language_hint"}}</p>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">{{t $lang "admin.preferences.language_action"}}</button>
+      </div>
+    </form>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#127760;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.preferences.language_empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.preferences.language_empty_message"}}</p>
+      <a class="btn btn-secondary" href="{{$ap}}/config/settings">{{t $lang "admin.preferences.language_empty_action"}}</a>
+    </div>
+    {{end}}
+  </section>
+
+  <section class="admin-section" aria-labelledby="preferences-other-heading">
+    <div class="section-header">
+      <h2 id="preferences-other-heading">{{t $lang "admin.preferences.other_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#9881;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.preferences.other_empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.preferences.other_empty_message"}}</p>
+      <a class="btn btn-secondary" href="{{$self}}/profile">{{t $lang "admin.preferences.other_empty_action"}}</a>
+    </div>
+  </section>
+{{template "admin_footer" .}}

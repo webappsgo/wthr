@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"database/sql"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -230,6 +233,40 @@ func TestHandleContactFormSubmission(t *testing.T) {
 			t.Errorf("expected 1 saved submission, got %d", count)
 		}
 	})
+}
+
+// TestSaveContactToDBMissingSchema pins the behaviour that replaced the
+// request-time CREATE TABLE: saveContactToDB no longer creates
+// contact_submissions itself, so a database that never had ServerSchema
+// applied must fail with an error that names the missing table rather than
+// silently creating a second, divergent definition of it.
+func TestSaveContactToDBMissingSchema(t *testing.T) {
+	dsn := fmt.Sprintf("file:handler_contact_noschema_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	raw, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("open schemaless db: %v", err)
+	}
+	t.Cleanup(func() { raw.Close() })
+
+	c, _ := newAPITestContext("/api/v1/server/contact")
+	c.Set("db", &database.DB{DB: raw})
+
+	err = saveContactToDB(c, "Ada", "ada@example.com", "Hello", "Test message")
+	if err == nil {
+		t.Fatal("expected an error when contact_submissions is missing, got nil")
+	}
+	if !strings.Contains(err.Error(), "contact_submissions") {
+		t.Errorf("error should name the missing table, got: %v", err)
+	}
+
+	// The handler must not have created the table as a side effect.
+	var name string
+	scanErr := raw.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_submissions'`).Scan(&name)
+	if scanErr == nil {
+		t.Error("saveContactToDB created contact_submissions; schema is owned by database.ServerSchema only")
+	} else if scanErr != sql.ErrNoRows {
+		t.Fatalf("inspect sqlite_master: %v", scanErr)
+	}
 }
 
 func TestGetSMTPService(t *testing.T) {

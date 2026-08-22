@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
+
 	_ "modernc.org/sqlite"
 )
 
-// setupTemplateEngineTestDB creates an in-memory SQLite database with the
-// notification_templates table for testing the TemplateEngine.
+// setupTemplateEngineTestDB creates an in-memory server SQLite database with
+// the real production ServerSchema applied, which is the only definition of
+// server_notification_templates the TemplateEngine uses.
 func setupTemplateEngineTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -20,23 +23,8 @@ func setupTemplateEngineTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	_, err = db.Exec(`
-		CREATE TABLE notification_templates (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			channel_type TEXT NOT NULL,
-			template_name TEXT NOT NULL,
-			template_type TEXT NOT NULL,
-			subject_template TEXT,
-			body_template TEXT NOT NULL,
-			variables TEXT,
-			is_default BOOLEAN DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(channel_type, template_name)
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create notification_templates table: %v", err)
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("apply ServerSchema: %v", err)
 	}
 
 	return db
@@ -422,7 +410,7 @@ func TestTemplateEngine_InitializeDefaultTemplates(t *testing.T) {
 	}
 
 	var countAfterFirst int
-	if err := db.QueryRow("SELECT COUNT(*) FROM notification_templates").Scan(&countAfterFirst); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM server_notification_templates").Scan(&countAfterFirst); err != nil {
 		t.Fatalf("failed to count templates: %v", err)
 	}
 	if countAfterFirst == 0 {
@@ -444,7 +432,7 @@ func TestTemplateEngine_InitializeDefaultTemplates(t *testing.T) {
 	}
 
 	var countAfterSecond int
-	if err := db.QueryRow("SELECT COUNT(*) FROM notification_templates").Scan(&countAfterSecond); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM server_notification_templates").Scan(&countAfterSecond); err != nil {
 		t.Fatalf("failed to count templates: %v", err)
 	}
 	if countAfterSecond != countAfterFirst {

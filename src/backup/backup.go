@@ -77,7 +77,12 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 		if opts.Password != "" {
 			ext = ".tar.gz.enc"
 		}
-		opts.OutputPath = filepath.Join(opts.DataDir, "backup", fmt.Sprintf("wthr_backup_%s%s", timestamp, ext))
+		// The directory is "backups" (plural) because that is what
+		// path.Paths.BackupDir resolves to, and every reader - the admin API,
+		// the CLI list and the retention sweep - looks there. This used to
+		// write to "backup" (singular), so a backup created here was invisible
+		// to every one of those readers and the retention sweep never saw it.
+		opts.OutputPath = filepath.Join(opts.DataDir, "backups", fmt.Sprintf("wthr_backup_%s%s", timestamp, ext))
 	}
 
 	// Ensure backup directory exists

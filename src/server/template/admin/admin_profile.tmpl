@@ -1,0 +1,25 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $self := $ap -}}
+{{- if .admin_self_path}}{{$self = .admin_self_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.profile.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.profile.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="profile-account-heading">
+    <div class="section-header">
+      <h2 id="profile-account-heading">{{t $lang "admin.profile.account_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128100;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.profile.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.profile.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$self}}/preferences">{{t $lang "admin.profile.empty_action"}}</a>
+    </div>
+  </section>
+{{template "admin_footer" .}}

@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -1427,4 +1429,260 @@ func ptrStringEqual(a, b *string) bool {
 		return a == b
 	}
 	return *a == *b
+}
+
+// TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText proves the
+// online-admin list is built from real instants, keeps its is_active filter,
+// and still returns one ascending, duplicate-free entry per admin now that the
+// SQL DISTINCT is gone.
+//
+// Against the previous "WHERE sac.is_active = 1 AND sas.expires_at >
+// CURRENT_TIMESTAMP" query the list was wrong in both directions: "westadmin",
+// whose session is still live, sorted below CURRENT_TIMESTAMP as text and was
+// reported offline, while "eastadmin", whose session expired an hour ago,
+// sorted above it and was reported online.
+func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testing.T) {
+	ddb := newGraphQLTimestampTestDB(t)
+	now := time.Now()
+	createdAt := now.UTC().Format("2006-01-02 15:04:05")
+
+	seedAdmin := func(username string, active bool) int64 {
+		admin, err := (&models.AdminModel{DB: ddb.Server}).Create(username, username+"@example.com", "password123", false)
+		if err != nil {
+			t.Fatalf("create admin %q: %v", username, err)
+		}
+		if !active {
+			if _, err := ddb.Server.Exec(`UPDATE server_admin_credentials SET is_active = 0 WHERE id = ?`, admin.ID); err != nil {
+				t.Fatalf("deactivate admin %q: %v", username, err)
+			}
+		}
+		return admin.ID
+	}
+
+	seedSession := func(id string, adminID int64, expiresAt string) {
+		if _, err := ddb.Server.Exec(`
+			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, id, adminID, "127.0.0.1", "test-agent", expiresAt, createdAt); err != nil {
+			t.Fatalf("seed session %q: %v", id, err)
+		}
+	}
+
+	liveWest := now.Add(time.Hour).In(graphQLZoneWest).Format(graphQLLocalTimestampLayout)
+	expiredEast := now.Add(-time.Hour).In(graphQLZoneEast).Format(graphQLLocalTimestampLayout)
+
+	// Still live, but its stored text reads as long past.
+	westAdmin := seedAdmin("westadmin", true)
+	seedSession("west-session-one", westAdmin, liveWest)
+	// A second live session for the same admin: the username must not appear
+	// twice now that SELECT DISTINCT no longer collapses the join.
+	seedSession("west-session-two", westAdmin, liveWest)
+
+	// Already expired, but its stored text reads as far future.
+	eastAdmin := seedAdmin("eastadmin", true)
+	seedSession("east-session", eastAdmin, expiredEast)
+
+	// Live session, deactivated account: is_active is still enforced in SQL.
+	inactiveAdmin := seedAdmin("inactiveadmin", false)
+	seedSession("inactive-session", inactiveAdmin, liveWest)
+
+	// Live session, unparseable expiry: must fail closed.
+	brokenAdmin := seedAdmin("brokenadmin", true)
+	seedSession("broken-session", brokenAdmin, "whenever-o-clock")
+
+	got, err := loadGraphQLOnlineAdminUsernames(context.Background(), ddb.Server)
+	if err != nil {
+		t.Fatalf("loadGraphQLOnlineAdminUsernames: %v", err)
+	}
+
+	want := []string{"westadmin"}
+	if len(got) != len(want) {
+		t.Fatalf("online admins = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("online admins = %v, want %v", got, want)
+			break
+		}
+	}
+}
+
+// TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText proves the three
+// audit-log counters bound their windows on real instants.
+//
+// Against the previous date('now', 'start of day') / datetime('now', '-1
+// minute') comparisons the counts were wrong: the east-zone row recorded five
+// minutes ago read as roughly half a day in the future and was counted into the
+// last-minute rate, and the west-zone row from 30 seconds ago read as most of a
+// day in the past and was left out of it.
+func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) {
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	if now.Sub(startOfDay) < 10*time.Minute {
+		t.Skip("running within 10 minutes of the UTC day boundary would make the today-window fixtures ambiguous")
+	}
+
+	ddb := newGraphQLTimestampTestDB(t)
+
+	seedAuditEntry := func(ulid, timestamp, status string) {
+		if _, err := ddb.Server.Exec(`
+			INSERT INTO server_audit_log (ulid, timestamp, actor_type, action, status)
+			VALUES (?, ?, ?, ?, ?)
+		`, ulid, timestamp, "admin", "test.request", status); err != nil {
+			t.Fatalf("seed audit entry %q: %v", ulid, err)
+		}
+	}
+
+	// Inside both the today and last-minute windows, stored in a zone whose
+	// text reads as long past.
+	seedAuditEntry("entry-recent", now.Add(-30*time.Second).In(graphQLZoneWest).Format(graphQLLocalTimestampLayout), "success")
+	// Inside the today window only, stored in a zone whose text reads as future.
+	seedAuditEntry("entry-earlier", now.Add(-5*time.Minute).In(graphQLZoneEast).Format(graphQLLocalTimestampLayout), "error")
+	// Outside every window.
+	seedAuditEntry("entry-yesterday", now.Add(-26*time.Hour).Format("2006-01-02 15:04:05"), "success")
+	// Unparseable entries count toward no window.
+	seedAuditEntry("entry-broken", "whenever-o-clock", "success")
+
+	stats, err := loadGraphQLRequestStats(context.Background(), ddb.Server)
+	if err != nil {
+		t.Fatalf("loadGraphQLRequestStats: %v", err)
+	}
+
+	if stats.Total != 2 {
+		t.Errorf("Total = %d, want 2 (both of today's entries, neither yesterday's nor the unparseable one)", stats.Total)
+	}
+	if stats.Errors == nil || *stats.Errors != 1 {
+		t.Errorf("Errors = %v, want 1 (only today's error entry)", stats.Errors)
+	}
+	wantPerSecond := 1.0 / 60.0
+	if stats.PerSecond == nil || *stats.PerSecond != wantPerSecond {
+		t.Errorf("PerSecond = %v, want %v (only the 30-second-old entry is inside the last minute)", stats.PerSecond, wantPerSecond)
+	}
+}
+
+// TestContactSubmissionsTableComesFromServerSchema proves contact_submissions
+// and its indexes are declared in database.ServerSchema and therefore exist on
+// a freshly initialised database without any request ever running DDL.
+//
+// Against the previous code the table only appeared after the first contact
+// mutation called ensureGraphQLContactSubmissionsTable, so a fresh database had
+// neither the table nor the two indexes and this test failed on the first
+// lookup.
+func TestContactSubmissionsTableComesFromServerSchema(t *testing.T) {
+	ddb := newGraphQLTimestampTestDB(t)
+
+	objects := []struct {
+		kind string
+		name string
+	}{
+		{"table", "contact_submissions"},
+		{"index", "idx_contact_submissions_status"},
+		{"index", "idx_contact_submissions_created"},
+	}
+
+	for _, object := range objects {
+		var found string
+		err := ddb.Server.QueryRow(
+			"SELECT name FROM sqlite_master WHERE type = ? AND name = ?", object.kind, object.name,
+		).Scan(&found)
+		if err != nil {
+			t.Fatalf("%s %q missing from a schema-initialised database: %v", object.kind, object.name, err)
+		}
+	}
+
+	rows, err := ddb.Server.Query("SELECT name FROM pragma_table_info('contact_submissions') ORDER BY cid")
+	if err != nil {
+		t.Fatalf("read contact_submissions columns: %v", err)
+	}
+	defer rows.Close()
+
+	var columns []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan column name: %v", err)
+		}
+		columns = append(columns, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate columns: %v", err)
+	}
+
+	want := []string{"id", "name", "email", "subject", "message", "ip_address", "user_agent", "status", "created_at"}
+	if len(columns) != len(want) {
+		t.Fatalf("columns = %v, want %v", columns, want)
+	}
+	for i := range want {
+		if columns[i] != want[i] {
+			t.Fatalf("columns = %v, want %v", columns, want)
+		}
+	}
+}
+
+// TestContactSubmissionsCreatedAtDefaultIsTimestampText proves the schema
+// default for created_at is a portable CURRENT_TIMESTAMP producing canonical
+// timestamp text, not the SQLite-only integer epoch the removed runtime DDL used.
+//
+// The old table was created with "created_at INTEGER DEFAULT (strftime('%s',
+// 'now'))", so an insert that omits created_at stored a bare epoch number and
+// the canonical-layout parse below failed.
+func TestContactSubmissionsCreatedAtDefaultIsTimestampText(t *testing.T) {
+	ddb := newGraphQLTimestampTestDB(t)
+
+	if _, err := ddb.Server.Exec(`
+		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "Ada", "ada@example.com", "Hello", "Body", "127.0.0.1", "test-agent"); err != nil {
+		t.Fatalf("insert contact submission: %v", err)
+	}
+
+	var createdAt string
+	if err := ddb.Server.QueryRow("SELECT CAST(created_at AS TEXT) FROM contact_submissions").Scan(&createdAt); err != nil {
+		t.Fatalf("read created_at: %v", err)
+	}
+
+	if _, err := time.Parse("2006-01-02 15:04:05", createdAt); err != nil {
+		t.Fatalf("created_at = %q, want canonical timestamp text: %v", createdAt, err)
+	}
+}
+
+// TestEnsureGraphQLContactSubmissionsTableDoesNotCreate proves the helper is now
+// a presence check: it succeeds while the schema-provided table is there and
+// reports an error once the table is gone, instead of silently recreating it.
+//
+// The old implementation ran CREATE TABLE IF NOT EXISTS on every call, so after
+// the DROP below it returned nil and the table reappeared - both assertions in
+// the second half of this test failed.
+func TestEnsureGraphQLContactSubmissionsTableDoesNotCreate(t *testing.T) {
+	ddb := newGraphQLTimestampTestDB(t)
+
+	if err := ensureGraphQLContactSubmissionsTable(context.Background(), ddb.Server); err != nil {
+		t.Fatalf("ensureGraphQLContactSubmissionsTable on a schema-initialised database: %v", err)
+	}
+
+	if _, err := ddb.Server.Exec("DROP TABLE contact_submissions"); err != nil {
+		t.Fatalf("drop contact_submissions: %v", err)
+	}
+
+	if err := ensureGraphQLContactSubmissionsTable(context.Background(), ddb.Server); err == nil {
+		t.Fatal("ensureGraphQLContactSubmissionsTable returned nil for a missing table, want an error")
+	}
+
+	var name string
+	err := ddb.Server.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_submissions'").Scan(&name)
+	if err != sql.ErrNoRows {
+		t.Fatalf("contact_submissions was recreated by the helper (err = %v), want it to stay absent", err)
+	}
+}
+
+// TestServerSchemaDeclaresContactSubmissions guards the source constant itself,
+// so a future edit cannot move the DDL back into request-time code without
+// failing here.
+func TestServerSchemaDeclaresContactSubmissions(t *testing.T) {
+	if !strings.Contains(database.ServerSchema, "CREATE TABLE IF NOT EXISTS contact_submissions") {
+		t.Error("database.ServerSchema does not declare contact_submissions")
+	}
+	if strings.Contains(database.ServerSchema, "strftime") {
+		t.Error("database.ServerSchema uses strftime, which is SQLite-only")
+	}
 }

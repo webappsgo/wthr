@@ -1,33 +1,8 @@
 package model
 
 import (
-	"database/sql"
-	"fmt"
-	"sync/atomic"
 	"testing"
-
-	"github.com/webappsgo/wthr/src/database"
 )
-
-// newModelLegacyDB opens a fresh in-memory SQLite database with the legacy
-// combined database.Schema applied, needed for SettingsModel methods
-// (Delete/List/ListByPrefix) that still target the pre-split "settings"
-// table rather than server_config.
-func newModelLegacyDB(t *testing.T) *sql.DB {
-	t.Helper()
-	n := atomic.AddInt64(&modelDBCounter, 1)
-	dsn := fmt.Sprintf("file:model_legacy_%d?mode=memory&cache=shared", n)
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		t.Fatalf("open legacy db: %v", err)
-	}
-	if _, err := db.Exec(database.Schema); err != nil {
-		db.Close()
-		t.Fatalf("apply legacy Schema: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
 
 // TestSettingsModel_GetSetFamily covers the server_config-backed Get/Set
 // methods and their typed convenience wrappers, including the
@@ -162,12 +137,13 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 	})
 }
 
-// TestSettingsModel_LegacyTableMethods covers Delete/List/ListByPrefix,
-// which operate on the legacy "settings" table via the injected DB field
-// rather than the server_config global accessor.
-func TestSettingsModel_LegacyTableMethods(t *testing.T) {
-	db := newModelLegacyDB(t)
-	model := &SettingsModel{DB: db}
+// TestSettingsModel_ListDeleteFamily covers Delete/List/ListByPrefix against
+// the real server_config table from the production ServerSchema, reached
+// through the global server-DB accessor.
+func TestSettingsModel_ListDeleteFamily(t *testing.T) {
+	db := newModelServerDB(t)
+	setModelGlobalDualDB(t, db, nil)
+	model := &SettingsModel{}
 
 	t.Run("List on empty table", func(t *testing.T) {
 		list, err := model.List()
@@ -185,7 +161,7 @@ func TestSettingsModel_LegacyTableMethods(t *testing.T) {
 		{"mail.host", "smtp.example.com", "string"},
 	}
 	for _, s := range seed {
-		if _, err := db.Exec("INSERT INTO settings (key, value, type) VALUES (?, ?, ?)", s.key, s.value, s.typ); err != nil {
+		if _, err := db.Exec("INSERT INTO server_config (key, value, type) VALUES (?, ?, ?)", s.key, s.value, s.typ); err != nil {
 			t.Fatalf("seed insert: %v", err)
 		}
 	}

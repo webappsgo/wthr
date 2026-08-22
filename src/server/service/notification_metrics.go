@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -146,16 +147,22 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 		summary.QueueDepth = 0
 	}
 
-	// Get average delivery time
-	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutReport, `
-		SELECT AVG(
-			CAST((julianday(delivered_at) - julianday(created_at)) * 86400 AS REAL)
-		)
+	// Get average delivery time. The gap between created_at and delivered_at is
+	// measured in Go rather than with SQLite's julianday() arithmetic:
+	// julianday() evaluates to NULL for the driver's local-zone
+	// time.Time.String() layout, so every row written that way silently dropped
+	// out of the average, and julianday() does not exist on PostgreSQL, MySQL or
+	// SQL Server, where the query errored and the average was reported as 0.
+	summary.AvgDeliveryTime = 0
+	deliveryRows, deliveryErr := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
+		SELECT created_at, delivered_at
 		FROM notification_queue
-		WHERE state = 'delivered' AND delivered_at IS NOT NULL
-	`).Scan(&summary.AvgDeliveryTime)
-	if err != nil {
-		summary.AvgDeliveryTime = 0
+		WHERE state = 'delivered' AND delivered_at IS NOT NULL AND created_at IS NOT NULL
+	`)
+	if deliveryErr == nil {
+		if average, averageErr := averageDeliverySeconds(deliveryRows); averageErr == nil {
+			summary.AvgDeliveryTime = average
+		}
 	}
 
 	// Calculate delivery and error rates
@@ -176,7 +183,14 @@ func (nm *NotificationMetrics) GetSummary() (*MetricsSummary, error) {
 	return summary, nil
 }
 
-// GetTimePeriodMetrics returns metrics for a specific time period
+// GetTimePeriodMetrics returns metrics for a specific time period.
+// The period cutoff is applied in Go rather than with SQLite's
+// datetime(?, 'unixepoch'): created_at can hold either the canonical UTC text
+// CURRENT_TIMESTAMP emits or the driver's local-zone time.Time.String() layout,
+// and datetime() yields NULL for the latter, so those rows dropped out of every
+// count regardless of when they were really created. One pass over the rows
+// also replaces the five separate aggregate queries this used to run, and works
+// unchanged on PostgreSQL and MySQL.
 func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*TimePeriodMetrics, error) {
 	metrics := &TimePeriodMetrics{
 		ByChannel: make(map[string]int64),
@@ -184,61 +198,44 @@ func (nm *NotificationMetrics) GetTimePeriodMetrics(duration time.Duration) (*Ti
 
 	since := time.Now().Add(-duration)
 
-	// Get total in period
-	err := database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE created_at >= datetime(?, 'unixepoch')
-	`, since.Unix()).Scan(&metrics.Total)
+	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
+		SELECT state, channel_type, created_at
+		FROM notification_queue
+		WHERE created_at IS NOT NULL
+	`)
 	if err != nil {
 		return nil, err
-	}
-
-	// Get delivered in period
-	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE state = 'delivered' AND created_at >= datetime(?, 'unixepoch')
-	`, since.Unix()).Scan(&metrics.Delivered)
-	if err != nil {
-		metrics.Delivered = 0
-	}
-
-	// Get failed in period
-	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE state = 'failed' AND created_at >= datetime(?, 'unixepoch')
-	`, since.Unix()).Scan(&metrics.Failed)
-	if err != nil {
-		metrics.Failed = 0
-	}
-
-	// Get pending in period
-	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE state IN ('queued', 'sending') AND created_at >= datetime(?, 'unixepoch')
-	`, since.Unix()).Scan(&metrics.Pending)
-	if err != nil {
-		metrics.Pending = 0
-	}
-
-	// Get by channel
-	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
-		SELECT channel_type, COUNT(*) as count
-		FROM notification_queue
-		WHERE created_at >= datetime(?, 'unixepoch')
-		GROUP BY channel_type
-	`, since.Unix())
-	if err != nil {
-		return metrics, nil
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var channel string
-		var count int64
-		if err := rows.Scan(&channel, &count); err != nil {
+		var state, channelType string
+		var storedCreatedAt interface{}
+		if scanErr := rows.Scan(&state, &channelType, &storedCreatedAt); scanErr != nil {
+			return nil, scanErr
+		}
+
+		// A row created exactly at the cutoff counted under the old ">=" test,
+		// so accept equality as well as "strictly after".
+		createdAt, ok := dbtime.ParseStoredTimestamp(storedCreatedAt)
+		if !ok || createdAt.Before(since.UTC()) {
 			continue
 		}
-		metrics.ByChannel[channel] = count
+
+		metrics.Total++
+		metrics.ByChannel[channelType]++
+
+		switch state {
+		case "delivered":
+			metrics.Delivered++
+		case "failed":
+			metrics.Failed++
+		case "queued", "sending":
+			metrics.Pending++
+		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 
 	return metrics, nil
@@ -291,19 +288,61 @@ func (nm *NotificationMetrics) GetChannelMetrics(channelType string) (*ChannelMe
 		metrics.DeliveryRate = float64(metrics.Delivered) / float64(total) * 100
 	}
 
-	// Get average delivery time
-	err = database.QueryRowContext(context.Background(), nm.db, database.TimeoutReport, `
-		SELECT AVG(
-			CAST((julianday(delivered_at) - julianday(created_at)) * 86400 AS REAL)
-		)
+	// Get average delivery time, measured in Go for the reasons given in
+	// GetSummary.
+	metrics.AvgDeliveryTime = 0
+	deliveryRows, deliveryErr := database.QueryContext(context.Background(), nm.db, database.TimeoutReport, `
+		SELECT created_at, delivered_at
 		FROM notification_queue
-		WHERE channel_type = ? AND state = 'delivered' AND delivered_at IS NOT NULL
-	`, channelType).Scan(&metrics.AvgDeliveryTime)
-	if err != nil {
-		metrics.AvgDeliveryTime = 0
+		WHERE channel_type = ? AND state = 'delivered' AND delivered_at IS NOT NULL AND created_at IS NOT NULL
+	`, channelType)
+	if deliveryErr == nil {
+		if average, averageErr := averageDeliverySeconds(deliveryRows); averageErr == nil {
+			metrics.AvgDeliveryTime = average
+		}
 	}
 
 	return metrics, nil
+}
+
+// averageDeliverySeconds reduces (created_at, delivered_at) pairs into the mean
+// delivery latency in seconds, parsing each stored value with
+// dbtime.ParseStoredTimestamp so that canonical UTC text and the driver's
+// local-zone time.Time.String() layout both resolve to the same instant. A row
+// whose timestamps do not parse, or whose delivered_at precedes its created_at,
+// is skipped rather than counted as a zero or negative latency. It returns 0
+// when no row is usable, matching the 0 the old AVG() query reported when it
+// scanned a NULL result. It takes ownership of rows and closes them.
+func averageDeliverySeconds(rows *sql.Rows) (float64, error) {
+	defer rows.Close()
+
+	var totalSeconds float64
+	var counted int64
+
+	for rows.Next() {
+		var storedCreatedAt, storedDeliveredAt interface{}
+		if scanErr := rows.Scan(&storedCreatedAt, &storedDeliveredAt); scanErr != nil {
+			return 0, scanErr
+		}
+
+		createdAt, createdOK := dbtime.ParseStoredTimestamp(storedCreatedAt)
+		deliveredAt, deliveredOK := dbtime.ParseStoredTimestamp(storedDeliveredAt)
+		if !createdOK || !deliveredOK || deliveredAt.Before(createdAt) {
+			continue
+		}
+
+		totalSeconds += deliveredAt.Sub(createdAt).Seconds()
+		counted++
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return 0, rowsErr
+	}
+
+	if counted == 0 {
+		return 0, nil
+	}
+
+	return totalSeconds / float64(counted), nil
 }
 
 // GetRecentErrors returns recent notification errors
@@ -323,11 +362,28 @@ func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interfac
 	var errors []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var channelType, subject, lastError, createdAt string
+		var channelType, subject, lastError string
+		var storedCreatedAt interface{}
 		var retryCount int
 
-		if err := rows.Scan(&id, &channelType, &subject, &lastError, &retryCount, &createdAt); err != nil {
+		if err := rows.Scan(&id, &channelType, &subject, &lastError, &retryCount, &storedCreatedAt); err != nil {
 			continue
+		}
+
+		// created_at crosses an API boundary here, so it is emitted in exactly one
+		// form: RFC 3339 (ISO 8601) UTC, per the project rule to use an existing
+		// standard rather than pass through whatever layout happens to be on disk.
+		// The column can legitimately hold the canonical UTC text
+		// CURRENT_TIMESTAMP writes or the driver's local-zone
+		// time.Time.String() form, and handing either straight to a consumer made
+		// the API emit inconsistent, zone-ambiguous timestamps.
+		// Fail-safe: a NULL or otherwise uninterpretable value yields an empty
+		// string rather than leaked raw text or a panic, so a consumer sees
+		// "created_at": "" and can treat the timestamp as unknown. The row itself
+		// is still returned - its error message is the point of the endpoint.
+		createdAt := ""
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedCreatedAt); ok {
+			createdAt = parsed.UTC().Format(time.RFC3339)
 		}
 
 		errors = append(errors, map[string]interface{}{
@@ -343,12 +399,14 @@ func (nm *NotificationMetrics) GetRecentErrors(limit int) ([]map[string]interfac
 	return errors, nil
 }
 
-// RecordMetric records a custom metric event
+// RecordMetric records a custom metric event.
+// recorded_at is bound as canonical UTC text rather than produced by SQLite's
+// datetime('now') so the write works identically on every supported driver.
 func (nm *NotificationMetrics) RecordMetric(metricType, channel string, value float64) error {
 	_, err := database.ExecContext(context.Background(), nm.db, database.TimeoutWrite, `
 		INSERT INTO notification_metrics (metric_type, channel_type, value, recorded_at)
-		VALUES (?, ?, ?, datetime('now'))
-	`, metricType, channel, value)
+		VALUES (?, ?, ?, ?)
+	`, metricType, channel, value, dbtime.FormatSQLTimestamp(time.Now()))
 	return err
 }
 
@@ -372,31 +430,58 @@ func (nm *NotificationMetrics) GetHealthStatus() map[string]interface{} {
 		status["warning"] = "Queue depth exceeds 1000"
 	}
 
-	// Check for stuck notifications (queued for > 1 hour)
-	var stuckCount int64
-	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE state = 'queued'
-		AND created_at < datetime('now', '-1 hour')
-	`).Scan(&stuckCount)
+	// Count stuck notifications (queued for > 1 hour) and the last hour's
+	// throughput in one pass, deciding "older than an hour" in Go. SQLite's
+	// datetime('now', '-1 hour') returns NULL for the local-zone layout the
+	// driver writes for a bound time.Time, so those rows never counted as stuck
+	// and never counted toward the recent error rate; the Go comparison is also
+	// portable to PostgreSQL and MySQL.
+	var stuckCount, recentTotal, recentFailed int64
+	stuckCutoff := time.Now().Add(-time.Hour)
+
+	rows, err := database.QueryContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
+		SELECT state, created_at
+		FROM notification_queue
+		WHERE created_at IS NOT NULL
+	`)
+	if err == nil {
+		defer rows.Close()
+
+		for rows.Next() {
+			var state string
+			var storedCreatedAt interface{}
+			if scanErr := rows.Scan(&state, &storedCreatedAt); scanErr != nil {
+				break
+			}
+
+			createdAt, ok := dbtime.ParseStoredTimestamp(storedCreatedAt)
+			if !ok {
+				continue
+			}
+
+			if createdAt.Before(stuckCutoff.UTC()) {
+				if state == "queued" {
+					stuckCount++
+				}
+				continue
+			}
+
+			recentTotal++
+			if state == "failed" {
+				recentFailed++
+			}
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			stuckCount, recentTotal, recentFailed = 0, 0, 0
+		}
+	}
+
 	status["stuck_notifications"] = stuckCount
 
 	if stuckCount > 0 {
 		status["healthy"] = false
 		status["warning"] = fmt.Sprintf("%d notifications stuck in queue", stuckCount)
 	}
-
-	// Check error rate in last hour
-	var recentTotal, recentFailed int64
-	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE created_at >= datetime('now', '-1 hour')
-	`).Scan(&recentTotal)
-
-	database.QueryRowContext(context.Background(), nm.db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM notification_queue
-		WHERE state = 'failed' AND created_at >= datetime('now', '-1 hour')
-	`).Scan(&recentFailed)
 
 	if recentTotal > 0 {
 		errorRate := float64(recentFailed) / float64(recentTotal) * 100

@@ -1,31 +1,32 @@
 {{template "head" .}}
-{{template "admin_nav" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-<main class="container p-4">
-    <h1>🧅 Tor Hidden Service</h1>
-    <p>Manage your Tor hidden service and .onion address</p>
+    <h1>🧅 {{t $lang "admin.tor.title"}}</h1>
+    <p>{{t $lang "admin.tor.intro"}}</p>
 
     <!-- Status Card -->
     <section class="card mb-4 p-4" role="region" aria-labelledby="status-heading">
-        <h2 id="status-heading">Service Status</h2>
+        <h2 id="status-heading">{{t $lang "admin.tor.status_heading"}}</h2>
 
         <div class="status-row">
             <span class="status-indicator {{if .TorStatus.enabled}}status-connected{{else}}status-disconnected{{end}}"
                   role="img"
-                  aria-label="{{if .TorStatus.enabled}}Connected{{else}}Disconnected{{end}}"></span>
-            <strong id="tor-status-text">{{if .TorStatus.enabled}}Connected{{else}}Disconnected{{end}}</strong>
+                  aria-label="{{if .TorStatus.enabled}}{{t $lang "admin.tor.status_connected"}}{{else}}{{t $lang "admin.tor.status_disconnected"}}{{end}}"></span>
+            <strong id="tor-status-text">{{if .TorStatus.enabled}}{{t $lang "admin.tor.status_connected"}}{{else}}{{t $lang "admin.tor.status_disconnected"}}{{end}}</strong>
         </div>
 
         {{if .TorStatus.enabled}}
         <div class="onion-address-box" role="region" aria-labelledby="address-label">
             <div>
-                <label id="address-label" class="d-block mb-1">Your .onion Address:</label>
+                <label id="address-label" class="d-block mb-1">{{t $lang "admin.tor.onion_address_label"}}</label>
                 <code id="onion-address">{{.TorStatus.onion_address}}</code>
             </div>
             <button class="btn btn-secondary"
                     onclick="copyAddress()"
-                    aria-label="Copy .onion address to clipboard">
-                📋 Copy
+                    aria-label="{{t $lang "admin.tor.copy_address_aria"}}">
+                📋 {{t $lang "admin.tor.copy_action"}}
             </button>
         </div>
         {{end}}
@@ -34,19 +35,19 @@
             {{if .TorStatus.enabled}}
             <button class="btn btn-danger mr-md"
                     onclick="disableTor()"
-                    aria-label="Disable Tor service">
-                Disable Tor
+                    aria-label="{{t $lang "admin.tor.disable_aria"}}">
+                {{t $lang "admin.tor.disable_action"}}
             </button>
             <button class="btn btn-secondary"
                     onclick="showRegenerateModal()"
-                    aria-label="Regenerate .onion address">
-                🔄 Regenerate Address
+                    aria-label="{{t $lang "admin.tor.regenerate_aria"}}">
+                🔄 {{t $lang "admin.tor.regenerate_action"}}
             </button>
             {{else}}
             <button class="btn btn-primary"
                     onclick="enableTor()"
-                    aria-label="Enable Tor service">
-                Enable Tor
+                    aria-label="{{t $lang "admin.tor.enable_aria"}}">
+                {{t $lang "admin.tor.enable_action"}}
             </button>
             {{end}}
         </div>
@@ -54,12 +55,12 @@
 
     <!-- Vanity Address Generation -->
     <section class="card mb-4 p-4" role="region" aria-labelledby="vanity-heading">
-        <h2 id="vanity-heading">Vanity Address Generation</h2>
-        <p>Generate a custom .onion address with your desired prefix (max 6 characters)</p>
+        <h2 id="vanity-heading">{{t $lang "admin.tor.vanity_heading"}}</h2>
+        <p>{{t $lang "admin.tor.vanity_intro"}}</p>
 
         <div class="form-group">
             <label for="vanity-prefix" class="form-label text-purple">
-                Desired Prefix
+                {{t $lang "admin.tor.vanity_prefix_label"}}
                 <span aria-hidden="true">*</span>
             </label>
             <input type="text"
@@ -67,67 +68,67 @@
                    class="form-input"
                    maxlength="6"
                    pattern="[a-z2-7]+"
-                   placeholder="weather (example)"
+                   placeholder="{{t $lang "admin.tor.vanity_prefix_placeholder"}}"
                    aria-required="true"
                    aria-describedby="prefix-help">
             <small id="prefix-help" class="form-help">
-                Use only lowercase letters (a-z) and numbers (2-7). Max 6 characters for reasonable generation time.
+                {{t $lang "admin.tor.vanity_prefix_help"}}
             </small>
         </div>
 
         <div class="mb-3">
-            <strong>Estimated Generation Time:</strong>
+            <strong>{{t $lang "admin.tor.vanity_estimate_heading"}}</strong>
             <ul class="mt-1">
-                <li>1-4 characters: Seconds to minutes</li>
-                <li>5 characters: Minutes to hours</li>
-                <li>6 characters: Hours to days</li>
+                <li>{{t $lang "admin.tor.vanity_estimate_1_4"}}</li>
+                <li>{{t $lang "admin.tor.vanity_estimate_5"}}</li>
+                <li>{{t $lang "admin.tor.vanity_estimate_6"}}</li>
             </ul>
         </div>
 
         <button class="btn btn-primary"
                 id="generate-vanity-btn"
                 onclick="generateVanity()"
-                aria-label="Start vanity address generation">
-            🎲 Generate Vanity Address
+                aria-label="{{t $lang "admin.tor.vanity_generate_aria"}}">
+            🎲 {{t $lang "admin.tor.vanity_generate_action"}}
         </button>
 
         <!-- Vanity Progress (shown when generating) -->
         <div id="vanity-progress" class="vanity-progress d-none" role="status" aria-live="polite">
-            <h3>⏳ Generating: "<span id="vanity-prefix-display"></span>"</h3>
+            <h3>⏳ {{t $lang "admin.tor.vanity_generating_label"}}: "<span id="vanity-prefix-display"></span>"</h3>
 
             <div class="progress-stats">
                 <div class="stat-item">
                     <div class="stat-value" id="attempts-count">0</div>
-                    <div class="stat-label">Attempts</div>
+                    <div class="stat-label">{{t $lang "admin.tor.vanity_attempts_label"}}</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="elapsed-time">0s</div>
-                    <div class="stat-label">Elapsed</div>
+                    <div class="stat-label">{{t $lang "admin.tor.vanity_elapsed_label"}}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-value" id="estimated-time">Calculating...</div>
-                    <div class="stat-label">Estimated</div>
+                    <div class="stat-value" id="estimated-time">{{t $lang "admin.tor.vanity_calculating"}}</div>
+                    <div class="stat-label">{{t $lang "admin.tor.vanity_estimated_label"}}</div>
                 </div>
             </div>
 
             <div class="mt-3">
                 <button class="btn btn-danger"
                         onclick="cancelVanity()"
-                        aria-label="Cancel vanity generation">
-                    ⏹️ Cancel
+                        aria-label="{{t $lang "admin.tor.vanity_cancel_aria"}}">
+                    ⏹️ {{t $lang "action.cancel"}}
                 </button>
             </div>
 
             <!-- Success message (shown when complete) -->
             <div id="vanity-success" class="success-box d-none">
-                <strong>✅ Vanity address found!</strong>
+                <strong>✅ {{t $lang "admin.tor.vanity_found_label"}}</strong>
                 <div class="mt-1">
                     <code id="vanity-address-result"></code>
                 </div>
                 <button class="btn btn-primary mt-3"
                         onclick="applyVanity()"
-                        aria-label="Apply vanity address">
-                    Apply This Address
+                        aria-label="{{t $lang "admin.tor.vanity_apply_aria"}}">
+                    {{t $lang "admin.tor.vanity_apply_action"}}
                 </button>
             </div>
         </div>
@@ -135,14 +136,14 @@
 
     <!-- Import External Keys -->
     <section class="card mb-4 p-4" role="region" aria-labelledby="import-heading">
-        <h2 id="import-heading">Import External Keys</h2>
-        <p>Import keys generated with external tools (for prefixes longer than 6 characters)</p>
+        <h2 id="import-heading">{{t $lang "admin.tor.import_heading"}}</h2>
+        <p>{{t $lang "admin.tor.import_intro"}}</p>
 
         <form id="import-form" onsubmit="importKeys(event)" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="key-file" class="form-label text-purple">
-                    Tor Private Key File
+                    {{t $lang "admin.tor.import_file_label"}}
                     <span aria-hidden="true">*</span>
                 </label>
                 <input type="file"
@@ -154,24 +155,24 @@
                        aria-required="true"
                        aria-describedby="import-help">
                 <small id="import-help" class="form-help">
-                    Upload the hs_ed25519_secret_key file from mkp224o or similar tool
+                    {{t $lang "admin.tor.import_file_help"}}
                 </small>
             </div>
 
-            <button type="submit" class="btn btn-primary" aria-label="Import keys">
-                📥 Import Keys
+            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.tor.import_action"}}">
+                📥 {{t $lang "admin.tor.import_action"}}
             </button>
         </form>
 
         <div class="help-section mt-3">
             <details>
                 <summary class="cursor-pointer font-semibold">
-                    ℹ️ Help: Generating Longer Vanity Addresses (7+ characters)
+                    ℹ️ {{t $lang "admin.tor.longer_vanity_help_summary"}}
                 </summary>
                 <div class="mt-3">
-                    <p>For prefixes longer than 6 characters, use external tools with GPU acceleration:</p>
+                    <p>{{t $lang "admin.tor.longer_vanity_help_intro"}}</p>
 
-                    <h4 class="mt-3">Using mkp224o (Recommended):</h4>
+                    <h4 class="mt-3">{{t $lang "admin.tor.mkp224o_heading"}}</h4>
                     <pre class="code-block"><code># Install
 git clone https://github.com/cathugger/mkp224o
 cd mkp224o && ./autogen.sh && ./configure && make
@@ -183,30 +184,30 @@ cd mkp224o && ./autogen.sh && ./configure && make
 #   ├─ hs_ed25519_secret_key  (upload this file)
 #   └─ hostname</code></pre>
 
-                    <h4 class="mt-3">Time Estimates:</h4>
+                    <h4 class="mt-3">{{t $lang "admin.tor.time_estimates_heading"}}</h4>
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Prefix Length</th>
-                                <th>CPU Time</th>
-                                <th>GPU Time</th>
+                                <th>{{t $lang "admin.tor.col_prefix_length"}}</th>
+                                <th>{{t $lang "admin.tor.col_cpu_time"}}</th>
+                                <th>{{t $lang "admin.tor.col_gpu_time"}}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td>7 chars</td>
-                                <td>Days to weeks</td>
-                                <td>Hours to days</td>
+                                <td>{{t $lang "admin.tor.time_days_weeks"}}</td>
+                                <td>{{t $lang "admin.tor.time_hours_days"}}</td>
                             </tr>
                             <tr>
                                 <td>8 chars</td>
-                                <td>Weeks to months</td>
-                                <td>Days to weeks</td>
+                                <td>{{t $lang "admin.tor.time_weeks_months"}}</td>
+                                <td>{{t $lang "admin.tor.time_days_weeks"}}</td>
                             </tr>
                             <tr>
                                 <td>9+ chars</td>
-                                <td>Months to years</td>
-                                <td>Weeks to months</td>
+                                <td>{{t $lang "admin.tor.time_months_years"}}</td>
+                                <td>{{t $lang "admin.tor.time_weeks_months"}}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -217,39 +218,38 @@ cd mkp224o && ./autogen.sh && ./configure && make
 
     <!-- Export Keys -->
     <section class="card mb-4 p-4" role="region" aria-labelledby="export-heading">
-        <h2 id="export-heading">Export Current Keys</h2>
-        <p>Download your current Tor hidden service private key for backup</p>
+        <h2 id="export-heading">{{t $lang "admin.tor.export_heading"}}</h2>
+        <p>{{t $lang "admin.tor.export_intro"}}</p>
 
         <button class="btn btn-secondary"
                 onclick="exportKeys()"
-                aria-label="Export current keys">
-            📤 Download Private Key
+                aria-label="{{t $lang "admin.tor.export_action"}}">
+            📤 {{t $lang "admin.tor.export_action"}}
         </button>
 
         <p class="warning-text">
-            <strong>⚠️ Security Warning:</strong> Keep your private key safe. Anyone with access to it can impersonate your .onion address.
+            <strong>⚠️ {{t $lang "admin.tor.security_warning_label"}}</strong> {{t $lang "admin.tor.security_warning_text"}}
         </p>
     </section>
-</main>
 
 <!-- Regenerate Confirmation Modal -->
 <div id="regenerate-modal" class="modal-overlay" role="dialog" aria-labelledby="modal-title" aria-modal="true">
     <div class="modal">
-        <h2 id="modal-title">⚠️ Confirm Address Regeneration</h2>
-        <p>This will delete your current .onion address and generate a new one.</p>
-        <p><strong>Your old address will stop working immediately!</strong></p>
-        <p>Current address: <code>{{.TorStatus.onion_address}}</code></p>
+        <h2 id="modal-title">⚠️ {{t $lang "admin.tor.regenerate_modal_title"}}</h2>
+        <p>{{t $lang "admin.tor.regenerate_modal_body1"}}</p>
+        <p><strong>{{t $lang "admin.tor.regenerate_modal_body2"}}</strong></p>
+        <p>{{t $lang "admin.tor.regenerate_modal_current_label"}} <code>{{.TorStatus.onion_address}}</code></p>
 
         <div class="modal-actions">
             <button class="btn btn-danger mr-md"
                     onclick="confirmRegenerate()"
-                    aria-label="Confirm regeneration">
-                Yes, Regenerate Address
+                    aria-label="{{t $lang "admin.tor.regenerate_confirm_aria"}}">
+                {{t $lang "admin.tor.regenerate_confirm_action"}}
             </button>
             <button class="btn btn-secondary"
                     onclick="closeRegenerateModal()"
-                    aria-label="Cancel regeneration">
-                Cancel
+                    aria-label="{{t $lang "admin.tor.regenerate_cancel_aria"}}">
+                {{t $lang "action.cancel"}}
             </button>
         </div>
     </div>
@@ -456,4 +456,4 @@ cd mkp224o && ./autogen.sh && ./configure && make
     }
 </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}

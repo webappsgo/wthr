@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // IsPrivileged checks if the current process has administrator/root privileges
@@ -57,7 +59,7 @@ func EscalatePrivileges(args []string) (bool, error) {
 func escalateUnix(exePath string, args []string) (bool, error) {
 	// Try sudo first (most common)
 	if _, err := exec.LookPath("sudo"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (sudo)...")
+		fmt.Printf("%s Requesting administrator privileges (sudo)...\n", display.Emoji("🔒", "*"))
 		cmd := exec.Command("sudo", append([]string{exePath}, args...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -68,7 +70,7 @@ func escalateUnix(exePath string, args []string) (bool, error) {
 
 	// Try pkexec (PolicyKit)
 	if _, err := exec.LookPath("pkexec"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (pkexec)...")
+		fmt.Printf("%s Requesting administrator privileges (pkexec)...\n", display.Emoji("🔒", "*"))
 		cmd := exec.Command("pkexec", append([]string{exePath}, args...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -79,7 +81,7 @@ func escalateUnix(exePath string, args []string) (bool, error) {
 
 	// Try doas (OpenBSD/some Linux)
 	if _, err := exec.LookPath("doas"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (doas)...")
+		fmt.Printf("%s Requesting administrator privileges (doas)...\n", display.Emoji("🔒", "*"))
 		cmd := exec.Command("doas", append([]string{exePath}, args...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -90,7 +92,7 @@ func escalateUnix(exePath string, args []string) (bool, error) {
 
 	// Try su (fallback, requires root password)
 	if _, err := exec.LookPath("su"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (su)...")
+		fmt.Printf("%s Requesting administrator privileges (su)...\n", display.Emoji("🔒", "*"))
 		// su requires "-c" to run a command
 		cmdStr := exePath + " " + strings.Join(args, " ")
 		cmd := exec.Command("su", "-c", cmdStr)
@@ -109,7 +111,7 @@ func escalateUnix(exePath string, args []string) (bool, error) {
 func escalateMacOS(exePath string, args []string) (bool, error) {
 	// Try sudo first
 	if _, err := exec.LookPath("sudo"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (sudo)...")
+		fmt.Printf("%s Requesting administrator privileges (sudo)...\n", display.Emoji("🔒", "*"))
 		cmd := exec.Command("sudo", append([]string{exePath}, args...)...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -120,7 +122,7 @@ func escalateMacOS(exePath string, args []string) (bool, error) {
 
 	// Try osascript for graphical prompt
 	if _, err := exec.LookPath("osascript"); err == nil {
-		fmt.Println("🔒 Requesting administrator privileges (GUI)...")
+		fmt.Printf("%s Requesting administrator privileges (GUI)...\n", display.Emoji("🔒", "*"))
 		cmdStr := exePath + " " + strings.Join(args, " ")
 		script := fmt.Sprintf(`do shell script "%s" with administrator privileges`, cmdStr)
 		cmd := exec.Command("osascript", "-e", script)
@@ -143,7 +145,7 @@ func escalateWindows(exePath string, args []string) (bool, error) {
 		return false, nil
 	}
 
-	fmt.Println("🔒 Requesting administrator privileges (UAC)...")
+	fmt.Printf("%s Requesting administrator privileges (UAC)...\n", display.Emoji("🔒", "*"))
 
 	// Use PowerShell to trigger UAC
 	psCmd := fmt.Sprintf(`Start-Process -FilePath "%s" -ArgumentList "%s" -Verb RunAs -Wait`,

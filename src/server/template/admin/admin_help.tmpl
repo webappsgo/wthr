@@ -1,0 +1,71 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.help.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.help.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="help-sections-heading">
+    <div class="section-header">
+      <h2 id="help-sections-heading">{{t $lang "admin.help.sections_heading"}}</h2>
+    </div>
+    <ul class="admin-link-grid">
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/settings">{{t $lang "admin.help.link_settings"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_settings_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/security">{{t $lang "admin.help.link_security"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_security_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/users">{{t $lang "admin.help.link_users"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_users_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/backup">{{t $lang "admin.help.link_backup"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_backup_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/logs">{{t $lang "admin.help.link_logs"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_logs_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/scheduler">{{t $lang "admin.help.link_scheduler"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_scheduler_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/metrics">{{t $lang "admin.help.link_metrics"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_metrics_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="{{$ap}}/config/info">{{t $lang "admin.help.link_info"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_info_desc"}}</p>
+      </li>
+    </ul>
+  </section>
+
+  <section class="admin-section" aria-labelledby="help-support-heading">
+    <div class="section-header">
+      <h2 id="help-support-heading">{{t $lang "admin.help.support_heading"}}</h2>
+    </div>
+    <ul class="admin-link-grid">
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="/server/help">{{t $lang "admin.help.link_public_help"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_public_help_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="/server/contact">{{t $lang "admin.help.link_contact"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_contact_desc"}}</p>
+      </li>
+      <li class="admin-link-card">
+        <a class="admin-link-card__link" href="/server/healthz">{{t $lang "admin.help.link_healthz"}}</a>
+        <p class="admin-link-card__text">{{t $lang "admin.help.link_healthz_desc"}}</p>
+      </li>
+    </ul>
+  </section>
+{{template "admin_footer" .}}

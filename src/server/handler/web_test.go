@@ -25,9 +25,6 @@ func newWebTestContext(target string) (*gin.Context, *httptest.ResponseRecorder)
 // before touching the (here nil) weatherService/locationEnhancer, so the
 // not-initialized loading page is the only reachable branch without a live
 // WeatherService — the same constraint documented in weather_test.go.
-// ServeExamplesPage always calls c.HTML directly with no guard, so its
-// success path is blocked by the lack of a wired HTMLRender in this unit
-// test environment and is intentionally left untested (see final report).
 func TestWebHandlerServeWebInterface_NotInitialized(t *testing.T) {
 	SetInitStatus(false, false, false)
 	t.Cleanup(func() { SetInitStatus(false, false, false) })

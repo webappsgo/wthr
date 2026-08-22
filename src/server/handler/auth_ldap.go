@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -87,10 +88,14 @@ func (h *LDAPAuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
 			return
 		}
+		// created_at/updated_at are bound as canonical UTC text rather than
+		// produced by SQL's CURRENT_TIMESTAMP, which yields a different type and
+		// zone on PostgreSQL, MySQL and SQL Server than it does on SQLite.
+		now := dbtime.FormatSQLTimestamp(time.Now())
 		result, insertErr := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_accounts (username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'user', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, req.Username, email, displayName, pwHash)
+			VALUES (?, ?, ?, ?, 'user', 1, 1, ?, ?)
+		`, req.Username, email, displayName, pwHash, now, now)
 		if insertErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
 			return

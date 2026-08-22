@@ -3307,35 +3307,6 @@ any of the above: `src/graphql/context_keys_test.go`,
     fixture built from `database.ServerSchema`, so it needed no change and
     now exercises the presence check for real.
 
-149. BLOCKED - NEEDS A USER DECISION (2026-08-21). DATA LOSS caused by this
-    session: `git checkout -- src/common/i18n/locales/` was run to undo a
-    reformatting mistake in those seven files, and it also discarded the
-    uncommitted translation work that was already in the working tree. Each
-    locale file went from 1933 keys back to the 205 keys in HEAD; 1728 keys
-    per language across `en, es, zh, fr, ar, de, ja` are gone. Verified
-    scope: 1713 distinct `t $lang "..."` references in
-    `src/server/template/**/*.tmpl` now resolve to no key, so every
-    converted admin and public page renders raw keys until this is rebuilt.
-    Recovery was attempted and failed on every avenue: the content was never
-    committed (`git log --all -S` finds no commit containing it), no stash
-    or dangling git object holds it, Claude Code's `file-history` snapshots
-    do not contain it, the session and subagent transcripts contain only the
-    small incremental scripts that produced it rather than the values
-    themselves, and no copy exists anywhere else on the filesystem.
-    The template-side conversion itself is intact and uncommitted, which is
-    what makes a rebuild possible: for every `t $lang "key"` call in the
-    working-tree template, the corresponding English text still exists at
-    the same position in that template's HEAD version
-    (`git show HEAD:{path}`), so `en.json` can be reconstructed
-    mechanically by diffing each template against HEAD. The other six
-    locales have no such source and would have to be re-translated from the
-    reconstructed `en.json`. That is roughly 1713 English strings plus
-    around 10000 translations, so it is a deliberate, separately scoped
-    piece of work and not something to start without the user choosing the
-    approach. Do not commit the working tree until this is settled: the
-    committed result would be a set of templates whose keys mostly do not
-    exist. Read: AI.md PART 31.
-
 150. TODO (flagged 2026-08-21 while wiring the admin backup page): PART 22
     tiered backup retention is not implemented. `config.BackupConfig` has no
     `Retention` block, so `server.backup.retention.max_backups`,
@@ -3392,3 +3363,22 @@ any of the above: `src/graphql/context_keys_test.go`,
     rotation as the only removal path; the database-backed mirror needs the
     equivalent - a `log_rotation`-adjacent scheduled prune with a
     configurable window. Read: AI.md PART 11, 19.
+
+155. TODO (opened 2026-08-21 when item 149 was resolved): human review of the
+    English wording for the 371 locale keys that had no HEAD source string.
+    The i18n locale set was rebuilt to 1923 keys per language across `en, es,
+    zh, fr, ar, de, ja`, all seven key sets identical, every `t $lang "..."`
+    call site in `src/` resolving. Of those keys, 205 were the pre-existing
+    HEAD values (untouched), 1351 were reconstructed mechanically by diffing
+    each working-tree template against `git show HEAD:{path}` and lifting the
+    English literal that stood at the position the `t` call replaced, and 371
+    had no HEAD counterpart because they belong to template files created
+    after the last commit. Those 371 were authored from surrounding markup,
+    field names and key names, so the English is plausible but unreviewed -
+    it is the only part of the rebuild that is not evidence-backed. Four of
+    them were corrected after the fact (`admin.backup.password_hint`,
+    `interval_hint`, `include_ssl_label`, `include_data_label` had picked up
+    the wrong neighbouring literal); the rest have had no second pass. Review
+    the authored subset against the rendered admin pages and adjust wording,
+    then re-translate any key whose English changes in all six other locales.
+    Read: AI.md PART 31.

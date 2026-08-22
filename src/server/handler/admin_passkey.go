@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 
@@ -23,12 +24,21 @@ import (
 // operation has already completed; logging failure must not roll it back.
 func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, passkeyName, clientIP, userAgent string) {
 	details, _ := json.Marshal(map[string]string{"name": passkeyName})
+
+	// timestamp is bound explicitly rather than left to the column's
+	// DEFAULT CURRENT_TIMESTAMP. The default is an implicit producer no
+	// application-side discipline reaches: on PostgreSQL and MySQL it renders
+	// in the server's own zone and type, which would leave this one column
+	// holding two layouts that no ORDER BY or range comparison can reconcile.
+	// The other two writers of server_audit_log (src/server/middleware/audit.go
+	// and src/scheduler/scheduler.go) already bind canonical UTC text.
 	_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		INSERT INTO server_audit_log
-			(ulid, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
-		VALUES (?, 'admin', ?, ?, 'admin_passkey', ?, ?, ?, ?, 'success')
+			(ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, 'admin', ?, ?, 'admin_passkey', ?, ?, ?, ?, 'success')
 	`,
 		ulid.Make().String(),
+		dbtime.FormatSQLTimestamp(time.Now()),
 		fmt.Sprintf("%d", adminID),
 		action,
 		fmt.Sprintf("%d", passkeyID),
@@ -95,7 +105,7 @@ func adminPasskeyEnvelope(c *gin.Context) PasskeyEnvelope {
 	}
 }
 
-// ListPasskeys handles GET /api/{api_version}/{admin_path}/profile/security/passkeys.
+// ListPasskeys handles GET /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys.
 func (h *AdminPasskeyHandler) ListPasskeys(c *gin.Context) {
 	admin, ok := h.loadAdminFromContext(c)
 	if !ok {
@@ -123,7 +133,7 @@ type adminPasskeyRegistrationStartRequest struct {
 	Password string `json:"password"`
 }
 
-// RegisterPasskey handles POST /api/{api_version}/{admin_path}/profile/security/passkeys.
+// RegisterPasskey handles POST /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys.
 // Two-phase: a request body without `response` starts the ceremony and
 // returns the WebAuthn options; a request body with `response` finishes it.
 func (h *AdminPasskeyHandler) RegisterPasskey(c *gin.Context) {
@@ -295,7 +305,7 @@ func (h *AdminPasskeyHandler) VerifyPasskey(c *gin.Context) {
 	})
 }
 
-// DeletePasskey handles DELETE /api/{api_version}/{admin_path}/profile/security/passkeys/:passkey_id.
+// DeletePasskey handles DELETE /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys/:passkey_id.
 func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
 	admin, ok := h.loadAdminFromContext(c)
 	if !ok {

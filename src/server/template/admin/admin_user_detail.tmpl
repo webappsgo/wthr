@@ -1,0 +1,36 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.user_detail.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.user_detail.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="user-detail-identity-heading">
+    <div class="section-header">
+      <h2 id="user-detail-identity-heading">{{t $lang "admin.user_detail.identity_heading"}}</h2>
+    </div>
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.user_detail.id_label"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all">{{if .userID}}{{.userID}}{{else}}{{t $lang "admin.common.not_set"}}{{end}}</dd>
+    </dl>
+    <div class="admin-actions">
+      <a class="btn btn-secondary" href="{{$ap}}/config/moderation/users">{{t $lang "admin.user_detail.back_action"}}</a>
+    </div>
+  </section>
+
+  <section class="admin-section" aria-labelledby="user-detail-activity-heading">
+    <div class="section-header">
+      <h2 id="user-detail-activity-heading">{{t $lang "admin.user_detail.activity_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128100;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.user_detail.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.user_detail.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/users">{{t $lang "admin.user_detail.empty_action"}}</a>
+    </div>
+  </section>
+{{template "admin_footer" .}}

@@ -1,44 +1,27 @@
 {{define "admin/admin_scheduler.tmpl"}}
-<!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-</head>
-<body>
-    <div class="admin-page-header">
-        <h1>Scheduler Configuration</h1>
-        <div class="admin-page-breadcrumb">
-            <a href="{{.admin_path}}">Admin</a> /
-            <a href="{{.admin_path}}/tasks">Tasks</a> /
-            <span>Configuration</span>
-        </div>
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+    <div class="content-header">
+        <h1>{{t $lang "admin.scheduler.title"}}</h1>
     </div>
 
     <div class="admin-page-container">
-        <div class="admin-nav-links">
-            <a href="{{.admin_path}}" class="admin-nav-link">Dashboard</a>
-            <a href="{{.admin_path}}/tasks" class="admin-nav-link">Task Monitor</a>
-        </div>
-
         <div class="admin-alert admin-alert-success" id="successAlert" role="alert"></div>
         <div class="admin-alert admin-alert-error" id="errorAlert" role="alert"></div>
 
-        <form id="schedulerForm" method="POST" action="{{.admin_path}}/scheduler/config">
+        <form id="schedulerForm" method="POST" action="{{.admin_path}}/config/scheduler">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <!-- Global Settings -->
             <div class="admin-page-card">
-                <h2>Global Settings</h2>
+                <h2>{{t $lang "admin.scheduler.global_settings_heading"}}</h2>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="timezone">
-                            Timezone
-                            <span class="help-icon" title="Timezone for scheduled tasks">i</span>
+                            {{t $lang "admin.scheduler.timezone_label"}}
+                            <span class="help-icon" title="{{t $lang "admin.scheduler.timezone_hint"}}">i</span>
                         </label>
                         <select name="timezone" id="timezone">
                             <option value="America/New_York" {{if eq .config.Timezone "America/New_York"}}selected{{end}}>America/New_York (EST/EDT)</option>
@@ -52,39 +35,39 @@
                             <option value="Asia/Shanghai" {{if eq .config.Timezone "Asia/Shanghai"}}selected{{end}}>Asia/Shanghai (CST)</option>
                             <option value="Australia/Sydney" {{if eq .config.Timezone "Australia/Sydney"}}selected{{end}}>Australia/Sydney (AEDT/AEST)</option>
                         </select>
-                        <div class="help-text">Timezone for scheduled tasks (default: America/New_York)</div>
+                        <div class="help-text">{{t $lang "admin.scheduler.timezone_help"}}</div>
                     </div>
 
                     <div class="form-group">
                         <label for="catch_up_window">
-                            Catch-up Window
-                            <span class="help-icon" title="Run missed tasks within this duration">i</span>
+                            {{t $lang "admin.scheduler.catch_up_window_label"}}
+                            <span class="help-icon" title="{{t $lang "admin.scheduler.catch_up_window_hint"}}">i</span>
                         </label>
                         <input type="text" name="catch_up_window" id="catch_up_window"
                                value="{{.config.CatchUpWindow}}"
                                placeholder="1h">
-                        <div class="help-text">Run missed tasks if within this duration (e.g., 1h, 30m, 2h30m)</div>
+                        <div class="help-text">{{t $lang "admin.scheduler.catch_up_window_help"}}</div>
                     </div>
                 </div>
             </div>
 
             <!-- Security Tasks -->
             <div class="admin-page-card">
-                <h2>Scheduled Tasks</h2>
+                <h2>{{t $lang "admin.scheduler.tasks_heading"}}</h2>
 
-                <div class="task-category">Security & Certificates</div>
+                <div class="task-category">{{t $lang "admin.scheduler.category_security"}}</div>
 
                 <!-- SSL Renewal -->
                 <div class="task-section critical">
                     <h3>
-                        <span>SSL Certificate Renewal</span>
-                        <span class="warning-badge">Critical - Cannot Disable</span>
+                        <span>{{t $lang "admin.scheduler.ssl_renewal_title"}}</span>
+                        <span class="warning-badge">{{t $lang "admin.scheduler.critical_badge"}}</span>
                     </h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="ssl_renewal.enabled" checked disabled>
                                     <span class="toggle-slider"></span>
@@ -93,14 +76,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="ssl_renewal_schedule">Schedule (Cron Expression)</label>
+                            <label for="ssl_renewal_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="ssl_renewal.schedule"
                                    id="ssl_renewal_schedule"
                                    value="{{.config.Tasks.SSLRenewal.Schedule}}"
                                    placeholder="0 3 * * *"
                                    onchange="previewCron('ssl_renewal', this.value)">
-                            <div class="help-text">Daily at 03:00 (after backup at 02:00)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.ssl_renewal_help"}}</div>
                             <div class="cron-preview" id="ssl_renewal_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -108,12 +91,12 @@
 
                 <!-- GeoIP Update -->
                 <div class="task-section">
-                    <h3>GeoIP Database Update</h3>
+                    <h3>{{t $lang "admin.scheduler.geoip_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="geoip_update.enabled"
                                            {{if .config.Tasks.GeoIPUpdate.Enabled}}checked{{end}}>
@@ -123,29 +106,29 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="geoip_update_schedule">Schedule (Cron Expression)</label>
+                            <label for="geoip_update_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="geoip_update.schedule"
                                    id="geoip_update_schedule"
                                    value="{{.config.Tasks.GeoIPUpdate.Schedule}}"
                                    placeholder="0 3 * * 0"
                                    onchange="previewCron('geoip_update', this.value)">
-                            <div class="help-text">Weekly Sunday at 03:00</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.geoip_help"}}</div>
                             <div class="cron-preview" id="geoip_update_preview" class="hidden"></div>
                         </div>
                     </div>
                 </div>
 
-                <div class="task-category">Threat Intelligence & Security</div>
+                <div class="task-category">{{t $lang "admin.scheduler.category_threat_intel"}}</div>
 
                 <!-- Blocklist Update -->
                 <div class="task-section">
-                    <h3>Blocklist Update</h3>
+                    <h3>{{t $lang "admin.scheduler.blocklist_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="blocklist_update.enabled"
                                            {{if .config.Tasks.BlocklistUpdate.Enabled}}checked{{end}}>
@@ -155,14 +138,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="blocklist_update_schedule">Schedule (Cron Expression)</label>
+                            <label for="blocklist_update_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="blocklist_update.schedule"
                                    id="blocklist_update_schedule"
                                    value="{{.config.Tasks.BlocklistUpdate.Schedule}}"
                                    placeholder="0 4 * * *"
                                    onchange="previewCron('blocklist_update', this.value)">
-                            <div class="help-text">Daily at 04:00</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.blocklist_help"}}</div>
                             <div class="cron-preview" id="blocklist_update_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -170,7 +153,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Retry on Fail</span>
+                                <span>{{t $lang "admin.scheduler.retry_on_fail_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="blocklist_update.retry_on_fail"
                                            {{if .config.Tasks.BlocklistUpdate.RetryOnFail}}checked{{end}}>
@@ -180,25 +163,25 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="blocklist_update_retry_delay">Retry Delay</label>
+                            <label for="blocklist_update_retry_delay">{{t $lang "admin.scheduler.retry_delay_label"}}</label>
                             <input type="text"
                                    name="blocklist_update.retry_delay"
                                    id="blocklist_update_retry_delay"
                                    value="{{.config.Tasks.BlocklistUpdate.RetryDelay}}"
                                    placeholder="1h">
-                            <div class="help-text">Delay before retry (e.g., 1h, 30m)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.retry_delay_help"}}</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- CVE Update -->
                 <div class="task-section">
-                    <h3>CVE Database Update</h3>
+                    <h3>{{t $lang "admin.scheduler.cve_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="cve_update.enabled"
                                            {{if .config.Tasks.CVEUpdate.Enabled}}checked{{end}}>
@@ -208,14 +191,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="cve_update_schedule">Schedule (Cron Expression)</label>
+                            <label for="cve_update_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="cve_update.schedule"
                                    id="cve_update_schedule"
                                    value="{{.config.Tasks.CVEUpdate.Schedule}}"
                                    placeholder="0 5 * * *"
                                    onchange="previewCron('cve_update', this.value)">
-                            <div class="help-text">Daily at 05:00</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.cve_help"}}</div>
                             <div class="cron-preview" id="cve_update_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -223,7 +206,7 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Retry on Fail</span>
+                                <span>{{t $lang "admin.scheduler.retry_on_fail_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="cve_update.retry_on_fail"
                                            {{if .config.Tasks.CVEUpdate.RetryOnFail}}checked{{end}}>
@@ -233,27 +216,27 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="cve_update_retry_delay">Retry Delay</label>
+                            <label for="cve_update_retry_delay">{{t $lang "admin.scheduler.retry_delay_label"}}</label>
                             <input type="text"
                                    name="cve_update.retry_delay"
                                    id="cve_update_retry_delay"
                                    value="{{.config.Tasks.CVEUpdate.RetryDelay}}"
                                    placeholder="1h">
-                            <div class="help-text">Delay before retry (e.g., 1h, 30m)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.retry_delay_help"}}</div>
                         </div>
                     </div>
                 </div>
 
-                <div class="task-category">Maintenance & Cleanup</div>
+                <div class="task-category">{{t $lang "admin.scheduler.category_maintenance"}}</div>
 
                 <!-- Session Cleanup -->
                 <div class="task-section">
-                    <h3>Session Cleanup</h3>
+                    <h3>{{t $lang "admin.scheduler.session_cleanup_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="session_cleanup.enabled"
                                            {{if .config.Tasks.SessionCleanup.Enabled}}checked{{end}}>
@@ -263,14 +246,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="session_cleanup_schedule">Schedule (Cron Expression)</label>
+                            <label for="session_cleanup_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="session_cleanup.schedule"
                                    id="session_cleanup_schedule"
                                    value="{{.config.Tasks.SessionCleanup.Schedule}}"
                                    placeholder="@hourly"
                                    onchange="previewCron('session_cleanup', this.value)">
-                            <div class="help-text">Every hour (@hourly or 0 * * * *)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.session_cleanup_help"}}</div>
                             <div class="cron-preview" id="session_cleanup_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -278,12 +261,12 @@
 
                 <!-- Token Cleanup -->
                 <div class="task-section">
-                    <h3>Token Cleanup</h3>
+                    <h3>{{t $lang "admin.scheduler.token_cleanup_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="token_cleanup.enabled"
                                            {{if .config.Tasks.TokenCleanup.Enabled}}checked{{end}}>
@@ -293,14 +276,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="token_cleanup_schedule">Schedule (Cron Expression)</label>
+                            <label for="token_cleanup_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="token_cleanup.schedule"
                                    id="token_cleanup_schedule"
                                    value="{{.config.Tasks.TokenCleanup.Schedule}}"
                                    placeholder="0 6 * * *"
                                    onchange="previewCron('token_cleanup', this.value)">
-                            <div class="help-text">Daily at 06:00</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.token_cleanup_help"}}</div>
                             <div class="cron-preview" id="token_cleanup_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -308,12 +291,12 @@
 
                 <!-- Log Rotation -->
                 <div class="task-section">
-                    <h3>Log Rotation</h3>
+                    <h3>{{t $lang "admin.scheduler.log_rotation_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="log_rotation.enabled"
                                            {{if .config.Tasks.LogRotation.Enabled}}checked{{end}}>
@@ -323,43 +306,43 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="log_rotation_schedule">Schedule (Cron Expression)</label>
+                            <label for="log_rotation_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="log_rotation.schedule"
                                    id="log_rotation_schedule"
                                    value="{{.config.Tasks.LogRotation.Schedule}}"
                                    placeholder="0 0 * * *"
                                    onchange="previewCron('log_rotation', this.value)">
-                            <div class="help-text">Daily at midnight</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.log_rotation_help"}}</div>
                             <div class="cron-preview" id="log_rotation_preview" class="hidden"></div>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="log_rotation_max_age">Max Age</label>
+                            <label for="log_rotation_max_age">{{t $lang "admin.scheduler.max_age_label"}}</label>
                             <input type="text"
                                    name="log_rotation.max_age"
                                    id="log_rotation_max_age"
                                    value="{{.config.Tasks.LogRotation.MaxAge}}"
                                    placeholder="30d">
-                            <div class="help-text">Delete logs older than (e.g., 30d, 7d, 90d)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.max_age_help"}}</div>
                         </div>
 
                         <div class="form-group">
-                            <label for="log_rotation_max_size">Max Size</label>
+                            <label for="log_rotation_max_size">{{t $lang "admin.scheduler.max_size_label"}}</label>
                             <input type="text"
                                    name="log_rotation.max_size"
                                    id="log_rotation_max_size"
                                    value="{{.config.Tasks.LogRotation.MaxSize}}"
                                    placeholder="100MB">
-                            <div class="help-text">Rotate when log exceeds (e.g., 100MB, 1GB)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.max_size_help"}}</div>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label class="toggle-label">
-                            <span>Compress Rotated Logs</span>
+                            <span>{{t $lang "admin.scheduler.compress_label"}}</span>
                             <label class="toggle-switch">
                                 <input type="checkbox" name="log_rotation.compress"
                                        {{if .config.Tasks.LogRotation.Compress}}checked{{end}}>
@@ -371,12 +354,12 @@
 
                 <!-- Automatic Backup -->
                 <div class="task-section">
-                    <h3>Automatic Backup</h3>
+                    <h3>{{t $lang "admin.scheduler.backup_auto_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="backup_auto.enabled"
                                            {{if .config.Tasks.BackupAuto.Enabled}}checked{{end}}>
@@ -386,39 +369,39 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="backup_auto_schedule">Schedule (Cron Expression)</label>
+                            <label for="backup_auto_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="backup_auto.schedule"
                                    id="backup_auto_schedule"
                                    value="{{.config.Tasks.BackupAuto.Schedule}}"
                                    placeholder="0 1 * * *"
                                    onchange="previewCron('backup_auto', this.value)">
-                            <div class="help-text">Daily at 01:00</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.backup_auto_help"}}</div>
                             <div class="cron-preview" id="backup_auto_preview" class="hidden"></div>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label for="backup_auto_keep_count">Keep Count</label>
+                        <label for="backup_auto_keep_count">{{t $lang "admin.scheduler.keep_count_label"}}</label>
                         <input type="text"
                                name="backup_auto.keep_count"
                                id="backup_auto_keep_count"
                                value="{{.config.Tasks.BackupAuto.KeepCount}}"
                                placeholder="4">
-                        <div class="help-text">Maximum backups to retain (storage management)</div>
+                        <div class="help-text">{{t $lang "admin.scheduler.keep_count_help"}}</div>
                     </div>
                 </div>
 
-                <div class="task-category">Health Checks & Monitoring</div>
+                <div class="task-category">{{t $lang "admin.scheduler.category_health"}}</div>
 
                 <!-- Self Health Check -->
                 <div class="task-section">
-                    <h3>Self Health Check</h3>
+                    <h3>{{t $lang "admin.scheduler.healthcheck_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="healthcheck_self.enabled"
                                            {{if .config.Tasks.HealthcheckSelf.Enabled}}checked{{end}}>
@@ -428,14 +411,14 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="healthcheck_self_schedule">Schedule (Cron Expression)</label>
+                            <label for="healthcheck_self_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="healthcheck_self.schedule"
                                    id="healthcheck_self_schedule"
                                    value="{{.config.Tasks.HealthcheckSelf.Schedule}}"
                                    placeholder="@every 5m"
                                    onchange="previewCron('healthcheck_self', this.value)">
-                            <div class="help-text">Every 5 minutes (@every 5m)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.healthcheck_help"}}</div>
                             <div class="cron-preview" id="healthcheck_self_preview" class="hidden"></div>
                         </div>
                     </div>
@@ -443,12 +426,12 @@
 
                 <!-- Tor Health Check -->
                 <div class="task-section">
-                    <h3>Tor Health Check</h3>
+                    <h3>{{t $lang "admin.scheduler.tor_health_title"}}</h3>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label class="toggle-label">
-                                <span>Enabled</span>
+                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
                                 <label class="toggle-switch">
                                     <input type="checkbox" name="tor_health.enabled"
                                            {{if .config.Tasks.TorHealth.Enabled}}checked{{end}}>
@@ -458,21 +441,21 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="tor_health_schedule">Schedule (Cron Expression)</label>
+                            <label for="tor_health_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
                             <input type="text"
                                    name="tor_health.schedule"
                                    id="tor_health_schedule"
                                    value="{{.config.Tasks.TorHealth.Schedule}}"
                                    placeholder="@every 10m"
                                    onchange="previewCron('tor_health', this.value)">
-                            <div class="help-text">Every 10 minutes (only runs if Tor installed)</div>
+                            <div class="help-text">{{t $lang "admin.scheduler.tor_health_help"}}</div>
                             <div class="cron-preview" id="tor_health_preview" class="hidden"></div>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label class="toggle-label">
-                            <span>Auto-restart on Fail</span>
+                            <span>{{t $lang "admin.scheduler.auto_restart_label"}}</span>
                             <label class="toggle-switch">
                                 <input type="checkbox" name="tor_health.restart_on_fail"
                                        {{if .config.Tasks.TorHealth.RestartOnFail}}checked{{end}}>
@@ -484,8 +467,8 @@
             </div>
 
             <div class="btn-group">
-                <button type="submit" class="btn btn-primary">Save Configuration</button>
-                <a href="{{.admin_path}}/tasks" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">{{t $lang "admin.scheduler.save_action"}}</button>
+                <a href="{{.admin_path}}/config/scheduler" class="btn btn-secondary">{{t $lang "action.cancel"}}</a>
             </div>
         </form>
     </div>
@@ -522,7 +505,7 @@
             });
 
             try {
-                const response = await fetch(adminPath + '/scheduler/config', {
+                const response = await fetch(adminPath + '/config/scheduler', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -537,7 +520,7 @@
 
                 showSuccess('Scheduler configuration saved successfully!');
                 setTimeout(() => {
-                    window.location.href = adminPath + '/tasks';
+                    window.location.href = adminPath + '/config/scheduler';
                 }, 1500);
             } catch (error) {
                 showError('Failed to save configuration: ' + error.message);
@@ -592,6 +575,5 @@
             setTimeout(() => alert.classList.remove('show'), 5000);
         }
     </script>
-</body>
-</html>
+{{template "admin_footer" .}}
 {{end}}

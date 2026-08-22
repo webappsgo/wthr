@@ -7,8 +7,10 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -29,13 +31,14 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, enabled, priority,
 		       quiet_hours_start, quiet_hours_end, config
-		FROM user_notification_preferences
+		FROM user_notification_channel_preferences
 		WHERE user_id = ?
 		ORDER BY priority DESC
 	`, userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch preferences"})
+		log.Printf("ERROR: GetUserPreferences: failed to query preferences for user %d: %v", userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch preferences")
 		return
 	}
 	defer rows.Close()
@@ -88,7 +91,7 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	prefID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid preference id"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
 		return
 	}
 
@@ -101,41 +104,45 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: UpdatePreference: failed to marshal config: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
+	// updated_at is bound as canonical UTC text rather than produced by SQLite's
+	// datetime('now'), which does not exist on PostgreSQL or MySQL.
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE user_notification_preferences
+		UPDATE user_notification_channel_preferences
 		SET enabled = ?, priority = ?, quiet_hours_start = ?,
-		    quiet_hours_end = ?, config = ?, updated_at = datetime('now')
+		    quiet_hours_end = ?, config = ?, updated_at = ?
 		WHERE id = ? AND user_id = ?
 	`, req.Enabled, req.Priority, req.QuietHoursStart, req.QuietHoursEnd,
-		string(configJSON), prefID, userID)
+		string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), prefID, userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preference"})
+		log.Printf("ERROR: UpdatePreference: failed to update preference %d for user %d: %v", prefID, userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preference"})
+		log.Printf("ERROR: UpdatePreference: failed to read affected rows for preference %d: %v", prefID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
 		return
 	}
 	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Preference not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Preference not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Preference updated successfully"})
+	RespondSuccess(c, "Preference updated successfully")
 }
 
 // CreatePreference creates a new channel preference for user
@@ -152,38 +159,47 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: CreatePreference: failed to marshal config: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
-	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		INSERT INTO user_notification_preferences
+	// created_at/updated_at are bound as canonical UTC text rather than produced
+	// by SQLite's datetime('now'), which does not exist on PostgreSQL or MySQL.
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+		INSERT INTO user_notification_channel_preferences
 		(user_id, channel_type, enabled, priority, quiet_hours_start,
 		 quiet_hours_end, config, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, channel_type) DO UPDATE SET
 		    enabled = excluded.enabled,
 		    priority = excluded.priority,
 		    quiet_hours_start = excluded.quiet_hours_start,
 		    quiet_hours_end = excluded.quiet_hours_end,
 		    config = excluded.config,
-		    updated_at = datetime('now')
+		    updated_at = ?
 	`, userID, req.ChannelType, req.Enabled, req.Priority,
-		req.QuietHoursStart, req.QuietHoursEnd, string(configJSON))
+		req.QuietHoursStart, req.QuietHoursEnd, string(configJSON), now, now, now)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create preference"})
+		log.Printf("ERROR: CreatePreference: failed to upsert preference for user %d: %v", userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to create preference")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Preference created successfully"})
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("WARNING: CreatePreference: failed to read inserted id for user %d: %v", userID, err)
+	}
+	RespondCreated(c, "Preference created successfully", strconv.FormatInt(id, 10))
 }
 
 // DeletePreference deletes a user's channel preference
@@ -191,31 +207,33 @@ func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	prefID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid preference id"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
 		return
 	}
 
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		DELETE FROM user_notification_preferences
+		DELETE FROM user_notification_channel_preferences
 		WHERE id = ? AND user_id = ?
 	`, prefID, userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete preference"})
+		log.Printf("ERROR: DeletePreference: failed to delete preference %d for user %d: %v", prefID, userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete preference"})
+		log.Printf("ERROR: DeletePreference: failed to read affected rows for preference %d: %v", prefID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
 		return
 	}
 	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Preference not found"})
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Preference not found")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Preference deleted successfully"})
+	RespondSuccess(c, "Preference deleted successfully")
 }
 
 // GetSubscriptions returns user's notification subscriptions
@@ -230,7 +248,8 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 	`, userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch subscriptions"})
+		log.Printf("ERROR: GetSubscriptions: failed to query subscriptions for user %d: %v", userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch subscriptions")
 		return
 	}
 	defer rows.Close()
@@ -276,7 +295,7 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	subID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subscription id"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid subscription id")
 		return
 	}
 
@@ -286,29 +305,43 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: UpdateSubscription: failed to marshal config: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
-	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+	// updated_at is bound as canonical UTC text rather than produced by SQLite's
+	// datetime('now'), which does not exist on PostgreSQL or MySQL.
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE notification_subscriptions
-		SET enabled = ?, config = ?, updated_at = datetime('now')
+		SET enabled = ?, config = ?, updated_at = ?
 		WHERE id = ? AND user_id = ?
-	`, req.Enabled, string(configJSON), subID, userID)
+	`, req.Enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), subID, userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update subscription"})
+		log.Printf("ERROR: UpdateSubscription: failed to update subscription %d for user %d: %v", subID, userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Subscription updated successfully"})
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("ERROR: UpdateSubscription: failed to read affected rows for subscription %d: %v", subID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
+		return
+	}
+	if rowsAffected == 0 {
+		RespondError(c, http.StatusNotFound, ErrNotFound, "Subscription not found")
+		return
+	}
+
+	RespondSuccess(c, "Subscription updated successfully")
 }
 
 // CreateSubscription creates a new subscription
@@ -323,33 +356,42 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: CreateSubscription: failed to marshal config: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid config"})
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
-	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+	// created_at/updated_at are bound as canonical UTC text rather than produced
+	// by SQLite's datetime('now'), which does not exist on PostgreSQL or MySQL.
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
+	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO notification_subscriptions
 		(user_id, subscription_type, subscription_category, enabled, config,
 		 created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, subscription_type, subscription_category) DO UPDATE SET
 		    enabled = excluded.enabled,
 		    config = excluded.config,
-		    updated_at = datetime('now')
+		    updated_at = ?
 	`, userID, req.SubscriptionType, req.SubscriptionCategory,
-		req.Enabled, string(configJSON))
+		req.Enabled, string(configJSON), now, now, now)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create subscription"})
+		log.Printf("ERROR: CreateSubscription: failed to upsert subscription for user %d: %v", userID, err)
+		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to create subscription")
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Subscription created successfully"})
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("WARNING: CreateSubscription: failed to read inserted id for user %d: %v", userID, err)
+	}
+	RespondCreated(c, "Subscription created successfully", strconv.FormatInt(id, 10))
 }

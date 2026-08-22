@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
@@ -98,7 +101,9 @@ func updateServerConfig() error {
 	}
 	defer db.Close()
 
-	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT key, value FROM settings ORDER BY key")
+	// server_config is the live settings table created by database.ServerSchema;
+	// the legacy single-database "settings" table no longer exists.
+	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT key, value FROM server_config ORDER BY key")
 	if err != nil {
 		return fmt.Errorf("failed to read settings: %w", err)
 	}
@@ -142,7 +147,7 @@ func updateServerConfig() error {
 		return fmt.Errorf("failed to write %s: %w", configPath, err)
 	}
 
-	fmt.Printf("\n✓ Configuration written to %s\n", configPath)
+	fmt.Printf("\n%s Configuration written to %s\n", display.Emoji("✓", "[OK]"), configPath)
 	fmt.Println("  Send SIGHUP to reload: kill -HUP $(pidof wthr)")
 	return nil
 }
@@ -205,7 +210,7 @@ func setMaintenanceMode(mode string) error {
 		return fmt.Errorf("failed to write %s: %w", configPath, err)
 	}
 
-	fmt.Printf("\n✓ Mode set to %q in %s\n", mode, configPath)
+	fmt.Printf("\n%s Mode set to %q in %s\n", display.Emoji("✓", "[OK]"), mode, configPath)
 	fmt.Println("  Restart the server for changes to take effect.")
 	return nil
 }
@@ -252,7 +257,7 @@ func updateYAMLKey(yaml, key, value string) string {
 
 // adminRecoverySetup allows recovery of admin access after restore or lockout
 func adminRecoverySetup() error {
-	fmt.Println("🔧 Admin Account Recovery Setup")
+	fmt.Printf("%s Admin Account Recovery Setup\n", display.Emoji("🔧", "*"))
 	fmt.Println("This will reset the primary admin account credentials.")
 	fmt.Println()
 
@@ -306,13 +311,20 @@ func adminRecoverySetup() error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update or create admin account
+	// Timestamps are bound as canonical UTC text so the value matches what
+	// CURRENT_TIMESTAMP writes and stays portable across SQLite, PostgreSQL and
+	// MySQL — a bound time.Time would be serialized in the host's local zone.
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
+	// Update or create admin account in server_admin_credentials, the live table
+	// created by database.ServerSchema. The legacy "admin_credentials" table
+	// belonged to the removed single-database schema and no longer exists.
 	// First, try to update existing admin
 	result, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE admin_credentials
+		UPDATE server_admin_credentials
 		SET username = ?, password_hash = ?, updated_at = ?
 		WHERE id = 1
-	`, username, passwordHash, time.Now())
+	`, username, passwordHash, now)
 
 	if err != nil {
 		return fmt.Errorf("failed to update admin credentials: %w", err)
@@ -325,21 +337,25 @@ func adminRecoverySetup() error {
 
 	// If no rows updated, insert new admin
 	if rowsAffected == 0 {
+		// server_admin_credentials.email is NOT NULL UNIQUE, so a recovery insert
+		// must supply one; the setup wizard lets the admin change it afterwards.
+		email := config.DefaultEmailAddress(username, config.GetGlobalConfig())
+
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-			INSERT INTO admin_credentials (id, username, password_hash, created_at, updated_at)
-			VALUES (1, ?, ?, ?, ?)
-		`, username, passwordHash, time.Now(), time.Now())
+			INSERT INTO server_admin_credentials (id, username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
+			VALUES (1, ?, ?, ?, 1, 1, ?, ?)
+		`, username, email, passwordHash, now, now)
 
 		if err != nil {
 			return fmt.Errorf("failed to create admin credentials: %w", err)
 		}
-		fmt.Println("\n✓ New admin account created")
+		fmt.Printf("\n%s New admin account created\n", display.Emoji("✓", "[OK]"))
 	} else {
-		fmt.Println("\n✓ Admin account updated")
+		fmt.Printf("\n%s Admin account updated\n", display.Emoji("✓", "[OK]"))
 	}
 
 	fmt.Printf("  Username: %s\n", username)
-	fmt.Println("\n⚠️  Please restart the server and login with the new credentials")
+	fmt.Printf("\n%s Please restart the server and login with the new credentials\n", display.Emoji("⚠️", "WARNING:"))
 	fmt.Println("  Use: systemctl restart wthr")
 
 	return nil
@@ -395,7 +411,7 @@ func hashPasswordArgon2id(password string) (string, error) {
 
 // verifySystem verifies system integrity per AI.md PART 22
 func verifySystem() error {
-	fmt.Println("🔍 System Verification")
+	fmt.Printf("%s System Verification\n", display.Emoji("🔍", "[..]"))
 	fmt.Println()
 
 	// Get directory paths
@@ -420,78 +436,78 @@ func verifySystem() error {
 	fmt.Print("Checking server.db... ")
 	serverDBPath := filepath.Join(dataDir, "db", "server.db")
 	if err := verifyDatabaseFile(serverDBPath); err != nil {
-		fmt.Printf("❌ FAIL: %v\n", err)
+		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 2. Verify users.db exists and is accessible
 	fmt.Print("Checking users.db... ")
 	usersDBPath := filepath.Join(dataDir, "db", "users.db")
 	if err := verifyDatabaseFile(usersDBPath); err != nil {
-		fmt.Printf("❌ FAIL: %v\n", err)
+		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 3. Verify server.yml exists
 	fmt.Print("Checking server.yml... ")
 	configPath := filepath.Join(configDir, "server.yml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Println("⚠️  NOT FOUND (using defaults)")
+		fmt.Printf("%s NOT FOUND (using defaults)\n", display.Emoji("⚠️", "WARNING:"))
 	} else if err != nil {
-		fmt.Printf("❌ FAIL: %v\n", err)
+		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 4. Verify log directory is writable
 	fmt.Print("Checking log directory... ")
 	if err := verifyDirectoryWritable(logDir); err != nil {
-		fmt.Printf("❌ FAIL: %v\n", err)
+		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 5. Verify data directory is writable
 	fmt.Print("Checking data directory... ")
 	if err := verifyDirectoryWritable(dataDir); err != nil {
-		fmt.Printf("❌ FAIL: %v\n", err)
+		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 6. Verify at least one admin account exists
 	fmt.Print("Checking admin accounts... ")
 	if err := verifyAdminExists(serverDBPath); err != nil {
-		fmt.Printf("⚠️  WARNING: %v\n", err)
+		fmt.Printf("%s WARNING: %v\n", display.Emoji("⚠️", "[!]"), err)
 		fmt.Println("   Run: wthr --maintenance admin-recovery")
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 7. Check GeoIP databases (optional)
 	fmt.Print("Checking GeoIP databases... ")
 	geoipDir := filepath.Join(dataDir, "geoip")
 	if _, err := os.Stat(geoipDir); os.IsNotExist(err) {
-		fmt.Println("⚠️  NOT FOUND (will download on first use)")
+		fmt.Printf("%s NOT FOUND (will download on first use)\n", display.Emoji("⚠️", "WARNING:"))
 	} else {
-		fmt.Println("✓ OK")
+		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// Summary
 	fmt.Println()
 	if errors == 0 {
-		fmt.Println("✓ System verification completed successfully")
+		fmt.Printf("%s System verification completed successfully\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
-	fmt.Printf("❌ System verification failed with %d error(s)\n", errors)
+	fmt.Printf("%s System verification failed with %d error(s)\n", display.Emoji("❌", "[FAIL]"), errors)
 	return fmt.Errorf("verification failed")
 }
 

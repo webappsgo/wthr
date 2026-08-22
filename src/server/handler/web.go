@@ -293,16 +293,6 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	}))
 }
 
-// ServeExamplesPage serves the examples/documentation page
-func (h *WebHandler) ServeExamplesPage(c *gin.Context) {
-	hostInfo := util.GetHostInfo(c)
-
-	c.HTML(http.StatusOK, "examples.tmpl", gin.H{
-		"title":    "Examples - Weather",
-		"hostInfo": hostInfo,
-	})
-}
-
 // calculateSunTimesForWeb calculates sun times for the web template
 func calculateSunTimesForWeb(lat, lon float64, date time.Time) gin.H {
 	// Calculate day of year

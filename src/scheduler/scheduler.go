@@ -3,6 +3,7 @@ package scheduler
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -18,9 +19,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oklog/ulid/v2"
+
 	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
+	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // Task represents a scheduled task
@@ -210,56 +217,113 @@ func isGlobalTask(taskName string) bool {
 	return globalTasks[taskName]
 }
 
-// acquireTaskLock attempts to acquire a distributed lock for a task
-// AI.md PART 19: Cluster-aware task locking
-func (s *Scheduler) acquireTaskLock(taskName string) bool {
+// acquireTaskLock attempts to acquire a distributed lock for a task.
+// AI.md PART 19: Cluster-aware task locking.
+// schedule is the task's own cron expression: server_scheduler_state.schedule
+// is NOT NULL, and this insert is the row's first writer on a fresh database,
+// so the real expression has to travel with the lock request rather than be
+// backfilled later by whoever happens to update the row next.
+func (s *Scheduler) acquireTaskLock(taskName, schedule string) bool {
 	// For non-global tasks, always allow (run on every node)
 	if !isGlobalTask(taskName) {
 		return true
 	}
 
-	now := time.Now()
-	lockExpiry := now.Add(-LockTimeout)
+	db := database.GetServerDB()
+	ctx := context.Background()
+	nowText := time.Now().UTC().Format(sqlTimestampLayout)
+	lockExpiry := time.Now().UTC().Add(-LockTimeout)
 
-	// Try to acquire lock:
-	// 1. If no lock exists, acquire it
-	// 2. If lock exists but expired (older than 5 min), steal it
-	// 3. If lock exists and held by us, refresh it
-	// 4. If lock exists and held by another node, fail
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_scheduler_state (task_id, task_name, locked_by, locked_at, enabled)
-		VALUES (?, ?, ?, ?, true)
-		ON CONFLICT(task_id) DO UPDATE SET
-			locked_by = CASE
-				WHEN locked_by IS NULL OR locked_at < ? OR locked_by = ? THEN ?
-				ELSE locked_by
-			END,
-			locked_at = CASE
-				WHEN locked_by IS NULL OR locked_at < ? OR locked_by = ? THEN ?
-				ELSE locked_at
-			END
-		WHERE task_id = ?
-	`, taskName, taskName, s.nodeID, now, lockExpiry, s.nodeID, s.nodeID, lockExpiry, s.nodeID, now, taskName)
+	// Read the current holder first. The staleness test used to live in SQL
+	// ("locked_at < ?" against a bound time.Time), which compared two different
+	// text encodings whenever the row had been written by a different producer
+	// and therefore expired locks early, late or never. Every comparison now
+	// happens in Go against parsed instants; only the canonical text written
+	// here ever lands in locked_at.
+	var lockedBy sql.NullString
+	var lockedAt interface{}
+	err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
+		"SELECT locked_by, locked_at FROM server_scheduler_state WHERE task_id = ?",
+		taskName,
+	).Scan(&lockedBy, &lockedAt)
+
+	// No row yet: this node is the row's first writer. ON CONFLICT DO NOTHING
+	// keeps the insert atomic, so a node that loses the race to create the row
+	// simply does not get the lock this tick.
+	if err == sql.ErrNoRows {
+		result, insertErr := database.ExecContext(ctx, db, database.TimeoutWrite, `
+			INSERT INTO server_scheduler_state (task_id, task_name, schedule, locked_by, locked_at, enabled)
+			VALUES (?, ?, ?, ?, ?, true)
+			ON CONFLICT(task_id) DO NOTHING
+		`, taskName, taskName, schedule, s.nodeID, nowText)
+		if insertErr != nil {
+			log.Printf("WARNING: Failed to acquire lock for task '%s': %v", taskName, insertErr)
+			return false
+		}
+
+		inserted, _ := result.RowsAffected()
+		return inserted > 0
+	}
+
+	if err != nil {
+		log.Printf("WARNING: Failed to read lock state for task '%s': %v", taskName, err)
+		return false
+	}
+
+	// Decide acquirability from parsed instants:
+	// 1. Nobody holds it, take it
+	// 2. We hold it, refresh it
+	// 3. Somebody else holds it, take it only when their lock is provably older
+	//    than LockTimeout. A NULL or unparseable locked_at is treated as HELD,
+	//    never as stale: guessing "stale" would let two nodes run the same
+	//    global task at once, while guessing "held" only skips a tick.
+	if lockedBy.Valid && lockedBy.String != s.nodeID {
+		heldSince, ok := parseStoredTimestamp(lockedAt)
+		if !ok || !heldSince.Before(lockExpiry) {
+			return false
+		}
+	}
+
+	// Compare-and-swap on the holder observed above so a concurrent stealer
+	// loses: whichever node's UPDATE runs first flips locked_by, and the other
+	// node's WHERE clause no longer matches.
+	var result sql.Result
+	if lockedBy.Valid {
+		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
+			UPDATE server_scheduler_state
+			SET schedule = ?, locked_by = ?, locked_at = ?
+			WHERE task_id = ? AND locked_by = ?
+		`, schedule, s.nodeID, nowText, taskName, lockedBy.String)
+	} else {
+		result, err = database.ExecContext(ctx, db, database.TimeoutWrite, `
+			UPDATE server_scheduler_state
+			SET schedule = ?, locked_by = ?, locked_at = ?
+			WHERE task_id = ? AND locked_by IS NULL
+		`, schedule, s.nodeID, nowText, taskName)
+	}
 
 	if err != nil {
 		log.Printf("WARNING: Failed to acquire lock for task '%s': %v", taskName, err)
 		return false
 	}
 
-	// Check if we actually got the lock
-	var lockedBy string
-	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect,
+	if rowsAffected, affectedErr := result.RowsAffected(); affectedErr == nil && rowsAffected > 0 {
+		return true
+	}
+
+	// Zero affected rows means either a competitor won the row or the driver
+	// reports "no change" for an update that rewrote identical values (MySQL
+	// does this when we refresh our own lock inside the same second). Re-read
+	// the holder to tell the two apart.
+	var confirmed sql.NullString
+	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
 		"SELECT locked_by FROM server_scheduler_state WHERE task_id = ?",
 		taskName,
-	).Scan(&lockedBy)
-
-	if err != nil || lockedBy != s.nodeID {
-		// Another node has the lock
+	).Scan(&confirmed); err != nil {
 		return false
 	}
 
-	rowsAffected, _ := result.RowsAffected()
-	return rowsAffected > 0 || lockedBy == s.nodeID
+	return confirmed.Valid && confirmed.String == s.nodeID
 }
 
 // releaseTaskLock releases the distributed lock for a task
@@ -290,7 +354,7 @@ func (s *Scheduler) executeTask(task *Task) {
 	task.mu.Unlock()
 
 	// AI.md PART 19: Cluster-aware locking for global tasks
-	if !s.acquireTaskLock(task.Name) {
+	if !s.acquireTaskLock(task.Name, task.Schedule) {
 		// Another node is running this task, skip
 		return
 	}
@@ -338,10 +402,17 @@ func (s *Scheduler) logTaskExecution(taskName string, duration time.Duration, er
 		details = fmt.Sprintf("Failed: %v", err)
 	}
 
+	// server_audit_log has no user_id column: the actor is described by the
+	// actor_type/actor_id pair, and ulid is UNIQUE NOT NULL. This mirrors the
+	// canonical writer in src/server/middleware/audit.go, including its
+	// crypto/rand-seeded ULID, so both writers produce identical row shapes.
+	now := time.Now()
+	auditID := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
+
 	_, insertErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_audit_log (user_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
-		VALUES (NULL, ?, 'scheduler', ?, ?, 'system', 'scheduler', ?)
-	`, taskName, taskName, details, status)
+		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, 'scheduler', ?, ?, 'scheduler', ?, ?, 'system', 'scheduler', ?)
+	`, auditID, now.UTC().Format(sqlTimestampLayout), s.nodeID, taskName, taskName, details, status)
 
 	if insertErr != nil {
 		log.Printf("WARNING: Failed to log scheduler task: %v", insertErr)
@@ -372,13 +443,16 @@ func (s *Scheduler) GetTaskStatus() []map[string]interface{} {
 }
 
 // CleanupOldSessions removes expired sessions
+// user_sessions.expires_at has more than one producer (a bound Go time.Time in
+// the local zone, and canonical UTC text), so the expiry test runs in Go
+// against a UTC cutoff instead of SQLite's datetime('now') - comparing those
+// mixed layouts as text deleted sessions that had not actually expired.
 func CleanupOldSessions(db *sql.DB) error {
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, "DELETE FROM user_sessions WHERE expires_at < datetime('now')")
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_sessions", "id", "expires_at", time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to cleanup sessions: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Printf("INFO: Cleaned up %d expired sessions", rowsAffected)
 	}
@@ -396,16 +470,19 @@ func CleanupOldAuditLogs(db *sql.DB) error {
 		retentionDays = 90
 	}
 
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_audit_log
-		WHERE created_at < datetime('now', '-' || ? || ' days')
-	`, retentionDays)
+	// The retained window is measured against server_audit_log.timestamp (the
+	// table has no created_at column). That column has two producers - SQLite's
+	// CURRENT_TIMESTAMP default and the explicit writes from this package and
+	// src/server/middleware/audit.go - so the age test runs in Go against a UTC
+	// cutoff instead of as an SQL text comparison, and rows whose timestamp is
+	// NULL or unparseable are left alone rather than deleted.
+	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_audit_log", "id", "timestamp", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup audit logs: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Printf("INFO: Cleaned up %d old audit logs (retention: %d days)", rowsAffected, retentionDays)
 	}
@@ -414,7 +491,7 @@ func CleanupOldAuditLogs(db *sql.DB) error {
 }
 
 // CheckWeatherAlerts checks for weather alerts on saved locations
-func CheckWeatherAlerts(db *sql.DB) error {
+func CheckWeatherAlerts() error {
 	// Get all locations with alerts enabled
 	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
 		SELECT l.id, l.name, l.latitude, l.longitude, l.user_id
@@ -472,7 +549,7 @@ func CheckWeatherAlerts(db *sql.DB) error {
 		}
 
 		// Check for alert conditions and create notifications
-		created := checkAndCreateAlerts(db, userID, locationID, name, weatherData)
+		created := checkAndCreateAlerts(userID, locationID, name, weatherData)
 		alertCount += created
 	}
 
@@ -484,7 +561,7 @@ func CheckWeatherAlerts(db *sql.DB) error {
 }
 
 // checkAndCreateAlerts checks weather conditions and creates notifications
-func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName string, weather struct {
+func checkAndCreateAlerts(userID, locationID int, locationName string, weather struct {
 	Current struct {
 		Temperature   float64 `json:"temperature_2m"`
 		WindSpeed     float64 `json:"wind_speed_10m"`
@@ -496,7 +573,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for extreme cold (below 32°F / 0°C)
 	if weather.Current.Temperature < 32 {
-		createNotification(db, userID, "alert", "Freezing Temperature Alert",
+		createNotification(userID, model.NotificationTypeError, "Freezing Temperature Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Bundle up!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -504,7 +581,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for extreme heat (above 95°F / 35°C)
 	if weather.Current.Temperature > 95 {
-		createNotification(db, userID, "alert", "Heat Alert",
+		createNotification(userID, model.NotificationTypeError, "Heat Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Stay hydrated!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -512,7 +589,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for high winds (above 40 mph)
 	if weather.Current.WindSpeed > 40 {
-		createNotification(db, userID, "warning", "High Wind Alert",
+		createNotification(userID, model.NotificationTypeWarning, "High Wind Alert",
 			fmt.Sprintf("%s: Wind speed is %.0f mph. Secure loose objects!", locationName, weather.Current.WindSpeed),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -520,7 +597,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for heavy precipitation (above 0.5 inches)
 	if weather.Current.Precipitation > 0.5 {
-		createNotification(db, userID, "info", "Heavy Rain Alert",
+		createNotification(userID, model.NotificationTypeInfo, "Heavy Rain Alert",
 			fmt.Sprintf("%s: Heavy precipitation detected (%.1f in). Prepare for flooding!", locationName, weather.Current.Precipitation),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -528,7 +605,7 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 
 	// Check for severe weather codes (thunderstorms, snow, etc.)
 	if weather.Current.WeatherCode >= 95 {
-		createNotification(db, userID, "alert", "Severe Weather Alert",
+		createNotification(userID, model.NotificationTypeError, "Severe Weather Alert",
 			fmt.Sprintf("%s: Severe weather detected. Stay safe!", locationName),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -537,14 +614,21 @@ func checkAndCreateAlerts(db *sql.DB, userID, locationID int, locationName strin
 	return alertCount
 }
 
-// createNotification creates a notification in the database
-func createNotification(db *sql.DB, userID int, notifType, title, message, link string) {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
-		INSERT INTO user_notifications (user_id, type, title, message, link, read)
-		VALUES (?, ?, ?, ?, ?, 0)
-	`, userID, notifType, title, message, link)
+// createNotification creates a user notification for a weather alert.
+//
+// user_notifications has no link column and constrains type with a CHECK, so
+// the row is written through model.UserNotificationModel.Create - the project's
+// single writer for this table. That gives the row its ULID primary key, its
+// display value and its 30-day expiry, and carries the deep link in action_json
+// as a NotificationAction, which is where the schema actually keeps a link.
+func createNotification(userID int, notifType model.NotificationType, title, message, link string) {
+	notifications := &model.UserNotificationModel{DB: database.GetUsersDB()}
 
-	if err != nil {
+	// src/server/service/notification_service.go renders every non-security
+	// severity as a toast; weather alerts follow the same mapping.
+	action := &model.NotificationAction{Label: "View forecast", URL: link}
+
+	if _, err := notifications.Create(userID, notifType, model.NotificationDisplayToast, title, message, action); err != nil {
 		log.Printf("WARNING: Failed to create notification: %v", err)
 	}
 }
@@ -596,36 +680,27 @@ func CreateSystemBackup(db *sql.DB) error {
 	return nil
 }
 
-// CleanupExpiredTokens removes expired API and setup tokens
+// CleanupExpiredTokens removes expired API tokens
 // AI.md PART 19: token cleanup every 15 minutes
+// user_tokens (database.UsersSchema) is this project's only API-token table and
+// it lives in the users database, so the cleanup runs against
+// database.GetUsersDB(). The one-time admin setup token is a file at
+// {config_dir}/setup_token.txt (src/util/firstrun.go), not a database row, so
+// there is nothing for a scheduled task to prune for it.
+// Expiry is evaluated in Go against a UTC cutoff (see CleanupOldSessions) so a
+// token whose expires_at was stored in a different layout or timezone than
+// SQLite's datetime('now') is never deleted early. Rows with a NULL expires_at
+// never expire and are always left in place.
 func CleanupExpiredTokens(db *sql.DB) error {
-	// Clean up expired API tokens
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_api_tokens
-		WHERE expires_at IS NOT NULL AND expires_at < datetime('now')
-	`)
+	now := time.Now().UTC()
+
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_tokens", "id", "expires_at", now)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup expired API tokens: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Printf("INFO: Cleaned up %d expired API tokens", rowsAffected)
-	}
-
-	// Clean up expired setup tokens
-	result2, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_setup_tokens
-		WHERE expires_at < datetime('now')
-	`)
-	if err != nil {
-		// Table may not exist, that's ok
-		return nil
-	}
-
-	rowsAffected2, _ := result2.RowsAffected()
-	if rowsAffected2 > 0 {
-		log.Printf("INFO: Cleaned up %d expired setup tokens", rowsAffected2)
 	}
 
 	return nil
@@ -709,7 +784,7 @@ func CheckSSLRenewal() error {
 		// This task just logs the status - renewal is handled by the service
 		return fmt.Errorf("SSL certificate needs renewal (%d days remaining)", daysRemaining)
 	} else if daysRemaining <= 30 {
-		log.Printf("ℹ️ SSL certificate expires in %d days", daysRemaining)
+		log.Printf("%s SSL certificate expires in %d days", display.Emoji("ℹ️", "INFO:"), daysRemaining)
 	} else {
 		log.Printf("OK: SSL certificate valid for %d days", daysRemaining)
 	}
@@ -807,17 +882,18 @@ func CheckTorHealth() error {
 }
 
 // CleanupRateLimitCounters resets rate limit counters
+// The 1-hour cutoff is computed in Go and each window_start is compared as a
+// UTC instant (see CleanupOldSessions), so counters inside the current window
+// are never dropped because of a layout or timezone mismatch.
 func CleanupRateLimitCounters(db *sql.DB) error {
 	// Reset hourly counters that are older than 1 hour
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_rate_limits
-		WHERE window_start < datetime('now', '-1 hour')
-	`)
+	cutoff := time.Now().UTC().Add(-1 * time.Hour)
+
+	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_rate_limits", "id", "window_start", cutoff)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup rate limits: %w", err)
 	}
 
-	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Printf("INFO: Cleaned up %d old rate limit counters", rowsAffected)
 	}
@@ -902,14 +978,19 @@ func UpdateBlocklist() error {
 				continue
 			}
 
-			// Insert or update
+			// Insert or update. The timestamp is computed in Go and bound
+			// twice rather than left to CURRENT_TIMESTAMP: on SQLite the
+			// literal yields canonical UTC text, but PostgreSQL and MySQL
+			// render it in the server's own zone and type, which would mix
+			// layouts inside one column and break the cutoff comparison below.
+			blocklistNow := dbtime.FormatSQLTimestamp(time.Now())
 			_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 				INSERT INTO server_ip_blocklist (source, ip_range, description, updated_at)
-				VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+				VALUES (?, ?, ?, ?)
 				ON CONFLICT(source, ip_range) DO UPDATE SET
 					description = excluded.description,
-					updated_at = CURRENT_TIMESTAMP
-			`, source.name, ipRange, description)
+					updated_at = ?
+			`, source.name, ipRange, description, blocklistNow, blocklistNow)
 			if err == nil {
 				totalAdded++
 			}
@@ -918,15 +999,48 @@ func UpdateBlocklist() error {
 	}
 
 	// Clean up old entries (older than 7 days and not in latest update)
+	// updated_at is only ever written as canonical UTC text above, so a bound
+	// canonical UTC cutoff compares exactly and works on every driver.
+	blocklistCutoff := time.Now().UTC().AddDate(0, 0, -7).Format(sqlTimestampLayout)
 	if _, err := database.ExecContext(context.Background(), db, database.TimeoutBulk, `
 		DELETE FROM server_ip_blocklist
-		WHERE updated_at < datetime('now', '-7 days')
-	`); err != nil {
+		WHERE updated_at < ?
+	`, blocklistCutoff); err != nil {
 		log.Printf("WARNING: Failed to prune old blocklist entries: %v", err)
 	}
 
 	log.Printf("INFO: Blocklist update complete: %d entries processed", totalAdded)
 	return nil
+}
+
+// nvdPublishedLayouts lists the shapes the NVD API 2.0 has been observed to
+// render its "published" field in. The documented form carries milliseconds and
+// no zone marker and is UTC by definition; the other two are accepted because a
+// feed that starts emitting them should not silently produce NULL publication
+// dates. Zone-less layouts are parsed with time.Parse, which yields UTC.
+var nvdPublishedLayouts = []string{
+	"2006-01-02T15:04:05.000",
+	"2006-01-02T15:04:05",
+	time.RFC3339,
+}
+
+// parseNVDPublished converts an NVD publication string to an instant. It never
+// falls back to "now" or to the zero time on failure - the caller stores NULL
+// instead, so a value this function cannot read stays visibly absent rather than
+// becoming a plausible-looking wrong date.
+func parseNVDPublished(published string) (time.Time, error) {
+	trimmed := strings.TrimSpace(published)
+	if trimmed == "" {
+		return time.Time{}, fmt.Errorf("empty published timestamp")
+	}
+
+	for _, layout := range nvdPublishedLayouts {
+		if parsed, err := time.Parse(layout, trimmed); err == nil {
+			return parsed.UTC(), nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unrecognized published timestamp %q", trimmed)
 }
 
 // UpdateCVEDatabase updates the CVE vulnerability database
@@ -944,24 +1058,18 @@ func UpdateCVEDatabase() error {
 
 	db := database.GetServerDB()
 
-	// Create table if not exists
-	_, err = database.ExecContext(context.Background(), db, database.TimeoutMigration, `
-		CREATE TABLE IF NOT EXISTS server_cve_alerts (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			cve_id TEXT NOT NULL UNIQUE,
-			description TEXT,
-			severity TEXT,
-			cvss_score REAL,
-			published_at DATETIME,
-			affected_packages TEXT,
-			references TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			acknowledged INTEGER DEFAULT 0
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to create CVE table: %w", err)
+	// server_cve_alerts is declared in database.ServerSchema, which
+	// database.InitDualDB executes on startup. The CREATE TABLE that used to run
+	// here at task time named a column "references" - a reserved word no
+	// supported driver accepts as a bare identifier - so this task aborted on its
+	// very first statement every time CVE monitoring was enabled, and no CVE was
+	// ever stored. The schema owns the definition now; this check only turns a
+	// missing table into a named error.
+	var cveTablePresent int
+	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
+		"SELECT COUNT(*) FROM server_cve_alerts WHERE 1 = 0",
+	).Scan(&cveTablePresent); err != nil {
+		return fmt.Errorf("server_cve_alerts is missing from the server database schema: %w", err)
 	}
 
 	// NVD API v2 - fetch recent CVEs (last 7 days)
@@ -988,12 +1096,15 @@ func UpdateCVEDatabase() error {
 	var nvdResponse struct {
 		Vulnerabilities []struct {
 			CVE struct {
-				ID          string `json:"id"`
-				Description struct {
-					Descriptions []struct {
-						Lang  string `json:"lang"`
-						Value string `json:"value"`
-					} `json:"description_data"`
+				ID string `json:"id"`
+				// NVD API 2.0 returns cve.descriptions as an array of
+				// {lang, value} objects directly. It was previously decoded as an
+				// object wrapping a "description_data" array - the shape of the
+				// retired 1.0 feed - so the array never bound and every stored CVE
+				// had an empty description.
+				Descriptions []struct {
+					Lang  string `json:"lang"`
+					Value string `json:"value"`
 				} `json:"descriptions"`
 				Metrics struct {
 					CvssMetricV31 []struct {
@@ -1018,7 +1129,7 @@ func UpdateCVEDatabase() error {
 
 		// Get English description
 		description := ""
-		for _, desc := range cve.Description.Descriptions {
+		for _, desc := range cve.Descriptions {
 			if desc.Lang == "en" {
 				description = desc.Value
 				break
@@ -1033,16 +1144,31 @@ func UpdateCVEDatabase() error {
 			severity = cve.Metrics.CvssMetricV31[0].CvssData.BaseSeverity
 		}
 
-		// Insert or update
+		// published_at was previously bound straight from the NVD API's own
+		// string, putting a third layout into a column every reader parses as
+		// canonical UTC text. It is converted here instead. A value the API
+		// renders in some other shape is stored as NULL rather than guessed at:
+		// the column is nullable, and a wrong instant is worse than a missing one.
+		var publishedAt interface{}
+		if parsed, perr := parseNVDPublished(cve.Published); perr == nil {
+			publishedAt = dbtime.FormatSQLTimestamp(parsed)
+		} else {
+			log.Printf("WARN: CVE %s has an unrecognized published timestamp %q; storing NULL", cve.ID, cve.Published)
+		}
+
+		// updated_at is bound as canonical UTC text for the same cross-driver
+		// reason as the blocklist upsert above.
+		cveNow := dbtime.FormatSQLTimestamp(time.Now())
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_cve_alerts (cve_id, description, severity, cvss_score, published_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+			VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT(cve_id) DO UPDATE SET
 				description = excluded.description,
 				severity = excluded.severity,
 				cvss_score = excluded.cvss_score,
-				updated_at = CURRENT_TIMESTAMP
-		`, cve.ID, description, severity, cvssScore, cve.Published)
+				published_at = excluded.published_at,
+				updated_at = ?
+		`, cve.ID, description, severity, cvssScore, publishedAt, cveNow, cveNow)
 		if err == nil {
 			added++
 		}
@@ -1065,13 +1191,25 @@ func ClusterHeartbeat(nodeID string) error {
 
 	// Update node heartbeat in cluster nodes table
 	// Per AI.md lines 22616-22620
+	// The heartbeat instant is computed in Go, converted to UTC and bound as
+	// canonical text rather than emitted by SQLite's datetime('now'): readers
+	// compare last_heartbeat against a Go-side UTC cutoff, and datetime() is not
+	// available on PostgreSQL/MySQL, both of which this project supports.
+	heartbeat := time.Now().UTC().Format(sqlTimestampLayout)
+
+	// server_nodes.hostname is NOT NULL, and this upsert is the only writer that
+	// ever creates the row, so it has to supply the name. util.GetFQDN is the
+	// project's single host-resolution helper (proxy/DOMAIN aware, falling back
+	// through os.Hostname to a routable address), so a node identifies itself the
+	// same way here as everywhere else the app names itself.
 	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_nodes (node_id, last_heartbeat, status)
-		VALUES (?, datetime('now'), 'online')
+		INSERT INTO server_nodes (node_id, hostname, last_heartbeat, status)
+		VALUES (?, ?, ?, 'online')
 		ON CONFLICT(node_id) DO UPDATE SET
-			last_heartbeat = datetime('now'),
+			hostname = excluded.hostname,
+			last_heartbeat = excluded.last_heartbeat,
 			status = 'online'
-	`, nodeID)
+	`, nodeID, util.GetFQDN(), heartbeat)
 
 	if err != nil {
 		return fmt.Errorf("failed to send cluster heartbeat: %w", err)

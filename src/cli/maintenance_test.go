@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
 )
 
@@ -280,9 +283,10 @@ func TestVerifyDatabaseFile(t *testing.T) {
 	})
 }
 
-// TestVerifyAdminExists covers: no admin_credentials-equivalent table at
-// all (query error), table present but empty (zero admins), and table with
-// at least one row.
+// TestVerifyAdminExists covers: no server_admin_credentials table at all
+// (query error), table present but empty (zero admins), and table with at
+// least one row. The populated cases build the table from the real
+// database.ServerSchema.
 func TestVerifyAdminExists(t *testing.T) {
 	t.Run("missing_table_errors", func(t *testing.T) {
 		dbPath := filepath.Join(t.TempDir(), "empty.db")
@@ -299,14 +303,7 @@ func TestVerifyAdminExists(t *testing.T) {
 
 	t.Run("zero_admins_errors", func(t *testing.T) {
 		dbPath := filepath.Join(t.TempDir(), "server.db")
-		setupDB, err := sql.Open("sqlite", dbPath)
-		if err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-		if _, err := setupDB.Exec("CREATE TABLE server_admin_credentials (id INTEGER PRIMARY KEY)"); err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-		setupDB.Close()
+		applySchema(t, dbPath, database.ServerSchema)
 
 		if err := verifyAdminExists(dbPath); err == nil {
 			t.Error("verifyAdminExists() with zero rows = nil, want error")
@@ -315,17 +312,12 @@ func TestVerifyAdminExists(t *testing.T) {
 
 	t.Run("admin_present_ok", func(t *testing.T) {
 		dbPath := filepath.Join(t.TempDir(), "server.db")
-		setupDB, err := sql.Open("sqlite", dbPath)
-		if err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-		if _, err := setupDB.Exec("CREATE TABLE server_admin_credentials (id INTEGER PRIMARY KEY)"); err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-		if _, err := setupDB.Exec("INSERT INTO server_admin_credentials (id) VALUES (1)"); err != nil {
-			t.Fatalf("setup: %v", err)
-		}
-		setupDB.Close()
+		applySchema(t, dbPath, database.ServerSchema)
+		// username, email and password_hash are all NOT NULL in the real schema.
+		execFixture(t, dbPath,
+			"INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
+			"admin", "admin@example.com", "hash",
+		)
 
 		if err := verifyAdminExists(dbPath); err != nil {
 			t.Errorf("verifyAdminExists() error = %v, want nil with one admin present", err)
@@ -397,26 +389,15 @@ func TestVerifySystem_AllPresent(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 
-	serverDB, err := sql.Open("sqlite", filepath.Join(dbDir, "server.db"))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := serverDB.Exec("CREATE TABLE server_admin_credentials (id INTEGER PRIMARY KEY)"); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := serverDB.Exec("INSERT INTO server_admin_credentials (id) VALUES (1)"); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	serverDB.Close()
+	serverDBPath := filepath.Join(dbDir, "server.db")
+	applySchema(t, serverDBPath, database.ServerSchema)
+	// username, email and password_hash are all NOT NULL in the real schema.
+	execFixture(t, serverDBPath,
+		"INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, ?, ?, ?)",
+		"admin", "admin@example.com", "hash",
+	)
 
-	usersDB, err := sql.Open("sqlite", filepath.Join(dbDir, "users.db"))
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := usersDB.Exec("CREATE TABLE t (id INTEGER)"); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	usersDB.Close()
+	applySchema(t, filepath.Join(dbDir, "users.db"), database.UsersSchema)
 
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatalf("setup: %v", err)
@@ -459,7 +440,7 @@ func TestUpdateServerConfig_MissingDatabase(t *testing.T) {
 // TestUpdateServerConfig_OpenFails covers the failure path once openDatabase
 // succeeds (see TestOpenDatabase_Succeeds): a server.db file is present but
 // empty, so the database opens fine and updateServerConfig fails one step
-// later, reading the (nonexistent) settings table.
+// later, reading the (nonexistent) server_config table.
 func TestUpdateServerConfig_OpenFails(t *testing.T) {
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
@@ -477,17 +458,17 @@ func TestUpdateServerConfig_OpenFails(t *testing.T) {
 
 	err := updateServerConfig()
 	if err == nil {
-		t.Fatal("updateServerConfig() = nil, want error (empty db has no settings table)")
+		t.Fatal("updateServerConfig() = nil, want error (empty db has no server_config table)")
 	}
 	if !strings.Contains(err.Error(), "failed to read settings") {
 		t.Errorf("error = %q, want substring %q", err.Error(), "failed to read settings")
 	}
 }
 
-// TestUpdateServerConfig_Success covers the full happy path: a settings
-// table with multi-segment dotted keys across two sections and a value that
-// requires YAML quoting, written to CONFIG_DIR/server.yml grouped by
-// top-level section.
+// TestUpdateServerConfig_Success covers the full happy path against the real
+// server_config table from database.ServerSchema: multi-segment dotted keys
+// across two sections and a value that requires YAML quoting, written to
+// CONFIG_DIR/server.yml grouped by top-level section.
 func TestUpdateServerConfig_Success(t *testing.T) {
 	dataDir := t.TempDir()
 	configDir := t.TempDir()
@@ -497,22 +478,13 @@ func TestUpdateServerConfig_Success(t *testing.T) {
 	}
 
 	dbPath := filepath.Join(dbDir, "server.db")
-	setupDB, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := setupDB.Exec("CREATE TABLE settings (key TEXT, value TEXT)"); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := setupDB.Exec(
-		"INSERT INTO settings (key, value) VALUES (?, ?), (?, ?), (?, ?)",
-		"server.mode", "production",
-		"server.baseurl", "http://x",
-		"auth.session.timeout", "24h",
-	); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	setupDB.Close()
+	applySchema(t, dbPath, database.ServerSchema)
+	execFixture(t, dbPath,
+		"INSERT INTO server_config (key, value, type) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)",
+		"server.mode", "production", "string",
+		"server.baseurl", "http://x", "string",
+		"auth.session.timeout", "24h", "string",
+	)
 
 	t.Setenv("DATA_DIR", dataDir)
 	t.Setenv("CONFIG_DIR", configDir)
@@ -613,9 +585,10 @@ func TestAdminRecoverySetup_PasswordMismatch(t *testing.T) {
 	}
 }
 
-// TestAdminRecoverySetup_CreatesAndUpdates covers the two success branches:
-// inserting a brand-new admin_credentials row when none exists (id=1 UPDATE
-// affects zero rows), then updating that same row on a second run.
+// TestAdminRecoverySetup_CreatesAndUpdates covers the two success branches
+// against the real server_admin_credentials table from database.ServerSchema:
+// inserting a brand-new row when none exists (the id=1 UPDATE affects zero
+// rows), then updating that same row on a second run.
 func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
@@ -623,21 +596,7 @@ func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 	dbPath := filepath.Join(dbDir, "server.db")
-
-	setupDB, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if _, err := setupDB.Exec(`CREATE TABLE admin_credentials (
-		id INTEGER PRIMARY KEY,
-		username TEXT,
-		password_hash TEXT,
-		created_at DATETIME,
-		updated_at DATETIME
-	)`); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	setupDB.Close()
+	applySchema(t, dbPath, database.ServerSchema)
 
 	t.Setenv("DATA_DIR", dataDir)
 
@@ -662,12 +621,25 @@ func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
 		t.Fatalf("verify open: %v", err)
 	}
 	var count int
-	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM admin_credentials WHERE id = 1 AND username = 'newadmin'").Scan(&count); err != nil {
+	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM server_admin_credentials WHERE id = 1 AND username = ?", "newadmin").Scan(&count); err != nil {
 		t.Fatalf("verify query: %v", err)
+	}
+	// updated_at must be readable as a canonical UTC timestamp, proving the
+	// recovery write bound dbtime-formatted text rather than a raw time.Time.
+	// The column is CAST to TEXT so modernc.org/sqlite's decltype-driven
+	// DATETIME auto-parsing (which would hand back a time.Time and cause
+	// database/sql to reformat it as RFC3339 on Scan into *string) does not
+	// mask the actual stored text.
+	var updatedAt string
+	if err := verifyDB.QueryRow("SELECT CAST(updated_at AS TEXT) FROM server_admin_credentials WHERE id = 1").Scan(&updatedAt); err != nil {
+		t.Fatalf("verify timestamp query: %v", err)
 	}
 	verifyDB.Close()
 	if count != 1 {
-		t.Fatalf("admin_credentials row not created as expected, count = %d", count)
+		t.Fatalf("server_admin_credentials row not created as expected, count = %d", count)
+	}
+	if _, err := time.Parse(dbtime.SQLTimestampLayout, updatedAt); err != nil {
+		t.Errorf("updated_at = %q, want %q layout", updatedAt, dbtime.SQLTimestampLayout)
 	}
 
 	var err2 error

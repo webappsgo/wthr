@@ -43,7 +43,7 @@ func TestAdminsHandlerListAdmins(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 	newAdminsTestAdmin(t, "listadminsadmin", "password123")
 
-	c, w := newAPITestContext("/server/admin/admins")
+	c, w := newAPITestContext("/server/admin/config/admins")
 	h.ListAdmins(c)
 
 	if w.Code != http.StatusOK {
@@ -55,7 +55,7 @@ func TestAdminsHandlerGetAdminCount(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 	newAdminsTestAdmin(t, "countadmin", "password123")
 
-	c, w := newAPITestContext("/server/admin/admins/count")
+	c, w := newAPITestContext("/server/admin/config/admins/count")
 	h.GetAdminCount(c)
 
 	if w.Code != http.StatusOK {
@@ -66,7 +66,7 @@ func TestAdminsHandlerGetAdminCount(t *testing.T) {
 func TestAdminsHandlerCreateInvite(t *testing.T) {
 	t.Run("malformed body errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite", "not json")
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite", "not json")
 		h.CreateInvite(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -75,7 +75,7 @@ func TestAdminsHandlerCreateInvite(t *testing.T) {
 
 	t.Run("missing email errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite", map[string]string{})
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite", map[string]string{})
 		h.CreateInvite(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -84,7 +84,7 @@ func TestAdminsHandlerCreateInvite(t *testing.T) {
 
 	t.Run("not authenticated errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite", map[string]string{"email": "new@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite", map[string]string{"email": "new@example.com"})
 		h.CreateInvite(c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -95,7 +95,7 @@ func TestAdminsHandlerCreateInvite(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "inviterone", "password123")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite", map[string]string{"email": "invitee@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite", map[string]string{"email": "invitee@example.com"})
 		c.Set("admin_id", int(admin.ID))
 		h.CreateInvite(c)
 		if w.Code != http.StatusOK {
@@ -107,7 +107,7 @@ func TestAdminsHandlerCreateInvite(t *testing.T) {
 func TestAdminsHandlerAcceptInvite(t *testing.T) {
 	t.Run("malformed body errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite/accept", "not json")
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite/accept", "not json")
 		h.AcceptInvite(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -116,7 +116,7 @@ func TestAdminsHandlerAcceptInvite(t *testing.T) {
 
 	t.Run("unknown token errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/invite/accept", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/invite/accept", map[string]string{
 			"token": "no-such-token", "username": "newadmin", "password": "password123",
 		})
 		h.AcceptInvite(c)
@@ -129,7 +129,7 @@ func TestAdminsHandlerAcceptInvite(t *testing.T) {
 func TestAdminsHandlerGetPendingInvites(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 
-	c, w := newAPITestContext("/server/admin/admins/invites")
+	c, w := newAPITestContext("/server/admin/config/admins/invites")
 	h.GetPendingInvites(c)
 
 	if w.Code != http.StatusOK {
@@ -140,7 +140,7 @@ func TestAdminsHandlerGetPendingInvites(t *testing.T) {
 func TestAdminsHandlerRevokeInvite(t *testing.T) {
 	t.Run("missing token errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/admins/invite/")
+		c, w := newAPITestContext("/server/admin/config/admins/invite/")
 		h.RevokeInvite(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -151,7 +151,7 @@ func TestAdminsHandlerRevokeInvite(t *testing.T) {
 func TestAdminsHandlerUpdateAdmin(t *testing.T) {
 	t.Run("invalid id errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/abc", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/abc", map[string]string{
 			"username": "newname", "email": "new@example.com",
 		})
 		c.Params = gin.Params{{Key: "id", Value: "abc"}}
@@ -164,7 +164,7 @@ func TestAdminsHandlerUpdateAdmin(t *testing.T) {
 	t.Run("malformed body errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "updatetargetadmin", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1", "not json")
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1", "not json")
 		setAdminIDParam(c, admin.ID)
 		h.UpdateAdmin(c)
 		if w.Code != http.StatusBadRequest {
@@ -175,7 +175,7 @@ func TestAdminsHandlerUpdateAdmin(t *testing.T) {
 	t.Run("valid update succeeds", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "updatetargetadmin2", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1", map[string]string{
 			"username": "updatedname", "email": "updated@example.com",
 		})
 		setAdminIDParam(c, admin.ID)
@@ -189,7 +189,7 @@ func TestAdminsHandlerUpdateAdmin(t *testing.T) {
 func TestAdminsHandlerDeleteAdmin(t *testing.T) {
 	t.Run("invalid id errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/admins/abc")
+		c, w := newAPITestContext("/server/admin/config/admins/abc")
 		c.Params = gin.Params{{Key: "id", Value: "abc"}}
 		h.DeleteAdmin(c)
 		if w.Code != http.StatusBadRequest {
@@ -200,7 +200,7 @@ func TestAdminsHandlerDeleteAdmin(t *testing.T) {
 	t.Run("not authenticated errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "deltargetadmin", "password123")
-		c, w := newAPITestContext("/server/admin/admins/1")
+		c, w := newAPITestContext("/server/admin/config/admins/1")
 		setAdminIDParam(c, admin.ID)
 		h.DeleteAdmin(c)
 		if w.Code != http.StatusUnauthorized {
@@ -211,7 +211,7 @@ func TestAdminsHandlerDeleteAdmin(t *testing.T) {
 	t.Run("cannot delete self", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "selfdeladmin", "password123")
-		c, w := newAPITestContext("/server/admin/admins/1")
+		c, w := newAPITestContext("/server/admin/config/admins/1")
 		setAdminIDParam(c, admin.ID)
 		c.Set("admin_id", int(admin.ID))
 		h.DeleteAdmin(c)
@@ -224,7 +224,7 @@ func TestAdminsHandlerDeleteAdmin(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		actingAdmin := newAdminsTestAdmin(t, "actingadmin", "password123")
 		targetAdmin := newAdminsTestAdmin(t, "targetadmin", "password123")
-		c, w := newAPITestContext("/server/admin/admins/2")
+		c, w := newAPITestContext("/server/admin/config/admins/2")
 		setAdminIDParam(c, targetAdmin.ID)
 		c.Set("admin_id", int(actingAdmin.ID))
 		h.DeleteAdmin(c)
@@ -237,7 +237,7 @@ func TestAdminsHandlerDeleteAdmin(t *testing.T) {
 func TestAdminsHandlerChangePassword(t *testing.T) {
 	t.Run("invalid id errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/abc/password", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/abc/password", map[string]string{
 			"current_password": "old", "new_password": "newpassword123",
 		})
 		c.Params = gin.Params{{Key: "id", Value: "abc"}}
@@ -250,7 +250,7 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 	t.Run("malformed body errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "pwtargetadmin", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1/password", "not json")
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1/password", "not json")
 		setAdminIDParam(c, admin.ID)
 		h.ChangePassword(c)
 		if w.Code != http.StatusBadRequest {
@@ -261,7 +261,7 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 	t.Run("not authenticated errors", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "pwtargetadmin2", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1/password", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1/password", map[string]string{
 			"current_password": "old", "new_password": "newpassword123",
 		})
 		setAdminIDParam(c, admin.ID)
@@ -278,7 +278,7 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 	t.Run("empty current password fails binding", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "pwtargetadmin3", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1/password", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1/password", map[string]string{
 			"current_password": "", "new_password": "newpassword123",
 		})
 		setAdminIDParam(c, admin.ID)
@@ -297,7 +297,7 @@ func TestAdminsHandlerChangePassword(t *testing.T) {
 	t.Run("non-empty current password hits missing admins table", func(t *testing.T) {
 		h, _ := newAdminsTestHandler(t)
 		admin := newAdminsTestAdmin(t, "pwtargetadmin4", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/admins/1/password", map[string]string{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/admins/1/password", map[string]string{
 			"current_password": "password123", "new_password": "newpassword123",
 		})
 		setAdminIDParam(c, admin.ID)
@@ -328,7 +328,7 @@ func TestAdminsHandlerShowAdminsPage_LoadsData(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 	newAdminsTestAdmin(t, "showadminspage", "password123")
 
-	c, w := newAPITestContext("/server/admin/admins")
+	c, w := newAPITestContext("/server/admin/config/admins")
 	defer htmlRenderGuard(t)
 	h.ShowAdminsPage(c)
 
@@ -343,7 +343,7 @@ func TestAdminsHandlerShowAdminsPage_LoadsData(t *testing.T) {
 func TestAdminsHandlerShowInviteAcceptPage_MissingToken(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 
-	c, w := newAPITestContext("/server/admin/invite/accept")
+	c, w := newAPITestContext("/server/admin/config/admins/invite/accept")
 	defer htmlRenderGuard(t)
 	h.ShowInviteAcceptPage(c)
 
@@ -358,7 +358,7 @@ func TestAdminsHandlerShowInviteAcceptPage_MissingToken(t *testing.T) {
 func TestAdminsHandlerShowInviteAcceptPage_InvalidToken(t *testing.T) {
 	h, _ := newAdminsTestHandler(t)
 
-	c, w := newAPITestContext("/server/admin/invite/accept?token=does-not-exist")
+	c, w := newAPITestContext("/server/admin/config/admins/invite/accept?token=does-not-exist")
 	defer htmlRenderGuard(t)
 	h.ShowInviteAcceptPage(c)
 
@@ -379,7 +379,7 @@ func TestAdminsHandlerShowInviteAcceptPage_ValidToken(t *testing.T) {
 		t.Fatalf("CreateInvite() unexpected error: %v", err)
 	}
 
-	c, w := newAPITestContext("/server/admin/invite/accept?token=" + created.Token)
+	c, w := newAPITestContext("/server/admin/config/admins/invite/accept?token=" + created.Token)
 	defer htmlRenderGuard(t)
 	h.ShowInviteAcceptPage(c)
 

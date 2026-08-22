@@ -6,12 +6,15 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
-// setupChannelManagerTestDB creates an in-memory SQLite database with the
-// notification_channels table used by ChannelManager. Follows the same
-// file:NAME?mode=memory&cache=shared pattern used elsewhere in this package
-// so pooled connections share one database, with a unique name per test.
+// setupChannelManagerTestDB creates an in-memory server database with the real
+// production ServerSchema applied (server_notification_channels lives there).
+// Follows the same file:NAME?mode=memory&cache=shared pattern used elsewhere in
+// this package so pooled connections share one database, with a unique name per
+// test.
 func setupChannelManagerTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -21,25 +24,8 @@ func setupChannelManagerTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { db.Close() })
 
-	_, err = db.Exec(`
-		CREATE TABLE notification_channels (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			channel_type TEXT NOT NULL UNIQUE,
-			channel_name TEXT NOT NULL,
-			enabled BOOLEAN NOT NULL DEFAULT 0,
-			state TEXT NOT NULL DEFAULT 'disabled',
-			config TEXT,
-			last_test_at DATETIME,
-			last_test_result TEXT,
-			last_success_at DATETIME,
-			last_error TEXT,
-			failure_count INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME,
-			updated_at DATETIME
-		)
-	`)
-	if err != nil {
-		t.Fatalf("failed to create notification_channels table: %v", err)
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("apply ServerSchema: %v", err)
 	}
 
 	return db
@@ -173,7 +159,7 @@ func TestChannelManager_InitializeChannels(t *testing.T) {
 	}
 
 	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM notification_channels").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM server_notification_channels").Scan(&count); err != nil {
 		t.Fatalf("failed to count rows: %v", err)
 	}
 	if count != len(ChannelRegistry) {
@@ -182,7 +168,7 @@ func TestChannelManager_InitializeChannels(t *testing.T) {
 
 	// All channels must be inserted disabled per spec.
 	var enabledCount int
-	if err := db.QueryRow("SELECT COUNT(*) FROM notification_channels WHERE enabled = 1").Scan(&enabledCount); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM server_notification_channels WHERE enabled = 1").Scan(&enabledCount); err != nil {
 		t.Fatalf("failed to count enabled rows: %v", err)
 	}
 	if enabledCount != 0 {
@@ -194,7 +180,7 @@ func TestChannelManager_InitializeChannels(t *testing.T) {
 		t.Fatalf("second InitializeChannels() call unexpected error: %v", err)
 	}
 	var count2 int
-	if err := db.QueryRow("SELECT COUNT(*) FROM notification_channels").Scan(&count2); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM server_notification_channels").Scan(&count2); err != nil {
 		t.Fatalf("failed to count rows after second call: %v", err)
 	}
 	if count2 != count {
@@ -214,7 +200,7 @@ func TestChannelManager_InitializeChannels_QueryError(t *testing.T) {
 
 	cm := NewChannelManager(db)
 	if err := cm.InitializeChannels(); err == nil {
-		t.Fatal("expected error when notification_channels table does not exist")
+		t.Fatal("expected error when server_notification_channels table does not exist")
 	}
 }
 
@@ -498,8 +484,8 @@ func TestChannelManager_ListEnabledChannels(t *testing.T) {
 	seedChannelRow(t, db, "discord", "Discord")
 	seedChannelRow(t, db, "telegram", "Telegram")
 
-	mustExec(t, db, "UPDATE notification_channels SET enabled=1, state='enabled' WHERE channel_type='slack'")
-	mustExec(t, db, "UPDATE notification_channels SET enabled=1, state='testing' WHERE channel_type='discord'")
+	mustExec(t, db, "UPDATE server_notification_channels SET enabled=1, state='enabled' WHERE channel_type='slack'")
+	mustExec(t, db, "UPDATE server_notification_channels SET enabled=1, state='testing' WHERE channel_type='discord'")
 	// telegram left disabled/'disabled'.
 
 	list, err = cm.ListEnabledChannels()
@@ -517,7 +503,7 @@ func TestChannelManager_ListEnabledChannels(t *testing.T) {
 func seedChannelRow(t *testing.T, db *sql.DB, channelType, name string) {
 	t.Helper()
 	_, err := db.Exec(`
-		INSERT INTO notification_channels
+		INSERT INTO server_notification_channels
 		(channel_type, channel_name, enabled, state, config, created_at, updated_at)
 		VALUES (?, ?, 0, 'disabled', '{}', datetime('now'), datetime('now'))
 	`, channelType, name)

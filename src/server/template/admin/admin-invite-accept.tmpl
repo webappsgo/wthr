@@ -1,0 +1,38 @@
+{{template "head" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+<main class="admin-standalone" id="main-content" role="main">
+  <section class="card admin-standalone__card" aria-labelledby="invite-accept-heading">
+    <h1 class="admin-standalone__title" id="invite-accept-heading">{{t $lang "admin.invite_accept.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.invite_accept.intro"}}</p>
+
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.invite_accept.email_label"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all">{{.email}}</dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.invite_accept.expires_label"}}</dt>
+      <dd class="admin-detail-list__value">{{.expires}}</dd>
+    </dl>
+
+    <form class="settings-form" method="POST" action="/server/server/auth/invite/server/{{.token}}">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label class="form-label" for="invite-username">{{t $lang "admin.invite_accept.username_label"}}</label>
+        <input class="form-input" id="invite-username" name="username" type="text" required minlength="3" autocomplete="username" aria-describedby="invite-username-hint">
+        <p class="form-hint" id="invite-username-hint">{{t $lang "admin.invite_accept.username_hint"}}</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="invite-password">{{t $lang "admin.invite_accept.password_label"}}</label>
+        <input class="form-input" id="invite-password" name="password" type="password" required minlength="8" autocomplete="new-password" aria-describedby="invite-password-hint">
+        <p class="form-hint" id="invite-password-hint">{{t $lang "admin.invite_accept.password_hint"}}</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="invite-confirm-password">{{t $lang "admin.invite_accept.confirm_label"}}</label>
+        <input class="form-input" id="invite-confirm-password" name="confirm_password" type="password" required minlength="8" autocomplete="new-password">
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" type="submit">{{t $lang "admin.invite_accept.submit"}}</button>
+      </div>
+    </form>
+  </section>
+</main>
+{{template "footer" .}}

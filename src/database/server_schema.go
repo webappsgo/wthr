@@ -85,6 +85,21 @@ CREATE INDEX IF NOT EXISTS idx_scheduler_enabled ON server_scheduler_state(enabl
 CREATE INDEX IF NOT EXISTS idx_scheduler_next_run ON server_scheduler_state(next_run);
 CREATE INDEX IF NOT EXISTS idx_scheduler_locked ON server_scheduler_state(locked_by);
 
+-- Scheduler History table (one row per task execution)
+CREATE TABLE IF NOT EXISTS server_scheduler_history (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	task_name TEXT NOT NULL,
+	start_time DATETIME NOT NULL,
+	end_time DATETIME NOT NULL,
+	duration_ms INTEGER NOT NULL,
+	status TEXT NOT NULL,
+	error TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON server_scheduler_history(task_name);
+CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON server_scheduler_history(start_time DESC);
+
 -- Cluster Nodes table (for future cluster mode)
 CREATE TABLE IF NOT EXISTS server_nodes (
 	node_id TEXT PRIMARY KEY,
@@ -364,27 +379,6 @@ CREATE INDEX IF NOT EXISTS idx_metrics_name ON server_metrics(metric_name);
 CREATE INDEX IF NOT EXISTS idx_metrics_recorded ON server_metrics(recorded_at);
 CREATE INDEX IF NOT EXISTS idx_metrics_node ON server_metrics(node_id);
 
--- Custom domain mapping table (PART 36 — not enabled for this project)
-CREATE TABLE IF NOT EXISTS custom_domains (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	domain TEXT UNIQUE NOT NULL,
-	user_id INTEGER,
-	is_verified BOOLEAN DEFAULT 0,
-	is_active BOOLEAN DEFAULT 0,
-	ssl_enabled BOOLEAN DEFAULT 0,
-	ssl_cert_path TEXT,
-	ssl_key_path TEXT,
-	redirect_www BOOLEAN DEFAULT 1,
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	verified_at DATETIME
-);
-
-CREATE INDEX IF NOT EXISTS idx_domains_domain ON custom_domains(domain);
-CREATE INDEX IF NOT EXISTS idx_domains_user ON custom_domains(user_id);
-CREATE INDEX IF NOT EXISTS idx_domains_verified ON custom_domains(is_verified);
-CREATE INDEX IF NOT EXISTS idx_domains_active ON custom_domains(is_active);
-
 -- Notification Queue table (server-level delivery queue)
 CREATE TABLE IF NOT EXISTS notification_queue (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -444,6 +438,52 @@ CREATE TABLE IF NOT EXISTS notification_history (
 CREATE INDEX IF NOT EXISTS idx_nh_queue ON notification_history(queue_id);
 CREATE INDEX IF NOT EXISTS idx_nh_user ON notification_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_nh_status ON notification_history(status);
+
+-- Contact Submissions table (public /server/contact form and its GraphQL mutation)
+-- created_at is a DATETIME defaulting to CURRENT_TIMESTAMP rather than the
+-- SQLite-only unix-epoch function call this table's DEFAULT used while it was
+-- created at request time: every supported driver understands
+-- CURRENT_TIMESTAMP, and no reader interprets the column as a unix integer.
+CREATE TABLE IF NOT EXISTS contact_submissions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	email TEXT NOT NULL,
+	subject TEXT NOT NULL,
+	message TEXT NOT NULL,
+	ip_address TEXT,
+	user_agent TEXT,
+	status TEXT NOT NULL DEFAULT 'pending',
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_status ON contact_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_created ON contact_submissions(created_at DESC);
+
+-- CVE Alerts table (populated by the scheduler's cve_update task from the NVD API)
+-- The scheduler used to create this table itself at task time. That statement
+-- could never succeed: it named a column "references", which is a reserved word
+-- no supported driver accepts as a bare identifier, so every run of the task
+-- failed at the CREATE before a single CVE was stored. The column is named
+-- reference_urls here.
+-- published_at holds the NVD publication instant converted to the same canonical
+-- UTC text as every other timestamp in this schema, never the API's own string.
+CREATE TABLE IF NOT EXISTS server_cve_alerts (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	cve_id TEXT NOT NULL UNIQUE,
+	description TEXT,
+	severity TEXT,
+	cvss_score REAL,
+	published_at DATETIME,
+	affected_packages TEXT,
+	reference_urls TEXT,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	acknowledged INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_cve_alerts_severity ON server_cve_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_cve_alerts_published ON server_cve_alerts(published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cve_alerts_acknowledged ON server_cve_alerts(acknowledged);
 `
 
-const ServerSchemaVersion = 6
+const ServerSchemaVersion = 8

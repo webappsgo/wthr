@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -61,15 +62,29 @@ func RequireAdminAuth() gin.HandlerFunc {
 			return
 		}
 
-		// Query server_admin_sessions table for valid session
+		// Query server_admin_sessions table for the session row.
+		//
+		// expires_at is judged in Go, never by SQL. "expires_at >
+		// CURRENT_TIMESTAMP" is a raw lexicographic TEXT comparison, and this
+		// column can hold either canonical UTC text or the local-zone
+		// time.Time.String() form an older build bound directly. A row written
+		// in a zone behind UTC therefore compared as still valid for hours
+		// after it had really expired (authentication bypass), and one written
+		// ahead of UTC compared as expired while still live (denial of
+		// service); wrapping the column in datetime() instead yields NULL for
+		// the local-zone layout, so the predicate matches nothing at all.
+		// dbtime.IsAfter resolves both layouts to the same absolute instant and
+		// reports false for a NULL or unparseable value, so a session this
+		// project cannot interpret is rejected rather than trusted.
 		var adminID int
+		var storedExpiresAt interface{}
 		err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-			SELECT admin_id
+			SELECT admin_id, expires_at
 			FROM server_admin_sessions
-			WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
-		`, session).Scan(&adminID)
+			WHERE id = ?
+		`, session).Scan(&adminID, &storedExpiresAt)
 
-		if err != nil {
+		if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
 			// Invalid or expired session - show login
 			c.HTML(http.StatusOK, "admin/login.tmpl", gin.H{
 				"branding": gin.H{
@@ -192,12 +207,18 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 			maxAge = 90 * 24 * 60 * 60
 		}
 
-		// Create session in server_admin_sessions table (AI.md PART 5)
-		expiresAt := time.Now().Unix() + int64(maxAge)
+		// Create session in server_admin_sessions table (AI.md PART 5).
+		//
+		// Both timestamps are bound as canonical UTC text produced in Go rather
+		// than by datetime(?, 'unixepoch')/CURRENT_TIMESTAMP: those are SQLite
+		// spellings that do not exist on PostgreSQL or MySQL, and binding the
+		// value keeps this writer in the one layout every reader parses.
+		now := time.Now()
+		expiresAt := now.Add(time.Duration(maxAge) * time.Second)
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-			VALUES (?, ?, ?, ?, datetime(?, 'unixepoch'), CURRENT_TIMESTAMP)
-		`, sessionToken, adminID, c.ClientIP(), c.Request.UserAgent(), expiresAt)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, sessionToken, adminID, c.ClientIP(), c.Request.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
 
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "admin/login.tmpl", gin.H{
@@ -232,8 +253,10 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 			true,
 		)
 
-		// Update last_login timestamp
-		database.ExecContext(context.Background(), db, database.TimeoutWrite, "UPDATE server_admin_credentials SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", adminID)
+		// Update last_login timestamp, bound as canonical UTC text so the value
+		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
+		// means to the backend in use.
+		database.ExecContext(context.Background(), db, database.TimeoutWrite, "UPDATE server_admin_credentials SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID)
 
 		// Redirect to admin dashboard
 		c.Redirect(http.StatusFound, adminPath+"/dashboard")

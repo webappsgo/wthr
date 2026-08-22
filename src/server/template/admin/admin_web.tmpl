@@ -1,78 +1,79 @@
 {{define "admin/admin_web.tmpl"}}
 {{template "head" .}}
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
-                <h1>🌐 Web Frontend Settings</h1>
-                <p class="subtitle">Configure branding, SEO, robots.txt, and security.txt</p>
+                <h1>🌐 {{t $lang "admin.web.title"}}</h1>
+                <p class="subtitle">{{t $lang "admin.web.subtitle"}}</p>
             </div>
 
             <div class="alert alert-info" role="status">
-                <strong>Note:</strong> Changes to these settings take effect immediately. The robots.txt and security.txt files are dynamically generated.
+                <strong>{{t $lang "admin.web.note_label"}}</strong> {{t $lang "admin.web.note_text"}}
             </div>
 
             <!-- Branding Section -->
             <section class="admin-card" aria-labelledby="branding-heading">
                 <div class="card-header">
-                    <h2 id="branding-heading">Branding & Identity</h2>
-                    <p class="card-description">Configure your application's name and visual identity</p>
+                    <h2 id="branding-heading">{{t $lang "admin.web.branding_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.branding_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="branding-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label for="app_name">
-                                Application Name
-                                <span class="required" aria-label="required">*</span>
+                                {{t $lang "admin.web.app_name_label"}}
+                                <span class="required" aria-label="{{t $lang "admin.web.required_field_aria"}}">*</span>
                             </label>
                             <input
                                 type="text"
                                 id="app_name"
                                 name="app.name"
                                 class="form-control"
-                                placeholder="My Weather App"
+                                placeholder="{{t $lang "admin.web.app_name_placeholder"}}"
                                 required
                                 aria-required="true"
                                 aria-describedby="app_name_help"
                             >
                             <small id="app_name_help" class="form-text">
-                                This name appears in the header, page titles, and email notifications
+                                {{t $lang "admin.web.app_name_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="app_tagline">Application Tagline</label>
+                            <label for="app_tagline">{{t $lang "admin.web.app_tagline_label"}}</label>
                             <input
                                 type="text"
                                 id="app_tagline"
                                 name="app.tagline"
                                 class="form-control"
-                                placeholder="Your personal weather companion"
+                                placeholder="{{t $lang "admin.web.app_tagline_placeholder"}}"
                                 aria-describedby="app_tagline_help"
                             >
                             <small id="app_tagline_help" class="form-text">
-                                Optional subtitle shown on the homepage
+                                {{t $lang "admin.web.app_tagline_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="app_description">Application Description</label>
+                            <label for="app_description">{{t $lang "admin.web.app_description_label"}}</label>
                             <textarea
                                 id="app_description"
                                 name="app.description"
                                 class="form-control"
                                 rows="3"
-                                placeholder="A self-hosted weather application with alerts and forecasts"
+                                placeholder="{{t $lang "admin.web.app_description_placeholder"}}"
                                 aria-describedby="app_description_help"
                             ></textarea>
                             <small id="app_description_help" class="form-text">
-                                Used in meta tags for SEO and social media sharing
+                                {{t $lang "admin.web.app_description_help"}}
                             </small>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save branding settings">
-                            💾 Save Branding
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_branding_aria"}}">
+                            💾 {{t $lang "admin.web.save_branding_action"}}
                         </button>
                     </form>
                 </div>
@@ -81,44 +82,44 @@
             <!-- SEO Settings Section -->
             <section class="admin-card" aria-labelledby="seo-heading">
                 <div class="card-header">
-                    <h2 id="seo-heading">SEO Settings</h2>
-                    <p class="card-description">Optimize your site for search engines</p>
+                    <h2 id="seo-heading">{{t $lang "admin.web.seo_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.seo_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="seo-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="seo_keywords">Meta Keywords</label>
+                            <label for="seo_keywords">{{t $lang "admin.web.seo_keywords_label"}}</label>
                             <input
                                 type="text"
                                 id="seo_keywords"
                                 name="seo.keywords"
                                 class="form-control"
-                                placeholder="weather, forecast, alerts, temperature"
+                                placeholder="{{t $lang "admin.web.seo_keywords_placeholder"}}"
                                 aria-describedby="seo_keywords_help"
                             >
                             <small id="seo_keywords_help" class="form-text">
-                                Comma-separated keywords for search engines
+                                {{t $lang "admin.web.seo_keywords_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="seo_author">Author</label>
+                            <label for="seo_author">{{t $lang "admin.web.seo_author_label"}}</label>
                             <input
                                 type="text"
                                 id="seo_author"
                                 name="seo.author"
                                 class="form-control"
-                                placeholder="Your Name"
+                                placeholder="{{t $lang "admin.web.seo_author_placeholder"}}"
                                 aria-describedby="seo_author_help"
                             >
                             <small id="seo_author_help" class="form-text">
-                                Website author or organization name
+                                {{t $lang "admin.web.seo_author_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="seo_og_image">Social Media Preview Image (URL)</label>
+                            <label for="seo_og_image">{{t $lang "admin.web.seo_og_image_label"}}</label>
                             <input
                                 type="url"
                                 id="seo_og_image"
@@ -128,12 +129,12 @@
                                 aria-describedby="seo_og_image_help"
                             >
                             <small id="seo_og_image_help" class="form-text">
-                                Image shown when sharing on social media (1200x630px recommended)
+                                {{t $lang "admin.web.seo_og_image_help"}}
                             </small>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save SEO settings">
-                            💾 Save SEO Settings
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_seo_aria"}}">
+                            💾 {{t $lang "admin.web.save_seo_action"}}
                         </button>
                     </form>
                 </div>
@@ -142,19 +143,19 @@
             <!-- robots.txt Section -->
             <section class="admin-card" aria-labelledby="robots-heading">
                 <div class="card-header">
-                    <h2 id="robots-heading">robots.txt Configuration</h2>
-                    <p class="card-description">Control search engine crawling behavior</p>
+                    <h2 id="robots-heading">{{t $lang "admin.web.robots_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.robots_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info" role="status">
-                        <strong>Current URL:</strong> <a href="/robots.txt" target="_blank" rel="noopener">/robots.txt</a><br>
-                        Use <code>{app_url}</code> as a placeholder for your site's base URL.
+                        <strong>{{t $lang "admin.web.current_url_label"}}</strong> <a href="/robots.txt" target="_blank" rel="noopener">/robots.txt</a><br>
+                        {{t $lang "admin.web.robots_placeholder_note_prefix"}} <code>{app_url}</code> {{t $lang "admin.web.robots_placeholder_note_suffix"}}
                     </div>
 
                     <form id="robots-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="robots_txt">robots.txt Content</label>
+                            <label for="robots_txt">{{t $lang "admin.web.robots_content_label"}}</label>
                             <textarea
                                 id="robots_txt"
                                 name="web.robots_txt"
@@ -168,23 +169,23 @@ Disallow: /admin/
 Disallow: /api/
 Sitemap: {app_url}/sitemap.xml</textarea>
                             <small id="robots_txt_help" class="form-text">
-                                <strong>Common directives:</strong><br>
-                                • <code>User-agent: *</code> - Applies to all crawlers<br>
-                                • <code>Allow: /</code> - Allow all pages<br>
-                                • <code>Disallow: /admin/</code> - Block admin pages<br>
-                                • <code>Sitemap:</code> - Link to XML sitemap
+                                <strong>{{t $lang "admin.web.common_directives_label"}}</strong><br>
+                                • <code>User-agent: *</code> - {{t $lang "admin.web.directive_all_crawlers"}}<br>
+                                • <code>Allow: /</code> - {{t $lang "admin.web.directive_allow_all"}}<br>
+                                • <code>Disallow: /admin/</code> - {{t $lang "admin.web.directive_block_admin"}}<br>
+                                • <code>Sitemap:</code> - {{t $lang "admin.web.directive_sitemap_link"}}
                             </small>
                         </div>
 
                         <div class="button-group">
-                            <button type="submit" class="btn btn-primary" aria-label="Save robots.txt">
-                                💾 Save robots.txt
+                            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_robots_aria"}}">
+                                💾 {{t $lang "admin.web.save_robots_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="previewRobotsTxt()" aria-label="Preview robots.txt">
-                                👁️ Preview
+                            <button type="button" class="btn btn-secondary" onclick="previewRobotsTxt()" aria-label="{{t $lang "admin.web.preview_robots_aria"}}">
+                                👁️ {{t $lang "admin.web.preview_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="resetRobotsTxt()" aria-label="Reset to defaults">
-                                🔄 Reset to Default
+                            <button type="button" class="btn btn-secondary" onclick="resetRobotsTxt()" aria-label="{{t $lang "admin.web.reset_defaults_aria"}}">
+                                🔄 {{t $lang "admin.web.reset_default_action"}}
                             </button>
                         </div>
                     </form>
@@ -194,20 +195,20 @@ Sitemap: {app_url}/sitemap.xml</textarea>
             <!-- security.txt Section -->
             <section class="admin-card" aria-labelledby="security-txt-heading">
                 <div class="card-header">
-                    <h2 id="security-txt-heading">security.txt Configuration (RFC 9116)</h2>
-                    <p class="card-description">Security contact information for vulnerability disclosure</p>
+                    <h2 id="security-txt-heading">{{t $lang "admin.web.security_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.security_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info" role="status">
-                        <strong>Current URL:</strong> <a href="/.well-known/security.txt" target="_blank" rel="noopener">/.well-known/security.txt</a><br>
-                        This file helps security researchers contact you about vulnerabilities.
+                        <strong>{{t $lang "admin.web.current_url_label"}}</strong> <a href="/.well-known/security.txt" target="_blank" rel="noopener">/.well-known/security.txt</a><br>
+                        {{t $lang "admin.web.security_url_note"}}
                     </div>
 
                     <form id="security-txt-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label for="security_contact">
-                                Contact <span class="required" aria-label="required">*</span>
+                                {{t $lang "admin.web.contact_label"}} <span class="required" aria-label="{{t $lang "admin.web.required_field_aria"}}">*</span>
                             </label>
                             <input
                                 type="text"
@@ -220,12 +221,12 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                                 aria-describedby="security_contact_help"
                             >
                             <small id="security_contact_help" class="form-text">
-                                Email, URL, or phone number. Use commas to separate multiple contacts.
+                                {{t $lang "admin.web.contact_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="security_languages">Preferred Languages</label>
+                            <label for="security_languages">{{t $lang "admin.web.languages_label"}}</label>
                             <input
                                 type="text"
                                 id="security_languages"
@@ -235,12 +236,12 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                                 aria-describedby="security_languages_help"
                             >
                             <small id="security_languages_help" class="form-text">
-                                Comma-separated language codes (e.g., en, es, fr)
+                                {{t $lang "admin.web.languages_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="security_encryption">Encryption (PGP Key URL)</label>
+                            <label for="security_encryption">{{t $lang "admin.web.encryption_label"}}</label>
                             <input
                                 type="url"
                                 id="security_encryption"
@@ -250,12 +251,12 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                                 aria-describedby="security_encryption_help"
                             >
                             <small id="security_encryption_help" class="form-text">
-                                Optional: URL to your PGP public key for encrypted communications
+                                {{t $lang "admin.web.encryption_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="security_policy">Disclosure Policy URL</label>
+                            <label for="security_policy">{{t $lang "admin.web.policy_label"}}</label>
                             <input
                                 type="url"
                                 id="security_policy"
@@ -265,12 +266,12 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                                 aria-describedby="security_policy_help"
                             >
                             <small id="security_policy_help" class="form-text">
-                                Optional: Link to your vulnerability disclosure policy
+                                {{t $lang "admin.web.policy_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="security_acknowledgments">Acknowledgments URL</label>
+                            <label for="security_acknowledgments">{{t $lang "admin.web.acknowledgments_label"}}</label>
                             <input
                                 type="url"
                                 id="security_acknowledgments"
@@ -280,26 +281,25 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                                 aria-describedby="security_acknowledgments_help"
                             >
                             <small id="security_acknowledgments_help" class="form-text">
-                                Optional: Link to your security hall of fame or acknowledgments page
+                                {{t $lang "admin.web.acknowledgments_help"}}
                             </small>
                         </div>
 
                         <div class="alert alert-warning" role="status">
-                            <strong>Auto-renewal:</strong> The expiry date is automatically renewed to 1 year from now on each save.
+                            <strong>{{t $lang "admin.web.auto_renewal_label"}}</strong> {{t $lang "admin.web.auto_renewal_text"}}
                         </div>
 
                         <div class="button-group">
-                            <button type="submit" class="btn btn-primary" aria-label="Save security.txt">
-                                💾 Save security.txt
+                            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_security_aria"}}">
+                                💾 {{t $lang "admin.web.save_security_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="previewSecurityTxt()" aria-label="Preview security.txt">
-                                👁️ Preview
+                            <button type="button" class="btn btn-secondary" onclick="previewSecurityTxt()" aria-label="{{t $lang "admin.web.preview_security_aria"}}">
+                                👁️ {{t $lang "admin.web.preview_action"}}
                             </button>
                         </div>
                     </form>
                 </div>
             </section>
-        </main>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -425,5 +425,5 @@ Sitemap: {app_url}/sitemap.xml`;
     }
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

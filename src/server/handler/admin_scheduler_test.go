@@ -25,7 +25,7 @@ func newSchedulerTestHandler(t *testing.T) *AdminHandler {
 // avoiding the HTMLRender-panic issue documented elsewhere in this package.
 func TestAdminHandlerShowSchedulerConfig_Unauthenticated(t *testing.T) {
 	h := newSchedulerTestHandler(t)
-	c, w := newAPITestContext("/server/admin/scheduler")
+	c, w := newAPITestContext("/server/admin/config/scheduler")
 
 	h.ShowSchedulerConfig(c)
 
@@ -36,7 +36,7 @@ func TestAdminHandlerShowSchedulerConfig_Unauthenticated(t *testing.T) {
 
 func TestAdminHandlerGetSchedulerConfigJSON(t *testing.T) {
 	h := newSchedulerTestHandler(t)
-	c, w := newAPITestContext("/server/admin/scheduler/json")
+	c, w := newAPITestContext("/server/admin/config/scheduler/json")
 
 	h.GetSchedulerConfigJSON(c)
 
@@ -51,7 +51,7 @@ func TestAdminHandlerGetSchedulerConfigJSON(t *testing.T) {
 func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 	t.Run("malformed body", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", "not json")
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", "not json")
 		h.SaveSchedulerConfig(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -60,7 +60,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid timezone", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"timezone": "Mars/Olympus",
 		})
 		h.SaveSchedulerConfig(c)
@@ -71,7 +71,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid catch_up_window", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"catch_up_window": "not-a-duration",
 		})
 		h.SaveSchedulerConfig(c)
@@ -82,7 +82,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid task schedule", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"geoip_update": map[string]interface{}{"schedule": "not a cron", "enabled": true},
 		})
 		h.SaveSchedulerConfig(c)
@@ -93,7 +93,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid retry_delay", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"blocklist_update": map[string]interface{}{"retry_delay": "bogus"},
 		})
 		h.SaveSchedulerConfig(c)
@@ -104,7 +104,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid log_rotation max_age", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"log_rotation": map[string]interface{}{"max_age": "bogus"},
 		})
 		h.SaveSchedulerConfig(c)
@@ -115,7 +115,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("invalid log_rotation max_size", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"log_rotation": map[string]interface{}{"max_size": "bogus"},
 		})
 		h.SaveSchedulerConfig(c)
@@ -126,7 +126,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("valid full config persists all task fields", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"timezone":        "UTC",
 			"catch_up_window": "30m",
 			"ssl_renewal":     map[string]interface{}{"schedule": "0 3 * * *", "enabled": false},
@@ -184,7 +184,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 
 	t.Run("unknown task keys are ignored", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/scheduler", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"nonexistent_field": "value",
 		})
 		h.SaveSchedulerConfig(c)

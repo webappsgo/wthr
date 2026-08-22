@@ -1,10 +1,36 @@
 package model
 
 import (
+	"database/sql"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/database"
 )
+
+var tokenV2DBCounter int64
+
+// newTokenV2UsersDB opens a fresh in-memory users database carrying the real
+// database.UsersSchema — the same DDL initUsersDB applies to users.db, which
+// owns the canonical user_tokens table TokenModelV2 reads and writes.
+func newTokenV2UsersDB(t *testing.T) *sql.DB {
+	t.Helper()
+	n := atomic.AddInt64(&tokenV2DBCounter, 1)
+	dsn := fmt.Sprintf("file:model_token_v2_%d?mode=memory&cache=shared", n)
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		t.Fatalf("open users db: %v", err)
+	}
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		db.Close()
+		t.Fatalf("apply UsersSchema: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	return db
+}
 
 // TestGenerateTokenWithPrefix covers format and uniqueness for each prefix.
 func TestGenerateTokenWithPrefix(t *testing.T) {
@@ -94,10 +120,10 @@ func TestValidateTokenFormat(t *testing.T) {
 	}
 }
 
-// TestTokenModelV2_CreateToken covers owner/scope validation, prefix
-// selection per owner type, and expiration calculation.
+// TestTokenModelV2_CreateToken covers owner/scope validation, the
+// user-only ownership constraint of user_tokens, and expiration calculation.
 func TestTokenModelV2_CreateToken(t *testing.T) {
-	db := newModelLegacyDB(t)
+	db := newTokenV2UsersDB(t)
 	model := &TokenModelV2{DB: db}
 
 	t.Run("invalid owner type", func(t *testing.T) {
@@ -125,23 +151,10 @@ func TestTokenModelV2_CreateToken(t *testing.T) {
 		}
 	})
 
-	t.Run("admin token uses admin prefix", func(t *testing.T) {
-		tok, err := model.CreateToken(OwnerTypeAdmin, 2, "Admin", ScopeGlobal, 0)
+	t.Run("expiry is set for a positive duration", func(t *testing.T) {
+		tok, err := model.CreateToken(OwnerTypeUser, 3, "Expiring", ScopeReadWrite, 24*time.Hour)
 		if err != nil {
 			t.Fatalf("CreateToken() error = %v", err)
-		}
-		if !strings.HasPrefix(tok.Token, PrefixAdmin) {
-			t.Errorf("CreateToken() token = %q, want %s prefix", tok.Token, PrefixAdmin)
-		}
-	})
-
-	t.Run("org token uses org prefix and sets expiry", func(t *testing.T) {
-		tok, err := model.CreateToken(OwnerTypeOrg, 3, "Org", ScopeReadWrite, 24*time.Hour)
-		if err != nil {
-			t.Fatalf("CreateToken() error = %v", err)
-		}
-		if !strings.HasPrefix(tok.Token, PrefixOrg) {
-			t.Errorf("CreateToken() token = %q, want %s prefix", tok.Token, PrefixOrg)
 		}
 		if tok.ExpiresAt == nil {
 			t.Fatal("CreateToken() with positive duration should set an expiry")
@@ -150,12 +163,24 @@ func TestTokenModelV2_CreateToken(t *testing.T) {
 			t.Error("CreateToken() expiry should be in the future")
 		}
 	})
+
+	t.Run("admin owner rejected", func(t *testing.T) {
+		if _, err := model.CreateToken(OwnerTypeAdmin, 2, "Admin", ScopeGlobal, 0); err == nil {
+			t.Error("CreateToken() expected error for admin owner, which is stored in server.db")
+		}
+	})
+
+	t.Run("org owner rejected", func(t *testing.T) {
+		if _, err := model.CreateToken(OwnerTypeOrg, 3, "Org", ScopeGlobal, 0); err == nil {
+			t.Error("CreateToken() expected error for org owner, which user_tokens cannot hold")
+		}
+	})
 }
 
 // TestTokenModelV2_ValidateToken covers format rejection, not-found,
 // expired, and the happy path.
 func TestTokenModelV2_ValidateToken(t *testing.T) {
-	db := newModelLegacyDB(t)
+	db := newTokenV2UsersDB(t)
 	model := &TokenModelV2{DB: db}
 
 	t.Run("invalid format rejected before DB lookup", func(t *testing.T) {
@@ -183,6 +208,15 @@ func TestTokenModelV2_ValidateToken(t *testing.T) {
 		if got.ID != created.ID {
 			t.Errorf("ValidateToken() ID = %d, want %d", got.ID, created.ID)
 		}
+		if got.OwnerType != OwnerTypeUser {
+			t.Errorf("ValidateToken() OwnerType = %q, want %q", got.OwnerType, OwnerTypeUser)
+		}
+		if got.OwnerID != 10 {
+			t.Errorf("ValidateToken() OwnerID = %d, want 10", got.OwnerID)
+		}
+		if got.Scope != ScopeRead {
+			t.Errorf("ValidateToken() Scope = %q, want %q", got.Scope, ScopeRead)
+		}
 	})
 
 	t.Run("expired token rejected", func(t *testing.T) {
@@ -200,7 +234,7 @@ func TestTokenModelV2_ValidateToken(t *testing.T) {
 // TestTokenModelV2_UpdateLastUsedListDeleteRotate covers the remaining
 // lifecycle methods, including ownership-scoped delete failures.
 func TestTokenModelV2_UpdateLastUsedListDeleteRotate(t *testing.T) {
-	db := newModelLegacyDB(t)
+	db := newTokenV2UsersDB(t)
 	model := &TokenModelV2{DB: db}
 
 	created, err := model.CreateToken(OwnerTypeUser, 20, "Key", ScopeGlobal, 0)
@@ -247,6 +281,18 @@ func TestTokenModelV2_UpdateLastUsedListDeleteRotate(t *testing.T) {
 	t.Run("DeleteToken wrong owner is rejected", func(t *testing.T) {
 		if err := model.DeleteToken(created.ID, OwnerTypeUser, 999); err == nil {
 			t.Error("DeleteToken() expected error when owner does not match")
+		}
+	})
+
+	t.Run("non-user owner types are rejected", func(t *testing.T) {
+		if _, err := model.ListTokens(OwnerTypeAdmin, 20); err == nil {
+			t.Error("ListTokens() expected error for admin owner")
+		}
+		if err := model.DeleteToken(created.ID, OwnerTypeOrg, 20); err == nil {
+			t.Error("DeleteToken() expected error for org owner")
+		}
+		if _, err := model.RotateToken(created.ID, OwnerTypeAdmin, 20); err == nil {
+			t.Error("RotateToken() expected error for admin owner")
 		}
 	})
 

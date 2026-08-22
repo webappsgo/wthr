@@ -90,7 +90,7 @@ func TestInitUsersDB_InvalidPath(t *testing.T) {
 // (no data column) and verifies the migration adds it, and that running the
 // same migration again is a no-op (idempotent, no duplicate-column error).
 func TestMigrateUsersDB_V6AddsDataColumn(t *testing.T) {
-	db := newSchemaDB(t, memDSN("migv6"))
+	db := newSchemaDB(t, "migv6")
 
 	if _, err := db.Exec(`
 		CREATE TABLE user_sessions (
@@ -102,7 +102,7 @@ func TestMigrateUsersDB_V6AddsDataColumn(t *testing.T) {
 		t.Fatalf("create v5 user_sessions: %v", err)
 	}
 
-	if err := migrateUsersDB(db, 5); err != nil {
+	if err := migrateUsersDB(db.DB, 5); err != nil {
 		t.Fatalf("migrateUsersDB(fromVersion=5): %v", err)
 	}
 	if _, err := db.Exec("SELECT data FROM user_sessions LIMIT 0"); err != nil {
@@ -110,7 +110,7 @@ func TestMigrateUsersDB_V6AddsDataColumn(t *testing.T) {
 	}
 
 	// Running again from the same "fromVersion" must not error (idempotency).
-	if err := migrateUsersDB(db, 5); err != nil {
+	if err := migrateUsersDB(db.DB, 5); err != nil {
 		t.Errorf("migrateUsersDB run twice: %v", err)
 	}
 }
@@ -119,7 +119,7 @@ func TestMigrateUsersDB_V6AddsDataColumn(t *testing.T) {
 // are deleted, session_id is renamed to token_hash, and the unique index is
 // created. Running it twice must not error.
 func TestMigrateUsersDB_V7RenamesSessionID(t *testing.T) {
-	db := newSchemaDB(t, memDSN("migv7"))
+	db := newSchemaDB(t, "migv7")
 
 	if _, err := db.Exec(`
 		CREATE TABLE user_sessions (
@@ -138,7 +138,7 @@ func TestMigrateUsersDB_V7RenamesSessionID(t *testing.T) {
 		t.Fatalf("seed old session row: %v", err)
 	}
 
-	if err := migrateUsersDB(db, 6); err != nil {
+	if err := migrateUsersDB(db.DB, 6); err != nil {
 		t.Fatalf("migrateUsersDB(fromVersion=6): %v", err)
 	}
 
@@ -155,7 +155,7 @@ func TestMigrateUsersDB_V7RenamesSessionID(t *testing.T) {
 	}
 
 	// Running the migration again from the same fromVersion must not error.
-	if err := migrateUsersDB(db, 6); err != nil {
+	if err := migrateUsersDB(db.DB, 6); err != nil {
 		t.Errorf("migrateUsersDB run twice: %v", err)
 	}
 }
@@ -164,13 +164,13 @@ func TestMigrateUsersDB_V7RenamesSessionID(t *testing.T) {
 // version below both thresholds (e.g. 0) chains v6 and v7 without error
 // against a schema that already has token_hash (simulating the base schema).
 func TestMigrateUsersDB_FromZeroRunsBothSteps(t *testing.T) {
-	db := newSchemaDB(t, memDSN("migzero"))
+	db := newSchemaDB(t, "migzero")
 
 	if _, err := db.Exec(UsersSchema); err != nil {
 		t.Fatalf("create base schema: %v", err)
 	}
 
-	if err := migrateUsersDB(db, 0); err != nil {
+	if err := migrateUsersDB(db.DB, 0); err != nil {
 		t.Fatalf("migrateUsersDB(fromVersion=0) against already-current schema: %v", err)
 	}
 }

@@ -1,10 +1,12 @@
 {{define "admin/admin_passkey_login.tmpl"}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{$lang}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Passkey Verification — {{.app_name}}</title>
+    <title>{{t $lang "admin.passkey_login.heading"}} — {{.app_name}}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/admin.css">
@@ -91,17 +93,17 @@
 <body>
     <div class="passkey-card">
         <div class="passkey-icon">🔑</div>
-        <h1>Admin Passkey Verification</h1>
-        <p class="subtitle">Complete sign-in with your registered passkey</p>
+        <h1>{{t $lang "admin.passkey_login.heading"}}</h1>
+        <p class="subtitle">{{t $lang "admin.passkey_login.subtitle"}}</p>
 
         {{if .error}}
         <div class="status-box status-error">{{.error}}</div>
-        <a href="/server/auth/login" class="back-link">← Back to login</a>
+        <a href="/server/auth/login" class="back-link">← {{t $lang "admin.passkey_login.back_link"}}</a>
         {{else}}
         <div id="passkeyStatus" class="status-box status-info">
-            <span class="spinner"></span> Starting passkey authentication…
+            <span class="spinner"></span> {{t $lang "admin.passkey_login.starting_status"}}
         </div>
-        <a href="/server/auth/login" class="back-link">← Back to login</a>
+        <a href="/server/auth/login" class="back-link">← {{t $lang "admin.passkey_login.back_link"}}</a>
 
         <script>
         (function () {

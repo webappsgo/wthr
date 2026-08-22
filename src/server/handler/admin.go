@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -276,34 +277,49 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 	}
 	defer rows.Close()
 
+	// Timestamp columns are scanned as raw driver values and parsed with
+	// dbtime rather than scanned straight into time.Time/sql.NullTime: rows
+	// written as canonical UTC text and rows written by the driver's
+	// local-zone time.Time.String() layout coexist on disk, and a direct
+	// time.Time scan fails on whichever layout the driver does not recognise,
+	// which previously dropped the whole token row from the listing.
 	var tokens []map[string]interface{}
 	for rows.Next() {
 		var id, ownerID int
-		var email, name, tokenPrefix string
-		var createdAt time.Time
-		var lastUsedAt, expiresAt sql.NullTime
+		var name, tokenPrefix string
+		// email comes from a LEFT JOIN and is NULL when the owning account row
+		// is missing, so it cannot be scanned into a plain string.
+		var email sql.NullString
+		var storedCreatedAt, storedLastUsedAt, storedExpiresAt interface{}
 
-		if err := rows.Scan(&id, &ownerID, &email, &name, &tokenPrefix, &createdAt, &lastUsedAt, &expiresAt); err != nil {
-			continue
+		if err := rows.Scan(&id, &ownerID, &email, &name, &tokenPrefix, &storedCreatedAt, &storedLastUsedAt, &storedExpiresAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+			return
 		}
 
 		token := map[string]interface{}{
 			"id":           id,
 			"user_id":      ownerID,
-			"user_email":   email,
+			"user_email":   email.String,
 			"name":         name,
 			"token_prefix": tokenPrefix,
-			"created_at":   createdAt,
 		}
 
-		if lastUsedAt.Valid {
-			token["last_used_at"] = lastUsedAt.Time
+		if createdAt, ok := dbtime.ParseStoredTimestamp(storedCreatedAt); ok {
+			token["created_at"] = createdAt
 		}
-		if expiresAt.Valid {
-			token["expires_at"] = expiresAt.Time
+		if lastUsedAt, ok := dbtime.ParseStoredTimestamp(storedLastUsedAt); ok {
+			token["last_used_at"] = lastUsedAt
+		}
+		if expiresAt, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+			token["expires_at"] = expiresAt
 		}
 
 		tokens = append(tokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+		return
 	}
 
 	c.JSON(http.StatusOK, tokens)
@@ -450,8 +466,39 @@ func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 		return
 	}
 
-	// Get recent activity (last 24 hours)
-	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= datetime('now', '-1 day')").Scan(&recentLogs); err != nil {
+	// Get recent activity (last 24 hours).
+	// The 24-hour cutoff is applied in Go: SQLite's datetime('now', '-1 day')
+	// returns NULL for the local-zone layout the driver writes for a bound
+	// time.Time, so those rows never counted as recent, and the function does
+	// not exist on PostgreSQL or MySQL.
+	recentRows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+		SELECT timestamp
+		FROM server_audit_log
+		WHERE timestamp IS NOT NULL
+	`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		return
+	}
+	defer recentRows.Close()
+
+	recentCutoff := time.Now().UTC().Add(-24 * time.Hour)
+
+	for recentRows.Next() {
+		var storedTimestamp interface{}
+		if err := recentRows.Scan(&storedTimestamp); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+			return
+		}
+
+		entryTime, ok := dbtime.ParseStoredTimestamp(storedTimestamp)
+		if !ok || entryTime.Before(recentCutoff) {
+			continue
+		}
+
+		recentLogs++
+	}
+	if err := recentRows.Err(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
 		return
 	}
@@ -628,10 +675,13 @@ func (h *AdminHandler) seedScheduledTasks() {
 		// server_scheduler_state's real primary key is task_id (TEXT), not an
 		// autoincrement id, and there is no task_type column - use the task
 		// name itself as the stable task_id.
+		// next_run is bound as canonical UTC text rather than produced by
+		// SQLite's datetime('now') so the seed works identically on every
+		// supported driver.
 		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			INSERT OR IGNORE INTO server_scheduler_state (task_id, task_name, schedule, enabled, next_run)
-			VALUES (?, ?, ?, 1, datetime('now'))
-		`, task.Name, task.Name, task.Schedule)
+			VALUES (?, ?, ?, 1, ?)
+		`, task.Name, task.Name, task.Schedule, dbtime.FormatSQLTimestamp(time.Now()))
 
 		if err != nil {
 			log.Printf("ERROR: seedScheduledTasks: failed to seed task %q: %v", task.Name, err)
@@ -782,10 +832,10 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 		HistoryMaxYears:     settingsModel.GetInt("history.max_years", 50),
 	}
 
-	c.HTML(http.StatusOK, "admin/admin_settings.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_settings.tmpl", util.TemplateData(c, gin.H{
 		"title":    "Server Settings",
 		"user":     admin,
 		"settings": settings,
 		"Settings": historySettings,
-	})
+	}))
 }

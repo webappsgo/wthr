@@ -14,7 +14,7 @@ import (
 )
 
 // SetupTokenRequired shows setup token entry form at /server/admin when no admin exists
-// AI.md: User navigates to /server/admin → User enters setup token → Redirect to /server/{admin_path}/server/setup
+// AI.md: User navigates to /server/admin → User enters setup token → Redirect to /server/{admin_path}/config/setup
 // AI.md: Admin panel (/server/admin) - YES (requires setup token) - accessible before setup
 func SetupTokenRequired(cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -28,7 +28,7 @@ func SetupTokenRequired(cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		// Skip check for setup routes (setup wizard handles its own auth)
-		setupPath := adminPath + "/server/setup"
+		setupPath := adminPath + "/config/setup"
 		if strings.HasPrefix(reqPath, setupPath) {
 			c.Next()
 			return
@@ -118,7 +118,7 @@ func BlockSetupAfterComplete(cfg *config.AppConfig) gin.HandlerFunc {
 }
 
 // RequireSetupTokenVerified ensures the setup token has been verified before accessing setup wizard
-// AI.md: Step 3: User enters setup token → Step 4: Redirect to /{admin_path}/server/setup
+// AI.md: Step 3: User enters setup token → Step 4: Redirect to /server/{admin_path}/config/setup
 func RequireSetupTokenVerified(cfg *config.AppConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check for setup_token_verified cookie

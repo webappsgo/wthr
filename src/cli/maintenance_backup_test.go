@@ -146,7 +146,9 @@ func TestMaintenanceBackupCommand(t *testing.T) {
 			t.Errorf("output = %q, want it to mention encryption", out)
 		}
 
-		entries, err := os.ReadDir(filepath.Join(dataDir, "backup"))
+		// "backups" plural is the directory path.Paths.BackupDir resolves to
+		// and the one the admin API, the CLI list and the retention sweep read.
+		entries, err := os.ReadDir(filepath.Join(dataDir, "backups"))
 		if err != nil {
 			t.Fatalf("backup directory not created: %v", err)
 		}

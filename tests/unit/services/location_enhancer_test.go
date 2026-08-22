@@ -4,18 +4,17 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	_ "modernc.org/sqlite"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
-	db, err := database.InitDB(":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
 
-	return db.DB
+	return db
 }
 
 func TestLocationEnhancer_FindCityByID(t *testing.T) {

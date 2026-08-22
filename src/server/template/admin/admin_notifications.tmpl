@@ -1,129 +1,129 @@
 {{template "head" .}}
-{{template "navbar" .}}
-<main class="container p-4">
-<div class="admin-header"><h1>🔔 Notification Settings</h1></div>
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+<div class="admin-header"><h1>🔔 {{t $lang "admin.notifications.title"}}</h1></div>
 
 <!-- Admin Personal Notification Preferences -->
 <section class="card mb-4">
-    <h2 class="section-title">👤 Your Notification Preferences</h2>
+    <h2 class="section-title">👤 {{t $lang "admin.notifications.your_prefs_heading"}}</h2>
     <p class="text-comment mb-3">
-        Customize how you receive notifications as an administrator. These settings apply only to your account.
+        {{t $lang "admin.notifications.your_prefs_intro"}}
     </p>
 
     <form id="adminNotificationPreferencesForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
         <!-- Display Mode Toggles -->
         <div class="mb-4">
-            <h3 class="subsection-title">Display Modes</h3>
+            <h3 class="subsection-title">{{t $lang "admin.notifications.display_modes_heading"}}</h3>
 
             <div class="mb-2">
                 <label class="checkbox-row">
                     <input type="checkbox" id="adminEnableToast" checked>
-                    <span>Enable Toast Notifications</span>
+                    <span>{{t $lang "admin.notifications.enable_toast_label"}}</span>
                 </label>
-                <small class="text-comment checkbox-hint">Show temporary popups in the top-right corner (auto-dismiss)</small>
+                <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_toast_hint"}}</small>
             </div>
 
             <div class="mb-2">
                 <label class="checkbox-row">
                     <input type="checkbox" id="adminEnableBanner" checked>
-                    <span>Enable Banner Notifications</span>
+                    <span>{{t $lang "admin.notifications.enable_banner_label"}}</span>
                 </label>
-                <small class="text-comment checkbox-hint">Show persistent banners at the top of the page (manual dismiss)</small>
+                <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_banner_hint"}}</small>
             </div>
 
             <div class="mb-2">
                 <label class="checkbox-row">
                     <input type="checkbox" id="adminEnableCenter" checked>
-                    <span>Enable Notification Center</span>
+                    <span>{{t $lang "admin.notifications.enable_center_label"}}</span>
                 </label>
-                <small class="text-comment checkbox-hint">Store notifications in the notification center (bell icon)</small>
+                <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_center_hint"}}</small>
             </div>
 
             <div class="mb-2">
                 <label class="checkbox-row">
                     <input type="checkbox" id="adminEnableSound">
-                    <span>Enable Notification Sound</span>
+                    <span>{{t $lang "admin.notifications.enable_sound_label"}}</span>
                 </label>
-                <small class="text-comment checkbox-hint">Play a sound when receiving notifications</small>
+                <small class="text-comment checkbox-hint">{{t $lang "admin.notifications.enable_sound_hint"}}</small>
             </div>
         </div>
 
         <!-- Toast Duration Settings -->
         <div class="mb-3">
-            <h3 class="subsection-title">Toast Auto-Dismiss Duration</h3>
+            <h3 class="subsection-title">{{t $lang "admin.notifications.duration_heading"}}</h3>
 
             <div class="settings-grid">
                 <div>
-                    <label for="adminToastDurationSuccess" class="settings-label">Success Notifications</label>
+                    <label for="adminToastDurationSuccess" class="settings-label">{{t $lang "admin.notifications.duration_success_label"}}</label>
                     <div class="slider-row">
                         <input type="range" id="adminToastDurationSuccess" min="1" max="60" value="5"
                                class="flex-grow" oninput="updateAdminDurationLabel('success', this.value)">
                         <span id="adminDurationLabelSuccess" class="slider-label slider-label-success">5s</span>
                     </div>
-                    <small class="text-comment d-block mt-1">How long success toasts remain visible (1-60 seconds)</small>
+                    <small class="text-comment d-block mt-1">{{t $lang "admin.notifications.duration_success_hint"}}</small>
                 </div>
 
                 <div>
-                    <label for="adminToastDurationInfo" class="settings-label">Info Notifications</label>
+                    <label for="adminToastDurationInfo" class="settings-label">{{t $lang "admin.notifications.duration_info_label"}}</label>
                     <div class="slider-row">
                         <input type="range" id="adminToastDurationInfo" min="1" max="60" value="5"
                                class="flex-grow" oninput="updateAdminDurationLabel('info', this.value)">
                         <span id="adminDurationLabelInfo" class="slider-label slider-label-info">5s</span>
                     </div>
-                    <small class="text-comment d-block mt-1">How long info toasts remain visible (1-60 seconds)</small>
+                    <small class="text-comment d-block mt-1">{{t $lang "admin.notifications.duration_info_hint"}}</small>
                 </div>
 
                 <div>
-                    <label for="adminToastDurationWarning" class="settings-label">Warning Notifications</label>
+                    <label for="adminToastDurationWarning" class="settings-label">{{t $lang "admin.notifications.duration_warning_label"}}</label>
                     <div class="slider-row">
                         <input type="range" id="adminToastDurationWarning" min="1" max="60" value="10"
                                class="flex-grow" oninput="updateAdminDurationLabel('warning', this.value)">
                         <span id="adminDurationLabelWarning" class="slider-label slider-label-warning">10s</span>
                     </div>
-                    <small class="text-comment d-block mt-1">How long warning toasts remain visible (1-60 seconds)</small>
+                    <small class="text-comment d-block mt-1">{{t $lang "admin.notifications.duration_warning_hint"}}</small>
                 </div>
             </div>
 
             <div class="note-box">
                 <p>
-                    <strong>Note:</strong> Error and security notifications always require manual dismissal for safety.
+                    <strong>{{t $lang "admin.notifications.note_label"}}</strong> {{t $lang "admin.notifications.note_body"}}
                 </p>
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary mr-md">💾 Save Preferences</button>
-        <button type="button" class="btn btn-secondary" onclick="loadAdminNotificationPreferences()">↻ Reset</button>
+        <button type="submit" class="btn btn-primary mr-md">💾 {{t $lang "admin.notifications.save_prefs_action"}}</button>
+        <button type="button" class="btn btn-secondary" onclick="loadAdminNotificationPreferences()">↻ {{t $lang "admin.notifications.reset_action"}}</button>
     </form>
 </section>
 
 <!-- System-wide Notification Settings -->
 <form id="notificationSettingsForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card mb-4"><h2>📧 Email Events</h2>
-<p class="text-comment mb-2">Configure which system events trigger email notifications to administrators.</p>
-<label><input type="checkbox" name="email_startup"> Server Startup</label>
-<label><input type="checkbox" name="email_shutdown"> Server Shutdown</label>
-<label><input type="checkbox" name="email_backup_complete"> Backup Complete</label>
-<label><input type="checkbox" name="email_backup_failed"> Backup Failed</label>
-<label><input type="checkbox" name="email_cert_renewal"> SSL Certificate Renewal</label>
+<section class="card mb-4"><h2>📧 {{t $lang "admin.notifications.email_events_heading"}}</h2>
+<p class="text-comment mb-2">{{t $lang "admin.notifications.email_events_intro"}}</p>
+<label><input type="checkbox" name="email_startup"> {{t $lang "admin.notifications.event_startup"}}</label>
+<label><input type="checkbox" name="email_shutdown"> {{t $lang "admin.notifications.event_shutdown"}}</label>
+<label><input type="checkbox" name="email_backup_complete"> {{t $lang "admin.email_editor.tpl_backup_complete_name"}}</label>
+<label><input type="checkbox" name="email_backup_failed"> {{t $lang "admin.email_editor.tpl_backup_failed_name"}}</label>
+<label><input type="checkbox" name="email_cert_renewal"> {{t $lang "admin.notifications.event_cert_renewal"}}</label>
 </section>
-<section class="card mb-4"><h2>🪝 Webhook</h2>
-<p class="text-comment mb-2">Send system events to external webhooks for integration with other services.</p>
-<label><input type="checkbox" name="webhook_enabled"> Enable Webhook</label>
-<label>URL: <input type="url" name="webhook_url"></label>
-<label>Events: <input type="text" name="webhook_events" placeholder="startup,shutdown,backup"></label>
+<section class="card mb-4"><h2>🪝 {{t $lang "admin.notifications.webhook_heading"}}</h2>
+<p class="text-comment mb-2">{{t $lang "admin.notifications.webhook_intro"}}</p>
+<label><input type="checkbox" name="webhook_enabled"> {{t $lang "admin.notifications.webhook_enable_label"}}</label>
+<label>{{t $lang "admin.notifications.webhook_url_label"}} <input type="url" name="webhook_url"></label>
+<label>{{t $lang "admin.notifications.webhook_events_label"}} <input type="text" name="webhook_events" placeholder="startup,shutdown,backup"></label>
 </section>
-<section class="card mb-4"><h2>⚙️ System Settings</h2>
-<p class="text-comment mb-2">Global settings for the notification system (applies to all users).</p>
-<label>Max Stored Notifications: <input type="number" name="webui_max_stored" value="100" min="10" max="1000"></label>
-<small class="text-comment">Maximum number of notifications to keep per user (default: 100)</small>
-<label>Retention Period (days): <input type="number" name="webui_retention_days" value="30" min="1" max="365"></label>
-<small class="text-comment">How long to keep notifications before automatic cleanup (default: 30 days)</small>
+<section class="card mb-4"><h2>⚙️ {{t $lang "admin.notifications.system_settings_heading"}}</h2>
+<p class="text-comment mb-2">{{t $lang "admin.notifications.system_settings_intro"}}</p>
+<label>{{t $lang "admin.notifications.max_stored_label"}} <input type="number" name="webui_max_stored" value="100" min="10" max="1000"></label>
+<small class="text-comment">{{t $lang "admin.notifications.max_stored_hint"}}</small>
+<label>{{t $lang "admin.notifications.retention_label"}} <input type="number" name="webui_retention_days" value="30" min="1" max="365"></label>
+<small class="text-comment">{{t $lang "admin.notifications.retention_hint"}}</small>
 </section>
-<button type="submit" class="btn btn-primary">💾 Save System Settings</button>
+<button type="submit" class="btn btn-primary">💾 {{t $lang "admin.notifications.save_system_action"}}</button>
 </form>
-</main>
 
 <script>
 // Path variables - SPEC compliant (AI.md PART 13)
@@ -230,4 +230,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}

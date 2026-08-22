@@ -7,9 +7,11 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -35,24 +37,28 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 	var query string
 	var args []interface{}
 
+	// server_notification_templates has no is_default column: the channel's
+	// default template is the one named service.DefaultTemplateName, so the
+	// CASE expression reproduces the old "default first" ordering.
 	if channelType != "" {
 		query = `
 			SELECT id, channel_type, template_name, template_type,
-			       subject_template, body_template, variables, is_default,
+			       subject, body, variables,
 			       created_at, updated_at
-			FROM notification_templates
+			FROM server_notification_templates
 			WHERE channel_type = ?
-			ORDER BY is_default DESC, template_name ASC
+			ORDER BY CASE WHEN template_name = ? THEN 0 ELSE 1 END, template_name ASC
 		`
-		args = append(args, channelType)
+		args = append(args, channelType, service.DefaultTemplateName)
 	} else {
 		query = `
 			SELECT id, channel_type, template_name, template_type,
-			       subject_template, body_template, variables, is_default,
+			       subject, body, variables,
 			       created_at, updated_at
-			FROM notification_templates
-			ORDER BY channel_type, is_default DESC, template_name ASC
+			FROM server_notification_templates
+			ORDER BY channel_type, CASE WHEN template_name = ? THEN 0 ELSE 1 END, template_name ASC
 		`
+		args = append(args, service.DefaultTemplateName)
 	}
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
@@ -67,13 +73,13 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 	for rows.Next() {
 		var id int
 		var channelType, templateName, templateType string
-		var subjectTemplate, bodyTemplate string
-		var isDefault bool
+		var subjectTemplate sql.NullString
+		var bodyTemplate string
 		var variables sql.NullString
-		var createdAt, updatedAt sql.NullTime
+		var createdAt, updatedAt sql.NullString
 
 		err := rows.Scan(&id, &channelType, &templateName, &templateType,
-			&subjectTemplate, &bodyTemplate, &variables, &isDefault,
+			&subjectTemplate, &bodyTemplate, &variables,
 			&createdAt, &updatedAt)
 		if err != nil {
 			continue
@@ -84,9 +90,9 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 			"channel_type":     channelType,
 			"template_name":    templateName,
 			"template_type":    templateType,
-			"subject_template": subjectTemplate,
+			"subject_template": subjectTemplate.String,
 			"body_template":    bodyTemplate,
-			"is_default":       isDefault,
+			"is_default":       templateName == service.DefaultTemplateName,
 			"created_at":       nil,
 			"updated_at":       nil,
 		}
@@ -98,10 +104,14 @@ func (h *NotificationTemplateHandler) ListTemplates(c *gin.Context) {
 		}
 
 		if createdAt.Valid {
-			tmpl["created_at"] = createdAt.Time
+			if parsed, ok := dbtime.ParseStoredTimestamp(createdAt.String); ok {
+				tmpl["created_at"] = parsed
+			}
 		}
 		if updatedAt.Valid {
-			tmpl["updated_at"] = updatedAt.Time
+			if parsed, ok := dbtime.ParseStoredTimestamp(updatedAt.String); ok {
+				tmpl["updated_at"] = parsed
+			}
 		}
 
 		templates = append(templates, tmpl)
@@ -126,19 +136,19 @@ func (h *NotificationTemplateHandler) GetTemplate(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 
 	var channelType, templateName, templateType string
-	var subjectTemplate, bodyTemplate string
-	var isDefault bool
+	var subjectTemplate sql.NullString
+	var bodyTemplate string
 	var variables sql.NullString
-	var createdAt, updatedAt sql.NullTime
+	var createdAt, updatedAt sql.NullString
 
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_type, template_name, template_type,
-		       subject_template, body_template, variables, is_default,
+		       subject, body, variables,
 		       created_at, updated_at
-		FROM notification_templates
+		FROM server_notification_templates
 		WHERE id = ?
 	`, id).Scan(&channelType, &templateName, &templateType,
-		&subjectTemplate, &bodyTemplate, &variables, &isDefault,
+		&subjectTemplate, &bodyTemplate, &variables,
 		&createdAt, &updatedAt)
 
 	if err != nil {
@@ -151,9 +161,9 @@ func (h *NotificationTemplateHandler) GetTemplate(c *gin.Context) {
 		"channel_type":     channelType,
 		"template_name":    templateName,
 		"template_type":    templateType,
-		"subject_template": subjectTemplate,
+		"subject_template": subjectTemplate.String,
 		"body_template":    bodyTemplate,
-		"is_default":       isDefault,
+		"is_default":       templateName == service.DefaultTemplateName,
 		"created_at":       nil,
 		"updated_at":       nil,
 	}
@@ -165,10 +175,14 @@ func (h *NotificationTemplateHandler) GetTemplate(c *gin.Context) {
 	}
 
 	if createdAt.Valid {
-		tmpl["created_at"] = createdAt.Time
+		if parsed, ok := dbtime.ParseStoredTimestamp(createdAt.String); ok {
+			tmpl["created_at"] = parsed
+		}
 	}
 	if updatedAt.Valid {
-		tmpl["updated_at"] = updatedAt.Time
+		if parsed, ok := dbtime.ParseStoredTimestamp(updatedAt.String); ok {
+			tmpl["updated_at"] = parsed
+		}
 	}
 
 	c.JSON(http.StatusOK, tmpl)
@@ -183,7 +197,6 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 		SubjectTemplate string                 `json:"subject_template"`
 		BodyTemplate    string                 `json:"body_template" binding:"required"`
 		Variables       map[string]interface{} `json:"variables"`
-		IsDefault       bool                   `json:"is_default"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -206,26 +219,19 @@ func (h *NotificationTemplateHandler) CreateTemplate(c *gin.Context) {
 		}
 	}
 
-	// If setting as default, unset other defaults for this channel
-	if req.IsDefault {
-		if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-			UPDATE notification_templates
-			SET is_default = 0
-			WHERE channel_type = ?
-		`, req.ChannelType); err != nil {
-			log.Printf("failed to clear existing default templates for channel %s: %v", req.ChannelType, err)
-		}
-	}
-
 	variablesJSON, _ := json.Marshal(req.Variables)
+	now := dbtime.FormatSQLTimestamp(time.Now())
 
+	// A channel's default template is the one named service.DefaultTemplateName
+	// and the table's UNIQUE(channel_type, template_name, template_type) keeps
+	// it singular, so there is no stored default flag to set or clear here.
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		INSERT INTO notification_templates
-		(channel_type, template_name, template_type, subject_template,
-		 body_template, variables, is_default, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		INSERT INTO server_notification_templates
+		(channel_type, template_name, template_type, subject,
+		 body, variables, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, req.ChannelType, req.TemplateName, req.TemplateType,
-		req.SubjectTemplate, req.BodyTemplate, string(variablesJSON), req.IsDefault)
+		req.SubjectTemplate, req.BodyTemplate, string(variablesJSON), now, now)
 
 	if err != nil {
 		log.Printf("ERROR: CreateTemplate: failed to insert template: %v", err)
@@ -247,7 +253,6 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 		SubjectTemplate string                 `json:"subject_template"`
 		BodyTemplate    string                 `json:"body_template"`
 		Variables       map[string]interface{} `json:"variables"`
-		IsDefault       bool                   `json:"is_default"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -272,39 +277,27 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 		}
 	}
 
-	// Get current template's channel type
+	// Confirm the template exists before updating it
 	var channelType string
-	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT channel_type FROM notification_templates WHERE id = ?", id).Scan(&channelType)
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT channel_type FROM server_notification_templates WHERE id = ?", id).Scan(&channelType)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
-	// If setting as default, unset other defaults
-	if req.IsDefault {
-		if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-			UPDATE notification_templates
-			SET is_default = 0
-			WHERE channel_type = ? AND id != ?
-		`, channelType, id); err != nil {
-			log.Printf("failed to clear existing default templates for channel %s: %v", channelType, err)
-		}
-	}
-
 	variablesJSON, _ := json.Marshal(req.Variables)
 
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE notification_templates
+		UPDATE server_notification_templates
 		SET template_name = ?,
 		    template_type = ?,
-		    subject_template = ?,
-		    body_template = ?,
+		    subject = ?,
+		    body = ?,
 		    variables = ?,
-		    is_default = ?,
-		    updated_at = datetime('now')
+		    updated_at = ?
 		WHERE id = ?
 	`, req.TemplateName, req.TemplateType, req.SubjectTemplate,
-		req.BodyTemplate, string(variablesJSON), req.IsDefault, id)
+		req.BodyTemplate, string(variablesJSON), dbtime.FormatSQLTimestamp(time.Now()), id)
 
 	if err != nil {
 		log.Printf("ERROR: UpdateTemplate: failed to update template: %v", err)
@@ -319,20 +312,20 @@ func (h *NotificationTemplateHandler) UpdateTemplate(c *gin.Context) {
 func (h *NotificationTemplateHandler) DeleteTemplate(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 
-	// Check if it's a default template
-	var isDefault bool
-	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT is_default FROM notification_templates WHERE id = ?", id).Scan(&isDefault)
+	// A channel's default template is the one named service.DefaultTemplateName
+	var templateName string
+	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT template_name FROM server_notification_templates WHERE id = ?", id).Scan(&templateName)
 	if err != nil {
 		RespondError(c, http.StatusNotFound, ErrNotFound, "Template not found")
 		return
 	}
 
-	if isDefault {
+	if templateName == service.DefaultTemplateName {
 		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Cannot delete default template")
 		return
 	}
 
-	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "DELETE FROM notification_templates WHERE id = ?", id)
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, "DELETE FROM server_notification_templates WHERE id = ?", id)
 	if err != nil {
 		log.Printf("ERROR: DeleteTemplate: failed to delete template: %v", err)
 		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete template")
@@ -395,12 +388,13 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 	}
 
 	// Get original template
-	var channelType, templateType, subjectTemplate, bodyTemplate string
+	var channelType, templateType, bodyTemplate string
+	var subjectTemplate sql.NullString
 	var variables sql.NullString
 
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
-		SELECT channel_type, template_type, subject_template, body_template, variables
-		FROM notification_templates
+		SELECT channel_type, template_type, subject, body, variables
+		FROM server_notification_templates
 		WHERE id = ?
 	`, id).Scan(&channelType, &templateType, &subjectTemplate, &bodyTemplate, &variables)
 
@@ -409,14 +403,22 @@ func (h *NotificationTemplateHandler) CloneTemplate(c *gin.Context) {
 		return
 	}
 
-	// Create clone (never set as default)
+	// A clone is never the channel default: it is stored under the caller's new
+	// name, and only service.DefaultTemplateName marks the default template.
+	if req.NewName == service.DefaultTemplateName {
+		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Cannot clone a template onto the reserved default name")
+		return
+	}
+
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		INSERT INTO notification_templates
-		(channel_type, template_name, template_type, subject_template,
-		 body_template, variables, is_default, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
-	`, channelType, req.NewName, templateType, subjectTemplate, bodyTemplate,
-		variables.String)
+		INSERT INTO server_notification_templates
+		(channel_type, template_name, template_type, subject,
+		 body, variables, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, channelType, req.NewName, templateType, subjectTemplate.String, bodyTemplate,
+		variables.String, now, now)
 
 	if err != nil {
 		log.Printf("ERROR: CloneTemplate: failed to clone template: %v", err)

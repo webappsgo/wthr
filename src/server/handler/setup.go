@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
@@ -91,9 +92,9 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(c *gin.Context) {
 	isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
 	c.SetCookie("setup_token_verified", "true", 3600, "/", "", isHTTPS, true)
 
-	// Redirect to setup wizard at /{admin_path}/server/setup
-	// AI.md: Step 4: Redirect to /{admin_path}/server/setup (setup wizard)
-	c.Redirect(http.StatusFound, adminPath+"/server/setup")
+	// Redirect to setup wizard at /{admin_path}/config/setup
+	// AI.md: Step 4: Redirect to /{admin_path}/config/setup (setup wizard)
+	c.Redirect(http.StatusFound, adminPath+"/config/setup")
 }
 
 // VerifySetupToken validates the setup token (API endpoint)
@@ -135,7 +136,7 @@ func (h *SetupHandler) VerifySetupToken(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"ok":       true,
-		"redirect": adminPath + "/server/setup",
+		"redirect": adminPath + "/config/setup",
 	})
 }
 
@@ -275,11 +276,15 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 		return
 	}
 
-	// Create administrator account in server_admin_credentials (NOT user_accounts)
+	// Create administrator account in server_admin_credentials (NOT user_accounts).
+	// created_at/updated_at are bound as canonical UTC text rather than produced
+	// by SQL's CURRENT_TIMESTAMP, which yields a different type and zone on
+	// PostgreSQL, MySQL and SQL Server than it does on SQLite.
+	createdAt := dbtime.FormatSQLTimestamp(time.Now())
 	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_credentials (username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, username, email, hashedPassword)
+		VALUES (?, ?, ?, 1, 1, ?, ?)
+	`, username, email, hashedPassword, createdAt, createdAt)
 
 	if err != nil {
 		h.setupError(c, http.StatusInternalServerError, "Failed to create administrator")
@@ -302,10 +307,14 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 	// 7 days
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
 
+	// created_at/expires_at are bound as canonical UTC text. Binding a raw
+	// time.Time makes the SQLite driver serialize it as time.Time.String() in
+	// the host's LOCAL zone, which no reader can compare against a UTC instant
+	// without guessing the writer's offset.
 	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
-		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, sessionID, adminID, c.ClientIP(), c.Request.UserAgent(), expiresAt)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, sessionID, adminID, c.ClientIP(), c.Request.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()), dbtime.FormatSQLTimestamp(expiresAt))
 
 	if err != nil {
 		h.setupError(c, http.StatusInternalServerError, "Failed to create session")
@@ -346,11 +355,14 @@ func (h *SetupHandler) CreateAdmin(c *gin.Context) {
 
 	// Hash and store the API token
 	tokenHash := util.HashAPIToken(apiToken)
+	// updated_at is bound as canonical UTC text rather than produced by SQL's
+	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+	// MySQL and SQL Server than it does on SQLite.
 	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
-		SET api_token_hash = ?, api_token_prefix = 'adm_', updated_at = CURRENT_TIMESTAMP
+		SET api_token_hash = ?, api_token_prefix = 'adm_', updated_at = ?
 		WHERE id = ?
-	`, tokenHash, adminID)
+	`, tokenHash, dbtime.FormatSQLTimestamp(time.Now()), adminID)
 	if err != nil {
 		// Log but don't fail - admin was created successfully
 		log.Printf("WARNING: CreateAdmin: failed to store admin API token: %v", err)
@@ -514,13 +526,17 @@ func (h *SetupHandler) ProcessServerConfig(c *gin.Context) {
 		"server.timezone":       input.Timezone,
 	}
 
+	// updated_at is bound as canonical UTC text rather than produced by SQLite's
+	// datetime('now'), which does not exist on PostgreSQL or MySQL.
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
 	for key, value := range settings {
 		if value != "" {
 			_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
-				VALUES (?, ?, datetime('now'))
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-			`, key, value, value)
+				VALUES (?, ?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+			`, key, value, now, value, now)
 			if err != nil {
 				log.Printf("WARNING: ProcessServerConfig: failed to save setting %s: %v", key, err)
 			}
@@ -584,11 +600,14 @@ func (h *SetupHandler) ProcessSecurity(c *gin.Context) {
 		// Hash the backup password
 		hashedPassword, err := util.HashPassword(input.BackupPassword)
 		if err == nil {
+			// updated_at is bound as canonical UTC text rather than produced by
+			// SQLite's datetime('now'), which does not exist on PostgreSQL or MySQL.
+			now := dbtime.FormatSQLTimestamp(time.Now())
 			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('backup.encryption_hash', ?, datetime('now'))
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-			`, hashedPassword, hashedPassword)
+				VALUES ('backup.encryption_hash', ?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+			`, hashedPassword, now, hashedPassword, now)
 		}
 	}
 
@@ -648,26 +667,30 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 		return
 	}
 
+	// updated_at is bound as canonical UTC text rather than produced by SQLite's
+	// datetime('now'), which does not exist on PostgreSQL or MySQL.
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
 	// Save SSL settings
 	if input.EnableSSL {
 		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			INSERT INTO server_config (key, value, updated_at)
-			VALUES ('ssl.enabled', 'true', datetime('now'))
-			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
-		`)
+			VALUES ('ssl.enabled', 'true', ?)
+			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
+		`, now, now)
 		if input.SSLDomain != "" {
 			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('ssl.domain', ?, datetime('now'))
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-			`, input.SSLDomain, input.SSLDomain)
+				VALUES ('ssl.domain', ?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+			`, input.SSLDomain, now, input.SSLDomain, now)
 		}
 		if input.SSLEmail != "" {
 			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('ssl.email', ?, datetime('now'))
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-			`, input.SSLEmail, input.SSLEmail)
+				VALUES ('ssl.email', ?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+			`, input.SSLEmail, now, input.SSLEmail, now)
 		}
 	}
 
@@ -675,15 +698,15 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 	if input.EnableMultiUser {
 		database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			INSERT INTO server_config (key, value, updated_at)
-			VALUES ('features.multiuser', 'true', datetime('now'))
-			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
-		`)
+			VALUES ('features.multiuser', 'true', ?)
+			ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
+		`, now, now)
 		if input.RegistrationMode != "" {
 			database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 				INSERT INTO server_config (key, value, updated_at)
-				VALUES ('users.registration_mode', ?, datetime('now'))
-				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = datetime('now')
-			`, input.RegistrationMode, input.RegistrationMode)
+				VALUES ('users.registration_mode', ?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?
+			`, input.RegistrationMode, now, input.RegistrationMode, now)
 		}
 	}
 
@@ -695,18 +718,21 @@ func (h *SetupHandler) ProcessServices(c *gin.Context) {
 // CompleteSetup shows the setup completion page
 // AI.md: Setup is complete when Primary Admin is created
 func (h *SetupHandler) CompleteSetup(c *gin.Context) {
-	// Mark setup as complete in database
+	// Mark setup as complete in database. updated_at is bound as canonical UTC
+	// text rather than produced by SQLite's datetime('now'), which does not
+	// exist on PostgreSQL or MySQL.
+	now := dbtime.FormatSQLTimestamp(time.Now())
 	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description, updated_at)
-		VALUES ('setup.completed', 'true', 'bool', 'Server setup completed', datetime('now'))
-		ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = datetime('now')
-	`)
+		VALUES ('setup.completed', 'true', 'bool', 'Server setup completed', ?)
+		ON CONFLICT(key) DO UPDATE SET value = 'true', updated_at = ?
+	`, now, now)
 	if err != nil {
 		log.Printf("WARNING: CompleteSetup: failed to mark setup complete: %v", err)
 	}
 
 	// Get the admin path from config (derive from current URL)
-	// Current URL is /server/{admin_path}/server/setup/complete
+	// Current URL is /server/{admin_path}/config/setup/complete
 	path := c.Request.URL.Path
 	parts := strings.Split(path, "/")
 	adminPath := "/server/admin" // default
@@ -765,7 +791,7 @@ func (h *SetupHandler) GetSetupStatus(c *gin.Context) {
 			"total_steps": 2,
 			"message":     "Primary admin created, setup wizard still in progress",
 			"next_action": "Continue server setup",
-			"next_route":  adminPath + "/server/setup/api-token",
+			"next_route":  adminPath + "/config/setup/api-token",
 			"is_complete": false,
 		})
 		return

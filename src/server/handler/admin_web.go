@@ -12,6 +12,7 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminWebHandler handles web settings administration
@@ -63,14 +64,14 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 
 	serverCtx, _ := middleware.GetServerContext(c)
 
-	c.HTML(http.StatusOK, "admin/admin_web.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(c, gin.H{
 		"Title":       "Web Settings",
 		"RobotsTxt":   robotsTxt,
 		"SecurityTxt": securityTxt,
 		"AppURL":      appURL,
 		"User":        admin,
 		"server":      serverCtx,
-	})
+	}))
 }
 
 // GetRobotsTxt retrieves robots.txt content
@@ -279,7 +280,7 @@ func (h *AdminWebHandler) ServeSitemap(c *gin.Context) {
 	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/graphql</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
 
 	// Health check - priority 0.5, weekly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/healthz</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>\n", appURL, lastmod))
+	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/server/healthz</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>\n", appURL, lastmod))
 
 	sb.WriteString("</urlset>\n")
 

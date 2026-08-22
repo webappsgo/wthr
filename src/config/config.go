@@ -73,11 +73,15 @@ type ServerConfig struct {
 	// AI.md: Admin panel URL path (configurable, default: "admin")
 	AdminPath string `yaml:"admin_path"`
 	// AI.md: API version prefix (default: "v1")
-	APIVersion string         `yaml:"api_version"`
-	Branding   BrandingConfig `yaml:"branding"`
-	SEO        SEOConfig      `yaml:"seo"`
-	User       string         `yaml:"user"`
-	Group      string         `yaml:"group"`
+	APIVersion string `yaml:"api_version"`
+	// AI.md PART 13: optional root /healthz compatibility alias
+	Healthz HealthzConfig `yaml:"healthz"`
+	// AI.md PART 31: server output language ("auto" = detect from LANG/LC_ALL)
+	Lang     string         `yaml:"lang"`
+	Branding BrandingConfig `yaml:"branding"`
+	SEO      SEOConfig      `yaml:"seo"`
+	User     string         `yaml:"user"`
+	Group    string         `yaml:"group"`
 	// bool or string path
 	PIDFile       interface{}        `yaml:"pidfile"`
 	Daemonize     bool               `yaml:"daemonize"`
@@ -237,6 +241,18 @@ type RateLimitConfig struct {
 	Window int `yaml:"window"`
 }
 
+// HealthzConfig represents health endpoint configuration per AI.md PART 13
+type HealthzConfig struct {
+	// Optional root /healthz compatibility alias
+	Root HealthzRootConfig `yaml:"root"`
+}
+
+// HealthzRootConfig controls the optional root /healthz alias per AI.md PART 13
+type HealthzRootConfig struct {
+	// When true the same handler as /server/healthz is also mounted at /healthz
+	Enabled bool `yaml:"enabled"`
+}
+
 // BrandingConfig represents branding configuration per AI.md PART 4
 type BrandingConfig struct {
 	Title       string `yaml:"title"`
@@ -393,6 +409,53 @@ func (c *AppConfig) GetAdminAPIPath() string {
 	return c.GetAPIPath() + "/server/" + c.GetAdminPath()
 }
 
+// IsHealthzRootAliasEnabled reports whether the optional root /healthz alias is mounted
+// AI.md PART 13: canonical route is /server/healthz, default for the alias is false
+func (c *AppConfig) IsHealthzRootAliasEnabled() bool {
+	if c == nil {
+		return false
+	}
+	return c.Server.Healthz.Root.Enabled
+}
+
+// ResolveLanguage returns the requested output language code per AI.md PART 31
+// Priority: --lang flag (CLI_LANG) > server.yml lang > LC_ALL > LANG > "en"
+// The caller validates the result against the supported languages and falls back to English
+func ResolveLanguage(cfg *AppConfig) string {
+	if lang := normalizeLanguageCode(os.Getenv("CLI_LANG")); lang != "" {
+		return lang
+	}
+	if cfg != nil {
+		if lang := normalizeLanguageCode(cfg.Server.Lang); lang != "" {
+			return lang
+		}
+	}
+	if lang := normalizeLanguageCode(os.Getenv("LC_ALL")); lang != "" {
+		return lang
+	}
+	if lang := normalizeLanguageCode(os.Getenv("LANG")); lang != "" {
+		return lang
+	}
+	return "en"
+}
+
+// normalizeLanguageCode reduces a locale string ("es_ES.UTF-8", "en-US") to its base code
+// Values that carry no language preference ("", "auto", "c", "posix") return an empty string
+func normalizeLanguageCode(value string) string {
+	lang := strings.ToLower(strings.TrimSpace(value))
+	if idx := strings.IndexAny(lang, "._@"); idx > 0 {
+		lang = lang[:idx]
+	}
+	if idx := strings.IndexAny(lang, "-_"); idx > 0 {
+		lang = lang[:idx]
+	}
+	switch lang {
+	case "", "auto", "c", "posix":
+		return ""
+	}
+	return lang
+}
+
 // LoadConfig loads configuration from server.yml per AI.md PART 4
 func LoadConfig() (*AppConfig, error) {
 	// Get hostname for defaults
@@ -431,10 +494,12 @@ func LoadConfig() (*AppConfig, error) {
 			AdminPath: "admin",
 			// AI.md: API version prefix (default: "v1")
 			APIVersion: "v1",
-			User:       "{auto}",
-			Group:      "{auto}",
-			PIDFile:    true,
-			Daemonize:  false,
+			// AI.md PART 31: "auto" resolves from LC_ALL/LANG, falling back to English
+			Lang:      "auto",
+			User:      "{auto}",
+			Group:     "{auto}",
+			PIDFile:   true,
+			Daemonize: false,
 			Branding: BrandingConfig{
 				Title:       "wthr",
 				Tagline:     "",

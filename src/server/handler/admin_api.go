@@ -4,14 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -194,21 +197,85 @@ func VacuumDatabase(c *gin.Context) {
 	})
 }
 
-// CreateBackup creates a backup of the database and configuration
-func CreateBackup(c *gin.Context) {
+// backupArchiveSuffixes are the only two archive shapes src/backup produces
+// (AI.md PART 22): a gzipped tarball, or that same tarball encrypted with
+// AES-256-GCM. Both list and download/delete key off this one predicate so a
+// file that appears in the list is always addressable by the other endpoints.
+var backupArchiveSuffixes = []string{".tar.gz", ".tar.gz.enc"}
+
+// isBackupArchiveName reports whether a directory entry is a backup archive.
+func isBackupArchiveName(name string) bool {
+	for _, suffix := range backupArchiveSuffixes {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// adminBackupDir resolves the directory backups live in. DATA_DIR is honoured
+// first so a container override (and a test) points these handlers at exactly
+// the tree src/backup writes to; otherwise the canonical PART 4 resolver
+// decides, which is what the CLI and the retention sweep also use.
+func adminBackupDir() string {
+	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
+		return filepath.Join(dataDir, "backups")
+	}
+	return path.GetBackupDir()
+}
+
+// adminBackupRoots returns the config and data directories a backup is taken
+// from, resolved with the same env-first precedence as adminBackupDir.
+func adminBackupRoots() (string, string) {
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
-		configDir = "/etc/webappsgo/wthr"
+		configDir = path.GetConfigDir()
 	}
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
-		dataDir = "/var/lib/webappsgo/wthr"
+		dataDir = path.GetDataDir()
 	}
+	return configDir, dataDir
+}
+
+// resolveBackupFile validates a client-supplied backup name and returns its
+// absolute path. Only a bare file name is accepted: a name carrying any
+// directory separator, a "." or ".." segment, or a null byte is rejected
+// before it ever reaches the filesystem, so no request can address a file
+// outside the backup directory (AI.md PART 5 path security).
+func resolveBackupFile(name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("backup filename is required")
+	}
+	if strings.ContainsRune(name, 0) || name != filepath.Base(name) || name == "." || name == ".." {
+		return "", fmt.Errorf("invalid backup filename")
+	}
+	if !isBackupArchiveName(name) {
+		return "", fmt.Errorf("invalid backup filename")
+	}
+	return filepath.Join(adminBackupDir(), name), nil
+}
+
+// CreateBackup creates a backup of the database and configuration
+func CreateBackup(c *gin.Context) {
+	configDir, dataDir := adminBackupRoots()
+
+	// The admin panel exposes the same optional contents the CLI does: an
+	// encryption password (PART 22 makes it mandatory only under compliance
+	// mode) and the two optional payloads.
+	password := c.PostForm("password")
+	includeSSL := c.PostForm("include_ssl") == "true"
+	includeData := c.PostForm("include_data") == "true"
 
 	svc := backup.New(configDir, dataDir)
 	backupPath, err := svc.Create(backup.BackupOptions{
-		ConfigDir: configDir,
-		DataDir:   dataDir,
+		ConfigDir:   configDir,
+		DataDir:     dataDir,
+		Password:    password,
+		IncludeSSL:  includeSSL,
+		IncludeData: includeData,
+		CreatedBy:   AdminUsername(c),
+		AppVersion:  Version,
 	})
 	if err != nil {
 		InternalError(c, "Failed to create backup: "+err.Error())
@@ -222,67 +289,126 @@ func CreateBackup(c *gin.Context) {
 	}
 
 	RespondSuccess(c, "Backup created successfully", map[string]interface{}{
-		"filename": filepath.Base(backupPath),
-		"path":     backupPath,
-		"size":     info.Size(),
+		"filename":  filepath.Base(backupPath),
+		"size":      info.Size(),
+		"created":   info.ModTime(),
+		"encrypted": strings.HasSuffix(backupPath, ".enc"),
 	})
 }
 
-// RestoreBackup restores from a backup file
+// RestoreBackup restores from a backup file. The archive is either uploaded in
+// the "backup" multipart field or named by the "filename" field, in which case
+// it is taken from the backup directory.
 func RestoreBackup(c *gin.Context) {
-	file, header, err := c.Request.FormFile("backup")
-	if err != nil {
-		BadRequest(c, "No backup file provided")
+	configDir, dataDir := adminBackupRoots()
+	password := c.PostForm("password")
+
+	backupPath := ""
+	if name := c.PostForm("filename"); name != "" {
+		resolved, err := resolveBackupFile(name)
+		if err != nil {
+			BadRequest(c, err.Error())
+			return
+		}
+		if _, statErr := os.Stat(resolved); statErr != nil {
+			NotFound(c, "Backup file not found")
+			return
+		}
+		backupPath = resolved
+	} else {
+		file, header, err := c.Request.FormFile("backup")
+		if err != nil {
+			BadRequest(c, "No backup file provided")
+			return
+		}
+		defer file.Close()
+
+		if !isBackupArchiveName(filepath.Base(header.Filename)) {
+			BadRequest(c, "Uploaded file is not a backup archive")
+			return
+		}
+
+		// The upload is staged under the backup directory rather than the
+		// system temp dir so a restore never crosses a filesystem boundary and
+		// never leaves an archive outside the app's own tree.
+		if err := os.MkdirAll(adminBackupDir(), 0o700); err != nil {
+			InternalError(c, "Failed to access backups directory")
+			return
+		}
+		suffix := ".tar.gz"
+		if strings.HasSuffix(header.Filename, ".enc") {
+			suffix = ".tar.gz.enc"
+		}
+		staged, err := os.CreateTemp(adminBackupDir(), "upload-*"+suffix)
+		if err != nil {
+			InternalError(c, "Failed to stage uploaded backup")
+			return
+		}
+		stagedPath := staged.Name()
+		// The staged copy is transient input to the restore, not a backup the
+		// operator asked to keep, so it is removed on every exit path.
+		defer os.Remove(stagedPath)
+		if _, err := io.Copy(staged, file); err != nil {
+			staged.Close()
+			InternalError(c, "Failed to store uploaded backup")
+			return
+		}
+		if err := staged.Close(); err != nil {
+			InternalError(c, "Failed to store uploaded backup")
+			return
+		}
+		backupPath = stagedPath
+	}
+
+	svc := backup.New(configDir, dataDir)
+	if err := svc.Restore(backup.RestoreOptions{
+		BackupPath: backupPath,
+		Password:   password,
+		ConfigDir:  configDir,
+		DataDir:    dataDir,
+		Force:      true,
+	}); err != nil {
+		InternalError(c, "Failed to restore backup: "+err.Error())
 		return
 	}
-	defer file.Close()
 
-	// Backup restoration via backup.Restore()
-	// This should call the CLI restore function from src/cli/maintenance.go
-	// For now, just validate the file was received
-
-	RespondSuccess(c, "Backup restored successfully. Server will restart.", map[string]interface{}{
-		"filename": header.Filename,
+	RespondSuccess(c, "Backup restored successfully. Restart the server to load the restored configuration.", map[string]interface{}{
+		"filename": filepath.Base(backupPath),
 	})
 }
 
 // ListBackups lists all available backup files
 func ListBackups(c *gin.Context) {
-	dataDir := os.Getenv("DATA_DIR")
-	if dataDir == "" {
-		dataDir = "/var/lib/webappsgo/wthr"
-	}
-
-	backupDir := filepath.Join(dataDir, "backups")
-
-	// Create backups directory if it doesn't exist
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		InternalError(c, "Failed to access backups directory")
-		return
-	}
-
-	entries, err := os.ReadDir(backupDir)
+	backups, err := readBackupFiles()
 	if err != nil {
 		InternalError(c, "Failed to read backups directory")
 		return
 	}
 
-	var backups []BackupFile
+	RespondData(c, backups)
+}
+
+// readBackupFiles returns every backup archive in the backup directory, newest
+// first. A missing directory is an empty list, not an error - no backup has
+// been taken yet.
+func readBackupFiles() ([]BackupFile, error) {
+	entries, err := os.ReadDir(adminBackupDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []BackupFile{}, nil
+		}
+		return nil, err
+	}
+
+	backups := []BackupFile{}
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() || !isBackupArchiveName(entry.Name()) {
 			continue
 		}
-
-		// Only list .tar.gz files
-		if filepath.Ext(entry.Name()) != ".gz" {
-			continue
-		}
-
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
-
 		backups = append(backups, BackupFile{
 			Filename: entry.Name(),
 			Size:     info.Size(),
@@ -290,68 +416,180 @@ func ListBackups(c *gin.Context) {
 		})
 	}
 
-	RespondData(c, backups)
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].Created.After(backups[j].Created)
+	})
+	return backups, nil
+}
+
+// BackupStats reports the backup counters the admin backup page shows: how many
+// archives exist, how much disk they use, when the newest one was taken and
+// when the scheduler will take the next one.
+func BackupStats(c *gin.Context) {
+	backups, err := readBackupFiles()
+	if err != nil {
+		InternalError(c, "Failed to read backups directory")
+		return
+	}
+
+	var totalSize int64
+	for _, item := range backups {
+		totalSize += item.Size
+	}
+
+	stats := map[string]interface{}{
+		"count":      len(backups),
+		"total_size": totalSize,
+		"directory":  adminBackupDir(),
+	}
+	if len(backups) > 0 {
+		stats["last_backup"] = backups[0].Created
+		stats["last_filename"] = backups[0].Filename
+	}
+	if nextRun := nextScheduledBackup(); nextRun != "" {
+		stats["next_backup"] = nextRun
+	}
+
+	RespondData(c, stats)
+}
+
+// nextScheduledBackup returns the stored next_run of the soonest enabled backup
+// task. The scheduler owns that column, so an unreachable database or an
+// unregistered task simply yields no value rather than an error - the counter
+// is informational.
+func nextScheduledBackup() string {
+	db := database.GetServerDB()
+	if db == nil {
+		return ""
+	}
+	var nextRun sql.NullString
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
+		"SELECT next_run FROM server_scheduler_state WHERE task_id LIKE 'backup%' AND enabled = 1 AND next_run IS NOT NULL ORDER BY next_run ASC LIMIT 1").Scan(&nextRun)
+	if err != nil || !nextRun.Valid {
+		return ""
+	}
+	return nextRun.String
 }
 
 // DownloadBackup downloads a specific backup file
 func DownloadBackup(c *gin.Context) {
-	filename := c.Param("filename")
-
-	dataDir := os.Getenv("DATA_DIR")
-	if dataDir == "" {
-		dataDir = "/var/lib/webappsgo/wthr"
-	}
-
-	backupPath := filepath.Join(dataDir, "backups", filename)
-
-	// Security: Prevent directory traversal
-	if !strings.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
-		Forbidden(c, "Invalid backup filename")
+	backupPath, err := resolveBackupFile(c.Param("filename"))
+	if err != nil {
+		BadRequest(c, err.Error())
 		return
 	}
 
-	// Check file exists
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+	if _, err := os.Stat(backupPath); err != nil {
 		NotFound(c, "Backup file not found")
 		return
 	}
 
 	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Header("Content-Disposition", "attachment; filename=\""+filepath.Base(backupPath)+"\"")
 	c.Header("Content-Type", "application/gzip")
 	c.File(backupPath)
 }
 
 // DeleteBackup deletes a backup file
 func DeleteBackup(c *gin.Context) {
-	filename := c.Param("filename")
-
-	dataDir := os.Getenv("DATA_DIR")
-	if dataDir == "" {
-		dataDir = "/var/lib/webappsgo/wthr"
-	}
-
-	backupPath := filepath.Join(dataDir, "backups", filename)
-
-	// Security: Prevent directory traversal
-	if !strings.HasPrefix(filepath.Clean(backupPath), filepath.Join(dataDir, "backups")) {
-		Forbidden(c, "Invalid backup filename")
+	backupPath, err := resolveBackupFile(c.Param("filename"))
+	if err != nil {
+		BadRequest(c, err.Error())
 		return
 	}
 
-	// Check file exists
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+	if _, err := os.Stat(backupPath); err != nil {
 		NotFound(c, "Backup file not found")
 		return
 	}
 
-	// Delete the file
 	if err := os.Remove(backupPath); err != nil {
 		InternalError(c, "Failed to delete backup: "+err.Error())
 		return
 	}
 
 	RespondSuccess(c, "Backup deleted successfully")
+}
+
+// GetBackupSchedule returns the stored automated-backup settings.
+func GetBackupSchedule(c *gin.Context) {
+	settings, err := adminSettingsModel(c)
+	if err != nil {
+		InternalError(c, err.Error())
+		return
+	}
+
+	RespondData(c, map[string]interface{}{
+		"enabled":   settings.GetBool("backup.enabled", true),
+		"interval":  settings.GetInt("backup.interval", 6),
+		"retention": settings.GetInt("backup.retention", 30),
+	})
+}
+
+// SaveBackupSchedule persists the automated-backup settings the scheduler reads
+// on its next run.
+func SaveBackupSchedule(c *gin.Context) {
+	var payload struct {
+		Enabled   *bool `json:"enabled" form:"enabled"`
+		Interval  *int  `json:"interval" form:"interval"`
+		Retention *int  `json:"retention" form:"retention"`
+	}
+	if err := c.ShouldBind(&payload); err != nil {
+		BadRequest(c, "Invalid request data")
+		return
+	}
+
+	settings, err := adminSettingsModel(c)
+	if err != nil {
+		InternalError(c, err.Error())
+		return
+	}
+
+	if payload.Enabled != nil {
+		if err := settings.SetBool("backup.enabled", *payload.Enabled); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	// An interval of zero hours would make the scheduler run continuously and a
+	// negative retention would delete every archive, so both are rejected
+	// rather than stored.
+	if payload.Interval != nil {
+		if *payload.Interval < 1 || *payload.Interval > 168 {
+			BadRequest(c, "Backup interval must be between 1 and 168 hours")
+			return
+		}
+		if err := settings.SetInt("backup.interval", *payload.Interval); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	if payload.Retention != nil {
+		if *payload.Retention < 1 || *payload.Retention > 3650 {
+			BadRequest(c, "Backup retention must be between 1 and 3650 days")
+			return
+		}
+		if err := settings.SetInt("backup.retention", *payload.Retention); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+
+	RespondSuccess(c, "Backup settings saved successfully")
+}
+
+// adminSettingsModel resolves the settings model from the request-scoped
+// database handle the admin API middleware installs.
+func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
+	db, exists := c.Get("db")
+	if !exists {
+		return nil, fmt.Errorf("Database connection not available")
+	}
+	handle, ok := db.(*sql.DB)
+	if !ok || handle == nil {
+		return nil, fmt.Errorf("Database connection not available")
+	}
+	return &model.SettingsModel{DB: handle}, nil
 }
 
 // SaveDatabaseSettings handles saving database configuration

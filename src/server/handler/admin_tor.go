@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -300,7 +301,7 @@ func (h *TorAdminHandler) monitorVanityGeneration() {
 	address := <-notifyCh
 
 	// Notification sent via notification service
-	fmt.Printf("🎉 Vanity address generated: %s\n", address)
+	fmt.Printf("%s Vanity address generated: %s\n", display.Emoji("🎉", "*"), address)
 }
 
 // GetVanityStatus returns vanity generation status

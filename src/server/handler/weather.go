@@ -716,7 +716,7 @@ Try these alternatives:
 Quick alternatives:
 • Try again: curl -q -LSs %s/%s
 • Different location: curl -q -LSs %s/London,GB
-• Service status: curl -q -LSs %s/healthz
+• Service status: curl -q -LSs %s/server/healthz
 
 ⏰ Usually resolves within a few moments.
 `, hostInfo.FullHost, location, hostInfo.FullHost, hostInfo.FullHost)
@@ -726,7 +726,7 @@ Quick alternatives:
 Try these options:
 • A different location: curl -q -LSs %s/London,GB
 • Our JSON API: curl -q -LSs %s/api/v1/weather?location=london
-• Check service status: curl -q -LSs %s/healthz
+• Check service status: curl -q -LSs %s/server/healthz
 
 ☁️ Thank you for your patience!
 `, errMsg, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost)

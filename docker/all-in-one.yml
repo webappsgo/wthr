@@ -23,8 +23,8 @@ services:
       PORT: 80
       TZ: ${TZ:-America/New_York}
     volumes:
-      - './rootfs/config:/config:z'
-      - './rootfs/data:/data:z'
+      - './volumes/config:/config:z'
+      - './volumes/data:/data:z'
     ports:
       - '172.17.0.1:64580:80'
     healthcheck:

@@ -1,29 +1,13 @@
 {{define "admin/admin_tasks_enhanced.tmpl"}}
-<!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-</head>
-<body>
-    <div class="admin-page-header">
-        <h1>⚙️ Scheduled Tasks Management</h1>
-        <div class="admin-page-breadcrumb">
-            <a href="{{.admin_path}}">Admin</a> /
-            <span>Scheduled Tasks</span>
-        </div>
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+    <div class="content-header">
+        <h1>⚙️ {{t $lang "admin.tasks.title"}}</h1>
     </div>
 
     <div class="admin-page-container wide">
-        <div class="admin-nav-links">
-            <a href="{{.admin_path}}" class="admin-nav-link">← Dashboard</a>
-            <a href="{{.admin_path}}/system" class="admin-nav-link">System Info</a>
-        </div>
-
         <div class="admin-alert admin-alert-success" id="successAlert" role="alert"></div>
         <div class="admin-alert admin-alert-error" id="errorAlert" role="alert"></div>
 
@@ -32,37 +16,37 @@
             <div class="stat-card">
                 <div class="stat-icon">📊</div>
                 <div class="stat-value" id="totalTasks">0</div>
-                <div class="stat-label">Total Tasks</div>
+                <div class="stat-label">{{t $lang "admin.tasks.stat_total"}}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">✅</div>
                 <div class="stat-value" id="enabledTasks">0</div>
-                <div class="stat-label">Enabled</div>
+                <div class="stat-label">{{t $lang "admin.tasks.stat_enabled"}}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">▶️</div>
                 <div class="stat-value" id="runningTasks">0</div>
-                <div class="stat-label">Running Now</div>
+                <div class="stat-label">{{t $lang "admin.tasks.stat_running"}}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">✅</div>
                 <div class="stat-value" id="successRate">0%</div>
-                <div class="stat-label">Success Rate</div>
+                <div class="stat-label">{{t $lang "admin.tasks.stat_success_rate"}}</div>
             </div>
         </div>
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" data-tab="timeline">Timeline</button>
-            <button class="tab" data-tab="tasks">Task List</button>
-            <button class="tab" data-tab="history">History</button>
-            <button class="tab" data-tab="dependencies">Dependencies</button>
+            <button class="tab active" data-tab="timeline">{{t $lang "admin.tasks.tab_timeline"}}</button>
+            <button class="tab" data-tab="tasks">{{t $lang "admin.tasks.tab_tasks"}}</button>
+            <button class="tab" data-tab="history">{{t $lang "admin.tasks.tab_history"}}</button>
+            <button class="tab" data-tab="dependencies">{{t $lang "admin.tasks.tab_dependencies"}}</button>
         </div>
 
         <!-- Timeline Tab -->
         <div class="tab-content active" id="timeline">
             <div class="card">
-                <h2>24-Hour Task Timeline</h2>
+                <h2>{{t $lang "admin.tasks.timeline_heading"}}</h2>
                 <div class="timeline">
                     <div class="timeline-track">
                         <div class="timeline-grid" id="timelineGrid"></div>
@@ -75,10 +59,10 @@
         <!-- Task List Tab -->
         <div class="tab-content" id="tasks">
             <div class="card">
-                <h2>All Tasks</h2>
+                <h2>{{t $lang "admin.tasks.all_tasks_heading"}}</h2>
                 <div class="task-list" id="taskList">
                     <div class="text-center text-muted p-3">
-                        Loading tasks...
+                        {{t $lang "admin.tasks.loading_tasks"}}
                     </div>
                 </div>
             </div>
@@ -87,21 +71,21 @@
         <!-- History Tab -->
         <div class="tab-content" id="history">
             <div class="card">
-                <h2>Execution History</h2>
+                <h2>{{t $lang "admin.tasks.history_heading"}}</h2>
                 <table class="history-table" id="historyTable">
                     <thead>
                         <tr>
-                            <th>Task</th>
-                            <th>Status</th>
-                            <th>Started</th>
-                            <th>Duration</th>
-                            <th>Result</th>
+                            <th>{{t $lang "admin.tasks.col_task"}}</th>
+                            <th>{{t $lang "admin.tasks.col_status"}}</th>
+                            <th>{{t $lang "admin.tasks.col_started"}}</th>
+                            <th>{{t $lang "admin.tasks.col_duration"}}</th>
+                            <th>{{t $lang "admin.tasks.col_result"}}</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
                             <td colspan="5" class="text-center text-muted p-3">
-                                Loading history...
+                                {{t $lang "admin.tasks.loading_history"}}
                             </td>
                         </tr>
                     </tbody>
@@ -112,7 +96,7 @@
         <!-- Dependencies Tab -->
         <div class="tab-content" id="dependencies">
             <div class="card">
-                <h2>Task Dependencies</h2>
+                <h2>{{t $lang "admin.tasks.dependencies_heading"}}</h2>
                 <div class="dependency-graph" id="dependencyGraph">
                     <svg width="100%" height="400" id="depGraphSvg">
                         <defs>
@@ -341,6 +325,5 @@
         // Auto-refresh every 10 seconds
         setInterval(loadTasks, 10000);
     </script>
-</body>
-</html>
+{{template "admin_footer" .}}
 {{end}}

@@ -10,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/oschwald/maxminddb-golang"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // countryRecord maps the ip-location-db country MMDB fields
@@ -86,12 +88,12 @@ func NewGeoIPService(configDir string) *GeoIPService {
 
 // loadDatabases downloads and prepares all 4 GeoIP databases from sapics/ip-location-db
 func (gs *GeoIPService) loadDatabases() {
-	fmt.Println("🌍 Loading GeoIP databases (sapics/ip-location-db)...")
+	fmt.Printf("%s Loading GeoIP databases (sapics/ip-location-db)...\n", display.Emoji("🌍", "->"))
 
 	// Create directory if needed
 	dir := filepath.Dir(gs.cityIPv4Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		fmt.Printf("❌ Failed to create directory: %v\n", err)
+		fmt.Printf("%s Failed to create directory: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		return
 	}
 
@@ -107,7 +109,7 @@ func (gs *GeoIPService) loadDatabases() {
 	for name, path := range databases {
 		if _, err := os.Stat(path); err != nil {
 			allExist = false
-			fmt.Printf("  📥 %s database not found, will download\n", name)
+			fmt.Printf("  %s %s database not found, will download\n", display.Emoji("📥", "->"), name)
 		}
 	}
 
@@ -115,7 +117,7 @@ func (gs *GeoIPService) loadDatabases() {
 		gs.mu.Lock()
 		gs.enabled = true
 		gs.mu.Unlock()
-		fmt.Println("📂 GeoIP databases loaded from cache (4 databases)")
+		fmt.Printf("%s GeoIP databases loaded from cache (4 databases)\n", display.Emoji("📂", "->"))
 		return
 	}
 
@@ -134,20 +136,20 @@ func (gs *GeoIPService) loadDatabases() {
 		}
 
 		filename := filepath.Base(path)
-		fmt.Printf("📥 Downloading %s...\n", filename)
+		fmt.Printf("%s Downloading %s...\n", display.Emoji("📥", "->"), filename)
 
 		if err := gs.downloadDatabase(url, path); err != nil {
-			fmt.Printf("❌ Failed to download %s: %v\n", filename, err)
+			fmt.Printf("%s Failed to download %s: %v\n", display.Emoji("❌", "[FAIL]"), filename, err)
 			return
 		}
-		fmt.Printf("✅ %s downloaded\n", filename)
+		fmt.Printf("%s %s downloaded\n", display.Emoji("✅", "[OK]"), filename)
 	}
 
 	gs.mu.Lock()
 	gs.enabled = true
 	gs.mu.Unlock()
 
-	fmt.Println("✅ All 4 GeoIP databases ready (sapics/ip-location-db: ~103MB total)")
+	fmt.Printf("%s All 4 GeoIP databases ready (sapics/ip-location-db: ~103MB total)\n", display.Emoji("✅", "[OK]"))
 }
 
 // downloadDatabase downloads a database file
@@ -298,7 +300,7 @@ func (gs *GeoIPService) IsEnabled() bool {
 
 // UpdateDatabase downloads the latest GeoIP databases (all 4 from sapics)
 func (gs *GeoIPService) UpdateDatabase() error {
-	fmt.Println("📥 Updating GeoIP databases (sapics/ip-location-db)...")
+	fmt.Printf("%s Updating GeoIP databases (sapics/ip-location-db)...\n", display.Emoji("📥", "->"))
 
 	// Update all 4 databases
 	updates := map[string]string{
@@ -321,13 +323,13 @@ func (gs *GeoIPService) UpdateDatabase() error {
 	gs.cacheTime = make(map[string]int64)
 	gs.mu.Unlock()
 
-	fmt.Println("✅ All 4 GeoIP databases updated successfully")
+	fmt.Printf("%s All 4 GeoIP databases updated successfully\n", display.Emoji("✅", "[OK]"))
 	return nil
 }
 
 // updateSingleDatabase updates a single database file
 func (gs *GeoIPService) updateSingleDatabase(url, path, name string) error {
-	fmt.Printf("  📥 Downloading %s database...\n", name)
+	fmt.Printf("  %s Downloading %s database...\n", display.Emoji("📥", "->"), name)
 
 	resp, err := downloadClient.Get(url)
 	if err != nil {
@@ -369,13 +371,13 @@ func (gs *GeoIPService) updateSingleDatabase(url, path, name string) error {
 		return err
 	}
 
-	fmt.Printf("  ✅ %s database updated\n", name)
+	fmt.Printf("  %s %s database updated\n", display.Emoji("✅", "[OK]"), name)
 	return nil
 }
 
 // Reload reloads the GeoIP databases
 func (gs *GeoIPService) Reload() error {
-	fmt.Println("🔄 Reloading GeoIP databases...")
+	fmt.Printf("%s Reloading GeoIP databases...\n", display.Emoji("🔄", "->"))
 
 	gs.mu.Lock()
 	gs.enabled = false
@@ -392,6 +394,6 @@ func (gs *GeoIPService) Reload() error {
 		return fmt.Errorf("GeoIP reload failed - databases not enabled after reload")
 	}
 
-	fmt.Println("✅ GeoIP databases reloaded")
+	fmt.Printf("%s GeoIP databases reloaded\n", display.Emoji("✅", "[OK]"))
 	return nil
 }

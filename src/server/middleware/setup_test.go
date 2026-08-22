@@ -134,10 +134,10 @@ func TestSetupTokenRequired_SetupRouteSkipped(t *testing.T) {
 
 	router := newSetupTestRouter()
 	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -238,8 +238,8 @@ func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect to the setup wizard", w.Code)
 	}
-	if loc := w.Header().Get("Location"); loc != "/server/admin/server/setup" {
-		t.Errorf("Location = %q, want %q", loc, "/server/admin/server/setup")
+	if loc := w.Header().Get("Location"); loc != "/server/admin/config/setup" {
+		t.Errorf("Location = %q, want %q", loc, "/server/admin/config/setup")
 	}
 }
 
@@ -253,13 +253,13 @@ func TestBlockSetupAfterComplete_AdminExistsRedirects(t *testing.T) {
 
 	router := newSetupTestRouter()
 	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/server/setup", func(c *gin.Context) {
+	router.GET("/server/admin/config/setup", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		c.String(http.StatusOK, "reached")
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusFound {
@@ -280,10 +280,10 @@ func TestBlockSetupAfterComplete_NoAdminTokenPresentPassesThrough(t *testing.T) 
 
 	router := newSetupTestRouter()
 	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -301,13 +301,13 @@ func TestBlockSetupAfterComplete_NoAdminNoTokenRedirectsToAdminRoot(t *testing.T
 
 	router := newSetupTestRouter()
 	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/server/setup", func(c *gin.Context) {
+	router.GET("/server/admin/config/setup", func(c *gin.Context) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		c.String(http.StatusOK, "reached")
 	})
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusFound {
@@ -338,13 +338,13 @@ func TestRequireSetupTokenVerified(t *testing.T) {
 			router := newSetupTestRouter()
 			reached := false
 			router.Use(RequireSetupTokenVerified(cfg))
-			router.GET("/server/admin/server/setup", func(c *gin.Context) {
+			router.GET("/server/admin/config/setup", func(c *gin.Context) {
 				reached = true
 				c.String(http.StatusOK, "ok")
 			})
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+			req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 			if tt.cookie != nil {
 				req.AddCookie(tt.cookie)
 			}
@@ -370,13 +370,13 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 
 		router := newSetupTestRouter()
 		router.Use(BlockSetupAfterAdminExists(cfg))
-		router.GET("/server/admin/server/setup", func(c *gin.Context) {
+		router.GET("/server/admin/config/setup", func(c *gin.Context) {
 			t.Error("wrapped handler reached, want a redirect instead")
 			c.String(http.StatusOK, "reached")
 		})
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+		req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusFound {
@@ -390,10 +390,10 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 
 		router := newSetupTestRouter()
 		router.Use(BlockSetupAfterAdminExists(cfg))
-		router.GET("/server/admin/server/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+		router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/server/admin/server/setup", nil)
+		req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {

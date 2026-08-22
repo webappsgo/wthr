@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -45,7 +46,7 @@ func TestAccessLogger_WritesRequestLine(t *testing.T) {
 		t.Fatal("access.log is empty, want a logged request line")
 	}
 	for _, want := range []string{"GET", "/api/v1/weather", "200"} {
-		if !contains(got, want) {
+		if !strings.Contains(got, want) {
 			t.Errorf("access.log = %q, want it to contain %q", got, want)
 		}
 	}
@@ -95,7 +96,7 @@ func TestAccessLogger_UsernameNeverPopulatedForRealAuthenticatedUser(t *testing.
 		t.Fatalf("read access.log: %v", err)
 	}
 	got := string(data)
-	if !contains(got, "alice") {
+	if !strings.Contains(got, "alice") {
 		t.Errorf("access.log = %q, want it to contain username %q - "+
 			"access_log.go:36-42 type-asserts c.Get(\"user\") as "+
 			"map[string]interface{}, but auth.go/token_auth.go always set it to "+

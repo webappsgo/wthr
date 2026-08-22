@@ -1,35 +1,35 @@
 {{template "head" .}}
-{{template "navbar" .}}
-<main class="container">
-<div class="admin-header"><h1>🔐 Authentication Settings</h1></div>
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+<div class="admin-header"><h1>🔐 {{t $lang "admin.auth.title"}}</h1></div>
 <form id="authSettingsForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>OIDC Providers</h2>
-<label><input type="checkbox" name="oidc_enabled"> Enable OIDC</label>
+<section class="card"><h2>{{t $lang "admin.auth.oidc_heading"}}</h2>
+<label><input type="checkbox" name="oidc_enabled"> {{t $lang "admin.auth.oidc_enable"}}</label>
 <div id="oidcProviders"></div>
-<button type="button" onclick="addOIDCProvider()">+ Add Provider</button>
+<button type="button" onclick="addOIDCProvider()">{{t $lang "admin.auth.oidc_add_provider"}}</button>
 </section>
-<section class="card"><h2>LDAP</h2>
-<label><input type="checkbox" name="ldap_enabled"> Enable LDAP</label>
-<label>Server: <input type="text" name="ldap_server"></label>
-<label>Port: <input type="number" name="ldap_port" value="389"></label>
-<label>Bind DN: <input type="text" name="ldap_bind_dn"></label>
-<label>Bind Password: <input type="password" name="ldap_bind_password"></label>
-<label>Base DN: <input type="text" name="ldap_base_dn"></label>
-<label>User Filter: <input type="text" name="ldap_user_filter" value="(uid=%s)"></label>
+<section class="card"><h2>{{t $lang "admin.auth.ldap_heading"}}</h2>
+<label><input type="checkbox" name="ldap_enabled"> {{t $lang "admin.auth.ldap_enable"}}</label>
+<label>{{t $lang "admin.auth.ldap_server_label"}} <input type="text" name="ldap_server"></label>
+<label>{{t $lang "admin.auth.ldap_port_label"}} <input type="number" name="ldap_port" value="389"></label>
+<label>{{t $lang "admin.auth.ldap_bind_dn_label"}} <input type="text" name="ldap_bind_dn"></label>
+<label>{{t $lang "admin.auth.ldap_bind_password_label"}} <input type="password" name="ldap_bind_password"></label>
+<label>{{t $lang "admin.auth.ldap_base_dn_label"}} <input type="text" name="ldap_base_dn"></label>
+<label>{{t $lang "admin.auth.ldap_user_filter_label"}} <input type="text" name="ldap_user_filter" value="(uid=%s)"></label>
 </section>
-<section class="card"><h2>TOTP (2FA)</h2>
-<label><input type="checkbox" name="totp_enabled"> Enable TOTP</label>
-<label>Issuer: <input type="text" name="totp_issuer" value="Weather"></label>
-<label>Digits: <input type="number" name="totp_digits" value="6"></label>
-<label>Period (seconds): <input type="number" name="totp_period" value="30"></label>
+<section class="card"><h2>{{t $lang "admin.auth.totp_heading"}}</h2>
+<label><input type="checkbox" name="totp_enabled"> {{t $lang "admin.auth.totp_enable"}}</label>
+<label>{{t $lang "admin.auth.totp_issuer_label"}} <input type="text" name="totp_issuer" value="Weather"></label>
+<label>{{t $lang "admin.auth.totp_digits_label"}} <input type="number" name="totp_digits" value="6"></label>
+<label>{{t $lang "admin.auth.totp_period_label"}} <input type="number" name="totp_period" value="30"></label>
 </section>
-<section class="card"><h2>Passkeys (WebAuthn)</h2>
-<label><input type="checkbox" name="passkeys_enabled"> Enable Passkeys</label>
-<label>RP ID: <input type="text" name="passkeys_rp_id"></label>
-<label>RP Name: <input type="text" name="passkeys_rp_name" value="Weather"></label>
+<section class="card"><h2>{{t $lang "admin.auth.passkeys_heading"}}</h2>
+<label><input type="checkbox" name="passkeys_enabled"> {{t $lang "admin.auth.passkeys_enable"}}</label>
+<label>{{t $lang "admin.auth.passkeys_rp_id_label"}} <input type="text" name="passkeys_rp_id"></label>
+<label>{{t $lang "admin.auth.passkeys_rp_name_label"}} <input type="text" name="passkeys_rp_name" value="Weather"></label>
 </section>
-<button type="submit">Save Settings</button>
+<button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>
-</main>
-{{template "footer" .}}
+{{template "admin_footer" .}}

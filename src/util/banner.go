@@ -24,7 +24,8 @@ func getBinaryName() string {
 
 // DisplayFirstRunBanner displays the startup banner with setup information
 // AI.md PART 11: Responsive banner adapts to terminal width
-func DisplayFirstRunBanner(port int, setupToken string, isDockerized bool, torOnion string) {
+// adminBasePath is the resolved "/server/{admin_path}" prefix; the setup wizard lives beneath it at /config/setup
+func DisplayFirstRunBanner(port int, setupToken string, isDockerized bool, torOnion, adminBasePath string) {
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "localhost"
@@ -44,7 +45,7 @@ func DisplayFirstRunBanner(port int, setupToken string, isDockerized bool, torOn
 	// Responsive banner per AI.md PART 11
 	switch {
 	case termWidth >= 80:
-		printFirstRunFull(binaryName, localURL, dockerURL, torOnion, setupToken, isDockerized)
+		printFirstRunFull(binaryName, localURL, dockerURL, torOnion, setupToken, adminBasePath, isDockerized)
 	case termWidth >= 60:
 		printFirstRunCompact(binaryName, localURL, setupToken)
 	case termWidth >= 40:
@@ -54,7 +55,7 @@ func DisplayFirstRunBanner(port int, setupToken string, isDockerized bool, torOn
 	}
 }
 
-func printFirstRunFull(binaryName, localURL, dockerURL, torOnion, setupToken string, isDockerized bool) {
+func printFirstRunFull(binaryName, localURL, dockerURL, torOnion, setupToken, adminBasePath string, isDockerized bool) {
 	// AI.md PART 8: Use emoji fallbacks when NO_COLOR set or TERM=dumb
 	rocket := GetRocket()
 	globe := GetGlobe()
@@ -81,7 +82,7 @@ func printFirstRunFull(binaryName, localURL, dockerURL, torOnion, setupToken str
 	fmt.Printf("║  %s Server started (before setup)                            ║\n", ok)
 	fmt.Println("║                                                               ║")
 	fmt.Printf("║  %s Setup Token: %-43s ║\n", lock, setupToken)
-	fmt.Println("║     Use at /admin/server/setup (ONE TIME)                    ║")
+	fmt.Printf("║     Use at %-49s ║\n", adminBasePath+"/config/setup (ONE TIME)")
 	fmt.Println("╚═══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 }

@@ -30,10 +30,10 @@ services:
       # Development: accessible from all interfaces
       - "64580:80"
     volumes:
-      # TEMP DIR WORKFLOW: ./rootfs/ resolves to $TEMP_DIR/rootfs/
+      # TEMP DIR WORKFLOW: ./volumes/ resolves to $TEMP_DIR/volumes/
       # NEVER run from project directory - always use temp dir workflow
-      - ./rootfs/config:/config
-      - ./rootfs/data:/data
+      - ./volumes/config:/config
+      - ./volumes/data:/data
     healthcheck:
       test: /usr/local/bin/wthr --status
       interval: 10s

@@ -14,6 +14,8 @@ import (
 const (
 	SessionCookieName = "weather_session"
 	UserContextKey    = "user"
+	// UserIDContextKey carries the authenticated user's numeric id; handlers, CSRF and rate limiting all read this key
+	UserIDContextKey  = "user_id"
 	SessionContextKey = "session"
 )
 
@@ -42,6 +44,8 @@ func AuthMiddleware(db *sql.DB, required bool) gin.HandlerFunc {
 						// Update last used timestamp asynchronously
 						go tokenModel.UpdateLastUsed(apiToken.ID)
 						c.Set(UserContextKey, user)
+						// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+						c.Set(UserIDContextKey, int(user.ID))
 						c.Set("auth_method", "api_token")
 						c.Next()
 						return
@@ -58,6 +62,8 @@ func AuthMiddleware(db *sql.DB, required bool) gin.HandlerFunc {
 				user, err = userModel.GetByID(int64(session.UserID))
 				if err == nil {
 					c.Set(UserContextKey, user)
+					// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+					c.Set(UserIDContextKey, int(user.ID))
 					c.Set(SessionContextKey, session)
 					c.Set("auth_method", "session")
 					c.Next()
@@ -177,6 +183,7 @@ func RestrictAdminToAdminRoutes() gin.HandlerFunc {
 			strings.HasPrefix(path, "/server/auth/login") ||
 			strings.HasPrefix(path, "/server/auth/logout") ||
 			strings.HasPrefix(path, "/server/auth/register") ||
+			strings.HasPrefix(path, "/server/healthz") ||
 			strings.HasPrefix(path, "/healthz") ||
 			strings.HasPrefix(path, "/debug") ||
 			strings.HasPrefix(path, "/docs") {

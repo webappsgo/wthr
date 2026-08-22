@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -354,29 +355,31 @@ func saveContactToDB(c *gin.Context, name, email, subject, message string) error
 		return fmt.Errorf("database not available")
 	}
 
-	// Create contact_submissions table if not exists
-	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutMigration, `
-		CREATE TABLE IF NOT EXISTS contact_submissions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL,
-			email TEXT NOT NULL,
-			subject TEXT NOT NULL,
-			message TEXT NOT NULL,
-			ip_address TEXT,
-			user_agent TEXT,
-			status TEXT NOT NULL DEFAULT 'pending',
-			created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to create table: %w", err)
+	// contact_submissions is declared once in database.ServerSchema, which
+	// database.InitDualDB executes on every startup, so no DDL runs at request
+	// time any more. The CREATE TABLE that used to live here declared created_at
+	// as "INTEGER NOT NULL DEFAULT (strftime('%s','now'))" - a SQLite-only
+	// expression, and an epoch integer where the real schema declares DATETIME
+	// holding canonical UTC text. Wherever this statement won the race the column
+	// held a type no reader in this project parses. This presence check remains so
+	// a database missing the schema fails with a clear error rather than a bare
+	// "no such table" on the insert below.
+	var present int
+	if err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect,
+		"SELECT COUNT(*) FROM contact_submissions WHERE 1 = 0",
+	).Scan(&present); err != nil {
+		return fmt.Errorf("contact_submissions is missing from the server database schema: %w", err)
 	}
 
-	// Insert contact submission
-	_, err = database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
-		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, name, email, subject, message, c.ClientIP(), c.Request.UserAgent())
+	// Insert contact submission. created_at is bound explicitly rather than left
+	// to the column's default: a column default is a third implicit producer of
+	// the value that no application-side discipline reaches, and on PostgreSQL and
+	// MySQL it renders in the server's own zone and type instead of the canonical
+	// UTC text every reader in this project parses.
+	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
+		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, name, email, subject, message, c.ClientIP(), c.Request.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))
 
 	return err
 }

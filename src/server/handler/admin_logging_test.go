@@ -22,7 +22,7 @@ func TestNewLoggingHandler(t *testing.T) {
 // with "standard" reported as the only active format.
 func TestLoggingHandler_GetFormats(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newAPITestContext("/server/admin/logging/formats")
+	c, w := newAPITestContext("/server/admin/config/logging/formats")
 
 	h.GetFormats(c)
 
@@ -51,7 +51,7 @@ func TestLoggingHandler_GetFormats(t *testing.T) {
 // echoed back with a 200 confirming the update was accepted.
 func TestLoggingHandler_UpdateFormats_Success(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/formats", LogFormats{JSON: true, Syslog: true})
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/formats", LogFormats{JSON: true, Syslog: true})
 
 	h.UpdateFormats(c)
 
@@ -73,7 +73,7 @@ func TestLoggingHandler_UpdateFormats_Success(t *testing.T) {
 // rejected with 400 rather than silently accepted.
 func TestLoggingHandler_UpdateFormats_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/formats", "{not valid json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/formats", "{not valid json")
 
 	h.UpdateFormats(c)
 
@@ -86,7 +86,7 @@ func TestLoggingHandler_UpdateFormats_InvalidJSON(t *testing.T) {
 // is returned as a downloadable attachment.
 func TestLoggingHandler_GetFail2banConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newAPITestContext("/server/admin/logging/fail2ban")
+	c, w := newAPITestContext("/server/admin/config/logging/fail2ban")
 
 	h.GetFail2banConfig(c)
 
@@ -108,7 +108,7 @@ func TestLoggingHandler_GetFail2banConfig(t *testing.T) {
 // expected fields.
 func TestLoggingHandler_GetSyslogConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newAPITestContext("/server/admin/logging/syslog")
+	c, w := newAPITestContext("/server/admin/config/logging/syslog")
 
 	h.GetSyslogConfig(c)
 
@@ -131,7 +131,7 @@ func TestLoggingHandler_GetSyslogConfig(t *testing.T) {
 // expected fields.
 func TestLoggingHandler_GetCEFConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newAPITestContext("/server/admin/logging/cef")
+	c, w := newAPITestContext("/server/admin/config/logging/cef")
 
 	h.GetCEFConfig(c)
 
@@ -166,7 +166,7 @@ func TestLoggingHandler_ExportLogs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.format, func(t *testing.T) {
 			h := NewLoggingHandler("/tmp/logs")
-			c, w := newAPITestContext("/server/admin/logging/export?format=" + tt.format)
+			c, w := newAPITestContext("/server/admin/config/logging/export?format=" + tt.format)
 
 			h.ExportLogs(c)
 
@@ -190,7 +190,7 @@ func TestLoggingHandler_ExportLogs(t *testing.T) {
 // ExportLogs?format=json) emits the documented logs array shape.
 func TestLoggingHandler_ExportJSON_Shape(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newAPITestContext("/server/admin/logging/export?format=json")
+	c, w := newAPITestContext("/server/admin/config/logging/export?format=json")
 
 	h.ExportLogs(c)
 
@@ -222,7 +222,7 @@ func TestLoggingHandler_ConfigureFail2ban_Success(t *testing.T) {
 		"banTime":    3600,
 		"maxRetry":   5,
 	}
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/fail2ban/configure", payload)
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/fail2ban/configure", payload)
 
 	h.ConfigureFail2ban(c)
 
@@ -238,7 +238,7 @@ func TestLoggingHandler_ConfigureFail2ban_Success(t *testing.T) {
 // are rejected with 400.
 func TestLoggingHandler_ConfigureFail2ban_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/fail2ban/configure", "{not valid")
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/fail2ban/configure", "{not valid")
 
 	h.ConfigureFail2ban(c)
 
@@ -258,7 +258,7 @@ func TestLoggingHandler_ConfigureSyslog_Success(t *testing.T) {
 		"port":     514,
 		"facility": "local0",
 	}
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/syslog/configure", payload)
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/syslog/configure", payload)
 
 	h.ConfigureSyslog(c)
 
@@ -274,7 +274,7 @@ func TestLoggingHandler_ConfigureSyslog_Success(t *testing.T) {
 // are rejected with 400.
 func TestLoggingHandler_ConfigureSyslog_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/logging/syslog/configure", "{not valid")
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/syslog/configure", "{not valid")
 
 	h.ConfigureSyslog(c)
 
@@ -290,7 +290,7 @@ func TestLoggingHandler_TestFormat(t *testing.T) {
 	for _, format := range known {
 		t.Run(format, func(t *testing.T) {
 			h := NewLoggingHandler("/tmp/logs")
-			c, w := newAPITestContext("/server/admin/logging/test?format=" + format)
+			c, w := newAPITestContext("/server/admin/config/logging/test?format=" + format)
 
 			h.TestFormat(c)
 
@@ -315,7 +315,7 @@ func TestLoggingHandler_TestFormat(t *testing.T) {
 
 	t.Run("unknown", func(t *testing.T) {
 		h := NewLoggingHandler("/tmp/logs")
-		c, w := newAPITestContext("/server/admin/logging/test?format=bogus")
+		c, w := newAPITestContext("/server/admin/config/logging/test?format=bogus")
 
 		h.TestFormat(c)
 

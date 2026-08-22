@@ -134,29 +134,26 @@ func TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault(t *testing.
 	}
 }
 
-// TestAPIRateLimitMiddleware_IgnoresUserIDContextKey documents a real
-// production bug: APIRateLimitMiddleware (ratelimit.go:134-147) decides
-// between the authenticated (100/min) and unauthenticated (20/min) limiter
-// by checking c.Get("user_id"). No middleware in this package ever sets
-// that key - auth.go's AuthMiddleware sets "user" (a *models.User) and
-// admin_auth.go sets "admin_id", never "user_id". Consequently every
-// authenticated request - regardless of how legitimately it authenticated -
-// is throttled at the stricter 20/min unauthenticated rate instead of the
-// intended 100/min, needlessly rate-limiting real logged-in traffic.
+// TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit is a regression test
+// for a real production bug: APIRateLimitMiddleware chose between the
+// authenticated (100/min) and unauthenticated (20/min) limiter by checking a
+// bare "user_id" context key that no middleware in this package ever set, so
+// every authenticated request was throttled at the stricter unauthenticated
+// rate instead of the intended authenticated one.
 //
-// This test encodes CORRECT expected behavior (a request from a context
-// that has gone through real session authentication, i.e. has "user" set,
-// should receive the authenticated 100/min limit) and is expected to FAIL
-// against the current implementation, which only ever looks for "user_id".
-func TestAPIRateLimitMiddleware_IgnoresUserIDContextKey(t *testing.T) {
+// The check now keys on UserContextKey, and AuthMiddleware sets both
+// UserContextKey and UserIDContextKey at every authentication site. This test
+// mirrors that pair and asserts the authenticated limit is advertised.
+func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		// Mirrors what auth.go's AuthMiddleware actually sets on a
-		// successfully authenticated request.
-		c.Set("user", "some-authenticated-user")
+		// Mirrors what auth.go's AuthMiddleware sets on a successfully
+		// authenticated request: both the user object and its numeric id.
+		c.Set(UserContextKey, "some-authenticated-user")
+		c.Set(UserIDContextKey, 7)
 		c.Next()
 	})
 	router.Use(APIRateLimitMiddleware())
@@ -171,9 +168,10 @@ func TestAPIRateLimitMiddleware_IgnoresUserIDContextKey(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	if got := w.Header().Get("X-RateLimit-Limit"); got != fmt.Sprintf("%d", APIAuthRequestsPerWindow) {
-		t.Errorf("X-RateLimit-Limit = %q, want %d - ratelimit.go:134-147 checks "+
-			"c.Get(\"user_id\"), a key no middleware ever sets, so authenticated requests "+
-			"are always throttled at the unauthenticated rate instead", got, APIAuthRequestsPerWindow)
+		t.Errorf("X-RateLimit-Limit = %q, want %d - an authenticated request must get the "+
+			"authenticated limit; if this fails, AuthMiddleware has stopped setting "+
+			"UserIDContextKey and every logged-in caller is throttled as anonymous",
+			got, APIAuthRequestsPerWindow)
 	}
 }
 

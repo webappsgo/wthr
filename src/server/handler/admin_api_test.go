@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -204,6 +206,32 @@ func TestClearCache(t *testing.T) {
 	})
 }
 
+// newBackupFormContext builds a gin context carrying a form-encoded body, the
+// shape the admin backup page posts to CreateBackup and RestoreBackup.
+func newBackupFormContext(method, target string, fields url.Values) (*gin.Context, *httptest.ResponseRecorder) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(method, target, strings.NewReader(fields.Encode()))
+	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return c, w
+}
+
+// writeTestBackup creates a backup directory entry under dataDir/backups and
+// returns its absolute path.
+func writeTestBackup(t *testing.T, dataDir, name string) string {
+	t.Helper()
+	backupDir := filepath.Join(dataDir, "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	target := filepath.Join(backupDir, name)
+	if err := os.WriteFile(target, []byte("x"), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	return target
+}
+
 func TestCreateBackup(t *testing.T) {
 	t.Run("success with empty dirs", func(t *testing.T) {
 		configDir := t.TempDir()
@@ -211,7 +239,7 @@ func TestCreateBackup(t *testing.T) {
 		t.Setenv("CONFIG_DIR", configDir)
 		t.Setenv("DATA_DIR", dataDir)
 
-		c, w := newTestContext(http.MethodPost, "/admin/backup/create")
+		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup", url.Values{})
 		CreateBackup(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -220,42 +248,45 @@ func TestCreateBackup(t *testing.T) {
 }
 
 func TestRestoreBackup(t *testing.T) {
-	t.Run("no file returns 400", func(t *testing.T) {
-		c, w := newTestContext(http.MethodPost, "/admin/backup/restore")
+	t.Run("no file and no filename returns 400", func(t *testing.T) {
+		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{})
 		RestoreBackup(c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
-}
 
-func TestListBackups(t *testing.T) {
-	t.Run("empty dir returns empty list", func(t *testing.T) {
-		dataDir := t.TempDir()
-		t.Setenv("DATA_DIR", dataDir)
+	t.Run("filename outside the backup directory returns 400", func(t *testing.T) {
+		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/backup/list")
-		ListBackups(c)
-		if w.Code != http.StatusOK {
-			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+			"filename": {"../../etc/passwd.tar.gz"},
+		})
+		RestoreBackup(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
-	t.Run("lists only .gz files", func(t *testing.T) {
-		dataDir := t.TempDir()
-		t.Setenv("DATA_DIR", dataDir)
-		backupDir := filepath.Join(dataDir, "backups")
-		if err := os.MkdirAll(backupDir, 0755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(backupDir, "one.tar.gz"), []byte("x"), 0644); err != nil {
-			t.Fatalf("write: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(backupDir, "ignore.txt"), []byte("x"), 0644); err != nil {
-			t.Fatalf("write: %v", err)
-		}
+	t.Run("unknown filename returns 404", func(t *testing.T) {
+		t.Setenv("CONFIG_DIR", t.TempDir())
+		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/backup/list")
+		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+			"filename": {"missing.tar.gz"},
+		})
+		RestoreBackup(c)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
+		}
+	})
+}
+
+func TestListBackups(t *testing.T) {
+	t.Run("missing dir returns empty list", func(t *testing.T) {
+		t.Setenv("DATA_DIR", t.TempDir())
+
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup")
 		ListBackups(c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -264,18 +295,74 @@ func TestListBackups(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &backups); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if len(backups) != 1 || backups[0].Filename != "one.tar.gz" {
+		if len(backups) != 0 {
+			t.Fatalf("expected no backups, got %+v", backups)
+		}
+	})
+
+	t.Run("lists archives including encrypted ones", func(t *testing.T) {
+		dataDir := t.TempDir()
+		t.Setenv("DATA_DIR", dataDir)
+		writeTestBackup(t, dataDir, "one.tar.gz")
+		writeTestBackup(t, dataDir, "two.tar.gz.enc")
+		writeTestBackup(t, dataDir, "ignore.txt")
+
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup")
+		ListBackups(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		var backups []BackupFile
+		if err := json.Unmarshal(w.Body.Bytes(), &backups); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if len(backups) != 2 {
+			t.Fatalf("expected 2 archives, got %+v", backups)
+		}
+		listed := map[string]bool{}
+		for _, item := range backups {
+			listed[item.Filename] = true
+		}
+		if !listed["one.tar.gz"] || !listed["two.tar.gz.enc"] {
 			t.Fatalf("unexpected backups: %+v", backups)
+		}
+	})
+}
+
+func TestBackupStats(t *testing.T) {
+	t.Run("counts archives and their total size", func(t *testing.T) {
+		dataDir := t.TempDir()
+		t.Setenv("DATA_DIR", dataDir)
+		writeTestBackup(t, dataDir, "one.tar.gz")
+		writeTestBackup(t, dataDir, "two.tar.gz.enc")
+
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup/stats")
+		BackupStats(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		var stats struct {
+			Count     int    `json:"count"`
+			TotalSize int64  `json:"total_size"`
+			Directory string `json:"directory"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if stats.Count != 2 || stats.TotalSize != 2 {
+			t.Fatalf("unexpected stats: %+v", stats)
+		}
+		if stats.Directory != filepath.Join(dataDir, "backups") {
+			t.Fatalf("directory = %q, want the data-dir backups path", stats.Directory)
 		}
 	})
 }
 
 func TestDownloadBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
-		dataDir := t.TempDir()
-		t.Setenv("DATA_DIR", dataDir)
+		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/backup/download/missing.tar.gz")
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup/missing.tar.gz/download")
 		c.Params = []gin.Param{{Key: "filename", Value: "missing.tar.gz"}}
 		DownloadBackup(c)
 		if w.Code != http.StatusNotFound {
@@ -284,29 +371,35 @@ func TestDownloadBackup(t *testing.T) {
 	})
 
 	t.Run("traversal rejected", func(t *testing.T) {
+		t.Setenv("DATA_DIR", t.TempDir())
+
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup/traverse/download")
+		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd.tar.gz"}}
+		DownloadBackup(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("non-archive name rejected", func(t *testing.T) {
 		dataDir := t.TempDir()
 		t.Setenv("DATA_DIR", dataDir)
+		writeTestBackup(t, dataDir, "server.yml")
 
-		c, w := newTestContext(http.MethodGet, "/admin/backup/download/..%2F..%2Fetc%2Fpasswd")
-		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd"}}
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup/server.yml/download")
+		c.Params = []gin.Param{{Key: "filename", Value: "server.yml"}}
 		DownloadBackup(c)
-		if w.Code != http.StatusForbidden {
-			t.Fatalf("status = %d, want 403; body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("existing file downloads", func(t *testing.T) {
 		dataDir := t.TempDir()
 		t.Setenv("DATA_DIR", dataDir)
-		backupDir := filepath.Join(dataDir, "backups")
-		if err := os.MkdirAll(backupDir, 0755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(backupDir, "one.tar.gz"), []byte("x"), 0644); err != nil {
-			t.Fatalf("write: %v", err)
-		}
+		writeTestBackup(t, dataDir, "one.tar.gz")
 
-		c, w := newTestContext(http.MethodGet, "/admin/backup/download/one.tar.gz")
+		c, w := newTestContext(http.MethodGet, "/admin/config/backup/one.tar.gz/download")
 		c.Params = []gin.Param{{Key: "filename", Value: "one.tar.gz"}}
 		DownloadBackup(c)
 		if w.Code != http.StatusOK {
@@ -317,10 +410,9 @@ func TestDownloadBackup(t *testing.T) {
 
 func TestDeleteBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
-		dataDir := t.TempDir()
-		t.Setenv("DATA_DIR", dataDir)
+		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodDelete, "/admin/backup/missing.tar.gz")
+		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/missing.tar.gz")
 		c.Params = []gin.Param{{Key: "filename", Value: "missing.tar.gz"}}
 		DeleteBackup(c)
 		if w.Code != http.StatusNotFound {
@@ -329,30 +421,22 @@ func TestDeleteBackup(t *testing.T) {
 	})
 
 	t.Run("traversal rejected", func(t *testing.T) {
-		dataDir := t.TempDir()
-		t.Setenv("DATA_DIR", dataDir)
+		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodDelete, "/admin/backup/traverse")
-		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd"}}
+		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/traverse")
+		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd.tar.gz"}}
 		DeleteBackup(c)
-		if w.Code != http.StatusForbidden {
-			t.Fatalf("status = %d, want 403; body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("existing file deletes", func(t *testing.T) {
 		dataDir := t.TempDir()
 		t.Setenv("DATA_DIR", dataDir)
-		backupDir := filepath.Join(dataDir, "backups")
-		if err := os.MkdirAll(backupDir, 0755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		target := filepath.Join(backupDir, "one.tar.gz")
-		if err := os.WriteFile(target, []byte("x"), 0644); err != nil {
-			t.Fatalf("write: %v", err)
-		}
+		target := writeTestBackup(t, dataDir, "one.tar.gz")
 
-		c, w := newTestContext(http.MethodDelete, "/admin/backup/one.tar.gz")
+		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/one.tar.gz")
 		c.Params = []gin.Param{{Key: "filename", Value: "one.tar.gz"}}
 		DeleteBackup(c)
 		if w.Code != http.StatusOK {
@@ -360,6 +444,74 @@ func TestDeleteBackup(t *testing.T) {
 		}
 		if _, err := os.Stat(target); !os.IsNotExist(err) {
 			t.Fatalf("expected file removed, stat err = %v", err)
+		}
+	})
+}
+
+func TestBackupSchedule(t *testing.T) {
+	t.Run("returns defaults when nothing is stored", func(t *testing.T) {
+		_, c, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/config/backup/schedule", nil)
+		GetBackupSchedule(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		var schedule struct {
+			Enabled   bool `json:"enabled"`
+			Interval  int  `json:"interval"`
+			Retention int  `json:"retention"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &schedule); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if !schedule.Enabled || schedule.Interval != 6 || schedule.Retention != 30 {
+			t.Fatalf("unexpected defaults: %+v", schedule)
+		}
+	})
+
+	t.Run("saves and reads back", func(t *testing.T) {
+		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+			"enabled":   false,
+			"interval":  12,
+			"retention": 90,
+		})
+		SaveBackupSchedule(c)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+
+		readCtx, readRec := newTestContext(http.MethodGet, "/admin/config/backup/schedule")
+		readCtx.Set("db", c.MustGet("db"))
+		GetBackupSchedule(readCtx)
+		var schedule struct {
+			Enabled   bool `json:"enabled"`
+			Interval  int  `json:"interval"`
+			Retention int  `json:"retention"`
+		}
+		if err := json.Unmarshal(readRec.Body.Bytes(), &schedule); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if schedule.Enabled || schedule.Interval != 12 || schedule.Retention != 90 {
+			t.Fatalf("unexpected saved schedule: %+v", schedule)
+		}
+	})
+
+	t.Run("rejects out-of-range interval", func(t *testing.T) {
+		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+			"interval": 0,
+		})
+		SaveBackupSchedule(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("rejects out-of-range retention", func(t *testing.T) {
+		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+			"retention": 5000,
+		})
+		SaveBackupSchedule(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 }

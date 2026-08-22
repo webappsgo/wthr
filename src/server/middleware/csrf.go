@@ -118,6 +118,7 @@ func isPublicEndpoint(path string) bool {
 	// Public API endpoints use API tokens for auth, not sessions
 	publicPrefixes := []string{
 		"/api/",
+		"/server/healthz",
 		"/healthz",
 		"/metrics",
 		"/openapi",

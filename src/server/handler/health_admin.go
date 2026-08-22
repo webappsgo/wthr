@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -18,183 +19,6 @@ func AdminServerStatus(db *database.DB, httpPort string, httpsPort int, sslManag
 	return func(c *gin.Context) {
 		httpStatus, response := buildAdminServerStatusResponse(db, c, httpPort, httpsPort, sslManager)
 		c.JSON(httpStatus, response)
-	}
-}
-
-// ComprehensiveHealthCheck handles GET /healthz with full system health data
-func ComprehensiveHealthCheck(db *database.DB, httpPort string, httpsPort int, sslManager interface{}) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		status := GetInitStatus()
-		startTime := status.Started
-
-		// Resolve version from the build-time-injected package var
-		version := readVersion()
-
-		// Overall status determination
-		overallStatus := "healthy"
-		httpStatus := http.StatusOK
-
-		// Database check
-		dbStatus, dbLatency, dbErr := db.HealthCheck()
-		if dbErr != nil || dbStatus != "connected" {
-			overallStatus = "unhealthy"
-			httpStatus = http.StatusServiceUnavailable
-		}
-
-		// Memory stats
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-		memUsedBytes := int64(m.Alloc)
-		memTotalBytes := int64(m.Sys)
-		memUsedPercent := int(float64(memUsedBytes) / float64(memTotalBytes) * 100)
-
-		if memUsedPercent > 95 {
-			overallStatus = "unhealthy"
-			httpStatus = http.StatusServiceUnavailable
-		} else if memUsedPercent > 80 {
-			if overallStatus == "healthy" {
-				overallStatus = "degraded"
-			}
-		}
-
-		memStatus := "ok"
-		if memUsedPercent > 95 {
-			memStatus = "critical"
-		} else if memUsedPercent > 80 {
-			memStatus = "warning"
-		}
-
-		// Disk usage
-		dataDir := getDataDir()
-		logDir := getLogDir()
-
-		dataDiskUsage := getDiskUsage(dataDir)
-		logDiskUsage := getDiskUsage(logDir)
-
-		if dataDiskUsage.UsedPercent > 95 || logDiskUsage.UsedPercent > 95 {
-			overallStatus = "unhealthy"
-			httpStatus = http.StatusServiceUnavailable
-		} else if dataDiskUsage.UsedPercent > 80 || logDiskUsage.UsedPercent > 80 {
-			if overallStatus == "healthy" {
-				overallStatus = "degraded"
-			}
-		}
-
-		diskStatus := "ok"
-		if dataDiskUsage.UsedPercent > 95 || logDiskUsage.UsedPercent > 95 {
-			diskStatus = "critical"
-		} else if dataDiskUsage.UsedPercent > 80 || logDiskUsage.UsedPercent > 80 {
-			diskStatus = "warning"
-		}
-
-		// Session count
-		sessionCount, _ := db.GetSessionCount()
-
-		// SSL status
-		sslStatus := getSSLStatus(sslManager)
-
-		// Scheduler status
-		schedulerStatus := getSchedulerStatus()
-
-		// Request stats
-		requestStats := getRequestStats()
-
-		// Server info
-		serverInfo := getServerInfo(c, httpPort, httpsPort, sslManager)
-
-		// Feature flags
-		features := getFeatureFlags(db)
-
-		// Build response according to spec
-		response := gin.H{
-			"status":         overallStatus,
-			"timestamp":      time.Now().Format(time.RFC3339),
-			"version":        version,
-			"uptime_seconds": int64(time.Since(startTime).Seconds()),
-			"checks": gin.H{
-				"database": gin.H{
-					"status":     dbStatus,
-					"type":       "sqlite",
-					"latency_ms": dbLatency,
-					"connection_pool": gin.H{
-						// SQLite doesn't have connection pooling
-						"active": 1,
-						"idle":   0,
-						"max":    1,
-					},
-				},
-				"location_databases": gin.H{
-					"countries": gin.H{
-						"status": getStatusString(initStatus.Countries),
-						"loaded": initStatus.Countries,
-					},
-					"cities": gin.H{
-						"status": getStatusString(initStatus.Cities),
-						"loaded": initStatus.Cities,
-					},
-					"zipcodes": gin.H{
-						"status": "loaded",
-						"loaded": true,
-					},
-					"geoip": gin.H{
-						"status":    "loaded",
-						"loaded":    true,
-						"databases": 4,
-						"types":     []string{"IPv4 City", "IPv6 City", "Country", "ASN"},
-					},
-				},
-				"cache": gin.H{
-					"status":     "inactive",
-					"type":       "none",
-					"hit_rate":   0.0,
-					"size_bytes": 0,
-					"entries":    0,
-				},
-				"disk": gin.H{
-					"status": diskStatus,
-					"data_dir": gin.H{
-						"path":         dataDir,
-						"used_bytes":   dataDiskUsage.UsedBytes,
-						"free_bytes":   dataDiskUsage.FreeBytes,
-						"total_bytes":  dataDiskUsage.TotalBytes,
-						"used_percent": dataDiskUsage.UsedPercent,
-					},
-					"log_dir": gin.H{
-						"path":         logDir,
-						"used_bytes":   logDiskUsage.UsedBytes,
-						"free_bytes":   logDiskUsage.FreeBytes,
-						"total_bytes":  logDiskUsage.TotalBytes,
-						"used_percent": logDiskUsage.UsedPercent,
-					},
-				},
-				"memory": gin.H{
-					"status":       memStatus,
-					"used_bytes":   memUsedBytes,
-					"total_bytes":  memTotalBytes,
-					"used_percent": memUsedPercent,
-					"heap_bytes":   int64(m.HeapAlloc),
-					"gc_runs":      m.NumGC,
-				},
-				"ssl":       sslStatus,
-				"scheduler": schedulerStatus,
-				"sessions": gin.H{
-					"active":      sessionCount,
-					"total_today": sessionCount,
-				},
-				"requests": requestStats,
-			},
-			"server":   serverInfo,
-			"features": features,
-		}
-
-		if shouldRespondText(c) {
-			RespondNegotiatedData(c, httpStatus, response)
-			return
-		}
-
-		// TEMPLATE.md: /healthz must return HTML for browser requests.
-		// /api/v1/healthz returns JSON or text/plain via a different handler.
-		c.HTML(httpStatus, "page/healthz.tmpl", response)
 	}
 }
 
@@ -356,10 +180,6 @@ func getLogDir() string {
 	return dir
 }
 
-func GetLogDir() string {
-	return getLogDir()
-}
-
 type DiskUsage struct {
 	Path        string
 	UsedBytes   int64
@@ -475,35 +295,51 @@ func getRequestStats() gin.H {
 		}
 	}
 
-	// Count audit log entries for today (gives us a proxy for activity)
-	var totalToday int
-	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM server_audit_log
-		WHERE timestamp >= date('now', 'start of day')
-	`).Scan(&totalToday)
-	if err != nil {
-		totalToday = 0
-	}
+	// Today's audit-log activity, today's errors and the last minute's rate are
+	// counted in one pass with the cutoffs applied in Go. SQLite's
+	// date('now', 'start of day') and datetime('now', '-1 minute') return NULL
+	// for the local-zone layout the driver writes for a bound time.Time, so
+	// every such row silently dropped out of all three counts, and neither
+	// function exists on PostgreSQL or MySQL.
+	var totalToday, errorsToday, lastMinute int
 
-	// Count errors today
-	var errorsToday int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM server_audit_log
-		WHERE timestamp >= date('now', 'start of day')
-		AND status = 'error'
-	`).Scan(&errorsToday)
-	if err != nil {
-		errorsToday = 0
-	}
+	startOfDay := time.Now().UTC().Truncate(24 * time.Hour)
+	lastMinuteCutoff := time.Now().UTC().Add(-time.Minute)
 
-	// Count entries in last minute for rate
-	var lastMinute int
-	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM server_audit_log
-		WHERE timestamp >= datetime('now', '-1 minute')
-	`).Scan(&lastMinute)
-	if err != nil {
-		lastMinute = 0
+	rows, err := database.QueryContext(context.Background(), db, database.TimeoutSimpleSelect, `
+		SELECT status, timestamp
+		FROM server_audit_log
+		WHERE timestamp IS NOT NULL
+	`)
+	if err == nil {
+		defer rows.Close()
+
+		for rows.Next() {
+			var status string
+			var storedTimestamp interface{}
+			if scanErr := rows.Scan(&status, &storedTimestamp); scanErr != nil {
+				break
+			}
+
+			entryTime, ok := dbtime.ParseStoredTimestamp(storedTimestamp)
+			if !ok {
+				continue
+			}
+
+			if !entryTime.Before(startOfDay) {
+				totalToday++
+				if status == "error" {
+					errorsToday++
+				}
+			}
+
+			if !entryTime.Before(lastMinuteCutoff) {
+				lastMinute++
+			}
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			totalToday, errorsToday, lastMinute = 0, 0, 0
+		}
 	}
 
 	// Calculate error rate
@@ -542,26 +378,4 @@ func getServerInfo(c *gin.Context, httpPort string, httpsPort int, sslManager in
 		"pid":           os.Getpid(),
 		"started_at":    GetInitStatus().Started.Format(time.RFC3339),
 	}
-}
-
-func getFeatureFlags(db *database.DB) gin.H {
-	// Read from database settings
-	regEnabled, _ := db.GetSetting("registration.enabled")
-	apiEnabled, _ := db.GetSetting("api.enabled")
-	maintenanceMode, _ := db.GetSetting("maintenance.mode")
-
-	return gin.H{
-		"registration_enabled": regEnabled != "false",
-		"api_enabled":          apiEnabled != "false",
-		"maintenance_mode":     maintenanceMode == "true",
-		"graphql_enabled":      false,
-		"websocket_enabled":    false,
-	}
-}
-
-func getStatusString(loaded bool) string {
-	if loaded {
-		return "loaded"
-	}
-	return "loading"
 }

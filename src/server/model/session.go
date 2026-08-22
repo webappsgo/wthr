@@ -11,8 +11,47 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
+
+// The timestamp helpers below are thin aliases over src/common/dbtime, the
+// project's single source of truth for SQL timestamp formatting, parsing and
+// comparison. They stay package-local so the many existing callers in this
+// package keep reading naturally, and so package model never has to import
+// package scheduler (scheduler depends on server/service, which depends on this
+// package). dbtime imports only the standard library, so no cycle is possible.
+
+// sqlTimestampLayout is the canonical "YYYY-MM-DD HH:MM:SS" layout SQLite's
+// CURRENT_TIMESTAMP emits and that PostgreSQL/MySQL accept as a literal.
+const sqlTimestampLayout = dbtime.SQLTimestampLayout
+
+// sqlTimestamp renders t as canonical UTC text for binding into a query.
+func sqlTimestamp(t time.Time) string {
+	return dbtime.FormatSQLTimestamp(t)
+}
+
+// parseStoredTimestamp converts a value scanned from a DATETIME column into a
+// UTC time.Time, reporting false for NULL and for layouts the project never
+// writes.
+func parseStoredTimestamp(value interface{}) (time.Time, bool) {
+	return dbtime.ParseStoredTimestamp(value)
+}
+
+// isTimestampAfter reports whether a value scanned from a DATETIME column is
+// strictly later than threshold, failing closed (false) for NULL and for
+// layouts the project never writes.
+func isTimestampAfter(value interface{}, threshold time.Time) bool {
+	return dbtime.IsAfter(value, threshold)
+}
+
+// deleteRowsWithTimestampBefore deletes every row of table whose
+// timestampColumn holds an instant earlier than cutoff (or equal to it when
+// includeEqual is true), comparing in Go so mixed on-disk layouts and mixed
+// timezones all resolve to the same absolute instant.
+func deleteRowsWithTimestampBefore(db *sql.DB, table, idColumn, timestampColumn string, cutoff time.Time, includeEqual bool) (int64, error) {
+	return dbtime.DeleteRowsWithTimestampBefore(db, table, idColumn, timestampColumn, cutoff, includeEqual)
+}
 
 // Session represents a user session.
 // ID holds the raw bearer token (what the browser cookie contains).
@@ -28,6 +67,22 @@ type Session struct {
 // SessionModel handles session database operations
 type SessionModel struct {
 	DB *sql.DB
+}
+
+// getDB returns the users.db handle this model was constructed with. The only
+// table SessionModel touches (user_sessions) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *SessionModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
 }
 
 // GenerateSessionID creates a cryptographically secure random session token.
@@ -69,10 +124,14 @@ func (m *SessionModel) Create(userID interface{}, sessionTimeout int) (*Session,
 	expiresAt := time.Now().Add(time.Duration(sessionTimeout) * time.Second)
 	now := time.Now()
 
-	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	// expires_at and created_at are bound as canonical UTC text, the same layout
+	// UserSessionModel.CreateSession and CURRENT_TIMESTAMP write into this table.
+	// Binding a raw time.Time would store the local-zone time.Time.String() form,
+	// which compares wrongly against every other writer's rows.
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_sessions (token_hash, user_id, expires_at, created_at)
 		VALUES (?, ?, ?, ?)
-	`, hashToken(rawToken), uid, expiresAt, now)
+	`, hashToken(rawToken), uid, sqlTimestamp(expiresAt), sqlTimestamp(now))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -93,10 +152,19 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	session := &Session{}
 	var dataJSON sql.NullString
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	// expires_at and created_at are scanned as raw driver values and resolved
+	// with parseStoredTimestamp rather than scanned straight into time.Time.
+	// user_sessions has several writers, and a row an older build wrote holds the
+	// local-zone time.Time.String() text; database/sql cannot convert that to a
+	// time.Time, so the lookup failed with a scan error instead of returning the
+	// session.
+	var storedExpiresAt interface{}
+	var storedCreatedAt interface{}
+
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT token_hash, user_id, data, expires_at, created_at
 		FROM user_sessions WHERE token_hash = ?
-	`, hashToken(rawToken)).Scan(&session.ID, &session.UserID, &dataJSON, &session.ExpiresAt, &session.CreatedAt)
+	`, hashToken(rawToken)).Scan(&session.ID, &session.UserID, &dataJSON, &storedExpiresAt, &storedCreatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("session not found")
@@ -109,11 +177,20 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	// and follow-up model calls without re-hashing.
 	session.ID = rawToken
 
-	// Check if session is expired.
-	if time.Now().After(session.ExpiresAt) {
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		session.CreatedAt = parsed
+	}
+
+	// Check if session is expired. An expires_at this project cannot parse fails
+	// closed - the session is treated as expired and removed rather than granted
+	// unlimited life.
+	expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+	if !ok || !time.Now().UTC().Before(expiresAt) {
 		m.Delete(rawToken)
 		return nil, fmt.Errorf("session expired")
 	}
+
+	session.ExpiresAt = expiresAt
 
 	// Parse optional session data.
 	if dataJSON.Valid && dataJSON.String != "" {
@@ -133,7 +210,7 @@ func (m *SessionModel) UpdateData(rawToken string, data map[string]interface{}) 
 		return fmt.Errorf("failed to marshal session data: %w", err)
 	}
 
-	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_sessions SET data = ?
 		WHERE token_hash = ?
 	`, string(dataJSON), hashToken(rawToken))
@@ -144,27 +221,31 @@ func (m *SessionModel) UpdateData(rawToken string, data map[string]interface{}) 
 func (m *SessionModel) Extend(rawToken string, sessionTimeout int) error {
 	expiresAt := time.Now().Add(time.Duration(sessionTimeout) * time.Second)
 
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_sessions SET expires_at = ?
 		WHERE token_hash = ?
-	`, expiresAt, hashToken(rawToken))
+	`, sqlTimestamp(expiresAt), hashToken(rawToken))
 	return err
 }
 
 // Delete removes a single session by its raw bearer token.
 func (m *SessionModel) Delete(rawToken string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE token_hash = ?", hashToken(rawToken))
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE token_hash = ?", hashToken(rawToken))
 	return err
 }
 
 // DeleteByUserID removes all sessions belonging to a user.
 func (m *SessionModel) DeleteByUserID(userID int) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE user_id = ?", userID)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE user_id = ?", userID)
 	return err
 }
 
 // CleanupExpired removes sessions that have passed their expiry time.
+// user_sessions.expires_at has more than one producer, so the expiry test runs
+// in Go against a UTC cutoff instead of as an SQL text comparison - comparing
+// mixed layouts lexicographically deleted sessions that had not expired. Rows
+// whose expires_at is NULL or unparseable are left alone.
 func (m *SessionModel) CleanupExpired() error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, "DELETE FROM user_sessions WHERE expires_at < ?", time.Now())
+	_, err := deleteRowsWithTimestampBefore(m.getDB(), "user_sessions", "id", "expires_at", time.Now().UTC(), false)
 	return err
 }

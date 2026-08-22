@@ -14,6 +14,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gin-gonic/gin"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -51,22 +52,6 @@ func NewServer(resolver *Resolver) *gqlhandler.Server {
 	srv.Use(extension.Introspection{})
 	srv.Use(extension.AutomaticPersistedQuery{Cache: lru.New[string](100)})
 	return srv
-}
-
-// RegisterRoutes registers all GraphQL routes
-// Per AI.md specification: /graphql for queries, GraphiQL playground at /graphql with GET
-func RegisterRoutes(router *gin.Engine, resolver *Resolver) {
-	srv := NewServer(resolver)
-
-	// GraphQL endpoint for POST requests (actual queries)
-	router.POST("/graphql", GraphQLHandler(srv))
-
-	// GraphiQL playground for GET requests (interactive UI)
-	router.GET("/graphql", PlaygroundHandler("/graphql"))
-
-	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
-	// never loaded from a CDN, see playground.go.
-	router.GET(playgroundAssetPrefix+"*filepath", PlaygroundAssetHandler())
 }
 
 // GraphQLHandler wraps the gqlgen handler for Gin.
@@ -192,17 +177,30 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 		return ctx, nil
 	}
 
+	// expires_at is fetched with the row and judged in Go rather than compared
+	// in SQL. "expires_at > CURRENT_TIMESTAMP" is a lexicographic TEXT
+	// comparison over a column that may hold canonical UTC text or the
+	// local-zone time.Time.String() form an older build wrote, so a session
+	// stored in a zone behind UTC authenticated long after it had expired,
+	// while one stored ahead of UTC was rejected while still valid.
 	var adminID int
+	var storedExpiresAt interface{}
 	err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-		SELECT admin_id
+		SELECT admin_id, expires_at
 		FROM server_admin_sessions
-		WHERE id = ? AND expires_at > CURRENT_TIMESTAMP
-	`, sessionID).Scan(&adminID)
+		WHERE id = ?
+	`, sessionID).Scan(&adminID, &storedExpiresAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ctx, nil
 		}
 		return nil, fmt.Errorf("failed to load admin session: %w", err)
+	}
+
+	// Fail closed: an expired, NULL or unparseable expires_at leaves the
+	// context unauthenticated, exactly as a missing row already did.
+	if !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
+		return ctx, nil
 	}
 
 	return withGraphQLAdminContext(ctx, adminID)

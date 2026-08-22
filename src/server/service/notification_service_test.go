@@ -4,11 +4,14 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 	_ "modernc.org/sqlite"
 )
 
-// setupTestDB creates an in-memory SQLite database for testing
+// setupNotificationTestDB creates in-memory users and server SQLite databases
+// with the real production UsersSchema/ServerSchema applied, so the tables the
+// notification models write to have exactly the production shape.
 func setupNotificationTestDB(t *testing.T) (*sql.DB, *sql.DB) {
 	// Using file:NAME?mode=memory&cache=shared ensures all connections share the same in-memory database
 	// This is required because sql.DB uses connection pooling, and with plain :memory:
@@ -25,80 +28,29 @@ func setupNotificationTestDB(t *testing.T) (*sql.DB, *sql.DB) {
 		t.Fatalf("Failed to open server test database: %v", err)
 	}
 
-	// Create user_notifications table
-	_, err = userDB.Exec(`
-		CREATE TABLE user_notifications (
-			id TEXT PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
-			display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
-			title TEXT NOT NULL,
-			message TEXT NOT NULL,
-			action_json TEXT,
-			read BOOLEAN DEFAULT 0,
-			dismissed BOOLEAN DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at DATETIME
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create user_notifications table: %v", err)
+	if _, err := userDB.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("apply UsersSchema: %v", err)
+	}
+	if _, err := serverDB.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("apply ServerSchema: %v", err)
 	}
 
-	// Create server_admin_notifications table
-	_, err = serverDB.Exec(`
-		CREATE TABLE server_admin_notifications (
-			id TEXT PRIMARY KEY,
-			admin_id INTEGER NOT NULL,
-			type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
-			display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
-			title TEXT NOT NULL,
-			message TEXT NOT NULL,
-			action_json TEXT,
-			read BOOLEAN DEFAULT 0,
-			dismissed BOOLEAN DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at DATETIME
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create server_admin_notifications table: %v", err)
+	// user_notifications and user_notification_preferences declare
+	// FOREIGN KEY (user_id) REFERENCES user_accounts(id), and
+	// server_admin_notifications / server_admin_notification_preferences
+	// declare FOREIGN KEY (admin_id) REFERENCES server_admin_credentials(id),
+	// so both owner rows must exist before the tests write notifications for
+	// user 1 / admin 1. username, email and password_hash are NOT NULL on both
+	// parent tables.
+	if _, err := userDB.Exec(
+		`INSERT INTO user_accounts (id, username, email, password_hash) VALUES (1, 'user1', 'user1@example.com', 'x')`,
+	); err != nil {
+		t.Fatalf("seed user_accounts(1): %v", err)
 	}
-
-	// Create user_notification_preferences table
-	_, err = userDB.Exec(`
-		CREATE TABLE user_notification_preferences (
-			user_id INTEGER PRIMARY KEY,
-			enable_toast BOOLEAN DEFAULT 1,
-			enable_banner BOOLEAN DEFAULT 1,
-			enable_center BOOLEAN DEFAULT 1,
-			enable_sound BOOLEAN DEFAULT 0,
-			toast_duration_success INTEGER DEFAULT 5,
-			toast_duration_info INTEGER DEFAULT 5,
-			toast_duration_warning INTEGER DEFAULT 10,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create user_notification_preferences table: %v", err)
-	}
-
-	// Create server_admin_notification_preferences table
-	_, err = serverDB.Exec(`
-		CREATE TABLE server_admin_notification_preferences (
-			admin_id INTEGER PRIMARY KEY,
-			enable_toast BOOLEAN DEFAULT 1,
-			enable_banner BOOLEAN DEFAULT 1,
-			enable_center BOOLEAN DEFAULT 1,
-			enable_sound BOOLEAN DEFAULT 0,
-			toast_duration_success INTEGER DEFAULT 5,
-			toast_duration_info INTEGER DEFAULT 5,
-			toast_duration_warning INTEGER DEFAULT 10,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create server_admin_notification_preferences table: %v", err)
+	if _, err := serverDB.Exec(
+		`INSERT INTO server_admin_credentials (id, username, email, password_hash) VALUES (1, 'admin1', 'admin1@example.com', 'x')`,
+	); err != nil {
+		t.Fatalf("seed server_admin_credentials(1): %v", err)
 	}
 
 	return userDB, serverDB

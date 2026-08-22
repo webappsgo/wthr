@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -28,6 +29,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/cli"
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
@@ -62,6 +65,33 @@ func getDefaultListenAddress() string {
 
 	// Fallback to IPv4 only
 	return "0.0.0.0"
+}
+
+// registerHealthRoutes mounts the canonical health routes per AI.md PART 13
+// /server/healthz is the canonical content-negotiated route, /api/{api_version}/server/healthz
+// is its API counterpart, /api/healthz is the unversioned alias mounting the SAME handler,
+// and the root /healthz alias is mounted only when server.healthz.root.enabled is true
+// Aliases are always direct handler mappings, never redirects
+func registerHealthRoutes(r *gin.Engine, apiPath string, rootAliasEnabled bool, frontend, api gin.HandlerFunc) {
+	r.GET("/server/healthz", frontend)
+	r.GET(apiPath+"/server/healthz", api)
+	r.GET("/api/healthz", api)
+	if rootAliasEnabled {
+		r.GET("/healthz", frontend)
+	}
+}
+
+// registerGraphQLRoutes mounts the GraphQL endpoint and its API-path alias per AI.md PART 14
+// The alias mounts the SAME handlers as /graphql — an alias is never a redirect
+func registerGraphQLRoutes(r *gin.Engine, apiPath string, query, playground, assets gin.HandlerFunc) {
+	r.POST("/graphql", query)
+	r.GET("/graphql", playground)
+	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
+	// never loaded from a CDN, see src/graphql/playground.go.
+	r.GET("/graphql/assets/*filepath", assets)
+	aliasPath := apiPath + "/graphql"
+	r.POST(aliasPath, query)
+	r.GET(aliasPath, playground)
 }
 
 func main() {
@@ -111,7 +141,8 @@ func main() {
 		if port == "" {
 			port = "80"
 		}
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/healthz", port))
+		// AI.md PART 13: /server/healthz is the canonical route (root /healthz is optional)
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%s/server/healthz", port))
 		if err != nil || resp.StatusCode != http.StatusOK {
 			os.Exit(1)
 		}
@@ -166,13 +197,13 @@ func main() {
 	if mode.IsDebugEnabled() {
 		log.Println("DEBUG MODE ENABLED")
 		log.Println("This mode should NEVER be used in production!")
-		fmt.Println("⚠️  DEBUG MODE ENABLED")
-		fmt.Println("⚠️  This mode should NEVER be used in production!")
+		fmt.Printf("%s DEBUG MODE ENABLED\n", display.Emoji("⚠️", "WARNING:"))
+		fmt.Printf("%s This mode should NEVER be used in production!\n", display.Emoji("⚠️", "WARNING:"))
 	}
 
 	// Log the current mode
 	log.Printf("Running in mode: %s", mode.ModeString())
-	fmt.Printf("🔒 Running in mode: %s\n", mode.ModeString())
+	fmt.Printf("%s Running in mode: %s\n", display.Emoji("🔒", "*"), mode.ModeString())
 
 	// Initialize Prometheus metrics (AI.md PART 21 - NON-NEGOTIABLE)
 	metric.Init(Version, CommitID, BuildDate)
@@ -260,7 +291,7 @@ func main() {
 	// Print startup timestamp
 	startTime := time.Now()
 	appLogger.Printf("%s", startTime.Format("2006-01-02 at 15:04:05"))
-	fmt.Printf("🕐 %s\n", startTime.Format("2006-01-02 at 15:04:05"))
+	fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), startTime.Format("2006-01-02 at 15:04:05"))
 
 	// TEMPLATE.md PART 1: First Run Detection and Auto-Configuration
 	isFirstRun := util.DetectFirstRun(dirPaths.Data)
@@ -268,21 +299,21 @@ func main() {
 
 	if isFirstRun {
 		appLogger.Printf("First run detected - initializing server...")
-		fmt.Println("🎉 First run detected - auto-configuring server...")
+		fmt.Printf("%s First run detected - auto-configuring server...\n", display.Emoji("🎉", "*"))
 
 		// Auto-detect SMTP
 		smtpHost, smtpPort := util.AutoDetectSMTP()
 		appLogger.Printf("SMTP auto-detected: %s:%d", smtpHost, smtpPort)
-		fmt.Printf("📧 SMTP auto-detected: %s:%d\n", smtpHost, smtpPort)
+		fmt.Printf("%s SMTP auto-detected: %s:%d\n", display.Emoji("📧", "*"), smtpHost, smtpPort)
 
 		// Create server.yml with auto-detected settings
 		configPath := filepath.Join(dirPaths.Config, "server.yml")
 		if err := util.CreateDefaultServerYML(configPath, smtpHost, smtpPort); err != nil {
 			appLogger.Error("Failed to create server.yml: %v", err)
-			fmt.Printf("⚠️  Failed to create server.yml: %v\n", err)
+			fmt.Printf("%s Failed to create server.yml: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		} else {
 			appLogger.Printf("server.yml created: %s", configPath)
-			fmt.Printf("✅ server.yml created with auto-detected settings\n")
+			fmt.Printf("%s server.yml created with auto-detected settings\n", display.Emoji("✅", "[OK]"))
 		}
 
 		// Generate one-time setup token
@@ -332,20 +363,20 @@ func main() {
 
 	if setupComplete {
 		appLogger.Printf("Database initialized: %s", dbPath)
-		fmt.Printf("✅ Database initialized: %s\n", dbPath)
+		fmt.Printf("%s Database initialized: %s\n", display.Emoji("✅", "[OK]"), dbPath)
 	} else {
 		appLogger.Printf("Database initialized: %s (setup mode)", dbPath)
-		fmt.Printf("✅ Database initialized: %s (setup mode)\n", dbPath)
+		fmt.Printf("%s Database initialized: %s (setup mode)\n", display.Emoji("✅", "[OK]"), dbPath)
 	}
 
 	// Load server configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		appLogger.Error("Warning: Could not load server.yml: %v (using defaults)", err)
-		fmt.Printf("⚠️  Warning: Could not load server.yml: %v (using defaults)\n", err)
+		fmt.Printf("%s Warning: Could not load server.yml: %v (using defaults)\n", display.Emoji("⚠️", "WARNING:"), err)
 	} else {
 		appLogger.Printf("Configuration loaded from server.yml")
-		fmt.Printf("✅ Configuration loaded from server.yml\n")
+		fmt.Printf("%s Configuration loaded from server.yml\n", display.Emoji("✅", "[OK]"))
 	}
 
 	// Set global config for handler access
@@ -358,14 +389,14 @@ func main() {
 	backupPath := util.GetBackupPath(dirPaths)
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
 		appLogger.Error("Warning: Could not initialize default settings: %v", err)
-		fmt.Printf("⚠️  Warning: Could not initialize default settings: %v\n", err)
+		fmt.Printf("%s Warning: Could not initialize default settings: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
 
 	// Initialize cache manager (Valkey/Redis support, optional)
 	cacheManager := service.NewCacheManager()
 	if cacheManager.IsEnabled() {
 		appLogger.Printf("Cache enabled (Redis/Valkey)")
-		fmt.Printf("✅ Cache enabled (Redis/Valkey)\n")
+		fmt.Printf("%s Cache enabled (Redis/Valkey)\n", display.Emoji("✅", "[OK]"))
 	}
 
 	// LDAP authentication service per AI.md PART 11
@@ -376,7 +407,8 @@ func main() {
 	oidcAuthHandler := &handler.OIDCAuthHandler{DB: db.DB, OIDCService: oidcService}
 
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
-	smtpService := service.NewSMTPService(db.DB)
+	// SMTPService reads server_config and server_notification_channels, both of which live in server.db
+	smtpService := service.NewSMTPService(dualDB.Server)
 	if err := smtpService.LoadConfig(); err == nil {
 		// Check if SMTP is not already configured
 		smtpHost := settingsModel.GetString("smtp.host", "")
@@ -386,7 +418,7 @@ func main() {
 				// SMTP detected, enable it
 				settingsModel.SetBool("smtp.enabled", true)
 				appLogger.Printf("SMTP server auto-detected and enabled")
-				fmt.Printf("✉️  SMTP server auto-detected and enabled\n")
+				fmt.Printf("%s SMTP server auto-detected and enabled\n", display.Emoji("✉️", "*"))
 			}
 		}
 
@@ -413,7 +445,7 @@ func main() {
 	hasNoUsers, err := db.IsFirstRun()
 	if err != nil {
 		appLogger.Error("Warning: Could not check first run status: %v", err)
-		fmt.Printf("⚠️  Warning: Could not check first run status: %v\n", err)
+		fmt.Printf("%s Warning: Could not check first run status: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		hasNoUsers = false
 	}
 	if hasNoUsers {
@@ -521,16 +553,26 @@ func main() {
 	r.StaticFS("/static", http.FS(staticSubFS))
 
 	// Initialize i18n service (TEMPLATE.md PART 29 - NON-NEGOTIABLE)
-	i18nService, err := i18n.NewI18n(localesFS, "en")
+	// AI.md PART 31 server chain: --lang > server.yml lang > LC_ALL/LANG > en
+	serverLang := config.ResolveLanguage(cfg)
+	i18nService, err := i18n.NewI18n(localesFS, serverLang)
 	if err != nil {
 		// General startup failure — embedded locale corruption (AI.md PART 8: exit code 1).
 		log.Printf("Failed to initialize i18n: %v", err)
 		os.Exit(1)
 	}
+	// AI.md PART 31: an unsupported language silently falls back to English
+	if !i18nService.IsSupported(serverLang) {
+		i18nService, err = i18n.NewI18n(localesFS, "en")
+		if err != nil {
+			log.Printf("Failed to initialize i18n: %v", err)
+			os.Exit(1)
+		}
+	}
 	// Global accessor for services/scheduler tasks with no gin.Context
 	// (e.g. src/server/service/smtp.go's server-initiated emails).
 	i18n.SetGlobalI18n(i18nService)
-	fmt.Printf("🌐 I18n initialized with languages: %v\n", i18nService.GetSupportedLanguages())
+	fmt.Printf("%s I18n initialized with languages: %v\n", display.Emoji("🌐", "*"), i18nService.GetSupportedLanguages())
 
 	// I18n middleware - per AI.md PART 31 fallback chain:
 	// ?lang= query param (sets 1yr cookie) → lang cookie → Accept-Language → en
@@ -590,7 +632,7 @@ func main() {
 
 	// Debug: Print loaded templates
 	if gin.Mode() == gin.DebugMode {
-		fmt.Printf("📝 Loading %d templates:\n", len(templatePaths))
+		fmt.Printf("%s Loading %d templates:\n", display.Emoji("📝", "*"), len(templatePaths))
 		for _, path := range templatePaths {
 			fmt.Printf("   - %s\n", path)
 		}
@@ -637,7 +679,7 @@ func main() {
 
 	// Debug: Print registered template names
 	if gin.Mode() == gin.DebugMode {
-		fmt.Println("📋 Registered template names:")
+		fmt.Printf("%s Registered template names:\n", display.Emoji("📋", "*"))
 		for _, t := range tmpl.Templates() {
 			fmt.Printf("   - %s\n", t.Name())
 		}
@@ -666,12 +708,12 @@ func main() {
 				r.SetHTMLTemplate(t)
 				c.Next()
 			})
-			fmt.Println("🔄 Live reload enabled for templates (using filesystem)")
+			fmt.Printf("%s Live reload enabled for templates (using filesystem)\n", display.Emoji("🔄", "->"))
 		} else {
-			fmt.Println("📦 Using embedded templates (no filesystem template found)")
+			fmt.Printf("%s Using embedded templates (no filesystem template found)\n", display.Emoji("📦", "*"))
 		}
 	} else {
-		fmt.Println("📦 Using embedded templates and static files")
+		fmt.Printf("%s Using embedded templates and static files\n", display.Emoji("📦", "*"))
 	}
 
 	// Initialize location enhancer
@@ -681,7 +723,7 @@ func main() {
 	locationEnhancer.SetOnInitComplete(func(countries, cities bool) {
 		// Mark weather service as always ready (no initialization needed)
 		handler.SetInitStatus(countries, cities, true)
-		fmt.Printf("✅ Countries: %v, Cities: %v, zipcodes: true, airportcodes: true\n", countries, cities)
+		fmt.Printf("%s Countries: %v, Cities: %v, zipcodes: true, airportcodes: true\n", display.Emoji("✅", "[OK]"), countries, cities)
 	})
 
 	// Initialize GeoIP service (downloads database on first run, updates weekly)
@@ -695,15 +737,18 @@ func main() {
 		time.Sleep(2 * time.Minute)
 		if !handler.IsInitialized() {
 			fmt.Println("⏰ Initialization timeout reached, marking service as ready (fallback)")
-			fmt.Printf("🕐 %s\n", time.Now().Format("2006-01-02 at 15:04:05"))
+			fmt.Printf("%s %s\n", display.Emoji("🕐", "*"), time.Now().Format("2006-01-02 at 15:04:05"))
 			handler.SetInitStatus(true, true, true)
 		}
 	}()
 
 	// Initialize notification system services (silent)
-	channelManager := service.NewChannelManager(db.DB)
-	templateEngine := service.NewTemplateEngine(db.DB)
-	deliverySystem := service.NewDeliverySystem(db.DB, channelManager, templateEngine)
+	// ChannelManager owns server_notification_channels, TemplateEngine owns the notification
+	// template table and DeliverySystem owns notification_queue/notification_history - every
+	// one of those tables is declared in database.ServerSchema, so they all take server.db
+	channelManager := service.NewChannelManager(dualDB.Server)
+	templateEngine := service.NewTemplateEngine(dualDB.Server)
+	deliverySystem := service.NewDeliverySystem(dualDB.Server, channelManager, templateEngine)
 
 	// Load delivery system settings from database
 	_ = deliverySystem.LoadSettings()
@@ -715,19 +760,22 @@ func main() {
 	_ = channelManager.InitializeChannels()
 
 	// Register email channel with the channel manager
-	smtpService = service.NewSMTPService(db.DB)
+	smtpService = service.NewSMTPService(dualDB.Server)
 	_ = smtpService.LoadConfig()
 	emailChannel := service.NewEmailChannel(smtpService)
 	channelManager.RegisterChannel(emailChannel)
 	if emailChannel.IsEnabled() {
-		fmt.Println("📧 Email channel registered and enabled")
+		fmt.Printf("%s Email channel registered and enabled\n", display.Emoji("📧", "*"))
 	}
 
-	// Create weather notification service
-	weatherNotifications := service.NewWeatherNotificationService(db.DB, weatherService, deliverySystem, templateEngine)
+	// Create weather notification service - it reads notification_subscriptions,
+	// user_notification_channel_preferences, user_saved_locations, user_accounts and
+	// user_weather_alert_history, all declared in database.UsersSchema
+	weatherNotifications := service.NewWeatherNotificationService(dualDB.Users, weatherService, deliverySystem, templateEngine)
 
-	// Initialize notification metrics service
-	notificationMetrics := service.NewNotificationMetrics(db.DB)
+	// Initialize notification metrics service - notification_metrics and notification_queue
+	// are declared in database.ServerSchema
+	notificationMetrics := service.NewNotificationMetrics(dualDB.Server)
 
 	// Initialize Tor hidden service (TEMPLATE.md PART 32 - NON-NEGOTIABLE)
 	torService := service.NewTorService(db, dirPaths.Data)
@@ -740,7 +788,7 @@ func main() {
 	configWatcher, err := service.NewConfigWatcher(configPath, func(newCfg *config.AppConfig) error {
 		// Reload configuration callback - applies changes live without restart
 		log.Printf("Configuration reloaded from %s", configPath)
-		fmt.Printf("🔄 Configuration reloaded from %s\n", configPath)
+		fmt.Printf("%s Configuration reloaded from %s\n", display.Emoji("🔄", "->"), configPath)
 
 		// Update all configuration sections that can be changed at runtime
 		cfg.Server.Mode = newCfg.Server.Mode
@@ -757,13 +805,13 @@ func main() {
 
 		// Port changes require a manual restart to take effect.
 		log.Println("OK: All configuration sections reloaded (branding, SEO, theme, email, notifications, rate limiting, web, Tor, features)")
-		fmt.Println("✅ All configuration sections reloaded successfully")
+		fmt.Printf("%s All configuration sections reloaded successfully\n", display.Emoji("✅", "[OK]"))
 
 		return nil
 	})
 	if err != nil {
 		log.Printf("Failed to create config watcher: %v", err)
-		fmt.Printf("⚠️  Failed to create config watcher: %v\n", err)
+		fmt.Printf("%s Failed to create config watcher: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
 
 	// Initialize scheduler for periodic tasks
@@ -803,7 +851,9 @@ func main() {
 		if usersDB == nil {
 			return nil
 		}
-		_, err := database.ExecContext(context.Background(), usersDB, database.TimeoutBulk, `DELETE FROM user_weather_alerts WHERE expires_at IS NOT NULL AND expires_at < datetime('now')`)
+		// Comparing expires_at against datetime('now') in SQL silently matches nothing when a
+		// row was written in a non-UTC or non-canonical layout, so the cutoff is applied in Go
+		_, err := dbtime.DeleteRowsWithTimestampBefore(usersDB, "user_weather_alerts", "id", "expires_at", time.Now().UTC(), false)
 		return err
 	})
 
@@ -883,9 +933,9 @@ func main() {
 
 	// Register GeoIP database update - AI.md PART 19: weekly Sunday at 03:00
 	taskScheduler.AddTask("update-geoip-database", "0 3 * * 0", func() error {
-		fmt.Println("🌍 Weekly GeoIP database update starting...")
+		fmt.Printf("%s Weekly GeoIP database update starting...\n", display.Emoji("🌍", "*"))
 		if err := geoipService.UpdateDatabase(); err != nil {
-			fmt.Printf("⚠️ GeoIP update failed: %v\n", err)
+			fmt.Printf("%s GeoIP update failed: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 			return err
 		}
 		return nil
@@ -913,7 +963,7 @@ func main() {
 
 	// Initialize task history table for scheduler tracking
 	if err := taskScheduler.InitTaskHistoryTable(); err != nil {
-		fmt.Printf("❌ Failed to initialize task history table: %v\n", err)
+		fmt.Printf("%s Failed to initialize task history table: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		// DB connection failure (AI.md PART 8: exit code 3).
 		log.Printf("Failed to initialize task history table: %v", err)
 		os.Exit(3)
@@ -997,13 +1047,16 @@ func main() {
 		NotificationService: notificationService,
 	}
 
-	// Legacy notification handler (for email notifications only)
-	notificationHandler := &handler.NotificationHandler{DB: db.DB}
+	// Legacy notification handler (for email notifications only) - reads per-user notification
+	// rows, which live in users.db
+	notificationHandler := &handler.NotificationHandler{DB: dualDB.Users}
 
-	// Create notification system handlers
-	channelHandler := handler.NewNotificationChannelHandler(db.DB)
-	preferencesHandler := handler.NewNotificationPreferencesHandler(db.DB)
-	templateHandler := handler.NewNotificationTemplateHandler(db.DB)
+	// Create notification system handlers - channels/queue/history/templates are all declared
+	// in database.ServerSchema, while the per-user channel preferences and subscriptions the
+	// preferences handler edits are declared in database.UsersSchema
+	channelHandler := handler.NewNotificationChannelHandler(dualDB.Server)
+	preferencesHandler := handler.NewNotificationPreferencesHandler(dualDB.Users)
+	templateHandler := handler.NewNotificationTemplateHandler(dualDB.Server)
 	metricsHandler := handler.NewNotificationMetricsHandler(notificationMetrics)
 
 	// Initialize WebUI Notification Cleanup Scheduler (TEMPLATE.md Part 25)
@@ -1114,7 +1167,7 @@ func main() {
 		displayAddr = "[::]"
 	}
 	appLogger.Printf("Starting Weather%s on %s:%s", networkMode, displayAddr, port)
-	fmt.Printf("🚀 Starting Weather%s on %s:%s\n", networkMode, displayAddr, port)
+	fmt.Printf("%s Starting Weather%s on %s:%s\n", display.Emoji("🚀", "*"), networkMode, displayAddr, port)
 	appLogger.Info("Data directory: %s", dirPaths.Data)
 	appLogger.Info("Config directory: %s", dirPaths.Config)
 	appLogger.Info("Log directory: %s", dirPaths.Log)
@@ -1148,15 +1201,15 @@ func main() {
 		found, err := sslManager.CheckExistingCerts(hostname)
 		if err != nil {
 			appLogger.Error("SSL check failed: %v", err)
-			fmt.Printf("⚠️  SSL check failed: %v\n", err)
+			fmt.Printf("%s SSL check failed: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		} else if found {
 			appLogger.Printf("Found Let's Encrypt certificate for %s", hostname)
 			appLogger.Printf("HTTPS enabled on port: %d", httpsPort)
-			fmt.Printf("🔒 Found Let's Encrypt certificate for %s\n", hostname)
-			fmt.Printf("🔌 HTTPS enabled on port: %d\n", httpsPort)
+			fmt.Printf("%s Found Let's Encrypt certificate for %s\n", display.Emoji("🔒", "*"), hostname)
+			fmt.Printf("%s HTTPS enabled on port: %d\n", display.Emoji("🔌", "*"), httpsPort)
 		} else {
 			appLogger.Printf("HTTPS port configured (%d) but no certificates found", httpsPort)
-			fmt.Printf("ℹ️  HTTPS port configured (%d) but no certificates found\n", httpsPort)
+			fmt.Printf("%s HTTPS port configured (%d) but no certificates found\n", display.Emoji("ℹ️", "*"), httpsPort)
 		}
 	}
 	// Note: Self-signed cert generation is optional and disabled by default
@@ -1169,7 +1222,8 @@ func main() {
 	handler.SetBuildInfo(Version, BuildDate, CommitID)
 
 	// Health check endpoints (AI.md PART 13)
-	r.GET("/healthz", handler.HealthCheck(db, startTime))
+	registerHealthRoutes(r, cfg.GetAPIPath(), cfg.IsHealthzRootAliasEnabled(),
+		handler.HealthCheck(db, startTime), handler.APIHealthCheck(db, startTime))
 	r.GET("/health", handler.LivenessCheck)
 	r.GET("/health/ready", handler.ReadinessCheck(db, startTime))
 	r.GET("/health/full", handler.FullHealthCheck(db, startTime))
@@ -1283,11 +1337,11 @@ func main() {
 		})
 	})
 
-	// Server setup routes at /server/{admin_path}/server/setup (requires verified setup token)
-	// AI.md: Setup flow is at /server/{admin_path}/server/setup, creates Primary Admin
+	// Server setup routes at /server/{admin_path}/config/setup (requires verified setup token)
+	// AI.md: Setup flow is at /server/{admin_path}/config/setup, creates Primary Admin
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
-	// AI.md: Step 4: Redirect to /server/{admin_path}/server/setup (setup wizard) after token verified
-	adminSetupRoutes := r.Group("/server/" + cfg.GetAdminPath() + "/server/setup")
+	// AI.md: Step 4: Redirect to /server/{admin_path}/config/setup (setup wizard) after token verified
+	adminSetupRoutes := r.Group("/server/" + cfg.GetAdminPath() + "/config/setup")
 	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
 	{
@@ -1343,16 +1397,8 @@ func main() {
 			return
 		}
 
-		var verificationID int64
-		var userID int64
-		var expiresAt time.Time
-		err := database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, `
-			SELECT id, user_id, expires_at
-			FROM user_email_verifications
-			WHERE token = ? AND expires_at > ?
-		`, code, time.Now()).Scan(&verificationID, &userID, &expiresAt)
-
-		if err != nil {
+		verificationID, userID, valid := lookupEmailVerification(db.DB, code, time.Now())
+		if !valid {
 			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
 				"title": "Verify Email",
 				"error": "Invalid or expired verification link. Please request a new one.",
@@ -1361,11 +1407,14 @@ func main() {
 		}
 
 		// Mark email as verified
-		_, err = database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
+		// updated_at is bound as canonical UTC text rather than written by the SQL
+		// CURRENT_TIMESTAMP literal, which yields a different type and zone on
+		// PostgreSQL, MySQL and SQL Server than it does on SQLite.
+		_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
 			UPDATE user_accounts
-			SET email_verified = 1, updated_at = CURRENT_TIMESTAMP
+			SET email_verified = 1, updated_at = ?
 			WHERE id = ?
-		`, userID)
+		`, dbtime.FormatSQLTimestamp(time.Now()), userID)
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
 				"title": "Verify Email",
@@ -1604,7 +1653,9 @@ func main() {
 			return
 		}
 
-		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
+		// updated_at is bound as canonical UTC text so every driver stores the same
+		// layout the rest of the project reads back.
+		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
 			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
 				"code":       token,
 				"username":   req.Username,
@@ -1741,135 +1792,141 @@ func main() {
 			c.Redirect(http.StatusFound, "/server/auth/login")
 		})
 
-		// All management pages under /server/ per spec
-		// Only /{admin_path}/, /{admin_path}/profile, /{admin_path}/notifications are root-level
+		// AI.md PART 17: every server-management page lives under /{admin_path}/config/
+		// and the admin's own account lives under /{admin_path}/{admin_username}/
+		adminSelfRoutes := adminRoutes.Group("/:admin_username")
+		adminSelfRoutes.Use(handler.RequireAdminSelf())
 
-		adminRoutes.GET("/server/settings", adminHandler.ShowSettingsPage)
+		// AI.md PART 17 header spec: global search over settings, logs and the
+		// other data the admin panel manages
+		adminRoutes.GET("/config/search", handler.AdminSearchPage)
 
-		adminRoutes.GET("/server/web", adminWebHandler.ShowWebSettings)
+		adminRoutes.GET("/config/settings", adminHandler.ShowSettingsPage)
 
-		adminRoutes.GET("/server/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_users.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/web", adminWebHandler.ShowWebSettings)
+
+		adminRoutes.GET("/config/users", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "User Management - Admin",
 				"page":       "users",
 				"breadcrumb": "Users",
 			}))
 		})
 
-		adminRoutes.GET("/server/email", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/email", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_email.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Email Settings - Admin",
 				"page":       "email",
 				"breadcrumb": "Email",
 			}))
 		})
 
-		adminRoutes.GET("/server/database", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_database.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/database", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_database.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Database & Cache - Admin",
 				"page":       "database",
 				"breadcrumb": "Database",
 			}))
 		})
 
-		adminRoutes.GET("/server/info", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_system.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/info", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_system.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Server Information - Admin",
 				"page":       "info",
 				"breadcrumb": "Server Info",
 			}))
 		})
 
-		adminRoutes.GET("/server/security", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_security.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/security", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_security.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Security Settings - Admin",
 				"page":       "security",
 				"breadcrumb": "Security",
 			}))
 		})
 
-		adminRoutes.GET("/server/security/tokens", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/tokens.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/security/tokens", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "API Tokens - Admin",
 				"page":       "tokens",
 				"breadcrumb": "API Tokens",
 			}))
 		})
 
-		adminRoutes.GET("/server/logs", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_logs.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/logs", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_logs.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "System Logs - Admin",
 				"page":       "logs",
 				"breadcrumb": "System Logs",
 			}))
 		})
 
-		adminRoutes.GET("/server/logs/audit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/logs.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/logs/audit", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/logs.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Audit Logs - Admin",
 				"page":       "audit",
 				"breadcrumb": "Audit Logs",
 			}))
 		})
 
-		adminRoutes.GET("/server/scheduler", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tasks_enhanced.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/scheduler", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_tasks_enhanced.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Scheduled Tasks - Admin",
 				"page":       "scheduler",
 				"breadcrumb": "Scheduled Tasks",
 			}))
 		})
 
-		adminRoutes.GET("/server/ssl", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ssl.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/ssl", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "SSL/TLS Management - Admin",
 				"page":       "ssl",
 				"breadcrumb": "SSL/TLS",
 			}))
 		})
 
-		adminRoutes.GET("/server/backup", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_backup_enhanced.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/backup", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Backup Management - Admin",
 				"page":       "backup",
 				"breadcrumb": "Backup",
 			}))
 		})
 
-		adminRoutes.GET("/server/metrics", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_metrics.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/metrics", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_metrics.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Metrics Configuration - Admin",
 				"page":       "metrics",
 				"breadcrumb": "Metrics",
 			}))
 		})
 
-		adminRoutes.GET("/server/network/tor", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tor.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/network/tor", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_tor.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Tor Hidden Service - Admin",
 				"page":       "tor",
 				"breadcrumb": "Tor Hidden Service",
 			}))
 		})
 
-		adminRoutes.GET("/server/channels", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_channels.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/channels", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin_channels.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Notification Channels - Admin",
 				"page":       "channels",
 				"breadcrumb": "Channels",
 			}))
 		})
 
-		adminRoutes.GET("/server/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "template_editor.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/templates", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "template_editor.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Template Editor - Admin",
 				"page":       "templates",
 				"breadcrumb": "Templates",
 			}))
 		})
 
-		adminRoutes.GET("/server/email/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email_editor.tmpl", util.TemplateData(c, gin.H{
+		adminRoutes.GET("/config/email/templates", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_email_editor.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":      "Email Template Editor - Admin",
 				"page":       "email-templates",
 				"breadcrumb": "Email Templates",
@@ -1877,83 +1934,83 @@ func main() {
 		})
 
 		// Admin settings sub-panels (already under /server/)
-		adminRoutes.GET("/server/users/settings", adminUsersHandler.ShowUserSettings)
-		adminRoutes.GET("/server/weather", adminWeatherHandler.ShowWeatherSettings)
-		adminRoutes.GET("/server/notifications", adminNotificationsHandler.ShowNotificationSettings)
-		adminRoutes.GET("/server/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
+		adminRoutes.GET("/config/users/settings", adminUsersHandler.ShowUserSettings)
+		adminRoutes.GET("/config/weather", adminWeatherHandler.ShowWeatherSettings)
+		adminRoutes.GET("/config/notifications", adminNotificationsHandler.ShowNotificationSettings)
+		adminRoutes.GET("/config/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
 
-		// Root-level admin routes (per spec: only dashboard, profile, notifications at root)
-		// /{admin_path}/profile - Admin's own profile
-		adminRoutes.GET("/profile", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_profile.tmpl", util.TemplateData(c, gin.H{
+		// AI.md PART 17: the admin's own account pages
+		// /{admin_path}/{admin_username}/profile - Admin's own profile
+		adminSelfRoutes.GET("/profile", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_profile.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Admin Profile",
 				"page":  "profile",
 			}))
 		})
 
-		// /{admin_path}/profile/preferences - Admin preferences
-		adminRoutes.GET("/profile/preferences", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_preferences.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/{admin_username}/preferences - Admin preferences
+		adminSelfRoutes.GET("/preferences", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_preferences.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Admin Preferences",
 				"page":  "preferences",
 			}))
 		})
 
-		// /{admin_path}/notifications - Admin notifications page
-		adminRoutes.GET("/notifications", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/{admin_username}/notifications - Admin notifications page
+		adminSelfRoutes.GET("/notifications", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Notifications",
 				"page":  "notifications",
 			}))
 		})
 
-		// Additional missing /server/ routes per spec
-		// /{admin_path}/server/branding - Branding & SEO
-		adminRoutes.GET("/server/branding", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_branding.tmpl", util.TemplateData(c, gin.H{
+		// Additional management pages per spec
+		// /{admin_path}/config/branding - Branding & SEO
+		adminRoutes.GET("/config/branding", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_branding.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Branding & SEO - Admin",
 				"page":  "server-branding",
 			}))
 		})
 
-		// /{admin_path}/server/pages - Standard pages (about, privacy, contact)
-		adminRoutes.GET("/server/pages", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_pages.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/pages - Standard pages (about, privacy, contact)
+		adminRoutes.GET("/config/pages", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_pages.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Standard Pages - Admin",
 				"page":  "server-pages",
 			}))
 		})
 
-		// /{admin_path}/server/roles - Role definitions
-		adminRoutes.GET("/server/roles", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_roles.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/roles - Role definitions
+		adminRoutes.GET("/config/roles", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_roles.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Role Definitions - Admin",
 				"page":  "server-roles",
 			}))
 		})
 
-		// /{admin_path}/server/security/auth - Authentication config
-		adminRoutes.GET("/server/security/auth", adminAuthHandler.ShowAuthSettings)
+		// /{admin_path}/config/security/auth - Authentication config
+		adminRoutes.GET("/config/security/auth", adminAuthHandler.ShowAuthSettings)
 
-		// /{admin_path}/server/admins - Server admin accounts list
-		adminRoutes.GET("/server/admins", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_admins.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/admins - Server admin accounts list
+		adminRoutes.GET("/config/admins", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_admins.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Server Admins - Admin",
 				"page":  "server-admins",
 			}))
 		})
 
-		// /{admin_path}/server/admins/invite - Invite new admin
-		adminRoutes.GET("/server/admins/invite", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_invite.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/admins/invite - Invite new admin
+		adminRoutes.GET("/config/admins/invite", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_invite.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Invite Admin - Admin",
 				"page":  "server-admins-invite",
 			}))
 		})
 
-		// /{admin_path}/server/admins/:id - Admin detail
-		adminRoutes.GET("/server/admins/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_detail.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/admins/:id - Admin detail
+		adminRoutes.GET("/config/admins/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_detail.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":   "Admin Detail - Admin",
 				"page":    "server-admins",
 				"adminID": c.Param("id"),
@@ -1963,7 +2020,7 @@ func main() {
 		renderAdminUserInvitesPage := func(c *gin.Context, status int, data gin.H) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
-				c.HTML(http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(c, gin.H{
+				c.HTML(http.StatusInternalServerError, "page/error.tmpl", handler.AdminTemplateData(c, gin.H{
 					"title":   "User Invites",
 					"message": "Failed to load user invites",
 				}))
@@ -2011,14 +2068,14 @@ func main() {
 				payload[key] = value
 			}
 
-			c.HTML(status, "admin/admin_user_invites.tmpl", util.TemplateData(c, payload))
+			c.HTML(status, "admin/admin_user_invites.tmpl", handler.AdminTemplateData(c, payload))
 		}
 
-		// /{admin_path}/server/users/invites - User invites
-		adminRoutes.GET("/server/users/invites", func(c *gin.Context) {
+		// /{admin_path}/config/users/invites - User invites
+		adminRoutes.GET("/config/users/invites", func(c *gin.Context) {
 			renderAdminUserInvitesPage(c, http.StatusOK, gin.H{})
 		})
-		adminRoutes.POST("/server/users/invites", func(c *gin.Context) {
+		adminRoutes.POST("/config/users/invites", func(c *gin.Context) {
 			var req struct {
 				Username      string `form:"username" binding:"required,min=3"`
 				Email         string `form:"email" binding:"required,email"`
@@ -2101,75 +2158,75 @@ func main() {
 			})
 		})
 
-		// /{admin_path}/server/moderation/users - User moderation
-		adminRoutes.GET("/server/moderation/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_moderation.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/moderation/users - User moderation
+		adminRoutes.GET("/config/moderation/users", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_moderation.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "User Moderation - Admin",
 				"page":  "moderation-users",
 			}))
 		})
 
-		// /{admin_path}/server/moderation/users/:id - User detail
-		adminRoutes.GET("/server/moderation/users/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_user_detail.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/moderation/users/:id - User detail
+		adminRoutes.GET("/config/moderation/users/:id", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_user_detail.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":  "User Detail - Admin",
 				"page":   "moderation-users",
 				"userID": c.Param("id"),
 			}))
 		})
 
-		// /{admin_path}/server/security/ratelimit - Rate limiting config
-		adminRoutes.GET("/server/security/ratelimit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ratelimit.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/security/ratelimit - Rate limiting config
+		adminRoutes.GET("/config/security/ratelimit", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_ratelimit.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Rate Limiting - Admin",
 				"page":  "security-ratelimit",
 			}))
 		})
 
-		// /{admin_path}/server/security/firewall - IP allow/block lists
-		adminRoutes.GET("/server/security/firewall", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_firewall.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/security/firewall - IP allow/block lists
+		adminRoutes.GET("/config/security/firewall", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_firewall.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Firewall - Admin",
 				"page":  "security-firewall",
 			}))
 		})
 
-		// /{admin_path}/server/network/blocklists - IP/domain blocklists
-		adminRoutes.GET("/server/network/blocklists", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_blocklists.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/network/blocklists - IP/domain blocklists
+		adminRoutes.GET("/config/network/blocklists", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_blocklists.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Blocklists - Admin",
 				"page":  "network-blocklists",
 			}))
 		})
 
-		// /{admin_path}/server/maintenance - Maintenance mode
-		adminRoutes.GET("/server/maintenance", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_maintenance.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/maintenance - Maintenance mode
+		adminRoutes.GET("/config/maintenance", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_maintenance.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Maintenance Mode - Admin",
 				"page":  "server-maintenance",
 			}))
 		})
 
-		// /{admin_path}/server/updates - Software updates
-		adminRoutes.GET("/server/updates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_updates.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/updates - Software updates
+		adminRoutes.GET("/config/updates", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_updates.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title":   "Updates - Admin",
 				"page":    "server-updates",
 				"version": handler.Version,
 			}))
 		})
 
-		// /{admin_path}/server/cluster/nodes - Cluster node management
-		adminRoutes.GET("/server/cluster/nodes", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_nodes.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/cluster/nodes - Cluster node management
+		adminRoutes.GET("/config/cluster/nodes", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_cluster_nodes.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Cluster Nodes - Admin",
 				"page":  "server-cluster-nodes",
 			}))
 		})
 
-		// /{admin_path}/server/cluster/add - Add cluster node
-		adminRoutes.GET("/server/cluster/add", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_add.tmpl", util.TemplateData(c, gin.H{
+		// /{admin_path}/config/cluster/add - Add cluster node
+		adminRoutes.GET("/config/cluster/add", func(c *gin.Context) {
+			c.HTML(http.StatusOK, "admin/admin_cluster_add.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Add Cluster Node - Admin",
 				"page":  "server-cluster-add",
 			}))
@@ -2177,7 +2234,7 @@ func main() {
 
 		// /{admin_path}/help - Admin help & documentation
 		adminRoutes.GET("/help", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_help.tmpl", util.TemplateData(c, gin.H{
+			c.HTML(http.StatusOK, "admin/admin_help.tmpl", handler.AdminTemplateData(c, gin.H{
 				"title": "Help - Admin",
 				"page":  "help",
 			}))
@@ -2214,9 +2271,6 @@ func main() {
 	// API routes - all API endpoints under /api/{api_version}
 	// AI.md: API version prefix is configurable (default: "v1")
 	apiV1 := r.Group(cfg.GetAPIPath())
-
-	// Health check endpoint (JSON) - TEMPLATE.md compliant format
-	apiV1.GET("/healthz", handler.APIHealthCheck(db, startTime))
 
 	// Weather API routes (optional auth + API rate limiting)
 	weatherAPI := apiV1.Group("")
@@ -2424,11 +2478,20 @@ func main() {
 	// AI.md: Admin API at /api/{api_version}/server/{admin_path}/
 	adminAPI := apiV1.Group("/server/" + cfg.GetAdminPath())
 	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerDB(), db.DB))
+	// TokenAuthMiddleware accepts admin and regular-user tokens alike, so the
+	// admin group must additionally require an admin token or a usr_ token
+	// would reach every admin config, scheduler and restart route.
+	adminAPI.Use(middleware.RequireAdminToken())
 	adminAPI.Use(middleware.AdminRateLimitMiddleware())
 	// Log all admin API actions
 	adminAPI.Use(middleware.AuditLogger(db.DB))
 	{
 		adminModel := &model.AdminModel{DB: serverDB}
+
+		// AI.md PART 17: the admin's own account API lives under
+		// /api/{api_version}/server/{admin_path}/{admin_username}/
+		adminSelfAPI := adminAPI.Group("/:admin_username")
+		adminSelfAPI.Use(handler.RequireAdminSelfAPI())
 
 		getCurrentAdmin := func(c *gin.Context) (*model.Admin, bool) {
 			adminValue, exists := c.Get("admin")
@@ -2449,61 +2512,20 @@ func main() {
 		// server_admin_preferences (src/database/server_schema.go) stores
 		// preferences as a single JSON blob column (admin_id, preferences,
 		// updated_at) — not individual theme/language/... columns.
-		defaultAdminPreferencesJSON := func(adminID int64) (string, error) {
-			b, err := json.Marshal(model.AdminPreferences{
-				AdminID:              adminID,
-				Theme:                "auto",
-				Language:             "en",
-				Timezone:             "UTC",
-				NotificationsEnabled: true,
-				EmailNotifications:   true,
-			})
-			return string(b), err
-		}
-
 		loadAdminPreferences := func(adminID int64) (*model.AdminPreferences, error) {
-			defaultJSON, err := defaultAdminPreferencesJSON(adminID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
-			}
-
-			if _, err := database.ExecContext(context.Background(), serverDB, database.TimeoutWrite, `
-				INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
-				SELECT ?, ?, CURRENT_TIMESTAMP
-				WHERE NOT EXISTS (
-					SELECT 1 FROM server_admin_preferences WHERE admin_id = ?
-				)
-			`, adminID, defaultJSON, adminID); err != nil {
-				return nil, fmt.Errorf("failed to ensure admin preferences: %w", err)
-			}
-
-			var prefsJSON string
-			var updatedAt time.Time
-			err = database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect, `
-				SELECT preferences, updated_at
-				FROM server_admin_preferences
-				WHERE admin_id = ?
-			`, adminID).Scan(&prefsJSON, &updatedAt)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load admin preferences: %w", err)
-			}
-
-			prefs := &model.AdminPreferences{}
-			if err := json.Unmarshal([]byte(prefsJSON), prefs); err != nil {
-				return nil, fmt.Errorf("failed to decode admin preferences: %w", err)
-			}
-			prefs.AdminID = adminID
-			prefs.UpdatedAt = updatedAt
-
-			return prefs, nil
+			return loadAdminPreferencesRow(serverDB, adminID)
 		}
 
 		getOnlineAdminUsernames := func() ([]string, error) {
+			// Comparing sas.expires_at against CURRENT_TIMESTAMP in SQL is a text comparison that
+			// misreads any row stored in a legacy local-zone layout, so the still-valid sessions
+			// are selected with their raw expiry and filtered in Go via dbtime. The rows stay
+			// ordered by username so duplicate sessions for one admin collapse without a sort.
 			rows, err := database.QueryContext(context.Background(), serverDB, database.TimeoutComplexSelect, `
-				SELECT DISTINCT sac.username
+				SELECT sac.username, sas.expires_at
 				FROM server_admin_credentials sac
 				INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
-				WHERE sac.is_active = 1 AND sas.expires_at > CURRENT_TIMESTAMP
+				WHERE sac.is_active = 1 AND sas.expires_at IS NOT NULL
 				ORDER BY sac.username ASC
 			`)
 			if err != nil {
@@ -2511,11 +2533,20 @@ func main() {
 			}
 			defer rows.Close()
 
+			sessionCutoff := time.Now().UTC()
+
 			var usernames []string
 			for rows.Next() {
 				var username string
-				if err := rows.Scan(&username); err != nil {
+				var storedExpiry interface{}
+				if err := rows.Scan(&username, &storedExpiry); err != nil {
 					return nil, fmt.Errorf("failed to scan online admin username: %w", err)
+				}
+				if !dbtime.IsAfter(storedExpiry, sessionCutoff) {
+					continue
+				}
+				if len(usernames) > 0 && usernames[len(usernames)-1] == username {
+					continue
 				}
 				usernames = append(usernames, username)
 			}
@@ -2585,36 +2616,36 @@ func main() {
 			return "pending"
 		}
 
-		// Setup API per spec: /api/{api_version}/{admin_path}/server/setup/
-		adminAPI.GET("/server/setup", setupHandler.GetSetupStatus)
-		adminAPI.POST("/server/setup/verify", func(c *gin.Context) {
+		// Setup API per spec: /api/{api_version}/{admin_path}/config/setup/
+		adminAPI.GET("/config/setup", setupHandler.GetSetupStatus)
+		adminAPI.POST("/config/setup/verify", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "verified": true})
 		})
-		adminAPI.POST("/server/setup/account", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/account", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin account created"})
 		})
-		adminAPI.POST("/server/setup/token", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/token", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "token": ""})
 		})
-		adminAPI.POST("/server/setup/config", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/config", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Server config saved"})
 		})
-		adminAPI.POST("/server/setup/security", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/security", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Security settings saved"})
 		})
-		adminAPI.POST("/server/setup/services", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/services", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Services configured"})
 		})
-		adminAPI.POST("/server/setup/complete", func(c *gin.Context) {
+		adminAPI.POST("/config/setup/complete", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Setup complete"})
 		})
 
 		// Server management API - all under /server/ per spec
 		// User management
-		adminAPI.GET("/server/users", adminHandler.ListUsers)
-		adminAPI.PUT("/server/users/:id", adminHandler.UpdateUser)
-		adminAPI.DELETE("/server/users/:id", adminHandler.DeleteUser)
-		adminAPI.GET("/server/users/invites", func(c *gin.Context) {
+		adminAPI.GET("/config/users", adminHandler.ListUsers)
+		adminAPI.PUT("/config/users/:id", adminHandler.UpdateUser)
+		adminAPI.DELETE("/config/users/:id", adminHandler.DeleteUser)
+		adminAPI.GET("/config/users/invites", func(c *gin.Context) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load user invites"})
@@ -2637,7 +2668,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "invites": responseInvites})
 		})
-		adminAPI.POST("/server/users/invites", func(c *gin.Context) {
+		adminAPI.POST("/config/users/invites", func(c *gin.Context) {
 			if _, ok := getCurrentAdmin(c); !ok {
 				return
 			}
@@ -2699,7 +2730,7 @@ func main() {
 				"expires_in_days": expiresInDays,
 			})
 		})
-		adminAPI.GET("/server/users/invites/:id", func(c *gin.Context) {
+		adminAPI.GET("/config/users/invites/:id", func(c *gin.Context) {
 			if _, ok := getCurrentAdmin(c); !ok {
 				return
 			}
@@ -2726,7 +2757,7 @@ func main() {
 				"status": userInviteStatus(*invite),
 			})
 		})
-		adminAPI.DELETE("/server/users/invites/:id", func(c *gin.Context) {
+		adminAPI.DELETE("/config/users/invites/:id", func(c *gin.Context) {
 			if _, ok := getCurrentAdmin(c); !ok {
 				return
 			}
@@ -2745,39 +2776,42 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Invite revoked"})
 		})
 
+		// AI.md PART 17 header spec: JSON counterpart of the admin global search
+		adminAPI.GET("/config/search", handler.AdminSearchAPI)
+
 		// Settings management
-		adminAPI.GET("/server/settings", adminHandler.ListSettings)
-		adminAPI.PATCH("/server/settings", adminSettingsHandler.UpdateSettings)
-		adminAPI.GET("/server/settings/:key", adminHandler.GetSetting)
-		adminAPI.PUT("/server/settings/:key", adminHandler.UpdateSetting)
-		adminAPI.GET("/server/settings/all", adminSettingsHandler.GetAllSettings)
-		adminAPI.PUT("/server/settings/bulk", adminSettingsHandler.UpdateSettings)
-		adminAPI.POST("/server/settings/reset", adminSettingsHandler.ResetSettings)
-		adminAPI.GET("/server/settings/export", adminSettingsHandler.ExportSettings)
-		adminAPI.POST("/server/settings/import", adminSettingsHandler.ImportSettings)
-		adminAPI.POST("/server/reload", adminSettingsHandler.ReloadConfig)
+		adminAPI.GET("/config/settings", adminHandler.ListSettings)
+		adminAPI.PATCH("/config/settings", adminSettingsHandler.UpdateSettings)
+		adminAPI.GET("/config/settings/:key", adminHandler.GetSetting)
+		adminAPI.PUT("/config/settings/:key", adminHandler.UpdateSetting)
+		adminAPI.GET("/config/settings/all", adminSettingsHandler.GetAllSettings)
+		adminAPI.PUT("/config/settings/bulk", adminSettingsHandler.UpdateSettings)
+		adminAPI.POST("/config/settings/reset", adminSettingsHandler.ResetSettings)
+		adminAPI.GET("/config/settings/export", adminSettingsHandler.ExportSettings)
+		adminAPI.POST("/config/settings/import", adminSettingsHandler.ImportSettings)
+		adminAPI.POST("/config/reload", adminSettingsHandler.ReloadConfig)
 
 		// Admin settings sub-endpoints
-		adminAPI.POST("/server/users/settings", adminUsersHandler.UpdateUserSettings)
-		adminAPI.POST("/server/security/auth", adminAuthHandler.UpdateAuthSettings)
-		adminAPI.POST("/server/weather", adminWeatherHandler.UpdateWeatherSettings)
-		adminAPI.POST("/server/notifications", adminNotificationsHandler.UpdateNotificationSettings)
-		adminAPI.POST("/server/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
+		adminAPI.POST("/config/users/settings", adminUsersHandler.UpdateUserSettings)
+		adminAPI.POST("/config/security/auth", adminAuthHandler.UpdateAuthSettings)
+		adminAPI.POST("/config/weather", adminWeatherHandler.UpdateWeatherSettings)
+		adminAPI.POST("/config/notifications", adminNotificationsHandler.UpdateNotificationSettings)
+		adminAPI.POST("/config/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
 
 		// API token management under /server/security/
-		adminAPI.GET("/server/security/tokens", adminHandler.ListTokens)
-		adminAPI.POST("/server/security/tokens", adminHandler.GenerateToken)
-		adminAPI.DELETE("/server/security/tokens/:id", adminHandler.RevokeToken)
+		adminAPI.GET("/config/security/tokens", adminHandler.ListTokens)
+		adminAPI.POST("/config/security/tokens", adminHandler.GenerateToken)
+		adminAPI.DELETE("/config/security/tokens/:id", adminHandler.RevokeToken)
 
 		// Audit logs under /server/logs/
-		adminAPI.GET("/server/logs/audit-logs", adminHandler.ListAuditLogs)
-		adminAPI.DELETE("/server/logs/audit-logs", adminHandler.ClearAuditLogs)
+		adminAPI.GET("/config/logs/audit-logs", adminHandler.ListAuditLogs)
+		adminAPI.DELETE("/config/logs/audit-logs", adminHandler.ClearAuditLogs)
 
 		// System stats
-		adminAPI.GET("/server/stats", adminHandler.GetSystemStats)
+		adminAPI.GET("/config/stats", adminHandler.GetSystemStats)
 
-		// Email settings per spec: /api/{api_version}/{admin_path}/server/email/
-		adminAPI.GET("/server/email", func(c *gin.Context) {
+		// Email settings per spec: /api/{api_version}/{admin_path}/config/email/
+		adminAPI.GET("/config/email", func(c *gin.Context) {
 			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
@@ -2787,7 +2821,7 @@ func main() {
 				"from":     settingsModel.GetString("email.from", ""),
 			})
 		})
-		adminAPI.PATCH("/server/email", func(c *gin.Context) {
+		adminAPI.PATCH("/config/email", func(c *gin.Context) {
 			var settings map[string]interface{}
 			if err := c.ShouldBindJSON(&settings); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -2802,15 +2836,15 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Email settings updated"})
 		})
-		adminAPI.POST("/server/email/test", func(c *gin.Context) {
+		adminAPI.POST("/config/email/test", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"ok":      true,
 				"message": "Test email functionality available when SMTP is configured",
 			})
 		})
 
-		// Branding per spec: /api/{api_version}/{admin_path}/server/branding/
-		adminAPI.GET("/server/branding", func(c *gin.Context) {
+		// Branding per spec: /api/{api_version}/{admin_path}/config/branding/
+		adminAPI.GET("/config/branding", func(c *gin.Context) {
 			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
@@ -2820,7 +2854,7 @@ func main() {
 				"theme_color": settingsModel.GetString("branding.theme_color", ""),
 			})
 		})
-		adminAPI.PATCH("/server/branding", func(c *gin.Context) {
+		adminAPI.PATCH("/config/branding", func(c *gin.Context) {
 			var settings map[string]interface{}
 			if err := c.ShouldBindJSON(&settings); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -2836,8 +2870,8 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Branding settings updated"})
 		})
 
-		// Pages per spec: /api/{api_version}/{admin_path}/server/pages/
-		adminAPI.GET("/server/pages", func(c *gin.Context) {
+		// Pages per spec: /api/{api_version}/{admin_path}/config/pages/
+		adminAPI.GET("/config/pages", func(c *gin.Context) {
 			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"about":   gin.H{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
@@ -2847,7 +2881,7 @@ func main() {
 				"terms":   gin.H{"enabled": settingsModel.GetBool("pages.terms.enabled", true)},
 			})
 		})
-		adminAPI.GET("/server/pages/:name", func(c *gin.Context) {
+		adminAPI.GET("/config/pages/:name", func(c *gin.Context) {
 			name := c.Param("name")
 			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
@@ -2856,7 +2890,7 @@ func main() {
 				"content": settingsModel.GetString("pages."+name+".content", ""),
 			})
 		})
-		adminAPI.PATCH("/server/pages/:name", func(c *gin.Context) {
+		adminAPI.PATCH("/config/pages/:name", func(c *gin.Context) {
 			name := c.Param("name")
 			var settings map[string]interface{}
 			if err := c.ShouldBindJSON(&settings); err != nil {
@@ -2873,15 +2907,15 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": fmt.Sprintf("%s page updated", name)})
 		})
 
-		// Web settings per spec: /api/{api_version}/{admin_path}/server/web/
-		adminAPI.GET("/server/web", func(c *gin.Context) {
+		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
+		adminAPI.GET("/config/web", func(c *gin.Context) {
 			settingsModel := &model.SettingsModel{DB: db.DB}
 			c.JSON(http.StatusOK, gin.H{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
 			})
 		})
-		adminAPI.PATCH("/server/web", func(c *gin.Context) {
+		adminAPI.PATCH("/config/web", func(c *gin.Context) {
 			var settings map[string]interface{}
 			if err := c.ShouldBindJSON(&settings); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -2899,11 +2933,11 @@ func main() {
 
 		// Admin status and health endpoints
 		adminServerStatusHandler := handler.AdminServerStatus(db, port, httpsPort, sslManager)
-		adminAPI.GET("/server/status", adminServerStatusHandler)
-		adminAPI.GET("/server/health", adminServerStatusHandler)
+		adminAPI.GET("/config/status", adminServerStatusHandler)
+		adminAPI.GET("/config/health", adminServerStatusHandler)
 
 		// Server restart per spec: POST /server/restart
-		adminAPI.POST("/server/restart", func(c *gin.Context) {
+		adminAPI.POST("/config/restart", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"ok":      true,
 				"message": "Server restart initiated",
@@ -2914,29 +2948,29 @@ func main() {
 			}()
 		})
 
-		// Scheduler per spec: /api/{api_version}/{admin_path}/server/scheduler/
-		adminAPI.GET("/server/scheduler", schedulerHandler.GetAllTasks)
-		adminAPI.GET("/server/scheduler/:name", schedulerHandler.GetTaskHistory)
-		adminAPI.PATCH("/server/scheduler/:name", schedulerHandler.UpdateTask)
-		adminAPI.POST("/server/scheduler/:name/run", schedulerHandler.TriggerTask)
-		adminAPI.POST("/server/scheduler/:name/enable", schedulerHandler.EnableTask)
-		adminAPI.POST("/server/scheduler/:name/disable", schedulerHandler.DisableTask)
+		// Scheduler per spec: /api/{api_version}/{admin_path}/config/scheduler/
+		adminAPI.GET("/config/scheduler", schedulerHandler.GetAllTasks)
+		adminAPI.GET("/config/scheduler/:name", schedulerHandler.GetTaskHistory)
+		adminAPI.PATCH("/config/scheduler/:name", schedulerHandler.UpdateTask)
+		adminAPI.POST("/config/scheduler/:name/run", schedulerHandler.TriggerTask)
+		adminAPI.POST("/config/scheduler/:name/enable", schedulerHandler.EnableTask)
+		adminAPI.POST("/config/scheduler/:name/disable", schedulerHandler.DisableTask)
 
-		// Notification channel management under /server/channels/
-		adminAPI.GET("/server/channels", channelHandler.ListChannels)
-		adminAPI.GET("/server/channels/definitions", channelHandler.GetChannelDefinitions)
-		adminAPI.GET("/server/channels/queue/stats", channelHandler.GetQueueStats)
-		adminAPI.GET("/server/channels/history", channelHandler.GetNotificationHistory)
-		adminAPI.POST("/server/channels/initialize", channelHandler.InitializeChannels)
-		adminAPI.GET("/server/channels/:type", channelHandler.GetChannel)
-		adminAPI.PUT("/server/channels/:type", channelHandler.UpdateChannel)
-		adminAPI.POST("/server/channels/:type/enable", channelHandler.EnableChannel)
-		adminAPI.POST("/server/channels/:type/disable", channelHandler.DisableChannel)
-		adminAPI.POST("/server/channels/:type/test", channelHandler.TestChannel)
-		adminAPI.GET("/server/channels/:type/stats", channelHandler.GetChannelStats)
+		// Notification channel management under /server/{admin_path}/config/channels/
+		adminAPI.GET("/config/channels", channelHandler.ListChannels)
+		adminAPI.GET("/config/channels/definitions", channelHandler.GetChannelDefinitions)
+		adminAPI.GET("/config/channels/queue/stats", channelHandler.GetQueueStats)
+		adminAPI.GET("/config/channels/history", channelHandler.GetNotificationHistory)
+		adminAPI.POST("/config/channels/initialize", channelHandler.InitializeChannels)
+		adminAPI.GET("/config/channels/:type", channelHandler.GetChannel)
+		adminAPI.PUT("/config/channels/:type", channelHandler.UpdateChannel)
+		adminAPI.POST("/config/channels/:type/enable", channelHandler.EnableChannel)
+		adminAPI.POST("/config/channels/:type/disable", channelHandler.DisableChannel)
+		adminAPI.POST("/config/channels/:type/test", channelHandler.TestChannel)
+		adminAPI.GET("/config/channels/:type/stats", channelHandler.GetChannelStats)
 
 		// Admin profile per spec: /api/{api_version}/{admin_path}/profile/
-		adminAPI.GET("/profile", func(c *gin.Context) {
+		adminSelfAPI.GET("/profile", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -2948,7 +2982,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "profile": profile})
 		})
-		adminAPI.PATCH("/profile", func(c *gin.Context) {
+		adminSelfAPI.PATCH("/profile", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3007,7 +3041,7 @@ func main() {
 				"profile": updatedAdmin,
 			})
 		})
-		adminAPI.POST("/profile/password", func(c *gin.Context) {
+		adminSelfAPI.POST("/profile/password", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3052,7 +3086,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Password changed successfully"})
 		})
-		adminAPI.GET("/profile/token", func(c *gin.Context) {
+		adminSelfAPI.GET("/profile/token", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3063,7 +3097,7 @@ func main() {
 				"token": maskAdminToken(admin.APITokenPrefix),
 			})
 		})
-		adminAPI.POST("/profile/token", func(c *gin.Context) {
+		adminSelfAPI.POST("/profile/token", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3081,7 +3115,7 @@ func main() {
 				"token":   newToken,
 			})
 		})
-		adminAPI.GET("/profile/sessions", func(c *gin.Context) {
+		adminSelfAPI.GET("/profile/sessions", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3096,7 +3130,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "sessions": sessions})
 		})
-		adminAPI.POST("/profile/sessions/logout-all", func(c *gin.Context) {
+		adminSelfAPI.POST("/profile/sessions/logout-all", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3112,7 +3146,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Logged out of all sessions"})
 		})
-		adminAPI.GET("/profile/preferences", func(c *gin.Context) {
+		adminSelfAPI.GET("/preferences", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3126,7 +3160,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "preferences": prefs})
 		})
-		adminAPI.PATCH("/profile/preferences", func(c *gin.Context) {
+		adminSelfAPI.PATCH("/preferences", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3203,11 +3237,13 @@ func main() {
 				return
 			}
 
+			// updated_at is bound as canonical UTC text so this writer agrees with the
+			// INSERT above and with every reader of the column.
 			if _, err := database.ExecContext(context.Background(), serverDB, database.TimeoutWrite, `
 				UPDATE server_admin_preferences
-				SET preferences = ?, updated_at = CURRENT_TIMESTAMP
+				SET preferences = ?, updated_at = ?
 				WHERE admin_id = ?
-			`, string(updatedJSON), admin.ID); err != nil {
+			`, string(updatedJSON), dbtime.FormatSQLTimestamp(time.Now()), admin.ID); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preferences"})
 				return
 			}
@@ -3227,12 +3263,12 @@ func main() {
 
 		// Admin passkeys per AI.md PART 17 line 28674-28683
 		// /api/{api_version}/{admin_path}/profile/security/passkeys
-		adminAPI.GET("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
-		adminAPI.POST("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
-		adminAPI.DELETE("/profile/security/passkeys/:passkey_id", adminPasskeyHandler.DeletePasskey)
+		adminSelfAPI.GET("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
+		adminSelfAPI.POST("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
+		adminSelfAPI.DELETE("/profile/security/passkeys/:passkey_id", adminPasskeyHandler.DeletePasskey)
 
-		// Server admins per spec: /api/{api_version}/{admin_path}/server/admins/
-		adminAPI.GET("/server/admins", func(c *gin.Context) {
+		// Server admins per spec: /api/{api_version}/{admin_path}/config/admins/
+		adminAPI.GET("/config/admins", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3262,7 +3298,7 @@ func main() {
 				"privacy_notice": "Other admin account details are not exposed",
 			})
 		})
-		adminAPI.GET("/server/admins/:id", func(c *gin.Context) {
+		adminAPI.GET("/config/admins/:id", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3285,7 +3321,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "admin": profile})
 		})
-		adminAPI.DELETE("/server/admins/:id", func(c *gin.Context) {
+		adminAPI.DELETE("/config/admins/:id", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3314,7 +3350,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin deleted"})
 		})
-		adminAPI.POST("/server/admins/:id/disable", func(c *gin.Context) {
+		adminAPI.POST("/config/admins/:id/disable", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3361,7 +3397,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin disabled"})
 		})
-		adminAPI.POST("/server/admins/:id/enable", func(c *gin.Context) {
+		adminAPI.POST("/config/admins/:id/enable", func(c *gin.Context) {
 			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid admin ID"})
@@ -3381,7 +3417,7 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin enabled"})
 		})
-		adminAPI.POST("/server/admins/invite", func(c *gin.Context) {
+		adminAPI.POST("/config/admins/invite", func(c *gin.Context) {
 			admin, ok := getCurrentAdmin(c)
 			if !ok {
 				return
@@ -3414,62 +3450,68 @@ func main() {
 		})
 
 		// WebUI Notification API routes - Admin (root-level since notifications is a root admin path)
-		adminAPI.GET("/notifications", notificationAPIHandler.GetAdminNotifications)
-		adminAPI.GET("/notifications/unread", notificationAPIHandler.GetAdminUnreadNotifications)
-		adminAPI.GET("/notifications/count", notificationAPIHandler.GetAdminUnreadCount)
-		adminAPI.GET("/notifications/stats", notificationAPIHandler.GetAdminStats)
-		adminAPI.PATCH("/notifications/:id/read", notificationAPIHandler.MarkAdminNotificationRead)
-		adminAPI.PATCH("/notifications/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
-		adminAPI.PATCH("/notifications/:id/dismiss", notificationAPIHandler.DismissAdminNotification)
-		adminAPI.DELETE("/notifications/:id", notificationAPIHandler.DeleteAdminNotification)
-		adminAPI.GET("/notifications/preferences", notificationAPIHandler.GetAdminPreferences)
-		adminAPI.PATCH("/notifications/preferences", notificationAPIHandler.UpdateAdminPreferences)
-		adminAPI.POST("/notifications/send", notificationAPIHandler.SendTestNotification)
+		adminSelfAPI.GET("/notifications", notificationAPIHandler.GetAdminNotifications)
+		adminSelfAPI.GET("/notifications/unread", notificationAPIHandler.GetAdminUnreadNotifications)
+		adminSelfAPI.GET("/notifications/count", notificationAPIHandler.GetAdminUnreadCount)
+		adminSelfAPI.GET("/notifications/stats", notificationAPIHandler.GetAdminStats)
+		adminSelfAPI.PATCH("/notifications/:id/read", notificationAPIHandler.MarkAdminNotificationRead)
+		adminSelfAPI.PATCH("/notifications/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
+		adminSelfAPI.PATCH("/notifications/:id/dismiss", notificationAPIHandler.DismissAdminNotification)
+		adminSelfAPI.DELETE("/notifications/:id", notificationAPIHandler.DeleteAdminNotification)
+		adminSelfAPI.GET("/notifications/preferences", notificationAPIHandler.GetAdminPreferences)
+		adminSelfAPI.PATCH("/notifications/preferences", notificationAPIHandler.UpdateAdminPreferences)
+		adminSelfAPI.POST("/notifications/send", notificationAPIHandler.SendTestNotification)
 
 		// SMTP provider management under /server/
-		adminAPI.GET("/server/smtp/providers", channelHandler.ListSMTPProviders)
-		adminAPI.POST("/server/smtp/autodetect", channelHandler.AutoDetectSMTP)
+		adminAPI.GET("/config/smtp/providers", channelHandler.ListSMTPProviders)
+		adminAPI.POST("/config/smtp/autodetect", channelHandler.AutoDetectSMTP)
 
 		// Admin panel settings endpoints under /server/
-		adminAPI.PUT("/server/settings/web", handler.SaveWebSettings)
-		adminAPI.PUT("/server/settings/security", handler.SaveSecuritySettings)
-		adminAPI.PUT("/server/settings/database", handler.SaveDatabaseSettings)
+		adminAPI.PUT("/config/settings/web", handler.SaveWebSettings)
+		adminAPI.PUT("/config/settings/security", handler.SaveSecuritySettings)
+		adminAPI.PUT("/config/settings/database", handler.SaveDatabaseSettings)
 
 		// Database management endpoints under /server/
-		adminAPI.POST("/server/database/test", handler.TestDatabaseConnection)
-		adminAPI.POST("/server/database/test-config", handler.TestDatabaseConfigConnection)
-		adminAPI.POST("/server/database/optimize", handler.OptimizeDatabase)
-		adminAPI.POST("/server/database/vacuum", handler.VacuumDatabase)
-		adminAPI.POST("/server/cache/clear", handler.ClearCache)
+		adminAPI.POST("/config/database/test", handler.TestDatabaseConnection)
+		adminAPI.POST("/config/database/test-config", handler.TestDatabaseConfigConnection)
+		adminAPI.POST("/config/database/optimize", handler.OptimizeDatabase)
+		adminAPI.POST("/config/database/vacuum", handler.VacuumDatabase)
+		adminAPI.POST("/config/cache/clear", handler.ClearCache)
 
-		// Backup management per spec: /api/{api_version}/{admin_path}/server/backup/
-		adminAPI.GET("/server/backup", handler.ListBackups)
-		adminAPI.POST("/server/backup", handler.CreateBackup)
-		adminAPI.GET("/server/backup/:id", handler.DownloadBackup)
-		adminAPI.DELETE("/server/backup/:id", handler.DeleteBackup)
-		adminAPI.GET("/server/backup/:id/download", handler.DownloadBackup)
-		adminAPI.POST("/server/backup/restore", handler.RestoreBackup)
+		// Backup management per spec: /api/{api_version}/{admin_path}/config/backup/
+		adminAPI.GET("/config/backup", handler.ListBackups)
+		adminAPI.POST("/config/backup", handler.CreateBackup)
+		adminAPI.GET("/config/backup/stats", handler.BackupStats)
+		adminAPI.GET("/config/backup/schedule", handler.GetBackupSchedule)
+		adminAPI.POST("/config/backup/schedule", handler.SaveBackupSchedule)
+		adminAPI.POST("/config/backup/restore", handler.RestoreBackup)
+		// The param is named :filename because that is the value the handlers
+		// validate and resolve against the backup directory - a backup has no
+		// identifier other than its file name.
+		adminAPI.GET("/config/backup/:filename", handler.DownloadBackup)
+		adminAPI.DELETE("/config/backup/:filename", handler.DeleteBackup)
+		adminAPI.GET("/config/backup/:filename/download", handler.DownloadBackup)
 
 		// Template management under /server/
-		adminAPI.GET("/server/templates", templateHandler.ListTemplates)
-		adminAPI.GET("/server/templates/variables", templateHandler.GetTemplateVariables)
-		adminAPI.POST("/server/templates/preview", templateHandler.PreviewTemplate)
-		adminAPI.POST("/server/templates/initialize", templateHandler.InitializeDefaults)
-		adminAPI.GET("/server/templates/:id", templateHandler.GetTemplate)
-		adminAPI.POST("/server/templates", templateHandler.CreateTemplate)
-		adminAPI.PUT("/server/templates/:id", templateHandler.UpdateTemplate)
-		adminAPI.DELETE("/server/templates/:id", templateHandler.DeleteTemplate)
-		adminAPI.POST("/server/templates/:id/clone", templateHandler.CloneTemplate)
+		adminAPI.GET("/config/templates", templateHandler.ListTemplates)
+		adminAPI.GET("/config/templates/variables", templateHandler.GetTemplateVariables)
+		adminAPI.POST("/config/templates/preview", templateHandler.PreviewTemplate)
+		adminAPI.POST("/config/templates/initialize", templateHandler.InitializeDefaults)
+		adminAPI.GET("/config/templates/:id", templateHandler.GetTemplate)
+		adminAPI.POST("/config/templates", templateHandler.CreateTemplate)
+		adminAPI.PUT("/config/templates/:id", templateHandler.UpdateTemplate)
+		adminAPI.DELETE("/config/templates/:id", templateHandler.DeleteTemplate)
+		adminAPI.POST("/config/templates/:id/clone", templateHandler.CloneTemplate)
 
 		// Notification metrics management under /server/
-		adminAPI.GET("/server/metrics/notifications/summary", metricsHandler.GetSummary)
-		adminAPI.GET("/server/metrics/notifications/channels/:type", metricsHandler.GetChannelMetrics)
-		adminAPI.GET("/server/metrics/notifications/errors", metricsHandler.GetRecentErrors)
-		adminAPI.GET("/server/metrics/notifications/health", metricsHandler.GetHealthStatus)
+		adminAPI.GET("/config/metrics/notifications/summary", metricsHandler.GetSummary)
+		adminAPI.GET("/config/metrics/notifications/channels/:type", metricsHandler.GetChannelMetrics)
+		adminAPI.GET("/config/metrics/notifications/errors", metricsHandler.GetRecentErrors)
+		adminAPI.GET("/config/metrics/notifications/health", metricsHandler.GetHealthStatus)
 
 		// Tor hidden service management (AI.md PART 32)
-		// API per spec: /api/{api_version}/{admin_path}/server/tor/
-		torAPI := adminAPI.Group("/server/tor")
+		// API per spec: /api/{api_version}/{admin_path}/config/tor/
+		torAPI := adminAPI.Group("/config/tor")
 		{
 			torAPI.GET("", torAdminHandler.GetStatus)
 			torAPI.PATCH("", torAdminHandler.UpdateSettings)
@@ -3481,8 +3523,8 @@ func main() {
 			torAPI.POST("/import", torAdminHandler.ImportKeys)
 		}
 
-		// Web settings per spec: /api/{api_version}/{admin_path}/server/web/
-		webAPI := adminAPI.Group("/server/web")
+		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
+		webAPI := adminAPI.Group("/config/web")
 		{
 			webAPI.GET("/robots", adminWebHandler.GetRobotsTxt)
 			webAPI.PATCH("/robots", adminWebHandler.UpdateRobotsTxt)
@@ -3492,8 +3534,8 @@ func main() {
 			webAPI.GET("/security/preview", adminWebHandler.GetSecurityTxt)
 		}
 
-		// Email templates per spec: /api/{api_version}/{admin_path}/server/email/templates/
-		emailTemplateAPI := adminAPI.Group("/server/email/templates")
+		// Email templates per spec: /api/{api_version}/{admin_path}/config/email/templates/
+		emailTemplateAPI := adminAPI.Group("/config/email/templates")
 		{
 			emailTemplateAPI.GET("", emailTemplateHandler.ListTemplates)
 			emailTemplateAPI.GET("/:name", emailTemplateHandler.GetTemplate)
@@ -3503,7 +3545,7 @@ func main() {
 		}
 
 		// System logs management (already under /server/logs)
-		logsAPI := adminAPI.Group("/server/logs")
+		logsAPI := adminAPI.Group("/config/logs")
 		{
 			logsAPI.GET("", logsHandler.GetLogs)
 			logsAPI.GET("/:type", logsHandler.GetLogs)
@@ -3519,8 +3561,8 @@ func main() {
 			logsAPI.DELETE("", logsHandler.ClearLogs)
 		}
 
-		// SSL/TLS per spec: /api/{api_version}/{admin_path}/server/ssl/
-		sslAPI := adminAPI.Group("/server/ssl")
+		// SSL/TLS per spec: /api/{api_version}/{admin_path}/config/ssl/
+		sslAPI := adminAPI.Group("/config/ssl")
 		{
 			sslAPI.GET("", sslHandler.GetStatus)
 			sslAPI.PATCH("", sslHandler.UpdateSettings)
@@ -3537,7 +3579,7 @@ func main() {
 		}
 
 		// Metrics configuration under /server/
-		metricsAPI := adminAPI.Group("/server/metrics")
+		metricsAPI := adminAPI.Group("/config/metrics")
 		{
 			metricsAPI.GET("/config", metricsConfigHandler.GetConfig)
 			metricsAPI.PUT("/config", metricsConfigHandler.UpdateConfig)
@@ -3550,7 +3592,7 @@ func main() {
 		}
 
 		// Advanced logging formats under /server/
-		loggingAPI := adminAPI.Group("/server/logging")
+		loggingAPI := adminAPI.Group("/config/logging")
 		{
 			loggingAPI.GET("/formats", loggingHandler.GetFormats)
 			loggingAPI.PUT("/formats", loggingHandler.UpdateFormats)
@@ -3692,21 +3734,15 @@ func main() {
 	)
 	graphqlServer := appgraphql.NewServer(graphqlResolver)
 
-	// Root-level endpoint required by AI.md PART 14.
-	r.POST("/graphql", appgraphql.GraphQLHandler(graphqlServer))
-	r.GET("/graphql", appgraphql.PlaygroundHandler("/graphql"))
-
-	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
-	// never loaded from a CDN, see src/graphql/playground.go.
-	r.GET("/graphql/assets/*filepath", appgraphql.PlaygroundAssetHandler())
-
-	// Temporary compatibility alias while remaining GraphQL consumers are updated.
-	graphqlAliasPath := cfg.GetAPIPath() + "/graphql"
-	r.POST(graphqlAliasPath, appgraphql.GraphQLHandler(graphqlServer))
-	r.GET(graphqlAliasPath, func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/graphql") })
+	// Root-level endpoint required by AI.md PART 14, plus the API-path alias
+	// mounting the same handlers (never a redirect).
+	registerGraphQLRoutes(r, cfg.GetAPIPath(),
+		appgraphql.GraphQLHandler(graphqlServer),
+		appgraphql.PlaygroundHandler("/graphql"),
+		appgraphql.PlaygroundAssetHandler())
 
 	appLogger.Printf("GraphQL API enabled at /graphql")
-	fmt.Printf("✅ GraphQL API enabled at /graphql\n")
+	fmt.Printf("%s GraphQL API enabled at /graphql\n", display.Emoji("✅", "[OK]"))
 
 	// HTML documentation page at /docs
 	r.GET("/docs", apiHandler.GetDocsHTML)
@@ -3794,7 +3830,7 @@ JSON API:
 	r.Use(func(c *gin.Context) {
 		// Skip for health checks, API routes, and static files
 		if strings.HasPrefix(c.Request.URL.Path, "/health") ||
-			strings.HasPrefix(c.Request.URL.Path, "/healthz") ||
+			strings.HasPrefix(c.Request.URL.Path, "/server/healthz") ||
 			strings.HasPrefix(c.Request.URL.Path, "/api") ||
 			strings.HasPrefix(c.Request.URL.Path, "/debug") ||
 			strings.Contains(c.Request.URL.Path, ".") {
@@ -3847,8 +3883,8 @@ JSON API:
 	}
 
 	// Print final startup messages
-	fmt.Printf("📡 For documentation see: %s/docs\n", finalURL)
-	fmt.Printf("🕐 Ready: %s: %s\n", time.Now().Format("2006-01-02 at 15:04:05"), finalURL)
+	fmt.Printf("%s For documentation see: %s/docs\n", display.Emoji("📡", "*"), finalURL)
+	fmt.Printf("%s Ready: %s: %s\n", display.Emoji("🕐", "*"), time.Now().Format("2006-01-02 at 15:04:05"), finalURL)
 
 	// Create HTTP server with graceful shutdown
 	// Format address properly - check if port is already included
@@ -3899,14 +3935,14 @@ JSON API:
 	// Start Tor hidden service after HTTP server starts
 	if err := torService.Start(httpPortInt); err != nil {
 		log.Printf("Failed to start Tor hidden service: %v", err)
-		fmt.Printf("⚠️  Failed to start Tor hidden service: %v\n", err)
+		fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
 
 	// Start config file watcher for live reload
 	if configWatcher != nil {
 		if err := configWatcher.Start(); err != nil {
 			log.Printf("Failed to start config watcher: %v", err)
-			fmt.Printf("⚠️  Failed to start config watcher: %v\n", err)
+			fmt.Printf("%s Failed to start config watcher: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		}
 	}
 
@@ -3916,8 +3952,14 @@ JSON API:
 		torOnionAddr = cfg.Server.Tor.OnionAddr
 	}
 
+	// The setup wizard lives at {adminBasePath}/config/setup, so the banner needs the configured admin path
+	adminBasePath := "/server/admin"
+	if cfg != nil {
+		adminBasePath = "/server/" + cfg.GetAdminPath()
+	}
+
 	if isFirstRun {
-		util.DisplayFirstRunBanner(httpPortInt, setupToken, util.IsDockerized(), torOnionAddr)
+		util.DisplayFirstRunBanner(httpPortInt, setupToken, util.IsDockerized(), torOnionAddr, adminBasePath)
 	} else {
 		util.DisplayNormalBanner(Version, BuildDate, httpPortInt, util.IsDockerized(), torOnionAddr)
 	}
@@ -3958,21 +4000,21 @@ JSON API:
 			// Stop Tor service
 			if err := torService.Stop(); err != nil {
 				log.Printf("Tor shutdown error: %v", err)
-				fmt.Printf("⚠️  Tor shutdown error: %v\n", err)
+				fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 			}
 
 			// Stop config watcher
 			if configWatcher != nil {
 				if err := configWatcher.Stop(); err != nil {
 					log.Printf("Config watcher shutdown error: %v", err)
-					fmt.Printf("⚠️  Config watcher shutdown error: %v\n", err)
+					fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
 			}
 
 			// Close cache connection
 			if err := cacheManager.Close(); err != nil {
 				log.Printf("Cache shutdown error: %v", err)
-				fmt.Printf("⚠️  Cache shutdown error: %v\n", err)
+				fmt.Printf("%s Cache shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 			}
 
 			// Shutdown HTTP server with 5 second timeout
@@ -3981,11 +4023,11 @@ JSON API:
 
 			if err := srv.Shutdown(ctx); err != nil {
 				log.Printf("Server forced to shutdown: %v", err)
-				fmt.Printf("⚠️  Server forced to shutdown: %v\n", err)
+				fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 			}
 
 			log.Println("Server exited gracefully")
-			fmt.Println("✅ Server exited gracefully")
+			fmt.Printf("%s Server exited gracefully\n", display.Emoji("✅", "[OK]"))
 			return
 
 		default:
@@ -4001,21 +4043,21 @@ JSON API:
 				// Stop Tor service
 				if err := torService.Stop(); err != nil {
 					log.Printf("Tor shutdown error: %v", err)
-					fmt.Printf("⚠️  Tor shutdown error: %v\n", err)
+					fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
 
 				// Stop config watcher
 				if configWatcher != nil {
 					if err := configWatcher.Stop(); err != nil {
 						log.Printf("Config watcher shutdown error: %v", err)
-						fmt.Printf("⚠️  Config watcher shutdown error: %v\n", err)
+						fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 					}
 				}
 
 				// Close cache connection
 				if err := cacheManager.Close(); err != nil {
 					log.Printf("Cache shutdown error: %v", err)
-					fmt.Printf("⚠️  Cache shutdown error: %v\n", err)
+					fmt.Printf("%s Cache shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
 
 				// Shutdown HTTP server with 5 second timeout
@@ -4024,11 +4066,11 @@ JSON API:
 
 				if err := srv.Shutdown(ctx); err != nil {
 					log.Printf("Server forced to shutdown: %v", err)
-					fmt.Printf("⚠️  Server forced to shutdown: %v\n", err)
+					fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
 
 				log.Println("Server exited gracefully")
-				fmt.Println("✅ Server exited gracefully")
+				fmt.Printf("%s Server exited gracefully\n", display.Emoji("✅", "[OK]"))
 				return
 			}
 		}
@@ -4080,7 +4122,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	dbStatus, _, dbErr := db.HealthCheck()
 	if dbErr != nil || dbStatus != "connected" {
 		isHealthy = false
-		healthStatus = "🔴 Unhealthy (Database Error)"
+		healthStatus = display.Emoji("🔴", "[FAIL]") + " Unhealthy (Database Error)"
 	}
 
 	// Get database statistics
@@ -4091,25 +4133,45 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&locationCount); err != nil {
 		log.Printf("WARNING: showServerStatus: failed to count saved locations: %v", err)
 	}
-	if err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE expires_at > datetime('now')").Scan(&tokenCount); err != nil {
-		log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", err)
+	// user_tokens.expires_at may hold the canonical UTC layout or a legacy local-zone value, and
+	// SQLite's datetime() returns NULL for the latter, so an SQL comparison would silently count
+	// zero. The candidate rows are read instead and compared in Go via dbtime.
+	tokenRows, tokenErr := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, "SELECT expires_at FROM user_tokens WHERE expires_at IS NOT NULL")
+	if tokenErr != nil {
+		log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", tokenErr)
+	} else {
+		tokenCutoff := time.Now().UTC()
+		for tokenRows.Next() {
+			var storedExpiry interface{}
+			if scanErr := tokenRows.Scan(&storedExpiry); scanErr != nil {
+				log.Printf("WARNING: showServerStatus: failed to read token expiry: %v", scanErr)
+				break
+			}
+			if dbtime.IsAfter(storedExpiry, tokenCutoff) {
+				tokenCount++
+			}
+		}
+		if rowsErr := tokenRows.Err(); rowsErr != nil {
+			log.Printf("WARNING: showServerStatus: failed to count active tokens: %v", rowsErr)
+		}
+		tokenRows.Close()
 	}
 
 	// Display status
 	fmt.Println("\n╔══════════════════════════════════════════════════════╗")
-	fmt.Println("║          🌤️  Weather - Status              ║")
+	fmt.Printf("║          %s Weather - Status              ║\n", display.Emoji("🌤️", "*"))
 	fmt.Println("╚══════════════════════════════════════════════════════╝")
 
-	fmt.Printf("\n🏥 Health Status: %s\n", healthStatus)
+	fmt.Printf("\n%s Health Status: %s\n", display.Emoji("🏥", "*"), healthStatus)
 
-	fmt.Println("\n📊 Server Configuration:")
+	fmt.Printf("\n%s Server Configuration:\n", display.Emoji("📊", "*"))
 	fmt.Printf("   Version:        %s\n", Version)
 	fmt.Printf("   Build Date:     %s\n", BuildDate)
 	fmt.Printf("   Git Commit:     %s\n", CommitID)
 	fmt.Printf("   Listen Address: %s:%s%s\n", address, port, addressMode)
 	fmt.Printf("   Environment:    %s\n", envMode)
 
-	fmt.Println("\n💾 Database:")
+	fmt.Printf("\n%s Database:\n", display.Emoji("💾", "*"))
 	fmt.Printf("   Path:           %s\n", dbPath)
 	fmt.Printf("   Status:         %s\n", dbStatus)
 	fmt.Printf("   Users:          %d\n", userCount)
@@ -4117,28 +4179,28 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	fmt.Printf("   Active Tokens:  %d\n", tokenCount)
 	fmt.Printf("   First Run:      %v\n", isFirstRun)
 
-	fmt.Println("\n🔐 Security:")
-	fmt.Println("   Session Secret: ✅ Configured")
+	fmt.Printf("\n%s Security:\n", display.Emoji("🔐", "*"))
+	fmt.Printf("   Session Secret: %s Configured\n", display.Emoji("✅", "[OK]"))
 
-	fmt.Println("\n🌐 Endpoints:")
+	fmt.Printf("\n%s Endpoints:\n", display.Emoji("🌐", "*"))
 	fmt.Printf("   Web Interface:  http://%s:%s/\n", address, port)
 	fmt.Printf("   API Docs:       http://%s:%s/docs\n", address, port)
-	fmt.Printf("   Health Check:   http://%s:%s/healthz\n", address, port)
+	fmt.Printf("   Health Check:   http://%s:%s/server/healthz\n", address, port)
 	fmt.Printf("   Admin Panel:    http://%s:%s/admin\n", address, port)
 
-	fmt.Println("\n📡 Features:")
-	fmt.Println("   ✅ Weather forecasts (Open-Meteo)")
-	fmt.Println("   ✅ Moon phases")
-	fmt.Println("   ✅ Earthquakes (USGS)")
-	fmt.Println("   ✅ Hurricanes (NOAA)")
-	fmt.Println("   ✅ Authentication & Sessions")
-	fmt.Println("   ✅ Saved Locations")
-	fmt.Println("   ✅ Weather Alerts")
-	fmt.Println("   ✅ API Tokens")
-	fmt.Println("   ✅ PWA Support")
-	fmt.Println("   ✅ Rate Limiting")
+	fmt.Printf("\n%s Features:\n", display.Emoji("📡", "*"))
+	fmt.Printf("   %s Weather forecasts (Open-Meteo)\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Moon phases\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Earthquakes (USGS)\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Hurricanes (NOAA)\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Authentication & Sessions\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Saved Locations\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Weather Alerts\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s API Tokens\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s PWA Support\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("   %s Rate Limiting\n", display.Emoji("✅", "[OK]"))
 
-	fmt.Println("\n💡 CLI Commands:")
+	fmt.Printf("\n%s CLI Commands:\n", display.Emoji("💡", "*"))
 	fmt.Println("   --status        Show this status information")
 	fmt.Println("   --version       Show version information")
 	fmt.Println("   --healthcheck   Run health check (for Docker)")
@@ -4147,7 +4209,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	fmt.Println("   --config DIR    Configuration directory")
 	fmt.Println("   --address ADDR  Override server listen address")
 
-	fmt.Println("\n🌐 Network Configuration:")
+	fmt.Printf("\n%s Network Configuration:\n", display.Emoji("🌐", "*"))
 	fmt.Println("   Default:        :: (all interfaces, IPv4 + IPv6)")
 	fmt.Println("   Reverse Proxy:  127.0.0.1 (set REVERSE_PROXY=true)")
 	fmt.Println("   Custom:         Set SERVER_LISTEN environment variable")
@@ -4157,4 +4219,107 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// Return health status per AI.md PART 8
 	return isHealthy
+}
+
+// lookupEmailVerification returns the id and user id of the pending
+// user_email_verifications row identified by token, reporting false when no
+// such token exists or when the row has already expired at instant now.
+//
+// user_email_verifications.expires_at has more than one producer, so it can
+// hold the canonical UTC text this project writes or a legacy local-zone
+// time.Time.String() value left by a raw bound time.Time. An SQL predicate such
+// as "expires_at > ?" compares those as text and therefore accepts or rejects a
+// token by the writer's UTC offset rather than by the instant the value means.
+// The row is fetched by token alone and its expiry judged in Go through dbtime,
+// which reports false for a value it cannot parse so an uninterpretable row
+// fails closed instead of verifying an address forever.
+//
+// token is the raw value from the emailed link. It is hashed before the lookup
+// because user_email_verifications.token stores only model.HashAPIToken(token)
+// — PART 11 forbids keeping a usable token at rest — so matching on the raw
+// value found no row at all and no verification link could be redeemed here.
+func lookupEmailVerification(db *sql.DB, token string, now time.Time) (int64, int64, bool) {
+	var verificationID int64
+	var userID int64
+	var storedExpiry interface{}
+
+	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
+		SELECT id, user_id, expires_at
+		FROM user_email_verifications
+		WHERE token = ?
+	`, model.HashAPIToken(token)).Scan(&verificationID, &userID, &storedExpiry)
+	if err != nil {
+		return 0, 0, false
+	}
+
+	if !dbtime.IsAfter(storedExpiry, now.UTC()) {
+		return 0, 0, false
+	}
+
+	return verificationID, userID, true
+}
+
+// defaultAdminPreferencesJSON encodes the preference defaults a new admin
+// starts with. server_admin_preferences (src/database/server_schema.go) stores
+// preferences as a single JSON blob column (admin_id, preferences, updated_at)
+// — not individual theme/language/... columns.
+func defaultAdminPreferencesJSON(adminID int64) (string, error) {
+	b, err := json.Marshal(model.AdminPreferences{
+		AdminID:              adminID,
+		Theme:                "auto",
+		Language:             "en",
+		Timezone:             "UTC",
+		NotificationsEnabled: true,
+		EmailNotifications:   true,
+	})
+
+	return string(b), err
+}
+
+// loadAdminPreferencesRow returns the stored preferences for adminID, creating
+// the default row on first access.
+func loadAdminPreferencesRow(db *sql.DB, adminID int64) (*model.AdminPreferences, error) {
+	defaultJSON, err := defaultAdminPreferencesJSON(adminID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
+	}
+
+	// updated_at is a projected value in this INSERT ... SELECT, so replacing the
+	// CURRENT_TIMESTAMP literal with a bound parameter adds a third placeholder to
+	// the projection, ahead of the existing NOT EXISTS bind.
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+		INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
+		SELECT ?, ?, ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM server_admin_preferences WHERE admin_id = ?
+		)
+	`, adminID, defaultJSON, dbtime.FormatSQLTimestamp(time.Now()), adminID); err != nil {
+		return nil, fmt.Errorf("failed to ensure admin preferences: %w", err)
+	}
+
+	var prefsJSON string
+	// updated_at is scanned as a raw driver value and parsed through dbtime: a row
+	// written before this column was bound as canonical UTC text holds a
+	// local-zone time.Time.String() value that the driver cannot convert into a
+	// time.Time, which used to fail the whole preferences load.
+	var storedUpdatedAt interface{}
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
+		SELECT preferences, updated_at
+		FROM server_admin_preferences
+		WHERE admin_id = ?
+	`, adminID).Scan(&prefsJSON, &storedUpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load admin preferences: %w", err)
+	}
+
+	prefs := &model.AdminPreferences{}
+	if err := json.Unmarshal([]byte(prefsJSON), prefs); err != nil {
+		return nil, fmt.Errorf("failed to decode admin preferences: %w", err)
+	}
+	prefs.AdminID = adminID
+	if parsed, ok := dbtime.ParseStoredTimestamp(storedUpdatedAt); ok {
+		prefs.UpdatedAt = parsed
+	}
+
+	return prefs, nil
 }

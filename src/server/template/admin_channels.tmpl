@@ -1,0 +1,99 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $apiPath := "/api/v1/server/admin" -}}
+{{- if .admin_api_path}}{{$apiPath = .admin_api_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.channels.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.channels.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="channels-list-heading">
+    <div class="section-header">
+      <h2 id="channels-list-heading">{{t $lang "admin.channels.list_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128225;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.channels.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.channels.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/notifications">{{t $lang "admin.channels.empty_action"}}</a>
+    </div>
+  </section>
+
+  <section class="admin-section" aria-labelledby="channels-read-heading">
+    <div class="section-header">
+      <h2 id="channels-read-heading">{{t $lang "admin.channels.read_heading"}}</h2>
+    </div>
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_list"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_definitions"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels/definitions</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_detail"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels/:type</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_stats"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels/:type/stats</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_queue"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels/queue/stats</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_history"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/channels/history</code></dd>
+    </dl>
+  </section>
+
+  <section class="admin-section" aria-labelledby="channels-write-heading">
+    <div class="section-header">
+      <h2 id="channels-write-heading">{{t $lang "admin.channels.write_heading"}}</h2>
+    </div>
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <caption class="admin-table-caption">{{t $lang "admin.channels.write_caption"}}</caption>
+        <thead class="admin-table-header">
+          <tr class="admin-table-head-row">
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.channels.col_operation"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.channels.col_endpoint"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.channels.col_body"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_update"}}</th>
+            <td class="admin-table-body-cell admin-break-all"><code>PUT {{$apiPath}}/server/channels/:type</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>{"enabled": true, "config": {}}</code></td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_enable"}}</th>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/server/channels/:type/enable</code></td>
+            <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_disable"}}</th>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/server/channels/:type/disable</code></td>
+            <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_test"}}</th>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/server/channels/:type/test</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>{"recipient": "..."}</code></td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_initialize"}}</th>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/server/channels/initialize</code></td>
+            <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      <p>
+        <span class="admin-flag admin-flag--off">
+          <span class="admin-flag__icon" aria-hidden="true">&#9888;</span>
+          <span class="admin-flag__text">{{t $lang "admin.common.api_only"}}</span>
+        </span>
+        {{t $lang "admin.channels.api_only_note"}}
+      </p>
+    </div>
+  </section>
+{{template "admin_footer" .}}

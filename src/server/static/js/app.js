@@ -894,30 +894,7 @@
      * Initialize admin panel
      */
     init: function() {
-      this.initializeSearch();
       this.initializeKeyboardShortcuts();
-      this.initializeMobileSidebar();
-    },
-
-    /**
-     * Search functionality
-     */
-    initializeSearch: function() {
-      const searchInput = document.getElementById('admin-search');
-      if (!searchInput) return;
-
-      searchInput.addEventListener('input', Utils.debounce(function(e) {
-        const query = e.target.value.toLowerCase();
-        if (query.length < 2) return;
-
-        // Search through sidebar items
-        const navItems = document.querySelectorAll('.nav-item, .nav-subitem');
-        navItems.forEach(item => {
-          const text = item.textContent.toLowerCase();
-          const match = text.includes(query);
-          item.style.display = match ? '' : 'none';
-        });
-      }, 300));
     },
 
     /**
@@ -925,10 +902,11 @@
      */
     initializeKeyboardShortcuts: function() {
       document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + K: Focus search
+        // Ctrl/Cmd + K: Focus the admin search field, which submits to the
+        // server-side global search route
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
           e.preventDefault();
-          document.getElementById('admin-search')?.focus();
+          document.getElementById('admin-search-input')?.focus();
         }
 
         // Ctrl/Cmd + B: Toggle sidebar
@@ -940,37 +918,14 @@
     },
 
     /**
-     * Mobile sidebar
-     */
-    initializeMobileSidebar: function() {
-      const sidebar = document.getElementById('adminSidebar');
-      const toggle = document.querySelector('.sidebar-toggle');
-
-      if (!sidebar || !toggle) return;
-
-      toggle.addEventListener('click', function() {
-        if (window.innerWidth <= 768) {
-          sidebar.classList.toggle('mobile-open');
-        }
-      });
-
-      // Close sidebar when clicking outside on mobile
-      document.addEventListener('click', function(e) {
-        if (window.innerWidth <= 768) {
-          if (!sidebar.contains(e.target) && !toggle.contains(e.target)) {
-            sidebar.classList.remove('mobile-open');
-          }
-        }
-      });
-    },
-
-    /**
-     * Toggle sidebar
+     * Toggle the sidebar drawer.
+     * The drawer is a pure-CSS checkbox in the admin chrome, so it already
+     * works without JavaScript; this only adds the keyboard shortcut.
      */
     toggleSidebar: function() {
-      const sidebar = document.getElementById('adminSidebar');
-      if (sidebar) {
-        sidebar.classList.toggle('collapsed');
+      const drawer = document.getElementById('admin-drawer');
+      if (drawer) {
+        drawer.checked = !drawer.checked;
       }
     }
   };
@@ -1003,13 +958,83 @@
     }, 50);
   };
 
+  // ============================================
+  // ADMIN SIDEBAR STATE (AI.md PART 17)
+  // "Remember state | Persist expanded/collapsed state"
+  // ============================================
+
+  /**
+   * Persists which admin sidebar sections are expanded.
+   * The markup is <details open> so navigation still works with JavaScript
+   * disabled; this only restores the admin's last choice on top of it.
+   * A UI preference is the only thing stored - never a session token.
+   */
+  const AdminSidebarState = {
+    storageKey: 'admin.sidebar.sections',
+
+    /**
+     * Read the saved section map, tolerating unavailable or corrupt storage.
+     */
+    read: function() {
+      try {
+        const raw = window.localStorage.getItem(this.storageKey);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    },
+
+    /**
+     * Persist the section map, ignoring quota or private-mode failures.
+     */
+    write: function(state) {
+      try {
+        window.localStorage.setItem(this.storageKey, JSON.stringify(state));
+      } catch (e) {
+        return;
+      }
+    },
+
+    /**
+     * Apply the saved state to the sidebar, then keep it in sync on toggle.
+     */
+    init: function() {
+      const sections = document.querySelectorAll('.admin-sidebar [data-nav-section]');
+      if (!sections.length) return;
+
+      const state = this.read();
+      sections.forEach(section => {
+        const key = section.dataset.navSection;
+        if (Object.prototype.hasOwnProperty.call(state, key)) {
+          section.open = state[key] === true;
+        }
+      });
+
+      // The toggle event does not bubble, so listen in the capture phase.
+      document.addEventListener('toggle', function(e) {
+        const section = e.target;
+        if (!section.dataset || !section.dataset.navSection) return;
+        if (!section.closest('.admin-sidebar')) return;
+
+        const current = AdminSidebarState.read();
+        current[section.dataset.navSection] = section.open;
+        AdminSidebarState.write(current);
+      }, true);
+    }
+  };
+
   // Expose AdminPanel
   window.AdminPanel = AdminPanel;
 
   // Initialize admin panel if on admin page
-  if (document.querySelector('#adminSidebar') || window.location.pathname.startsWith('/admin')) {
+  if (document.querySelector('.admin-sidebar')) {
     AdminPanel.init();
   }
+
+  // Sidebar state restores on every admin page that renders the shared chrome
+  AdminSidebarState.init();
 
   // ============================================
   // THEME SYSTEM (AI.md PART 16)

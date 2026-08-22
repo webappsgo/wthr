@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 	_ "modernc.org/sqlite"
@@ -53,10 +54,12 @@ func seedAdminCredential(t *testing.T, db *sql.DB, username, password string) in
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
+	// Bound through dbtime rather than left to CURRENT_TIMESTAMP so the fixture
+	// uses the same writer convention as production code.
 	res, err := db.Exec(`
 		INSERT INTO server_admin_credentials (username, email, password_hash, created_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-	`, username, username+"@example.com", hash)
+		VALUES (?, ?, ?, ?)
+	`, username, username+"@example.com", hash, dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
 		t.Fatalf("seed admin credential: %v", err)
 	}
@@ -150,11 +153,13 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	adminID := seedAdminCredential(t, serverDB, "root", "hunter2-hunter2")
 
 	const token = "a-valid-looking-session-token"
-	expires := time.Now().Add(time.Hour).Unix()
+	now := time.Now()
+	// Both timestamps go in as canonical UTC text via dbtime, matching what
+	// AdminLoginHandler itself writes.
 	if _, err := serverDB.Exec(`
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-		VALUES (?, ?, ?, ?, datetime(?, 'unixepoch'), CURRENT_TIMESTAMP)
-	`, token, adminID, "127.0.0.1", "test-agent", expires); err != nil {
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, token, adminID, "127.0.0.1", "test-agent", dbtime.FormatSQLTimestamp(now.Add(time.Hour)), dbtime.FormatSQLTimestamp(now)); err != nil {
 		t.Fatalf("seed admin session: %v", err)
 	}
 
@@ -184,6 +189,106 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "reached") {
 		t.Errorf("body = %q, want the wrapped handler's response", w.Body.String())
+	}
+}
+
+// Fixed zones far from UTC in both directions, so the assertions below hold on
+// a host in any timezone: the stored wall-clock text of a west-zone row reads
+// as long past while the instant is still in the future, and the text of an
+// east-zone row reads as far future while the instant has already gone by.
+// The names are short, all-uppercase and digit-free because the "MST" element
+// of adminAuthLocalLayout can only read names of that shape - a digit-carrying
+// name would make both rows unparseable and collapse them into the separate
+// unparseable case below.
+var (
+	adminAuthZoneWest = time.FixedZone("WST", -11*60*60)
+	adminAuthZoneEast = time.FixedZone("EAT", 13*60*60)
+)
+
+// adminAuthLocalLayout is the layout modernc.org/sqlite writes when a Go
+// time.Time is bound directly, which is how older builds stored expires_at.
+const adminAuthLocalLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
+
+// TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText proves the session
+// expiry decision is made on the absolute instant in Go rather than by a
+// lexicographic TEXT comparison in SQL.
+//
+// Against the previous "WHERE ... AND expires_at > CURRENT_TIMESTAMP" query
+// both zone cases failed: the still-valid west-zone session sorted below
+// CURRENT_TIMESTAMP and was thrown back to the login page (denial of service),
+// and the already-expired east-zone session sorted above it and authenticated
+// (authentication bypass). The unparseable case proves the replacement fails
+// closed instead of trusting a value it cannot interpret.
+func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		name        string
+		expiresAt   string
+		wantHandler bool
+		explanation string
+	}{
+		{
+			name:        "live-west-zone-text-reads-as-past",
+			expiresAt:   now.Add(time.Hour).In(adminAuthZoneWest).Format(adminAuthLocalLayout),
+			wantHandler: true,
+			explanation: "session expires an hour from now and must authenticate",
+		},
+		{
+			name:        "expired-east-zone-text-reads-as-future",
+			expiresAt:   now.Add(-time.Hour).In(adminAuthZoneEast).Format(adminAuthLocalLayout),
+			wantHandler: false,
+			explanation: "session expired an hour ago and must be rejected",
+		},
+		{
+			name:        "unparseable-is-rejected",
+			expiresAt:   "whenever-o-clock",
+			wantHandler: false,
+			explanation: "an expiry this project cannot parse must fail closed",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			serverDB := openAdminAuthTestServerDB(t)
+			adminID := seedAdminCredential(t, serverDB, "root", "hunter2-hunter2")
+
+			const token = "zone-safety-session-token"
+			if _, err := serverDB.Exec(`
+				INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
+				VALUES (?, ?, ?, ?, ?, ?)
+			`, token, adminID, "127.0.0.1", "test-agent", tc.expiresAt, dbtime.FormatSQLTimestamp(now)); err != nil {
+				t.Fatalf("seed admin session: %v", err)
+			}
+
+			var reached bool
+			router := newAdminTestRouter()
+			router.Use(func(c *gin.Context) {
+				c.Set("db", serverDB)
+				c.Next()
+			})
+			router.Use(RequireAdminAuth())
+			router.GET("/server/admin/", func(c *gin.Context) {
+				reached = true
+				c.String(http.StatusOK, "reached")
+			})
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+			req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
+			router.ServeHTTP(w, req)
+
+			if reached != tc.wantHandler {
+				t.Errorf("wrapped handler reached = %v, want %v (%s)", reached, tc.wantHandler, tc.explanation)
+			}
+
+			// Both outcomes are a 200: the reject path renders the login page
+			// rather than a distinguishable status, so nothing about whether the
+			// session exists leaks.
+			if w.Code != http.StatusOK {
+				t.Errorf("status = %d, want 200", w.Code)
+			}
+		})
 	}
 }
 

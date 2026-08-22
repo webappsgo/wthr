@@ -1,23 +1,23 @@
 {{template "head" .}}
-{{template "navbar" .}}
-<main class="container">
-<div class="admin-header"><h1>👥 User Management</h1></div>
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+<div class="admin-header"><h1>👥 {{t $lang "admin.users.title"}}</h1></div>
 <form id="userSettingsForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>Multi-User Mode</h2>
-<label><input type="checkbox" name="enabled"> Enable multi-user mode</label>
+<section class="card"><h2>{{t $lang "admin.users.multi_user_heading"}}</h2>
+<label><input type="checkbox" name="enabled"> {{t $lang "admin.users.enable_multi_user_label"}}</label>
 </section>
-<section class="card"><h2>Registration</h2>
-<label for="registration_mode">Registration mode</label>
+<section class="card"><h2>{{t $lang "admin.users.registration_heading"}}</h2>
+<label for="registration_mode">{{t $lang "admin.users.registration_mode_label"}}</label>
 <select id="registration_mode" name="registration_mode">
-    <option value="open">Open (anyone can register)</option>
-    <option value="invite">Invite Only (admin-issued links)</option>
-    <option value="admin_only">Admin Only (admin creates accounts directly)</option>
-    <option value="disabled">Disabled (no new accounts)</option>
+    <option value="open">{{t $lang "admin.users.registration_mode_open"}}</option>
+    <option value="invite">{{t $lang "admin.users.registration_mode_invite"}}</option>
+    <option value="admin_only">{{t $lang "admin.users.registration_mode_admin_only"}}</option>
+    <option value="disabled">{{t $lang "admin.users.registration_mode_disabled"}}</option>
 </select>
-<label><input type="checkbox" name="registration_require_email_verification"> Require email verification</label>
+<label><input type="checkbox" name="registration_require_email_verification"> {{t $lang "admin.users.require_email_verification_label"}}</label>
 </section>
-<button type="submit">Save Settings</button>
+<button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>
-</main>
-{{template "footer" .}}
+{{template "admin_footer" .}}

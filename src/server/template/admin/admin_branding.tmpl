@@ -1,0 +1,23 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.branding.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.branding.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="branding-identity-heading">
+    <div class="section-header">
+      <h2 id="branding-identity-heading">{{t $lang "admin.branding.identity_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#127912;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.branding.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.branding.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/settings">{{t $lang "admin.branding.empty_action"}}</a>
+    </div>
+  </section>
+{{template "admin_footer" .}}

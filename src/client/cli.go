@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"golang.org/x/term"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // OfficialSite is the default server URL (set at build time or default)
@@ -122,22 +124,22 @@ func Execute() error {
 		config.Debug = true
 	}
 
-	// Handle --color flag per AI.md line 45482, 9584
-	// Respects NO_COLOR environment variable
-	switch *colorFlag {
-	case "no":
-		config.Output.Color = "no"
-	case "yes":
-		config.Output.Color = "yes"
-	case "auto":
-		// Check NO_COLOR env var (standard: https://no-color.org/)
-		if os.Getenv("NO_COLOR") != "" {
-			config.Output.Color = "no"
-		} else if !term.IsTerminal(int(os.Stdout.Fd())) {
-			config.Output.Color = "no"
-		} else {
-			config.Output.Color = "auto"
-		}
+	// Handle --color flag per AI.md PART 8: precedence is CLI flag > config >
+	// NO_COLOR > auto-detect (TTY + TERM). All four layers are resolved by the
+	// single canonical gate in src/common/display, which every binary shares;
+	// the flag and the config value reach it through display.ColorModeEnvVar.
+	if *colorFlag != "" {
+		os.Setenv(display.ColorModeEnvVar, *colorFlag)
+	} else if config.Output.Color == display.ColorModeYes || config.Output.Color == display.ColorModeNo {
+		os.Setenv(display.ColorModeEnvVar, config.Output.Color)
+	}
+
+	// Collapse the tri-state preference into the resolved answer so every
+	// formatter downstream reads one already-decided value.
+	if display.ColorEnabled() {
+		config.Output.Color = display.ColorModeYes
+	} else {
+		config.Output.Color = display.ColorModeNo
 	}
 
 	// Detect mode automatically

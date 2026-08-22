@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/path"
 	"golang.org/x/term"
 )
@@ -73,7 +74,7 @@ func MaintenanceBackupCommand(args []string) error {
 		password = string(passwordBytes)
 	}
 
-	fmt.Println("🔄 Creating backup...")
+	fmt.Printf("%s Creating backup...\n", display.Emoji("🔄", "->"))
 	fmt.Println()
 
 	// Create backup per AI.md PART 25
@@ -94,19 +95,19 @@ func MaintenanceBackupCommand(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Backup completed successfully!")
-	fmt.Printf("📦 Backup file: %s\n", backupPath)
+	fmt.Printf("%s Backup completed successfully!\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf("%s Backup file: %s\n", display.Emoji("📦", "*"), backupPath)
 
 	// Show file size
 	if info, err := os.Stat(backupPath); err == nil {
 		size := float64(info.Size()) / 1024 / 1024
-		fmt.Printf("📊 Size: %.2f MB\n", size)
+		fmt.Printf("%s Size: %.2f MB\n", display.Emoji("📊", "*"), size)
 	}
 
 	if password != "" {
-		fmt.Println("🔒 Backup is encrypted")
+		fmt.Printf("%s Backup is encrypted\n", display.Emoji("🔒", "*"))
 		fmt.Println()
-		fmt.Println("⚠️  IMPORTANT: Save your encryption password securely!")
+		fmt.Printf("%s IMPORTANT: Save your encryption password securely!\n", display.Emoji("⚠️", "WARNING:"))
 		fmt.Println("   Without the password, this backup cannot be restored.")
 	}
 
@@ -162,7 +163,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	// Confirm restore operation
-	fmt.Println("⚠️  WARNING: This will overwrite current configuration and databases!")
+	fmt.Printf("%s WARNING: This will overwrite current configuration and databases!\n", display.Emoji("⚠️", "[!]"))
 	fmt.Print("Are you sure you want to restore? (yes/no): ")
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
@@ -176,7 +177,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("🔄 Restoring backup...")
+	fmt.Printf("%s Restoring backup...\n", display.Emoji("🔄", "->"))
 	fmt.Println()
 
 	// Create backup service
@@ -196,7 +197,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Restore completed successfully!")
+	fmt.Printf("%s Restore completed successfully!\n", display.Emoji("✅", "[OK]"))
 	fmt.Println()
 	fmt.Println("Please restart the wthr service for changes to take effect:")
 	fmt.Println("  systemctl restart wthr")

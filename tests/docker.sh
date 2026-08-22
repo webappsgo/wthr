@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608131924-git
+##@Version           :  202608211414-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -102,13 +102,13 @@ docker run --rm \
     fi
 
     echo '=== Starting Server for API Tests ==='
-    mkdir -p \"\$TEST_DIR/rootfs/config\" \"\$TEST_DIR/rootfs/data\" \"\$TEST_DIR/rootfs/logs\" \"\$TEST_DIR/rootfs/cache\" \"\$TEST_DIR/rootfs/backup\"
+    mkdir -p \"\$TEST_DIR/volumes/config\" \"\$TEST_DIR/volumes/data\" \"\$TEST_DIR/volumes/logs\" \"\$TEST_DIR/volumes/cache\" \"\$TEST_DIR/volumes/backup\"
     /app/$PROJECTNAME --port 64580 --mode development \
-        --config \"\$TEST_DIR/rootfs/config\" \
-        --data \"\$TEST_DIR/rootfs/data\" \
-        --log \"\$TEST_DIR/rootfs/logs\" \
-        --cache \"\$TEST_DIR/rootfs/cache\" \
-        --backup \"\$TEST_DIR/rootfs/backup\" &
+        --config \"\$TEST_DIR/volumes/config\" \
+        --data \"\$TEST_DIR/volumes/data\" \
+        --log \"\$TEST_DIR/volumes/logs\" \
+        --cache \"\$TEST_DIR/volumes/cache\" \
+        --backup \"\$TEST_DIR/volumes/backup\" &
     SERVER_PID=\$!
     sleep 5
 
@@ -150,38 +150,43 @@ docker run --rm \
 
     echo '=== Health Endpoint Tests (AI.md PART 13) ==='
     # JSON response
-    HEALTH_JSON=\$(curl -q -LSsf http://localhost:64580/api/v1/healthz)
+    HEALTH_JSON=\$(curl -q -LSsf http://localhost:64580/api/v1/server/healthz)
     if echo \"\$HEALTH_JSON\" | jq -e '.status' >/dev/null 2>&1; then
-        echo '✓ /api/v1/healthz returns valid JSON with status field'
+        echo '✓ /api/v1/server/healthz returns valid JSON with status field'
     else
-        echo '✗ FAILED: /api/v1/healthz JSON format'
+        echo '✗ FAILED: /api/v1/server/healthz JSON format'
     fi
 
     # Check components field
     if echo \"\$HEALTH_JSON\" | jq -e '.components' >/dev/null 2>&1; then
-        echo '✓ /api/v1/healthz has components field'
+        echo '✓ /api/v1/server/healthz has components field'
     else
-        echo '✗ FAILED: /api/v1/healthz missing components'
+        echo '✗ FAILED: /api/v1/server/healthz missing components'
     fi
 
     echo '=== Content Negotiation Tests (AI.md PART 29) ==='
     # Test Accept: application/json
-    if curl -q -LSsf -H 'Accept: application/json' http://localhost:64580/api/v1/healthz | jq -e '.' >/dev/null 2>&1; then
+    if curl -q -LSsf -H 'Accept: application/json' http://localhost:64580/api/v1/server/healthz | jq -e '.' >/dev/null 2>&1; then
         echo '✓ Accept: application/json returns JSON'
     else
         echo '✗ FAILED: Accept application/json'
     fi
 
     # Test Accept: text/plain
-    PLAIN=\$(curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/v1/healthz)
-    if [ -n \"\$PLAIN\" ] && ! echo \"\$PLAIN\" | grep -q -- '^{'; then
-        echo '✓ Accept: text/plain returns plain text'
-    else
-        echo '✗ FAILED: Accept text/plain'
-    fi
+    # A plain-text response must be non-empty and must not be a JSON document,
+    # matched with a POSIX case glob instead of forking echo into grep
+    PLAIN=\$(curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/v1/server/healthz)
+    case \"\$PLAIN\" in
+        ''|'{'*)
+            echo '✗ FAILED: Accept text/plain'
+            ;;
+        *)
+            echo '✓ Accept: text/plain returns plain text'
+            ;;
+    esac
 
     # Test .txt extension
-    TXT=\$(curl -q -LSsf http://localhost:64580/api/v1/healthz.txt 2>/dev/null || echo '')
+    TXT=\$(curl -q -LSsf http://localhost:64580/api/v1/server/healthz.txt 2>/dev/null || echo '')
     if [ -n \"\$TXT\" ]; then
         echo '✓ .txt extension returns content'
     else
@@ -233,6 +238,39 @@ docker run --rm \
         echo '✗ FAILED: /api/v1/locations/search'
     fi
 
+    # Weather by coordinates (calls the live api.open-meteo.com upstream, so
+    # this real-network assertion lives here in Phase 2 rather than in
+    # *_test.go's Phase 1 toolchain gate — AI.md PART 29)
+    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?lat=40.7128&lon=-74.0060' | jq -e '.' >/dev/null 2>&1; then
+        echo '✓ /api/v1/weather?lat=&lon= returns JSON'
+    else
+        echo '✗ FAILED: /api/v1/weather?lat=&lon='
+    fi
+
+    # Weather by city ID (needs the live citylist download plus the live
+    # api.open-meteo.com upstream, so it is a Phase 2 assertion — AI.md PART 29)
+    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?city_id=5128581' | jq -e '.' >/dev/null 2>&1; then
+        echo '✓ /api/v1/weather?city_id= returns JSON'
+    else
+        echo '✗ FAILED: /api/v1/weather?city_id='
+    fi
+
+    # Weather for the nearest city to a coordinate pair (live citylist plus
+    # live weather upstream, Phase 2 only — AI.md PART 29)
+    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?lat=40.7128&lon=-74.0060&nearest=true' | jq -e '.' >/dev/null 2>&1; then
+        echo '✓ /api/v1/weather?nearest=true returns JSON'
+    else
+        echo '✗ FAILED: /api/v1/weather?nearest=true'
+    fi
+
+    # Forecast by coordinates (calls the live api.open-meteo.com upstream, so
+    # this real-network assertion lives here in Phase 2 — AI.md PART 29)
+    if curl -q -LSsf 'http://localhost:64580/api/v1/weather/forecast?lat=40.7128&lon=-74.0060&days=7' | jq -e '.' >/dev/null 2>&1; then
+        echo '✓ /api/v1/weather/forecast returns JSON'
+    else
+        echo '✗ FAILED: /api/v1/weather/forecast'
+    fi
+
     echo '=== Frontend Smart Detection Tests (AI.md PART 16) ==='
     # Test homepage - CLI should get response
     HOMEPAGE=\$(curl -q -LSsf http://localhost:64580/)
@@ -243,12 +281,17 @@ docker run --rm \
     fi
 
     # Test with Accept: text/html (browser simulation)
+    # Case-insensitive substring match via a POSIX case glob so the check
+    # stays fork-free instead of piping echo into grep
     HTML=\$(curl -q -LSsf -H 'Accept: text/html' http://localhost:64580/)
-    if echo \"\$HTML\" | grep -qi -- 'html'; then
-        echo '✓ Accept: text/html returns HTML'
-    else
-        echo '⚠ Accept: text/html (frontend may not implement)'
-    fi
+    case \"\$HTML\" in
+        *[Hh][Tt][Mm][Ll]*)
+            echo '✓ Accept: text/html returns HTML'
+            ;;
+        *)
+            echo '⚠ Accept: text/html (frontend may not implement)'
+            ;;
+    esac
 
     echo '=== OpenAPI/GraphQL Endpoint Tests (AI.md PART 14) ==='
     # OpenAPI

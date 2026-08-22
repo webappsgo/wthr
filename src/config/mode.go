@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // ModeString represents the application execution mode as a string
@@ -345,13 +347,13 @@ func (mc *ModeConfig) PrintConfig() {
 // WarningMessage returns a warning message if in development mode
 func (mc *ModeConfig) WarningMessage() string {
 	if mc.IsDevelopment {
-		return `
-⚠️  WARNING: Running in DEVELOPMENT mode
+		return fmt.Sprintf(`
+%s WARNING: Running in DEVELOPMENT mode
    - Relaxed security policies
    - Verbose logging enabled
    - FQDN validation disabled
    - NEVER use development mode in production!
-`
+`, display.Emoji("⚠️", "[!]"))
 	}
 	return ""
 }

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // AirportData represents an airport entry
@@ -64,7 +66,7 @@ func NewAirportService(dataURL, cachePath string) *AirportService {
 // loadAirports loads airport data from cache or downloads
 func (as *AirportService) loadAirports() {
 	startTime := time.Now()
-	fmt.Println("✈️  Loading airport codes database...")
+	fmt.Printf("%s Loading airport codes database...\n", display.Emoji("✈️", "->"))
 
 	var body []byte
 	var err error
@@ -73,7 +75,7 @@ func (as *AirportService) loadAirports() {
 	if _, statErr := os.Stat(as.cachePath); statErr == nil {
 		body, err = os.ReadFile(as.cachePath)
 		if err == nil {
-			fmt.Printf("📂 Loaded airports from cache\n")
+			fmt.Printf("%s Loaded airports from cache\n", display.Emoji("📂", "->"))
 		}
 	}
 
@@ -81,26 +83,26 @@ func (as *AirportService) loadAirports() {
 	if body == nil {
 		resp, err := downloadClient.Get(as.dataURL)
 		if err != nil {
-			fmt.Printf("❌ Failed to load airports: %v\n", err)
+			fmt.Printf("%s Failed to load airports: %v\n", display.Emoji("❌", "[FAIL]"), err)
 			return
 		}
 		defer resp.Body.Close()
 
 		body, err = io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Printf("❌ Failed to read airports: %v\n", err)
+			fmt.Printf("%s Failed to read airports: %v\n", display.Emoji("❌", "[FAIL]"), err)
 			return
 		}
 
 		// Save to cache
 		if err := os.WriteFile(as.cachePath, body, 0644); err != nil {
-			fmt.Printf("⚠️  Failed to cache airports: %v\n", err)
+			fmt.Printf("%s Failed to cache airports: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		}
 	}
 
 	var airports []AirportData
 	if err := json.Unmarshal(body, &airports); err != nil {
-		fmt.Printf("❌ Failed to parse airports: %v\n", err)
+		fmt.Printf("%s Failed to parse airports: %v\n", display.Emoji("❌", "[FAIL]"), err)
 		return
 	}
 
@@ -124,7 +126,7 @@ func (as *AirportService) loadAirports() {
 	as.mu.Unlock()
 
 	elapsed := time.Since(startTime)
-	fmt.Printf("✅ Airport database loaded in %.2f seconds (%d airports)\n", elapsed.Seconds(), validCount)
+	fmt.Printf("%s Airport database loaded in %.2f seconds (%d airports)\n", display.Emoji("✅", "[OK]"), elapsed.Seconds(), validCount)
 }
 
 // LookupAirport returns coordinates for an airport code (ICAO or IATA)
@@ -192,7 +194,7 @@ func (as *AirportService) IsLoaded() bool {
 
 // Reload reloads the airport database
 func (as *AirportService) Reload() error {
-	fmt.Println("🔄 Reloading airport data...")
+	fmt.Printf("%s Reloading airport data...\n", display.Emoji("🔄", "->"))
 
 	as.mu.Lock()
 	as.loaded = false

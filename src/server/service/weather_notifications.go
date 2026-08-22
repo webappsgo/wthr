@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -42,10 +44,27 @@ func NewWeatherNotificationService(db *sql.DB, ws *WeatherService, ds *DeliveryS
 	}
 }
 
+// usersDB returns the users.db handle this service was constructed with. Every
+// table this service reads or writes (user_saved_locations, user_accounts,
+// user_notification_channel_preferences, notification_subscriptions,
+// user_weather_alert_history) is declared in database.UsersSchema, so the
+// injected handle is the correct database for all of them. Rows queued for
+// delivery are handed to DeliverySystem, which owns the server.db side.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (wns *WeatherNotificationService) usersDB() *sql.DB {
+	if wns.db != nil {
+		return wns.db
+	}
+	return database.GetUsersDB()
+}
+
 // CheckWeatherAlerts checks all user locations for weather alerts
 func (wns *WeatherNotificationService) CheckWeatherAlerts() error {
 	// Get all locations with alerts enabled
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutBulk, `
 		SELECT l.id, l.user_id, l.name, l.latitude, l.longitude
 		FROM user_saved_locations l
 		WHERE l.alerts_enabled = 1
@@ -93,7 +112,7 @@ func (wns *WeatherNotificationService) CheckWeatherAlerts() error {
 	}
 
 	if alertsFound > 0 {
-		fmt.Printf("✅ Sent %d weather alerts\n", alertsFound)
+		fmt.Printf("%s Sent %d weather alerts\n", display.Emoji("✅", "[OK]"), alertsFound)
 	}
 
 	return nil
@@ -199,9 +218,9 @@ func (wns *WeatherNotificationService) detectSevereWeather(weatherData *CurrentW
 // sendWeatherAlert sends a weather alert notification to a user
 func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert WeatherAlert) error {
 	// Get user's enabled notification preferences
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutComplexSelect, `
 		SELECT unp.channel_type
-		FROM user_notification_preferences unp
+		FROM user_notification_channel_preferences unp
 		JOIN notification_subscriptions ns ON ns.user_id = unp.user_id
 		WHERE unp.user_id = ?
 		  AND unp.enabled = 1
@@ -264,40 +283,71 @@ func (wns *WeatherNotificationService) sendWeatherAlert(userID int, alert Weathe
 	}
 
 	if channelsSent > 0 {
-		fmt.Printf("📢 Weather alert sent to user %d via %d channels: %s - %s\n",
+		fmt.Printf("%s Weather alert sent to user %d via %d channels: %s - %s\n", display.Emoji("📢", "*"),
 			userID, channelsSent, alert.LocationName, alert.AlertType)
 	}
 
 	return nil
 }
 
-// hasRecentAlert checks if we've sent this alert type recently
+// alertDedupWindow is how long a delivered weather alert of a given type
+// suppresses another alert of the same type for the same saved location.
+const alertDedupWindow = 6 * time.Hour
+
+// hasRecentAlert checks if we've sent this alert type recently.
+// The dedup window is evaluated in Go instead of with SQLite's
+// datetime('now', '-6 hours'): sent_at can hold either the canonical UTC text
+// CURRENT_TIMESTAMP emits or the driver's local-zone time.Time.String() layout,
+// and datetime() returns NULL for the latter, which silently disabled dedup on
+// every such row. Comparing in Go also keeps this query working on PostgreSQL
+// and MySQL, where datetime('now', ...) does not exist.
 func (wns *WeatherNotificationService) hasRecentAlert(userID, locationID int, alertType string) bool {
-	var count int
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
-		SELECT COUNT(*)
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutSimpleSelect, `
+		SELECT sent_at
 		FROM user_weather_alert_history
 		WHERE user_id = ?
 		  AND location_id = ?
 		  AND alert_type = ?
-		  AND sent_at > datetime('now', '-6 hours')
-	`, userID, locationID, alertType).Scan(&count)
+		  AND sent_at IS NOT NULL
+	`, userID, locationID, alertType)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
 
-	return err == nil && count > 0
+	cutoff := time.Now().Add(-alertDedupWindow)
+
+	for rows.Next() {
+		var storedSentAt interface{}
+		if scanErr := rows.Scan(&storedSentAt); scanErr != nil {
+			return false
+		}
+
+		if dbtime.IsAfter(storedSentAt, cutoff) {
+			return true
+		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return false
+	}
+
+	return false
 }
 
-// recordAlertSent records that we sent an alert
+// recordAlertSent records that we sent an alert.
+// sent_at is bound as canonical UTC text rather than produced by SQLite's
+// datetime('now') so the write works identically on every supported driver.
 func (wns *WeatherNotificationService) recordAlertSent(userID, locationID int, alertType string) {
-	_, _ = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, _ = database.ExecContext(context.Background(), wns.usersDB(), database.TimeoutWrite, `
 		INSERT INTO user_weather_alert_history (user_id, location_id, alert_type, sent_at)
-		VALUES (?, ?, ?, datetime('now'))
-	`, userID, locationID, alertType)
+		VALUES (?, ?, ?, ?)
+	`, userID, locationID, alertType, dbtime.FormatSQLTimestamp(time.Now()))
 }
 
 // SendDailyForecast sends daily forecast to subscribed users
 func (wns *WeatherNotificationService) SendDailyForecast() error {
 	// Get all users subscribed to daily forecast
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutComplexSelect, `
 		SELECT DISTINCT ns.user_id, l.id, l.name, l.latitude, l.longitude
 		FROM notification_subscriptions ns
 		JOIN user_saved_locations l ON l.user_id = ns.user_id
@@ -333,7 +383,7 @@ func (wns *WeatherNotificationService) SendDailyForecast() error {
 	}
 
 	if forecastsSent > 0 {
-		fmt.Printf("✅ Sent %d daily forecasts\n", forecastsSent)
+		fmt.Printf("%s Sent %d daily forecasts\n", display.Emoji("✅", "[OK]"), forecastsSent)
 	}
 
 	return nil
@@ -342,9 +392,9 @@ func (wns *WeatherNotificationService) SendDailyForecast() error {
 // sendDailyForecast sends a daily forecast to a user
 func (wns *WeatherNotificationService) sendDailyForecast(userID int, location string, weatherData *CurrentWeather) error {
 	// Get user's enabled channels
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutSimpleSelect, `
 		SELECT channel_type
-		FROM user_notification_preferences
+		FROM user_notification_channel_preferences
 		WHERE user_id = ? AND enabled = 1
 	`, userID)
 	if err != nil {
@@ -381,7 +431,7 @@ func (wns *WeatherNotificationService) sendDailyForecast(userID int, location st
 // SendSystemHealthAlert sends system health alerts to admins
 func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message string, severity string) error {
 	// Get all admin users
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutComplexSelect, `
 		SELECT u.id
 		FROM user_accounts u
 		JOIN notification_subscriptions ns ON ns.user_id = u.id
@@ -401,9 +451,9 @@ func (wns *WeatherNotificationService) SendSystemHealthAlert(component, message 
 		}
 
 		// Get admin's enabled channels
-		channels, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+		channels, err := database.QueryContext(context.Background(), wns.usersDB(), database.TimeoutSimpleSelect, `
 			SELECT channel_type
-			FROM user_notification_preferences
+			FROM user_notification_channel_preferences
 			WHERE user_id = ? AND enabled = 1
 		`, userID)
 		if err != nil {

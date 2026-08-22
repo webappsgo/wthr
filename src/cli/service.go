@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -279,7 +280,7 @@ WantedBy=multi-user.target
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
-	fmt.Println("✓ Systemd service installed successfully")
+	fmt.Printf("%s Systemd service installed successfully\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Use: systemctl start wthr")
 	return nil
 }
@@ -297,7 +298,7 @@ func uninstallSystemdService() error {
 	// Reload systemd
 	runCommand("systemctl", "daemon-reload")
 
-	fmt.Println("✓ Systemd service uninstalled")
+	fmt.Printf("%s Systemd service uninstalled\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -332,7 +333,7 @@ func installLaunchdService() error {
 		return fmt.Errorf("failed to load service: %w", err)
 	}
 
-	fmt.Println("✓ Launchd service installed successfully")
+	fmt.Printf("%s Launchd service installed successfully\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Use: launchctl start io.github.webappsgo.wthr")
 	return nil
 }
@@ -346,7 +347,7 @@ func uninstallLaunchdService() error {
 	// Remove plist
 	os.Remove(plistPath)
 
-	fmt.Println("✓ Launchd service uninstalled")
+	fmt.Printf("%s Launchd service uninstalled\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -373,7 +374,7 @@ run_rc_command "$1"
 		return fmt.Errorf("failed to write rc.d script: %w", err)
 	}
 
-	fmt.Println("✓ RC.d service installed successfully")
+	fmt.Printf("%s RC.d service installed successfully\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Add to /etc/rc.conf: wthr_enable=\"YES\"")
 	fmt.Println("  Use: service wthr start")
 	return nil
@@ -381,7 +382,7 @@ run_rc_command "$1"
 
 func uninstallRCDService() error {
 	os.Remove("/usr/local/etc/rc.d/wthr")
-	fmt.Println("✓ RC.d service uninstalled")
+	fmt.Printf("%s RC.d service uninstalled\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Remove from /etc/rc.conf: wthr_enable")
 	return nil
 }
@@ -408,7 +409,7 @@ func installWindowsService() error {
 	// Set startup type to automatic
 	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
 
-	fmt.Println("✓ Windows service installed successfully")
+	fmt.Printf("%s Windows service installed successfully\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Use: sc start wthr")
 	return nil
 }
@@ -424,7 +425,7 @@ func uninstallWindowsService() error {
 		runCommand("sc", "delete", "wthr")
 	}
 
-	fmt.Println("✓ Windows service uninstalled")
+	fmt.Printf("%s Windows service uninstalled\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -499,7 +500,7 @@ exec svlogd -tt /var/log/webappsgo/wthr
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
-	fmt.Println("✓ Runit service installed successfully")
+	fmt.Printf("%s Runit service installed successfully\n", display.Emoji("✓", "[OK]"))
 	fmt.Println("  Service directory: /etc/sv/wthr")
 	fmt.Println("  Service link: /var/service/wthr")
 
@@ -522,7 +523,7 @@ func uninstallRunitService() error {
 		return fmt.Errorf("failed to remove service directory: %w", err)
 	}
 
-	fmt.Println("✓ Runit service uninstalled")
+	fmt.Printf("%s Runit service uninstalled\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -543,7 +544,7 @@ func commandExists(name string) bool {
 func createSystemUser() error {
 	// Check if user already exists
 	if userExists("wthr") {
-		fmt.Println("✓ System user 'wthr' already exists")
+		fmt.Printf("%s System user 'wthr' already exists\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
@@ -582,7 +583,7 @@ func createLinuxUser() error {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Println("✓ Created system user 'wthr'")
+	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -613,7 +614,7 @@ func createMacOSUser() error {
 	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather")
 	runCommand("dscl", ".", "-create", "/Users/wthr", "NFSHomeDirectory", "/var/empty")
 
-	fmt.Println("✓ Created system user 'wthr'")
+	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -638,7 +639,7 @@ func createBSDUser() error {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Println("✓ Created system user 'wthr'")
+	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -665,7 +666,7 @@ func createServiceDirectories() error {
 		}
 	}
 
-	fmt.Println("✓ Created service directories")
+	fmt.Printf("%s Created service directories\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 

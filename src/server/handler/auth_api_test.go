@@ -9,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pquerna/otp/totp"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // newAuthAPITestHandler wires an AuthAPIHandler against fresh in-memory
@@ -389,18 +391,15 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 		if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
 			t.Fatalf("reset verified flag: %v", err)
 		}
-		if _, err := h.DB.Exec(`
-			CREATE TABLE IF NOT EXISTS user_email_verifications (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				user_id INTEGER NOT NULL,
-				email TEXT NOT NULL,
-				token TEXT NOT NULL,
-				expires_at DATETIME NOT NULL
-			)`); err != nil {
-			t.Fatalf("create verifications table: %v", err)
-		}
+		// The table comes from database.UsersSchema, applied by
+		// newAuthAPITestHandler. A fixture must never declare its own copy: a
+		// hand-rolled column set is inert only until the real schema changes,
+		// at which point it silently hides the divergence instead of failing.
+		//
+		// The token column holds the SHA-256 hash, never the raw token, so the
+		// fixture must store what CreateVerification would have stored.
 		if _, err := h.DB.Exec(`INSERT INTO user_email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
-			userID, "verifyuser@example.com", "good-token"); err != nil {
+			userID, "verifyuser@example.com", models.HashAPIToken("good-token")); err != nil {
 			t.Fatalf("seed verification row: %v", err)
 		}
 
@@ -439,18 +438,8 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 	t.Run("BUG: DB failure during verification should return 500, not 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "verifybuguser", "verifybuguser@example.com", "correcthorse123")
-		if _, err := h.DB.Exec(`
-			CREATE TABLE IF NOT EXISTS user_email_verifications (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				user_id INTEGER NOT NULL,
-				email TEXT NOT NULL,
-				token TEXT NOT NULL,
-				expires_at DATETIME NOT NULL
-			)`); err != nil {
-			t.Fatalf("create verifications table: %v", err)
-		}
 		if _, err := h.DB.Exec(`INSERT INTO user_email_verifications (user_id, email, token, expires_at) VALUES (?, ?, ?, datetime('now','+1 hour'))`,
-			userID, "verifybuguser@example.com", "bug-token"); err != nil {
+			userID, "verifybuguser@example.com", models.HashAPIToken("bug-token")); err != nil {
 			t.Fatalf("seed verification row: %v", err)
 		}
 		// Force the subsequent UPDATE user_accounts to fail by dropping the
@@ -496,17 +485,11 @@ func TestHandleAPIPasswordForgot(t *testing.T) {
 func TestHandleAPIPasswordReset(t *testing.T) {
 	seedResetRow := func(t *testing.T, h *AuthAPIHandler, userID int64, token string) {
 		t.Helper()
-		if _, err := h.DB.Exec(`
-			CREATE TABLE IF NOT EXISTS user_password_resets (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				user_id INTEGER NOT NULL,
-				token TEXT NOT NULL,
-				expires_at DATETIME NOT NULL
-			)`); err != nil {
-			t.Fatalf("create resets table: %v", err)
-		}
+		// user_password_resets is created by database.UsersSchema; see the note
+		// in TestHandleAPIVerifyEmail on why a fixture never redeclares it. The
+		// token column stores the SHA-256 hash, so the fixture hashes too.
 		if _, err := h.DB.Exec(`INSERT INTO user_password_resets (user_id, token, expires_at) VALUES (?, ?, datetime('now','+1 hour'))`,
-			userID, token); err != nil {
+			userID, models.HashAPIToken(token)); err != nil {
 			t.Fatalf("seed reset row: %v", err)
 		}
 	}
@@ -585,6 +568,88 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 	})
 }
 
+// TestTokenHashingRoundTrip is a regression test for a functional break: the
+// model layer wrote user_email_verifications.token and
+// user_password_resets.token as models.HashAPIToken(token), while the API
+// handlers looked those rows up by the RAW token. Nothing matched, so a link
+// issued through the model could never be redeemed through the API - and the
+// handler's own reset writer stored the token in plaintext, which PART 11
+// forbids outright. Both sides now agree on the hash.
+func TestTokenHashingRoundTrip(t *testing.T) {
+	t.Run("model-issued verification token is redeemable through the API", func(t *testing.T) {
+		h := newAuthAPITestHandler(t)
+		userID := seedAuthUser(t, h.DB, "rtverify", "rtverify@example.com", "correcthorse123")
+		if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
+			t.Fatalf("reset verified flag: %v", err)
+		}
+
+		verification, err := (&models.UserEmailVerificationModel{DB: h.DB}).CreateVerification(userID, "rtverify@example.com")
+		if err != nil {
+			t.Fatalf("create verification: %v", err)
+		}
+
+		// The raw token must never reach the table; only its hash does.
+		var stored string
+		if err := h.DB.QueryRow(`SELECT token FROM user_email_verifications WHERE id = ?`, verification.ID).Scan(&stored); err != nil {
+			t.Fatalf("read stored token: %v", err)
+		}
+		if stored == verification.Token {
+			t.Fatalf("verification token is stored in plaintext; a leaked users.db would be directly replayable")
+		}
+		if stored != models.HashAPIToken(verification.Token) {
+			t.Fatalf("stored token is not the SHA-256 hash of the issued token")
+		}
+
+		if err := VerifyAPIUserEmail(h.DB, &APIVerifyEmailRequest{Token: verification.Token}); err != nil {
+			t.Fatalf("VerifyAPIUserEmail with a model-issued token: %v; "+
+				"if this fails the writer and the reader disagree on hashing again, and no "+
+				"emailed verification link works in production", err)
+		}
+
+		var verified bool
+		if err := h.DB.QueryRow(`SELECT email_verified FROM user_accounts WHERE id = ?`, userID).Scan(&verified); err != nil {
+			t.Fatalf("query verified flag: %v", err)
+		}
+		if !verified {
+			t.Fatalf("email_verified is still false after a successful verification")
+		}
+	})
+
+	t.Run("model-issued reset token is redeemable through the API", func(t *testing.T) {
+		h := newAuthAPITestHandler(t)
+		userID := seedAuthUser(t, h.DB, "rtreset", "rtreset@example.com", "oldpassword1")
+
+		reset, err := (&models.UserPasswordResetModel{DB: h.DB}).CreateReset(userID)
+		if err != nil {
+			t.Fatalf("create reset: %v", err)
+		}
+
+		var stored string
+		if err := h.DB.QueryRow(`SELECT token FROM user_password_resets WHERE id = ?`, reset.ID).Scan(&stored); err != nil {
+			t.Fatalf("read stored token: %v", err)
+		}
+		if stored == reset.Token {
+			t.Fatalf("reset token is stored in plaintext; anyone with read access to users.db could seize any account")
+		}
+
+		if err := ResetAPIUserPassword(h.DB, &APIPasswordResetRequest{Token: reset.Token, Password: "brandnewpassword1"}); err != nil {
+			t.Fatalf("ResetAPIUserPassword with a model-issued token: %v", err)
+		}
+
+		var hash string
+		if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&hash); err != nil {
+			t.Fatalf("query password hash: %v", err)
+		}
+		ok, err := util.VerifyPassword("brandnewpassword1", hash)
+		if err != nil {
+			t.Fatalf("verify new password: %v", err)
+		}
+		if !ok {
+			t.Fatalf("password was not actually changed by the reset")
+		}
+	})
+}
+
 // TestHandleAPIUserInviteValidate covers a valid invite token and the
 // empty-token 400 path (also affected by the same case-mismatch bug class,
 // noted inline).
@@ -657,4 +722,180 @@ func TestHandleAPIUserInviteComplete(t *testing.T) {
 			t.Fatalf("status = %d, want a 4xx error", w.Code)
 		}
 	})
+}
+
+// TestVerifyAPIUserEmail_ExpiryComparedAsInstant is the regression test for the
+// email-verification expiry check. The old implementation filtered in SQL with
+// "AND expires_at > ?" bound to a raw time.Time, which the SQLite driver
+// serializes as time.Time.String() in the host's LOCAL zone. That compared two
+// incompatible text encodings lexicographically, so a live token whose stored
+// text reads as past was rejected and an expired token whose stored text reads
+// as future was accepted. Expiry is now decided in Go by dbtime.IsAfter, which
+// also fails closed on a stored value it cannot parse. Every zone-skewed case
+// below fails against the old SQL-side comparison on any host timezone.
+func TestVerifyAPIUserEmail_ExpiryComparedAsInstant(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		name      string
+		token     string
+		expiresAt string
+		wantOK    bool
+	}{
+		{
+			name:      "live token in canonical UTC text verifies",
+			token:     "verify-live-utc",
+			expiresAt: dbtime.FormatSQLTimestamp(now.Add(time.Hour)),
+			wantOK:    true,
+		},
+		{
+			name:      "expired token in canonical UTC text is rejected",
+			token:     "verify-expired-utc",
+			expiresAt: dbtime.FormatSQLTimestamp(now.Add(-time.Hour)),
+			wantOK:    false,
+		},
+		{
+			name:      "live token whose zone-skewed text reads as past still verifies",
+			token:     "verify-live-west",
+			expiresAt: now.Add(time.Hour).In(handlerZoneWest).Format(handlerLocalLayout),
+			wantOK:    true,
+		},
+		{
+			name:      "expired token whose zone-skewed text reads as future is rejected",
+			token:     "verify-expired-east",
+			expiresAt: now.Add(-time.Hour).In(handlerZoneEast).Format(handlerLocalLayout),
+			wantOK:    false,
+		},
+		{
+			name:      "unparseable stored expiry fails closed",
+			token:     "verify-unparseable",
+			expiresAt: "not-a-timestamp",
+			wantOK:    false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newAuthAPITestHandler(t)
+			userID := seedAuthUser(t, h.DB, "verifyzone", "verifyzone@example.com", "correcthorse123")
+			if _, err := h.DB.Exec(`UPDATE user_accounts SET email_verified = 0 WHERE id = ?`, userID); err != nil {
+				t.Fatalf("reset verified flag: %v", err)
+			}
+			// VerifyAPIUserEmail looks the row up by models.HashAPIToken(token), the
+			// same way UserEmailVerificationModel.CreateVerification stores it
+			// (PART 11 forbids keeping a usable token at rest) - seeding the raw
+			// token here would never match and every case would fail closed.
+			if _, err := h.DB.Exec(`
+				INSERT INTO user_email_verifications (user_id, email, token, expires_at)
+				VALUES (?, ?, ?, ?)
+			`, userID, "verifyzone@example.com", models.HashAPIToken(tc.token), tc.expiresAt); err != nil {
+				t.Fatalf("seed verification row: %v", err)
+			}
+
+			err := VerifyAPIUserEmail(h.DB, &APIVerifyEmailRequest{Token: tc.token})
+			if tc.wantOK && err != nil {
+				t.Fatalf("VerifyAPIUserEmail = %v, want success for stored expiry %q", err, tc.expiresAt)
+			}
+			if !tc.wantOK && err == nil {
+				t.Fatalf("VerifyAPIUserEmail accepted stored expiry %q, want rejection", tc.expiresAt)
+			}
+
+			var verified bool
+			if err := h.DB.QueryRow(`SELECT email_verified FROM user_accounts WHERE id = ?`, userID).Scan(&verified); err != nil {
+				t.Fatalf("query verified flag: %v", err)
+			}
+			if verified != tc.wantOK {
+				t.Fatalf("email_verified = %v, want %v for stored expiry %q", verified, tc.wantOK, tc.expiresAt)
+			}
+		})
+	}
+}
+
+// TestResetAPIUserPassword_ExpiryComparedAsInstant is the regression test for
+// the password-reset expiry check, which carried the same SQL-side
+// "expires_at > ?" comparison against a locally-serialized time.Time as
+// VerifyAPIUserEmail above. Accepting an expired reset token is the more severe
+// half of that defect, so each case additionally asserts whether the stored
+// password hash was allowed to change.
+func TestResetAPIUserPassword_ExpiryComparedAsInstant(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		name      string
+		token     string
+		expiresAt string
+		wantOK    bool
+	}{
+		{
+			name:      "live token in canonical UTC text resets",
+			token:     "reset-live-utc",
+			expiresAt: dbtime.FormatSQLTimestamp(now.Add(time.Hour)),
+			wantOK:    true,
+		},
+		{
+			name:      "expired token in canonical UTC text is rejected",
+			token:     "reset-expired-utc",
+			expiresAt: dbtime.FormatSQLTimestamp(now.Add(-time.Hour)),
+			wantOK:    false,
+		},
+		{
+			name:      "live token whose zone-skewed text reads as past still resets",
+			token:     "reset-live-west",
+			expiresAt: now.Add(time.Hour).In(handlerZoneWest).Format(handlerLocalLayout),
+			wantOK:    true,
+		},
+		{
+			name:      "expired token whose zone-skewed text reads as future is rejected",
+			token:     "reset-expired-east",
+			expiresAt: now.Add(-time.Hour).In(handlerZoneEast).Format(handlerLocalLayout),
+			wantOK:    false,
+		},
+		{
+			name:      "unparseable stored expiry fails closed",
+			token:     "reset-unparseable",
+			expiresAt: "not-a-timestamp",
+			wantOK:    false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newAuthAPITestHandler(t)
+			userID := seedAuthUser(t, h.DB, "resetzone", "resetzone@example.com", "oldpassword1")
+			var originalHash string
+			if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&originalHash); err != nil {
+				t.Fatalf("read original hash: %v", err)
+			}
+			// ResetAPIUserPassword looks the row up by models.HashAPIToken(token),
+			// the same way RequestAPIUserPasswordReset stores it (PART 11 forbids
+			// keeping a usable token at rest) - seeding the raw token here would
+			// never match and every case would fail closed.
+			if _, err := h.DB.Exec(`
+				INSERT INTO user_password_resets (user_id, token, expires_at)
+				VALUES (?, ?, ?)
+			`, userID, models.HashAPIToken(tc.token), tc.expiresAt); err != nil {
+				t.Fatalf("seed reset row: %v", err)
+			}
+
+			err := ResetAPIUserPassword(h.DB, &APIPasswordResetRequest{
+				Token:    tc.token,
+				Password: "brandnewpassword1",
+			})
+			if tc.wantOK && err != nil {
+				t.Fatalf("ResetAPIUserPassword = %v, want success for stored expiry %q", err, tc.expiresAt)
+			}
+			if !tc.wantOK && err == nil {
+				t.Fatalf("ResetAPIUserPassword accepted stored expiry %q, want rejection", tc.expiresAt)
+			}
+
+			var currentHash string
+			if err := h.DB.QueryRow(`SELECT password_hash FROM user_accounts WHERE id = ?`, userID).Scan(&currentHash); err != nil {
+				t.Fatalf("read current hash: %v", err)
+			}
+			changed := currentHash != originalHash
+			if changed != tc.wantOK {
+				t.Fatalf("password hash changed = %v, want %v for stored expiry %q", changed, tc.wantOK, tc.expiresAt)
+			}
+		})
+	}
 }

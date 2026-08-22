@@ -1,0 +1,174 @@
+{{define "admin_header"}}
+{{- /* AI.md PART 17 admin shell: header + collapsible sidebar + breadcrumb. */ -}}
+{{- /* Every href is built from the configurable admin path, never hardcoded. */ -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- /* AI.md PART 17: the admin's own account lives under {admin_path}/{admin_username}. */ -}}
+{{- $self := $ap -}}
+{{- if .admin_self_path}}{{$self = .admin_self_path}}{{end -}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $page := "" -}}
+{{- if .page}}{{$page = .page}}{{end -}}
+{{- $crumb := "" -}}
+{{- if .title}}{{$crumb = .title}}{{else if .Title}}{{$crumb = .Title}}{{end -}}
+{{- $status := "ok" -}}
+{{- if .server_status}}{{$status = .server_status}}{{end -}}
+{{- /* head emits the skip-to-main link; this adds skip-to-navigation next to it. */}}
+<a class="skip-link" href="#admin-nav">{{t $lang "admin.skip.nav"}}</a>
+<div class="admin-shell">
+  {{- /* Zero-JS mobile drawer: the checkbox state drives the sidebar. */}}
+  <input class="admin-drawer-state" type="checkbox" id="admin-drawer">
+  <header class="admin-topbar">
+    <label class="admin-drawer-btn" for="admin-drawer">
+      <span class="admin-drawer-btn__icon" aria-hidden="true">&#9776;</span>
+      <span class="admin-drawer-btn__label">{{t $lang "admin.menu.toggle"}}</span>
+    </label>
+    <a class="admin-brand" href="{{$ap}}">
+      <span class="admin-brand__mark" aria-hidden="true">&#9729;</span>
+      <span class="admin-brand__text">{{if .server}}{{.server.Title}}{{else}}{{t $lang "app.name"}}{{end}}</span>
+      <span class="admin-brand__suffix">{{t $lang "admin.title"}}</span>
+    </a>
+    <form class="admin-search" method="get" action="{{$ap}}/config/search" role="search">
+      <label class="admin-search__label" for="admin-search-input">{{t $lang "admin.search.label"}}</label>
+      <input class="admin-search__input" id="admin-search-input" type="search" name="q"
+             placeholder="{{t $lang "admin.search.placeholder"}}" autocomplete="off">
+      <button class="admin-search__submit" type="submit">{{t $lang "action.search"}}</button>
+    </form>
+    <p class="admin-status admin-status--{{$status}}">
+      <span class="admin-status__dot" aria-hidden="true">{{if eq $status "error"}}&#10007;{{else if eq $status "warning"}}&#9888;{{else}}&#10003;{{end}}</span>
+      <span class="admin-status__text">{{if eq $status "error"}}{{t $lang "admin.status.error"}}{{else if eq $status "warning"}}{{t $lang "admin.status.warning"}}{{else}}{{t $lang "admin.status.ok"}}{{end}}</span>
+    </p>
+    {{if .user}}
+    <a class="admin-account" href="{{$self}}/profile">
+      <span class="admin-account__icon" aria-hidden="true">&#128100;</span>
+      <span class="admin-account__name">{{if .user.Username}}{{.user.Username}}{{else}}{{.user.Email}}{{end}}</span>
+    </a>
+    {{end}}
+    <a class="admin-logout" href="{{$ap}}/logout">
+      <span class="admin-logout__icon" aria-hidden="true">&#9099;</span>
+      <span class="admin-logout__label">{{t $lang "nav.logout"}}</span>
+    </a>
+  </header>
+  <div class="admin-body">
+    <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}">
+      <ul class="nav-root">
+        <li>
+          <a class="nav-link nav-link--top{{if eq $page "admin"}} is-active{{end}}" href="{{$ap}}"{{if eq $page "admin"}} aria-current="page"{{end}}>
+            <span class="nav-link__icon" aria-hidden="true">&#128202;</span>
+            <span class="nav-link__text">{{t $lang "admin.nav.dashboard"}}</span>
+          </a>
+        </li>
+      </ul>
+      <details class="nav-section" data-nav-section="server" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#128421;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.server"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "settings"}} is-active{{end}}" href="{{$ap}}/config/settings"{{if eq $page "settings"}} aria-current="page"{{end}}>{{t $lang "nav.settings"}}</a></li>
+          <li><a class="nav-link{{if eq $page "branding"}} is-active{{end}}" href="{{$ap}}/config/branding"{{if eq $page "branding"}} aria-current="page"{{end}}>{{t $lang "admin.nav.branding"}}</a></li>
+          <li><a class="nav-link{{if eq $page "ssl"}} is-active{{end}}" href="{{$ap}}/config/ssl"{{if eq $page "ssl"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ssl"}}</a></li>
+          <li><a class="nav-link{{if eq $page "scheduler"}} is-active{{end}}" href="{{$ap}}/config/scheduler"{{if eq $page "scheduler"}} aria-current="page"{{end}}>{{t $lang "admin.nav.scheduler"}}</a></li>
+          <li><a class="nav-link{{if eq $page "email"}} is-active{{end}}" href="{{$ap}}/config/email"{{if eq $page "email"}} aria-current="page"{{end}}>{{t $lang "admin.nav.email"}}</a></li>
+          <li><a class="nav-link{{if eq $page "channels"}} is-active{{end}}" href="{{$ap}}/config/channels"{{if eq $page "channels"}} aria-current="page"{{end}}>{{t $lang "admin.nav.channels"}}</a></li>
+          <li><a class="nav-link{{if eq $page "templates"}} is-active{{end}}" href="{{$ap}}/config/templates"{{if eq $page "templates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.templates"}}</a></li>
+          <li><a class="nav-link{{if eq $page "logs"}} is-active{{end}}" href="{{$ap}}/config/logs"{{if eq $page "logs"}} aria-current="page"{{end}}>{{t $lang "admin.nav.logs"}}</a></li>
+          <li><a class="nav-link{{if eq $page "backup"}} is-active{{end}}" href="{{$ap}}/config/backup"{{if eq $page "backup"}} aria-current="page"{{end}}>{{t $lang "admin.nav.backup"}}</a></li>
+          <li><a class="nav-link{{if eq $page "maintenance"}} is-active{{end}}" href="{{$ap}}/config/maintenance"{{if eq $page "maintenance"}} aria-current="page"{{end}}>{{t $lang "admin.nav.maintenance"}}</a></li>
+          <li><a class="nav-link{{if eq $page "updates"}} is-active{{end}}" href="{{$ap}}/config/updates"{{if eq $page "updates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.updates"}}</a></li>
+          <li><a class="nav-link{{if eq $page "info"}} is-active{{end}}" href="{{$ap}}/config/info"{{if eq $page "info"}} aria-current="page"{{end}}>{{t $lang "admin.nav.info"}}</a></li>
+        </ul>
+      </details>
+      <details class="nav-section" data-nav-section="security" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#128274;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.security"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "auth"}} is-active{{end}}" href="{{$ap}}/config/security/auth"{{if eq $page "auth"}} aria-current="page"{{end}}>{{t $lang "admin.nav.authentication"}}</a></li>
+          <li><a class="nav-link{{if eq $page "tokens"}} is-active{{end}}" href="{{$ap}}/config/security/tokens"{{if eq $page "tokens"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tokens"}}</a></li>
+          <li><a class="nav-link{{if eq $page "ratelimit"}} is-active{{end}}" href="{{$ap}}/config/security/ratelimit"{{if eq $page "ratelimit"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ratelimit"}}</a></li>
+          <li><a class="nav-link{{if eq $page "firewall"}} is-active{{end}}" href="{{$ap}}/config/security/firewall"{{if eq $page "firewall"}} aria-current="page"{{end}}>{{t $lang "admin.nav.firewall"}}</a></li>
+        </ul>
+      </details>
+      <details class="nav-section" data-nav-section="network" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#127760;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.network"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "tor"}} is-active{{end}}" href="{{$ap}}/config/network/tor"{{if eq $page "tor"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tor"}}</a></li>
+          <li><a class="nav-link{{if eq $page "geoip"}} is-active{{end}}" href="{{$ap}}/config/network/geoip"{{if eq $page "geoip"}} aria-current="page"{{end}}>{{t $lang "admin.nav.geoip"}}</a></li>
+          <li><a class="nav-link{{if eq $page "blocklists"}} is-active{{end}}" href="{{$ap}}/config/network/blocklists"{{if eq $page "blocklists"}} aria-current="page"{{end}}>{{t $lang "admin.nav.blocklists"}}</a></li>
+        </ul>
+      </details>
+      {{- /* AI.md PART 34 is active for this project, so Users is always shown. */}}
+      <details class="nav-section" data-nav-section="users" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#128101;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.users"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "users"}} is-active{{end}}" href="{{$ap}}/config/users"{{if eq $page "users"}} aria-current="page"{{end}}>{{t $lang "admin.nav.user_list"}}</a></li>
+          <li><a class="nav-link{{if eq $page "invites"}} is-active{{end}}" href="{{$ap}}/config/users/invites"{{if eq $page "invites"}} aria-current="page"{{end}}>{{t $lang "admin.nav.invites"}}</a></li>
+          <li><a class="nav-link{{if eq $page "roles"}} is-active{{end}}" href="{{$ap}}/config/roles"{{if eq $page "roles"}} aria-current="page"{{end}}>{{t $lang "admin.nav.roles"}}</a></li>
+        </ul>
+      </details>
+      {{- /* AI.md PART 10 cluster section: only rendered when cluster mode is on. */}}
+      {{if .cluster_enabled}}
+      <details class="nav-section" data-nav-section="cluster" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#128225;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.cluster"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "cluster_nodes"}} is-active{{end}}" href="{{$ap}}/config/cluster/nodes"{{if eq $page "cluster_nodes"}} aria-current="page"{{end}}>{{t $lang "admin.nav.nodes"}}</a></li>
+          <li><a class="nav-link{{if eq $page "cluster_add"}} is-active{{end}}" href="{{$ap}}/config/cluster/add"{{if eq $page "cluster_add"}} aria-current="page"{{end}}>{{t $lang "admin.nav.add_node"}}</a></li>
+        </ul>
+      </details>
+      {{end}}
+      <details class="nav-section" data-nav-section="help" open>
+        <summary class="nav-section__header">
+          <span class="nav-section__icon" aria-hidden="true">&#10067;</span>
+          <span class="nav-section__text">{{t $lang "admin.nav.help"}}</span>
+        </summary>
+        <ul class="nav-list">
+          <li><a class="nav-link{{if eq $page "help"}} is-active{{end}}" href="{{$ap}}/help"{{if eq $page "help"}} aria-current="page"{{end}}>{{t $lang "admin.nav.documentation"}}</a></li>
+        </ul>
+      </details>
+    </nav>
+    {{- /* Tapping outside the open drawer closes it, still without JavaScript. */}}
+    <label class="admin-drawer-scrim" for="admin-drawer" aria-hidden="true"></label>
+    <div class="admin-main-col">
+      <main class="admin-content" id="main-content" role="main">
+        <nav class="admin-breadcrumb" aria-label="{{t $lang "admin.breadcrumb.label"}}">
+          <ol class="admin-breadcrumb__list">
+            <li class="admin-breadcrumb__item"><a href="{{$ap}}">{{t $lang "admin.breadcrumb.home"}}</a></li>
+            {{if $crumb}}<li class="admin-breadcrumb__item" aria-current="page">{{$crumb}}</li>{{end}}
+          </ol>
+        </nav>
+{{end}}
+
+{{define "admin_footer"}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $status := "ok" -}}
+{{- if .server_status}}{{$status = .server_status}}{{end -}}
+      </main>
+      <footer class="admin-footer">
+        <p class="admin-footer__item">{{t $lang "admin.footer.version"}} <span class="admin-footer__value">{{if .server}}{{.server.Version}}{{else}}{{t $lang "admin.footer.unknown"}}{{end}}</span></p>
+        <p class="admin-footer__item"><a class="admin-footer__link" href="{{$ap}}/help">{{t $lang "admin.footer.docs"}}</a></p>
+        <p class="admin-footer__item admin-status admin-status--{{$status}}">
+          <span class="admin-status__dot" aria-hidden="true">{{if eq $status "error"}}&#10007;{{else if eq $status "warning"}}&#9888;{{else}}&#10003;{{end}}</span>
+          <span class="admin-status__text">{{if eq $status "error"}}{{t $lang "admin.status.error"}}{{else if eq $status "warning"}}{{t $lang "admin.status.warning"}}{{else}}{{t $lang "admin.status.ok"}}{{end}}</span>
+        </p>
+      </footer>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+{{end}}

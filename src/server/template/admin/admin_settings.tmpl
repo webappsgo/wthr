@@ -1,198 +1,199 @@
 {{template "head" .}}
 
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
     <!-- Main Content -->
-    <main class="container">
         <div class="admin-header">
-            <h1>⚙️ Server Settings</h1>
-            <p class="subtitle">Configure your weather service</p>
+            <h1>⚙️ {{t $lang "admin.settings.title"}}</h1>
+            <p class="subtitle">{{t $lang "admin.settings.subtitle"}}</p>
         </div>
 
         <!-- Settings Tabs -->
-        <div class="tabs" role="tablist" aria-label="Settings categories">
+        <div class="tabs" role="tablist" aria-label="{{t $lang "admin.settings.tabs_aria_label"}}">
             <button class="tab active"
                     onclick="switchSettingsTab('server')"
                     role="tab"
                     aria-selected="true"
                     aria-controls="tab-server"
-                    aria-label="Server settings"
-                    title="Configure server branding, ports, timezone, and date/time formats">🏠 Server</button>
+                    aria-label="{{t $lang "admin.settings.tab_server_aria"}}"
+                    title="{{t $lang "admin.settings.tab_server_title"}}">🏠 {{t $lang "admin.settings.tab_server_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('security')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-security"
-                    aria-label="Security settings"
-                    title="Configure authentication, session timeout, login attempts, and password requirements">🔒 Security</button>
+                    aria-label="{{t $lang "admin.settings.tab_security_aria"}}"
+                    title="{{t $lang "admin.settings.tab_security_title"}}">🔒 {{t $lang "admin.settings.tab_security_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('features')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-features"
-                    aria-label="Feature settings"
-                    title="Enable or disable user registration, API access, and weather alerts">✨ Features</button>
+                    aria-label="{{t $lang "admin.settings.tab_features_aria"}}"
+                    title="{{t $lang "admin.settings.tab_features_title"}}">✨ {{t $lang "admin.settings.tab_features_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('backup')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-backup"
-                    aria-label="Backup settings"
-                    title="Configure automatic database backups, retention, and storage location">💾 Backup</button>
+                    aria-label="{{t $lang "admin.settings.tab_backup_aria"}}"
+                    title="{{t $lang "admin.settings.tab_backup_title"}}">💾 {{t $lang "admin.settings.tab_backup_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('logging')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-logging"
-                    aria-label="Logging settings"
-                    title="Configure log levels, formats, and rotation for access, error, and audit logs">📝 Logging</button>
+                    aria-label="{{t $lang "admin.settings.tab_logging_aria"}}"
+                    title="{{t $lang "admin.settings.tab_logging_title"}}">📝 {{t $lang "admin.settings.tab_logging_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('smtp')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-smtp"
-                    aria-label="Email settings"
-                    title="Configure SMTP server for email notifications and alerts">📧 Email</button>
+                    aria-label="{{t $lang "admin.settings.tab_smtp_aria"}}"
+                    title="{{t $lang "admin.settings.tab_smtp_title"}}">📧 {{t $lang "admin.settings.tab_smtp_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('ratelimit')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-ratelimit"
-                    aria-label="Rate limiting settings"
-                    title="Configure rate limits to prevent API abuse">🚦 Rate Limits</button>
+                    aria-label="{{t $lang "admin.settings.tab_ratelimit_aria"}}"
+                    title="{{t $lang "admin.settings.tab_ratelimit_title"}}">🚦 {{t $lang "admin.settings.tab_ratelimit_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('ssl')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-ssl"
-                    aria-label="SSL/TLS settings"
-                    title="Configure SSL certificates and HTTPS encryption">🔐 SSL/TLS</button>
+                    aria-label="{{t $lang "admin.settings.tab_ssl_aria"}}"
+                    title="{{t $lang "admin.settings.tab_ssl_title"}}">🔐 {{t $lang "admin.settings.tab_ssl_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('weather')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-weather"
-                    aria-label="Weather settings"
-                    title="Configure weather data refresh intervals and caching">🌤️ Weather</button>
+                    aria-label="{{t $lang "admin.settings.tab_weather_aria"}}"
+                    title="{{t $lang "admin.settings.tab_weather_title"}}">🌤️ {{t $lang "admin.settings.tab_weather_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('notifications')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-notifications"
-                    aria-label="Notification settings"
-                    title="Configure notification system and queue processing">🔔 Notifications</button>
+                    aria-label="{{t $lang "admin.settings.tab_notifications_aria"}}"
+                    title="{{t $lang "admin.settings.tab_notifications_title"}}">🔔 {{t $lang "admin.settings.tab_notifications_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('advanced')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-advanced"
-                    aria-label="Advanced settings"
-                    title="Configure GeoIP, CORS, and scheduled tasks">⚙️ Advanced</button>
+                    aria-label="{{t $lang "admin.settings.tab_advanced_aria"}}"
+                    title="{{t $lang "admin.settings.tab_advanced_title"}}">⚙️ {{t $lang "admin.settings.tab_advanced_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('tor')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-tor"
-                    aria-label="Tor hidden service settings"
-                    title="Configure Tor hidden service for anonymous .onion access">🧅 Tor</button>
+                    aria-label="{{t $lang "admin.settings.tab_tor_aria"}}"
+                    title="{{t $lang "admin.settings.tab_tor_title"}}">🧅 {{t $lang "admin.settings.tab_tor_label"}}</button>
             <button class="tab"
                     onclick="switchSettingsTab('history')"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-history"
-                    aria-label="Historical weather settings"
-                    title="Configure historical weather data feature">📊 History</button>
+                    aria-label="{{t $lang "admin.settings.tab_history_aria"}}"
+                    title="{{t $lang "admin.settings.tab_history_title"}}">📊 {{t $lang "admin.settings.tab_history_label"}}</button>
         </div>
 
         <!-- Server Tab -->
         <div id="tab-server" class="tab-content active" role="tabpanel" aria-labelledby="tab-server">
             <div class="card">
-                <h2>General</h2>
+                <h2>{{t $lang "admin.settings.general_heading"}}</h2>
                 <form id="form-server-general"
                       onsubmit="saveSettings(event, 'server-general')"
                       role="form"
-                      aria-label="Server general settings">
+                      aria-label="{{t $lang "admin.settings.general_form_aria"}}">
                     <div class="form-group">
-                        <label for="server_port">Server Port</label>
+                        <label for="server_port">{{t $lang "admin.settings.server_port_label"}}</label>
                         <input type="number"
                                id="server_port"
                                name="server.port"
                                value="{{.settings.server_port}}"
                                min="1"
                                max="65535"
-                               aria-label="Server port number"
+                               aria-label="{{t $lang "admin.settings.server_port_aria"}}"
                                aria-required="true"
                                aria-describedby="server_port_help"
-                               title="The port the server listens on (1-65535) - changing this requires a server restart">
-                        <small id="server_port_help">Port number for server connections ⚠️ Requires restart</small>
+                               title="{{t $lang "admin.settings.server_port_title"}}">
+                        <small id="server_port_help">{{t $lang "admin.settings.server_port_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_mode">Server Mode</label>
+                        <label for="server_mode">{{t $lang "admin.settings.server_mode_label"}}</label>
                         <select id="server_mode"
                                 name="server.mode"
-                                aria-label="Server mode"
+                                aria-label="{{t $lang "admin.settings.server_mode_aria"}}"
                                 aria-describedby="server_mode_help"
-                                title="Production enforces strict host validation, development allows more permissive settings">
-                            <option value="production" {{if eq .settings.server_mode "production"}}selected{{end}}>Production</option>
-                            <option value="development" {{if eq .settings.server_mode "development"}}selected{{end}}>Development</option>
+                                title="{{t $lang "admin.settings.server_mode_title"}}">
+                            <option value="production" {{if eq .settings.server_mode "production"}}selected{{end}}>{{t $lang "admin.settings.mode_production"}}</option>
+                            <option value="development" {{if eq .settings.server_mode "development"}}selected{{end}}>{{t $lang "admin.settings.mode_development"}}</option>
                         </select>
-                        <small id="server_mode_help">Production enforces strict host validation ⚠️ Requires restart</small>
+                        <small id="server_mode_help">{{t $lang "admin.settings.server_mode_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_fqdn">FQDN (Fully Qualified Domain Name)</label>
+                        <label for="server_fqdn">{{t $lang "admin.settings.server_fqdn_label"}}</label>
                         <input type="text"
                                id="server_fqdn"
                                name="server.fqdn"
                                value="{{.settings.server_fqdn}}"
                                placeholder="api.example.com"
-                               aria-label="Fully qualified domain name"
+                               aria-label="{{t $lang "admin.settings.server_fqdn_aria"}}"
                                aria-describedby="server_fqdn_help"
-                               title="Fully qualified domain name for the server (auto-detected if empty)">
-                        <small id="server_fqdn_help">Fully qualified domain name (auto-detected if empty)</small>
+                               title="{{t $lang "admin.settings.server_fqdn_title"}}">
+                        <small id="server_fqdn_help">{{t $lang "admin.settings.server_fqdn_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_address">Listen Address</label>
+                        <label for="server_address">{{t $lang "admin.settings.server_address_label"}}</label>
                         <input type="text"
                                id="server_address"
                                name="server.address"
                                value="{{.settings.server_address}}"
                                placeholder="[::]"
-                               aria-label="Listen address"
+                               aria-label="{{t $lang "admin.settings.server_address_aria"}}"
                                aria-describedby="server_address_help"
-                               title="IP address to bind to - [::] for all IPv4/IPv6, 0.0.0.0 for IPv4 only">
-                        <small id="server_address_help">Listen address ([::] for all interfaces) ⚠️ Requires restart</small>
+                               title="{{t $lang "admin.settings.server_address_title"}}">
+                        <small id="server_address_help">{{t $lang "admin.settings.server_address_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save general settings"
-                            title="Save changes to general server settings">Save General Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_general_aria"}}"
+                            title="{{t $lang "admin.settings.save_general_title"}}">{{t $lang "admin.settings.save_general_action"}}</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>Process</h2>
+                <h2>{{t $lang "admin.settings.process_heading"}}</h2>
                 <form id="form-server-process"
                       onsubmit="saveSettings(event, 'server-process')"
                       role="form"
-                      aria-label="Server process settings">
+                      aria-label="{{t $lang "admin.settings.process_form_aria"}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox"
                                    name="server.daemonize"
                                    {{if .settings.server_daemonize}}checked{{end}}
-                                   aria-label="Daemonize server process"
+                                   aria-label="{{t $lang "admin.settings.daemonize_aria"}}"
                                    aria-describedby="server_daemonize_help"
-                                   title="Detach from terminal on start - for manual start only, not for systemd/docker"
+                                   title="{{t $lang "admin.settings.daemonize_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.server_daemonize}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Daemonize</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.daemonize_toggle"}}</span>
                         </label>
-                        <small id="server_daemonize_help">Detach from terminal on start (for manual start) ⚠️ Requires restart. Don't use with systemd/docker.</small>
+                        <small id="server_daemonize_help">{{t $lang "admin.settings.daemonize_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -200,117 +201,117 @@
                             <input type="checkbox"
                                    name="server.pidfile"
                                    {{if .settings.server_pidfile}}checked{{end}}
-                                   aria-label="Create PID file"
+                                   aria-label="{{t $lang "admin.settings.pidfile_aria"}}"
                                    aria-describedby="server_pidfile_help"
-                                   title="Create a PID file for process management"
+                                   title="{{t $lang "admin.settings.pidfile_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.server_pidfile}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Create PID File</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.pidfile_toggle"}}</span>
                         </label>
-                        <small id="server_pidfile_help">Create PID file for process management ⚠️ Requires restart</small>
+                        <small id="server_pidfile_help">{{t $lang "admin.settings.pidfile_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save process settings"
-                            title="Save changes to process management settings">Save Process Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_process_aria"}}"
+                            title="{{t $lang "admin.settings.save_process_title"}}">{{t $lang "admin.settings.save_process_action"}}</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>Server Branding</h2>
+                <h2>{{t $lang "admin.settings.branding_heading"}}</h2>
                 <form id="form-server-branding"
                       onsubmit="saveSettings(event, 'server-branding')"
                       role="form"
-                      aria-label="Server branding settings">
+                      aria-label="{{t $lang "admin.settings.branding_form_aria"}}">
                     <div class="form-group">
-                        <label for="server_title">Server Title</label>
+                        <label for="server_title">{{t $lang "admin.settings.server_title_label"}}</label>
                         <input type="text"
                                id="server_title"
                                name="server.title"
                                value="{{.settings.server_title}}"
                                placeholder="Weather"
-                               aria-label="Server title"
+                               aria-label="{{t $lang "admin.settings.server_title_aria"}}"
                                aria-describedby="server_title_help"
-                               title="The main title displayed in the header and browser tabs (e.g., 'Weather', 'My Weather Station')">
-                        <small id="server_title_help">Displayed in the header and page titles</small>
+                               title="{{t $lang "admin.settings.server_title_title"}}">
+                        <small id="server_title_help">{{t $lang "admin.settings.server_title_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_tagline">Tagline</label>
+                        <label for="server_tagline">{{t $lang "admin.settings.server_tagline_label"}}</label>
                         <input type="text"
                                id="server_tagline"
                                name="server.tagline"
                                value="{{.settings.server_tagline}}"
                                placeholder="Your personal weather dashboard"
-                               aria-label="Server tagline"
+                               aria-label="{{t $lang "admin.settings.server_tagline_aria"}}"
                                aria-describedby="server_tagline_help"
-                               title="A short subtitle or slogan shown under the title (e.g., 'Your personal weather dashboard')">
-                        <small id="server_tagline_help">Short subtitle shown under the title</small>
+                               title="{{t $lang "admin.settings.server_tagline_title"}}">
+                        <small id="server_tagline_help">{{t $lang "admin.settings.server_tagline_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_description">Description</label>
+                        <label for="server_description">{{t $lang "admin.settings.server_description_label"}}</label>
                         <textarea id="server_description"
                                   name="server.description"
                                   rows="3"
                                   placeholder="A comprehensive platform for weather forecasts..."
-                                  aria-label="Server description"
+                                  aria-label="{{t $lang "admin.settings.server_description_aria"}}"
                                   aria-describedby="server_description_help"
-                                  title="Full description of your weather service for the about page and search engine meta tags">{{.settings.server_description}}</textarea>
-                        <small id="server_description_help">Full description for about page and meta tags</small>
+                                  title="{{t $lang "admin.settings.server_description_title"}}">{{.settings.server_description}}</textarea>
+                        <small id="server_description_help">{{t $lang "admin.settings.server_description_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save branding settings"
-                            title="Save changes to server branding (title, tagline, description)">Save Branding</button>
+                            aria-label="{{t $lang "admin.settings.save_branding_aria"}}"
+                            title="{{t $lang "admin.settings.save_branding_title"}}">{{t $lang "admin.settings.save_branding_action"}}</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>Server Configuration</h2>
+                <h2>{{t $lang "admin.settings.config_heading"}}</h2>
                 <form id="form-server-config"
                       onsubmit="saveSettings(event, 'server-config')"
                       role="form"
-                      aria-label="Server configuration settings">
+                      aria-label="{{t $lang "admin.settings.config_form_aria"}}">
                     <div class="form-group">
-                        <label for="server_http_port">HTTP Port</label>
+                        <label for="server_http_port">{{t $lang "admin.settings.http_port_label"}}</label>
                         <input type="number"
                                id="server_http_port"
                                name="server.http_port"
                                value="{{.settings.server_http_port}}"
                                min="1"
                                max="65535"
-                               aria-label="HTTP port number"
+                               aria-label="{{t $lang "admin.settings.http_port_aria"}}"
                                aria-required="true"
                                aria-describedby="server_http_port_help"
-                               title="Port number for HTTP connections (1-65535) - changing this requires a server restart">
-                        <small id="server_http_port_help">Port for HTTP connections (requires restart)</small>
+                               title="{{t $lang "admin.settings.http_port_title"}}">
+                        <small id="server_http_port_help">{{t $lang "admin.settings.http_port_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_https_port">HTTPS Port</label>
+                        <label for="server_https_port">{{t $lang "admin.settings.https_port_label"}}</label>
                         <input type="number"
                                id="server_https_port"
                                name="server.https_port"
                                value="{{.settings.server_https_port}}"
                                min="0"
                                max="65535"
-                               aria-label="HTTPS port number"
+                               aria-label="{{t $lang "admin.settings.https_port_aria"}}"
                                aria-describedby="server_https_port_help"
-                               title="Port number for HTTPS connections (0-65535) - set to 0 to disable HTTPS, requires server restart">
-                        <small id="server_https_port_help">Port for HTTPS connections (0 to disable, requires restart)</small>
+                               title="{{t $lang "admin.settings.https_port_title"}}">
+                        <small id="server_https_port_help">{{t $lang "admin.settings.https_port_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_timezone">Server Timezone</label>
+                        <label for="server_timezone">{{t $lang "admin.settings.timezone_label"}}</label>
                         <select id="server_timezone"
                                 name="server.timezone"
-                                aria-label="Server timezone"
+                                aria-label="{{t $lang "admin.settings.timezone_aria"}}"
                                 aria-describedby="server_timezone_help"
-                                title="IANA timezone identifier - sets the default timezone for displaying times across the server">
+                                title="{{t $lang "admin.settings.timezone_title"}}">
                             <option value="America/New_York" {{if eq .settings.server_timezone "America/New_York"}}selected{{end}}>America/New_York (EST/EDT)</option>
                             <option value="America/Chicago" {{if eq .settings.server_timezone "America/Chicago"}}selected{{end}}>America/Chicago (CST/CDT)</option>
                             <option value="America/Denver" {{if eq .settings.server_timezone "America/Denver"}}selected{{end}}>America/Denver (MST/MDT)</option>
@@ -320,40 +321,40 @@
                             <option value="Asia/Tokyo" {{if eq .settings.server_timezone "Asia/Tokyo"}}selected{{end}}>Asia/Tokyo (JST)</option>
                             <option value="UTC" {{if eq .settings.server_timezone "UTC"}}selected{{end}}>UTC</option>
                         </select>
-                        <small id="server_timezone_help">Default timezone for the server</small>
+                        <small id="server_timezone_help">{{t $lang "admin.settings.timezone_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_date_format">Date Format</label>
+                        <label for="server_date_format">{{t $lang "admin.settings.date_format_label"}}</label>
                         <select id="server_date_format"
                                 name="server.date_format"
-                                aria-label="Date format preference"
+                                aria-label="{{t $lang "admin.settings.date_format_aria"}}"
                                 aria-describedby="server_date_format_help"
-                                title="Choose how dates are displayed - US format (Jan 1, 2024), EU format (1 Jan 2024), or ISO format (2024-01-01)">
+                                title="{{t $lang "admin.settings.date_format_title"}}">
                             <option value="US" {{if eq .settings.server_date_format "US"}}selected{{end}}>US (Jan 1, 2024)</option>
                             <option value="EU" {{if eq .settings.server_date_format "EU"}}selected{{end}}>EU (1 Jan 2024)</option>
                             <option value="ISO" {{if eq .settings.server_date_format "ISO"}}selected{{end}}>ISO (2024-01-01)</option>
                         </select>
-                        <small id="server_date_format_help">How dates are displayed throughout the site</small>
+                        <small id="server_date_format_help">{{t $lang "admin.settings.date_format_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="server_time_format">Time Format</label>
+                        <label for="server_time_format">{{t $lang "admin.settings.time_format_label"}}</label>
                         <select id="server_time_format"
                                 name="server.time_format"
-                                aria-label="Time format preference"
+                                aria-label="{{t $lang "admin.settings.time_format_aria"}}"
                                 aria-describedby="server_time_format_help"
-                                title="Choose between 12-hour format (3:30 PM) or 24-hour format (15:30) for displaying times">
+                                title="{{t $lang "admin.settings.time_format_title"}}">
                             <option value="12-hour" {{if eq .settings.server_time_format "12-hour"}}selected{{end}}>12-hour (3:30 PM)</option>
                             <option value="24-hour" {{if eq .settings.server_time_format "24-hour"}}selected{{end}}>24-hour (15:30)</option>
                         </select>
-                        <small id="server_time_format_help">How times are displayed throughout the site</small>
+                        <small id="server_time_format_help">{{t $lang "admin.settings.time_format_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save configuration settings"
-                            title="Save changes to server configuration (ports, timezone, date/time formats)">Save Configuration</button>
+                            aria-label="{{t $lang "admin.settings.save_config_aria"}}"
+                            title="{{t $lang "admin.settings.save_config_title"}}">{{t $lang "admin.settings.save_config_action"}}</button>
                 </form>
             </div>
         </div>
@@ -361,71 +362,71 @@
         <!-- Security Tab -->
         <div id="tab-security" class="tab-content" role="tabpanel" aria-labelledby="tab-security">
             <div class="card">
-                <h2>Authentication & Sessions</h2>
+                <h2>{{t $lang "admin.settings.auth_sessions_heading"}}</h2>
                 <form id="form-security"
                       onsubmit="saveSettings(event, 'security')"
                       role="form"
-                      aria-label="Security and authentication settings">
+                      aria-label="{{t $lang "admin.settings.security_form_aria"}}">
                     <div class="form-group">
-                        <label for="security_session_timeout">Session Timeout (seconds)</label>
+                        <label for="security_session_timeout">{{t $lang "admin.settings.session_timeout_label"}}</label>
                         <input type="number"
                                id="security_session_timeout"
                                name="security.session_timeout"
                                value="{{.settings.security_session_timeout}}"
                                min="60"
-                               aria-label="Session timeout in seconds"
+                               aria-label="{{t $lang "admin.settings.session_timeout_aria"}}"
                                aria-required="true"
                                aria-describedby="security_session_timeout_help"
-                               title="How long user sessions remain active in seconds (minimum 60) - default is 2592000 (30 days)">
-                        <small id="security_session_timeout_help">Default: 2592000 (30 days)</small>
+                               title="{{t $lang "admin.settings.session_timeout_title"}}">
+                        <small id="security_session_timeout_help">{{t $lang "admin.settings.session_timeout_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="security_max_login_attempts">Max Login Attempts</label>
+                        <label for="security_max_login_attempts">{{t $lang "admin.settings.max_login_attempts_label"}}</label>
                         <input type="number"
                                id="security_max_login_attempts"
                                name="security.max_login_attempts"
                                value="{{.settings.security_max_login_attempts}}"
                                min="1"
-                               aria-label="Maximum login attempts before lockout"
+                               aria-label="{{t $lang "admin.settings.max_login_attempts_aria"}}"
                                aria-required="true"
                                aria-describedby="security_max_login_attempts_help"
-                               title="Maximum number of failed login attempts before an account is temporarily locked">
-                        <small id="security_max_login_attempts_help">Failed attempts before temporary account lockout</small>
+                               title="{{t $lang "admin.settings.max_login_attempts_title"}}">
+                        <small id="security_max_login_attempts_help">{{t $lang "admin.settings.max_login_attempts_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="security_lockout_duration">Lockout Duration (minutes)</label>
+                        <label for="security_lockout_duration">{{t $lang "admin.settings.lockout_duration_label"}}</label>
                         <input type="number"
                                id="security_lockout_duration"
                                name="security.lockout_duration"
                                value="{{.settings.security_lockout_duration}}"
                                min="1"
-                               aria-label="Account lockout duration in minutes"
+                               aria-label="{{t $lang "admin.settings.lockout_duration_aria"}}"
                                aria-required="true"
                                aria-describedby="security_lockout_duration_help"
-                               title="How long an account remains locked after exceeding max login attempts (in minutes)">
-                        <small id="security_lockout_duration_help">How long accounts remain locked after failed attempts</small>
+                               title="{{t $lang "admin.settings.lockout_duration_title"}}">
+                        <small id="security_lockout_duration_help">{{t $lang "admin.settings.lockout_duration_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="security_password_min_length">Minimum Password Length</label>
+                        <label for="security_password_min_length">{{t $lang "admin.settings.password_min_length_label"}}</label>
                         <input type="number"
                                id="security_password_min_length"
                                name="security.password_min_length"
                                value="{{.settings.security_password_min_length}}"
                                min="6"
-                               aria-label="Minimum password length"
+                               aria-label="{{t $lang "admin.settings.password_min_length_aria"}}"
                                aria-required="true"
                                aria-describedby="security_password_min_length_help"
-                               title="Minimum number of characters required for user passwords (minimum 6, recommended 8+)">
-                        <small id="security_password_min_length_help">Minimum characters required for passwords (recommended: 8+)</small>
+                               title="{{t $lang "admin.settings.password_min_length_title"}}">
+                        <small id="security_password_min_length_help">{{t $lang "admin.settings.password_min_length_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save security settings"
-                            title="Save changes to security and authentication settings">Save Security Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_security_aria"}}"
+                            title="{{t $lang "admin.settings.save_security_title"}}">{{t $lang "admin.settings.save_security_action"}}</button>
                 </form>
             </div>
         </div>
@@ -433,25 +434,25 @@
         <!-- Features Tab -->
         <div id="tab-features" class="tab-content" role="tabpanel" aria-labelledby="tab-features">
             <div class="card">
-                <h2>Feature Toggles</h2>
+                <h2>{{t $lang "admin.settings.feature_toggles_heading"}}</h2>
                 <form id="form-features"
                       onsubmit="saveSettings(event, 'features')"
                       role="form"
-                      aria-label="Feature toggle settings">
+                      aria-label="{{t $lang "admin.settings.features_form_aria"}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox"
                                    name="features.registration_enabled"
                                    {{if .settings.features_registration_enabled}}checked{{end}}
-                                   aria-label="Enable user registration"
+                                   aria-label="{{t $lang "admin.settings.registration_enabled_aria"}}"
                                    aria-describedby="features_registration_help"
-                                   title="Allow new users to create accounts - disable to restrict registration to admin-created users only"
+                                   title="{{t $lang "admin.settings.registration_enabled_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.features_registration_enabled}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">User Registration Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.registration_enabled_toggle"}}</span>
                         </label>
-                        <small id="features_registration_help">Allow new users to register</small>
+                        <small id="features_registration_help">{{t $lang "admin.settings.registration_enabled_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -459,15 +460,15 @@
                             <input type="checkbox"
                                    name="features.api_enabled"
                                    {{if .settings.features_api_enabled}}checked{{end}}
-                                   aria-label="Enable API access"
+                                   aria-label="{{t $lang "admin.settings.api_enabled_aria"}}"
                                    aria-describedby="features_api_help"
-                                   title="Enable JSON API endpoints for programmatic access to weather data"
+                                   title="{{t $lang "admin.settings.api_enabled_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.features_api_enabled}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">API Access Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.api_enabled_toggle"}}</span>
                         </label>
-                        <small id="features_api_help">Enable JSON API endpoints</small>
+                        <small id="features_api_help">{{t $lang "admin.settings.api_enabled_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -475,21 +476,21 @@
                             <input type="checkbox"
                                    name="features.weather_alerts"
                                    {{if .settings.features_weather_alerts}}checked{{end}}
-                                   aria-label="Enable weather alerts"
+                                   aria-label="{{t $lang "admin.settings.weather_alerts_enabled_aria"}}"
                                    aria-describedby="features_weather_alerts_help"
-                                   title="Enable severe weather alert notifications and warnings for users"
+                                   title="{{t $lang "admin.settings.weather_alerts_enabled_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.features_weather_alerts}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Weather Alerts Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.weather_alerts_enabled_toggle"}}</span>
                         </label>
-                        <small id="features_weather_alerts_help">Enable weather alert notifications</small>
+                        <small id="features_weather_alerts_help">{{t $lang "admin.settings.weather_alerts_enabled_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save feature settings"
-                            title="Save changes to feature toggles (registration, API, weather alerts)">Save Feature Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_features_aria"}}"
+                            title="{{t $lang "admin.settings.save_features_title"}}">{{t $lang "admin.settings.save_features_action"}}</button>
                 </form>
             </div>
         </div>
@@ -497,71 +498,71 @@
         <!-- Backup Tab -->
         <div id="tab-backup" class="tab-content" role="tabpanel" aria-labelledby="tab-backup">
             <div class="card">
-                <h2>Backup Configuration</h2>
+                <h2>{{t $lang "admin.settings.backup_config_heading"}}</h2>
                 <form id="form-backup"
                       onsubmit="saveSettings(event, 'backup')"
                       role="form"
-                      aria-label="Backup configuration settings">
+                      aria-label="{{t $lang "admin.settings.backup_form_aria"}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox"
                                    name="backup.enabled"
                                    {{if .settings.backup_enabled}}checked{{end}}
-                                   aria-label="Enable automatic backups"
+                                   aria-label="{{t $lang "admin.settings.backup_enabled_aria"}}"
                                    aria-describedby="backup_enabled_help"
-                                   title="Enable automated database backups at regular intervals"
+                                   title="{{t $lang "admin.settings.backup_enabled_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.backup_enabled}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Automatic Backups Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.backup_enabled_toggle"}}</span>
                         </label>
-                        <small id="backup_enabled_help">Enable scheduled automated backups</small>
+                        <small id="backup_enabled_help">{{t $lang "admin.settings.backup_enabled_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="backup_interval">Backup Interval (hours)</label>
+                        <label for="backup_interval">{{t $lang "admin.settings.backup_interval_label"}}</label>
                         <input type="number"
                                id="backup_interval"
                                name="backup.interval"
                                value="{{.settings.backup_interval}}"
                                min="1"
-                               aria-label="Backup interval in hours"
+                               aria-label="{{t $lang "admin.settings.backup_interval_aria"}}"
                                aria-required="true"
                                aria-describedby="backup_interval_help"
-                               title="How often to create automated backups in hours (e.g., 24 for daily backups)">
-                        <small id="backup_interval_help">How often to create backups (e.g., 24 for daily)</small>
+                               title="{{t $lang "admin.settings.backup_interval_title"}}">
+                        <small id="backup_interval_help">{{t $lang "admin.settings.backup_interval_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="backup_retention">Backup Retention (days)</label>
+                        <label for="backup_retention">{{t $lang "admin.settings.backup_retention_label"}}</label>
                         <input type="number"
                                id="backup_retention"
                                name="backup.retention"
                                value="{{.settings.backup_retention}}"
                                min="1"
-                               aria-label="Backup retention in days"
+                               aria-label="{{t $lang "admin.settings.backup_retention_aria"}}"
                                aria-required="true"
                                aria-describedby="backup_retention_help"
-                               title="How many days to keep old backups before deletion (e.g., 30 for monthly retention)">
-                        <small id="backup_retention_help">How long to keep backups before deletion</small>
+                               title="{{t $lang "admin.settings.backup_retention_title"}}">
+                        <small id="backup_retention_help">{{t $lang "admin.settings.backup_retention_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="backup_location">Backup Location</label>
+                        <label for="backup_location">{{t $lang "admin.settings.backup_location_label"}}</label>
                         <input type="text"
                                id="backup_location"
                                name="backup.location"
                                value="{{.settings.backup_location}}"
-                               aria-label="Backup storage location path"
+                               aria-label="{{t $lang "admin.settings.backup_location_aria"}}"
                                aria-describedby="backup_location_help"
-                               title="File system path where backup files are stored (e.g., /var/backups/weather or ./backups)">
-                        <small id="backup_location_help">File path where backups are saved</small>
+                               title="{{t $lang "admin.settings.backup_location_title"}}">
+                        <small id="backup_location_help">{{t $lang "admin.settings.backup_location_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save backup settings"
-                            title="Save changes to backup configuration (interval, retention, location)">Save Backup Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_backup_aria"}}"
+                            title="{{t $lang "admin.settings.save_backup_title"}}">{{t $lang "admin.settings.save_backup_action"}}</button>
                 </form>
             </div>
         </div>
@@ -569,38 +570,38 @@
         <!-- Logging Tab -->
         <div id="tab-logging" class="tab-content" role="tabpanel" aria-labelledby="tab-logging">
             <div class="card">
-                <h2>Logging Configuration</h2>
+                <h2>{{t $lang "admin.settings.logging_config_heading"}}</h2>
                 <form id="form-logging"
                       onsubmit="saveSettings(event, 'logging')"
                       role="form"
-                      aria-label="Logging configuration settings">
+                      aria-label="{{t $lang "admin.settings.logging_form_aria"}}">
                     <div class="form-group">
-                        <label for="logging_level">Log Level</label>
+                        <label for="logging_level">{{t $lang "admin.settings.log_level_label"}}</label>
                         <select id="logging_level"
                                 name="logging.level"
-                                aria-label="Log level"
+                                aria-label="{{t $lang "admin.settings.log_level_aria"}}"
                                 aria-describedby="logging_level_help"
-                                title="Minimum severity level for logging - Debug (all), Info (normal), Warn (warnings only), Error (errors only)">
-                            <option value="debug" {{if eq .settings.logging_level "debug"}}selected{{end}}>Debug</option>
-                            <option value="info" {{if eq .settings.logging_level "info"}}selected{{end}}>Info</option>
-                            <option value="warn" {{if eq .settings.logging_level "warn"}}selected{{end}}>Warning</option>
-                            <option value="error" {{if eq .settings.logging_level "error"}}selected{{end}}>Error</option>
+                                title="{{t $lang "admin.settings.log_level_title"}}">
+                            <option value="debug" {{if eq .settings.logging_level "debug"}}selected{{end}}>{{t $lang "admin.settings.log_level_debug"}}</option>
+                            <option value="info" {{if eq .settings.logging_level "info"}}selected{{end}}>{{t $lang "admin.settings.log_level_info"}}</option>
+                            <option value="warn" {{if eq .settings.logging_level "warn"}}selected{{end}}>{{t $lang "admin.settings.log_level_warning"}}</option>
+                            <option value="error" {{if eq .settings.logging_level "error"}}selected{{end}}>{{t $lang "admin.settings.log_level_error"}}</option>
                         </select>
-                        <small id="logging_level_help">Minimum severity level to log (Debug shows all, Error shows only errors)</small>
+                        <small id="logging_level_help">{{t $lang "admin.settings.log_level_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="logging_format">Log Format</label>
+                        <label for="logging_format">{{t $lang "admin.settings.log_format_label"}}</label>
                         <select id="logging_format"
                                 name="logging.format"
-                                aria-label="Log format"
+                                aria-label="{{t $lang "admin.settings.log_format_aria"}}"
                                 aria-describedby="logging_format_help"
-                                title="Format for log output - JSON (structured), Text (human-readable), Apache (web server standard)">
-                            <option value="json" {{if eq .settings.logging_format "json"}}selected{{end}}>JSON</option>
-                            <option value="text" {{if eq .settings.logging_format "text"}}selected{{end}}>Text</option>
-                            <option value="apache" {{if eq .settings.logging_format "apache"}}selected{{end}}>Apache Combined</option>
+                                title="{{t $lang "admin.settings.log_format_title"}}">
+                            <option value="json" {{if eq .settings.logging_format "json"}}selected{{end}}>{{t $lang "admin.settings.log_format_json"}}</option>
+                            <option value="text" {{if eq .settings.logging_format "text"}}selected{{end}}>{{t $lang "admin.settings.log_format_text"}}</option>
+                            <option value="apache" {{if eq .settings.logging_format "apache"}}selected{{end}}>{{t $lang "admin.settings.log_format_apache"}}</option>
                         </select>
-                        <small id="logging_format_help">Format for log entries (JSON for parsing, Text for readability)</small>
+                        <small id="logging_format_help">{{t $lang "admin.settings.log_format_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -608,15 +609,15 @@
                             <input type="checkbox"
                                    name="logging.access_log"
                                    {{if .settings.logging_access_log}}checked{{end}}
-                                   aria-label="Enable access log"
+                                   aria-label="{{t $lang "admin.settings.access_log_aria"}}"
                                    aria-describedby="logging_access_log_help"
-                                   title="Log all HTTP requests and responses for monitoring traffic"
+                                   title="{{t $lang "admin.settings.access_log_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.logging_access_log}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Access Log Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.access_log_toggle"}}</span>
                         </label>
-                        <small id="logging_access_log_help">Log all HTTP requests and responses</small>
+                        <small id="logging_access_log_help">{{t $lang "admin.settings.access_log_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -624,15 +625,15 @@
                             <input type="checkbox"
                                    name="logging.error_log"
                                    {{if .settings.logging_error_log}}checked{{end}}
-                                   aria-label="Enable error log"
+                                   aria-label="{{t $lang "admin.settings.error_log_aria"}}"
                                    aria-describedby="logging_error_log_help"
-                                   title="Log application errors and exceptions for debugging"
+                                   title="{{t $lang "admin.settings.error_log_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.logging_error_log}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Error Log Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.error_log_toggle"}}</span>
                         </label>
-                        <small id="logging_error_log_help">Log errors and exceptions</small>
+                        <small id="logging_error_log_help">{{t $lang "admin.settings.error_log_help"}}</small>
                     </div>
 
                     <div class="form-group">
@@ -640,35 +641,35 @@
                             <input type="checkbox"
                                    name="logging.audit_log"
                                    {{if .settings.logging_audit_log}}checked{{end}}
-                                   aria-label="Enable audit log"
+                                   aria-label="{{t $lang "admin.settings.audit_log_aria"}}"
                                    aria-describedby="logging_audit_log_help"
-                                   title="Log administrative actions and security-relevant events for compliance"
+                                   title="{{t $lang "admin.settings.audit_log_title"}}"
                                    role="switch"
                                    aria-checked="{{if .settings.logging_audit_log}}true{{else}}false{{end}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Audit Log Enabled</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.audit_log_toggle"}}</span>
                         </label>
-                        <small id="logging_audit_log_help">Log administrative and security events</small>
+                        <small id="logging_audit_log_help">{{t $lang "admin.settings.audit_log_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="logging_rotation_days">Log Rotation (days)</label>
+                        <label for="logging_rotation_days">{{t $lang "admin.settings.log_rotation_label"}}</label>
                         <input type="number"
                                id="logging_rotation_days"
                                name="logging.rotation_days"
                                value="{{.settings.logging_rotation_days}}"
                                min="1"
-                               aria-label="Log rotation interval in days"
+                               aria-label="{{t $lang "admin.settings.log_rotation_aria"}}"
                                aria-required="true"
                                aria-describedby="logging_rotation_days_help"
-                               title="How often to rotate and archive log files in days (e.g., 7 for weekly rotation)">
-                        <small id="logging_rotation_days_help">How often to rotate log files (e.g., 7 for weekly)</small>
+                               title="{{t $lang "admin.settings.log_rotation_title"}}">
+                        <small id="logging_rotation_days_help">{{t $lang "admin.settings.log_rotation_help"}}</small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save logging settings"
-                            title="Save changes to logging configuration (level, format, enabled logs, rotation)">Save Logging Settings</button>
+                            aria-label="{{t $lang "admin.settings.save_logging_aria"}}"
+                            title="{{t $lang "admin.settings.save_logging_title"}}">{{t $lang "admin.settings.save_logging_action"}}</button>
                 </form>
             </div>
         </div>
@@ -676,60 +677,60 @@
         <!-- SMTP/Email Tab -->
         <div id="tab-smtp" class="tab-content" role="tabpanel" aria-labelledby="tab-smtp">
             <div class="card">
-                <h2>📧 SMTP Configuration</h2>
-                <form id="form-smtp" onsubmit="saveSettings(event, 'smtp')" role="form" aria-label="SMTP settings">
+                <h2>📧 {{t $lang "admin.settings.smtp_config_heading"}}</h2>
+                <form id="form-smtp" onsubmit="saveSettings(event, 'smtp')" role="form" aria-label="{{t $lang "admin.settings.smtp_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="smtp.enabled" {{if .settings.smtp_enabled}}checked{{end}}
-                                   aria-label="Enable SMTP" role="switch">
+                                   aria-label="{{t $lang "admin.settings.smtp_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Email Notifications</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.smtp_enabled_toggle"}}</span>
                         </label>
-                        <small>Enable SMTP for sending email notifications and alerts</small>
+                        <small>{{t $lang "admin.settings.smtp_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="smtp_host">SMTP Host</label>
+                        <label for="smtp_host">{{t $lang "admin.settings.smtp_host_label"}}</label>
                         <input type="text" id="smtp_host" name="smtp.host" value="{{.settings.smtp_host}}"
-                               placeholder="smtp.gmail.com" aria-label="SMTP hostname">
-                        <small>SMTP server hostname or IP address</small>
+                               placeholder="smtp.gmail.com" aria-label="{{t $lang "admin.settings.smtp_host_aria"}}">
+                        <small>{{t $lang "admin.settings.smtp_host_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="smtp_port">SMTP Port</label>
+                        <label for="smtp_port">{{t $lang "admin.settings.smtp_port_label"}}</label>
                         <input type="number" id="smtp_port" name="smtp.port" value="{{.settings.smtp_port}}"
-                               min="1" max="65535" aria-label="SMTP port">
-                        <small>Usually 587 (TLS) or 465 (SSL)</small>
+                               min="1" max="65535" aria-label="{{t $lang "admin.settings.smtp_port_aria"}}">
+                        <small>{{t $lang "admin.settings.smtp_port_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="smtp_username">Username</label>
+                        <label for="smtp_username">{{t $lang "admin.settings.smtp_username_label"}}</label>
                         <input type="text" id="smtp_username" name="smtp.username" value="{{.settings.smtp_username}}"
-                               aria-label="SMTP username">
+                               aria-label="{{t $lang "admin.settings.smtp_username_aria"}}">
                     </div>
                     <div class="form-group">
-                        <label for="smtp_password">Password</label>
+                        <label for="smtp_password">{{t $lang "admin.settings.smtp_password_label"}}</label>
                         <input type="password" id="smtp_password" name="smtp.password" value="{{.settings.smtp_password}}"
-                               aria-label="SMTP password">
+                               aria-label="{{t $lang "admin.settings.smtp_password_aria"}}">
                     </div>
                     <div class="form-group">
-                        <label for="smtp_from_address">From Address</label>
+                        <label for="smtp_from_address">{{t $lang "admin.settings.smtp_from_address_label"}}</label>
                         <input type="email" id="smtp_from_address" name="smtp.from_address" value="{{.settings.smtp_from_address}}"
-                               placeholder="noreply@example.com" aria-label="From email address">
+                               placeholder="noreply@example.com" aria-label="{{t $lang "admin.settings.smtp_from_address_aria"}}">
                     </div>
                     <div class="form-group">
-                        <label for="smtp_from_name">From Name</label>
+                        <label for="smtp_from_name">{{t $lang "admin.settings.smtp_from_name_label"}}</label>
                         <input type="text" id="smtp_from_name" name="smtp.from_name" value="{{.settings.smtp_from_name}}"
-                               placeholder="Weather" aria-label="From name">
+                               placeholder="Weather" aria-label="{{t $lang "admin.settings.smtp_from_name_aria"}}">
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="smtp.use_tls" {{if .settings.smtp_use_tls}}checked{{end}}
-                                   aria-label="Use TLS" role="switch">
+                                   aria-label="{{t $lang "admin.settings.smtp_use_tls_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Use TLS/STARTTLS</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.smtp_use_tls_toggle"}}</span>
                         </label>
-                        <small>Enable secure connections via TLS</small>
+                        <small>{{t $lang "admin.settings.smtp_use_tls_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save SMTP Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_smtp_action"}}</button>
                 </form>
             </div>
         </div>
@@ -737,39 +738,39 @@
         <!-- Rate Limiting Tab -->
         <div id="tab-ratelimit" class="tab-content" role="tabpanel" aria-labelledby="tab-ratelimit">
             <div class="card">
-                <h2>🚦 Rate Limiting</h2>
+                <h2>🚦 {{t $lang "admin.settings.rate_limit_heading"}}</h2>
                 <form id="form-ratelimit" onsubmit="saveSettings(event, 'ratelimit')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="rate_limit.enabled" {{if .settings.rate_limit_enabled}}checked{{end}}
-                                   aria-label="Enable rate limiting" role="switch">
+                                   aria-label="{{t $lang "admin.settings.rate_limit_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Rate Limiting</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.rate_limit_enabled_toggle"}}</span>
                         </label>
-                        <small>Prevent API abuse by limiting request rates</small>
+                        <small>{{t $lang "admin.settings.rate_limit_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_global">Global Limit (req/sec)</label>
+                        <label for="rate_limit_global">{{t $lang "admin.settings.rate_limit_global_label"}}</label>
                         <input type="number" id="rate_limit_global" name="rate_limit.global" value="{{.settings.rate_limit_global}}" min="1">
-                        <small>Global rate limit in requests per second</small>
+                        <small>{{t $lang "admin.settings.rate_limit_global_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_api">API Limit (req/15min)</label>
+                        <label for="rate_limit_api">{{t $lang "admin.settings.rate_limit_api_label"}}</label>
                         <input type="number" id="rate_limit_api" name="rate_limit.api" value="{{.settings.rate_limit_api}}" min="1">
-                        <small>API rate limit per 15-minute window</small>
+                        <small>{{t $lang "admin.settings.rate_limit_api_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_admin">Admin Limit (req/15min)</label>
+                        <label for="rate_limit_admin">{{t $lang "admin.settings.rate_limit_admin_label"}}</label>
                         <input type="number" id="rate_limit_admin" name="rate_limit.admin" value="{{.settings.rate_limit_admin}}" min="1">
-                        <small>Admin panel rate limit per 15-minute window</small>
+                        <small>{{t $lang "admin.settings.rate_limit_admin_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_window">Window (seconds)</label>
+                        <label for="rate_limit_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
                         <input type="number" id="rate_limit_window" name="rate_limit.window" value="{{.settings.rate_limit_window}}" min="60">
-                        <small>Rate limit time window in seconds (default: 900 = 15 minutes)</small>
+                        <small>{{t $lang "admin.settings.rate_limit_window_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Rate Limit Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_ratelimit_action"}}</button>
                 </form>
             </div>
         </div>
@@ -777,53 +778,53 @@
         <!-- SSL/TLS Tab -->
         <div id="tab-ssl" class="tab-content" role="tabpanel" aria-labelledby="tab-ssl">
             <div class="card">
-                <h2>🔐 SSL/TLS Configuration</h2>
+                <h2>🔐 {{t $lang "admin.settings.ssl_config_heading"}}</h2>
                 <form id="form-ssl" onsubmit="saveSettings(event, 'ssl')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="ssl.enabled" {{if .settings.ssl_enabled}}checked{{end}}
-                                   aria-label="Enable SSL/TLS" role="switch">
+                                   aria-label="{{t $lang "admin.settings.ssl_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable HTTPS</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.ssl_enabled_toggle"}}</span>
                         </label>
-                        <small>Enable SSL/TLS for secure HTTPS connections (requires restart)</small>
+                        <small>{{t $lang "admin.settings.ssl_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="ssl_cert_file">Certificate File Path</label>
+                        <label for="ssl_cert_file">{{t $lang "admin.settings.ssl_cert_file_label"}}</label>
                         <input type="text" id="ssl_cert_file" name="ssl.cert_file" value="{{.settings.ssl_cert_file}}"
                                placeholder="/etc/ssl/certs/cert.pem">
-                        <small>Path to SSL certificate file</small>
+                        <small>{{t $lang "admin.settings.ssl_cert_file_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="ssl_key_file">Private Key File Path</label>
+                        <label for="ssl_key_file">{{t $lang "admin.settings.ssl_key_file_label"}}</label>
                         <input type="text" id="ssl_key_file" name="ssl.key_file" value="{{.settings.ssl_key_file}}"
                                placeholder="/etc/ssl/private/key.pem">
-                        <small>Path to SSL private key file</small>
+                        <small>{{t $lang "admin.settings.ssl_key_file_help"}}</small>
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="ssl.acme_enabled" {{if .settings.ssl_acme_enabled}}checked{{end}}
-                                   aria-label="Enable ACME" role="switch">
+                                   aria-label="{{t $lang "admin.settings.ssl_acme_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Automatic Certificates (ACME)</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.ssl_acme_enabled_toggle"}}</span>
                         </label>
-                        <small>Automatically obtain and renew certificates via Let's Encrypt</small>
+                        <small>{{t $lang "admin.settings.ssl_acme_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="ssl_acme_email">ACME Email</label>
+                        <label for="ssl_acme_email">{{t $lang "admin.settings.ssl_acme_email_label"}}</label>
                         <input type="email" id="ssl_acme_email" name="ssl.acme_email" value="{{.settings.ssl_acme_email}}"
                                placeholder="admin@example.com">
-                        <small>Email for ACME certificate registration</small>
+                        <small>{{t $lang "admin.settings.ssl_acme_email_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="ssl_acme_provider">ACME Provider</label>
+                        <label for="ssl_acme_provider">{{t $lang "admin.settings.ssl_acme_provider_label"}}</label>
                         <select id="ssl_acme_provider" name="ssl.acme_provider">
                             <option value="letsencrypt" {{if eq .settings.ssl_acme_provider "letsencrypt"}}selected{{end}}>Let's Encrypt</option>
                             <option value="zerossl" {{if eq .settings.ssl_acme_provider "zerossl"}}selected{{end}}>ZeroSSL</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save SSL Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_ssl_action"}}</button>
                 </form>
             </div>
         </div>
@@ -831,48 +832,48 @@
         <!-- Weather Tab -->
         <div id="tab-weather" class="tab-content" role="tabpanel" aria-labelledby="tab-weather">
             <div class="card">
-                <h2>🌤️ Weather Configuration</h2>
+                <h2>🌤️ {{t $lang "admin.settings.weather_config_heading"}}</h2>
                 <form id="form-weather" onsubmit="saveSettings(event, 'weather')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
-                        <label for="weather_refresh_interval">Refresh Interval (seconds)</label>
+                        <label for="weather_refresh_interval">{{t $lang "admin.settings.weather_refresh_interval_label"}}</label>
                         <input type="number" id="weather_refresh_interval" name="weather.refresh_interval"
                                value="{{.settings.weather_refresh_interval}}" min="300">
-                        <small>How often to refresh weather data (default: 1800 = 30 minutes)</small>
+                        <small>{{t $lang "admin.settings.weather_refresh_interval_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="weather_default_units">Default Units</label>
+                        <label for="weather_default_units">{{t $lang "admin.settings.weather_default_units_label"}}</label>
                         <select id="weather_default_units" name="weather.default_units">
-                            <option value="auto" {{if eq .settings.weather_default_units "auto"}}selected{{end}}>Auto (based on location)</option>
-                            <option value="metric" {{if eq .settings.weather_default_units "metric"}}selected{{end}}>Metric (°C, km/h)</option>
-                            <option value="imperial" {{if eq .settings.weather_default_units "imperial"}}selected{{end}}>Imperial (°F, mph)</option>
+                            <option value="auto" {{if eq .settings.weather_default_units "auto"}}selected{{end}}>{{t $lang "admin.settings.weather_units_auto"}}</option>
+                            <option value="metric" {{if eq .settings.weather_default_units "metric"}}selected{{end}}>{{t $lang "admin.settings.weather_units_metric"}}</option>
+                            <option value="imperial" {{if eq .settings.weather_default_units "imperial"}}selected{{end}}>{{t $lang "admin.settings.weather_units_imperial"}}</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="weather.cache_enabled" {{if .settings.weather_cache_enabled}}checked{{end}}
-                                   aria-label="Enable caching" role="switch">
+                                   aria-label="{{t $lang "admin.settings.weather_cache_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Data Caching</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.weather_cache_enabled_toggle"}}</span>
                         </label>
-                        <small>Cache weather data for faster responses</small>
+                        <small>{{t $lang "admin.settings.weather_cache_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="alerts.enabled" {{if .settings.alerts_enabled}}checked{{end}}
-                                   aria-label="Enable alerts" role="switch">
+                                   aria-label="{{t $lang "admin.settings.alerts_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Severe Weather Alerts</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.alerts_enabled_toggle"}}</span>
                         </label>
-                        <small>Monitor and notify users of severe weather</small>
+                        <small>{{t $lang "admin.settings.alerts_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="alerts_check_interval">Alert Check Interval (seconds)</label>
+                        <label for="alerts_check_interval">{{t $lang "admin.settings.alerts_check_interval_label"}}</label>
                         <input type="number" id="alerts_check_interval" name="alerts.check_interval"
                                value="{{.settings.alerts_check_interval}}" min="60">
-                        <small>How often to check for new alerts (default: 900 = 15 minutes)</small>
+                        <small>{{t $lang "admin.settings.alerts_check_interval_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Weather Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_weather_action"}}</button>
                 </form>
             </div>
         </div>
@@ -880,39 +881,39 @@
         <!-- Notifications Tab -->
         <div id="tab-notifications" class="tab-content" role="tabpanel" aria-labelledby="tab-notifications">
             <div class="card">
-                <h2>🔔 Notification System</h2>
+                <h2>🔔 {{t $lang "admin.settings.notification_system_heading"}}</h2>
                 <form id="form-notifications" onsubmit="saveSettings(event, 'notifications')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="notifications.enabled" {{if .settings.notifications_enabled}}checked{{end}}
-                                   aria-label="Enable notifications" role="switch">
+                                   aria-label="{{t $lang "admin.settings.notifications_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Notification System</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.notifications_enabled_toggle"}}</span>
                         </label>
-                        <small>Enable notification queue and processing</small>
+                        <small>{{t $lang "admin.settings.notifications_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="notifications_queue_workers">Queue Workers</label>
+                        <label for="notifications_queue_workers">{{t $lang "admin.settings.notifications_queue_workers_label"}}</label>
                         <input type="number" id="notifications_queue_workers" name="notifications.queue_workers"
                                value="{{.settings.notifications_queue_workers}}" min="1" max="16">
-                        <small>Number of concurrent notification processing threads</small>
+                        <small>{{t $lang "admin.settings.notifications_queue_workers_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="notifications_retry_max">Max Retries</label>
+                        <label for="notifications_retry_max">{{t $lang "admin.settings.notifications_retry_max_label"}}</label>
                         <input type="number" id="notifications_retry_max" name="notifications.retry_max"
                                value="{{.settings.notifications_retry_max}}" min="0" max="10">
-                        <small>Maximum retry attempts for failed notifications</small>
+                        <small>{{t $lang "admin.settings.notifications_retry_max_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="notifications_retry_backoff">Retry Strategy</label>
+                        <label for="notifications_retry_backoff">{{t $lang "admin.settings.notifications_retry_backoff_label"}}</label>
                         <select id="notifications_retry_backoff" name="notifications.retry_backoff">
-                            <option value="linear" {{if eq .settings.notifications_retry_backoff "linear"}}selected{{end}}>Linear</option>
-                            <option value="exponential" {{if eq .settings.notifications_retry_backoff "exponential"}}selected{{end}}>Exponential</option>
+                            <option value="linear" {{if eq .settings.notifications_retry_backoff "linear"}}selected{{end}}>{{t $lang "admin.settings.retry_backoff_linear"}}</option>
+                            <option value="exponential" {{if eq .settings.notifications_retry_backoff "exponential"}}selected{{end}}>{{t $lang "admin.settings.retry_backoff_exponential"}}</option>
                         </select>
-                        <small>Backoff strategy for retry delays</small>
+                        <small>{{t $lang "admin.settings.notifications_retry_backoff_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Notification Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_notifications_action"}}</button>
                 </form>
             </div>
         </div>
@@ -920,98 +921,98 @@
         <!-- Advanced Tab -->
         <div id="tab-advanced" class="tab-content" role="tabpanel" aria-labelledby="tab-advanced">
             <div class="card">
-                <h2>🌍 GeoIP Configuration</h2>
+                <h2>🌍 {{t $lang "admin.settings.geoip_config_heading"}}</h2>
                 <form id="form-geoip" onsubmit="saveSettings(event, 'geoip')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="geoip.enabled" {{if .settings.geoip_enabled}}checked{{end}}
-                                   aria-label="Enable GeoIP" role="switch">
+                                   aria-label="{{t $lang "admin.settings.geoip_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable GeoIP Location Detection</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.geoip_enabled_toggle"}}</span>
                         </label>
-                        <small>Automatically detect user locations from IP addresses</small>
+                        <small>{{t $lang "admin.settings.geoip_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="geoip_update_interval">Database Update Interval (seconds)</label>
+                        <label for="geoip_update_interval">{{t $lang "admin.settings.geoip_update_interval_label"}}</label>
                         <input type="number" id="geoip_update_interval" name="geoip.update_interval"
                                value="{{.settings.geoip_update_interval}}" min="86400">
-                        <small>How often to update GeoIP databases (default: 604800 = 7 days)</small>
+                        <small>{{t $lang "admin.settings.geoip_update_interval_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save GeoIP Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_geoip_action"}}</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>🌐 CORS Configuration</h2>
+                <h2>🌐 {{t $lang "admin.settings.cors_config_heading"}}</h2>
                 <form id="form-cors" onsubmit="saveSettings(event, 'cors')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="cors.enabled" {{if .settings.cors_enabled}}checked{{end}}
-                                   aria-label="Enable CORS" role="switch">
+                                   aria-label="{{t $lang "admin.settings.cors_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable CORS</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cors_enabled_toggle"}}</span>
                         </label>
-                        <small>Allow cross-origin requests from browsers</small>
+                        <small>{{t $lang "admin.settings.cors_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="cors_allowed_origins">Allowed Origins</label>
+                        <label for="cors_allowed_origins">{{t $lang "admin.settings.cors_allowed_origins_label"}}</label>
                         <input type="text" id="cors_allowed_origins" name="cors.allowed_origins"
                                value="{{.settings.cors_allowed_origins}}" placeholder="*">
-                        <small>Comma-separated list of allowed origins (* for all)</small>
+                        <small>{{t $lang "admin.settings.cors_allowed_origins_help"}}</small>
                     </div>
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="cors.allow_credentials" {{if .settings.cors_allow_credentials}}checked{{end}}
-                                   aria-label="Allow credentials" role="switch">
+                                   aria-label="{{t $lang "admin.settings.cors_allow_credentials_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Allow Credentials</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cors_allow_credentials_toggle"}}</span>
                         </label>
-                        <small>Allow cookies and authentication headers in CORS requests</small>
+                        <small>{{t $lang "admin.settings.cors_allow_credentials_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="cors_max_age">Preflight Cache (seconds)</label>
+                        <label for="cors_max_age">{{t $lang "admin.settings.cors_max_age_label"}}</label>
                         <input type="number" id="cors_max_age" name="cors.max_age"
                                value="{{.settings.cors_max_age}}" min="0">
-                        <small>How long browsers cache preflight responses (default: 43200 = 12 hours)</small>
+                        <small>{{t $lang "admin.settings.cors_max_age_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save CORS Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_cors_action"}}</button>
                 </form>
             </div>
 
             <div class="card">
-                <h2>⏰ Scheduler Configuration</h2>
+                <h2>⏰ {{t $lang "admin.settings.scheduler_config_heading"}}</h2>
                 <form id="form-scheduler" onsubmit="saveSettings(event, 'scheduler')" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="scheduler.enabled" {{if .settings.scheduler_enabled}}checked{{end}}
-                                   aria-label="Enable scheduler" role="switch">
+                                   aria-label="{{t $lang "admin.settings.scheduler_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Scheduled Tasks</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.scheduler_enabled_toggle"}}</span>
                         </label>
-                        <small>Enable automated background task scheduling</small>
+                        <small>{{t $lang "admin.settings.scheduler_enabled_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="scheduler_cleanup_sessions_interval">Session Cleanup (seconds)</label>
+                        <label for="scheduler_cleanup_sessions_interval">{{t $lang "admin.settings.scheduler_cleanup_sessions_label"}}</label>
                         <input type="number" id="scheduler_cleanup_sessions_interval" name="scheduler.cleanup_sessions_interval"
                                value="{{.settings.scheduler_cleanup_sessions_interval}}" min="60">
-                        <small>How often to clean up expired sessions (default: 3600 = 1 hour)</small>
+                        <small>{{t $lang "admin.settings.scheduler_cleanup_sessions_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="scheduler_cleanup_audit_logs_days">Audit Log Retention (days)</label>
+                        <label for="scheduler_cleanup_audit_logs_days">{{t $lang "admin.settings.scheduler_cleanup_audit_logs_label"}}</label>
                         <input type="number" id="scheduler_cleanup_audit_logs_days" name="scheduler.cleanup_audit_logs_days"
                                value="{{.settings.scheduler_cleanup_audit_logs_days}}" min="1">
-                        <small>How many days to keep audit logs</small>
+                        <small>{{t $lang "admin.settings.scheduler_cleanup_audit_logs_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="scheduler_cleanup_notifications_days">Notification Retention (days)</label>
+                        <label for="scheduler_cleanup_notifications_days">{{t $lang "admin.settings.scheduler_cleanup_notifications_label"}}</label>
                         <input type="number" id="scheduler_cleanup_notifications_days" name="scheduler.cleanup_notifications_days"
                                value="{{.settings.scheduler_cleanup_notifications_days}}" min="1">
-                        <small>How many days to keep old notifications</small>
+                        <small>{{t $lang "admin.settings.scheduler_cleanup_notifications_help"}}</small>
                     </div>
-                    <button type="submit" class="btn btn-primary">Save Scheduler Settings</button>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_scheduler_action"}}</button>
                 </form>
             </div>
         </div>
@@ -1019,77 +1020,77 @@
         <!-- Tor Tab -->
         <div id="tab-tor" class="tab-content" role="tabpanel" aria-labelledby="tab-tor">
             <div class="card">
-                <h2>🧅 Tor Hidden Service</h2>
-                <form id="form-tor" onsubmit="saveSettings(event, 'tor')" role="form" aria-label="Tor hidden service settings">
+                <h2>🧅 {{t $lang "admin.settings.tor_hidden_service_heading"}}</h2>
+                <form id="form-tor" onsubmit="saveSettings(event, 'tor')" role="form" aria-label="{{t $lang "admin.settings.tor_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
                             <input type="checkbox" name="tor.enabled" {{if .settings.tor_enabled}}checked{{end}}
-                                   aria-label="Enable Tor hidden service"
+                                   aria-label="{{t $lang "admin.settings.tor_enabled_aria"}}"
                                    aria-describedby="tor-enabled-help"
                                    role="switch"
                                    aria-checked="{{if .settings.tor_enabled}}true{{else}}false{{end}}"
-                                   title="Enable anonymous .onion address access via Tor network">
+                                   title="{{t $lang "admin.settings.tor_enabled_title"}}">
                             <span class="toggle-slider"></span>
-                            <span class="toggle-text">Enable Tor Hidden Service</span>
+                            <span class="toggle-text">{{t $lang "admin.settings.tor_enabled_toggle"}}</span>
                         </label>
-                        <small id="tor-enabled-help">Make your service accessible via Tor network with a .onion address</small>
+                        <small id="tor-enabled-help">{{t $lang "admin.settings.tor_enabled_help"}}</small>
                     </div>
 
                     {{if .settings.tor_enabled}}
                     <div class="form-group">
-                        <label for="tor_onion_address">Onion Address (Read-only)</label>
+                        <label for="tor_onion_address">{{t $lang "admin.settings.tor_onion_address_label"}}</label>
                         <input type="text" id="tor_onion_address" name="tor.onion_address"
                                value="{{.settings.tor_onion_address}}"
                                readonly
-                               aria-label="Generated .onion address"
+                               aria-label="{{t $lang "admin.settings.tor_onion_address_aria"}}"
                                aria-describedby="tor-onion-help"
-                               title="Your unique .onion address for anonymous Tor access">
-                        <small id="tor-onion-help">This address is automatically generated and saved. Share it to allow Tor access.</small>
+                               title="{{t $lang "admin.settings.tor_onion_address_title"}}">
+                        <small id="tor-onion-help">{{t $lang "admin.settings.tor_onion_address_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="tor_data_dir">Tor Data Directory (Read-only)</label>
+                        <label for="tor_data_dir">{{t $lang "admin.settings.tor_data_dir_label"}}</label>
                         <input type="text" id="tor_data_dir" name="tor.data_dir"
                                value="{{.settings.tor_data_dir}}"
                                readonly
-                               aria-label="Tor data directory path"
+                               aria-label="{{t $lang "admin.settings.tor_data_dir_aria"}}"
                                aria-describedby="tor-datadir-help"
-                               title="Location where Tor stores keys and configuration">
-                        <small id="tor-datadir-help">Tor configuration and keys are stored here</small>
+                               title="{{t $lang "admin.settings.tor_data_dir_title"}}">
+                        <small id="tor-datadir-help">{{t $lang "admin.settings.tor_data_dir_help"}}</small>
                     </div>
                     {{end}}
 
                     <div class="form-group">
-                        <label for="tor_socks_port">SOCKS5 Proxy Port</label>
+                        <label for="tor_socks_port">{{t $lang "admin.settings.tor_socks_port_label"}}</label>
                         <input type="number" id="tor_socks_port" name="tor.socks_port"
                                value="{{.settings.tor_socks_port}}"
                                min="1024" max="65535"
-                               aria-label="Tor SOCKS5 proxy port"
+                               aria-label="{{t $lang "admin.settings.tor_socks_port_aria"}}"
                                aria-describedby="tor-socks-help"
                                aria-required="true"
-                               title="Port for Tor SOCKS5 proxy (usually 9050)">
-                        <small id="tor-socks-help">Port for Tor SOCKS5 proxy connections (default: 9050)</small>
+                               title="{{t $lang "admin.settings.tor_socks_port_title"}}">
+                        <small id="tor-socks-help">{{t $lang "admin.settings.tor_socks_port_help"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="tor_control_port">Control Port</label>
+                        <label for="tor_control_port">{{t $lang "admin.settings.tor_control_port_label"}}</label>
                         <input type="number" id="tor_control_port" name="tor.control_port"
                                value="{{.settings.tor_control_port}}"
                                min="1024" max="65535"
-                               aria-label="Tor control port"
+                               aria-label="{{t $lang "admin.settings.tor_control_port_aria"}}"
                                aria-describedby="tor-control-help"
                                aria-required="true"
-                               title="Port for Tor control protocol (usually 9051)">
-                        <small id="tor-control-help">Port for Tor control protocol (default: 9051)</small>
+                               title="{{t $lang "admin.settings.tor_control_port_title"}}">
+                        <small id="tor-control-help">{{t $lang "admin.settings.tor_control_port_help"}}</small>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" aria-label="Save Tor settings">Save Tor Settings</button>
+                    <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.settings.save_tor_aria"}}">{{t $lang "admin.settings.save_tor_action"}}</button>
                 </form>
 
                 <div class="card-footer">
-                    <p><strong>Note:</strong> Changing Tor settings requires a server restart to take effect. Your .onion address will remain the same unless you regenerate it.</p>
-                    <p><strong>Security:</strong> Access via .onion address is fully encrypted and anonymous through the Tor network. No external Tor installation required.</p>
+                    <p><strong>{{t $lang "admin.settings.tor_note_label"}}</strong> {{t $lang "admin.settings.tor_note_text"}}</p>
+                    <p><strong>{{t $lang "admin.settings.tor_security_label"}}</strong> {{t $lang "admin.settings.tor_security_text"}}</p>
                 </div>
             </div>
         </div>
@@ -1097,13 +1098,13 @@
         <!-- Historical Weather Tab -->
         <div id="tab-history" class="tab-content" role="tabpanel" aria-labelledby="tab-history">
             <div class="card">
-                <h2>📊 Historical Weather Settings</h2>
-                <p>Configure the historical weather data feature that allows users to view weather patterns for any day across multiple years.</p>
+                <h2>📊 {{t $lang "admin.settings.history_heading"}}</h2>
+                <p>{{t $lang "admin.settings.history_intro"}}</p>
 
                 <form id="form-history"
                       onsubmit="saveSettings(event, 'history')"
                       role="form"
-                      aria-label="Historical weather settings">
+                      aria-label="{{t $lang "admin.settings.history_form_aria"}}">
 
                     <div class="form-group">
                         <label for="history_enabled">
@@ -1113,17 +1114,17 @@
                                    {{if .Settings.HistoryEnabled}}checked{{end}}
                                    role="switch"
                                    aria-checked="{{if .Settings.HistoryEnabled}}true{{else}}false{{end}}"
-                                   aria-label="Enable historical weather feature"
-                                   title="Allow users to access historical weather data">
-                            Enable Historical Weather Feature
+                                   aria-label="{{t $lang "admin.settings.history_enabled_aria"}}"
+                                   title="{{t $lang "admin.settings.history_enabled_title"}}">
+                            {{t $lang "admin.settings.history_enabled_label"}}
                         </label>
-                        <small>Allow users to view weather data for any day across multiple years (1940-present)</small>
+                        <small>{{t $lang "admin.settings.history_enabled_help"}}</small>
                     </div>
 
                     <div class="form-group">
                         <label for="history_default_years"
-                               aria-label="Default number of years to display">
-                            Default Years to Display
+                               aria-label="{{t $lang "admin.settings.history_default_years_aria"}}">
+                            {{t $lang "admin.settings.history_default_years_label"}}
                             <span aria-hidden="true">*</span>
                         </label>
                         <input type="number"
@@ -1137,16 +1138,16 @@
                                aria-describedby="history-default-years-help"
                                aria-valuemin="5"
                                aria-valuemax="50"
-                               title="Default number of years to show in historical view">
+                               title="{{t $lang "admin.settings.history_default_years_title"}}">
                         <small id="history-default-years-help">
-                            Default number of years to display when users first visit the historical weather page (5-50 years)
+                            {{t $lang "admin.settings.history_default_years_help"}}
                         </small>
                     </div>
 
                     <div class="form-group">
                         <label for="history_min_years"
-                               aria-label="Minimum allowed years">
-                            Minimum Years Allowed
+                               aria-label="{{t $lang "admin.settings.history_min_years_aria"}}">
+                            {{t $lang "admin.settings.history_min_years_label"}}
                             <span aria-hidden="true">*</span>
                         </label>
                         <input type="number"
@@ -1158,16 +1159,16 @@
                                required
                                aria-required="true"
                                aria-describedby="history-min-years-help"
-                               title="Minimum number of years users can request">
+                               title="{{t $lang "admin.settings.history_min_years_title"}}">
                         <small id="history-min-years-help">
-                            Minimum number of years users can request in a single query (reduces server load)
+                            {{t $lang "admin.settings.history_min_years_help"}}
                         </small>
                     </div>
 
                     <div class="form-group">
                         <label for="history_max_years"
-                               aria-label="Maximum allowed years">
-                            Maximum Years Allowed
+                               aria-label="{{t $lang "admin.settings.history_max_years_aria"}}">
+                            {{t $lang "admin.settings.history_max_years_label"}}
                             <span aria-hidden="true">*</span>
                         </label>
                         <input type="number"
@@ -1179,28 +1180,27 @@
                                required
                                aria-required="true"
                                aria-describedby="history-max-years-help"
-                               title="Maximum number of years users can request">
+                               title="{{t $lang "admin.settings.history_max_years_title"}}">
                         <small id="history-max-years-help">
-                            Maximum number of years users can request in a single query (prevents excessive API calls)
+                            {{t $lang "admin.settings.history_max_years_help"}}
                         </small>
                     </div>
 
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="Save historical weather settings">
-                        💾 Save Historical Weather Settings
+                            aria-label="{{t $lang "admin.settings.save_history_aria"}}">
+                        💾 {{t $lang "admin.settings.save_history_action"}}
                     </button>
                 </form>
 
                 <div class="card-footer">
-                    <p><strong>📊 Data Source:</strong> Historical weather data is provided by Open-Meteo's archive API, covering the period from 1940 to present.</p>
-                    <p><strong>🔄 Caching:</strong> Historical data is cached for 24 hours since it doesn't change, improving performance and reducing API calls.</p>
-                    <p><strong>📈 Features:</strong> Users can view year-over-year comparisons, statistical analysis (warmest/coldest/wettest years), and comprehensive weather parameters.</p>
-                    <p><strong>♿ Accessibility:</strong> Full WCAG 2.1 AA compliance with ARIA labels, semantic HTML, and keyboard navigation support.</p>
+                    <p><strong>📊 {{t $lang "admin.settings.history_footer_source_label"}}</strong> {{t $lang "admin.settings.history_footer_source_text"}}</p>
+                    <p><strong>🔄 {{t $lang "admin.settings.history_footer_caching_label"}}</strong> {{t $lang "admin.settings.history_footer_caching_text"}}</p>
+                    <p><strong>📈 {{t $lang "admin.settings.history_footer_features_label"}}</strong> {{t $lang "admin.settings.history_footer_features_text"}}</p>
+                    <p><strong>♿ {{t $lang "admin.settings.history_footer_a11y_label"}}</strong> {{t $lang "admin.settings.history_footer_a11y_text"}}</p>
                 </div>
             </div>
         </div>
-    </main>
 
     <!-- Scripts -->
     <script src="/static/js/app.js"></script>
@@ -1275,4 +1275,4 @@
         });
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}

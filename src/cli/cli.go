@@ -67,6 +67,7 @@ func (c *CLI) Parse(args []string) error {
 		showStatus     = c.flags.Bool("status", false, "Show server status and health")
 		debug          = c.flags.Bool("debug", false, "Enable debug mode (verbose logging, debug endpoints)")
 		colorMode      = c.flags.String("color", "auto", "Color output: auto, yes, no (default: auto, respects NO_COLOR)")
+		lang           = c.flags.String("lang", "", "Language for output: auto, en, es, zh, fr, ar, de, ja (default: auto)")
 		mode           = c.flags.String("mode", "", "Application mode: production or development")
 		configDir      = c.flags.String("config", "", "Configuration directory")
 		dataDir        = c.flags.String("data", "", "Data directory")
@@ -176,6 +177,10 @@ func (c *CLI) Parse(args []string) error {
 	if *colorMode != "" {
 		os.Setenv("CLI_COLOR_MODE", *colorMode)
 	}
+	// Handle --lang flag (AI.md PART 31: highest priority language source)
+	if *lang != "" {
+		os.Setenv("CLI_LANG", *lang)
+	}
 
 	return nil
 }
@@ -223,6 +228,7 @@ func (c *CLI) ShowHelp() {
 	fmt.Println("      --daemon                      Run as daemon (detach from terminal)")
 	fmt.Println("      --debug                       Enable debug mode")
 	fmt.Println("      --color {auto|yes|no}         Color output (default: auto)")
+	fmt.Println("      --lang CODE                   Language for output (default: auto)")
 	fmt.Println()
 
 	// Service Management section

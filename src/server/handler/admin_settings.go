@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -124,12 +125,15 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 			valueStr = string(jsonBytes)
 		}
 
-		// Update in database
+		// Update in database.
+		// updated_at is bound as canonical UTC text rather than produced by SQL's
+		// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+		// MySQL and SQL Server than it does on SQLite.
 		result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_config
-			SET value = ?, updated_at = CURRENT_TIMESTAMP
+			SET value = ?, updated_at = ?
 			WHERE key = ?
-		`, valueStr, key)
+		`, valueStr, dbtime.FormatSQLTimestamp(time.Now()), key)
 
 		if err != nil {
 			failed[key] = err.Error()
@@ -247,11 +251,14 @@ func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
 
 	imported := 0
 	for key, value := range req.Settings {
+		// updated_at is bound as canonical UTC text rather than produced by SQL's
+		// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+		// MySQL and SQL Server than it does on SQLite.
 		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 			UPDATE server_config
-			SET value = ?, updated_at = CURRENT_TIMESTAMP
+			SET value = ?, updated_at = ?
 			WHERE key = ?
-		`, value, key)
+		`, value, dbtime.FormatSQLTimestamp(time.Now()), key)
 
 		if err == nil {
 			imported++

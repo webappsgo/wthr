@@ -171,32 +171,28 @@ func TestCSRFProtection_AcceptsMatchingHeaderToken(t *testing.T) {
 	}
 }
 
-// TestCSRFProtection_SessionAuthenticatedRegularUserBypassesCSRF documents a
-// real production bug: CSRFProtection (csrf.go:70-75) gates its
-// authenticated-request check on c.Get("user_id"), but no middleware in this
-// package ever sets that key. auth.go's AuthMiddleware sets the context key
-// "user" (to a *models.User), never "user_id". The same is true for regular
-// session-authenticated users going through RequireAuth/OptionalAuth - they
-// never populate "user_id" or "admin_id".
+// TestCSRFProtection_SessionAuthenticatedRegularUserIsProtected is a
+// regression test for a real production bug: CSRFProtection gated its
+// authenticated-request check on a bare "user_id" context key that no
+// middleware in this package ever set, so it treated every
+// session-authenticated regular user as unauthenticated and skipped CSRF
+// validation entirely for their mutating requests (POST/PUT/PATCH/DELETE to
+// /users/... routes), even with no CSRF cookie or token present at all.
 //
-// Consequence: CSRFProtection treats every session-authenticated regular
-// user as if they were unauthenticated and skips CSRF validation entirely
-// for their mutating requests (POST/PUT/PATCH/DELETE to /users/... routes),
-// even with no CSRF cookie or token present at all. Regular users receive
-// no CSRF protection whatsoever.
-//
-// This test encodes CORRECT expected behavior (a mutating request from a
-// session-authenticated regular user, with no CSRF token supplied, must be
-// rejected) and is expected to FAIL against the current implementation.
-func TestCSRFProtection_SessionAuthenticatedRegularUserBypassesCSRF(t *testing.T) {
+// The gate now keys on UserContextKey, and AuthMiddleware sets both
+// UserContextKey and UserIDContextKey at every authentication site. This test
+// mirrors that pair and asserts the mutating request is rejected per AI.md
+// PART 16 - CSRF Protection.
+func TestCSRFProtection_SessionAuthenticatedRegularUserIsProtected(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		// Mirrors what auth.go's AuthMiddleware actually sets for a
-		// session-authenticated regular user: the "user" key, not "user_id".
-		c.Set("user", "some-authenticated-user")
+		// Mirrors what auth.go's AuthMiddleware sets for a session-authenticated
+		// regular user: both the user object and its numeric id.
+		c.Set(UserContextKey, "some-authenticated-user")
+		c.Set(UserIDContextKey, 7)
 		c.Next()
 	})
 	router.Use(CSRFProtection(cfg))
@@ -207,8 +203,8 @@ func TestCSRFProtection_SessionAuthenticatedRegularUserBypassesCSRF(t *testing.T
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403 - csrf.go:70-75 checks c.Get(\"user_id\"), a key no "+
-			"middleware ever sets (auth.go sets \"user\"), so session-authenticated regular "+
-			"users bypass CSRF validation entirely for every mutating request", w.Code)
+		t.Errorf("status = %d, want 403 - a session-authenticated regular user with no CSRF "+
+			"token must be rejected; if this fails, AuthMiddleware has stopped setting "+
+			"UserIDContextKey and regular users bypass CSRF on every mutating request", w.Code)
 	}
 }

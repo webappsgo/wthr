@@ -14,9 +14,9 @@ type AdminWeatherHandler struct {
 
 // ShowWeatherSettings displays weather settings page
 func (h *AdminWeatherHandler) ShowWeatherSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_weather.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_weather.tmpl", util.TemplateData(c, gin.H{
 		"title": "Weather Settings",
-	})
+	}))
 }
 
 // UpdateWeatherSettings updates weather settings in server.yml

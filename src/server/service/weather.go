@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/patrickmn/go-cache"
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // WeatherService handles all weather-related operations
@@ -1293,7 +1294,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 				// If IPv6 or result seems wrong (e.g., Tokyo for US IPv6), verify with API
 				if strings.Contains(ip, ":") {
 					// IPv6 - verify with API service as GeoLite2 IPv6 data can be inaccurate
-					fmt.Printf("🔍 Verifying IPv6 GeoIP result (%s) with API...\n", coords.ShortName)
+					fmt.Printf("%s Verifying IPv6 GeoIP result (%s) with API...\n", display.Emoji("🔍", "[..]"), coords.ShortName)
 					// Don't return yet, try API verification below
 				} else {
 					// IPv4 - trust GeoIP
@@ -1321,7 +1322,7 @@ func (ws *WeatherService) tryIPGeolocation(ip string) (*Coordinates, error) {
 				// Use API result
 				return coords, nil
 			}
-			fmt.Printf("✅ GeoIP verified: %s matches API result\n", geoipCoords.ShortName)
+			fmt.Printf("%s GeoIP verified: %s matches API result\n", display.Emoji("✅", "[OK]"), geoipCoords.ShortName)
 			// Use GeoIP result (faster)
 			return geoipCoords, nil
 		}

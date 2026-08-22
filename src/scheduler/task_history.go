@@ -2,11 +2,12 @@ package scheduler
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -36,25 +37,27 @@ type TaskInfo struct {
 	ErrorCount   int        `json:"error_count"`
 }
 
-// InitTaskHistoryTable creates the server_scheduler_history table if it doesn't exist
+// InitTaskHistoryTable verifies that server_scheduler_history is present.
+//
+// The table and its indexes are declared once in database.ServerSchema, which
+// database.InitDualDB executes on every startup - no DDL runs at scheduler
+// start any more. This check stays because the caller treats a missing table as
+// a fatal startup condition: it turns "the schema was never applied to this
+// database" into a clear error instead of a stream of failed inserts later.
 func (s *Scheduler) InitTaskHistoryTable() error {
-	query := `
-	CREATE TABLE IF NOT EXISTS server_scheduler_history (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		task_name TEXT NOT NULL,
-		start_time DATETIME NOT NULL,
-		end_time DATETIME NOT NULL,
-		duration_ms INTEGER NOT NULL,
-		status TEXT NOT NULL,
-		error TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_name ON server_scheduler_history(task_name);
-	CREATE INDEX IF NOT EXISTS idx_server_scheduler_history_start ON server_scheduler_history(start_time DESC);
-	`
+	db := database.GetServerDB()
+	if db == nil {
+		return fmt.Errorf("server database unavailable")
+	}
 
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutMigration, query)
-	return err
+	var present int
+	if err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect,
+		"SELECT COUNT(*) FROM server_scheduler_history WHERE 1 = 0",
+	).Scan(&present); err != nil {
+		return fmt.Errorf("server_scheduler_history is missing from the server database schema: %w", err)
+	}
+
+	return nil
 }
 
 // RecordTaskRun records a task execution in the database
@@ -68,27 +71,49 @@ func (s *Scheduler) RecordTaskRun(taskName string, startTime, endTime time.Time,
 		errorMsg = err.Error()
 	}
 
+	// Both timestamps are bound as canonical UTC text. Binding the time.Time
+	// values themselves would let the driver render them with
+	// time.Time.String(), in the host's local zone, so two servers - or one
+	// server either side of a timezone change - would fill the same column with
+	// two encodings that no longer share an ordering.
 	_, dbErr := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_scheduler_history (task_name, start_time, end_time, duration_ms, status, error)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, taskName, startTime, endTime, duration, status, errorMsg)
+	`, taskName, dbtime.FormatSQLTimestamp(startTime), dbtime.FormatSQLTimestamp(endTime), duration, status, errorMsg)
 
 	return dbErr
 }
 
-// GetTaskHistory returns execution history for a specific task
-func (s *Scheduler) GetTaskHistory(taskName string, limit int) ([]TaskRun, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+// loadTaskRunsNewestFirst returns the recorded runs of taskName ordered by the
+// absolute instant each run started, most recent first, keeping at most limit
+// of them (limit <= 0 means all).
+//
+// Ordering decision: the ordering is done in Go, after parsing, rather than by
+// the SQL "ORDER BY start_time DESC" this used to rely on. RecordTaskRun now
+// writes canonical UTC text, but rows written by earlier builds are still on
+// disk in the driver's local-zone time.Time.String() layout, and SQL compares
+// those two encodings as text - by wall clock and by leading character, not by
+// instant. A text ORDER BY therefore interleaves legacy and current rows
+// wrongly, and an SQL LIMIT stacked on top of it discards rows off the wrong
+// end of that ordering, which is how GetLastTaskRun could return a run that was
+// not the most recent. Parsing every value to an absolute instant first makes
+// mixed on-disk data give the same answer as uniform data. The scan stays
+// bounded: it is filtered to a single task by an index, and
+// CleanupOldTaskHistory prunes the table on a schedule.
+//
+// A start_time that is NULL or in a layout the project never writes keeps its
+// zero value, so such a row sorts to the very end and can never be mistaken for
+// the newest run. It is still listed, because the run genuinely happened and
+// hiding it would misreport the task's history.
+func (s *Scheduler) loadTaskRunsNewestFirst(taskName string, limit int) ([]TaskRun, error) {
+	// id DESC only breaks ties between runs that share a start instant; the
+	// real ordering is applied below.
+	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutComplexSelect, `
 		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
 		FROM server_scheduler_history
 		WHERE task_name = ?
-		ORDER BY start_time DESC
-		LIMIT ?
-	`, taskName, limit)
+		ORDER BY id DESC
+	`, taskName)
 
 	if err != nil {
 		return nil, err
@@ -98,37 +123,57 @@ func (s *Scheduler) GetTaskHistory(taskName string, limit int) ([]TaskRun, error
 	var history []TaskRun
 	for rows.Next() {
 		var run TaskRun
-		err := rows.Scan(&run.ID, &run.TaskName, &run.StartTime, &run.EndTime,
+		var storedStart, storedEnd interface{}
+		err := rows.Scan(&run.ID, &run.TaskName, &storedStart, &storedEnd,
 			&run.Duration, &run.Status, &run.Error)
 		if err != nil {
 			continue
 		}
+
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedStart); ok {
+			run.StartTime = parsed
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedEnd); ok {
+			run.EndTime = parsed
+		}
+
 		history = append(history, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(history, func(i, j int) bool {
+		return history[i].StartTime.After(history[j].StartTime)
+	})
+
+	if limit > 0 && len(history) > limit {
+		history = history[:limit]
 	}
 
 	return history, nil
 }
 
+// GetTaskHistory returns execution history for a specific task
+func (s *Scheduler) GetTaskHistory(taskName string, limit int) ([]TaskRun, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	return s.loadTaskRunsNewestFirst(taskName, limit)
+}
+
 // GetLastTaskRun returns the most recent run for a task
 func (s *Scheduler) GetLastTaskRun(taskName string) (*TaskRun, error) {
-	var run TaskRun
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-		SELECT id, task_name, start_time, end_time, duration_ms, status, COALESCE(error, '')
-		FROM server_scheduler_history
-		WHERE task_name = ?
-		ORDER BY start_time DESC
-		LIMIT 1
-	`, taskName).Scan(&run.ID, &run.TaskName, &run.StartTime, &run.EndTime,
-		&run.Duration, &run.Status, &run.Error)
-
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	history, err := s.loadTaskRunsNewestFirst(taskName, 1)
 	if err != nil {
 		return nil, err
 	}
+	if len(history) == 0 {
+		return nil, nil
+	}
 
-	return &run, nil
+	return &history[0], nil
 }
 
 // GetTaskStats returns statistics for a task
@@ -193,16 +238,18 @@ func (s *Scheduler) CleanupOldTaskHistory(days int) error {
 		days = 90
 	}
 
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_scheduler_history
-		WHERE start_time < datetime('now', ?)
-	`, fmt.Sprintf("-%d days", days))
+	// RecordTaskRun writes start_time as canonical UTC text, but rows left by
+	// earlier builds hold the driver's local-zone rendering of a bound
+	// time.Time - compare each value as a UTC instant in Go rather than against
+	// SQLite's datetime('now'), which would read that local-zone text as if it
+	// were UTC (see CleanupOldSessions).
+	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
+	rows, err := deleteRowsWithTimestampBefore(database.GetServerDB(), "server_scheduler_history", "id", "start_time", cutoff)
 	if err != nil {
 		return err
 	}
 
-	rows, _ := result.RowsAffected()
 	if rows > 0 {
 		log.Printf("INFO: Cleaned up %d old task history records (older than %d days)", rows, days)
 	}

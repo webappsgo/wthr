@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/webappsgo/wthr/src/common/dbtime"
 )
 
 // seedUserAccountRow inserts a minimal row into user_accounts so loadSettings
@@ -485,5 +487,92 @@ func TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated(t *testing
 	}
 	if location := w.Header().Get("Location"); location != "/server/auth/login" {
 		t.Errorf("expected redirect to /server/auth/login, got %q", location)
+	}
+}
+
+// TestGetUserTokens_LegacyTimestampLayoutsSurvive is the regression test for
+// the token listing. getUserTokens used to scan created_at/expires_at/
+// last_used_at straight into time.Time and sql.NullTime and to `continue` on a
+// scan error, so any row whose timestamp was written in the local-zone
+// time.Time.String() layout the SQLite driver produces for a bound time.Time -
+// a layout the driver's own scanner does not accept - vanished from the user's
+// own token list with no error anywhere. The timestamps are now scanned untyped
+// and parsed with dbtime, so the row is returned either way and only an
+// unparseable timestamp is dropped, not the token.
+func TestGetUserTokens_LegacyTimestampLayoutsSurvive(t *testing.T) {
+	db := newTestUsersDB(t)
+	seedUserAccountRow(t, db, 1, "tokenzone@example.com", "tokenzone")
+	h := NewUserSettingsHandler(db)
+
+	now := time.Now().Truncate(time.Second)
+	rows := []struct {
+		name      string
+		createdAt string
+		wantTime  time.Time
+	}{
+		{
+			name:      "canonical-utc",
+			createdAt: dbtime.FormatSQLTimestamp(now),
+			wantTime:  now.UTC(),
+		},
+		{
+			name:      "legacy-west",
+			createdAt: now.In(handlerZoneWest).Format(handlerLocalLayout),
+			wantTime:  now.UTC(),
+		},
+		{
+			name:      "legacy-east",
+			createdAt: now.In(handlerZoneEast).Format(handlerLocalLayout),
+			wantTime:  now.UTC(),
+		},
+		{
+			name:      "unparseable",
+			createdAt: "not-a-timestamp",
+			wantTime:  time.Time{},
+		},
+	}
+
+	for i, row := range rows {
+		_, err := db.Exec(`
+			INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at, last_used_at)
+			VALUES (?, ?, 'usr_', ?, 'read', ?, ?, ?)
+		`, 1, strconv.Itoa(i)+"-hash", row.name, row.createdAt, row.createdAt, row.createdAt)
+		if err != nil {
+			t.Fatalf("seed token row %q: %v", row.name, err)
+		}
+	}
+
+	got, err := h.getUserTokens(1)
+	if err != nil {
+		t.Fatalf("getUserTokens: %v", err)
+	}
+	if len(got) != len(rows) {
+		t.Fatalf("returned %d tokens, want %d - a legacy timestamp layout is silently dropping rows", len(got), len(rows))
+	}
+
+	byName := make(map[string]UserToken, len(got))
+	for _, token := range got {
+		byName[token.Name] = token
+	}
+	for _, row := range rows {
+		token, ok := byName[row.name]
+		if !ok {
+			t.Fatalf("token %q missing from the listing", row.name)
+		}
+		if !token.CreatedAt.Equal(row.wantTime) {
+			t.Errorf("token %q created_at = %v, want %v", row.name, token.CreatedAt, row.wantTime)
+		}
+		if row.wantTime.IsZero() {
+			if token.ExpiresAt != nil || token.LastUsedAt != nil {
+				t.Errorf("token %q: unparseable expires_at/last_used_at should stay nil, got %v/%v", row.name, token.ExpiresAt, token.LastUsedAt)
+			}
+			continue
+		}
+		if token.ExpiresAt == nil || !token.ExpiresAt.Equal(row.wantTime) {
+			t.Errorf("token %q expires_at = %v, want %v", row.name, token.ExpiresAt, row.wantTime)
+		}
+		if token.LastUsedAt == nil || !token.LastUsedAt.Equal(row.wantTime) {
+			t.Errorf("token %q last_used_at = %v, want %v", row.name, token.LastUsedAt, row.wantTime)
+		}
 	}
 }

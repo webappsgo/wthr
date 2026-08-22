@@ -1,0 +1,166 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $apiPath := "/api/v1/server/admin" -}}
+{{- if .admin_api_path}}{{$apiPath = .admin_api_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.templates.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.templates.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="templates-list-heading">
+    <div class="section-header">
+      <h2 id="templates-list-heading">{{t $lang "admin.templates.list_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128196;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.templates.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.templates.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/email/templates">{{t $lang "admin.templates.empty_action"}}</a>
+    </div>
+  </section>
+
+  <section class="admin-section" aria-labelledby="templates-endpoints-heading">
+    <div class="section-header">
+      <h2 id="templates-endpoints-heading">{{t $lang "admin.templates.endpoints_heading"}}</h2>
+    </div>
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_list"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/templates</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_detail"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/templates/:id</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_variables"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/server/templates/variables</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_create"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/server/templates</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_update"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>PUT {{$apiPath}}/server/templates/:id</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_delete"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>DELETE {{$apiPath}}/server/templates/:id</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_clone"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/server/templates/:id/clone</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_preview"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/server/templates/preview</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.endpoint_initialize"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/server/templates/initialize</code></dd>
+    </dl>
+  </section>
+
+  <section class="admin-section" aria-labelledby="templates-fields-heading">
+    <div class="section-header">
+      <h2 id="templates-fields-heading">{{t $lang "admin.templates.fields_heading"}}</h2>
+    </div>
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <caption class="admin-table-caption">{{t $lang "admin.templates.fields_caption"}}</caption>
+        <thead class="admin-table-header">
+          <tr class="admin-table-head-row">
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.templates.col_field"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.templates.col_type"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.templates.col_required"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.templates.col_description"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>channel_type</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_string"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--on">
+                <span class="admin-flag__icon" aria-hidden="true">&#10003;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_yes"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_channel_type_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>template_name</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_string"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--on">
+                <span class="admin-flag__icon" aria-hidden="true">&#10003;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_yes"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_template_name_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>template_type</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_string"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--on">
+                <span class="admin-flag__icon" aria-hidden="true">&#10003;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_yes"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_template_type_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>body_template</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_string"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--on">
+                <span class="admin-flag__icon" aria-hidden="true">&#10003;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_yes"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_body_template_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>subject_template</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_string"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--off">
+                <span class="admin-flag__icon" aria-hidden="true">&#8211;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_no"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_subject_template_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>variables</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_object"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--off">
+                <span class="admin-flag__icon" aria-hidden="true">&#8211;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_no"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_variables_desc"}}</td>
+          </tr>
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row"><code>is_default</code></th>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.type_boolean"}}</td>
+            <td class="admin-table-body-cell">
+              <span class="admin-flag admin-flag--off">
+                <span class="admin-flag__icon" aria-hidden="true">&#8211;</span>
+                <span class="admin-flag__text">{{t $lang "admin.templates.required_no"}}</span>
+              </span>
+            </td>
+            <td class="admin-table-body-cell">{{t $lang "admin.templates.field_is_default_desc"}}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.update_note_term"}}</dt>
+      <dd class="admin-detail-list__value">{{t $lang "admin.templates.update_note_desc"}}</dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.clone_note_term"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>{"new_name": "..."}</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.templates.preview_note_term"}}</dt>
+      <dd class="admin-detail-list__value">{{t $lang "admin.templates.preview_note_desc"}}</dd>
+    </dl>
+    <div class="note-box">
+      <p>
+        <span class="admin-flag admin-flag--off">
+          <span class="admin-flag__icon" aria-hidden="true">&#9888;</span>
+          <span class="admin-flag__text">{{t $lang "admin.common.api_only"}}</span>
+        </span>
+        {{t $lang "admin.templates.api_only_note"}}
+      </p>
+    </div>
+  </section>
+{{template "admin_footer" .}}

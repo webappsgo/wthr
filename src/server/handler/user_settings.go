@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -412,6 +413,10 @@ func (h *UserSettingsHandler) getOrCreatePreferences(userID int64) (*models.User
 			UpdatedAt:            time.Now(),
 		}
 
+		// created_at/updated_at are bound as canonical UTC text. Binding a raw
+		// time.Time makes the SQLite driver serialize it as time.Time.String()
+		// in the host's LOCAL zone, which no reader can compare against a UTC
+		// instant without guessing the writer's offset.
 		_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 			INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit,
 			                              pressure_unit, wind_speed_unit, precipitation_unit,
@@ -419,7 +424,8 @@ func (h *UserSettingsHandler) getOrCreatePreferences(userID int64) (*models.User
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, prefs.UserID, prefs.Theme, prefs.Language, prefs.Timezone, prefs.TemperatureUnit,
 			prefs.PressureUnit, prefs.WindSpeedUnit, prefs.PrecipitationUnit,
-			prefs.NotificationsEnabled, prefs.EmailNotifications, prefs.CreatedAt, prefs.UpdatedAt)
+			prefs.NotificationsEnabled, prefs.EmailNotifications,
+			dbtime.FormatSQLTimestamp(prefs.CreatedAt), dbtime.FormatSQLTimestamp(prefs.UpdatedAt))
 
 		if err != nil {
 			return nil, err
@@ -463,24 +469,28 @@ func (h *UserSettingsHandler) updateAccountSettings(userID int64, settings *Acco
 		settings.Website = "https://" + settings.Website
 	}
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET display_name = ?, bio = ?, location = ?, website = ?, timezone = ?, language = ?, updated_at = ?
 		WHERE id = ?
 	`, settings.DisplayName, settings.Bio, settings.Location, settings.Website,
-		settings.Timezone, settings.Language, time.Now(), userID)
+		settings.Timezone, settings.Language, dbtime.FormatSQLTimestamp(time.Now()), userID)
 
 	return err
 }
 
 // updatePrivacySettings updates privacy settings
 func (h *UserSettingsHandler) updatePrivacySettings(userID int64, settings *PrivacySettings) error {
-	// Update visibility in users table
+	// Update visibility in users table.
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET visibility = ?, updated_at = ?
 		WHERE id = ?
-	`, settings.Visibility, time.Now(), userID)
+	`, settings.Visibility, dbtime.FormatSQLTimestamp(time.Now()), userID)
 
 	// Note: Other privacy settings (show_email, show_activity, etc.) would be stored
 	// in user_preferences table with extended columns
@@ -489,12 +499,14 @@ func (h *UserSettingsHandler) updatePrivacySettings(userID int64, settings *Priv
 
 // updateNotificationSettings updates notification settings
 func (h *UserSettingsHandler) updateNotificationSettings(userID int64, settings *NotificationSettings) error {
-	// email_security is always true and cannot be changed per AI.md PART 34
+	// email_security is always true and cannot be changed per AI.md PART 34.
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_preferences
 		SET notifications_enabled = ?, email_notifications = ?, updated_at = ?
 		WHERE user_id = ?
-	`, settings.PushEnabled, settings.EmailMentions, time.Now(), userID)
+	`, settings.PushEnabled, settings.EmailMentions, dbtime.FormatSQLTimestamp(time.Now()), userID)
 
 	return err
 }
@@ -507,11 +519,13 @@ func (h *UserSettingsHandler) updateAppearanceSettings(userID int64, settings *A
 		return fmt.Errorf("theme must be one of: dark, light, auto")
 	}
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_preferences
 		SET theme = ?, updated_at = ?
 		WHERE user_id = ?
-	`, settings.Theme, time.Now(), userID)
+	`, settings.Theme, dbtime.FormatSQLTimestamp(time.Now()), userID)
 
 	return err
 }
@@ -543,20 +557,30 @@ func (h *UserSettingsHandler) getUserTokens(userID int64) ([]UserToken, error) {
 	for rows.Next() {
 		var t UserToken
 		var name, scopes sql.NullString
-		var expiresAt, lastUsedAt sql.NullTime
+		// The three timestamps are scanned untyped and parsed in Go. Legacy rows
+		// written before timestamps were canonicalized hold a Go
+		// time.Time.String() layout the driver cannot scan into time.Time /
+		// sql.NullTime, and the scan error below skips the row entirely — which
+		// silently hid those tokens from the user's own token list.
+		var createdAtRaw, expiresAtRaw, lastUsedAtRaw interface{}
 
-		err := rows.Scan(&t.ID, &name, &t.TokenPrefix, &scopes, &t.CreatedAt, &expiresAt, &lastUsedAt)
+		err := rows.Scan(&t.ID, &name, &t.TokenPrefix, &scopes, &createdAtRaw, &expiresAtRaw, &lastUsedAtRaw)
 		if err != nil {
 			continue
 		}
 
 		t.Name = name.String
 		t.Scopes = scopes.String
-		if expiresAt.Valid {
-			t.ExpiresAt = &expiresAt.Time
+		if parsed, ok := dbtime.ParseStoredTimestamp(createdAtRaw); ok {
+			t.CreatedAt = parsed
 		}
-		if lastUsedAt.Valid {
-			t.LastUsedAt = &lastUsedAt.Time
+		if parsed, ok := dbtime.ParseStoredTimestamp(expiresAtRaw); ok {
+			expires := parsed
+			t.ExpiresAt = &expires
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(lastUsedAtRaw); ok {
+			lastUsed := parsed
+			t.LastUsedAt = &lastUsed
 		}
 
 		tokens = append(tokens, t)
@@ -615,18 +639,21 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 	tokenHash := models.HashToken(token)
 	tokenPrefix := models.GetTokenPrefix(token) + "..."
 
-	var expiresAt sql.NullTime
+	// expires_at stays NULL for never-expiring tokens; otherwise it is bound as
+	// canonical UTC text so every reader parses one layout.
+	var expiresAt interface{}
 	if req.ExpiresIn > 0 {
-		expiresAt = sql.NullTime{
-			Time:  time.Now().AddDate(0, 0, req.ExpiresIn),
-			Valid: true,
-		}
+		expiresAt = dbtime.FormatSQLTimestamp(time.Now().AddDate(0, 0, req.ExpiresIn))
 	}
 
+	// created_at is bound as canonical UTC text. Binding a raw time.Time makes
+	// the SQLite driver serialize it as time.Time.String() in the host's LOCAL
+	// zone, which no reader can compare against a UTC instant without guessing
+	// the writer's offset.
 	_, dbErr := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, time.Now(), expiresAt)
+	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, dbtime.FormatSQLTimestamp(time.Now()), expiresAt)
 
 	if dbErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
@@ -801,8 +828,7 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
-	expiresAt, parseErr := parseStoredTime(expiresAtRaw)
-	if parseErr != nil || !expiresAt.After(time.Now()) {
+	if !dbtime.IsAfter(expiresAtRaw, time.Now()) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 		return
 	}
@@ -836,30 +862,4 @@ func (h *UserSettingsHandler) RevokeAllSessions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "All sessions revoked"})
-}
-
-// storedTimeLayouts lists the text layouts a timestamp column may contain,
-// tried in order. The sqlite driver's default write format is Go's
-// time.Time.String() layout ("2006-01-02 15:04:05.999999999 -0700 MST"),
-// but rows can also be populated by SQLite's own CURRENT_TIMESTAMP
-// ("2006-01-02 15:04:05") or by RFC3339(Nano) text.
-var storedTimeLayouts = []string{
-	"2006-01-02 15:04:05.999999999 -0700 MST",
-	time.RFC3339Nano,
-	time.RFC3339,
-	"2006-01-02 15:04:05",
-}
-
-// parseStoredTime parses a timestamp read back from a TEXT-affinity SQLite
-// column, trying every layout the driver or schema may have written it in.
-func parseStoredTime(raw string) (time.Time, error) {
-	var lastErr error
-	for _, layout := range storedTimeLayouts {
-		if t, err := time.Parse(layout, raw); err == nil {
-			return t, nil
-		} else {
-			lastErr = err
-		}
-	}
-	return time.Time{}, fmt.Errorf("parse stored time %q: %w", raw, lastErr)
 }

@@ -5,19 +5,21 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/model"
 	_ "modernc.org/sqlite"
 )
 
 // openTokenAuthTestDBs opens two in-memory SQLite databases seeded with the
 // real production schemas (database.ServerSchema / database.UsersSchema) -
-// the same schemas InitDBWithConfig applies in production - never the dead
-// legacy database.Schema variable, so tests fail the same way production
-// would if a model queries a table that doesn't actually exist.
+// the same schemas database.InitDualDB applies in production - so tests fail
+// the same way production would if a model queries a table that doesn't
+// actually exist.
 func openTokenAuthTestDBs(t *testing.T) (serverDB, usersDB *sql.DB) {
 	t.Helper()
 	seed := time.Now().UnixNano()
@@ -207,36 +209,104 @@ func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
 	}
 }
 
-// TestTokenAuthMiddleware_UserTokenFailsAgainstRealSchema documents a real
-// production bug: TokenModelV2 (src/server/model/token_v2.go:187,232)
-// reads/writes a table literally named "tokens" via
-// `INSERT INTO tokens (...)` / `SELECT ... FROM tokens`. That table only
-// exists in the dead legacy schema (database.Schema, src/database/schema.go)
-// - it does NOT exist in database.UsersSchema, the schema InitDBWithConfig
-// actually applies to users.db in production (backend-rules.md: "Dual
-// database: server.db + users.db"). UsersSchema instead defines a
-// differently-named/shaped table `user_tokens`.
-//
-// Consequently every usr_-prefixed API token presented to
-// TokenAuthMiddleware in production hits ValidateToken's `SELECT ... FROM
-// tokens` against a table that was never created, and the query fails with
-// "no such table: tokens" - which TokenAuthMiddleware currently maps to a
-// generic 401 "invalid user token", silently masking a schema-mismatch bug
-// as an ordinary auth failure.
-//
-// This test proves the failure mode directly: it seeds usersDB with the
-// real production UsersSchema (no hand-rolled "tokens" table) and asserts
-// that querying "tokens" fails, which is the root cause of every usr_ token
-// being rejected in production regardless of validity.
-func TestTokenAuthMiddleware_UserTokenFailsAgainstRealSchema(t *testing.T) {
-	_, usersDB := openTokenAuthTestDBs(t)
+// TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema proves that a
+// usr_ token issued by TokenModelV2 authenticates end-to-end against the
+// real production schema. TokenModelV2 used to read and write a table
+// literally named "tokens", which existed only in a legacy single-database
+// schema that has since been deleted and never in database.UsersSchema - the
+// schema actually applied to users.db - so every usr_ token failed with
+// "no such table: tokens", surfaced as a generic 401. Both sides now agree on the canonical
+// user_tokens table, so this asserts the positive case: seed usersDB with
+// the real UsersSchema, mint a token through the model, and require the
+// middleware to accept it and populate the auth context.
+func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	serverDB, usersDB := openTokenAuthTestDBs(t)
 
+	// The canonical token table must exist in the applied schema - a missing
+	// table here is the exact regression this test guards against.
 	var count int
-	err := usersDB.QueryRow("SELECT COUNT(*) FROM tokens").Scan(&count)
-	if err == nil {
-		t.Fatalf("SELECT FROM tokens unexpectedly succeeded (count=%d) against the real "+
-			"UsersSchema - if this now passes, TokenModelV2's schema mismatch "+
-			"(token_v2.go queries table 'tokens', UsersSchema defines 'user_tokens') "+
-			"has been fixed and this regression test should be updated/removed", count)
+	if err := usersDB.QueryRow("SELECT COUNT(*) FROM user_tokens").Scan(&count); err != nil {
+		t.Fatalf("SELECT FROM user_tokens failed against the real UsersSchema: %v", err)
+	}
+
+	// The middleware resolves the token owner through UserModel.GetByID, so
+	// the token needs a real owning account row.
+	if _, err := usersDB.Exec(`
+		INSERT INTO user_accounts (id, username, email, password_hash)
+		VALUES (42, 'tokenuser', 'tokenuser@example.com', 'argon2id$placeholder')
+	`); err != nil {
+		t.Fatalf("insert user account: %v", err)
+	}
+
+	tokenModel := &model.TokenModelV2{DB: usersDB}
+	created, err := tokenModel.CreateToken(model.OwnerTypeUser, 42, "middleware test", model.ScopeRead, 0)
+	if err != nil {
+		t.Fatalf("CreateToken() error = %v", err)
+	}
+
+	var gotAuthType any
+	router := gin.New()
+	router.Use(TokenAuthMiddleware(serverDB, usersDB))
+	router.GET("/api/v1/protected", func(c *gin.Context) {
+		gotAuthType, _ = c.Get("auth_type")
+		c.String(http.StatusOK, "ok")
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+created.Token)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 for a valid user token: %s", w.Code, w.Body.String())
+	}
+	if gotAuthType != "user_token" {
+		t.Errorf("auth_type in context = %v, want \"user_token\"", gotAuthType)
+	}
+}
+
+// TestRequireAdminToken covers the admin-only gate that must sit behind
+// TokenAuthMiddleware on every admin route group. TokenAuthMiddleware accepts
+// both adm_ and usr_ tokens, so without this gate a regular user token would
+// reach the whole admin API (config writes, scheduler control, server
+// restart). The three cases are the full decision surface: admin passes,
+// authenticated-but-not-admin is refused, unauthenticated is refused.
+func TestRequireAdminToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name     string
+		authType any
+		setAuth  bool
+		want     int
+	}{
+		{"admin token passes", AuthTypeAdminToken, true, http.StatusOK},
+		{"user token refused", "user_token", true, http.StatusForbidden},
+		{"unauthenticated refused", nil, false, http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				if tt.setAuth {
+					c.Set("auth_type", tt.authType)
+				}
+				c.Next()
+			})
+			router.Use(RequireAdminToken())
+			router.GET("/admin", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin", nil))
+
+			if w.Code != tt.want {
+				t.Errorf("status = %d, want %d", w.Code, tt.want)
+			}
+			if tt.want == http.StatusForbidden && !strings.Contains(w.Body.String(), `"error":"FORBIDDEN"`) {
+				t.Errorf("body = %q, want canonical FORBIDDEN error shape", w.Body.String())
+			}
+		})
 	}
 }

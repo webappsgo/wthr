@@ -1,0 +1,106 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.admins.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.admins.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="admins-accounts-heading">
+    <div class="section-header">
+      <h2 id="admins-accounts-heading">{{t $lang "admin.admins.accounts_heading"}}</h2>
+      <p class="admin-count">{{t $lang "admin.admins.count_label"}} {{if .admin_count}}{{.admin_count}}{{else}}0{{end}}</p>
+    </div>
+    {{if .admins}}
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <caption class="admin-table-caption">{{t $lang "admin.admins.table_caption"}}</caption>
+        <thead class="admin-table-header">
+          <tr class="admin-table-head-row">
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_username"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_email"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_role"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_status"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_last_login"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .admins}}
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell" scope="row">
+              <a href="{{$ap}}/config/admins/{{.ID}}">{{.Username}}</a>
+            </th>
+            <td class="admin-table-body-cell admin-break-all">{{.Email}}</td>
+            <td class="admin-table-body-cell">
+              {{if .IsSuperAdmin}}{{t $lang "admin.admins.role_super"}}{{else}}{{t $lang "admin.admins.role_standard"}}{{end}}
+            </td>
+            <td class="admin-table-body-cell">
+              {{if .IsActive}}
+              <span class="admin-flag admin-flag--on">
+                <span class="admin-flag__icon" aria-hidden="true">&#10003;</span>
+                <span class="admin-flag__text">{{t $lang "admin.admins.status_active"}}</span>
+              </span>
+              {{else}}
+              <span class="admin-flag admin-flag--off">
+                <span class="admin-flag__icon" aria-hidden="true">&#10007;</span>
+                <span class="admin-flag__text">{{t $lang "admin.admins.status_disabled"}}</span>
+              </span>
+              {{end}}
+            </td>
+            <td class="admin-table-body-cell">
+              {{if .LastLoginAt}}{{.LastLoginAt}}{{else}}{{t $lang "admin.common.never"}}{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128100;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.admins.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.admins.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/admins/invite">{{t $lang "admin.admins.empty_action"}}</a>
+    </div>
+    {{end}}
+  </section>
+
+  <section class="admin-section" aria-labelledby="admins-invites-heading">
+    <div class="section-header">
+      <h2 id="admins-invites-heading">{{t $lang "admin.admins.invites_heading"}}</h2>
+    </div>
+    {{if .pending_invites}}
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <caption class="admin-table-caption">{{t $lang "admin.admins.invites_caption"}}</caption>
+        <thead class="admin-table-header">
+          <tr class="admin-table-head-row">
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_email"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_created"}}</th>
+            <th class="admin-table-head-cell" scope="col">{{t $lang "admin.admins.col_expires"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .pending_invites}}
+          <tr class="admin-table-body-row">
+            <th class="admin-table-body-cell admin-break-all" scope="row">{{.InvitedEmail}}</th>
+            <td class="admin-table-body-cell">{{.CreatedAt}}</td>
+            <td class="admin-table-body-cell">{{.ExpiresAt}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#9993;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.admins.invites_empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.admins.invites_empty_message"}}</p>
+      <a class="btn btn-secondary" href="{{$ap}}/config/admins/invite">{{t $lang "admin.admins.invites_empty_action"}}</a>
+    </div>
+    {{end}}
+  </section>
+{{template "admin_footer" .}}

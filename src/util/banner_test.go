@@ -61,8 +61,8 @@ func TestDisplayFirstRunBanner_NoPanic(t *testing.T) {
 			t.Errorf("DisplayFirstRunBanner panicked: %v", r)
 		}
 	}()
-	DisplayFirstRunBanner(8080, "abcdef0123456789", false, "")
-	DisplayFirstRunBanner(8080, "abcdef0123456789", true, "example.onion")
+	DisplayFirstRunBanner(8080, "abcdef0123456789", false, "", "/server/admin")
+	DisplayFirstRunBanner(8080, "abcdef0123456789", true, "example.onion", "/server/admin")
 }
 
 // TestDisplayNormalBanner_NoPanic mirrors the first-run banner check for the

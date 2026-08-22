@@ -102,7 +102,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 			}
 			c.Set("admin", admin)
 			c.Set("db", serverDB)
-			c.Set("auth_type", "admin_token")
+			c.Set("auth_type", AuthTypeAdminToken)
 
 		case TokenTypeUser:
 			// Validate user token (usr_) using new token model
@@ -126,7 +126,9 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 			// Update last used timestamp
 			go tokenModelV2.UpdateLastUsed(validatedToken.ID)
 
-			c.Set("user", user)
+			c.Set(UserContextKey, user)
+			// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+			c.Set(UserIDContextKey, int(user.ID))
 			c.Set("token", validatedToken)
 			c.Set("auth_type", "user_token")
 
@@ -137,6 +139,33 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
 
 		default:
 			c.JSON(401, gin.H{"ok": false, "error": "unknown token type"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// AuthTypeAdminToken is the auth_type context value set by TokenAuthMiddleware
+// when the request presented a Server Admin token.
+const AuthTypeAdminToken = "admin_token"
+
+// RequireAdminToken rejects any request that authenticated as something other
+// than a Server Admin. TokenAuthMiddleware accepts both admin (adm_) and user
+// (usr_) tokens, so admin route groups must chain this after it — otherwise a
+// regular user token would reach the admin API. Per AI.md PART 17 the Server
+// Admin is a separate account type from a PART 34 regular user, and PART 11
+// requires least privilege on every admin surface.
+func RequireAdminToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authType, exists := c.Get("auth_type")
+		if !exists || authType != AuthTypeAdminToken {
+			c.JSON(403, gin.H{
+				"ok":      false,
+				"error":   "FORBIDDEN",
+				"message": "Admin access required",
+			})
 			c.Abort()
 			return
 		}

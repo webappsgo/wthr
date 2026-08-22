@@ -194,6 +194,45 @@ CREATE TABLE IF NOT EXISTS user_notification_preferences (
 	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE
 );
 
+-- Per-channel delivery preferences for a user (one row per user + channel type)
+-- Distinct from user_notification_preferences, which holds the WebUI display preferences
+CREATE TABLE IF NOT EXISTS user_notification_channel_preferences (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	channel_type TEXT NOT NULL,
+	enabled BOOLEAN DEFAULT 1,
+	priority INTEGER DEFAULT 5,
+	quiet_hours_start TIME,
+	quiet_hours_end TIME,
+	config TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+	UNIQUE(user_id, channel_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_chan_prefs_user ON user_notification_channel_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_notif_chan_prefs_channel ON user_notification_channel_preferences(channel_type);
+CREATE INDEX IF NOT EXISTS idx_notif_chan_prefs_enabled ON user_notification_channel_preferences(enabled);
+
+-- Notification Subscriptions table (which event categories a user subscribes to)
+CREATE TABLE IF NOT EXISTS notification_subscriptions (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	user_id INTEGER NOT NULL,
+	subscription_type TEXT NOT NULL,
+	subscription_category TEXT NOT NULL,
+	enabled BOOLEAN DEFAULT 1,
+	config TEXT,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+	UNIQUE(user_id, subscription_type, subscription_category)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notif_subs_user ON notification_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_notif_subs_type ON notification_subscriptions(subscription_type);
+CREATE INDEX IF NOT EXISTS idx_notif_subs_enabled ON notification_subscriptions(enabled);
+
 -- 2FA Recovery Keys table (TEMPLATE.md Part 31: 10 one-time recovery keys)
 CREATE TABLE IF NOT EXISTS recovery_keys (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,

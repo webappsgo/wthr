@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // LocationEnhancer enhances location data with external databases
@@ -90,7 +92,7 @@ func NewLocationEnhancer(db *sql.DB) *LocationEnhancer {
 // loadData loads external data in parallel
 func (le *LocationEnhancer) loadData() {
 	startTime := time.Now()
-	fmt.Printf("⏱️  Loading location databases at %s\n", startTime.Format("15:04:05.000"))
+	fmt.Printf("%s Loading location databases at %s\n", display.Emoji("⏱️", "*"), startTime.Format("15:04:05.000"))
 
 	var wg sync.WaitGroup
 	// Only waiting for countries now
@@ -102,13 +104,13 @@ func (le *LocationEnhancer) loadData() {
 	go func() {
 		defer wg.Done()
 		countryStart := time.Now()
-		fmt.Println("📥 Loading countries database...")
+		fmt.Printf("%s Loading countries database...\n", display.Emoji("📥", "->"))
 		err := le.loadCountriesData()
 		elapsed := time.Since(countryStart)
 		if err != nil {
-			fmt.Printf("❌ Countries database failed after %s: %v\n", elapsed, err)
+			fmt.Printf("%s Countries database failed after %s: %v\n", display.Emoji("❌", "[FAIL]"), elapsed, err)
 		} else {
-			fmt.Printf("✅ Countries database loaded in %s (%d countries)\n", elapsed, len(le.countriesData))
+			fmt.Printf("%s Countries database loaded in %s (%d countries)\n", display.Emoji("✅", "[OK]"), elapsed, len(le.countriesData))
 			countriesLoaded = true
 		}
 	}()
@@ -122,19 +124,19 @@ func (le *LocationEnhancer) loadData() {
 	le.mu.Unlock()
 
 	totalElapsed := time.Since(startTime)
-	fmt.Printf("🎉 Core databases loaded in %s (cities loading in background)\n", totalElapsed)
+	fmt.Printf("%s Core databases loaded in %s (cities loading in background)\n", display.Emoji("🎉", "[OK]"), totalElapsed)
 
 	// Load cities in background (non-blocking)
 	go func() {
 		cityStart := time.Now()
-		fmt.Println("📥 Loading cities database (background)...")
+		fmt.Printf("%s Loading cities database (background)...\n", display.Emoji("📥", "->"))
 		err := le.loadCitiesData()
 		elapsed := time.Since(cityStart)
 		if err != nil {
-			fmt.Printf("❌ Cities database failed after %s: %v\n", elapsed, err)
+			fmt.Printf("%s Cities database failed after %s: %v\n", display.Emoji("❌", "[FAIL]"), elapsed, err)
 			citiesLoaded = false
 		} else {
-			fmt.Printf("✅ Cities database loaded in %s (%d cities)\n", elapsed, len(le.citiesData))
+			fmt.Printf("%s Cities database loaded in %s (%d cities)\n", display.Emoji("✅", "[OK]"), elapsed, len(le.citiesData))
 			citiesLoaded = true
 		}
 

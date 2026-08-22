@@ -1,334 +1,360 @@
 {{define "admin/admin_backup_enhanced.tmpl"}}
-<!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-</head>
-<body>
-    <div class="admin-page-header">
-        <h1>💾 Backup Management</h1>
-        <div class="admin-page-breadcrumb">
-            <a href="{{.admin_path}}">Admin</a> /
-            <span>Backup</span>
-        </div>
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+    <div class="content-header">
+        <h1>💾 {{t $lang "admin.backup.mgmt_title"}}</h1>
     </div>
 
     <div class="admin-page-container wide">
-        <div class="admin-nav-links">
-            <a href="{{.admin_path}}" class="admin-nav-link">← Dashboard</a>
-            <a href="{{.admin_path}}/database" class="admin-nav-link">Database</a>
-        </div>
+        <p class="text-muted">{{t $lang "admin.backup.intro"}}</p>
 
-        <div class="admin-alert admin-alert-success" id="successAlert"></div>
-        <div class="admin-alert admin-alert-error" id="errorAlert"></div>
+        <div class="admin-alert admin-alert-success" id="successAlert" role="status" aria-live="polite"></div>
+        <div class="admin-alert admin-alert-error" id="errorAlert" role="alert" aria-live="assertive"></div>
 
         <!-- Statistics -->
         <div class="stats-grid">
             <div class="stat-box">
                 <div class="stat-value" id="totalBackups">0</div>
-                <div class="stat-label">Total Backups</div>
+                <div class="stat-label">{{t $lang "admin.backup.stat_total_backups"}}</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value" id="totalSize">0 MB</div>
-                <div class="stat-label">Total Size</div>
+                <div class="stat-value" id="totalSize">0 B</div>
+                <div class="stat-label">{{t $lang "admin.backup.stat_total_size"}}</div>
             </div>
             <div class="stat-box">
-                <div class="stat-value" id="lastBackup">Never</div>
-                <div class="stat-label">Last Backup</div>
+                <div class="stat-value" id="lastBackup">-</div>
+                <div class="stat-label">{{t $lang "admin.backup.stat_last_backup"}}</div>
             </div>
             <div class="stat-box">
                 <div class="stat-value" id="nextBackup">-</div>
-                <div class="stat-label">Next Scheduled</div>
+                <div class="stat-label">{{t $lang "admin.backup.stat_next_scheduled"}}</div>
             </div>
         </div>
 
         <div class="grid">
             <!-- Create Backup -->
             <div class="card">
-                <h2>➕ Create Backup</h2>
-                <div class="btn-group-vertical">
-                    <button class="btn btn-success" id="fullBackupBtn">
-                        💾 Full Backup
-                    </button>
-                    <button class="btn btn-primary" id="dataOnlyBtn">
-                        📊 Data Only
-                    </button>
-                    <button class="btn btn-primary" id="configOnlyBtn">
-                        ⚙️ Config Only
-                    </button>
-                </div>
-                <div id="backupProgress" class="hidden">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+                <h2>➕ {{t $lang "admin.backup.create_backup_heading"}}</h2>
+                <form id="createForm" method="post" action="{{.admin_api_path}}/config/backup">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+
+                    <div class="form-group">
+                        <label for="backupPassword">{{t $lang "admin.backup.password_label"}}</label>
+                        <input type="password" id="backupPassword" name="password" autocomplete="new-password">
+                        <small>{{t $lang "admin.backup.password_hint"}}</small>
                     </div>
-                    <p id="progressText" class="text-center text-muted"></p>
-                </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="includeSSL" name="include_ssl" value="true">
+                            {{t $lang "admin.backup.include_ssl_label"}}
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="includeData" name="include_data" value="true">
+                            {{t $lang "admin.backup.include_data_label"}}
+                        </label>
+                    </div>
+
+                    <button type="submit" class="btn btn-success" id="createBtn">
+                        💾 {{t $lang "admin.backup.create_action"}}
+                    </button>
+                </form>
             </div>
 
             <!-- Automated Backups -->
             <div class="card">
-                <h2>⏰ Automated Backups</h2>
-                <form id="scheduleForm">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <h2>⏰ {{t $lang "admin.backup.automated_heading"}}</h2>
+                <form id="scheduleForm" method="post" action="{{.admin_api_path}}/config/backup/schedule">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label>
-                            <input type="checkbox" id="autoBackup" checked>
-                            Enable automatic backups
+                            <input type="checkbox" id="autoBackup" name="enabled" value="true" checked>
+                            {{t $lang "admin.backup.enable_auto_label"}}
                         </label>
                     </div>
 
                     <div class="form-group">
-                        <label for="frequency">Frequency</label>
-                        <select id="frequency">
-                            <option value="hourly">Every Hour</option>
-                            <option value="daily" selected>Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                        </select>
+                        <label for="interval">{{t $lang "admin.backup.interval_label"}}</label>
+                        <input type="number" id="interval" name="interval" value="6" min="1" max="168">
+                        <small>{{t $lang "admin.backup.interval_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="retention">Retention (days)</label>
-                        <input type="number" id="retention" value="30" min="1" max="365">
-                        <small>Automatically delete backups older than this</small>
+                        <label for="retention">{{t $lang "admin.backup.retention_label"}}</label>
+                        <input type="number" id="retention" name="retention" value="30" min="1" max="3650">
+                        <small>{{t $lang "admin.backup.retention_hint"}}</small>
                     </div>
 
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="compress" checked>
-                            Compress backups (gzip)
-                        </label>
-                    </div>
-
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="verify" checked>
-                            Verify backup integrity
-                        </label>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">💾 Save Schedule</button>
+                    <button type="submit" class="btn btn-primary" id="scheduleBtn">💾 {{t $lang "admin.backup.save_schedule_action"}}</button>
                 </form>
             </div>
         </div>
 
         <!-- Backup List -->
         <div class="card mt-3">
-            <h2>📋 Backup History</h2>
+            <h2>📋 {{t $lang "admin.backup.history_heading"}}</h2>
             <div id="backupList">
-                <p class="text-center text-muted p-3">Loading backups...</p>
+                <p class="text-center text-muted p-3">{{t $lang "admin.backup.loading_backups"}}</p>
             </div>
         </div>
     </div>
 
     <script>
         // Path variables - SPEC compliant (AI.md PART 13)
-        const API_PATH = '{{.api_path}}';
         const ADMIN_API_PATH = '{{.admin_api_path}}';
+        const BACKUP_API = ADMIN_API_PATH + '/config/backup';
 
-        // Load backup stats
+        // Every user-facing string this page can produce at runtime is resolved
+        // server-side, so the script itself carries no English (AI.md PART 31).
+        const BACKUP_TEXT = {
+            never: '{{t $lang "admin.backup.msg_never"}}',
+            empty: '{{t $lang "admin.backup.empty_message"}}',
+            created: '{{t $lang "admin.backup.msg_created"}}',
+            creating: '{{t $lang "admin.backup.msg_creating"}}',
+            createFailed: '{{t $lang "admin.backup.msg_create_failed"}}',
+            deleteConfirm: '{{t $lang "admin.backup.msg_delete_confirm"}}',
+            deleted: '{{t $lang "admin.backup.msg_deleted"}}',
+            deleteFailed: '{{t $lang "admin.backup.msg_delete_failed"}}',
+            restoreConfirm: '{{t $lang "admin.backup.msg_restore_confirm"}}',
+            restored: '{{t $lang "admin.backup.msg_restored"}}',
+            restoreFailed: '{{t $lang "admin.backup.msg_restore_failed"}}',
+            loadFailed: '{{t $lang "admin.backup.msg_load_failed"}}',
+            scheduleSaved: '{{t $lang "admin.backup.msg_schedule_saved"}}',
+            scheduleFailed: '{{t $lang "admin.backup.msg_schedule_failed"}}',
+            createAction: '{{t $lang "admin.backup.create_action"}}',
+            downloadAction: '{{t $lang "admin.backup.download_action"}}',
+            restoreAction: '{{t $lang "admin.backup.restore_action"}}',
+            deleteAction: '{{t $lang "admin.backup.delete_action"}}',
+            saveScheduleAction: '{{t $lang "admin.backup.save_schedule_action"}}',
+            encryptedYes: '{{t $lang "admin.backup.encrypted_yes"}}',
+            encryptedNo: '{{t $lang "admin.backup.encrypted_no"}}'
+        };
+
+        // The API returns an error envelope with a translated message; anything
+        // else (network failure, unexpected status) falls back to the caller's
+        // own message.
+        async function backupRequest(url, options) {
+            const response = await fetch(url, options);
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (error) {
+                payload = null;
+            }
+            if (!response.ok) {
+                throw new Error(payload && payload.message ? payload.message : String(response.status));
+            }
+            return payload;
+        }
+
+        function formatBytes(bytes) {
+            const value = Number(bytes) || 0;
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let index = 0;
+            let size = value;
+            while (size >= 1024 && index < units.length - 1) {
+                size /= 1024;
+                index += 1;
+            }
+            return (index === 0 ? size : size.toFixed(1)) + ' ' + units[index];
+        }
+
+        function formatMoment(value) {
+            if (!value) {
+                return BACKUP_TEXT.never;
+            }
+            const parsed = new Date(value);
+            return isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+        }
+
+        function escapeText(value) {
+            const holder = document.createElement('span');
+            holder.textContent = value === null || value === undefined ? '' : String(value);
+            return holder.innerHTML;
+        }
+
         async function loadStats() {
             try {
-                const response = await fetch(ADMIN_API_PATH + '/server/backup/stats');
-                const data = await response.json();
-
-                document.getElementById('totalBackups').textContent = data.total || 0;
-                document.getElementById('totalSize').textContent = data.totalSize || '0 MB';
-                document.getElementById('lastBackup').textContent = data.lastBackup || 'Never';
-                document.getElementById('nextBackup').textContent = data.nextBackup || '-';
+                const stats = await backupRequest(BACKUP_API + '/stats');
+                document.getElementById('totalBackups').textContent = stats.count || 0;
+                document.getElementById('totalSize').textContent = formatBytes(stats.total_size);
+                document.getElementById('lastBackup').textContent = formatMoment(stats.last_backup);
+                document.getElementById('nextBackup').textContent = stats.next_backup ? formatMoment(stats.next_backup) : '-';
             } catch (error) {
-                console.error('Failed to load stats:', error);
+                showError(BACKUP_TEXT.loadFailed + ' ' + error.message);
             }
         }
 
-        // Load backup list
         async function loadBackups() {
+            const container = document.getElementById('backupList');
             try {
-                const response = await fetch(ADMIN_API_PATH + '/server/backup/list');
-                const data = await response.json();
-
-                const container = document.getElementById('backupList');
-                if (!data.backups || data.backups.length === 0) {
-                    container.innerHTML = '<p class="text-center text-muted p-3">No backups found</p>';
+                const backups = await backupRequest(BACKUP_API);
+                if (!Array.isArray(backups) || backups.length === 0) {
+                    container.innerHTML = '<p class="text-center text-muted p-3">' + escapeText(BACKUP_TEXT.empty) + '</p>';
                     return;
                 }
 
-                container.innerHTML = data.backups.map(backup => `
-                    <div class="backup-item">
-                        <div class="backup-status status-${backup.status}"></div>
-                        <div class="backup-info">
-                            <h3>${backup.filename}</h3>
-                            <div class="backup-meta">
-                                ${backup.size} • ${backup.date} • ${backup.type}
-                            </div>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-primary" onclick="downloadBackup('${backup.filename}')">
-                                ⬇️ Download
-                            </button>
-                            <button class="btn btn-sm btn-success" onclick="restoreBackup('${backup.filename}')">
-                                🔄 Restore
-                            </button>
-                            <button class="btn btn-sm btn-danger" onclick="deleteBackup('${backup.filename}')">
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
+                container.innerHTML = backups.map(function (backup) {
+                    const encrypted = backup.filename.endsWith('.enc') ? BACKUP_TEXT.encryptedYes : BACKUP_TEXT.encryptedNo;
+                    const name = escapeText(backup.filename);
+                    return '<div class="backup-item">' +
+                        '<div class="backup-info">' +
+                            '<h3>' + name + '</h3>' +
+                            '<div class="backup-meta">' + escapeText(formatBytes(backup.size)) + ' &bull; ' + escapeText(formatMoment(backup.created)) + ' &bull; ' + escapeText(encrypted) + '</div>' +
+                        '</div>' +
+                        '<div class="btn-group">' +
+                            '<button type="button" class="btn btn-sm btn-primary" data-action="download-backup" data-filename="' + name + '">⬇️ ' + escapeText(BACKUP_TEXT.downloadAction) + '</button>' +
+                            '<button type="button" class="btn btn-sm btn-success" data-action="restore-backup" data-filename="' + name + '">🔄 ' + escapeText(BACKUP_TEXT.restoreAction) + '</button>' +
+                            '<button type="button" class="btn btn-sm btn-danger" data-action="delete-backup" data-filename="' + name + '">🗑️ ' + escapeText(BACKUP_TEXT.deleteAction) + '</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
             } catch (error) {
-                console.error('Failed to load backups:', error);
+                showError(BACKUP_TEXT.loadFailed + ' ' + error.message);
             }
         }
 
-        // Create full backup
-        document.getElementById('fullBackupBtn').addEventListener('click', () => createBackup('full'));
-        document.getElementById('dataOnlyBtn').addEventListener('click', () => createBackup('data'));
-        document.getElementById('configOnlyBtn').addEventListener('click', () => createBackup('config'));
+        // Actions are bound by delegation on a data-action attribute because CSP
+        // forbids inline handlers (AI.md PART 16).
+        document.getElementById('backupList').addEventListener('click', function (event) {
+            const button = event.target.closest('[data-action]');
+            if (!button) {
+                return;
+            }
+            const filename = button.getAttribute('data-filename');
+            if (button.getAttribute('data-action') === 'download-backup') {
+                window.location.href = BACKUP_API + '/' + encodeURIComponent(filename) + '/download';
+            } else if (button.getAttribute('data-action') === 'restore-backup') {
+                restoreBackup(filename);
+            } else if (button.getAttribute('data-action') === 'delete-backup') {
+                deleteBackup(filename);
+            }
+        });
 
-        async function createBackup(type) {
-            const progress = document.getElementById('backupProgress');
-            const fill = document.getElementById('progressFill');
-            const text = document.getElementById('progressText');
-
-            progress.style.display = 'block';
-            updateProgress(0, 'Starting backup...');
+        document.getElementById('createForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const button = document.getElementById('createBtn');
+            button.disabled = true;
+            button.textContent = BACKUP_TEXT.creating;
 
             try {
-                const response = await fetch(ADMIN_API_PATH + '/server/backup/create', {
+                await backupRequest(BACKUP_API, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type })
+                    body: new FormData(event.target)
                 });
-
-                if (!response.ok) throw new Error('Backup failed');
-
-                // Simulate progress
-                for (let i = 10; i <= 100; i += 10) {
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    updateProgress(i, i === 100 ? 'Backup complete!' : 'Creating backup...');
-                }
-
-                showSuccess('Backup created successfully!');
-                setTimeout(() => {
-                    progress.style.display = 'none';
-                    loadBackups();
-                    loadStats();
-                }, 2000);
-
+                showSuccess(BACKUP_TEXT.created);
+                document.getElementById('backupPassword').value = '';
+                await loadBackups();
+                await loadStats();
             } catch (error) {
-                showError('Backup failed: ' + error.message);
-                progress.style.display = 'none';
+                showError(BACKUP_TEXT.createFailed + ' ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = BACKUP_TEXT.createAction;
+            }
+        });
+
+        async function restoreBackup(filename) {
+            if (!await showConfirm(BACKUP_TEXT.restoreConfirm + ' ' + filename, BACKUP_TEXT.restoreAction)) {
+                return;
+            }
+
+            const body = new FormData();
+            body.append('filename', filename);
+            body.append('csrf_token', document.querySelector('#createForm [name="csrf_token"]').value);
+            if (filename.endsWith('.enc')) {
+                body.append('password', document.getElementById('backupPassword').value);
+            }
+
+            try {
+                await backupRequest(BACKUP_API + '/restore', { method: 'POST', body: body });
+                showSuccess(BACKUP_TEXT.restored);
+            } catch (error) {
+                showError(BACKUP_TEXT.restoreFailed + ' ' + error.message);
             }
         }
 
-        function updateProgress(percent, message) {
-            document.getElementById('progressFill').style.width = percent + '%';
-            document.getElementById('progressText').textContent = message;
-        }
-
-        // Download backup
-        async function downloadBackup(filename) {
-            window.location.href = `${ADMIN_API_PATH}/server/backup/download/${filename}`;
-        }
-
-        // Restore backup
-        async function restoreBackup(filename) {
-            if (!await showConfirm(`Restore from backup: ${filename}?\n\nThis will overwrite current data!`, 'Restore Backup')) {
+        async function deleteBackup(filename) {
+            if (!await showConfirm(BACKUP_TEXT.deleteConfirm + ' ' + filename, BACKUP_TEXT.deleteAction)) {
                 return;
             }
 
             try {
-                const response = await fetch(ADMIN_API_PATH + '/server/backup/restore', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename })
-                });
-
-                if (!response.ok) throw new Error('Restore failed');
-
-                showSuccess('Backup restored successfully! Please restart the application.');
+                await backupRequest(BACKUP_API + '/' + encodeURIComponent(filename), { method: 'DELETE' });
+                showSuccess(BACKUP_TEXT.deleted);
+                await loadBackups();
+                await loadStats();
             } catch (error) {
-                showError('Restore failed: ' + error.message);
+                showError(BACKUP_TEXT.deleteFailed + ' ' + error.message);
             }
         }
 
-        // Delete backup
-        async function deleteBackup(filename) {
-            if (!await showConfirm(`Delete backup: ${filename}?`, 'Delete Backup')) return;
-
+        async function loadSchedule() {
             try {
-                const response = await fetch(`${ADMIN_API_PATH}/server/backup/delete/${filename}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) throw new Error('Delete failed');
-
-                showSuccess('Backup deleted successfully');
-                loadBackups();
-                loadStats();
+                const schedule = await backupRequest(BACKUP_API + '/schedule');
+                document.getElementById('autoBackup').checked = schedule.enabled !== false;
+                document.getElementById('interval').value = schedule.interval;
+                document.getElementById('retention').value = schedule.retention;
             } catch (error) {
-                showError('Delete failed: ' + error.message);
+                showError(BACKUP_TEXT.loadFailed + ' ' + error.message);
             }
         }
 
-        // Save schedule
-        document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        document.getElementById('scheduleForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            const button = document.getElementById('scheduleBtn');
+            button.disabled = true;
 
-            const schedule = {
+            const payload = {
                 enabled: document.getElementById('autoBackup').checked,
-                frequency: document.getElementById('frequency').value,
-                retention: parseInt(document.getElementById('retention').value),
-                compress: document.getElementById('compress').checked,
-                verify: document.getElementById('verify').checked
+                interval: parseInt(document.getElementById('interval').value, 10),
+                retention: parseInt(document.getElementById('retention').value, 10)
             };
 
             try {
-                const response = await fetch(ADMIN_API_PATH + '/server/backup/schedule', {
-                    method: 'PUT',
+                await backupRequest(BACKUP_API + '/schedule', {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(schedule)
+                    body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) throw new Error('Failed to save schedule');
-
-                showSuccess('Backup schedule saved successfully!');
-                loadStats();
+                showSuccess(BACKUP_TEXT.scheduleSaved);
+                await loadStats();
             } catch (error) {
-                showError('Failed to save schedule: ' + error.message);
+                showError(BACKUP_TEXT.scheduleFailed + ' ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = BACKUP_TEXT.saveScheduleAction;
             }
         });
 
-        // Show messages
         function showSuccess(msg) {
             const alert = document.getElementById('successAlert');
             alert.textContent = msg;
             alert.classList.add('show');
-            setTimeout(() => alert.classList.remove('show'), 5000);
+            setTimeout(function () { alert.classList.remove('show'); }, 5000);
         }
 
         function showError(msg) {
             const alert = document.getElementById('errorAlert');
             alert.textContent = msg;
             alert.classList.add('show');
-            setTimeout(() => alert.classList.remove('show'), 5000);
+            setTimeout(function () { alert.classList.remove('show'); }, 5000);
         }
 
-        // Initial load
         loadStats();
         loadBackups();
+        loadSchedule();
 
         // Auto-refresh every 30 seconds
-        setInterval(() => {
+        setInterval(function () {
             loadStats();
             loadBackups();
         }, 30000);
     </script>
-</body>
-</html>
+{{template "admin_footer" .}}
 {{end}}

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // SchedulerConfig represents the complete scheduler configuration
@@ -141,12 +142,12 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 
 	themeServerCtx, _ := middleware.GetServerContext(c)
 
-	c.HTML(http.StatusOK, "admin/admin_scheduler.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_scheduler.tmpl", util.TemplateData(c, gin.H{
 		"title":  "Scheduler Configuration",
 		"user":   user,
 		"config": config,
 		"server": themeServerCtx,
-	})
+	}))
 }
 
 // SaveSchedulerConfig saves the scheduler configuration

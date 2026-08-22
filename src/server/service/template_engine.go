@@ -11,17 +11,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
+
+// DefaultTemplateName is the template_name that marks a channel's fallback
+// template. server_notification_templates carries no is_default column, so
+// default-ness is derived from this reserved name instead of stored.
+const DefaultTemplateName = "default"
 
 // TemplateEngine handles notification template processing
 type TemplateEngine struct {
 	db *sql.DB
 }
 
-// NotificationTemplate represents a notification template
+// NotificationTemplate represents a notification template. SubjectTemplate and
+// BodyTemplate map to the subject and body columns of
+// server_notification_templates; IsDefault is derived on read from
+// TemplateName and is never persisted.
 type NotificationTemplate struct {
 	ID              int
 	ChannelType     string
@@ -73,22 +82,26 @@ func (te *TemplateEngine) Render(templateContent string, variables map[string]in
 // GetTemplate retrieves a template from the database
 func (te *TemplateEngine) GetTemplate(channelType, templateName string) (*NotificationTemplate, error) {
 	var t NotificationTemplate
+	var subject sql.NullString
 	var variablesJSON sql.NullString
 
 	err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
-		       subject_template, body_template, variables, is_default
-		FROM notification_templates
+		       subject, body, variables
+		FROM server_notification_templates
 		WHERE channel_type = ? AND template_name = ?
 	`, channelType, templateName).Scan(
 		&t.ID, &t.ChannelType, &t.TemplateName, &t.TemplateType,
-		&t.SubjectTemplate, &t.BodyTemplate, &variablesJSON, &t.IsDefault,
+		&subject, &t.BodyTemplate, &variablesJSON,
 	)
 
 	if err != nil {
 		// Try to get default template
 		return te.GetDefaultTemplate(channelType)
 	}
+
+	t.SubjectTemplate = subject.String
+	t.IsDefault = t.TemplateName == DefaultTemplateName
 
 	if variablesJSON.Valid {
 		if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
@@ -102,22 +115,26 @@ func (te *TemplateEngine) GetTemplate(channelType, templateName string) (*Notifi
 // GetDefaultTemplate retrieves the default template for a channel type
 func (te *TemplateEngine) GetDefaultTemplate(channelType string) (*NotificationTemplate, error) {
 	var t NotificationTemplate
+	var subject sql.NullString
 	var variablesJSON sql.NullString
 
 	err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
-		       subject_template, body_template, variables, is_default
-		FROM notification_templates
-		WHERE channel_type = ? AND is_default = 1
+		       subject, body, variables
+		FROM server_notification_templates
+		WHERE channel_type = ? AND template_name = ?
 		LIMIT 1
-	`, channelType).Scan(
+	`, channelType, DefaultTemplateName).Scan(
 		&t.ID, &t.ChannelType, &t.TemplateName, &t.TemplateType,
-		&t.SubjectTemplate, &t.BodyTemplate, &variablesJSON, &t.IsDefault,
+		&subject, &t.BodyTemplate, &variablesJSON,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("no default template found for channel %s", channelType)
 	}
+
+	t.SubjectTemplate = subject.String
+	t.IsDefault = true
 
 	if variablesJSON.Valid {
 		if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
@@ -135,13 +152,15 @@ func (te *TemplateEngine) CreateTemplate(t *NotificationTemplate) error {
 		return fmt.Errorf("failed to marshal template variables: %w", err)
 	}
 
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
 	_, err = database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
-		INSERT INTO notification_templates
-		(channel_type, template_name, template_type, subject_template,
-		 body_template, variables, is_default, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO server_notification_templates
+		(channel_type, template_name, template_type, subject,
+		 body, variables, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, t.ChannelType, t.TemplateName, t.TemplateType, t.SubjectTemplate,
-		t.BodyTemplate, string(variablesJSON), t.IsDefault, time.Now(), time.Now())
+		t.BodyTemplate, string(variablesJSON), now, now)
 
 	return err
 }
@@ -154,36 +173,38 @@ func (te *TemplateEngine) UpdateTemplate(t *NotificationTemplate) error {
 	}
 
 	_, err = database.ExecContext(context.Background(), te.db, database.TimeoutWrite, `
-		UPDATE notification_templates
+		UPDATE server_notification_templates
 		SET template_name = ?,
 		    template_type = ?,
-		    subject_template = ?,
-		    body_template = ?,
+		    subject = ?,
+		    body = ?,
 		    variables = ?,
-		    is_default = ?,
 		    updated_at = ?
 		WHERE id = ?
 	`, t.TemplateName, t.TemplateType, t.SubjectTemplate,
-		t.BodyTemplate, string(variablesJSON), t.IsDefault, time.Now(), t.ID)
+		t.BodyTemplate, string(variablesJSON), dbtime.FormatSQLTimestamp(time.Now()), t.ID)
 
 	return err
 }
 
 // DeleteTemplate deletes a template
 func (te *TemplateEngine) DeleteTemplate(id int) error {
-	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, "DELETE FROM notification_templates WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), te.db, database.TimeoutWrite, "DELETE FROM server_notification_templates WHERE id = ?", id)
 	return err
 }
 
 // ListTemplates lists all templates for a channel type
 func (te *TemplateEngine) ListTemplates(channelType string) ([]*NotificationTemplate, error) {
+	// The channel's default template is the one named DefaultTemplateName, so
+	// the CASE expression reproduces the "default first, then alphabetical"
+	// ordering the stored is_default column used to provide.
 	rows, err := database.QueryContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, template_name, template_type,
-		       subject_template, body_template, variables, is_default
-		FROM notification_templates
+		       subject, body, variables
+		FROM server_notification_templates
 		WHERE channel_type = ?
-		ORDER BY is_default DESC, template_name ASC
-	`, channelType)
+		ORDER BY CASE WHEN template_name = ? THEN 0 ELSE 1 END, template_name ASC
+	`, channelType, DefaultTemplateName)
 
 	if err != nil {
 		return nil, err
@@ -193,15 +214,19 @@ func (te *TemplateEngine) ListTemplates(channelType string) ([]*NotificationTemp
 	var templates []*NotificationTemplate
 	for rows.Next() {
 		var t NotificationTemplate
+		var subject sql.NullString
 		var variablesJSON sql.NullString
 
 		err := rows.Scan(
 			&t.ID, &t.ChannelType, &t.TemplateName, &t.TemplateType,
-			&t.SubjectTemplate, &t.BodyTemplate, &variablesJSON, &t.IsDefault,
+			&subject, &t.BodyTemplate, &variablesJSON,
 		)
 		if err != nil {
 			continue
 		}
+
+		t.SubjectTemplate = subject.String
+		t.IsDefault = t.TemplateName == DefaultTemplateName
 
 		if variablesJSON.Valid {
 			if err := json.Unmarshal([]byte(variablesJSON.String), &t.Variables); err != nil {
@@ -712,7 +737,7 @@ func (te *TemplateEngine) InitializeDefaultTemplates() error {
 		var exists bool
 		err := database.QueryRowContext(context.Background(), te.db, database.TimeoutSimpleSelect, `
 			SELECT EXISTS(
-				SELECT 1 FROM notification_templates
+				SELECT 1 FROM server_notification_templates
 				WHERE channel_type = ? AND template_name = ?
 			)
 		`, tmpl.ChannelType, tmpl.TemplateName).Scan(&exists)

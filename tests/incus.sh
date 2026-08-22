@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202608131924-git
+##@Version           :  202608211414-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  WTFPL
@@ -184,26 +184,26 @@ __api_matrix() {
 
 __bootstrap_server() {
     mkdir -p \
-        "$TEST_DIR/rootfs/config" \
-        "$TEST_DIR/rootfs/data" \
-        "$TEST_DIR/rootfs/logs" \
-        "$TEST_DIR/rootfs/cache" \
-        "$TEST_DIR/rootfs/backup"
+        "$TEST_DIR/volumes/config" \
+        "$TEST_DIR/volumes/data" \
+        "$TEST_DIR/volumes/logs" \
+        "$TEST_DIR/volumes/cache" \
+        "$TEST_DIR/volumes/backup"
 
     COLUMNS=120 "/usr/local/bin/$PROJECTNAME" \
         --mode development \
-        --config "$TEST_DIR/rootfs/config" \
-        --data "$TEST_DIR/rootfs/data" \
-        --log "$TEST_DIR/rootfs/logs" \
-        --cache "$TEST_DIR/rootfs/cache" \
-        --backup "$TEST_DIR/rootfs/backup" \
+        --config "$TEST_DIR/volumes/config" \
+        --data "$TEST_DIR/volumes/data" \
+        --log "$TEST_DIR/volumes/logs" \
+        --cache "$TEST_DIR/volumes/cache" \
+        --backup "$TEST_DIR/volumes/backup" \
         --address 127.0.0.1 \
         --port 80 \
         >"$TEST_DIR/server.log" 2>&1 &
     SERVER_PID=$!
 
     for _ in $(seq 1 60); do
-        if [ "$(curl -q -LSs -o /dev/null -w '%{http_code}' "$BASE_URL/healthz" || true)" = "200" ]; then
+        if [ "$(curl -q -LSs -o /dev/null -w '%{http_code}' "$BASE_URL/server/healthz" || true)" = "200" ]; then
             return 0
         fi
         sleep 2
@@ -305,7 +305,7 @@ __check_unauth_protection() {
 PUBLIC_FRONTEND_ROUTES=(
     "/"
     "/health"
-    "/healthz"
+    "/server/healthz"
     "/auth/login"
     "/auth/register"
     "/auth/password/forgot"
@@ -332,7 +332,7 @@ PUBLIC_FRONTEND_ROUTES=(
 
 PUBLIC_API_ROUTES=(
     "/api/v1"
-    "/api/v1/healthz"
+    "/api/v1/server/healthz"
     "/api/v1/blocklist"
     "/api/v1/server/about"
     "/api/v1/server/privacy"
@@ -340,6 +340,10 @@ PUBLIC_API_ROUTES=(
     "/api/v1/server/terms"
     "/api/v1/weather?location=London"
     "/api/v1/weather/London"
+    "/api/v1/weather?lat=40.7128&lon=-74.0060"
+    "/api/v1/weather?city_id=5128581"
+    "/api/v1/weather?lat=40.7128&lon=-74.0060&nearest=true"
+    "/api/v1/weather/forecast?lat=40.7128&lon=-74.0060&days=7"
     "/api/v1/weather/forecast?location=London"
     "/api/v1/forecasts?location=London"
     "/api/v1/ip"
@@ -426,7 +430,7 @@ __log "Version and binary checks"
 "/usr/local/bin/$PROJECTNAME" --help >/dev/null
 file "/usr/local/bin/$PROJECTNAME"
 
-__log "Starting server in temp rootfs"
+__log "Starting server in temp volumes dir"
 __bootstrap_server
 
 __log "Extracting setup token"

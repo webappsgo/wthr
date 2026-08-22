@@ -1,66 +1,30 @@
 package util
 
 import (
-	"os"
-
-	"golang.org/x/term"
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
-// ColorEnabled checks if color output should be used
-// AI.md PART 8: NO_COLOR support
-// Priority: 1. CLI flag -> 2. NO_COLOR env -> 3. Auto-detect
+// ColorEnabled reports whether ANSI color output should be used.
+// AI.md PART 8 mandates a single color gate shared by every binary, so this
+// delegates to display.ColorEnabled rather than re-reading the environment.
+// Precedence: CLI flag -> config -> NO_COLOR -> auto-detect (TTY + TERM).
 func ColorEnabled() bool {
-	// 1. CLI flag overrides everything (--color=auto|yes|no)
-	colorMode := os.Getenv("CLI_COLOR_MODE")
-	switch colorMode {
-	case "yes":
-		return true
-	case "no":
-		return false
-	case "auto":
-		// Fall through to auto-detection
-	}
-
-	// 2. NO_COLOR env var (non-empty = disable)
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-
-	// 3. Auto-detect: TTY + TERM support
-	if !term.IsTerminal(int(os.Stdout.Fd())) {
-		return false
-	}
-	if os.Getenv("TERM") == "dumb" {
-		return false
-	}
-
-	return true
+	return display.ColorEnabled()
 }
 
-// EmojiEnabled checks if emoji output should be used
-// AI.md PART 8: Emojis disabled when NO_COLOR set or TERM=dumb
+// EmojiEnabled reports whether console emoji output should be used.
+// AI.md PART 8 mandates a single emoji gate shared by every binary, so this
+// delegates to display.EmojiEnabled rather than re-reading the environment.
+// Only CONSOLE output is gated — weather icons, moon-phase glyphs, ASCII-art
+// table content, template content and API payload values are data, never gated.
 func EmojiEnabled() bool {
-	// 1. NO_COLOR disables emojis (practical plain output)
-	if os.Getenv("NO_COLOR") != "" {
-		return false
-	}
-
-	// 2. TERM=dumb disables emojis
-	if os.Getenv("TERM") == "dumb" {
-		return false
-	}
-
-	// 3. Default: enabled
-	return true
+	return display.EmojiEnabled()
 }
 
-// Emoji returns the emoji or plain text fallback based on EmojiEnabled
-// AI.md PART 11 line 12999: Emoji fallbacks
+// Emoji returns the emoji or its plain-text fallback, delegating to the
+// canonical gate in src/common/display.
 func Emoji(emoji, fallback string) string {
-	if EmojiEnabled() {
-		return emoji
-	}
-	return fallback
+	return display.Emoji(emoji, fallback)
 }
 
 // Emoji constants with fallbacks

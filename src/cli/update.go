@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // GitHubRelease represents a GitHub release
@@ -92,14 +94,14 @@ func checkForUpdates() error {
 	if stable != nil {
 		fmt.Printf("Stable:  %s (released %s)\n", stable.TagName, stable.PublishedAt.Format("2006-01-02"))
 		if isNewer(stable.TagName, Version) {
-			fmt.Println("         ✨ Update available!")
+			fmt.Printf("         %s Update available!\n", display.Emoji("✨", "*"))
 		}
 	}
 
 	if beta != nil {
 		fmt.Printf("Beta:    %s (released %s)\n", beta.TagName, beta.PublishedAt.Format("2006-01-02"))
 		if isNewer(beta.TagName, Version) {
-			fmt.Println("         ✨ Update available!")
+			fmt.Printf("         %s Update available!\n", display.Emoji("✨", "*"))
 		}
 	}
 
@@ -144,7 +146,7 @@ func performUpdate(branch string) error {
 
 	// Check if already up to date
 	if !isNewer(release.TagName, Version) && branch == "stable" {
-		fmt.Println("✓ Already up to date!")
+		fmt.Printf("%s Already up to date!\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
@@ -186,7 +188,7 @@ func performUpdate(branch string) error {
 		os.Remove(tmpFile)
 		return fmt.Errorf("checksum verification failed: %w", err)
 	}
-	fmt.Println("✓ Checksum verified")
+	fmt.Printf("%s Checksum verified\n", display.Emoji("✓", "[OK]"))
 
 	// Make executable
 	if err := os.Chmod(tmpFile, 0755); err != nil {
@@ -225,7 +227,7 @@ func performUpdate(branch string) error {
 		return fmt.Errorf("new binary verification failed, restored backup: %w", err)
 	}
 
-	fmt.Printf("\n✓ Update successful!\n")
+	fmt.Printf("\n%s Update successful!\n", display.Emoji("✓", "[OK]"))
 	fmt.Printf("New version: %s\n", release.TagName)
 	fmt.Println(string(output))
 	fmt.Println("\nBackup saved at:", backupPath)

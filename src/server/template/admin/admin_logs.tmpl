@@ -1,105 +1,89 @@
 {{define "admin/admin_logs.tmpl"}}
-<!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-</head>
-<body>
-    <div class="admin-page-header">
-        <h1>System Logs</h1>
-        <div class="admin-page-breadcrumb">
-            <a href="{{.admin_path}}">Admin</a> /
-            <span>Logs</span>
-        </div>
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+    <div class="content-header">
+        <h1>{{t $lang "admin.logs.title"}}</h1>
     </div>
 
     <div class="admin-page-container wide">
-        <div class="admin-nav-links">
-            <a href="{{.admin_path}}" class="admin-nav-link">← Dashboard</a>
-            <a href="{{.admin_path}}/system" class="admin-nav-link">System Info</a>
-        </div>
-
         <!-- Controls Panel -->
         <div class="controls-panel">
             <div class="controls-grid">
                 <div class="control-group">
-                    <label for="logLevel">Log Level</label>
-                    <select id="logLevel" aria-label="Filter by log level">
-                        <option value="all">All Levels</option>
-                        <option value="DEBUG">Debug</option>
-                        <option value="INFO">Info</option>
-                        <option value="WARN">Warning</option>
-                        <option value="ERROR">Error</option>
-                        <option value="FATAL">Fatal</option>
+                    <label for="logLevel">{{t $lang "admin.logs.level_label"}}</label>
+                    <select id="logLevel" aria-label="{{t $lang "admin.logs.level_aria"}}">
+                        <option value="all">{{t $lang "admin.logs.level_all"}}</option>
+                        <option value="DEBUG">{{t $lang "admin.logs.level_debug"}}</option>
+                        <option value="INFO">{{t $lang "admin.logs.level_info"}}</option>
+                        <option value="WARN">{{t $lang "admin.logs.level_warn"}}</option>
+                        <option value="ERROR">{{t $lang "admin.logs.level_error"}}</option>
+                        <option value="FATAL">{{t $lang "admin.logs.level_fatal"}}</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <label for="logSource">Log Source</label>
-                    <select id="logSource" aria-label="Filter by log source">
-                        <option value="all">All Sources</option>
-                        <option value="server">Server</option>
-                        <option value="api">API</option>
-                        <option value="database">Database</option>
-                        <option value="tor">Tor Service</option>
-                        <option value="email">Email</option>
-                        <option value="scheduler">Scheduler</option>
+                    <label for="logSource">{{t $lang "admin.logs.source_label"}}</label>
+                    <select id="logSource" aria-label="{{t $lang "admin.logs.source_aria"}}">
+                        <option value="all">{{t $lang "admin.logs.source_all"}}</option>
+                        <option value="server">{{t $lang "admin.logs.source_server"}}</option>
+                        <option value="api">{{t $lang "admin.logs.source_api"}}</option>
+                        <option value="database">{{t $lang "admin.logs.source_database"}}</option>
+                        <option value="tor">{{t $lang "admin.logs.source_tor"}}</option>
+                        <option value="email">{{t $lang "admin.logs.source_email"}}</option>
+                        <option value="scheduler">{{t $lang "admin.logs.source_scheduler"}}</option>
                     </select>
                 </div>
 
                 <div class="control-group">
-                    <label for="searchQuery">Search Logs</label>
-                    <input type="text" id="searchQuery" placeholder="Search in logs..." aria-label="Search logs">
+                    <label for="searchQuery">{{t $lang "admin.logs.search_label"}}</label>
+                    <input type="text" id="searchQuery" placeholder="{{t $lang "admin.logs.search_placeholder"}}" aria-label="{{t $lang "admin.logs.search_aria"}}">
                 </div>
 
                 <div class="control-group">
-                    <label for="tailLines">Tail Lines</label>
-                    <select id="tailLines" aria-label="Number of lines to display">
-                        <option value="100">Last 100 lines</option>
-                        <option value="250" selected>Last 250 lines</option>
-                        <option value="500">Last 500 lines</option>
-                        <option value="1000">Last 1000 lines</option>
-                        <option value="all">All lines</option>
+                    <label for="tailLines">{{t $lang "admin.logs.tail_label"}}</label>
+                    <select id="tailLines" aria-label="{{t $lang "admin.logs.tail_aria"}}">
+                        <option value="100">{{t $lang "admin.logs.tail_100"}}</option>
+                        <option value="250" selected>{{t $lang "admin.logs.tail_250"}}</option>
+                        <option value="500">{{t $lang "admin.logs.tail_500"}}</option>
+                        <option value="1000">{{t $lang "admin.logs.tail_1000"}}</option>
+                        <option value="all">{{t $lang "admin.logs.tail_all"}}</option>
                     </select>
                 </div>
             </div>
 
             <div class="stats-bar">
                 <div class="stat">
-                    <span class="stat-label">Total Entries</span>
+                    <span class="stat-label">{{t $lang "admin.logs.stat_total"}}</span>
                     <span class="stat-value" id="totalEntries">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Filtered</span>
+                    <span class="stat-label">{{t $lang "admin.logs.stat_filtered"}}</span>
                     <span class="stat-value" id="filteredEntries">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Errors</span>
+                    <span class="stat-label">{{t $lang "admin.logs.stat_errors"}}</span>
                     <span class="stat-value text-danger" id="errorCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Warnings</span>
+                    <span class="stat-label">{{t $lang "admin.logs.stat_warnings"}}</span>
                     <span class="stat-value text-warning" id="warnCount">0</span>
                 </div>
             </div>
 
             <div class="button-group">
-                <button class="btn btn-primary" id="refreshBtn" aria-label="Refresh logs">
-                    <span>🔄</span> Refresh
+                <button class="btn btn-primary" id="refreshBtn" aria-label="{{t $lang "admin.logs.refresh_aria"}}">
+                    <span>🔄</span> {{t $lang "action.refresh"}}
                 </button>
-                <button class="btn btn-success" id="downloadBtn" aria-label="Download logs">
-                    <span>⬇️</span> Download Logs
+                <button class="btn btn-success" id="downloadBtn" aria-label="{{t $lang "admin.logs.download_aria"}}">
+                    <span>⬇️</span> {{t $lang "admin.logs.download_action"}}
                 </button>
-                <button class="btn btn-secondary" id="clearFilterBtn" aria-label="Clear all filters">
-                    Clear Filters
+                <button class="btn btn-secondary" id="clearFilterBtn" aria-label="{{t $lang "admin.logs.clear_filters_aria"}}">
+                    {{t $lang "admin.logs.clear_filters_action"}}
                 </button>
-                <button class="btn btn-danger" id="clearLogsBtn" aria-label="Clear all logs">
-                    <span>🗑️</span> Clear Logs
+                <button class="btn btn-danger" id="clearLogsBtn" aria-label="{{t $lang "admin.logs.clear_logs_aria"}}">
+                    <span>🗑️</span> {{t $lang "admin.logs.clear_logs_action"}}
                 </button>
             </div>
         </div>
@@ -107,15 +91,15 @@
         <!-- Logs Panel -->
         <div class="logs-panel">
             <div class="logs-header">
-                <h2>Log Entries</h2>
+                <h2>{{t $lang "admin.logs.entries_heading"}}</h2>
                 <div class="auto-refresh">
-                    <input type="checkbox" id="autoRefresh" aria-label="Enable auto-refresh">
-                    <label for="autoRefresh">Auto-refresh (5s)</label>
+                    <input type="checkbox" id="autoRefresh" aria-label="{{t $lang "admin.logs.auto_refresh_aria"}}">
+                    <label for="autoRefresh">{{t $lang "admin.logs.auto_refresh_label"}}</label>
                 </div>
             </div>
             <div class="logs-container" id="logsContainer" role="log" aria-live="polite" aria-atomic="false">
                 <div class="no-logs">
-                    <p>Loading logs...</p>
+                    <p>{{t $lang "admin.logs.loading"}}</p>
                 </div>
             </div>
         </div>
@@ -323,6 +307,5 @@
             }
         });
     </script>
-</body>
-</html>
+{{template "admin_footer" .}}
 {{end}}

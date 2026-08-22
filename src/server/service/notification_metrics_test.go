@@ -416,3 +416,268 @@ func TestNotificationMetrics_GetHealthStatus_HighErrorRate(t *testing.T) {
 		t.Errorf("warning missing with high error rate: %+v", status)
 	}
 }
+
+// insertQueueRowAt inserts a notification_queue row whose created_at/updated_at
+// hold the exact text given, so a test can plant a specific on-disk timestamp
+// encoding instead of whatever datetime('now') produces.
+func insertQueueRowAt(t *testing.T, db *sql.DB, state, channel, createdAt string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO notification_queue (user_id, channel_type, priority, state, subject, body, created_at, updated_at)
+		VALUES (1, ?, 1, ?, 'subject', 'body', ?, ?)
+	`, channel, state, createdAt, createdAt); err != nil {
+		t.Fatalf("insert notification_queue row: %v", err)
+	}
+}
+
+// TestNotificationMetrics_GetTimePeriodMetrics_CountsByInstant is the
+// regression test for the reporting window, which used to be expressed as
+// "created_at >= datetime('now', '-N hours')". That predicate returns NULL for
+// a row stored in the driver's local-zone time.Time.String() layout, so such
+// rows silently vanished from every period report, while a row whose skewed
+// text reads as recent but whose true instant is days old would be counted by
+// any text comparison. Both fixtures below contradict text ordering, so this
+// test fails against the old implementation on any host timezone.
+func TestNotificationMetrics_GetTimePeriodMetrics_CountsByInstant(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+	now := time.Now()
+
+	insertQueueRowAt(t, db, "delivered", "email", now.Add(-time.Minute).In(serviceZoneWest).Format(serviceLocalLayout))
+	insertQueueRowAt(t, db, "failed", "sms", now.Add(-72*time.Hour).In(serviceZoneEast).Format(serviceLocalLayout))
+	insertQueueRowAt(t, db, "queued", "email", "not-a-timestamp")
+
+	metrics, err := nm.GetTimePeriodMetrics(24 * time.Hour)
+	if err != nil {
+		t.Fatalf("GetTimePeriodMetrics() error = %v", err)
+	}
+	if metrics.Total != 1 {
+		t.Errorf("Total = %d, want 1 (only the row whose true instant is inside the window)", metrics.Total)
+	}
+	if metrics.Delivered != 1 {
+		t.Errorf("Delivered = %d, want 1", metrics.Delivered)
+	}
+	if metrics.Failed != 0 {
+		t.Errorf("Failed = %d, want 0 (the failed row is three days old however recent its text reads)", metrics.Failed)
+	}
+	if metrics.Pending != 0 {
+		t.Errorf("Pending = %d, want 0 (an unparseable created_at is never counted)", metrics.Pending)
+	}
+}
+
+// TestNotificationMetrics_GetHealthStatus_StuckDetectionByInstant is the
+// regression test for the stuck-notification cutoff, previously
+// "created_at < datetime('now', '-1 hour')". A row queued three hours ago but
+// written in a zone whose text reads later than UTC was never reported stuck.
+func TestNotificationMetrics_GetHealthStatus_StuckDetectionByInstant(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+
+	insertQueueRowAt(t, db, "queued", "email", time.Now().Add(-3*time.Hour).In(serviceZoneEast).Format(serviceLocalLayout))
+
+	status := nm.GetHealthStatus()
+	stuck, _ := status["stuck_notifications"].(int64)
+	if stuck != 1 {
+		t.Errorf("stuck_notifications = %v, want 1", status["stuck_notifications"])
+	}
+	if healthy, _ := status["healthy"].(bool); healthy {
+		t.Errorf("healthy = %v, want false when a notification is stuck", status["healthy"])
+	}
+}
+
+// TestNotificationMetrics_GetHealthStatus_UnparseableCreatedAtIgnored asserts
+// the fail-closed half of the same rewrite: a row whose created_at cannot be
+// interpreted is neither reported stuck nor counted toward the recent error
+// rate.
+func TestNotificationMetrics_GetHealthStatus_UnparseableCreatedAtIgnored(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+
+	insertQueueRowAt(t, db, "queued", "email", "not-a-timestamp")
+
+	status := nm.GetHealthStatus()
+	if stuck, _ := status["stuck_notifications"].(int64); stuck != 0 {
+		t.Errorf("stuck_notifications = %v, want 0", status["stuck_notifications"])
+	}
+	if _, ok := status["recent_error_rate"]; ok {
+		t.Errorf("recent_error_rate should be absent when no row has an interpretable created_at: %+v", status)
+	}
+}
+
+// insertDeliveredQueueRowAt inserts a delivered notification_queue row whose
+// created_at and delivered_at hold the exact text given, so a test controls the
+// on-disk encoding of both ends of the delivery interval.
+func insertDeliveredQueueRowAt(t *testing.T, db *sql.DB, channel, createdAt, deliveredAt string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO notification_queue (user_id, channel_type, priority, state, subject, body, created_at, updated_at, delivered_at)
+		VALUES (1, ?, 1, 'delivered', 'subject', 'body', ?, ?, ?)
+	`, channel, createdAt, createdAt, deliveredAt); err != nil {
+		t.Fatalf("insert delivered notification_queue row: %v", err)
+	}
+}
+
+// deliveryTolerance is the slack allowed when comparing an averaged latency, so
+// the assertion never depends on sub-second timing of the test itself.
+const deliveryTolerance = 0.001
+
+// TestNotificationMetrics_GetSummary_AvgDeliveryByInstant is the regression
+// test for the average-delivery-time rewrite. The old query computed
+// "AVG((julianday(delivered_at) - julianday(created_at)) * 86400)" in SQL.
+// julianday() evaluates to NULL for the driver's local-zone
+// time.Time.String() layout, so every row written that way was dropped from the
+// average entirely: the old code reports 90 here (the canonical-UTC row alone)
+// instead of the true 60. The unparseable row must be skipped either way.
+func TestNotificationMetrics_GetSummary_AvgDeliveryByInstant(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+	now := time.Now()
+
+	// 30 seconds of true latency, both ends written in a zone 11 hours behind
+	// UTC, which no SQL date function in this project's dialects can read.
+	westCreated := now.Add(-2 * time.Hour)
+	insertDeliveredQueueRowAt(t, db, "email",
+		westCreated.In(serviceZoneWest).Format(serviceLocalLayout),
+		westCreated.Add(30*time.Second).In(serviceZoneWest).Format(serviceLocalLayout))
+
+	// 90 seconds of true latency in the canonical UTC text CURRENT_TIMESTAMP
+	// emits - the only row the old query could see.
+	utcCreated := now.Add(-time.Hour).UTC()
+	insertDeliveredQueueRowAt(t, db, "email",
+		utcCreated.Format("2006-01-02 15:04:05"),
+		utcCreated.Add(90*time.Second).Format("2006-01-02 15:04:05"))
+
+	// Fail closed: an uninterpretable delivered_at contributes nothing rather
+	// than a zero-second delivery that would drag the average down.
+	insertDeliveredQueueRowAt(t, db, "email",
+		utcCreated.Format("2006-01-02 15:04:05"), "not-a-timestamp")
+
+	summary, err := nm.GetSummary()
+	if err != nil {
+		t.Fatalf("GetSummary() error = %v", err)
+	}
+
+	want := 60.0
+	if diff := summary.AvgDeliveryTime - want; diff > deliveryTolerance || diff < -deliveryTolerance {
+		t.Errorf("AvgDeliveryTime = %v, want %v (mean of the 30s and 90s rows, the unparseable row skipped)", summary.AvgDeliveryTime, want)
+	}
+}
+
+// TestNotificationMetrics_GetChannelMetrics_AvgDeliveryAcrossZones covers the
+// per-channel path of the same rewrite with the harshest fixture: created_at is
+// stored 13 hours ahead of UTC and delivered_at 11 hours behind it, so the
+// stored TEXT of the later instant sorts a full day EARLIER than the text of
+// the earlier one. Any SQL-side arithmetic over those strings yields NULL or a
+// large negative latency; parsed as instants the gap is ten seconds.
+func TestNotificationMetrics_GetChannelMetrics_AvgDeliveryAcrossZones(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+
+	created := time.Now().Add(-30 * time.Minute)
+	insertDeliveredQueueRowAt(t, db, "sms",
+		created.In(serviceZoneEast).Format(serviceLocalLayout),
+		created.Add(10*time.Second).In(serviceZoneWest).Format(serviceLocalLayout))
+
+	metrics, err := nm.GetChannelMetrics("sms")
+	if err != nil {
+		t.Fatalf("GetChannelMetrics() error = %v", err)
+	}
+
+	want := 10.0
+	if diff := metrics.AvgDeliveryTime - want; diff > deliveryTolerance || diff < -deliveryTolerance {
+		t.Errorf("AvgDeliveryTime = %v, want %v (true instant gap, not text arithmetic)", metrics.AvgDeliveryTime, want)
+	}
+}
+
+// insertFailedQueueRowAt inserts a failed notification_queue row carrying an
+// error message, with created_at/updated_at holding the exact text given, so a
+// test can plant a specific on-disk timestamp encoding under GetRecentErrors.
+func insertFailedQueueRowAt(t *testing.T, db *sql.DB, subject, errMsg, createdAt string) {
+	t.Helper()
+	if _, err := db.Exec(`
+		INSERT INTO notification_queue (user_id, channel_type, priority, state, subject, body, error_message, created_at, updated_at)
+		VALUES (1, 'email', 1, 'failed', ?, 'body', ?, ?, ?)
+	`, subject, errMsg, createdAt, createdAt); err != nil {
+		t.Fatalf("insert failed notification_queue row: %v", err)
+	}
+}
+
+// TestNotificationMetrics_GetRecentErrors_CanonicalTimestamps is the regression
+// test for created_at leaving GetRecentErrors as whatever raw text happened to
+// be on disk. The column can hold the canonical UTC text CURRENT_TIMESTAMP
+// writes or the driver's local-zone time.Time.String() form, and the old code
+// scanned it into a plain string and handed it straight to API consumers, so the
+// same endpoint emitted several different, zone-ambiguous timestamp formats.
+// Every returned timestamp must now be RFC 3339 UTC, and an uninterpretable
+// value must come back as an empty string rather than leaked raw text.
+func TestNotificationMetrics_GetRecentErrors_CanonicalTimestamps(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+
+	canonicalInstant := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+	legacyInstant := time.Date(2026, 3, 5, 6, 30, 0, 0, time.UTC)
+
+	// The canonical UTC text CURRENT_TIMESTAMP emits.
+	insertFailedQueueRowAt(t, db, "canonical", "smtp timeout", canonicalInstant.Format("2006-01-02 15:04:05"))
+	// The legacy local-zone time.Time.String() form the SQLite driver writes for
+	// a bound time.Time, planted at a fixed numeric offset so the stored text
+	// disagrees with the canonical row's text ordering.
+	insertFailedQueueRowAt(t, db, "legacy", "carrier rejected", legacyInstant.In(serviceZoneEast).Format(serviceLocalLayout))
+	// Fail-safe case: nothing in the column can be interpreted.
+	insertFailedQueueRowAt(t, db, "unparseable", "unknown failure", "not-a-timestamp")
+
+	errs, err := nm.GetRecentErrors(10)
+	if err != nil {
+		t.Fatalf("GetRecentErrors() error = %v", err)
+	}
+	if len(errs) != 3 {
+		t.Fatalf("GetRecentErrors() returned %d rows, want 3: %+v", len(errs), errs)
+	}
+
+	got := make(map[string]string, len(errs))
+	for _, entry := range errs {
+		subject, _ := entry["subject"].(string)
+		createdAt, ok := entry["created_at"].(string)
+		if !ok {
+			t.Fatalf("created_at for %q is %T, want string", subject, entry["created_at"])
+		}
+		got[subject] = createdAt
+	}
+
+	want := map[string]string{
+		"canonical":   canonicalInstant.Format(time.RFC3339),
+		"legacy":      legacyInstant.Format(time.RFC3339),
+		"unparseable": "",
+	}
+
+	for subject, wantCreatedAt := range want {
+		if got[subject] != wantCreatedAt {
+			t.Errorf("created_at for %q = %q, want %q", subject, got[subject], wantCreatedAt)
+		}
+	}
+
+	// Both interpretable rows must be readable back as RFC 3339, which the raw
+	// stored text of the legacy row is not.
+	for _, subject := range []string{"canonical", "legacy"} {
+		if _, parseErr := time.Parse(time.RFC3339, got[subject]); parseErr != nil {
+			t.Errorf("created_at for %q (%q) is not RFC 3339: %v", subject, got[subject], parseErr)
+		}
+	}
+}
+
+// TestNotificationMetrics_AvgDeliveryTime_NoUsableRows asserts the empty case
+// still reports 0 rather than a NaN from dividing by a zero row count.
+func TestNotificationMetrics_AvgDeliveryTime_NoUsableRows(t *testing.T) {
+	db := setupNotificationMetricsTestDB(t)
+	nm := NewNotificationMetrics(db)
+
+	insertDeliveredQueueRowAt(t, db, "email", "not-a-timestamp", "not-a-timestamp")
+
+	summary, err := nm.GetSummary()
+	if err != nil {
+		t.Fatalf("GetSummary() error = %v", err)
+	}
+	if summary.AvgDeliveryTime != 0 {
+		t.Errorf("AvgDeliveryTime = %v, want 0 when no row has interpretable timestamps", summary.AvgDeliveryTime)
+	}
+}

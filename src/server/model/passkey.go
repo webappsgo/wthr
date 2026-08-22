@@ -34,6 +34,14 @@ type UserPasskeyModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserPasskeyModel touches (user_passkeys) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
 func (m *UserPasskeyModel) getDB() *sql.DB {
 	if m.DB != nil {
 		return m.DB
@@ -163,11 +171,17 @@ func unmarshalPasskeyTransport(raw string) ([]protocol.AuthenticatorTransport, e
 func (m *UserPasskeyModel) scanPasskey(rowScanner interface {
 	Scan(dest ...interface{}) error
 }) (*UserPasskey, error) {
+	// created_at and last_used_at are scanned as raw driver values and resolved
+	// with parseStoredTimestamp rather than scanned into time.Time/sql.NullTime.
+	// A row written before this project standardised on canonical UTC text holds
+	// the local-zone time.Time.String() form, which database/sql cannot convert
+	// to a time.Time - every passkey listing failed with a scan error.
 	var (
-		passkey      UserPasskey
-		lastUsedAt   sql.NullTime
-		transportRaw sql.NullString
-		signCount    int64
+		passkey         UserPasskey
+		storedCreatedAt interface{}
+		storedLastUsed  interface{}
+		transportRaw    sql.NullString
+		signCount       int64
 	)
 
 	if err := rowScanner.Scan(
@@ -182,8 +196,8 @@ func (m *UserPasskeyModel) scanPasskey(rowScanner interface {
 		&passkey.AttestationType,
 		&passkey.BackupEligible,
 		&passkey.BackupState,
-		&passkey.CreatedAt,
-		&lastUsedAt,
+		&storedCreatedAt,
+		&storedLastUsed,
 	); err != nil {
 		return nil, err
 	}
@@ -192,8 +206,11 @@ func (m *UserPasskeyModel) scanPasskey(rowScanner interface {
 		passkey.TransportJSON = transportRaw.String
 	}
 	passkey.SignCount = uint32(signCount)
-	if lastUsedAt.Valid {
-		passkey.LastUsedAt = &lastUsedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		passkey.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastUsed); ok {
+		passkey.LastUsedAt = &parsed
 	}
 
 	return &passkey, nil
@@ -305,12 +322,16 @@ func (m *UserPasskeyModel) Create(userID int64, name string, credential *webauth
 		return nil, err
 	}
 
+	// created_at is bound as canonical UTC text rather than left to
+	// CURRENT_TIMESTAMP, which is SQLite UTC text on one backend and a
+	// server-zone timestamp on another. The bind parameter sits in the position
+	// CURRENT_TIMESTAMP occupied, so it is the last value in the argument list.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_passkeys (
 			user_id, credential_id, public_key, aaguid, sign_count, name, transport,
 			attestation_type, backup_eligible, backup_state, created_at, last_used_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
 	`,
 		userID,
 		encodePasskeyBytes(credential.ID),
@@ -322,6 +343,7 @@ func (m *UserPasskeyModel) Create(userID int64, name string, credential *webauth
 		credential.AttestationType,
 		credential.Flags.BackupEligible,
 		credential.Flags.BackupState,
+		sqlTimestamp(time.Now()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store passkey: %w", err)
@@ -358,13 +380,18 @@ func (m *UserPasskeyModel) UpdateCredential(userID int64, credential *webauthn.C
 		return err
 	}
 
+	// last_used_at is bound as canonical UTC text instead of CURRENT_TIMESTAMP so
+	// every backend stores the identical layout scanPasskey parses. The
+	// placeholder sits second in the SET list, so its value is passed second in
+	// the argument list, right after sign_count.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_passkeys
-		SET sign_count = ?, last_used_at = CURRENT_TIMESTAMP, transport = ?, attestation_type = ?,
+		SET sign_count = ?, last_used_at = ?, transport = ?, attestation_type = ?,
 		    backup_eligible = ?, backup_state = ?, aaguid = ?
 		WHERE user_id = ? AND credential_id = ?
 	`,
 		credential.Authenticator.SignCount,
+		sqlTimestamp(time.Now()),
 		transportJSON,
 		credential.AttestationType,
 		credential.Flags.BackupEligible,

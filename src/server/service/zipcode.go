@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // ZipcodeData represents a US zipcode entry
@@ -56,13 +58,13 @@ func toFloat64(v interface{}) float64 {
 // loadZipcodes loads zipcode data from GitHub
 func (zs *ZipcodeService) loadZipcodes() {
 	startTime := time.Now()
-	fmt.Println("📮 Loading US zipcode database...")
+	fmt.Printf("%s Loading US zipcode database...\n", display.Emoji("📮", "->"))
 
 	zipcodeURL := "https://raw.githubusercontent.com/webappsgo/zipcodes/refs/heads/main/src/data/zipcodes.json"
 
 	resp, err := downloadClient.Get(zipcodeURL)
 	if err != nil {
-		fmt.Printf("⚠️  Zipcode database unavailable: %v (continuing without zipcodes)\n", err)
+		fmt.Printf("%s Zipcode database unavailable: %v (continuing without zipcodes)\n", display.Emoji("⚠️", "WARNING:"), err)
 		zs.mu.Lock()
 		// Mark as loaded even if failed, so we don't keep retrying
 		zs.loaded = true
@@ -72,7 +74,7 @@ func (zs *ZipcodeService) loadZipcodes() {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		fmt.Printf("⚠️  Zipcode database returned status %d (continuing without zipcodes)\n", resp.StatusCode)
+		fmt.Printf("%s Zipcode database returned status %d (continuing without zipcodes)\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
 		zs.mu.Lock()
 		zs.loaded = true
 		zs.mu.Unlock()
@@ -87,7 +89,7 @@ func (zs *ZipcodeService) loadZipcodes() {
 		// Try as object/map
 		var zipcodesMap map[string]ZipcodeData
 		if err2 := json.Unmarshal(bodyBytes, &zipcodesMap); err2 != nil {
-			fmt.Printf("⚠️  Failed to parse zipcodes (array: %v, map: %v) - continuing without zipcodes\n", err, err2)
+			fmt.Printf("%s Failed to parse zipcodes (array: %v, map: %v) - continuing without zipcodes\n", display.Emoji("⚠️", "WARNING:"), err, err2)
 			zs.mu.Lock()
 			zs.loaded = true
 			zs.mu.Unlock()
@@ -116,7 +118,7 @@ func (zs *ZipcodeService) loadZipcodes() {
 	zs.mu.Unlock()
 
 	elapsed := time.Since(startTime)
-	fmt.Printf("✅ Zipcode database loaded in %s (%d valid zipcodes with coordinates)\n", elapsed, validCount)
+	fmt.Printf("%s Zipcode database loaded in %s (%d valid zipcodes with coordinates)\n", display.Emoji("✅", "[OK]"), elapsed, validCount)
 }
 
 // LookupZipcode returns coordinates for a US zipcode
@@ -178,7 +180,7 @@ func (zs *ZipcodeService) IsLoaded() bool {
 // Reload reloads the zipcode database from external source
 // This is used by the scheduler for periodic data refresh
 func (zs *ZipcodeService) Reload() error {
-	fmt.Println("🔄 Reloading US zipcode database...")
+	fmt.Printf("%s Reloading US zipcode database...\n", display.Emoji("🔄", "->"))
 	startTime := time.Now()
 
 	// Clear current data
@@ -201,6 +203,6 @@ func (zs *ZipcodeService) Reload() error {
 	}
 
 	elapsed := time.Since(startTime)
-	fmt.Printf("✅ Zipcode database reloaded in %s (%d entries)\n", elapsed, count)
+	fmt.Printf("%s Zipcode database reloaded in %s (%d entries)\n", display.Emoji("✅", "[OK]"), elapsed, count)
 	return nil
 }

@@ -5,11 +5,40 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 )
+
+// The timestamp helpers below are thin aliases over src/common/dbtime, the
+// project's single source of truth for SQL timestamp formatting, parsing and
+// comparison. dbtime imports only the standard library, so this package shares
+// that code with model and scheduler without any import cycle.
+
+// sqlTimestampLayout is the canonical "YYYY-MM-DD HH:MM:SS" layout SQLite's
+// CURRENT_TIMESTAMP emits and that PostgreSQL/MySQL accept as a timestamp
+// literal. Heartbeats are computed in Go, converted to UTC and formatted with
+// this layout so every producer of cluster_nodes.last_heartbeat agrees on one
+// zone and one layout.
+const sqlTimestampLayout = dbtime.SQLTimestampLayout
+
+// heartbeatDegradedThreshold is AI.md PART 10's 90-second (3 missed heartbeats)
+// window after which a node stops counting as healthy.
+const heartbeatDegradedThreshold = 90 * time.Second
+
+// updateChunkSize caps how many node IDs one UPDATE statement binds, keeping the
+// statement well inside every driver's bind-parameter limit.
+const updateChunkSize = 500
+
+// parseStoredTimestamp converts a value scanned from a TIMESTAMP column into a
+// UTC time.Time, reporting false for NULL and for layouts the project never
+// writes so an unrecognised value can never mark a live node unhealthy.
+func parseStoredTimestamp(value interface{}) (time.Time, bool) {
+	return dbtime.ParseStoredTimestamp(value)
+}
 
 // NodeState represents the state of a cluster node
 type NodeState string
@@ -144,28 +173,35 @@ func (cm *ClusterManager) heartbeatLoop() {
 }
 
 // sendHeartbeat updates this node's heartbeat timestamp
+// The instant is formatted as canonical UTC text rather than bound as a raw
+// time.Time: modernc.org/sqlite writes a bound time.Time as its local-zone
+// String() form, which no longer compares correctly against timestamps written
+// by CURRENT_TIMESTAMP or by another node in a different zone.
 func (cm *ClusterManager) sendHeartbeat() error {
 	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
 		UPDATE cluster_nodes
 		SET last_heartbeat = ?, state = ?
 		WHERE node_id = ?
-	`, time.Now(), cm.currentState, cm.nodeID)
+	`, dbtime.FormatSQLTimestamp(time.Now()), cm.currentState, cm.nodeID)
 
 	return err
 }
 
 // checkClusterHealth checks if nodes are healthy and triggers election if primary is dead
 func (cm *ClusterManager) checkClusterHealth() error {
-	// Mark nodes as unhealthy if heartbeat is older than 90 seconds (3x heartbeat interval)
-	threshold := time.Now().Add(-90 * time.Second)
+	// AI.md PART 10: a node whose last heartbeat is older than 90 seconds (3x the
+	// heartbeat interval) stops counting as healthy. The freshness test runs in Go
+	// against a UTC cutoff rather than as an SQL text comparison, because
+	// last_heartbeat has more than one producer and a lexicographic comparison
+	// across mixed zones and layouts marked live nodes dead.
+	threshold := time.Now().UTC().Add(-heartbeatDegradedThreshold)
 
-	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
-		UPDATE cluster_nodes
-		SET is_healthy = 0
-		WHERE last_heartbeat < ?
-	`, threshold)
-
+	staleIDs, err := cm.staleNodeIDs(threshold)
 	if err != nil {
+		return err
+	}
+
+	if err := cm.markNodesUnhealthy(staleIDs); err != nil {
 		return err
 	}
 
@@ -187,6 +223,68 @@ func (cm *ClusterManager) checkClusterHealth() error {
 	return err
 }
 
+// staleNodeIDs returns the IDs of currently-healthy nodes whose last heartbeat
+// is older than cutoff. Nodes whose last_heartbeat is NULL or stored in a layout
+// this package does not recognise are left alone rather than assumed dead.
+func (cm *ClusterManager) staleNodeIDs(cutoff time.Time) ([]string, error) {
+	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
+		SELECT node_id, last_heartbeat
+		FROM cluster_nodes
+		WHERE is_healthy = 1 AND last_heartbeat IS NOT NULL
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var staleIDs []string
+	for rows.Next() {
+		var nodeID string
+		var stored interface{}
+		if scanErr := rows.Scan(&nodeID, &stored); scanErr != nil {
+			return nil, scanErr
+		}
+
+		parsed, ok := parseStoredTimestamp(stored)
+		if !ok {
+			continue
+		}
+
+		if parsed.Before(cutoff.UTC()) {
+			staleIDs = append(staleIDs, nodeID)
+		}
+	}
+
+	return staleIDs, rows.Err()
+}
+
+// markNodesUnhealthy clears the healthy flag for the given node IDs in chunks.
+// Only the node IDs are bound values, so no untrusted data reaches the
+// statement text.
+func (cm *ClusterManager) markNodesUnhealthy(nodeIDs []string) error {
+	for start := 0; start < len(nodeIDs); start += updateChunkSize {
+		end := start + updateChunkSize
+		if end > len(nodeIDs) {
+			end = len(nodeIDs)
+		}
+
+		chunk := nodeIDs[start:end]
+		args := make([]interface{}, len(chunk))
+		for i, nodeID := range chunk {
+			args[i] = nodeID
+		}
+
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(chunk)), ",")
+		query := "UPDATE cluster_nodes SET is_healthy = 0 WHERE node_id IN (" + placeholders + ")"
+
+		if _, err := database.ExecContext(context.Background(), cm.db, database.TimeoutBulk, query, args...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // electPrimary performs primary node election
 // TEMPLATE.md PART 23: Simple primary election (first healthy node wins)
 func (cm *ClusterManager) electPrimary() error {
@@ -198,7 +296,7 @@ func (cm *ClusterManager) electPrimary() error {
 
 	// Get all healthy nodes ordered by node_id
 	rows, err := database.QueryContext(context.Background(), cm.db, database.TimeoutSimpleSelect, `
-		SELECT node_id, last_heartbeat
+		SELECT node_id
 		FROM cluster_nodes
 		WHERE is_healthy = 1
 		ORDER BY node_id ASC
@@ -211,8 +309,7 @@ func (cm *ClusterManager) electPrimary() error {
 	var candidates []string
 	for rows.Next() {
 		var nodeID string
-		var lastHeartbeat time.Time
-		if err := rows.Scan(&nodeID, &lastHeartbeat); err != nil {
+		if err := rows.Scan(&nodeID); err != nil {
 			continue
 		}
 		candidates = append(candidates, nodeID)
@@ -395,11 +492,17 @@ func (cm *ClusterManager) initializeClusterTables() error {
 }
 
 // registerNode registers this node in the cluster
+// created_at and updated_at are supplied explicitly rather than left to the
+// column's CURRENT_TIMESTAMP default, which produces a different type and zone
+// on PostgreSQL, MySQL and SQL Server than the canonical UTC text every reader
+// in this package parses.
 func (cm *ClusterManager) registerNode() error {
+	now := dbtime.FormatSQLTimestamp(time.Now())
+
 	_, err := database.ExecContext(context.Background(), cm.db, database.TimeoutWrite, `
-		INSERT OR REPLACE INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy)
-		VALUES (?, ?, ?, ?, 1)
-	`, cm.nodeID, cm.nodeAddress, NodeStateSecondary, time.Now())
+		INSERT OR REPLACE INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 1, ?, ?)
+	`, cm.nodeID, cm.nodeAddress, NodeStateSecondary, now, now, now)
 
 	return err
 }
@@ -430,11 +533,20 @@ func (cm *ClusterManager) GetClusterInfo() ([]Node, error) {
 	var nodes []Node
 	for rows.Next() {
 		var node Node
-		if err := rows.Scan(&node.ID, &node.Address, &node.State, &node.LastHeartbeat, &node.IsHealthy); err != nil {
+		var stored interface{}
+		if err := rows.Scan(&node.ID, &node.Address, &node.State, &stored, &node.IsHealthy); err != nil {
 			continue
 		}
+
+		// last_heartbeat is read through the same parser the freshness check
+		// uses, so a row written in any historical layout still reports a usable
+		// instant instead of silently dropping the node on a scan error.
+		if parsed, ok := parseStoredTimestamp(stored); ok {
+			node.LastHeartbeat = parsed
+		}
+
 		nodes = append(nodes, node)
 	}
 
-	return nodes, nil
+	return nodes, rows.Err()
 }

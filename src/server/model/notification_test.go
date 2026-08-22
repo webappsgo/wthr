@@ -8,12 +8,21 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // dbCounter ensures unique database names when a test calls setupTestDB multiple times
 var dbCounter int64
 
 // setupTestDB creates an in-memory SQLite database for testing
+// Both real schema constants are applied verbatim - the same DDL the server
+// runs against users.db and server.db - so these tests exercise the columns,
+// CHECK constraints and defaults production actually has. Hand-rolled CREATE
+// TABLE statements are deliberately absent: a fixture table that shadows a real
+// one hides "no such column" failures that would only surface in production.
+// The two schemas share no table name, and every statement in them is
+// idempotent, so applying both to one connection is safe.
 func setupTestDB(t *testing.T) *sql.DB {
 	// Using file:NAME?mode=memory&cache=shared ensures all connections share the same in-memory database
 	// This is required because sql.DB uses connection pooling, and with plain :memory:
@@ -27,80 +36,14 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
 
-	// Create user_notifications table
-	_, err = db.Exec(`
-		CREATE TABLE user_notifications (
-			id TEXT PRIMARY KEY,
-			user_id INTEGER NOT NULL,
-			type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
-			display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
-			title TEXT NOT NULL,
-			message TEXT NOT NULL,
-			action_json TEXT,
-			read BOOLEAN DEFAULT 0,
-			dismissed BOOLEAN DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at DATETIME
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create user_notifications table: %v", err)
+	if _, err := db.Exec(database.UsersSchema); err != nil {
+		db.Close()
+		t.Fatalf("Failed to apply UsersSchema: %v", err)
 	}
 
-	// Create server_admin_notifications table
-	_, err = db.Exec(`
-		CREATE TABLE server_admin_notifications (
-			id TEXT PRIMARY KEY,
-			admin_id INTEGER NOT NULL,
-			type TEXT NOT NULL CHECK(type IN ('success', 'info', 'warning', 'error', 'security')),
-			display TEXT NOT NULL CHECK(display IN ('toast', 'banner', 'center')) DEFAULT 'toast',
-			title TEXT NOT NULL,
-			message TEXT NOT NULL,
-			action_json TEXT,
-			read BOOLEAN DEFAULT 0,
-			dismissed BOOLEAN DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			expires_at DATETIME
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create server_admin_notifications table: %v", err)
-	}
-
-	// Create user_notification_preferences table
-	_, err = db.Exec(`
-		CREATE TABLE user_notification_preferences (
-			user_id INTEGER PRIMARY KEY,
-			enable_toast BOOLEAN DEFAULT 1,
-			enable_banner BOOLEAN DEFAULT 1,
-			enable_center BOOLEAN DEFAULT 1,
-			enable_sound BOOLEAN DEFAULT 0,
-			toast_duration_success INTEGER DEFAULT 5,
-			toast_duration_info INTEGER DEFAULT 5,
-			toast_duration_warning INTEGER DEFAULT 10,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create user_notification_preferences table: %v", err)
-	}
-
-	// Create server_admin_notification_preferences table
-	_, err = db.Exec(`
-		CREATE TABLE server_admin_notification_preferences (
-			admin_id INTEGER PRIMARY KEY,
-			enable_toast BOOLEAN DEFAULT 1,
-			enable_banner BOOLEAN DEFAULT 1,
-			enable_center BOOLEAN DEFAULT 1,
-			enable_sound BOOLEAN DEFAULT 0,
-			toast_duration_success INTEGER DEFAULT 5,
-			toast_duration_info INTEGER DEFAULT 5,
-			toast_duration_warning INTEGER DEFAULT 10,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		t.Fatalf("Failed to create server_admin_notification_preferences table: %v", err)
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		db.Close()
+		t.Fatalf("Failed to apply ServerSchema: %v", err)
 	}
 
 	return db
@@ -529,4 +472,267 @@ func TestUserNotificationModel_GetStatistics(t *testing.T) {
 	if stats.ByDisplay["center"] != 1 {
 		t.Errorf("ByDisplay[center] = %v, want 1", stats.ByDisplay["center"])
 	}
+}
+
+// insertNotificationExpiryFixture writes one notification row with expires_at
+// set to an exact piece of text, so a test can reproduce a value written by an
+// older local-zone writer without depending on the host's own timezone.
+func insertNotificationExpiryFixture(t *testing.T, db *sql.DB, table, ownerColumn, id string, ownerID int, expiresAt string) {
+	t.Helper()
+
+	query := fmt.Sprintf(`
+		INSERT INTO %s (id, %s, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
+		VALUES (?, ?, 'info', 'toast', 'Fixture', 'Fixture message', NULL, 0, 0, ?, ?)
+	`, table, ownerColumn)
+
+	if _, err := db.Exec(query, id, ownerID, sqlTimestamp(time.Now().Add(-time.Minute)), expiresAt); err != nil {
+		t.Fatalf("insert %s fixture %s: %v", table, id, err)
+	}
+}
+
+// notificationExpiryCase describes one stored expires_at value and whether the
+// row it belongs to is still live at the instant the test runs.
+type notificationExpiryCase struct {
+	name      string
+	expiresAt func(now time.Time) string
+	wantLive  bool
+}
+
+// notificationExpiryCases covers every encoding a notifications table can hold.
+// The two zone cases are the regression the SQL "expires_at > ?" comparison
+// could not survive: a row one hour in the future rendered in a -11:00 zone has
+// wall-clock TEXT that sorts BEFORE the UTC threshold, so the old lexicographic
+// test hid a live notification, and a row one hour in the past rendered in a
+// +13:00 zone sorts AFTER it, so the old test kept serving an expired one. The
+// offsets are fixed rather than derived from time.Local, so the contradiction
+// between text order and instant order holds on any host timezone. The
+// unparseable case pins the fail-closed rule: the old text comparison ranked
+// "not-a-timestamp" above any digit and returned the row.
+var notificationExpiryCases = []notificationExpiryCase{
+	{
+		name:      "live-utc",
+		expiresAt: func(now time.Time) string { return sqlTimestamp(now.Add(time.Hour)) },
+		wantLive:  true,
+	},
+	{
+		name:      "expired-utc",
+		expiresAt: func(now time.Time) string { return sqlTimestamp(now.Add(-time.Hour)) },
+		wantLive:  false,
+	},
+	{
+		name: "live-west-zone-text-reads-as-past",
+		expiresAt: func(now time.Time) string {
+			return now.Add(time.Hour).In(adminZoneWest).Format(localLayout)
+		},
+		wantLive: true,
+	},
+	{
+		name: "expired-east-zone-text-reads-as-future",
+		expiresAt: func(now time.Time) string {
+			return now.Add(-time.Hour).In(adminZoneEast).Format(localLayout)
+		},
+		wantLive: false,
+	},
+	{
+		name:      "unparseable-fails-closed",
+		expiresAt: func(now time.Time) string { return "not-a-timestamp" },
+		wantLive:  false,
+	},
+}
+
+// liveCount converts the case's expectation into the row count every read is
+// expected to report.
+func (c notificationExpiryCase) liveCount() int {
+	if c.wantLive {
+		return 1
+	}
+
+	return 0
+}
+
+func TestUserNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
+	for _, tc := range notificationExpiryCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			defer db.Close()
+
+			model := &UserNotificationModel{DB: db}
+			insertNotificationExpiryFixture(t, db, "user_notifications", "user_id", "fixture-user-1", 42, tc.expiresAt(time.Now().UTC()))
+
+			want := tc.liveCount()
+
+			listed, err := model.GetByUserID(42, 50, 0)
+			if err != nil {
+				t.Fatalf("GetByUserID: %v", err)
+			}
+			if len(listed) != want {
+				t.Errorf("GetByUserID returned %d rows, want %d", len(listed), want)
+			}
+
+			unread, err := model.GetUnread(42)
+			if err != nil {
+				t.Fatalf("GetUnread: %v", err)
+			}
+			if len(unread) != want {
+				t.Errorf("GetUnread returned %d rows, want %d", len(unread), want)
+			}
+
+			count, err := model.GetUnreadCount(42)
+			if err != nil {
+				t.Fatalf("GetUnreadCount: %v", err)
+			}
+			if count != want {
+				t.Errorf("GetUnreadCount = %d, want %d", count, want)
+			}
+
+			stats, err := model.GetStatistics(42)
+			if err != nil {
+				t.Fatalf("GetStatistics: %v", err)
+			}
+			if stats.Total != want {
+				t.Errorf("GetStatistics Total = %d, want %d", stats.Total, want)
+			}
+			if stats.Unread != want {
+				t.Errorf("GetStatistics Unread = %d, want %d", stats.Unread, want)
+			}
+			if stats.ByType[NotificationTypeInfo] != want {
+				t.Errorf("GetStatistics ByType[info] = %d, want %d", stats.ByType[NotificationTypeInfo], want)
+			}
+			if stats.ByDisplay[NotificationDisplayToast] != want {
+				t.Errorf("GetStatistics ByDisplay[toast] = %d, want %d", stats.ByDisplay[NotificationDisplayToast], want)
+			}
+		})
+	}
+}
+
+func TestAdminNotificationModelExpiryAcrossStoredLayouts(t *testing.T) {
+	for _, tc := range notificationExpiryCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTestDB(t)
+			defer db.Close()
+
+			model := &AdminNotificationModel{DB: db}
+			insertNotificationExpiryFixture(t, db, "server_admin_notifications", "admin_id", "fixture-admin-1", 7, tc.expiresAt(time.Now().UTC()))
+
+			want := tc.liveCount()
+
+			listed, err := model.GetByAdminID(7, 50, 0)
+			if err != nil {
+				t.Fatalf("GetByAdminID: %v", err)
+			}
+			if len(listed) != want {
+				t.Errorf("GetByAdminID returned %d rows, want %d", len(listed), want)
+			}
+
+			unread, err := model.GetUnread(7)
+			if err != nil {
+				t.Fatalf("GetUnread: %v", err)
+			}
+			if len(unread) != want {
+				t.Errorf("GetUnread returned %d rows, want %d", len(unread), want)
+			}
+
+			count, err := model.GetUnreadCount(7)
+			if err != nil {
+				t.Fatalf("GetUnreadCount: %v", err)
+			}
+			if count != want {
+				t.Errorf("GetUnreadCount = %d, want %d", count, want)
+			}
+
+			stats, err := model.GetStatistics(7)
+			if err != nil {
+				t.Fatalf("GetStatistics: %v", err)
+			}
+			if stats.Total != want {
+				t.Errorf("GetStatistics Total = %d, want %d", stats.Total, want)
+			}
+			if stats.Unread != want {
+				t.Errorf("GetStatistics Unread = %d, want %d", stats.Unread, want)
+			}
+			if stats.ByType[NotificationTypeInfo] != want {
+				t.Errorf("GetStatistics ByType[info] = %d, want %d", stats.ByType[NotificationTypeInfo], want)
+			}
+			if stats.ByDisplay[NotificationDisplayToast] != want {
+				t.Errorf("GetStatistics ByDisplay[toast] = %d, want %d", stats.ByDisplay[NotificationDisplayToast], want)
+			}
+		})
+	}
+}
+
+// TestNotificationPaginationSkipsExpiredRowsBeforeWindowing pins the semantics
+// of moving LIMIT/OFFSET out of SQL and into Go. The expired row sits between
+// two live rows in created_at order, so an SQL LIMIT applied before the expiry
+// test would have consumed a slot on a row the caller must never see.
+func TestNotificationPaginationSkipsExpiredRowsBeforeWindowing(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	model := &UserNotificationModel{DB: db}
+	now := time.Now().UTC()
+
+	// created_at descending is the listing order, so "newest" is inserted with
+	// the latest created_at; the ids below are ordered newest to oldest.
+	rows := []struct {
+		id        string
+		createdAt time.Time
+		expiresAt string
+	}{
+		{"page-1", now.Add(-1 * time.Minute), sqlTimestamp(now.Add(time.Hour))},
+		{"page-2", now.Add(-2 * time.Minute), sqlTimestamp(now.Add(-time.Hour))},
+		{"page-3", now.Add(-3 * time.Minute), now.Add(time.Hour).In(adminZoneWest).Format(localLayout)},
+		{"page-4", now.Add(-4 * time.Minute), sqlTimestamp(now.Add(time.Hour))},
+	}
+
+	for _, row := range rows {
+		_, err := db.Exec(`
+			INSERT INTO user_notifications (id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
+			VALUES (?, 9, 'info', 'toast', 'Fixture', 'Fixture message', NULL, 0, 0, ?, ?)
+		`, row.id, sqlTimestamp(row.createdAt), row.expiresAt)
+		if err != nil {
+			t.Fatalf("insert %s: %v", row.id, err)
+		}
+	}
+
+	first, err := model.GetByUserID(9, 2, 0)
+	if err != nil {
+		t.Fatalf("GetByUserID first page: %v", err)
+	}
+	if len(first) != 2 || first[0].ID != "page-1" || first[1].ID != "page-3" {
+		t.Fatalf("first page = %v, want [page-1 page-3]", notificationIDs(first))
+	}
+
+	second, err := model.GetByUserID(9, 2, 2)
+	if err != nil {
+		t.Fatalf("GetByUserID second page: %v", err)
+	}
+	if len(second) != 1 || second[0].ID != "page-4" {
+		t.Fatalf("second page = %v, want [page-4]", notificationIDs(second))
+	}
+
+	none, err := model.GetByUserID(9, 0, 0)
+	if err != nil {
+		t.Fatalf("GetByUserID zero limit: %v", err)
+	}
+	if len(none) != 0 {
+		t.Errorf("zero limit returned %v, want no rows", notificationIDs(none))
+	}
+
+	all, err := model.GetByUserID(9, noNotificationLimit, 0)
+	if err != nil {
+		t.Fatalf("GetByUserID negative limit: %v", err)
+	}
+	if len(all) != 3 {
+		t.Errorf("negative limit returned %v, want all 3 live rows", notificationIDs(all))
+	}
+}
+
+// notificationIDs renders a result set as its IDs for readable failures.
+func notificationIDs(notifications []*Notification) []string {
+	ids := make([]string, 0, len(notifications))
+	for _, notif := range notifications {
+		ids = append(ids, notif.ID)
+	}
+
+	return ids
 }

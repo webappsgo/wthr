@@ -11,11 +11,13 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
@@ -573,10 +575,22 @@ func (r *mutationResolver) CreateUserToken(ctx context.Context, name string, sco
 		scopesValue = strings.TrimSpace(*scopes)
 	}
 
+	// expires_at stays NULL for a token that never expires; when it is set it is
+	// bound as canonical UTC text like every other timestamp this project writes.
+	var expiresAtParam interface{}
+	if expiresAt.Valid {
+		expiresAtParam = dbtime.FormatSQLTimestamp(expiresAt.Time)
+	}
+
+	// created_at and expires_at are bound as canonical UTC text rather than as
+	// raw time.Time values. The SQLite driver serializes a bound time.Time as
+	// time.Time.String() in the host's LOCAL zone, a layout no reader can
+	// compare against a UTC instant without guessing the writer's offset, and
+	// the other supported drivers each store it in their own type.
 	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, userID, tokenHash, tokenPrefix, strings.TrimSpace(name), scopesValue, createdAt, expiresAt)
+	`, userID, tokenHash, tokenPrefix, strings.TrimSpace(name), scopesValue, dbtime.FormatSQLTimestamp(createdAt), expiresAtParam)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
@@ -639,10 +653,17 @@ func (r *mutationResolver) CreateSavedLocation(ctx context.Context, name string,
 	}
 
 	timezone := ""
+
+	// One instant for both columns, bound as canonical UTC text: a raw time.Time
+	// bind is serialized by the SQLite driver as a local-zone
+	// time.Time.String(), which the SELECT below cannot even scan back into a
+	// time.Time.
+	createdAt := dbtime.FormatSQLTimestamp(time.Now())
+
 	result, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
 		INSERT INTO user_saved_locations (user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, userID, name, lat, lon, timezone, alertsEnabled, time.Now(), time.Now())
+	`, userID, name, lat, lon, timezone, alertsEnabled, createdAt, createdAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create location: %w", err)
@@ -673,15 +694,17 @@ func (r *mutationResolver) UpdateSavedLocation(ctx context.Context, id string, n
 		return nil, fmt.Errorf("unauthorized")
 	}
 
+	// updated_at is bound as canonical UTC text on both branches; see
+	// CreateSavedLocation for why a raw time.Time bind is unusable here.
 	if name != nil {
-		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?", *name, time.Now(), id, userID)
+		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?", *name, dbtime.FormatSQLTimestamp(time.Now()), id, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update name: %w", err)
 		}
 	}
 
 	if alerts != nil {
-		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET alerts_enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?", *alerts, time.Now(), id, userID)
+		_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, "UPDATE user_saved_locations SET alerts_enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?", *alerts, dbtime.FormatSQLTimestamp(time.Now()), id, userID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update alerts: %w", err)
 		}
@@ -727,11 +750,12 @@ func (r *mutationResolver) ToggleLocationAlerts(ctx context.Context, id string) 
 		return nil, fmt.Errorf("unauthorized")
 	}
 
+	// updated_at is bound as canonical UTC text; see CreateSavedLocation.
 	_, err := database.ExecContext(ctx, r.UsersDB, database.TimeoutWrite, `
 		UPDATE user_saved_locations
 		SET alerts_enabled = NOT alerts_enabled, updated_at = ?
 		WHERE id = ? AND user_id = ?
-	`, time.Now(), id, userID)
+	`, dbtime.FormatSQLTimestamp(time.Now()), id, userID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to toggle alerts: %w", err)
@@ -1122,11 +1146,14 @@ func (r *mutationResolver) AdminUpdateSetting(ctx context.Context, key string, v
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
+	// updated_at is bound as canonical UTC text rather than left to SQL's
+	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+	// MySQL and SQL Server than the UTC text this column holds elsewhere.
 	result, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 		UPDATE server_config
-		SET value = ?, updated_at = CURRENT_TIMESTAMP
+		SET value = ?, updated_at = ?
 		WHERE key = ?
-	`, value, key)
+	`, value, dbtime.FormatSQLTimestamp(time.Now()), key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update setting: %w", err)
 	}
@@ -1153,11 +1180,12 @@ func (r *mutationResolver) AdminUpdateSettings(ctx context.Context, settings []*
 	failedCount := 0
 
 	for _, setting := range settings {
+		// updated_at is bound as canonical UTC text; see AdminUpdateSetting.
 		result, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 			UPDATE server_config
-			SET value = ?, updated_at = CURRENT_TIMESTAMP
+			SET value = ?, updated_at = ?
 			WHERE key = ?
-		`, setting.Value, setting.Key)
+		`, setting.Value, dbtime.FormatSQLTimestamp(time.Now()), setting.Key)
 		if err != nil {
 			failedCount++
 			continue
@@ -1360,11 +1388,13 @@ func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg strin
 			return nil, fmt.Errorf("failed to marshal channel config: %w", err)
 		}
 
+		// updated_at is bound as canonical UTC text rather than produced by
+		// SQLite's datetime('now'), which does not exist on PostgreSQL or MySQL.
 		_, err = database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
 			UPDATE server_notification_channels
-			SET config = ?, updated_at = datetime('now')
+			SET config = ?, updated_at = ?
 			WHERE channel_type = ?
-		`, string(configJSON), typeArg)
+		`, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), typeArg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update channel config: %w", err)
 		}
@@ -1638,10 +1668,15 @@ func (r *mutationResolver) SubmitContactForm(ctx context.Context, name string, e
 	requestIP, _ := ctx.Value(ctxKeyRequestIP).(string)
 	userAgent, _ := ctx.Value(ctxKeyRequestUserAgent).(string)
 
+	// created_at is bound explicitly rather than left to the column's
+	// DEFAULT CURRENT_TIMESTAMP: that default is a third implicit producer of the
+	// column that no application-side discipline reaches, and on PostgreSQL and
+	// MySQL it renders in the server's own zone and type instead of the canonical
+	// UTC text every reader in this project parses.
 	_, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
-		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, name, email, subject, message, strings.TrimSpace(requestIP), strings.TrimSpace(userAgent))
+		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, name, email, subject, message, strings.TrimSpace(requestIP), strings.TrimSpace(userAgent), dbtime.FormatSQLTimestamp(time.Now()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit contact form: %w", err)
 	}
@@ -2368,45 +2403,84 @@ func (r *queryResolver) UserTokens(ctx context.Context) ([]*UserToken, error) {
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
+	// Newest-first ordering is applied in Go, not by an SQL "ORDER BY created_at DESC".
+	// user_tokens.created_at holds two text encodings - the canonical UTC form every current writer binds, and the
+	// driver's local-zone time.Time.String() form left by earlier builds - and SQL compares those as text, by wall
+	// clock and leading character, so a legacy row interleaves wrongly with a current one. The scan stays bounded:
+	// it is filtered to a single user by idx_tokens_user, so resolving each value to a real instant is cheap.
+	// "ORDER BY id DESC" below is only a tie-break between tokens created in the same second.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect, `
 		SELECT id, name, token_prefix, scopes, created_at, expires_at, last_used_at
 		FROM user_tokens
 		WHERE user_id = ?
-		ORDER BY created_at DESC
+		ORDER BY id DESC
 	`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load user tokens: %w", err)
 	}
 	defer rows.Close()
 
-	var tokens []*UserToken
+	// Each token is carried alongside the instant its created_at resolves to, so the sort below never has to
+	// re-parse the stored text.
+	type userTokenRow struct {
+		token     *UserToken
+		createdAt time.Time
+	}
+
+	var collected []userTokenRow
 	for rows.Next() {
 		var id int64
 		var name sql.NullString
 		var tokenPrefix string
 		var scopes sql.NullString
-		var createdAt time.Time
-		var expiresAt sql.NullTime
-		var lastUsedAt sql.NullTime
+		var storedCreatedAt interface{}
+		var storedExpiresAt interface{}
+		var storedLastUsedAt interface{}
 
-		if err := rows.Scan(&id, &name, &tokenPrefix, &scopes, &createdAt, &expiresAt, &lastUsedAt); err != nil {
+		if err := rows.Scan(&id, &name, &tokenPrefix, &scopes, &storedCreatedAt, &storedExpiresAt, &storedLastUsedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan user token: %w", err)
 		}
 
-		tokens = append(tokens, buildGraphQLUserToken(
-			id,
-			name.String,
-			tokenPrefix,
-			scopes.String,
-			createdAt,
-			expiresAt,
-			lastUsedAt,
-			nil,
-		))
+		// A created_at that is NULL or in a layout the project never writes keeps the zero value, so the token
+		// sorts last and can never be reported as the newest, but is still listed - the token really exists.
+		createdAt, _ := dbtime.ParseStoredTimestamp(storedCreatedAt)
+
+		var expiresAt sql.NullTime
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+			expiresAt = sql.NullTime{Time: parsed, Valid: true}
+		}
+
+		var lastUsedAt sql.NullTime
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedLastUsedAt); ok {
+			lastUsedAt = sql.NullTime{Time: parsed, Valid: true}
+		}
+
+		collected = append(collected, userTokenRow{
+			token: buildGraphQLUserToken(
+				id,
+				name.String,
+				tokenPrefix,
+				scopes.String,
+				createdAt,
+				expiresAt,
+				lastUsedAt,
+				nil,
+			),
+			createdAt: createdAt,
+		})
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate user tokens: %w", err)
+	}
+
+	sort.SliceStable(collected, func(i, j int) bool {
+		return collected[i].createdAt.After(collected[j].createdAt)
+	})
+
+	var tokens []*UserToken
+	for _, row := range collected {
+		tokens = append(tokens, row.token)
 	}
 
 	return tokens, nil
@@ -2419,8 +2493,14 @@ func (r *queryResolver) SavedLocations(ctx context.Context) ([]*models.SavedLoca
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
+	// Newest-first ordering is applied in Go, not by an SQL "ORDER BY created_at DESC".
+	// user_saved_locations.created_at can hold canonical UTC text or the driver's local-zone time.Time.String()
+	// form written by earlier builds, and SQL compares those two encodings as text - by wall clock and leading
+	// character - so the two interleave by the wrong key. Scanning the raw value and resolving it to an absolute
+	// instant makes mixed on-disk data sort exactly like uniform data. The scan is bounded to one user by
+	// idx_locations_user, so the Go sort is cheap; "ORDER BY id DESC" is only a tie-break within one second.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
-		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE user_id = ? ORDER BY created_at DESC",
+		"SELECT id, user_id, name, latitude, longitude, alerts_enabled, created_at, updated_at FROM user_saved_locations WHERE user_id = ? ORDER BY id DESC",
 		userID,
 	)
 	if err != nil {
@@ -2431,11 +2511,25 @@ func (r *queryResolver) SavedLocations(ctx context.Context) ([]*models.SavedLoca
 	var locations []*models.SavedLocation
 	for rows.Next() {
 		var loc models.SavedLocation
-		if err := rows.Scan(&loc.ID, &loc.UserID, &loc.Name, &loc.Latitude, &loc.Longitude, &loc.AlertsEnabled, &loc.CreatedAt, &loc.UpdatedAt); err != nil {
+		var storedCreatedAt interface{}
+		var storedUpdatedAt interface{}
+		if err := rows.Scan(&loc.ID, &loc.UserID, &loc.Name, &loc.Latitude, &loc.Longitude, &loc.AlertsEnabled, &storedCreatedAt, &storedUpdatedAt); err != nil {
 			continue
+		}
+		// A NULL or unrecognised timestamp keeps the zero value, so the row sorts last and can never be
+		// reported as the newest saved location - but it is still listed, because the location does exist.
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedCreatedAt); ok {
+			loc.CreatedAt = parsed
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedUpdatedAt); ok {
+			loc.UpdatedAt = parsed
 		}
 		locations = append(locations, &loc)
 	}
+
+	sort.SliceStable(locations, func(i, j int) bool {
+		return locations[i].CreatedAt.After(locations[j].CreatedAt)
+	})
 
 	return locations, nil
 }
@@ -2459,6 +2553,10 @@ func (r *queryResolver) SavedLocation(ctx context.Context, id string) (*models.S
 	return &loc, nil
 }
 
+// graphQLNotificationListLimit is the number of most recent notifications the notifications query returns. It used
+// to be an SQL "LIMIT 50"; it is applied in Go now so the cut is made against the true instant ordering.
+const graphQLNotificationListLimit = 50
+
 // Notifications is the resolver for the notifications field.
 func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notification, error) {
 	userID := getUserIDFromContext(ctx)
@@ -2466,8 +2564,16 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 		return nil, fmt.Errorf("unauthorized: user not authenticated")
 	}
 
+	// Both the newest-first ordering and the 50-row cap moved out of SQL into Go, and the cap is the reason this
+	// site was the sharpest of the group. user_notifications.created_at holds two text encodings - the canonical
+	// UTC form current writers bind, and the driver's local-zone time.Time.String() form left by earlier builds -
+	// which SQL compares by wall clock and leading character rather than by instant. A LIMIT stacked on that wrong
+	// ordering does not merely reorder the page, it discards rows off the wrong end, so a genuinely recent
+	// notification could vanish from the list entirely while an older one was kept. Resolving every candidate to a
+	// real instant first, then cutting to 50, returns the same 50 rows uniform data would. The scan stays bounded
+	// to one user by idx_notif_user; "ORDER BY id DESC" only breaks ties within one second.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
-		"SELECT id, user_id, type, display, title, message, read, dismissed, created_at, expires_at FROM user_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+		"SELECT id, user_id, type, display, title, message, read, dismissed, created_at, expires_at FROM user_notifications WHERE user_id = ? ORDER BY id DESC",
 		userID,
 	)
 	if err != nil {
@@ -2479,6 +2585,8 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 	for rows.Next() {
 		var notif models.Notification
 		var notificationUserID int
+		var storedCreatedAt interface{}
+		var storedExpiresAt interface{}
 		if err := rows.Scan(
 			&notif.ID,
 			&notificationUserID,
@@ -2488,13 +2596,30 @@ func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notificati
 			&notif.Message,
 			&notif.Read,
 			&notif.Dismissed,
-			&notif.CreatedAt,
-			&notif.ExpiresAt,
+			&storedCreatedAt,
+			&storedExpiresAt,
 		); err != nil {
 			continue
 		}
+		// A NULL or unrecognised created_at keeps the zero value: the notification sorts last, so it can never
+		// be reported as the newest nor push a genuinely recent one out of the 50, but it is still listed.
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedCreatedAt); ok {
+			notif.CreatedAt = parsed
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+			expiresAt := parsed
+			notif.ExpiresAt = &expiresAt
+		}
 		notif.UserID = &notificationUserID
 		notifications = append(notifications, &notif)
+	}
+
+	sort.SliceStable(notifications, func(i, j int) bool {
+		return notifications[i].CreatedAt.After(notifications[j].CreatedAt)
+	})
+
+	if len(notifications) > graphQLNotificationListLimit {
+		notifications = notifications[:graphQLNotificationListLimit]
 	}
 
 	return notifications, nil
@@ -2526,8 +2651,13 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
+	// Newest-first ordering is applied in Go, not by an SQL "ORDER BY created_at DESC".
+	// user_accounts.created_at holds both the canonical UTC text current writers bind and the driver's local-zone
+	// time.Time.String() form left by earlier builds; SQL compares those as text, so a legacy account can be shown
+	// as newer or older than it is. This query has no LIMIT and already reads every account row, so resolving each
+	// value to an instant and sorting in Go adds no extra scan; "ORDER BY id DESC" is only a same-second tie-break.
 	rows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutComplexSelect,
-		"SELECT id, email, username, role, email_verified, two_factor_enabled, created_at, updated_at FROM user_accounts ORDER BY created_at DESC",
+		"SELECT id, email, username, role, email_verified, two_factor_enabled, created_at, updated_at FROM user_accounts ORDER BY id DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users: %w", err)
@@ -2537,12 +2667,26 @@ func (r *queryResolver) AdminUsers(ctx context.Context) ([]*models.User, error) 
 	var users []*models.User
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.EmailVerified, &user.TwoFactorEnabled, &user.CreatedAt, &user.UpdatedAt); err != nil {
+		var storedCreatedAt interface{}
+		var storedUpdatedAt interface{}
+		if err := rows.Scan(&user.ID, &user.Email, &user.Username, &user.Role, &user.EmailVerified, &user.TwoFactorEnabled, &storedCreatedAt, &storedUpdatedAt); err != nil {
 			continue
+		}
+		// A NULL or unrecognised created_at keeps the zero value, so the account sorts last rather than being
+		// mistaken for the newest signup, but it is still listed - the account exists and admins must see it.
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedCreatedAt); ok {
+			user.CreatedAt = parsed
+		}
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedUpdatedAt); ok {
+			user.UpdatedAt = parsed
 		}
 		user.Email = utils.MaskEmail(user.Email)
 		users = append(users, &user)
 	}
+
+	sort.SliceStable(users, func(i, j int) bool {
+		return users[i].CreatedAt.After(users[j].CreatedAt)
+	})
 
 	return users, nil
 }
@@ -2721,6 +2865,13 @@ func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, er
 	}, nil
 }
 
+// graphQLAuditLogCandidateOverscan is how many rows past the requested page AdminAuditLogs pulls before ordering by
+// true instant in Go. It is the id-ordered counterpart of graphQLAuditLogSkewWindow: the prefilter takes the
+// highest-id rows, and this margin absorbs entries whose real timestamp sits out of step with their insertion order
+// (a backdated entry, or a legacy local-zone row) so the true newest page cannot be missed. server_audit_log is
+// unbounded, so the scan must stay capped - reading the whole table to serve one page would be worse than the bug.
+const graphQLAuditLogCandidateOverscan = 500
+
 // AdminAuditLogs is the resolver for the adminAuditLogs field.
 func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *int) ([]*AuditLog, error) {
 	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
@@ -2737,9 +2888,30 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 		offsetVal = *offset
 	}
 
+	if offsetVal < 0 {
+		offsetVal = 0
+	}
+	// SQL "LIMIT 0" (and any negative limit, which SQLite reads as unbounded but the other drivers reject)
+	// returned no rows; keep that contract now that the page is cut in Go.
+	if limitVal <= 0 {
+		return []*AuditLog{}, nil
+	}
+
+	// Newest-first ordering and the limit/offset page are applied in Go, not by "ORDER BY timestamp DESC LIMIT ?
+	// OFFSET ?". server_audit_log.timestamp holds both the canonical UTC text current writers bind and the
+	// driver's local-zone time.Time.String() form left by earlier builds, and SQL orders those two encodings as
+	// text - by wall clock and leading character - so the page boundary fell in the wrong place and legacy entries
+	// were served on the wrong page or dropped off the end entirely.
+	//
+	// SQL still bounds the scan, because this table is unbounded and reading all of it to serve one page would be
+	// worse than the bug. The prefilter takes the highest-id candidates, which is safe: id is AUTOINCREMENT, so
+	// insertion order tracks the real instant, and the overscan margin below absorbs any entry recorded slightly
+	// out of order. Only the SCAN is widened - the exact ordering and the exact page are computed in Go, so the
+	// rows returned are the ones the original query intended.
+	candidateLimit := offsetVal + limitVal + graphQLAuditLogCandidateOverscan
 	rows, err := database.QueryContext(ctx, r.ServerDB, database.TimeoutComplexSelect,
-		"SELECT id, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, timestamp FROM server_audit_log ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-		limitVal, offsetVal,
+		"SELECT id, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, timestamp FROM server_audit_log ORDER BY id DESC LIMIT ?",
+		candidateLimit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get audit logs: %w", err)
@@ -2756,8 +2928,15 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 		var details sql.NullString
 		var ip sql.NullString
 		var userAgent sql.NullString
-		if err := rows.Scan(&log.ID, &actorType, &actorID, &log.Action, &resourceType, &resourceID, &details, &ip, &userAgent, &log.CreatedAt); err != nil {
+		var storedTimestamp interface{}
+		if err := rows.Scan(&log.ID, &actorType, &actorID, &log.Action, &resourceType, &resourceID, &details, &ip, &userAgent, &storedTimestamp); err != nil {
 			continue
+		}
+		// A NULL or unrecognised timestamp keeps the zero value, so the entry sorts to the very end of the last
+		// page and can never be reported as the most recent action, but it is still listed - suppressing an
+		// audit entry because its timestamp is unreadable would misreport the security record.
+		if parsed, ok := dbtime.ParseStoredTimestamp(storedTimestamp); ok {
+			log.CreatedAt = parsed
 		}
 		if actorType.Valid && actorType.String == "user" && actorID.Valid {
 			if parsedUserID, err := strconv.Atoi(actorID.String); err == nil {
@@ -2781,6 +2960,18 @@ func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *
 			log.UserAgent = &userAgent.String
 		}
 		logs = append(logs, &log)
+	}
+
+	sort.SliceStable(logs, func(i, j int) bool {
+		return logs[i].CreatedAt.After(logs[j].CreatedAt)
+	})
+
+	if offsetVal >= len(logs) {
+		return []*AuditLog{}, nil
+	}
+	logs = logs[offsetVal:]
+	if len(logs) > limitVal {
+		logs = logs[:limitVal]
 	}
 
 	return logs, nil
@@ -2808,9 +2999,36 @@ func (r *queryResolver) AdminStats(ctx context.Context) (*SystemStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to count admin users: %w", err)
 	}
-	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_accounts WHERE last_login_at > datetime('now', '-30 days')").Scan(&activeUsers); err != nil {
+	// The 30-day cutoff is applied in Go rather than with SQLite's
+	// datetime('now', '-30 days'): last_login_at can hold either the canonical
+	// UTC text CURRENT_TIMESTAMP emits or the driver's local-zone
+	// time.Time.String() layout, and datetime() returns NULL for the latter, so
+	// recently active accounts silently dropped out of the count. Comparing in
+	// Go also works on PostgreSQL and MySQL, which have no datetime('now', ...).
+	activeCutoff := time.Now().UTC().AddDate(0, 0, -30)
+	activeRows, err := database.QueryContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, `
+		SELECT last_login_at
+		FROM user_accounts
+		WHERE last_login_at IS NOT NULL
+	`)
+	if err != nil {
 		return nil, fmt.Errorf("failed to count active users: %w", err)
 	}
+	for activeRows.Next() {
+		var storedLastLogin interface{}
+		if scanErr := activeRows.Scan(&storedLastLogin); scanErr != nil {
+			activeRows.Close()
+			return nil, fmt.Errorf("failed to count active users: %w", scanErr)
+		}
+		if lastLogin, ok := dbtime.ParseStoredTimestamp(storedLastLogin); ok && lastLogin.After(activeCutoff) {
+			activeUsers++
+		}
+	}
+	if rowsErr := activeRows.Err(); rowsErr != nil {
+		activeRows.Close()
+		return nil, fmt.Errorf("failed to count active users: %w", rowsErr)
+	}
+	activeRows.Close()
 	if err := database.QueryRowContext(ctx, r.UsersDB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations); err != nil {
 		return nil, fmt.Errorf("failed to count saved locations: %w", err)
 	}

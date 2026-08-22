@@ -13,10 +13,14 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// setupOIDCTestDB creates an in-memory server_config table and wires it up
-// as the global server DB, since SettingsModel.Get() (used transitively by
-// Enabled/GetProviderConfigs) always queries database.GetServerDB() rather
-// than its own m.DB field (see final report: bug in settings.go Get()).
+// setupOIDCTestDB opens an in-memory database with the real
+// database.ServerSchema applied and wires it up as the global server DB,
+// since SettingsModel.Get() (used transitively by Enabled/GetProviderConfigs)
+// always queries database.GetServerDB() rather than its own m.DB field.
+// Executing the production schema constant rather than a hand-rolled
+// CREATE TABLE is what keeps these tests honest: a test-local table can drift
+// away from the table the server actually creates at startup, which is exactly
+// how a handler ends up querying a table that does not exist in production.
 func setupOIDCTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", "file:"+t.Name()+"?mode=memory&cache=shared")
@@ -26,15 +30,8 @@ func setupOIDCTestDB(t *testing.T) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 	db.SetMaxOpenConns(1)
 
-	if _, err := db.Exec(`CREATE TABLE server_config (
-		key TEXT PRIMARY KEY,
-		value TEXT,
-		type TEXT DEFAULT 'string',
-		description TEXT,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_by TEXT
-	)`); err != nil {
-		t.Fatalf("failed to create server_config: %v", err)
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("failed to apply ServerSchema: %v", err)
 	}
 
 	database.SetGlobalDualDB(&database.DualDB{Server: db})

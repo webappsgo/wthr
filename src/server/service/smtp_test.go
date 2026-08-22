@@ -30,10 +30,11 @@ func setupSMTPServerDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// wireSMTPGlobalDB wires database.SetGlobalDualDB so SMTPService methods
-// that reach into database.GetServerDB() directly (getSetting, saveSetting,
-// EnableChannel, LoadConfig) do not nil-pointer-panic, and restores the
-// previous (nil) global state afterward so tests never leak state.
+// wireSMTPGlobalDB wires database.SetGlobalDualDB so any code path that still
+// falls back to database.GetServerDB() (an SMTPService constructed with a nil
+// handle, or other services sharing this package) does not nil-pointer-panic,
+// and restores the previous (nil) global state afterward so tests never leak
+// state.
 func wireSMTPGlobalDB(t *testing.T, serverDB *sql.DB) {
 	t.Helper()
 	database.SetGlobalDualDB(&database.DualDB{Server: serverDB})
@@ -647,4 +648,69 @@ func TestSMTP_getSetting_saveSetting_RoundTrip(t *testing.T) {
 			t.Errorf("row count = %d, want 1 (saveSetting must upsert)", count)
 		}
 	})
+}
+
+// TestSMTPService_UsesInjectedServerDB proves the *sql.DB passed to
+// NewSMTPService is the database actually read and written, not the
+// process-global one. The global is deliberately wired to a DIFFERENT server
+// database holding a contradicting smtp.host: if the injected handle were
+// ignored again, LoadConfig would return the decoy's host and EnableChannel
+// would write the decoy's server_notification_channels.
+func TestSMTPService_UsesInjectedServerDB(t *testing.T) {
+	injected := setupSMTPServerDB(t)
+	decoy := openDecoyServerDB(t)
+	wireSMTPGlobalDB(t, decoy)
+
+	if _, err := injected.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'injected.example')`); err != nil {
+		t.Fatalf("seed injected server_config: %v", err)
+	}
+	if _, err := decoy.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'decoy.example')`); err != nil {
+		t.Fatalf("seed decoy server_config: %v", err)
+	}
+
+	svc := NewSMTPService(injected)
+	if err := svc.LoadConfig(); err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if got := svc.GetConfig().Host; got != "injected.example" {
+		t.Errorf("expected host from the injected database, got %q (decoy.example means the global was read)", got)
+	}
+
+	if err := svc.EnableChannel(); err != nil {
+		t.Fatalf("EnableChannel: %v", err)
+	}
+
+	var injectedRows, decoyRows int
+	if err := injected.QueryRow(`SELECT COUNT(*) FROM server_notification_channels`).Scan(&injectedRows); err != nil {
+		t.Fatalf("count injected server_notification_channels: %v", err)
+	}
+	if err := decoy.QueryRow(`SELECT COUNT(*) FROM server_notification_channels`).Scan(&decoyRows); err != nil {
+		t.Fatalf("count decoy server_notification_channels: %v", err)
+	}
+	if injectedRows != 1 {
+		t.Errorf("expected 1 row in the injected server_notification_channels, got %d", injectedRows)
+	}
+	if decoyRows != 0 {
+		t.Errorf("expected 0 rows in the global (decoy) server_notification_channels, got %d", decoyRows)
+	}
+}
+
+// TestSMTPService_NilInjectedDBFallsBackToGlobal documents the nil-handle
+// fallback so callers constructing the service before the dual DB is wired
+// keep the previous behavior instead of panicking.
+func TestSMTPService_NilInjectedDBFallsBackToGlobal(t *testing.T) {
+	serverDB := setupSMTPServerDB(t)
+	wireSMTPGlobalDB(t, serverDB)
+
+	if _, err := serverDB.Exec(`INSERT INTO server_config (key, value) VALUES ('smtp.host', 'global.example')`); err != nil {
+		t.Fatalf("seed server_config: %v", err)
+	}
+
+	svc := NewSMTPService(nil)
+	if err := svc.LoadConfig(); err != nil {
+		t.Fatalf("LoadConfig with nil injected handle: %v", err)
+	}
+	if got := svc.GetConfig().Host; got != "global.example" {
+		t.Errorf("expected the nil handle to fall back to the global server db, got %q", got)
+	}
 }

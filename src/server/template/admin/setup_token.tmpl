@@ -1,5 +1,7 @@
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{$lang}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,12 +16,12 @@
         <div class="login-card">
             <div class="login-header">
                 <h1 class="login-title">{{ .branding.Title }}</h1>
-                <p class="login-subtitle">Server Setup</p>
+                <p class="login-subtitle">{{t $lang "admin.setup_token.subtitle"}}</p>
             </div>
 
             <div class="login-info">
-                <p>Welcome! This server requires initial setup.</p>
-                <p>Enter the setup token displayed in the server console.</p>
+                <p>{{t $lang "admin.setup_token.welcome_message"}}</p>
+                <p>{{t $lang "admin.setup_token.instructions"}}</p>
             </div>
 
             {{ if .error }}
@@ -29,7 +31,7 @@
             <form method="POST" action="{{.admin_path}}/verify-token" autocomplete="off">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="setup_token" class="form-label">Setup Token</label>
+                    <label for="setup_token" class="form-label">{{t $lang "admin.setup_token.label"}}</label>
                     <input type="text"
                            id="setup_token"
                            name="setup_token"
@@ -37,19 +39,19 @@
                            required
                            autofocus
                            autocomplete="off"
-                           placeholder="Enter 32-character setup token"
-                           aria-label="Setup token"
+                           placeholder="{{t $lang "admin.setup_token.placeholder"}}"
+                           aria-label="{{t $lang "admin.setup_token.aria_label"}}"
                            aria-required="true"
                            pattern="[a-fA-F0-9]{32}"
-                           title="32-character hexadecimal token">
+                           title="{{t $lang "admin.setup_token.field_title"}}">
                 </div>
 
-                <button type="submit" class="btn-login">Verify Token</button>
+                <button type="submit" class="btn-login">{{t $lang "admin.setup_token.verify_action"}}</button>
             </form>
 
             <div class="login-help">
-                <p>The setup token was shown once when the server first started.</p>
-                <p>If you don't have the token, check the server console output.</p>
+                <p>{{t $lang "admin.setup_token.help_shown_once"}}</p>
+                <p>{{t $lang "admin.setup_token.help_check_console"}}</p>
             </div>
         </div>
 

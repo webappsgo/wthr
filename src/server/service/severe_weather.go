@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/webappsgo/wthr/src/common/display"
 )
 
 // SevereWeatherService handles all types of severe weather tracking
@@ -146,15 +148,15 @@ func (s *SevereWeatherService) GetSevereWeatherWithDistance(latitude, longitude,
 
 	// Filter by location if coordinates provided
 	if latitude != 0 && longitude != 0 && maxMiles > 0 {
-		fmt.Printf("📍 Filtering severe weather for location: %.4f, %.4f within %.0f miles\n", latitude, longitude, maxMiles)
+		fmt.Printf("%s Filtering severe weather for location: %.4f, %.4f within %.0f miles\n", display.Emoji("📍", "*"), latitude, longitude, maxMiles)
 		// Use maxMiles for both storms and alerts (user-configurable)
 		// 10x distance for storms (they're bigger/more relevant)
 		hurricanes = s.filterStormsByDistance(hurricanes, latitude, longitude, maxMiles*10)
 		alerts = s.filterAlertsByDistance(alerts, latitude, longitude, maxMiles)
 	} else if maxMiles == 0 {
-		fmt.Printf("📡 Showing ALL alerts nationwide (distance filter: 0)\n")
+		fmt.Printf("%s Showing ALL alerts nationwide (distance filter: 0)\n", display.Emoji("📡", "*"))
 	} else {
-		fmt.Printf("⚠️ No location provided (lat: %.4f, lon: %.4f) - showing ALL alerts nationwide\n", latitude, longitude)
+		fmt.Printf("%s No location provided (lat: %.4f, lon: %.4f) - showing ALL alerts nationwide\n", display.Emoji("⚠️", "WARNING:"), latitude, longitude)
 	}
 
 	// Categorize alerts
@@ -736,7 +738,7 @@ func (s *SevereWeatherService) fetchEnvironmentCanadaAlerts() ([]Alert, error) {
 		}
 	}
 
-	fmt.Printf("✅ Environment Canada: Fetched %d alerts\n", len(allAlerts))
+	fmt.Printf("%s Environment Canada: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(allAlerts))
 	return allAlerts, nil
 }
 
@@ -762,7 +764,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("⚠️  UK Met Office: Request error: %v\n", err)
+		fmt.Printf("%s UK Met Office: Request error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -770,13 +772,13 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("⚠️  UK Met Office: Connection error: %v\n", err)
+		fmt.Printf("%s UK Met Office: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("⚠️  UK Met Office: HTTP %d\n", resp.StatusCode)
+		fmt.Printf("%s UK Met Office: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
 		return []Alert{}, nil
 	}
 
@@ -795,7 +797,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 	}
 
 	if err := xml.NewDecoder(resp.Body).Decode(&rss); err != nil {
-		fmt.Printf("⚠️  UK Met Office: Parse error: %v\n", err)
+		fmt.Printf("%s UK Met Office: Parse error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -853,7 +855,7 @@ func (s *SevereWeatherService) fetchMetOfficeAlerts() ([]Alert, error) {
 		alerts = append(alerts, alert)
 	}
 
-	fmt.Printf("✅ UK Met Office: Fetched %d alerts\n", len(alerts))
+	fmt.Printf("%s UK Met Office: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(alerts))
 	return alerts, nil
 }
 
@@ -880,7 +882,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("⚠️  Australia BOM: Request error: %v\n", err)
+		fmt.Printf("%s Australia BOM: Request error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -888,13 +890,13 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("⚠️  Australia BOM: Connection error: %v\n", err)
+		fmt.Printf("%s Australia BOM: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("⚠️  Australia BOM: HTTP %d\n", resp.StatusCode)
+		fmt.Printf("%s Australia BOM: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
 		return []Alert{}, nil
 	}
 
@@ -914,7 +916,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 	}
 
 	if err := xml.NewDecoder(resp.Body).Decode(&capFeed); err != nil {
-		fmt.Printf("⚠️  Australia BOM: Parse error: %v\n", err)
+		fmt.Printf("%s Australia BOM: Parse error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -981,7 +983,7 @@ func (s *SevereWeatherService) fetchAustraliaAlerts() ([]Alert, error) {
 		alerts = append(alerts, alert)
 	}
 
-	fmt.Printf("✅ Australia BOM: Fetched %d alerts\n", len(alerts))
+	fmt.Printf("%s Australia BOM: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(alerts))
 	return alerts, nil
 }
 
@@ -1021,7 +1023,7 @@ func (s *SevereWeatherService) fetchJapanAlerts() ([]Alert, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("⚠️  Japan JMA: Request error: %v\n", err)
+		fmt.Printf("%s Japan JMA: Request error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -1029,20 +1031,20 @@ func (s *SevereWeatherService) fetchJapanAlerts() ([]Alert, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("⚠️  Japan JMA: Connection error: %v\n", err)
+		fmt.Printf("%s Japan JMA: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("⚠️  Japan JMA: HTTP %d\n", resp.StatusCode)
+		fmt.Printf("%s Japan JMA: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
 		return []Alert{}, nil
 	}
 
 	// JMA warning data structure (simplified)
 	var jmaData map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&jmaData); err != nil {
-		fmt.Printf("⚠️  Japan JMA: Parse error: %v\n", err)
+		fmt.Printf("%s Japan JMA: Parse error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -1109,7 +1111,7 @@ func (s *SevereWeatherService) fetchJapanAlerts() ([]Alert, error) {
 		}
 	}
 
-	fmt.Printf("✅ Japan JMA: Fetched %d alerts\n", len(alerts))
+	fmt.Printf("%s Japan JMA: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(alerts))
 	return alerts, nil
 }
 
@@ -1178,7 +1180,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Printf("⚠️  Mexico CONAGUA: Request error: %v\n", err)
+		fmt.Printf("%s Mexico CONAGUA: Request error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -1186,13 +1188,13 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("⚠️  Mexico CONAGUA: Connection error: %v\n", err)
+		fmt.Printf("%s Mexico CONAGUA: Connection error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("⚠️  Mexico CONAGUA: HTTP %d\n", resp.StatusCode)
+		fmt.Printf("%s Mexico CONAGUA: HTTP %d\n", display.Emoji("⚠️", "WARNING:"), resp.StatusCode)
 		return []Alert{}, nil
 	}
 
@@ -1221,7 +1223,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 	}
 
 	if err := xml.NewDecoder(resp.Body).Decode(&alertFeed); err != nil {
-		fmt.Printf("⚠️  Mexico CONAGUA: Parse error: %v\n", err)
+		fmt.Printf("%s Mexico CONAGUA: Parse error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		return []Alert{}, nil
 	}
 
@@ -1276,7 +1278,7 @@ func (s *SevereWeatherService) fetchMexicoAlerts() ([]Alert, error) {
 		alerts = append(alerts, alert)
 	}
 
-	fmt.Printf("✅ Mexico CONAGUA: Fetched %d alerts\n", len(alerts))
+	fmt.Printf("%s Mexico CONAGUA: Fetched %d alerts\n", display.Emoji("✅", "[OK]"), len(alerts))
 	return alerts, nil
 }
 

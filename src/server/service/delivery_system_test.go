@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"strconv"
 	"testing"
 	"time"
 
@@ -11,8 +12,10 @@ import (
 )
 
 // setupDeliverySystemTestDB creates in-memory server and users SQLite
-// databases with the ad hoc tables delivery_system.go queries directly
-// through database.GetServerDB()/GetUsersDB().
+// databases with the real production ServerSchema/UsersSchema applied, so the
+// tables delivery_system.go queries — server.db tables through the injected
+// handle, users.db tables through database.GetUsersDB() — have exactly the
+// production shape.
 func setupDeliverySystemTestDB(t *testing.T) (serverDB, usersDB *sql.DB) {
 	t.Helper()
 	name := t.Name()
@@ -34,83 +37,29 @@ func setupDeliverySystemTestDB(t *testing.T) (serverDB, usersDB *sql.DB) {
 	// dispatching goroutines that immediately issue further queries against
 	// the same DB, and a single-connection pool serializes/blocks that.
 
-	serverStmts := []string{
-		`CREATE TABLE notification_queue (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER,
-			channel_type TEXT,
-			template_id INTEGER,
-			priority INTEGER,
-			state TEXT,
-			subject TEXT,
-			body TEXT,
-			variables TEXT,
-			retry_count INTEGER,
-			max_retries INTEGER,
-			next_retry_at DATETIME,
-			delivered_at DATETIME,
-			failed_at DATETIME,
-			error_message TEXT,
-			created_at DATETIME,
-			updated_at DATETIME
-		)`,
-		`CREATE TABLE server_notification_history (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			queue_id INTEGER,
-			user_id INTEGER,
-			channel_type TEXT,
-			status TEXT,
-			subject TEXT,
-			body TEXT,
-			sent_at DATETIME,
-			error_message TEXT,
-			metadata TEXT
-		)`,
-		`CREATE TABLE notification_channels (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			channel_type TEXT NOT NULL UNIQUE,
-			channel_name TEXT NOT NULL,
-			enabled BOOLEAN NOT NULL DEFAULT 0,
-			state TEXT NOT NULL DEFAULT 'disabled',
-			config TEXT,
-			last_test_at DATETIME,
-			last_test_result TEXT,
-			last_success_at DATETIME,
-			last_error TEXT,
-			failure_count INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME,
-			updated_at DATETIME
-		)`,
-		`CREATE TABLE server_config (
-			key TEXT PRIMARY KEY,
-			value TEXT
-		)`,
+	if _, err := serverDB.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("apply ServerSchema: %v", err)
 	}
-	for _, stmt := range serverStmts {
-		if _, err := serverDB.Exec(stmt); err != nil {
-			t.Fatalf("failed to create server table: %v\n%s", err, stmt)
-		}
-	}
-
-	usersStmts := []string{
-		`CREATE TABLE user_notification_preferences (
-			user_id INTEGER,
-			channel_type TEXT,
-			enabled INTEGER,
-			config TEXT
-		)`,
-		`CREATE TABLE user_accounts (
-			id INTEGER PRIMARY KEY,
-			email TEXT
-		)`,
-	}
-	for _, stmt := range usersStmts {
-		if _, err := usersDB.Exec(stmt); err != nil {
-			t.Fatalf("failed to create users table: %v\n%s", err, stmt)
-		}
+	if _, err := usersDB.Exec(database.UsersSchema); err != nil {
+		t.Fatalf("apply UsersSchema: %v", err)
 	}
 
 	return serverDB, usersDB
+}
+
+// seedDeliveryUser inserts the owning user_accounts row for a user id. Every
+// users.db row this file seeds (user_notification_channel_preferences) carries
+// FOREIGN KEY (user_id) REFERENCES user_accounts(id), and username/email/
+// password_hash are NOT NULL in the real UsersSchema, so the parent row must
+// exist and be fully populated before any dependent insert.
+func seedDeliveryUser(t *testing.T, usersDB *sql.DB, id int, email string) {
+	t.Helper()
+	if _, err := usersDB.Exec(
+		`INSERT INTO user_accounts (id, username, email, password_hash) VALUES (?, ?, ?, 'x')`,
+		id, "user"+strconv.Itoa(id), email,
+	); err != nil {
+		t.Fatalf("seed user_accounts(%d): %v", id, err)
+	}
 }
 
 // deliveryFakeChannel is a controllable NotificationChannel test double,
@@ -299,7 +248,7 @@ func TestDeliverySystem_processNotification(t *testing.T) {
 		}
 
 		var historyCount int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM server_notification_history WHERE queue_id = ? AND status = 'delivered'`, id).Scan(&historyCount)
+		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'delivered'`, id).Scan(&historyCount)
 		if historyCount != 1 {
 			t.Errorf("expected 1 delivered history row, got %d", historyCount)
 		}
@@ -403,7 +352,7 @@ func TestDeliverySystem_ProcessQueue(t *testing.T) {
 
 	// nil userID is required here: getRecipient returns immediately inside
 	// its UserID.Valid branch for channel_type "email" (querying
-	// user_notification_preferences / user_accounts) and never falls
+	// user_notification_channel_preferences / user_accounts) and never falls
 	// through to the Variables["recipient"] fallback when UserID is set.
 	readyID, err := ds.Enqueue(nil, "email", "S", "B", 1, map[string]interface{}{"recipient": "a@b.com"})
 	if err != nil {
@@ -499,7 +448,7 @@ func TestDeliverySystem_handleFailure(t *testing.T) {
 		}
 
 		var historyCount int
-		serverDB.QueryRow(`SELECT COUNT(*) FROM server_notification_history WHERE queue_id = ? AND status = 'dead_letter'`, id).Scan(&historyCount)
+		serverDB.QueryRow(`SELECT COUNT(*) FROM notification_history WHERE queue_id = ? AND status = 'dead_letter'`, id).Scan(&historyCount)
 		if historyCount != 1 {
 			t.Errorf("expected 1 dead_letter history row, got %d", historyCount)
 		}
@@ -546,7 +495,8 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		if _, err := usersDB.Exec(`INSERT INTO user_notification_preferences (user_id, channel_type, enabled, config) VALUES (1, 'webhook', 1, '{"address":"https://hook.example.com"}')`); err != nil {
+		seedDeliveryUser(t, usersDB, 1, "user1@example.com")
+		if _, err := usersDB.Exec(`INSERT INTO user_notification_channel_preferences (user_id, channel_type, enabled, config) VALUES (1, 'webhook', 1, '{"address":"https://hook.example.com"}')`); err != nil {
 			t.Fatalf("seed failed: %v", err)
 		}
 
@@ -563,9 +513,7 @@ func TestDeliverySystem_getRecipient(t *testing.T) {
 		database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
-		if _, err := usersDB.Exec(`INSERT INTO user_accounts (id, email) VALUES (2, 'user2@example.com')`); err != nil {
-			t.Fatalf("seed failed: %v", err)
-		}
+		seedDeliveryUser(t, usersDB, 2, "user2@example.com")
 
 		ds := NewDeliverySystem(serverDB, nil, nil)
 		nq := &NotificationQueue{ChannelType: "email", UserID: sql.NullInt64{Int64: 2, Valid: true}}
@@ -612,14 +560,17 @@ func TestDeliverySystem_GetQueueStats(t *testing.T) {
 
 	ds := NewDeliverySystem(serverDB, nil, nil)
 
-	if _, err := serverDB.Exec(`INSERT INTO notification_queue (state, created_at, updated_at) VALUES
-		('created', ?, ?), ('queued', ?, ?), ('delivered', ?, ?), ('dead_letter', ?, ?), ('dead_letter', ?, ?)`,
+	// channel_type and body are NOT NULL in the real ServerSchema, so every
+	// notification_queue seed must supply them even when the assertion only
+	// cares about state.
+	if _, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, created_at, updated_at) VALUES
+		('email', 'B', 'created', ?, ?), ('email', 'B', 'queued', ?, ?), ('email', 'B', 'delivered', ?, ?), ('email', 'B', 'dead_letter', ?, ?), ('email', 'B', 'dead_letter', ?, ?)`,
 		time.Now(), time.Now(), time.Now(), time.Now(), time.Now(), time.Now(), time.Now(), time.Now(), time.Now(), time.Now()); err != nil {
 		t.Fatalf("seed failed: %v", err)
 	}
 
 	// A failed row whose next_retry_at is in the future should not count as pending.
-	if _, err := serverDB.Exec(`INSERT INTO notification_queue (state, next_retry_at, created_at, updated_at) VALUES ('failed', ?, ?, ?)`,
+	if _, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, next_retry_at, created_at, updated_at) VALUES ('email', 'B', 'failed', ?, ?, ?)`,
 		time.Now().Add(time.Hour), time.Now(), time.Now()); err != nil {
 		t.Fatalf("seed failed: %v", err)
 	}
@@ -669,8 +620,8 @@ func TestDeliverySystem_CleanupOld(t *testing.T) {
 
 		old := time.Now().AddDate(0, 0, -10)
 		recent := time.Now().AddDate(0, 0, -1)
-		if _, err := serverDB.Exec(`INSERT INTO notification_queue (state, delivered_at, created_at, updated_at) VALUES
-			('delivered', ?, ?, ?), ('delivered', ?, ?, ?), ('failed', ?, ?, ?)`,
+		if _, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, delivered_at, created_at, updated_at) VALUES
+			('email', 'B', 'delivered', ?, ?, ?), ('email', 'B', 'delivered', ?, ?, ?), ('email', 'B', 'failed', ?, ?, ?)`,
 			old, old, old, recent, recent, recent, old, old, old); err != nil {
 			t.Fatalf("seed failed: %v", err)
 		}
@@ -724,7 +675,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		ds := NewDeliverySystem(serverDB, nil, nil)
-		res, err := serverDB.Exec(`INSERT INTO notification_queue (state, retry_count, error_message, created_at, updated_at) VALUES ('dead_letter', 3, 'boom', ?, ?)`, time.Now(), time.Now())
+		res, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, retry_count, error_message, created_at, updated_at) VALUES ('email', 'B', 'dead_letter', 3, 'boom', ?, ?)`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("seed failed: %v", err)
 		}
@@ -751,7 +702,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 
 		var ids []int
 		for i := 0; i < 3; i++ {
-			res, err := serverDB.Exec(`INSERT INTO notification_queue (state, retry_count, created_at, updated_at) VALUES ('dead_letter', 3, ?, ?)`, time.Now(), time.Now())
+			res, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, retry_count, created_at, updated_at) VALUES ('email', 'B', 'dead_letter', 3, ?, ?)`, time.Now(), time.Now())
 			if err != nil {
 				t.Fatalf("seed failed: %v", err)
 			}
@@ -776,7 +727,7 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 		t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 
 		ds := NewDeliverySystem(serverDB, nil, nil)
-		res, err := serverDB.Exec(`INSERT INTO notification_queue (state, retry_count, created_at, updated_at) VALUES ('delivered', 1, ?, ?)`, time.Now(), time.Now())
+		res, err := serverDB.Exec(`INSERT INTO notification_queue (channel_type, body, state, retry_count, created_at, updated_at) VALUES ('email', 'B', 'delivered', 1, ?, ?)`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("seed failed: %v", err)
 		}
@@ -792,4 +743,91 @@ func TestDeliverySystem_RequeueDeadLetters(t *testing.T) {
 			t.Errorf("expected delivered row to be untouched, got state=%q", state)
 		}
 	})
+}
+
+// openDecoyServerDB opens a second, independent in-memory server database
+// with the real production ServerSchema applied. It is wired as the
+// process-global server handle so a test can prove a service reads its own
+// injected handle rather than the global one.
+func openDecoyServerDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", "file:"+t.Name()+"_decoy?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatalf("failed to open decoy server db: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := db.Exec(database.ServerSchema); err != nil {
+		t.Fatalf("apply ServerSchema to decoy: %v", err)
+	}
+	return db
+}
+
+// TestDeliverySystem_UsesInjectedServerDB proves the *sql.DB passed to
+// NewDeliverySystem is the database actually used for its server.db tables.
+// The process-global server handle is deliberately pointed at a DIFFERENT
+// database holding contradicting data: if the injected handle were ignored
+// again, LoadSettings would read the decoy's retry_max and Enqueue would
+// write the decoy's notification_queue, failing every assertion below.
+func TestDeliverySystem_UsesInjectedServerDB(t *testing.T) {
+	injected, usersDB := setupDeliverySystemTestDB(t)
+	decoy := openDecoyServerDB(t)
+
+	database.SetGlobalDualDB(&database.DualDB{Server: decoy, Users: usersDB})
+	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
+
+	if _, err := injected.Exec(`INSERT INTO server_config (key, value) VALUES ('notifications.retry_max', '7')`); err != nil {
+		t.Fatalf("seed injected server_config: %v", err)
+	}
+	if _, err := decoy.Exec(`INSERT INTO server_config (key, value) VALUES ('notifications.retry_max', '99')`); err != nil {
+		t.Fatalf("seed decoy server_config: %v", err)
+	}
+
+	ds := NewDeliverySystem(injected, nil, nil)
+
+	if err := ds.LoadSettings(); err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
+	if ds.maxRetries != 7 {
+		t.Errorf("expected maxRetries=7 from the injected database, got %d (99 means the global was read)", ds.maxRetries)
+	}
+
+	if _, err := ds.Enqueue(nil, "email", "Subject", "Body", 1, nil); err != nil {
+		t.Fatalf("Enqueue: %v", err)
+	}
+
+	var injectedRows, decoyRows int
+	if err := injected.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&injectedRows); err != nil {
+		t.Fatalf("count injected notification_queue: %v", err)
+	}
+	if err := decoy.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&decoyRows); err != nil {
+		t.Fatalf("count decoy notification_queue: %v", err)
+	}
+	if injectedRows != 1 {
+		t.Errorf("expected 1 row in the injected notification_queue, got %d", injectedRows)
+	}
+	if decoyRows != 0 {
+		t.Errorf("expected 0 rows in the global (decoy) notification_queue, got %d", decoyRows)
+	}
+}
+
+// TestDeliverySystem_NilInjectedDBFallsBackToGlobal documents the nil-handle
+// fallback: callers that still construct the service with nil keep working
+// against the process-global server database.
+func TestDeliverySystem_NilInjectedDBFallsBackToGlobal(t *testing.T) {
+	serverDB, usersDB := setupDeliverySystemTestDB(t)
+	database.SetGlobalDualDB(&database.DualDB{Server: serverDB, Users: usersDB})
+	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
+
+	ds := NewDeliverySystem(nil, nil, nil)
+	if _, err := ds.Enqueue(nil, "email", "Subject", "Body", 1, nil); err != nil {
+		t.Fatalf("Enqueue with nil injected handle: %v", err)
+	}
+
+	var count int
+	if err := serverDB.QueryRow(`SELECT COUNT(*) FROM notification_queue`).Scan(&count); err != nil {
+		t.Fatalf("count notification_queue: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected the nil handle to fall back to the global server db (1 row), got %d", count)
+	}
 }

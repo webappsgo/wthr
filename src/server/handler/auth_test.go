@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -530,5 +532,105 @@ func TestShowRegisterPage_NotFoundWhenRegistrationDisabled(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+}
+
+// handlerZoneWest and handlerZoneEast are fixed, deliberately non-local zones
+// used by the timestamp regression tests in this package. A timestamp written
+// in handlerZoneWest reads 11 hours behind UTC as wall-clock text, and one
+// written in handlerZoneEast reads 13 hours ahead, so text ordering
+// contradicts true instant ordering by a wider margin than any real host
+// offset. A test built on them fails on every host timezone if a text
+// comparison is ever reintroduced. Both names are short, all-uppercase and
+// digit-free so the "MST" element of handlerLocalLayout can read them back;
+// a name with digits or more than six letters would leave every fixture below
+// unparseable and quietly exercise the fail-closed path instead.
+var (
+	handlerZoneWest = time.FixedZone("WST", -11*60*60)
+	handlerZoneEast = time.FixedZone("EAT", 13*60*60)
+)
+
+// handlerLocalLayout is the layout modernc.org/sqlite produces when a bound
+// time.Time is serialized through time.Time.String(). Rows in this layout
+// coexist on disk with the canonical UTC text CURRENT_TIMESTAMP emits.
+const handlerLocalLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
+
+// TestShowLoginPage_AdminSessionExpiryComparedAsInstant is the regression test
+// for the admin-session validity check in ShowLoginPage. The old query filtered
+// with "AND datetime(expires_at) > datetime('now')", which returns NULL for any
+// row not stored in canonical UTC text: a live session written in a non-UTC
+// layout never matched (silently logged out), while an already-expired row
+// whose wall-clock text reads in the future would match under any text
+// comparison. Both zone-skewed cases below fail against that implementation.
+func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		name         string
+		sessionID    string
+		expiresAt    string
+		wantRedirect bool
+	}{
+		{
+			name:         "live session in canonical UTC text redirects",
+			sessionID:    "sess-live-utc",
+			expiresAt:    dbtime.FormatSQLTimestamp(now.Add(time.Hour)),
+			wantRedirect: true,
+		},
+		{
+			name:         "expired session in canonical UTC text does not redirect",
+			sessionID:    "sess-expired-utc",
+			expiresAt:    dbtime.FormatSQLTimestamp(now.Add(-time.Hour)),
+			wantRedirect: false,
+		},
+		{
+			name:         "live session whose zone-skewed text reads as past still redirects",
+			sessionID:    "sess-live-west",
+			expiresAt:    now.Add(time.Hour).In(handlerZoneWest).Format(handlerLocalLayout),
+			wantRedirect: true,
+		},
+		{
+			name:         "expired session whose zone-skewed text reads as future does not redirect",
+			sessionID:    "sess-expired-east",
+			expiresAt:    now.Add(-time.Hour).In(handlerZoneEast).Format(handlerLocalLayout),
+			wantRedirect: false,
+		},
+		{
+			name:         "unparseable expiry fails closed and does not redirect",
+			sessionID:    "sess-unparseable",
+			expiresAt:    "not-a-timestamp",
+			wantRedirect: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, serverDB, _ := newAuthTestHandler(t)
+			config.SetGlobalConfig(&config.AppConfig{})
+			t.Cleanup(func() { config.SetGlobalConfig(nil) })
+
+			adminID := seedAdmin(t, serverDB, "sessionadmin", "sessionadmin@example.com", "supersecret1")
+			if _, err := serverDB.Exec(`
+				INSERT INTO server_admin_sessions (id, admin_id, expires_at)
+				VALUES (?, ?, ?)
+			`, tc.sessionID, adminID, tc.expiresAt); err != nil {
+				t.Fatalf("seed admin session: %v", err)
+			}
+
+			c, w := newTestContext(http.MethodGet, "/server/auth/login")
+			// A JSON Accept header keeps the non-redirect branch out of the HTML
+			// renderer, which no test in this package has a template set for.
+			c.Request.Header.Set("Accept", "application/json")
+			c.Request.AddCookie(&http.Cookie{Name: "admin_session", Value: tc.sessionID})
+			h.ShowLoginPage(c)
+
+			redirected := w.Code == http.StatusFound
+			if redirected != tc.wantRedirect {
+				t.Fatalf("redirected = %v (status %d), want %v; body=%s", redirected, w.Code, tc.wantRedirect, w.Body.String())
+			}
+			if tc.wantRedirect && w.Header().Get("Location") == "" {
+				t.Errorf("expected a non-empty Location redirect header")
+			}
+		})
 	}
 }

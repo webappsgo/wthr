@@ -27,10 +27,10 @@ services:
       # Production: bound to Docker bridge only (reverse proxy handles external)
       - "172.17.0.1:64580:80"
     volumes:
-      # TEMP DIR WORKFLOW: ./rootfs/ resolves to $TEMP_DIR/rootfs/
+      # TEMP DIR WORKFLOW: ./volumes/ resolves to $TEMP_DIR/volumes/
       # NEVER run from project directory - always use temp dir workflow
-      - ./rootfs/config:/config:z
-      - ./rootfs/data:/data:z
+      - ./volumes/config:/config:z
+      - ./volumes/data:/data:z
     healthcheck:
       test: /usr/local/bin/wthr --status
       interval: 10s

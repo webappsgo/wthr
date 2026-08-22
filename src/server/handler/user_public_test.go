@@ -930,3 +930,62 @@ var (
 	_ = time.Now
 	_ = json.Marshal
 )
+
+// TestUserPublicHandler_LoadPublicProfileLegacyCreatedAt is the regression test
+// for the profile lookup. loadPublicProfile used to scan created_at directly
+// into a time.Time, so a row whose timestamp was written in the local-zone
+// time.Time.String() layout the SQLite driver produces for a bound time.Time -
+// a layout the driver's own scanner does not accept - failed the entire query
+// and turned a perfectly valid public profile into a 500. created_at is now
+// scanned untyped and parsed with dbtime, so a legacy or unparseable timestamp
+// costs at most the join date.
+func TestUserPublicHandler_LoadPublicProfileLegacyCreatedAt(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+
+	cases := []struct {
+		name      string
+		username  string
+		createdAt string
+		wantTime  time.Time
+	}{
+		{
+			name:      "legacy west-zone text still loads",
+			username:  "legacywest",
+			createdAt: now.In(handlerZoneWest).Format(handlerLocalLayout),
+			wantTime:  now.UTC(),
+		},
+		{
+			name:      "legacy east-zone text still loads",
+			username:  "legacyeast",
+			createdAt: now.In(handlerZoneEast).Format(handlerLocalLayout),
+			wantTime:  now.UTC(),
+		},
+		{
+			name:      "unparseable created_at loses only the join date",
+			username:  "legacybroken",
+			createdAt: "not-a-timestamp",
+			wantTime:  time.Time{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, usersDB := newUserPublicTestHandler(t)
+			u := seedPublicUser(t, usersDB, tc.username, tc.username+"@example.com", "password123")
+			if _, err := usersDB.Exec(`UPDATE user_accounts SET created_at = ? WHERE id = ?`, tc.createdAt, u.ID); err != nil {
+				t.Fatalf("rewrite created_at: %v", err)
+			}
+
+			profile, err := h.loadPublicProfile(tc.username, 0)
+			if err != nil {
+				t.Fatalf("loadPublicProfile with stored created_at %q: %v", tc.createdAt, err)
+			}
+			if profile.Username != tc.username {
+				t.Fatalf("username = %q, want %q", profile.Username, tc.username)
+			}
+			if !profile.CreatedAt.Equal(tc.wantTime) {
+				t.Errorf("created_at = %v, want %v", profile.CreatedAt, tc.wantTime)
+			}
+		})
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -72,6 +73,12 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 		CreatedAt     time.Time
 	}
 
+	// created_at is scanned as an untyped value and parsed in Go. Legacy rows
+	// written before timestamps were canonicalized hold a Go time.Time.String()
+	// layout the driver cannot scan into a time.Time, which would fail the whole
+	// profile lookup rather than just losing the join date.
+	var createdAtRaw interface{}
+
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, username, display_name, email, bio, location, website, visibility,
 		       avatar_type, avatar_url, email_verified, created_at
@@ -80,10 +87,14 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 	`, username).Scan(
 		&user.ID, &user.Username, &user.DisplayName, &user.Email,
 		&user.Bio, &user.Location, &user.Website, &user.Visibility,
-		&user.AvatarType, &user.AvatarURL, &user.EmailVerified, &user.CreatedAt,
+		&user.AvatarType, &user.AvatarURL, &user.EmailVerified, &createdAtRaw,
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if parsed, ok := dbtime.ParseStoredTimestamp(createdAtRaw); ok {
+		user.CreatedAt = parsed
 	}
 
 	if user.Visibility == "private" && viewerUserID != user.ID {
@@ -253,6 +264,16 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 		if !strings.HasPrefix(req.URL, "https://") {
 			return fmt.Errorf("avatar url must use HTTPS")
 		}
+		// PART 34 bars externally-linked SVG avatars for the same
+		// active-content reason uploads are barred. The URL is never fetched
+		// here, so the path/extension is the only signal available - a
+		// best-effort check that stops the ordinary case without pretending to
+		// be a content-type guarantee. The query string is dropped first so a
+		// "?v=1" suffix cannot hide the extension.
+		urlPath, _, _ := strings.Cut(req.URL, "?")
+		if strings.HasSuffix(strings.ToLower(urlPath), ".svg") {
+			return fmt.Errorf("avatar url must point to a raster image, not an SVG")
+		}
 	}
 
 	var avatarURL sql.NullString
@@ -260,20 +281,26 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 		avatarURL = sql.NullString{String: strings.TrimSpace(req.URL), Valid: true}
 	}
 
+	// updated_at is bound as canonical UTC text. Binding a raw time.Time makes
+	// the SQLite driver serialize it as time.Time.String() in the host's LOCAL
+	// zone, which no reader can compare against a UTC instant without guessing
+	// the writer's offset.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = ?, avatar_url = ?, updated_at = ?
 		WHERE id = ?
-	`, req.Type, avatarURL, time.Now(), userID)
+	`, req.Type, avatarURL, dbtime.FormatSQLTimestamp(time.Now()), userID)
 	return err
 }
 
 func (h *UserPublicHandler) resetCurrentUserAvatar(userID int64) error {
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = 'gravatar', avatar_url = NULL, updated_at = ?
 		WHERE id = ?
-	`, time.Now(), userID)
+	`, dbtime.FormatSQLTimestamp(time.Now()), userID)
 	return err
 }
 
@@ -287,13 +314,18 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 	}
 
 	contentType := strings.TrimSpace(upload.ContentType)
+	// Raster formats only. PART 34 forbids serving a user-supplied avatar as
+	// SVG: an SVG is an XML document that can carry <script>, event handlers
+	// and external references, so an uploaded one served from our own origin is
+	// stored XSS against every viewer of that profile. There is no safe way to
+	// accept it here short of rasterizing at ingest, which this handler does
+	// not do.
 	allowedTypes := map[string]bool{
 		"image/png":                true,
 		"image/jpeg":               true,
 		"image/gif":                true,
 		"image/webp":               true,
 		"image/bmp":                true,
-		"image/svg+xml":            true,
 		"image/x-icon":             true,
 		"image/vnd.microsoft.icon": true,
 	}
@@ -303,11 +335,13 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/user_%d.%s", userID, getExtension(contentType))
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET avatar_type = 'upload', avatar_url = ?, updated_at = ?
 		WHERE id = ?
-	`, avatarURL, time.Now(), userID)
+	`, avatarURL, dbtime.FormatSQLTimestamp(time.Now()), userID)
 	return err
 }
 
@@ -465,6 +499,15 @@ func getExtension(contentType string) string {
 		return "webp"
 	case "image/bmp":
 		return "bmp"
+	// Both spellings of the icon type are in the upload allowlist above; without
+	// these cases an uploaded icon would be stored under a .png name that
+	// misdescribes its contents.
+	case "image/x-icon", "image/vnd.microsoft.icon":
+		return "ico"
+	// SVG is never in uploadCurrentUserAvatar's allowedTypes (see the comment
+	// there), so this case is unreachable from that call site today. It exists
+	// so getExtension's content-type-to-extension mapping stays complete and
+	// correct for any other, non-avatar caller that needs it.
 	case "image/svg+xml":
 		return "svg"
 	default:
@@ -505,11 +548,13 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 		return fmt.Errorf("failed to hash new password")
 	}
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
-	`, newHash, time.Now(), userID)
+	`, newHash, dbtime.FormatSQLTimestamp(time.Now()), userID)
 	if err != nil {
 		return fmt.Errorf("failed to update password")
 	}
@@ -593,10 +638,13 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 		return
 	}
 
-	// Update email and mark as unverified until re-verified
+	// Update email and mark as unverified until re-verified.
+	// updated_at is bound as canonical UTC text rather than produced by SQL's
+	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+	// MySQL and SQL Server than it does on SQLite.
 	if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
-		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		req.NewEmail, user.ID,
+		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
+		req.NewEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update email"})
 		return

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server/handler"
@@ -506,11 +507,24 @@ func loadGraphQLCurrentAdmin(ctx context.Context, db *sql.DB) (*models.Admin, er
 	return admin, nil
 }
 func loadGraphQLOnlineAdminUsernames(ctx context.Context, db *sql.DB) ([]string, error) {
+	// is_active stays in SQL - it is a plain integer predicate. The unexpired
+	// test does not: "sas.expires_at > CURRENT_TIMESTAMP" is a lexicographic
+	// TEXT comparison over a column holding two layouts (canonical UTC text and
+	// the local-zone time.Time.String() form older builds wrote), so it listed
+	// admins whose sessions had already expired and hid admins whose sessions
+	// were still live. Each row's expires_at is now parsed in Go instead.
+	//
+	// SELECT DISTINCT is gone with it: the expiry decision needs one row per
+	// session, not one row per username, so the join now returns every session
+	// of every active admin and the loop collapses them. Because the rows still
+	// arrive ordered by username, keeping the first survivor per username
+	// yields exactly the same ascending, duplicate-free list the DISTINCT
+	// produced.
 	rows, err := database.QueryContext(ctx, db, database.TimeoutComplexSelect, `
-	SELECT DISTINCT sac.username
+	SELECT sac.username, sas.expires_at
 	FROM server_admin_credentials sac
 	INNER JOIN server_admin_sessions sas ON sas.admin_id = sac.id
-	WHERE sac.is_active = 1 AND sas.expires_at > CURRENT_TIMESTAMP
+	WHERE sac.is_active = 1 AND sas.expires_at IS NOT NULL
 	ORDER BY sac.username ASC
 `)
 	if err != nil {
@@ -518,12 +532,27 @@ func loadGraphQLOnlineAdminUsernames(ctx context.Context, db *sql.DB) ([]string,
 	}
 	defer rows.Close()
 
+	now := time.Now().UTC()
+	seen := make(map[string]struct{})
+
 	var usernames []string
 	for rows.Next() {
 		var username string
-		if err := rows.Scan(&username); err != nil {
+		var storedExpiresAt interface{}
+		if err := rows.Scan(&username, &storedExpiresAt); err != nil {
 			return nil, fmt.Errorf("failed to scan online admin username: %w", err)
 		}
+
+		// Fail closed: a NULL or unparseable expiry never counts as online.
+		if !dbtime.IsAfter(storedExpiresAt, now) {
+			continue
+		}
+
+		if _, duplicate := seen[username]; duplicate {
+			continue
+		}
+		seen[username] = struct{}{}
+
 		usernames = append(usernames, username)
 	}
 
@@ -711,27 +740,77 @@ func mapSchedulerTaskHistory(run scheduler.TaskRun) *TaskHistory {
 		Error:       errorText,
 	}
 }
+
+// graphQLAuditLogSkewWindow widens the SQL prefilter in loadGraphQLRequestStats
+// past any real UTC offset (the largest in use is +14:00), so a row written in
+// the local-zone layout can never sort below the bound and be missed.
+//
+// This widens only the SCAN, never a reported window: every row the query
+// returns is re-bounded against startOfDay/lastMinuteStart in Go after being
+// resolved to a real instant, so the three totals are exact regardless of how
+// far back the prefilter reaches. It stays in place even though every current
+// producer of server_audit_log.timestamp now writes canonical UTC text -
+// databases created before that are still on disk, and dropping the margin
+// would silently exclude their rows from today's counts.
+const graphQLAuditLogSkewWindow = 15 * time.Hour
+
 func loadGraphQLRequestStats(ctx context.Context, serverDB *sql.DB) (*RequestStats, error) {
+	now := time.Now().UTC()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	lastMinuteStart := now.Add(-time.Minute)
+
+	// The three counts were COUNT(*) queries bounded by date('now', 'start of
+	// day') and datetime('now', '-1 minute'). server_audit_log.timestamp holds
+	// two layouts - canonical UTC text and the local-zone
+	// time.Time.String() form written elsewhere - so those lexicographic
+	// comparisons counted rows from the wrong window, and any datetime() wrapper
+	// would have returned NULL for the local-zone rows and dropped them
+	// entirely.
+	//
+	// SQL now only narrows the scan to a superset of the widest window needed
+	// (start of the UTC day, pushed back by the maximum possible zone skew;
+	// lastMinuteStart is always inside that range). Each row's timestamp is then
+	// resolved to a real instant in Go and counted against the exact bounds, so
+	// the three totals are the ones the original queries intended.
+	rows, err := database.QueryContext(ctx, serverDB, database.TimeoutComplexSelect, `
+	SELECT timestamp, status
+	FROM server_audit_log
+	WHERE timestamp >= ?
+`, dbtime.FormatSQLTimestamp(startOfDay.Add(-graphQLAuditLogSkewWindow)))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
 	var totalToday int
 	var errorsToday int
 	var lastMinute int
 
-	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-	SELECT COUNT(*) FROM server_audit_log
-	WHERE timestamp >= date('now', 'start of day')
-`).Scan(&totalToday); err != nil {
-		return nil, err
+	for rows.Next() {
+		var storedTimestamp interface{}
+		var status sql.NullString
+		if err := rows.Scan(&storedTimestamp, &status); err != nil {
+			return nil, err
+		}
+
+		// An entry whose timestamp cannot be resolved counts toward no window.
+		recordedAt, ok := dbtime.ParseStoredTimestamp(storedTimestamp)
+		if !ok {
+			continue
+		}
+
+		if !recordedAt.Before(startOfDay) {
+			totalToday++
+			if status.Valid && status.String == "error" {
+				errorsToday++
+			}
+		}
+
+		if !recordedAt.Before(lastMinuteStart) {
+			lastMinute++
+		}
 	}
-	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-	SELECT COUNT(*) FROM server_audit_log
-	WHERE timestamp >= date('now', 'start of day') AND status = 'error'
-`).Scan(&errorsToday); err != nil {
-		return nil, err
-	}
-	if err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-	SELECT COUNT(*) FROM server_audit_log
-	WHERE timestamp >= datetime('now', '-1 minute')
-`).Scan(&lastMinute); err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -793,25 +872,29 @@ func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, erro
 
 	return float64(pageCount * pageSize), tables, nil
 }
+// ensureGraphQLContactSubmissionsTable verifies that contact_submissions is
+// present before the contact mutation writes to it.
+//
+// The table is declared once in database.ServerSchema, which
+// database.InitDualDB executes on every startup, so no DDL runs at request time
+// any more - a request-time CREATE TABLE hid schema drift, cost a migration
+// timeout per mutation, and pinned created_at to the SQLite-only
+// "INTEGER DEFAULT (strftime('%s','now'))" default that no other driver
+// accepts. The check remains so a database missing the schema fails with a
+// clear error instead of a bare "no such table".
 func ensureGraphQLContactSubmissionsTable(ctx context.Context, db *sql.DB) error {
 	if db == nil {
 		return fmt.Errorf("server database unavailable")
 	}
 
-	_, err := database.ExecContext(ctx, db, database.TimeoutMigration, `
-	CREATE TABLE IF NOT EXISTS contact_submissions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		email TEXT NOT NULL,
-		subject TEXT NOT NULL,
-		message TEXT NOT NULL,
-		ip_address TEXT,
-		user_agent TEXT,
-		status TEXT NOT NULL DEFAULT 'pending',
-		created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-	)
-`)
-	return err
+	var present int
+	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
+		"SELECT COUNT(*) FROM contact_submissions WHERE 1 = 0",
+	).Scan(&present); err != nil {
+		return fmt.Errorf("contact_submissions is missing from the server database schema: %w", err)
+	}
+
+	return nil
 }
 func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context, typeArg string, recipient *string) (string, error) {
 	if recipient != nil {

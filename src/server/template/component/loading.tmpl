@@ -101,7 +101,7 @@
         function checkHealth() {
             console.log('Checking service health...');
 
-            fetch('/healthz')
+            fetch('/server/healthz')
                 .then(response => response.json())
                 .then(data => {
                     console.log('Health check:', data);
@@ -157,7 +157,7 @@
             retryBtn.disabled = true;
 
             // Check if service is ready
-            fetch('/healthz')
+            fetch('/server/healthz')
                 .then(response => response.json())
                 .then(data => {
                     if (data.ready === true) {

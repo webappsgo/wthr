@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -38,7 +40,7 @@ func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
 		SELECT channel_type, channel_name, enabled, state,
 		       last_test_at, last_success_at, last_error, failure_count,
 		       created_at, updated_at
-		FROM notification_channels
+		FROM server_notification_channels
 		ORDER BY channel_name ASC
 	`)
 	if err != nil {
@@ -113,7 +115,7 @@ func (h *NotificationChannelHandler) GetChannel(c *gin.Context) {
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_name, enabled, state, config,
 		       last_test_at, last_success_at, last_error, failure_count
-		FROM notification_channels
+		FROM server_notification_channels
 		WHERE channel_type = ?
 	`, channelType).Scan(&channelName, &enabled, &state, &config,
 		&lastTestAt, &lastSuccessAt, &lastError, &failureCount)
@@ -165,12 +167,16 @@ func (h *NotificationChannelHandler) UpdateChannel(c *gin.Context) {
 	// Convert config to JSON
 	configJSON, _ := json.Marshal(req.Config)
 
-	// Update channel
+	// Update channel.
+	//
+	// updated_at is bound as canonical UTC text instead of datetime('now'):
+	// that spelling only exists on SQLite, and binding the value keeps this
+	// writer in the single layout every reader parses.
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE notification_channels
-		SET enabled = ?, config = ?, updated_at = datetime('now')
+		UPDATE server_notification_channels
+		SET enabled = ?, config = ?, updated_at = ?
 		WHERE channel_type = ?
-	`, req.Enabled, string(configJSON), channelType)
+	`, req.Enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), channelType)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update channel"})
@@ -399,7 +405,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 
 	query := `
 		SELECT id, queue_id, user_id, channel_type, status, subject,
-		       sent_at, delivered_at, error_message
+		       created_at, delivered_at, error_message
 		FROM notification_history
 		WHERE 1=1
 	`
@@ -414,7 +420,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 		args = append(args, status)
 	}
 
-	query += " ORDER BY sent_at DESC LIMIT ?"
+	query += " ORDER BY created_at DESC LIMIT ?"
 	args = append(args, limit)
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
@@ -429,12 +435,12 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 		var id, queueID sql.NullInt64
 		var userID sql.NullInt64
 		var channelType, status, subject string
-		var sentAt sql.NullTime
+		var createdAt sql.NullTime
 		var deliveredAt sql.NullTime
 		var errorMessage sql.NullString
 
 		rows.Scan(&id, &queueID, &userID, &channelType, &status, &subject,
-			&sentAt, &deliveredAt, &errorMessage)
+			&createdAt, &deliveredAt, &errorMessage)
 
 		item := gin.H{
 			"id":           id.Int64,
@@ -449,8 +455,8 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 		if userID.Valid {
 			item["user_id"] = userID.Int64
 		}
-		if sentAt.Valid {
-			item["sent_at"] = sentAt.Time
+		if createdAt.Valid {
+			item["created_at"] = createdAt.Time
 		}
 		if deliveredAt.Valid {
 			item["delivered_at"] = deliveredAt.Time

@@ -223,10 +223,26 @@ type AdminModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the server.db handle this model was constructed with. Every
+// table AdminModel touches (server_admin_credentials,
+// server_admin_preferences) is declared in database.ServerSchema, so the
+// injected handle is the correct database for every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global server handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *AdminModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetServerDB()
+}
+
 // GetAll returns all admins (with privacy: no passwords, minimal info)
 // TEMPLATE.md PART 22: Admin privacy - can't see other admin details
 func (m *AdminModel) GetAll() ([]Admin, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		ORDER BY id ASC
@@ -239,7 +255,14 @@ func (m *AdminModel) GetAll() ([]Admin, error) {
 	var admins []Admin
 	for rows.Next() {
 		var admin Admin
-		var lastLoginAt sql.NullTime
+		// The three timestamp columns are scanned as raw driver values and
+		// resolved with parseStoredTimestamp instead of being scanned into
+		// time.Time/sql.NullTime directly. A row written by an older build holds
+		// the local-zone time.Time.String() text, which database/sql cannot
+		// convert to a time.Time - the whole listing failed with a scan error.
+		var storedCreatedAt interface{}
+		var storedUpdatedAt interface{}
+		var storedLastLoginAt interface{}
 
 		err := rows.Scan(
 			&admin.ID,
@@ -247,16 +270,24 @@ func (m *AdminModel) GetAll() ([]Admin, error) {
 			&admin.Email,
 			&admin.IsSuperAdmin,
 			&admin.IsActive,
-			&admin.CreatedAt,
-			&admin.UpdatedAt,
-			&lastLoginAt,
+			&storedCreatedAt,
+			&storedUpdatedAt,
+			&storedLastLoginAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan admin: %w", err)
 		}
 
-		if lastLoginAt.Valid {
-			admin.LastLoginAt = &lastLoginAt.Time
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			admin.CreatedAt = parsed
+		}
+
+		if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+			admin.UpdatedAt = parsed
+		}
+
+		if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+			admin.LastLoginAt = &parsed
 		}
 
 		admins = append(admins, admin)
@@ -268,10 +299,14 @@ func (m *AdminModel) GetAll() ([]Admin, error) {
 // GetByID returns a single admin by ID
 func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 	var admin Admin
-	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
+	// See AdminModel.GetAll for why the timestamps are scanned as raw driver
+	// values and parsed in Go.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE id = ?
@@ -283,17 +318,25 @@ func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 		&apiTokenPrefix,
 		&admin.IsSuperAdmin,
 		&admin.IsActive,
-		&admin.CreatedAt,
-		&admin.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get admin: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		admin.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		admin.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		admin.UpdatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		admin.LastLoginAt = &parsed
 	}
 
 	if apiTokenPrefix.Valid {
@@ -306,10 +349,14 @@ func (m *AdminModel) GetByID(id int64) (*Admin, error) {
 // GetByEmail returns a single admin by email
 func (m *AdminModel) GetByEmail(email string) (*Admin, error) {
 	var admin Admin
-	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
+	// See AdminModel.GetAll for why the timestamps are scanned as raw driver
+	// values and parsed in Go.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE email = ?
@@ -321,17 +368,25 @@ func (m *AdminModel) GetByEmail(email string) (*Admin, error) {
 		&apiTokenPrefix,
 		&admin.IsSuperAdmin,
 		&admin.IsActive,
-		&admin.CreatedAt,
-		&admin.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get admin by email: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		admin.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		admin.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		admin.UpdatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		admin.LastLoginAt = &parsed
 	}
 
 	if apiTokenPrefix.Valid {
@@ -348,10 +403,14 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 	tokenHash := HashAPIToken(token)
 
 	var admin Admin
-	var lastLoginAt sql.NullTime
 	var apiTokenPrefix sql.NullString
+	// See AdminModel.GetAll for why the timestamps are scanned as raw driver
+	// values and parsed in Go.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 		FROM server_admin_credentials
 		WHERE api_token_hash = ? AND is_active = 1
@@ -363,9 +422,9 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 		&apiTokenPrefix,
 		&admin.IsSuperAdmin,
 		&admin.IsActive,
-		&admin.CreatedAt,
-		&admin.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -375,9 +434,18 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 		return nil, fmt.Errorf("failed to get admin by API token: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		admin.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		admin.CreatedAt = parsed
 	}
+
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		admin.UpdatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		admin.LastLoginAt = &parsed
+	}
+
 	if apiTokenPrefix.Valid {
 		admin.APITokenPrefix = apiTokenPrefix.String
 	}
@@ -389,7 +457,7 @@ func (m *AdminModel) GetByAPIToken(token string) (*Admin, error) {
 // TEMPLATE.md Part 31: Admins can see count but not details of others
 func (m *AdminModel) GetCount() (int, error) {
 	var count int
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_admin_credentials
 	`).Scan(&count)
 
@@ -420,11 +488,18 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 	tokenHash := HashAPIToken(apiToken)
 	tokenPrefix := GetAPITokenPrefix(apiToken)
 
-	// Insert admin into server.db
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	// Insert admin into server.db.
+	//
+	// created_at/updated_at are bound as canonical UTC text rather than left to
+	// CURRENT_TIMESTAMP: that keyword yields SQLite's UTC text but a session
+	// timestamp with the server's zone on PostgreSQL/MySQL, so the same column
+	// would hold a different layout per backend. Binding through sqlTimestamp
+	// gives every writer and reader the one layout parseStoredTimestamp expects.
+	now := time.Now()
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_credentials (username, email, password_hash, api_token_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, username, email, passwordHash, tokenHash, tokenPrefix, isSuperAdmin)
+		VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+	`, username, email, passwordHash, tokenHash, tokenPrefix, isSuperAdmin, sqlTimestamp(now), sqlTimestamp(now))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin: %w", err)
@@ -450,10 +525,10 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 		return nil, fmt.Errorf("failed to encode default admin preferences: %w", err)
 	}
 
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_preferences (admin_id, preferences, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
-	`, id, string(defaultPrefs))
+		VALUES (?, ?, ?)
+	`, id, string(defaultPrefs), sqlTimestamp(now))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin preferences: %w", err)
 	}
@@ -471,22 +546,24 @@ func (m *AdminModel) Update(id int64, username, email string, opts ...interface{
 		if !ok1 || !ok2 {
 			return fmt.Errorf("admin update flags must be booleans")
 		}
-		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+		// updated_at is bound as canonical UTC text; see AdminModel.Create for why
+		// CURRENT_TIMESTAMP is not portable across the supported drivers.
+		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 			UPDATE server_admin_credentials
-			SET username = ?, email = ?, is_super_admin = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+			SET username = ?, email = ?, is_super_admin = ?, is_active = ?, updated_at = ?
 			WHERE id = ?
-		`, username, email, isSuperAdmin, isActive, id)
+		`, username, email, isSuperAdmin, isActive, sqlTimestamp(time.Now()), id)
 
 		if err != nil {
 			return fmt.Errorf("failed to update admin: %w", err)
 		}
 	} else {
 		// Simple update (username and email only)
-		_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 			UPDATE server_admin_credentials
-			SET username = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+			SET username = ?, email = ?, updated_at = ?
 			WHERE id = ?
-		`, username, email, id)
+		`, username, email, sqlTimestamp(time.Now()), id)
 
 		if err != nil {
 			return fmt.Errorf("failed to update admin: %w", err)
@@ -505,11 +582,11 @@ func (m *AdminModel) UpdatePassword(id int64, newPassword string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
-		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
-	`, passwordHash, id)
+	`, passwordHash, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -530,11 +607,11 @@ func (m *AdminModel) RegenerateAPIToken(id int64) (string, error) {
 	tokenHash := HashAPIToken(apiToken)
 	tokenPrefix := GetAPITokenPrefix(apiToken)
 
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
-		SET api_token_hash = ?, api_token_prefix = ?, updated_at = CURRENT_TIMESTAMP
+		SET api_token_hash = ?, api_token_prefix = ?, updated_at = ?
 		WHERE id = ?
-	`, tokenHash, tokenPrefix, id)
+	`, tokenHash, tokenPrefix, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to update API token: %w", err)
@@ -545,11 +622,11 @@ func (m *AdminModel) RegenerateAPIToken(id int64) (string, error) {
 
 // RevokeAPIToken clears the stored API token for an admin.
 func (m *AdminModel) RevokeAPIToken(id int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
-		SET api_token_hash = NULL, api_token_prefix = NULL, updated_at = CURRENT_TIMESTAMP
+		SET api_token_hash = NULL, api_token_prefix = NULL, updated_at = ?
 		WHERE id = ?
-	`, id)
+	`, sqlTimestamp(time.Now()), id)
 	if err != nil {
 		return fmt.Errorf("failed to revoke API token: %w", err)
 	}
@@ -562,7 +639,7 @@ func (m *AdminModel) RevokeAPIToken(id int64) error {
 func (m *AdminModel) Delete(id int64) error {
 	// Check if this is the last super admin
 	var superAdminCount int
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT COUNT(*) FROM server_admin_credentials
 		WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
 	`, id).Scan(&superAdminCount)
@@ -581,7 +658,7 @@ func (m *AdminModel) Delete(id int64) error {
 	}
 
 	// Delete admin (cascades to sessions, preferences, etc.)
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_credentials WHERE id = ?
 	`, id)
 
@@ -594,11 +671,11 @@ func (m *AdminModel) Delete(id int64) error {
 
 // UpdateLastLogin updates the last login timestamp
 func (m *AdminModel) UpdateLastLogin(id int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_credentials
-		SET last_login_at = CURRENT_TIMESTAMP
+		SET last_login_at = ?
 		WHERE id = ?
-	`, id)
+	`, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update last login: %w", err)
@@ -615,16 +692,32 @@ func (m *AdminModel) VerifyCredentials(username, password string) (*Admin, error
 	if err != nil {
 		// Try username field
 		var apiTokenPrefix sql.NullString
+		// See AdminModel.GetAll for why the timestamps are scanned as raw driver
+		// values and parsed in Go. Here it is a login-path concern: a legacy
+		// local-zone timestamp made the scan fail, and the admin could not log in
+		// by username at all.
+		var storedCreatedAt interface{}
+		var storedUpdatedAt interface{}
+		var storedLastLoginAt interface{}
 		admin = &Admin{}
-		err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+		err = database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 			SELECT id, username, email, password_hash, api_token_prefix, is_super_admin, is_active, created_at, updated_at, last_login_at
 			FROM server_admin_credentials
 			WHERE username = ? AND is_active = 1
 		`, username).Scan(&admin.ID, &admin.Username, &admin.Email, &admin.PasswordHash,
-			&apiTokenPrefix, &admin.IsSuperAdmin, &admin.IsActive, &admin.CreatedAt,
-			&admin.UpdatedAt, &admin.LastLoginAt)
+			&apiTokenPrefix, &admin.IsSuperAdmin, &admin.IsActive, &storedCreatedAt,
+			&storedUpdatedAt, &storedLastLoginAt)
 		if apiTokenPrefix.Valid {
 			admin.APITokenPrefix = apiTokenPrefix.String
+		}
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			admin.CreatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+			admin.UpdatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+			admin.LastLoginAt = &parsed
 		}
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("invalid credentials")
@@ -657,6 +750,22 @@ type AdminInviteModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the server.db handle this model was constructed with. The only
+// table AdminInviteModel touches (server_admin_invites) is declared in
+// database.ServerSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global server handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *AdminInviteModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetServerDB()
+}
+
 // CreateInvite creates a new admin invite token.
 func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn time.Duration) (*AdminInvite, error) {
 	// Generate secure invite token
@@ -673,15 +782,14 @@ func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn
 
 	tokenHash := HashAPIToken(token)
 
-	// Bind expires_at as SQLite's own canonical "YYYY-MM-DD HH:MM:SS" text
-	// format (matching CURRENT_TIMESTAMP's output). Binding a raw time.Time
-	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
-	// datetime() cannot parse -- every datetime(expires_at) comparison
-	// elsewhere then silently evaluates to NULL.
-	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	// Bind expires_at as canonical UTC text (the same layout CURRENT_TIMESTAMP
+	// emits). Binding a raw time.Time makes the SQLite driver serialize it as
+	// time.Time.String() in the host's LOCAL zone, which no reader can compare
+	// against a UTC instant without guessing the writer's offset.
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_invites (token, invited_email, invited_by, created_at, expires_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, tokenHash, email, invitedBy, expiresAt.UTC().Format("2006-01-02 15:04:05"))
+		VALUES (?, ?, ?, ?, ?)
+	`, tokenHash, email, invitedBy, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)
@@ -706,12 +814,18 @@ func (m *AdminInviteModel) CreateInvite(email string, invitedBy int64, expiresIn
 func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 	var invite AdminInvite
 	var usedBy sql.NullInt64
-	var usedAt sql.NullTime
+
+	// created_at, expires_at and used_at are scanned as raw driver values and
+	// parsed with parseStoredTimestamp rather than scanned straight into a
+	// time.Time: rows written before timestamps were normalized still hold the
+	// driver's local-zone time.Time.String() layout, which a direct scan
+	// rejects outright.
+	var storedCreatedAt, storedExpiresAt, storedUsedAt interface{}
 
 	// server_admin_invites has no "id" column (PK is token); use the
 	// implicit SQLite rowid, matching the value CreateInvite already
 	// returns via LastInsertId().
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT rowid, token, invited_email, invited_by, created_at, expires_at, used_by, used_at
 		FROM server_admin_invites
 		WHERE token = ?
@@ -720,10 +834,10 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 		&invite.Token,
 		&invite.InvitedEmail,
 		&invite.InvitedBy,
-		&invite.CreatedAt,
-		&invite.ExpiresAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
 		&usedBy,
-		&usedAt,
+		&storedUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -733,12 +847,20 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 		return nil, fmt.Errorf("failed to get invite: %w", err)
 	}
 
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		invite.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		invite.ExpiresAt = parsed
+	}
+
 	if usedBy.Valid {
 		invite.UsedBy = &usedBy.Int64
 	}
 
-	if usedAt.Valid {
-		invite.UsedAt = &usedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+		invite.UsedAt = &parsed
 	}
 
 	return &invite, nil
@@ -746,11 +868,11 @@ func (m *AdminInviteModel) GetInvite(token string) (*AdminInvite, error) {
 
 // MarkInviteUsed marks an invite as used
 func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE server_admin_invites
-		SET used_by = ?, used_at = CURRENT_TIMESTAMP
+		SET used_by = ?, used_at = ?
 		WHERE token = ?
-	`, usedBy, HashAPIToken(token))
+	`, usedBy, sqlTimestamp(time.Now()), HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark invite as used: %w", err)
@@ -762,12 +884,21 @@ func (m *AdminInviteModel) MarkInviteUsed(token string, usedBy int64) error {
 // DeleteExpiredInvites removes expired and used invites (cleanup)
 // Per TEMPLATE.md PART 22: Clean up expired invites regularly
 func (m *AdminInviteModel) DeleteExpiredInvites() error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_admin_invites
-		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
+	// Used invites carry no timestamp comparison, so they can go in one
+	// statement.
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
+		DELETE FROM server_admin_invites WHERE used_at IS NOT NULL
 	`)
 
 	if err != nil {
+		return fmt.Errorf("failed to delete used invites: %w", err)
+	}
+
+	// Expiry is decided in Go against a UTC cutoff rather than by SQLite's
+	// datetime('now'): expires_at may still hold a local-zone value written by
+	// an older build, and datetime() returns NULL for that layout, so the SQL
+	// comparison silently never matched those rows.
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "server_admin_invites", "rowid", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired invites: %w", err)
 	}
 
@@ -778,10 +909,14 @@ func (m *AdminInviteModel) DeleteExpiredInvites() error {
 func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
 	// server_admin_invites has no "id" column (PK is token); use the
 	// implicit SQLite rowid, matching GetInvite.
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	// The unexpired test is applied in Go, not as SQL, for the reason described
+	// in DeleteExpiredInvites: datetime(expires_at) evaluates to NULL for a
+	// local-zone value and compares in the wrong direction for any value whose
+	// text ordering disagrees with its true instant.
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT rowid, token, invited_email, invited_by, created_at, expires_at
 		FROM server_admin_invites
-		WHERE used_at IS NULL AND datetime(expires_at) > datetime('now')
+		WHERE used_at IS NULL AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`)
 
@@ -790,21 +925,38 @@ func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
 	}
 	defer rows.Close()
 
+	now := time.Now().UTC()
+
 	var invites []AdminInvite
 	for rows.Next() {
 		var invite AdminInvite
+		var storedCreatedAt, storedExpiresAt interface{}
 		err := rows.Scan(
 			&invite.ID,
 			&invite.Token,
 			&invite.InvitedEmail,
 			&invite.InvitedBy,
-			&invite.CreatedAt,
-			&invite.ExpiresAt,
+			&storedCreatedAt,
+			&storedExpiresAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan invite: %w", err)
 		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+		invite.ExpiresAt = expiresAt
+
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			invite.CreatedAt = parsed
+		}
+
 		invites = append(invites, invite)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate pending invites: %w", err)
 	}
 
 	return invites, nil
@@ -814,6 +966,22 @@ func (m *AdminInviteModel) GetPendingInvites() ([]AdminInvite, error) {
 // Per TEMPLATE.md PART 22: Secure session management required
 type AdminSessionModel struct {
 	DB *sql.DB
+}
+
+// getDB returns the server.db handle this model was constructed with. The only
+// table AdminSessionModel touches (server_admin_sessions) is declared in
+// database.ServerSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global server handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *AdminSessionModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetServerDB()
 }
 
 // CreateSession creates a new admin session
@@ -827,10 +995,10 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 
 	// See AdminInviteModel.CreateInvite for why expires_at must be bound
 	// as SQLite's own canonical text format rather than a raw time.Time.
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
-		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, sessionID, adminID, ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, sessionID, adminID, ipAddress, userAgent, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -856,7 +1024,13 @@ func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent st
 func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) {
 	var session AdminSession
 
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	// created_at and expires_at are parsed with parseStoredTimestamp instead of
+	// scanned directly into a time.Time so that a row written by an older build
+	// in the driver's local-zone layout still resolves to the correct absolute
+	// instant rather than failing the scan.
+	var storedCreatedAt, storedExpiresAt interface{}
+
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
 		WHERE id = ?
@@ -865,8 +1039,8 @@ func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) 
 		&session.AdminID,
 		&session.IPAddress,
 		&session.UserAgent,
-		&session.CreatedAt,
-		&session.ExpiresAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -874,6 +1048,14 @@ func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) 
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		session.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		session.ExpiresAt = parsed
 	}
 	session.LastUsedAt = session.CreatedAt
 
@@ -889,7 +1071,7 @@ func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
 
 // DeleteSession deletes a session (logout)
 func (m *AdminSessionModel) DeleteSession(sessionID string) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_sessions WHERE id = ?
 	`, sessionID)
 
@@ -902,7 +1084,7 @@ func (m *AdminSessionModel) DeleteSession(sessionID string) error {
 
 // DeleteAllSessionsForAdmin deletes all sessions for an admin (logout all)
 func (m *AdminSessionModel) DeleteAllSessionsForAdmin(adminID int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM server_admin_sessions WHERE admin_id = ?
 	`, adminID)
 
@@ -915,11 +1097,11 @@ func (m *AdminSessionModel) DeleteAllSessionsForAdmin(adminID int64) error {
 
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
 func (m *AdminSessionModel) DeleteExpiredSessions() error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, `
-		DELETE FROM server_admin_sessions WHERE datetime(expires_at) < datetime('now')
-	`)
-
-	if err != nil {
+	// Expiry is decided in Go against a UTC cutoff. The SQL comparison this
+	// replaces logged admins out early or late by the host's UTC offset
+	// whenever expires_at held a local-zone value, and matched nothing at all
+	// for layouts SQLite's datetime() cannot parse.
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "server_admin_sessions", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
 
@@ -928,10 +1110,13 @@ func (m *AdminSessionModel) DeleteExpiredSessions() error {
 
 // GetActiveSessions returns all active sessions for an admin
 func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
+	// "Still active" is decided in Go for the reason described in
+	// DeleteExpiredSessions - the SQL comparison could not be trusted across
+	// timezones or across the two on-disk layouts this column can hold.
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
-		WHERE admin_id = ? AND datetime(expires_at) > datetime('now')
+		WHERE admin_id = ? AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`, adminID)
 
@@ -940,22 +1125,39 @@ func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, er
 	}
 	defer rows.Close()
 
+	now := time.Now().UTC()
+
 	var sessions []AdminSession
 	for rows.Next() {
 		var session AdminSession
+		var storedCreatedAt, storedExpiresAt interface{}
 		err := rows.Scan(
 			&session.SessionID,
 			&session.AdminID,
 			&session.IPAddress,
 			&session.UserAgent,
-			&session.CreatedAt,
-			&session.ExpiresAt,
+			&storedCreatedAt,
+			&storedExpiresAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
 		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+		session.ExpiresAt = expiresAt
+
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			session.CreatedAt = parsed
+		}
+
 		session.LastUsedAt = session.CreatedAt
 		sessions = append(sessions, session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate sessions: %w", err)
 	}
 
 	return sessions, nil

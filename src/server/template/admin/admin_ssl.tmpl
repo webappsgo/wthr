@@ -1,70 +1,71 @@
 {{define "admin/admin_ssl.tmpl"}}
 {{template "head" .}}
-{{template "admin_nav" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-<main class="container p-4">
-    <h1>🔒 SSL/TLS Certificate Management</h1>
-    <p class="text-comment mb-4">Manage your SSL certificates and auto-renewal settings</p>
+    <h1>🔒 {{t $lang "admin.ssl.title"}}</h1>
+    <p class="text-comment mb-4">{{t $lang "admin.ssl.subtitle"}}</p>
 
     <div class="grid-2 gap-lg">
         <!-- Certificate Status Card -->
         <section class="card p-4">
-            <h2 class="section-title">📜 Certificate Status</h2>
+            <h2 class="section-title">📜 {{t $lang "admin.ssl.cert_status_heading"}}</h2>
 
             <div id="certStatus">
                 <div class="text-center p-4 text-comment">
                     <div class="loading"></div>
-                    <p class="mt-3">Loading certificate information...</p>
+                    <p class="mt-3">{{t $lang "admin.ssl.loading_cert_info"}}</p>
                 </div>
             </div>
 
             <div class="flex gap-sm mt-3">
-                <button class="btn btn-primary" id="refreshBtn" aria-label="Refresh certificate status">
-                    🔄 Refresh
+                <button class="btn btn-primary" id="refreshBtn" aria-label="{{t $lang "admin.ssl.refresh_cert_aria"}}">
+                    🔄 {{t $lang "action.refresh"}}
                 </button>
-                <button class="btn btn-success" id="verifyBtn" aria-label="Verify certificate">
-                    ✓ Verify Certificate
+                <button class="btn btn-success" id="verifyBtn" aria-label="{{t $lang "admin.ssl.verify_cert_aria"}}">
+                    ✓ {{t $lang "admin.ssl.verify_cert_action"}}
                 </button>
             </div>
         </section>
 
         <!-- Let's Encrypt Card -->
         <section class="card p-4">
-            <h2 class="section-title">🌐 Let's Encrypt</h2>
+            <h2 class="section-title">🌐 {{t $lang "admin.ssl.lets_encrypt_heading"}}</h2>
 
             <form id="letsEncryptForm">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="domain" class="form-label">Domain Name</label>
+                    <label for="domain" class="form-label">{{t $lang "admin.ssl.domain_name_label"}}</label>
                     <input type="text" id="domain" class="form-input" placeholder="example.com" required aria-required="true">
-                    <small class="form-help">Primary domain for the certificate</small>
+                    <small class="form-help">{{t $lang "admin.ssl.domain_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="email" class="form-label">Contact Email</label>
+                    <label for="email" class="form-label">{{t $lang "admin.ssl.contact_email_label"}}</label>
                     <input type="email" id="email" class="form-input" placeholder="admin@example.com" required aria-required="true">
-                    <small class="form-help">For renewal and security notices</small>
+                    <small class="form-help">{{t $lang "admin.ssl.contact_email_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="altNames" class="form-label">Alternative Names (Optional)</label>
+                    <label for="altNames" class="form-label">{{t $lang "admin.ssl.alt_names_label"}}</label>
                     <textarea id="altNames" class="form-textarea" rows="3" placeholder="www.example.com&#10;api.example.com"></textarea>
-                    <small class="form-help">One domain per line</small>
+                    <small class="form-help">{{t $lang "admin.ssl.alt_names_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label class="checkbox-row">
                         <input type="checkbox" id="agreeToS" required>
-                        <span>I agree to the Let's Encrypt Terms of Service</span>
+                        <span>{{t $lang "admin.ssl.agree_tos_label"}}</span>
                     </label>
                 </div>
 
                 <div class="flex gap-sm">
                     <button type="submit" class="btn btn-success" id="obtainBtn">
-                        🔐 Obtain Certificate
+                        🔐 {{t $lang "admin.ssl.obtain_cert_action"}}
                     </button>
                     <button type="button" class="btn btn-warning" id="renewBtn">
-                        🔄 Renew Certificate
+                        🔄 {{t $lang "admin.ssl.renew_cert_action"}}
                     </button>
                 </div>
             </form>
@@ -80,48 +81,48 @@
 
     <!-- Renewal Settings Card -->
     <section class="card p-4 mt-4">
-        <h2 class="section-title">⚙️ Auto-Renewal Settings</h2>
+        <h2 class="section-title">⚙️ {{t $lang "admin.ssl.auto_renewal_heading"}}</h2>
 
         <div class="grid-2 gap-lg">
             <div>
                 <div class="form-group">
                     <label class="checkbox-row">
                         <input type="checkbox" id="autoRenewal" checked>
-                        <span>Enable automatic renewal</span>
+                        <span>{{t $lang "admin.ssl.enable_auto_renewal_label"}}</span>
                     </label>
-                    <small class="form-help">Automatically renew certificates 30 days before expiry</small>
+                    <small class="form-help">{{t $lang "admin.ssl.enable_auto_renewal_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="renewalDays" class="form-label">Renewal Threshold (days)</label>
+                    <label for="renewalDays" class="form-label">{{t $lang "admin.ssl.renewal_threshold_label"}}</label>
                     <input type="number" id="renewalDays" class="form-input" value="30" min="1" max="60">
-                    <small class="form-help">Renew when certificate expires in this many days</small>
+                    <small class="form-help">{{t $lang "admin.ssl.renewal_threshold_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label class="checkbox-row">
                         <input type="checkbox" id="emailNotifications" checked>
-                        <span>Email notifications for renewals</span>
+                        <span>{{t $lang "admin.ssl.email_notifications_label"}}</span>
                     </label>
                 </div>
 
-                <button class="btn btn-primary" id="saveSettingsBtn">💾 Save Settings</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">💾 {{t $lang "action.save"}}</button>
             </div>
 
             <div class="renewal-schedule">
-                <h3 class="subsection-title">Renewal Schedule</h3>
+                <h3 class="subsection-title">{{t $lang "admin.ssl.renewal_schedule_heading"}}</h3>
                 <div id="renewalSchedule">
                     <div class="schedule-item">
-                        <span>Next check:</span>
+                        <span>{{t $lang "admin.ssl.next_check_label"}}</span>
                         <span id="nextCheck">-</span>
                     </div>
                     <div class="schedule-item">
-                        <span>Next renewal:</span>
+                        <span>{{t $lang "admin.ssl.next_renewal_label"}}</span>
                         <span id="nextRenewal">-</span>
                     </div>
                     <div class="schedule-item">
-                        <span>Last renewal:</span>
-                        <span id="lastRenewal">Never</span>
+                        <span>{{t $lang "admin.ssl.last_renewal_label"}}</span>
+                        <span id="lastRenewal">{{t $lang "admin.common.never"}}</span>
                     </div>
                 </div>
             </div>
@@ -130,49 +131,48 @@
 
     <!-- Certificate History Card -->
     <section class="card p-4 mt-4">
-        <h2 class="section-title">📋 Certificate History</h2>
+        <h2 class="section-title">📋 {{t $lang "admin.ssl.cert_history_heading"}}</h2>
 
         <div class="timeline" id="certHistory">
             <div class="text-center text-comment">
-                No history available
+                {{t $lang "admin.ssl.no_history"}}
             </div>
         </div>
     </section>
 
     <!-- Advanced Options Card -->
     <section class="card p-4 mt-4">
-        <h2 class="section-title">🔧 Advanced Options</h2>
+        <h2 class="section-title">🔧 {{t $lang "admin.ssl.advanced_options_heading"}}</h2>
 
         <div class="grid-2 gap-lg">
             <div>
-                <h3 class="subsection-title">Certificate Actions</h3>
+                <h3 class="subsection-title">{{t $lang "admin.ssl.cert_actions_heading"}}</h3>
                 <div class="btn-group-vertical">
                     <button class="btn btn-secondary" id="exportBtn">
-                        📥 Export Certificate
+                        📥 {{t $lang "admin.ssl.export_cert_action"}}
                     </button>
                     <button class="btn btn-secondary" id="importBtn">
-                        📤 Import Certificate
+                        📤 {{t $lang "admin.ssl.import_cert_action"}}
                     </button>
                     <button class="btn btn-danger" id="revokeBtn">
-                        ⚠️ Revoke Certificate
+                        ⚠️ {{t $lang "admin.ssl.revoke_cert_action"}}
                     </button>
                 </div>
             </div>
 
             <div>
-                <h3 class="subsection-title">Testing</h3>
+                <h3 class="subsection-title">{{t $lang "admin.ssl.testing_heading"}}</h3>
                 <div class="btn-group-vertical">
                     <button class="btn btn-secondary" id="testBtn">
-                        🧪 Test SSL Configuration
+                        🧪 {{t $lang "admin.ssl.test_ssl_config_action"}}
                     </button>
                     <button class="btn btn-secondary" id="scanBtn">
-                        🔍 Security Scan
+                        🔍 {{t $lang "admin.ssl.security_scan_action"}}
                     </button>
                 </div>
             </div>
         </div>
     </section>
-</main>
 
 <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -373,5 +373,5 @@
     setInterval(loadCertStatus, 30000);
 </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

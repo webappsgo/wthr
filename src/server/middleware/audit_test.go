@@ -1,16 +1,20 @@
 package middleware
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
 )
@@ -133,6 +137,47 @@ func TestGetResourceFromPath(t *testing.T) {
 	}
 }
 
+// TestGetResourceFromPath_ConfiguredAdminPathNotDefault is a regression test
+// for the companion half of the hardcoded-prefix bug covered by
+// TestIsAdminRoute_ConfiguredAdminPathNotDefault. isAdminRoute was fixed to
+// resolve the configured admin.path, but getResourceFromPath still compared
+// path[:20]/path[:13] against literal "/api/v1/server/admin" and
+// "/server/admin". With a non-default admin.path those literals never matched,
+// so nothing was stripped and every audit row recorded the resource as "server"
+// - the same value for every admin action, making the audit trail useless for
+// telling one action apart from another.
+//
+// Both helpers now share adminRoutePrefixes, so they cannot drift again. The
+// config fixture follows the same write-then-remove pattern as the isAdminRoute
+// test above, since config.LoadConfig reads CONFIG_DIR/server.yml.
+func TestGetResourceFromPath_ConfiguredAdminPathNotDefault(t *testing.T) {
+	configFile := filepath.Join(setupTestConfigDir, "server.yml")
+	if err := os.WriteFile(configFile, []byte("server:\n  admin_path: backoffice\n"), 0o600); err != nil {
+		t.Fatalf("write server.yml fixture: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(configFile) })
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"/server/backoffice", "dashboard"},
+		{"/server/backoffice/users", "users"},
+		{"/server/backoffice/users/42", "users"},
+		{"/api/v1/server/backoffice/config", "config"},
+		{"/api/v1/server/backoffice", "dashboard"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := getResourceFromPath(tt.path); got != tt.want {
+				t.Errorf("getResourceFromPath(%q) = %q, want %q - the admin prefix must "+
+					"come from the configured admin.path; a fixed-length strip of the "+
+					"default prefix leaves the resource name mangled", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestAuditLogger_SkipsNonAdminAndSafeMethods verifies the middleware is a
 // pure no-op (no error surfaced, handler runs normally) for non-admin routes
 // and for GET/OPTIONS on admin routes - it must not attempt to write for
@@ -217,5 +262,148 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 			"that does not exist in database.ServerSchema; the real table is "+
 			"'server_audit_log' with different columns, so this write silently "+
 			"fails in production and no audit trail is ever recorded for admin actions", count)
+	}
+}
+
+// TestAuditLogger_ReportsFailedWrite verifies a failed audit insert is loud in
+// the log rather than silent.
+//
+// The middleware must never fail the request over a broken audit table, but the
+// previous c.Error(err) only attached the error to the gin context and nothing
+// in this project reads c.Errors - so a missing or broken server_audit_log
+// dropped every admin action with no operator-visible signal at all. PART 11
+// makes recording security-relevant actions non-negotiable, which makes a
+// failure to record one a security event in its own right.
+func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// A database with no schema at all, so the insert cannot succeed.
+	db, err := sql.Open("sqlite", fmt.Sprintf("file:audit_noschema_%d?mode=memory&cache=shared", time.Now().UnixNano()))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	var logged bytes.Buffer
+	previousOutput := log.Writer()
+	previousFlags := log.Flags()
+	log.SetOutput(&logged)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(previousOutput)
+		log.SetFlags(previousFlags)
+	})
+
+	router := gin.New()
+	router.Use(AuditLogger(db))
+	router.POST("/server/admin/users", func(c *gin.Context) {
+		c.JSON(http.StatusCreated, gin.H{"ok": true})
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("status = %d, want 201 - a failed audit write must not fail the request", w.Code)
+	}
+	if got := logged.String(); !strings.Contains(got, "audit:") {
+		t.Errorf("log output = %q, want an \"audit:\" failure line - a dropped audit "+
+			"record must be visible to the operator, not swallowed into c.Errors "+
+			"where nothing ever reads it", got)
+	}
+}
+
+// TestAuditLogger_WritesCanonicalTimestampText is a regression test for the
+// mixed-layout bug in server_audit_log.timestamp.
+//
+// The column has three producers: this middleware, src/scheduler/scheduler.go
+// and src/server/handler/admin_passkey.go. The latter two write canonical
+// "YYYY-MM-DD HH:MM:SS" UTC text. AuditLogger used to bind a raw time.Time,
+// which modernc.org/sqlite serializes with time.Time.String() - the
+// host-LOCAL "2006-01-02 15:04:05.999999999 -0700 MST" form, plus a
+// monotonic-clock suffix for values from time.Now(). The single column then
+// held two incomparable encodings, which is why the GraphQL request-stats
+// reader has to carry an oversized skew prefilter.
+//
+// The strict time.Parse below is what catches the old code: a
+// time.Time.String() value never parses against dbtime.SQLTimestampLayout, in
+// any host timezone (a UTC host still yields the "+0000 UTC" zone suffix), so
+// this test fails against the raw-time.Time bind and passes only once the
+// write goes through dbtime.FormatSQLTimestamp.
+func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := openAuditTestDB(t)
+
+	router := gin.New()
+	router.Use(AuditLogger(db))
+	router.POST("/server/admin/users", func(c *gin.Context) {
+		c.JSON(http.StatusCreated, gin.H{"ok": true})
+	})
+
+	before := time.Now().UTC().Truncate(time.Second)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", w.Code)
+	}
+
+	after := time.Now().UTC()
+
+	// Scanned untyped, and CAST to TEXT in SQL, so the driver hands back
+	// exactly what is on disk. A plain "SELECT timestamp" would trigger
+	// modernc.org/sqlite's decltype-driven DATETIME auto-parsing (the
+	// declared column type is DATETIME) and hand back a time.Time no matter
+	// which text layout was actually stored, hiding the bug this test exists
+	// to catch. CAST(... AS TEXT) makes the result an expression with no
+	// column decltype, so the driver returns the raw stored bytes.
+	var stored interface{}
+	if err := db.QueryRow("SELECT CAST(timestamp AS TEXT) FROM server_audit_log WHERE action = 'create'").Scan(&stored); err != nil {
+		t.Fatalf("query server_audit_log.timestamp: %v", err)
+	}
+
+	var text string
+	switch value := stored.(type) {
+	case string:
+		text = value
+	case []byte:
+		text = string(value)
+	default:
+		t.Fatalf("server_audit_log.timestamp scanned as %T (%v), want text - the "+
+			"column must hold canonical text written by dbtime.FormatSQLTimestamp", stored, stored)
+	}
+
+	parsed, err := time.Parse(dbtime.SQLTimestampLayout, text)
+	if err != nil {
+		t.Fatalf("server_audit_log.timestamp = %q does not parse with "+
+			"dbtime.SQLTimestampLayout (%q): %v - AuditLogger must bind "+
+			"dbtime.FormatSQLTimestamp(now), not a raw time.Time (which "+
+			"modernc.org/sqlite stores in the host-local time.Time.String() form)",
+			text, dbtime.SQLTimestampLayout, err)
+	}
+
+	// Round-trip: the canonical text must denote the same absolute instant the
+	// request happened at, so a UTC value was written rather than a local
+	// wall-clock reading formatted without its offset.
+	parsed = parsed.UTC()
+	if parsed.Before(before) || parsed.After(after) {
+		t.Errorf("server_audit_log.timestamp = %q parses to %s, want an instant "+
+			"within [%s, %s] - the stored text must be UTC, not local wall-clock",
+			text, parsed.Format(time.RFC3339), before.Format(time.RFC3339), after.Format(time.RFC3339))
+	}
+
+	// The shared reader path must agree with the strict parse above; any
+	// disagreement means the value only survives via a legacy-tolerance layout.
+	viaDBTime, ok := dbtime.ParseStoredTimestamp(stored)
+	if !ok {
+		t.Fatalf("dbtime.ParseStoredTimestamp(%q) reported false for a value this project just wrote", text)
+	}
+	if !viaDBTime.Equal(parsed) {
+		t.Errorf("dbtime.ParseStoredTimestamp(%q) = %s, want %s - the stored value "+
+			"must round-trip identically through both parse paths",
+			text, viaDBTime.Format(time.RFC3339), parsed.Format(time.RFC3339))
 	}
 }

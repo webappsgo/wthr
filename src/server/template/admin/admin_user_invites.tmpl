@@ -1,7 +1,8 @@
 {{template "head" .}}
-{{template "navbar" .}}
-<main class="container">
-  <div class="admin-header"><h1>🔗 User Invites</h1></div>
+{{template "admin_header" .}}
+  {{- $lang := "en" -}}
+  {{- if .lang}}{{$lang = .lang}}{{end -}}
+  <div class="admin-header"><h1>🔗 {{t $lang "admin.user_invites.title"}}</h1></div>
 
   {{if .message}}
   <section class="card">
@@ -19,37 +20,37 @@
   {{end}}
 
   <section class="card">
-    <h2>Create Invite</h2>
-    <form method="POST" action="{{.admin_path}}/server/users/invites">
+    <h2>{{t $lang "admin.user_invites.create_heading"}}</h2>
+    <form method="POST" action="{{.admin_path}}/config/users/invites">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-      <label for="username">Username</label>
+      <label for="username">{{t $lang "admin.admins.col_username"}}</label>
       <input id="username" name="username" type="text" required autocomplete="username" value="{{.form.Username}}">
 
-      <label for="email">Email</label>
+      <label for="email">{{t $lang "admin.admins.col_email"}}</label>
       <input id="email" name="email" type="email" required autocomplete="email" value="{{.form.Email}}">
 
-      <label for="role">Role</label>
+      <label for="role">{{t $lang "admin.admins.col_role"}}</label>
       <input id="role" name="role" type="text" value="{{if .form.Role}}{{.form.Role}}{{else}}user{{end}}">
 
-      <label for="expires_in_days">Invite expiration (days)</label>
+      <label for="expires_in_days">{{t $lang "admin.user_invites.expiration_days_label"}}</label>
       <input id="expires_in_days" name="expires_in_days" type="number" min="1" value="{{if .form.ExpiresInDays}}{{.form.ExpiresInDays}}{{else}}{{.invite_expiration_days}}{{end}}">
 
-      <button type="submit">Generate invite</button>
+      <button type="submit">{{t $lang "admin.user_invites.generate_action"}}</button>
     </form>
   </section>
 
   <section class="card">
-    <h2>Invite List</h2>
+    <h2>{{t $lang "admin.user_invites.list_heading"}}</h2>
     {{if .invites}}
     <table>
       <thead>
         <tr>
-          <th>Username</th>
-          <th>Email</th>
-          <th>Role</th>
-          <th>Status</th>
-          <th>Expires</th>
-          <th>Invite URL</th>
+          <th>{{t $lang "admin.admins.col_username"}}</th>
+          <th>{{t $lang "admin.admins.col_email"}}</th>
+          <th>{{t $lang "admin.admins.col_role"}}</th>
+          <th>{{t $lang "admin.admins.col_status"}}</th>
+          <th>{{t $lang "admin.admins.col_expires"}}</th>
+          <th>{{t $lang "admin.user_invites.col_invite_url"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -66,8 +67,7 @@
       </tbody>
     </table>
     {{else}}
-    <p>No invites created yet.</p>
+    <p>{{t $lang "admin.user_invites.empty_message"}}</p>
     {{end}}
   </section>
-</main>
-{{template "footer" .}}
+{{template "admin_footer" .}}

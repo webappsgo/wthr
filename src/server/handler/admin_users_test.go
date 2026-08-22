@@ -12,7 +12,7 @@ import (
 // path. No auth/data gating exists on this handler.
 func TestAdminUsersHandler_ShowUserSettings(t *testing.T) {
 	h := &AdminUsersHandler{}
-	c, w := newTestContext(http.MethodGet, "/server/admin/users-settings")
+	c, w := newTestContext(http.MethodGet, "/server/admin/config/users/settings")
 	// c.HTML needs an HTMLRender configured or gin panics; recover so a
 	// missing-template failure doesn't crash the run, since we only assert
 	// the handler didn't error out before reaching HTML().
@@ -50,7 +50,7 @@ func TestAdminUsersHandler_UpdateUserSettings_Success(t *testing.T) {
 		"registration_mode": "disabled",
 		"registration_require_email_verification": true,
 	}
-	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(c)
 
 	if w.Code != http.StatusOK {
@@ -70,7 +70,7 @@ func TestAdminUsersHandler_UpdateUserSettings_Success(t *testing.T) {
 func TestAdminUsersHandler_UpdateUserSettings_InvalidMode(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{"registration_mode": "nonsense"}
-	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(c)
 
 	if w.Code != http.StatusBadRequest {
@@ -82,7 +82,7 @@ func TestAdminUsersHandler_UpdateUserSettings_InvalidMode(t *testing.T) {
 // / malformed request body edge case.
 func TestAdminUsersHandler_UpdateUserSettings_MalformedJSON(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
-	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", "not json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", "not json")
 	h.UpdateUserSettings(c)
 
 	if w.Code != http.StatusBadRequest {
@@ -95,7 +95,7 @@ func TestAdminUsersHandler_UpdateUserSettings_MalformedJSON(t *testing.T) {
 func TestAdminUsersHandler_UpdateUserSettings_MissingConfigFile(t *testing.T) {
 	h := &AdminUsersHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist.yml")}
 	body := map[string]interface{}{"registration_mode": "disabled"}
-	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(c)
 
 	if w.Code != http.StatusInternalServerError {
@@ -116,7 +116,7 @@ func TestAdminUsersHandler_UpdateUserSettings_MissingConfigFile(t *testing.T) {
 func TestAdminUsersHandler_UpdateUserSettings_SpecCorrectModeRejected(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{"registration_mode": "open"}
-	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/users-settings", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(c)
 
 	if w.Code != http.StatusOK {

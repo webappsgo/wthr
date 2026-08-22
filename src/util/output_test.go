@@ -1,51 +1,32 @@
 package util
 
-import "testing"
+import (
+	"testing"
 
-// TestEmoji covers the enabled/disabled fallback selection directly (does
-// not depend on TTY detection).
-func TestEmoji(t *testing.T) {
-	t.Setenv("NO_COLOR", "")
-	t.Setenv("TERM", "xterm")
+	"github.com/webappsgo/wthr/src/common/display"
+)
 
-	got := Emoji("X", "[X]")
-	if got != "X" {
-		t.Errorf("Emoji enabled = %q, want %q", got, "X")
-	}
+// emojiGateCases enumerates the NO_COLOR / TERM=dumb gate behavior mandated by
+// AI.md PART 8. EmojiEnabled and Emoji both delegate to src/common/display, so
+// these cases double as a parity check against the canonical gate.
+var emojiGateCases = []struct {
+	name    string
+	noColor string
+	term    string
+	want    bool
+}{
+	{"default_enabled", "", "xterm", true},
+	{"no_color_1_disables", "1", "xterm", false},
+	{"no_color_0_disables", "0", "xterm", false},
+	{"no_color_any_value_disables", "anything", "xterm", false},
+	{"term_dumb_disables", "", "dumb", false},
+	{"no_color_and_term_dumb_disables", "1", "dumb", false},
+	{"empty_term_still_enabled", "", "", true},
 }
 
-// TestEmoji_Disabled_NoColor verifies NO_COLOR forces the plain fallback.
-func TestEmoji_Disabled_NoColor(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-	got := Emoji("X", "[X]")
-	if got != "[X]" {
-		t.Errorf("Emoji with NO_COLOR set = %q, want %q", got, "[X]")
-	}
-}
-
-// TestEmoji_Disabled_TermDumb verifies TERM=dumb forces the plain fallback.
-func TestEmoji_Disabled_TermDumb(t *testing.T) {
-	t.Setenv("NO_COLOR", "")
-	t.Setenv("TERM", "dumb")
-	got := Emoji("X", "[X]")
-	if got != "[X]" {
-		t.Errorf("Emoji with TERM=dumb = %q, want %q", got, "[X]")
-	}
-}
-
-// TestEmojiEnabled covers the three branches of EmojiEnabled directly.
+// TestEmojiEnabled covers every branch of the emoji gate.
 func TestEmojiEnabled(t *testing.T) {
-	tests := []struct {
-		name    string
-		noColor string
-		term    string
-		want    bool
-	}{
-		{"default_enabled", "", "xterm", true},
-		{"no_color_disables", "1", "xterm", false},
-		{"term_dumb_disables", "", "dumb", false},
-	}
-	for _, tt := range tests {
+	for _, tt := range emojiGateCases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("NO_COLOR", tt.noColor)
 			t.Setenv("TERM", tt.term)
@@ -56,61 +37,99 @@ func TestEmojiEnabled(t *testing.T) {
 	}
 }
 
-// TestColorEnabled_CLIColorModeOverrides verifies the CLI_COLOR_MODE flag
-// takes priority over everything else, in both directions.
-func TestColorEnabled_CLIColorModeOverrides(t *testing.T) {
-	t.Run("yes_forces_true", func(t *testing.T) {
-		t.Setenv("CLI_COLOR_MODE", "yes")
-		t.Setenv("NO_COLOR", "1")
-		t.Setenv("TERM", "dumb")
-		if !ColorEnabled() {
-			t.Error("ColorEnabled() = false, want true (CLI_COLOR_MODE=yes overrides NO_COLOR/TERM)")
-		}
-	})
-
-	t.Run("no_forces_false", func(t *testing.T) {
-		t.Setenv("CLI_COLOR_MODE", "no")
-		t.Setenv("NO_COLOR", "")
-		if ColorEnabled() {
-			t.Error("ColorEnabled() = true, want false (CLI_COLOR_MODE=no)")
-		}
-	})
-}
-
-// TestColorEnabled_NoColorEnv verifies NO_COLOR disables color when
-// CLI_COLOR_MODE is not "yes".
-func TestColorEnabled_NoColorEnv(t *testing.T) {
-	t.Setenv("CLI_COLOR_MODE", "")
-	t.Setenv("NO_COLOR", "1")
-	if ColorEnabled() {
-		t.Error("ColorEnabled() = true, want false with NO_COLOR set")
+// TestEmojiEnabled_DelegatesToDisplay verifies util does not maintain a second
+// gate: its answer must match display.EmojiEnabled for every case.
+func TestEmojiEnabled_DelegatesToDisplay(t *testing.T) {
+	for _, tt := range emojiGateCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("NO_COLOR", tt.noColor)
+			t.Setenv("TERM", tt.term)
+			if got, want := EmojiEnabled(), display.EmojiEnabled(); got != want {
+				t.Errorf("EmojiEnabled() = %v, display.EmojiEnabled() = %v; gates must agree", got, want)
+			}
+		})
 	}
 }
 
-// TestColorEnabled_AutoDetectDefault verifies the fall-through auto-detect
-// branch: with no CLI_COLOR_MODE/NO_COLOR override and TERM not "dumb",
-// ColorEnabled defers to term.IsTerminal(os.Stdout). Under `go test`,
-// stdout is not a TTY, so this must return false.
-func TestColorEnabled_AutoDetectDefault(t *testing.T) {
-	t.Setenv("CLI_COLOR_MODE", "")
-	t.Setenv("NO_COLOR", "")
-	t.Setenv("TERM", "xterm")
+// TestEmoji verifies the emoji/fallback selection follows the same gate.
+func TestEmoji(t *testing.T) {
+	for _, tt := range emojiGateCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("NO_COLOR", tt.noColor)
+			t.Setenv("TERM", tt.term)
 
-	if ColorEnabled() {
-		t.Error("ColorEnabled() = true under go test (non-TTY stdout), want false")
+			want := "[X]"
+			if tt.want {
+				want = "X"
+			}
+			if got := Emoji("X", "[X]"); got != want {
+				t.Errorf("Emoji(\"X\", \"[X]\") = %q, want %q", got, want)
+			}
+			if got, canonical := Emoji("X", "[X]"), display.Emoji("X", "[X]"); got != canonical {
+				t.Errorf("Emoji() = %q, display.Emoji() = %q; must delegate", got, canonical)
+			}
+		})
 	}
 }
 
-// TestColorEnabled_AutoModeFallsThrough verifies CLI_COLOR_MODE=auto does
-// not itself force a value — it falls through to the same auto-detect
-// path as leaving the variable unset.
-func TestColorEnabled_AutoModeFallsThrough(t *testing.T) {
-	t.Setenv("CLI_COLOR_MODE", "auto")
-	t.Setenv("NO_COLOR", "")
-	t.Setenv("TERM", "xterm")
+// colorGateCases enumerates the AI.md PART 8 color precedence chain:
+// CLI flag (CLI_COLOR_MODE) -> config -> NO_COLOR -> auto-detect (TTY + TERM).
+// Under `go test` stdout is never a TTY, so every case that reaches the
+// auto-detect layer resolves to false regardless of TERM.
+var colorGateCases = []struct {
+	name      string
+	colorMode string
+	noColor   string
+	term      string
+	want      bool
+}{
+	{"flag_yes_beats_no_color_and_dumb_term", "yes", "1", "dumb", true},
+	{"flag_yes_beats_non_tty", "yes", "", "xterm", true},
+	{"flag_no_forces_off", "no", "", "xterm", false},
+	{"flag_no_beats_everything", "no", "", "dumb", false},
+	{"flag_auto_falls_through_to_autodetect", "auto", "", "xterm", false},
+	{"unset_flag_falls_through_to_autodetect", "", "", "xterm", false},
+	{"unknown_flag_value_treated_as_auto", "maybe", "", "xterm", false},
+	{"no_color_disables", "", "1", "xterm", false},
+	{"no_color_any_value_disables", "", "anything", "xterm", false},
+	{"no_color_empty_falls_through", "", "", "", false},
+	{"term_dumb_disables", "", "", "dumb", false},
+}
 
-	if ColorEnabled() {
-		t.Error("ColorEnabled() with CLI_COLOR_MODE=auto under go test = true, want false")
+// TestColorEnabled covers the full precedence chain of the color gate.
+func TestColorEnabled(t *testing.T) {
+	for _, tt := range colorGateCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("CLI_COLOR_MODE", tt.colorMode)
+			t.Setenv("NO_COLOR", tt.noColor)
+			t.Setenv("TERM", tt.term)
+			if got := ColorEnabled(); got != tt.want {
+				t.Errorf("ColorEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestColorEnabled_DelegatesToDisplay verifies util does not maintain a second
+// color gate: its answer must match display.ColorEnabled for every case.
+func TestColorEnabled_DelegatesToDisplay(t *testing.T) {
+	for _, tt := range colorGateCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("CLI_COLOR_MODE", tt.colorMode)
+			t.Setenv("NO_COLOR", tt.noColor)
+			t.Setenv("TERM", tt.term)
+			if got, want := ColorEnabled(), display.ColorEnabled(); got != want {
+				t.Errorf("ColorEnabled() = %v, display.ColorEnabled() = %v; gates must agree", got, want)
+			}
+		})
+	}
+}
+
+// TestColorModeEnvVarName pins the env-var name the CLI flag parser writes,
+// so the flag plumbing and the gate cannot drift apart.
+func TestColorModeEnvVarName(t *testing.T) {
+	if display.ColorModeEnvVar != "CLI_COLOR_MODE" {
+		t.Errorf("display.ColorModeEnvVar = %q, want %q", display.ColorModeEnvVar, "CLI_COLOR_MODE")
 	}
 }
 

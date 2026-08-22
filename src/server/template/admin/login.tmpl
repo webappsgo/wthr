@@ -1,10 +1,12 @@
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{$lang}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Admin Panel - {{ .branding.Title }}</title>
+    <title>{{t $lang "admin.login.page_title"}} - {{ .branding.Title }}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/admin.css">
@@ -14,7 +16,7 @@
         <div class="login-card">
             <div class="login-header">
                 <h1 class="login-title">{{ .branding.Title }}</h1>
-                <p class="login-subtitle">Admin Panel</p>
+                <p class="login-subtitle">{{t $lang "admin.login.page_title"}}</p>
             </div>
 
             {{/* Error message if login failed */}}
@@ -25,7 +27,7 @@
             <form method="POST" action="{{.admin_path}}/login" autocomplete="off">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="username" class="form-label">Username</label>
+                    <label for="username" class="form-label">{{t $lang "admin.admins.col_username"}}</label>
                     <input type="text"
                            id="username"
                            name="username"
@@ -33,19 +35,19 @@
                            required
                            autofocus
                            autocomplete="username"
-                           aria-label="Admin username"
+                           aria-label="{{t $lang "admin.login.username_aria_label"}}"
                            aria-required="true">
                 </div>
 
                 <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
+                    <label for="password" class="form-label">{{t $lang "admin.invite_accept.password_label"}}</label>
                     <input type="password"
                            id="password"
                            name="password"
                            class="form-input"
                            required
                            autocomplete="current-password"
-                           aria-label="Admin password"
+                           aria-label="{{t $lang "admin.login.password_aria_label"}}"
                            aria-required="true">
                 </div>
 
@@ -55,10 +57,10 @@
                            id="remember"
                            name="remember"
                            value="1">
-                    <label for="remember">Remember me</label>
+                    <label for="remember">{{t $lang "admin.login.remember_me_label"}}</label>
                 </div>
 
-                <button type="submit" class="btn-login">Login</button>
+                <button type="submit" class="btn-login">{{t $lang "nav.login"}}</button>
             </form>
         </div>
 

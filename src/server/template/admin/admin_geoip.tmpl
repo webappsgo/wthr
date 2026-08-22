@@ -1,25 +1,25 @@
 {{template "head" .}}
-{{template "navbar" .}}
-<main class="container">
-<div class="admin-header"><h1>🌍 GeoIP Settings</h1></div>
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+<div class="admin-header"><h1>🌍 {{t $lang "admin.geoip.title"}}</h1></div>
 <form id="geoipSettingsForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-<section class="card"><h2>GeoIP Configuration</h2>
-<label><input type="checkbox" name="enabled"> Enable GeoIP</label>
-<label>Data Directory: <input type="text" name="dir" value="/var/lib/weather/geoip"></label>
-<label>Update Frequency (hours): <input type="number" name="update_frequency" value="168"></label>
-<p class="note">Data source: <a href="https://github.com/sapics/ip-location-db" target="_blank">sapics/ip-location-db</a></p>
+<section class="card"><h2>{{t $lang "admin.geoip.config_heading"}}</h2>
+<label><input type="checkbox" name="enabled"> {{t $lang "admin.geoip.enable_label"}}</label>
+<label>{{t $lang "admin.geoip.dir_label"}} <input type="text" name="dir" value="/var/lib/weather/geoip"></label>
+<label>{{t $lang "admin.geoip.update_frequency_label"}} <input type="number" name="update_frequency" value="168"></label>
+<p class="note">{{t $lang "admin.geoip.data_source_label"}} <a href="https://github.com/sapics/ip-location-db" target="_blank">sapics/ip-location-db</a></p>
 </section>
-<section class="card"><h2>Databases</h2>
-<label><input type="checkbox" name="database_asn" checked> ASN Database</label>
-<label><input type="checkbox" name="database_country" checked> Country Database</label>
-<label><input type="checkbox" name="database_city"> City Database</label>
+<section class="card"><h2>{{t $lang "admin.geoip.databases_heading"}}</h2>
+<label><input type="checkbox" name="database_asn" checked> {{t $lang "admin.geoip.database_asn_label"}}</label>
+<label><input type="checkbox" name="database_country" checked> {{t $lang "admin.geoip.database_country_label"}}</label>
+<label><input type="checkbox" name="database_city"> {{t $lang "admin.geoip.database_city_label"}}</label>
 </section>
-<section class="card"><h2>Country Blocking</h2>
-<label>Deny Countries (comma-separated): <input type="text" name="deny_countries" placeholder="CN,RU"></label>
-<p class="note">Use ISO 3166-1 alpha-2 codes</p>
+<section class="card"><h2>{{t $lang "admin.geoip.country_blocking_heading"}}</h2>
+<label>{{t $lang "admin.geoip.deny_countries_label"}} <input type="text" name="deny_countries" placeholder="CN,RU"></label>
+<p class="note">{{t $lang "admin.geoip.iso_codes_note"}}</p>
 </section>
-<button type="submit">Save Settings</button>
+<button type="submit">{{t $lang "admin.common.save_settings"}}</button>
 </form>
-</main>
-{{template "footer" .}}
+{{template "admin_footer" .}}

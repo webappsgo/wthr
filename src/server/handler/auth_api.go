@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -479,20 +480,41 @@ func VerifyAPIUserEmail(db *sql.DB, req *APIVerifyEmailRequest) error {
 		ExpiresAt time.Time
 	}
 
+	// Expiry is compared in Go, not in SQL. expires_at is stored as canonical
+	// UTC text while the old predicate bound a raw time.Time, which the SQLite
+	// driver serializes as time.Time.String() in the host's LOCAL zone — the
+	// two encodings compared lexicographically, so the filter was wrong across
+	// zones. dbtime.IsAfter fails closed: a NULL or unparseable stored value
+	// is treated as expired.
+	//
+	// The lookup is by SHA-256 hash, not by the raw token. Every row in this
+	// table is written by UserEmailVerificationModel.CreateVerification, which
+	// stores models.HashAPIToken(token) — PART 11 forbids keeping a usable
+	// token at rest. Querying the raw value here matched nothing, so no
+	// emailed verification link could ever be redeemed through this endpoint.
+	var storedExpiresAt interface{}
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, email, expires_at
 		FROM user_email_verifications
-		WHERE token = ? AND expires_at > ?
-	`, strings.TrimSpace(req.Token), time.Now()).Scan(&verification.ID, &verification.UserID, &verification.Email, &verification.ExpiresAt)
+		WHERE token = ?
+	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&verification.ID, &verification.UserID, &verification.Email, &storedExpiresAt)
 	if err != nil {
 		return fmt.Errorf("invalid or expired verification token")
 	}
+	if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
+		return fmt.Errorf("invalid or expired verification token")
+	}
+	if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+		verification.ExpiresAt = parsed
+	}
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET email_verified = 1, updated_at = ?
 		WHERE id = ?
-	`, time.Now(), verification.UserID)
+	`, dbtime.FormatSQLTimestamp(time.Now()), verification.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to verify email")
 	}
@@ -552,16 +574,35 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 			return
 		}
 
+		// created_at/expires_at are bound as canonical UTC text. Binding a raw
+		// time.Time makes the SQLite driver serialize it as time.Time.String()
+		// in the host's LOCAL zone, which no reader can compare against a UTC
+		// instant without guessing the writer's offset.
+		//
+		// Only the SHA-256 hash is stored. The raw token goes out in the email
+		// link and is never persisted, so a leaked copy of the users database
+		// cannot be replayed to seize accounts. This also matches
+		// UserPasswordResetModel.CreateReset, the other writer of this table —
+		// storing the raw value here left rows the model's reader could not
+		// match and vice versa.
+		issuedAt := time.Now()
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO user_password_resets (user_id, token, ip_address, created_at, expires_at)
 			VALUES (?, ?, ?, ?, ?)
-		`, user.ID, token, requestIP, time.Now(), time.Now().Add(1*time.Hour))
+		`, user.ID, models.HashAPIToken(token), requestIP, dbtime.FormatSQLTimestamp(issuedAt), dbtime.FormatSQLTimestamp(issuedAt.Add(1*time.Hour)))
 		if err != nil {
 			return
 		}
 
 		resetURL := fmt.Sprintf("%s/auth/password/reset?token=%s", baseURL, token)
-		smtpService := service.NewSMTPService(db)
+
+		// The SMTP service reads server_config and server_notification_channels,
+		// both declared in database.ServerSchema, so it must be given the SERVER
+		// handle. The `db` in scope here is the users handle - every caller passes
+		// one, and it is what the user_password_resets insert above writes to -
+		// so passing it made the service look for its configuration in the wrong
+		// database and silently find no SMTP settings at all.
+		smtpService := service.NewSMTPService(database.GetServerDB())
 		if err := smtpService.LoadConfig(); err == nil {
 			subject := "Password Reset Request"
 			body := fmt.Sprintf(`
@@ -595,13 +636,27 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		ExpiresAt time.Time
 	}
 
+	// Expiry is compared in Go, not in SQL — see VerifyAPIUserEmail above for
+	// why the SQL-side predicate compared two incompatible text encodings.
+	// dbtime.IsAfter fails closed: a NULL or unparseable stored value is
+	// treated as expired.
+	//
+	// Looked up by SHA-256 hash, matching what both writers of this table
+	// store; see RequestAPIUserPasswordReset above.
+	var storedExpiresAt interface{}
 	err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, expires_at
 		FROM user_password_resets
-		WHERE token = ? AND expires_at > ?
-	`, strings.TrimSpace(req.Token), time.Now()).Scan(&reset.ID, &reset.UserID, &reset.ExpiresAt)
+		WHERE token = ?
+	`, models.HashAPIToken(strings.TrimSpace(req.Token))).Scan(&reset.ID, &reset.UserID, &storedExpiresAt)
 	if err != nil {
 		return fmt.Errorf("invalid or expired reset token")
+	}
+	if !dbtime.IsAfter(storedExpiresAt, time.Now()) {
+		return fmt.Errorf("invalid or expired reset token")
+	}
+	if parsed, ok := dbtime.ParseStoredTimestamp(storedExpiresAt); ok {
+		reset.ExpiresAt = parsed
 	}
 
 	hashedPassword, err := util.HashPassword(req.Password)
@@ -609,11 +664,13 @@ func ResetAPIUserPassword(db *sql.DB, req *APIPasswordResetRequest) error {
 		return fmt.Errorf("failed to process password")
 	}
 
+	// updated_at is bound as canonical UTC text rather than as a raw time.Time,
+	// which the SQLite driver would serialize in the host's LOCAL zone.
 	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 		UPDATE user_accounts
 		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
-	`, hashedPassword, time.Now(), reset.UserID)
+	`, hashedPassword, dbtime.FormatSQLTimestamp(time.Now()), reset.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to reset password")
 	}
@@ -674,7 +731,10 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 		return nil, fmt.Errorf("failed to create account")
 	}
 
-	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, user.ID); err != nil {
+	// updated_at is bound as canonical UTC text rather than produced by SQL's
+	// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
+	// MySQL and SQL Server than it does on SQLite.
+	if _, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
 		return nil, fmt.Errorf("failed to finalize account")
 	}
 

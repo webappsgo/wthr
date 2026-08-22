@@ -1,18 +1,19 @@
 {{define "admin/admin_email.tmpl"}}
 {{template "head" .}}
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
-                <h1>📧 Email Settings</h1>
-                <p class="subtitle">Configure SMTP server and email notifications</p>
+                <h1>📧 {{t $lang "admin.email.title"}}</h1>
+                <p class="subtitle">{{t $lang "admin.email.intro"}}</p>
             </div>
 
             <!-- SMTP Configuration Section -->
             <section class="admin-card" aria-labelledby="smtp-heading">
                 <div class="card-header">
-                    <h2 id="smtp-heading">SMTP Server Configuration</h2>
-                    <p class="card-description">Configure your email server for sending notifications</p>
+                    <h2 id="smtp-heading">{{t $lang "admin.email.smtp_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.email.smtp_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="smtp-form" class="settings-form">
@@ -27,10 +28,10 @@
                                     aria-describedby="smtp_enabled_help"
                                 >
                                 <span class="toggle-slider"></span>
-                                Enable Email Notifications
+                                {{t $lang "admin.email.enable_label"}}
                             </label>
                             <small id="smtp_enabled_help" class="form-text">
-                                Turn on to send email notifications for alerts, backups, and security events
+                                {{t $lang "admin.email.enable_help"}}
                             </small>
                         </div>
 
@@ -38,7 +39,7 @@
                             <div class="form-row">
                                 <div class="form-group col-md-8">
                                     <label for="smtp_host">
-                                        SMTP Server
+                                        {{t $lang "admin.email.host_label"}}
                                         <span class="required" aria-label="required">*</span>
                                     </label>
                                     <input
@@ -52,13 +53,13 @@
                                         aria-describedby="smtp_host_help"
                                     >
                                     <small id="smtp_host_help" class="form-text">
-                                        SMTP server hostname or IP address
+                                        {{t $lang "admin.email.host_help"}}
                                     </small>
                                 </div>
 
                                 <div class="form-group col-md-4">
                                     <label for="smtp_port">
-                                        Port
+                                        {{t $lang "admin.email.port_label"}}
                                         <span class="required" aria-label="required">*</span>
                                     </label>
                                     <input
@@ -74,13 +75,13 @@
                                         aria-describedby="smtp_port_help"
                                     >
                                     <small id="smtp_port_help" class="form-text">
-                                        Common: 587 (TLS), 465 (SSL), 25 (plain)
+                                        {{t $lang "admin.email.port_help"}}
                                     </small>
                                 </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="smtp_username">Username</label>
+                                <label for="smtp_username">{{t $lang "admin.email.username_label"}}</label>
                                 <input
                                     type="text"
                                     id="smtp_username"
@@ -91,12 +92,12 @@
                                     aria-describedby="smtp_username_help"
                                 >
                                 <small id="smtp_username_help" class="form-text">
-                                    SMTP authentication username (usually your email address)
+                                    {{t $lang "admin.email.username_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="smtp_password">Password</label>
+                                <label for="smtp_password">{{t $lang "admin.email.password_label"}}</label>
                                 <input
                                     type="password"
                                     id="smtp_password"
@@ -107,12 +108,12 @@
                                     aria-describedby="smtp_password_help"
                                 >
                                 <small id="smtp_password_help" class="form-text">
-                                    SMTP authentication password or app-specific password
+                                    {{t $lang "admin.email.password_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="smtp_from">From Address</label>
+                                <label for="smtp_from">{{t $lang "admin.email.from_address_label"}}</label>
                                 <input
                                     type="email"
                                     id="smtp_from"
@@ -122,12 +123,12 @@
                                     aria-describedby="smtp_from_help"
                                 >
                                 <small id="smtp_from_help" class="form-text">
-                                    Email address shown as sender in outgoing emails
+                                    {{t $lang "admin.email.from_address_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="smtp_from_name">From Name</label>
+                                <label for="smtp_from_name">{{t $lang "admin.email.from_name_label"}}</label>
                                 <input
                                     type="text"
                                     id="smtp_from_name"
@@ -137,40 +138,40 @@
                                     aria-describedby="smtp_from_name_help"
                                 >
                                 <small id="smtp_from_name_help" class="form-text">
-                                    Display name shown as sender in outgoing emails
+                                    {{t $lang "admin.email.from_name_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="smtp_encryption">Encryption</label>
+                                <label for="smtp_encryption">{{t $lang "admin.email.encryption_label"}}</label>
                                 <select id="smtp_encryption" name="smtp.encryption" class="form-control" aria-describedby="smtp_encryption_help">
-                                    <option value="tls">TLS (STARTTLS)</option>
-                                    <option value="ssl">SSL</option>
-                                    <option value="none">None (Not Recommended)</option>
+                                    <option value="tls">{{t $lang "admin.email.encryption_tls"}}</option>
+                                    <option value="ssl">{{t $lang "admin.email.encryption_ssl"}}</option>
+                                    <option value="none">{{t $lang "admin.email.encryption_none"}}</option>
                                 </select>
                                 <small id="smtp_encryption_help" class="form-text">
-                                    Encryption method for secure email transmission
+                                    {{t $lang "admin.email.encryption_help"}}
                                 </small>
                             </div>
 
                             <div class="alert alert-info" role="status">
-                                <strong>Popular SMTP Providers:</strong><br>
-                                • <strong>Gmail:</strong> smtp.gmail.com:587 (TLS) - Use app-specific password<br>
-                                • <strong>Outlook:</strong> smtp.office365.com:587 (TLS)<br>
-                                • <strong>SendGrid:</strong> smtp.sendgrid.net:587 (TLS)<br>
-                                • <strong>Mailgun:</strong> smtp.mailgun.org:587 (TLS)
+                                <strong>{{t $lang "admin.email.providers_heading"}}</strong><br>
+                                • <strong>Gmail:</strong> {{t $lang "admin.email.provider_gmail"}}<br>
+                                • <strong>Outlook:</strong> {{t $lang "admin.email.provider_outlook"}}<br>
+                                • <strong>SendGrid:</strong> {{t $lang "admin.email.provider_sendgrid"}}<br>
+                                • <strong>Mailgun:</strong> {{t $lang "admin.email.provider_mailgun"}}
                             </div>
                         </div>
 
                         <div class="button-group">
-                            <button type="submit" class="btn btn-primary" aria-label="Save SMTP settings">
-                                💾 Save Settings
+                            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.email.save_aria"}}">
+                                💾 {{t $lang "admin.email.save_action"}}
                             </button>
-                            <button type="button" class="btn btn-success" id="test-email-btn" aria-label="Send test email">
-                                📨 Send Test Email
+                            <button type="button" class="btn btn-success" id="test-email-btn" aria-label="{{t $lang "admin.email.send_test_aria"}}">
+                                📨 {{t $lang "admin.email.send_test_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" id="autodetect-btn" aria-label="Auto-detect SMTP">
-                                🔍 Auto-Detect
+                            <button type="button" class="btn btn-secondary" id="autodetect-btn" aria-label="{{t $lang "admin.email.autodetect_aria"}}">
+                                🔍 {{t $lang "admin.email.autodetect_action"}}
                             </button>
                         </div>
                     </form>
@@ -180,101 +181,100 @@
             <!-- Email Templates Section -->
             <section class="admin-card" aria-labelledby="templates-heading">
                 <div class="card-header">
-                    <h2 id="templates-heading">Email Templates</h2>
-                    <p class="card-description">Manage notification email templates</p>
+                    <h2 id="templates-heading">{{t $lang "admin.email.templates_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.email.templates_description"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="template-list">
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Welcome Email</strong>
-                                <p>Sent when the application is first set up</p>
+                                <strong>{{t $lang "admin.email.template_welcome_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_welcome_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/welcome" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/welcome" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Password Reset</strong>
-                                <p>Password reset instructions with secure link</p>
+                                <strong>{{t $lang "admin.email.template_password_reset_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_password_reset_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/password_reset" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/password_reset" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Backup Complete</strong>
-                                <p>Notification when backup completes successfully</p>
+                                <strong>{{t $lang "admin.email.template_backup_complete_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_backup_complete_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/backup_complete" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/backup_complete" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Backup Failed</strong>
-                                <p>Alert when backup process fails</p>
+                                <strong>{{t $lang "admin.email.template_backup_failed_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_backup_failed_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/backup_failed" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/backup_failed" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>SSL Certificate Expiring</strong>
-                                <p>Warning when SSL certificate is about to expire</p>
+                                <strong>{{t $lang "admin.email.template_ssl_expiring_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_ssl_expiring_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/ssl_expiring" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/ssl_expiring" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>SSL Certificate Renewed</strong>
-                                <p>Confirmation when SSL certificate is renewed</p>
+                                <strong>{{t $lang "admin.email.template_ssl_renewed_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_ssl_renewed_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/ssl_renewed" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/ssl_renewed" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Login Alert</strong>
-                                <p>Security notification for new login</p>
+                                <strong>{{t $lang "admin.email.template_login_alert_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_login_alert_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/login_alert" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/login_alert" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Security Alert</strong>
-                                <p>Critical security event notifications</p>
+                                <strong>{{t $lang "admin.email.template_security_alert_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_security_alert_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/security_alert" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/security_alert" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Scheduler Error</strong>
-                                <p>Alert when scheduled task fails</p>
+                                <strong>{{t $lang "admin.email.template_scheduler_error_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_scheduler_error_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/scheduler_error" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/scheduler_error" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
 
                         <div class="template-item">
                             <div class="template-info">
-                                <strong>Test Email</strong>
-                                <p>Test message to verify SMTP configuration</p>
+                                <strong>{{t $lang "admin.email.template_test_title"}}</strong>
+                                <p>{{t $lang "admin.email.template_test_desc"}}</p>
                             </div>
-                            <a href="{{.admin_path}}/email/templates/test" class="btn btn-sm btn-secondary">Edit Template</a>
+                            <a href="{{.admin_path}}/config/email/templates/test" class="btn btn-sm btn-secondary">{{t $lang "admin.email.edit_template_action"}}</a>
                         </div>
                     </div>
 
                     <div class="alert alert-info mt-4" role="status">
-                        <strong>Template Variables:</strong> Use <code>{app_name}</code>, <code>{app_url}</code>, and other placeholders in your templates. They will be automatically replaced when emails are sent.
+                        <strong>{{t $lang "admin.email.template_vars_label"}}</strong> {{t $lang "admin.email.template_vars_text1"}} <code>{app_name}</code>, <code>{app_url}</code>, {{t $lang "admin.email.template_vars_text2"}}
                     </div>
                 </div>
             </section>
 
             <!-- Test Email Result -->
             <div id="test-result" class="alert d-none" role="status" aria-live="polite"></div>
-        </main>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -448,5 +448,5 @@
     }
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

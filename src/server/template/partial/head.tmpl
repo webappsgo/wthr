@@ -41,13 +41,10 @@
             base: '{{.api_path}}',
             admin: '{{.admin_api_path}}',
             notifications: '{{.api_path}}/users/notifications',
-            adminNotifications: '{{.admin_api_path}}/notifications'
+            adminNotifications: '{{if .admin_self_api_path}}{{.admin_self_api_path}}{{else}}{{.admin_api_path}}{{end}}/notifications'
         };
     })();
     </script>
-
-    <!-- Accessibility: Skip to main content link (TEMPLATE.md PART 29) -->
-    <a href="#main-content" class="skip-link">{{t .server.Lang "aria_skip_to_main"}}</a>
 
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
@@ -59,4 +56,6 @@
     <meta name="theme-color" content="#282a36">
 </head>
 <body>
+<!-- Accessibility: skip link must be the first focusable element inside <body> -->
+<a href="#main-content" class="skip-link">{{t .server.Lang "aria_skip_to_main"}}</a>
 {{end}}

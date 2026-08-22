@@ -47,7 +47,7 @@ func TestBackupHourlyTask(t *testing.T) {
 }
 
 // anyTarGzUnder walks dataDir recursively - backup.Create() writes archives into
-// a "backup/" subdirectory of dataDir rather than directly in dataDir, so a
+// a "backups/" subdirectory of dataDir rather than directly in dataDir, so a
 // top-level os.ReadDir() is not sufficient.
 func anyTarGzUnder(t *testing.T, dataDir string) bool {
 	t.Helper()

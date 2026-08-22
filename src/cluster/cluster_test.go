@@ -316,6 +316,207 @@ func TestSendHeartbeat(t *testing.T) {
 	}
 }
 
+// clusterTestLocalLayout mirrors the layout time.Time.String() emits, which is
+// what modernc.org/sqlite writes when a Go time.Time is bound directly.
+const clusterTestLocalLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
+
+// farWestZone and farEastZone are fixed offsets chosen so a wall-clock text
+// comparison and a real instant comparison always disagree, whatever zone the
+// machine running the tests happens to be in. Their names are short and
+// all-uppercase because the "MST" element of clusterTestLocalLayout reads back
+// only three-letter names or four/five-letter names ending in T - a longer name
+// such as "FARWEST" makes every fixture below unparseable, so the cases would
+// silently test the fail-closed path instead of a real zone comparison.
+var (
+	farWestZone = time.FixedZone("WST", -11*60*60)
+	farEastZone = time.FixedZone("EAST", 13*60*60)
+)
+
+// TestCheckClusterHealth_MixedZoneHeartbeats verifies node freshness is decided
+// on the absolute instant, not on the text a heartbeat happens to be stored as.
+// Heartbeats written by an older build carry the writer's local zone, so
+// comparing them as text marked live nodes stale (and stale nodes live)
+// depending on which side of UTC the writer sat on.
+func TestCheckClusterHealth_MixedZoneHeartbeats(t *testing.T) {
+	now := time.Now().UTC()
+
+	tests := []struct {
+		name        string
+		heartbeat   string
+		wantHealthy bool
+	}{
+		{
+			name:        "fresh canonical utc",
+			heartbeat:   now.Format(sqlTimestampLayout),
+			wantHealthy: true,
+		},
+		{
+			name:        "fresh far west local layout",
+			heartbeat:   now.In(farWestZone).Format(clusterTestLocalLayout),
+			wantHealthy: true,
+		},
+		{
+			name:        "fresh far west local layout with monotonic suffix",
+			heartbeat:   now.In(farWestZone).Format(clusterTestLocalLayout) + " m=+0.000000001",
+			wantHealthy: true,
+		},
+		{
+			name:        "stale far east local layout",
+			heartbeat:   now.Add(-5 * time.Minute).In(farEastZone).Format(clusterTestLocalLayout),
+			wantHealthy: false,
+		},
+		{
+			name:        "stale canonical utc",
+			heartbeat:   now.Add(-5 * time.Minute).Format(sqlTimestampLayout),
+			wantHealthy: false,
+		},
+		{
+			name:        "just inside the degraded threshold",
+			heartbeat:   now.Add(-heartbeatDegradedThreshold + 30*time.Second).Format(sqlTimestampLayout),
+			wantHealthy: true,
+		},
+		{
+			name:        "unparseable value is left alone",
+			heartbeat:   "not-a-timestamp",
+			wantHealthy: true,
+		},
+	}
+
+	db := newTestDB(t)
+	// This node is always fresh so the election checkClusterHealth triggers
+	// always has a candidate.
+	cm := NewClusterManager(db, "node-anchor", "10.0.0.1:8080", true)
+	if err := cm.initializeClusterTables(); err != nil {
+		t.Fatalf("initializeClusterTables() error = %v", err)
+	}
+	if err := cm.registerNode(); err != nil {
+		t.Fatalf("registerNode() error = %v", err)
+	}
+
+	for i, tt := range tests {
+		nodeID := fmt.Sprintf("node-%02d", i)
+		if _, err := db.Exec(`INSERT INTO cluster_nodes (node_id, address, state, last_heartbeat, is_healthy) VALUES (?, ?, 'secondary', ?, 1)`, nodeID, nodeID, tt.heartbeat); err != nil {
+			t.Fatalf("insert %s error = %v", nodeID, err)
+		}
+	}
+
+	if err := cm.checkClusterHealth(); err != nil {
+		t.Fatalf("checkClusterHealth() error = %v", err)
+	}
+
+	for i, tt := range tests {
+		nodeID := fmt.Sprintf("node-%02d", i)
+		t.Run(tt.name, func(t *testing.T) {
+			var healthy bool
+			if err := db.QueryRow(`SELECT is_healthy FROM cluster_nodes WHERE node_id = ?`, nodeID).Scan(&healthy); err != nil {
+				t.Fatalf("query %s error = %v", nodeID, err)
+			}
+			if healthy != tt.wantHealthy {
+				t.Errorf("is_healthy = %v, want %v (heartbeat stored as %q)", healthy, tt.wantHealthy, tt.heartbeat)
+			}
+		})
+	}
+}
+
+// TestSendHeartbeat_WritesCanonicalUTC verifies the heartbeat lands in the one
+// layout every reader parses, in UTC, so heartbeats written on machines in
+// different zones stay directly comparable.
+func TestSendHeartbeat_WritesCanonicalUTC(t *testing.T) {
+	cm := newReadyManager(t, "node-1", "10.0.0.1:8080")
+
+	if err := cm.sendHeartbeat(); err != nil {
+		t.Fatalf("sendHeartbeat() error = %v", err)
+	}
+
+	// CAST(... AS TEXT) keeps the driver from converting the column to a
+	// time.Time on the way out, so the assertion sees the bytes actually on
+	// disk rather than a re-rendered value.
+	var stored string
+	if err := cm.db.QueryRow(`SELECT CAST(last_heartbeat AS TEXT) FROM cluster_nodes WHERE node_id = 'node-1'`).Scan(&stored); err != nil {
+		t.Fatalf("query error = %v", err)
+	}
+
+	parsed, err := time.Parse(sqlTimestampLayout, stored)
+	if err != nil {
+		t.Fatalf("last_heartbeat %q is not in the canonical layout: %v", stored, err)
+	}
+	if drift := time.Since(parsed); drift < -time.Minute || drift > time.Minute {
+		t.Errorf("last_heartbeat is %s away from now, want within a minute", drift)
+	}
+}
+
+// TestRegisterNode_WritesCanonicalUTC pins the created_at/updated_at values
+// registerNode writes.
+//
+// Both columns used to be left to the schema's CURRENT_TIMESTAMP default, which
+// is canonical UTC text on SQLite but a native timestamp in the server's own
+// zone on PostgreSQL, MySQL and SQL Server. Every reader in this package parses
+// the column as canonical UTC text, so the values are now bound explicitly.
+func TestRegisterNode_WritesCanonicalUTC(t *testing.T) {
+	cm := newReadyManager(t, "node-1", "10.0.0.1:8080")
+
+	// CAST(... AS TEXT) keeps the driver from converting the columns to a
+	// time.Time on the way out, so the assertion sees the bytes on disk.
+	var createdAt, updatedAt string
+	err := cm.db.QueryRow(`
+		SELECT CAST(created_at AS TEXT), CAST(updated_at AS TEXT)
+		FROM cluster_nodes
+		WHERE node_id = 'node-1'
+	`).Scan(&createdAt, &updatedAt)
+	if err != nil {
+		t.Fatalf("query error = %v", err)
+	}
+
+	for _, column := range []struct {
+		name  string
+		value string
+	}{{"created_at", createdAt}, {"updated_at", updatedAt}} {
+		parsed, err := time.Parse(sqlTimestampLayout, column.value)
+		if err != nil {
+			t.Fatalf("%s %q is not in the canonical layout: %v", column.name, column.value, err)
+		}
+		if drift := time.Since(parsed); drift < -time.Minute || drift > time.Minute {
+			t.Errorf("%s is %s away from now, want within a minute", column.name, drift)
+		}
+	}
+}
+
+// TestParseStoredTimestamp_Cluster covers the package-local timestamp parser
+// against every layout a cluster_nodes row can actually hold.
+func TestParseStoredTimestamp_Cluster(t *testing.T) {
+	want := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name   string
+		stored interface{}
+		wantOK bool
+	}{
+		{name: "canonical utc text", stored: "2025-01-01 12:00:00", wantOK: true},
+		{name: "canonical utc bytes", stored: []byte("2025-01-01 12:00:00"), wantOK: true},
+		{name: "local zone layout", stored: want.In(farWestZone).Format(clusterTestLocalLayout), wantOK: true},
+		{name: "local zone layout with monotonic suffix", stored: want.In(farEastZone).Format(clusterTestLocalLayout) + " m=+0.000000001", wantOK: true},
+		{name: "rfc3339", stored: "2025-01-01T12:00:00Z", wantOK: true},
+		{name: "driver returned time", stored: want.In(farEastZone), wantOK: true},
+		{name: "null", stored: nil, wantOK: false},
+		{name: "unparseable", stored: "not-a-timestamp", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseStoredTimestamp(tt.stored)
+			if ok != tt.wantOK {
+				t.Fatalf("parseStoredTimestamp(%v) ok = %v, want %v", tt.stored, ok, tt.wantOK)
+			}
+			if !tt.wantOK {
+				return
+			}
+			if !got.Equal(want) {
+				t.Fatalf("parseStoredTimestamp(%v) = %s, want %s", tt.stored, got, want)
+			}
+		})
+	}
+}
+
 // TestGetClusterInfo_Ordering verifies results follow the literal SQL
 // "ORDER BY state DESC, node_id ASC": since "secondary" > "primary"
 // alphabetically, secondary nodes sort BEFORE the primary (node_id ASC

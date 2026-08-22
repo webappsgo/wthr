@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
@@ -166,6 +167,22 @@ type UserModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. Every
+// table UserModel touches (user_accounts, user_preferences) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *UserModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // Create creates a new user account
 // Per AI.md PART 0: Uses Argon2id for password hashing
 func (m *UserModel) Create(username, email, password string, role ...string) (*User, error) {
@@ -181,11 +198,17 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// created_at and updated_at are bound as canonical UTC text rather than left
+	// to CURRENT_TIMESTAMP, which is UTC text on SQLite but a server-zone value on
+	// PostgreSQL/MySQL. Binding the value keeps every writer of these columns in
+	// the one layout parseStoredTimestamp understands.
+	now := time.Now()
+
 	// Insert user into users.db
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_accounts (username, email, password_hash, role, email_verified, is_active, is_banned, two_factor_enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 0, 1, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, username, email, passwordHash, userRole)
+		VALUES (?, ?, ?, ?, 0, 1, 0, 0, ?, ?)
+	`, username, email, passwordHash, userRole, sqlTimestamp(now), sqlTimestamp(now))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -197,10 +220,10 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 	}
 
 	// Create default preferences
-	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_preferences (user_id, theme, language, timezone, temperature_unit, pressure_unit, wind_speed_unit, precipitation_unit, notifications_enabled, email_notifications, created_at, updated_at)
-		VALUES (?, 'auto', 'en', 'UTC', 'celsius', 'hPa', 'kmh', 'mm', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, userID)
+		VALUES (?, 'auto', 'en', 'UTC', 'celsius', 'hPa', 'kmh', 'mm', 1, 1, ?, ?)
+	`, userID, sqlTimestamp(now), sqlTimestamp(now))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user preferences: %w", err)
 	}
@@ -211,7 +234,16 @@ func (m *UserModel) Create(username, email, password string, role ...string) (*U
 // GetByID retrieves a user by ID
 func (m *UserModel) GetByID(id int64) (*User, error) {
 	var user User
-	var lastLoginAt sql.NullTime
+
+	// created_at, updated_at and last_login_at are scanned as raw driver values
+	// and resolved with parseStoredTimestamp instead of being scanned straight
+	// into time.Time/sql.NullTime. user_accounts rows written by an older build
+	// hold the local-zone time.Time.String() text, which database/sql cannot
+	// convert - the whole SELECT failed with a scan error and the account looked
+	// as if it did not exist.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 	var displayName sql.NullString
 	var notificationEmail sql.NullString
 	var phone sql.NullString
@@ -227,7 +259,7 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 	var language sql.NullString
 	var lastLoginIP sql.NullString
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, display_name, notification_email, email, phone, password_hash,
 		       email_verified, is_active, is_banned, ban_reason, role, visibility,
 		       two_factor_enabled, two_factor_secret, avatar_type, avatar_url, bio,
@@ -258,9 +290,9 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 		&website,
 		&timezone,
 		&language,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 		&lastLoginIP,
 	)
 
@@ -271,8 +303,14 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		user.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		user.UpdatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		user.LastLoginAt = &parsed
 	}
 	if lastLoginIP.Valid {
 		user.LastLoginIP = lastLoginIP.String
@@ -323,10 +361,15 @@ func (m *UserModel) GetByID(id int64) (*User, error) {
 // GetByUsername retrieves a user by username
 func (m *UserModel) GetByUsername(username string) (*User, error) {
 	var user User
-	var lastLoginAt sql.NullTime
+
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 	var lastLoginIP, banReason, twoFactorSecret sql.NullString
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		WHERE username = ?
@@ -341,9 +384,9 @@ func (m *UserModel) GetByUsername(username string) (*User, error) {
 		&banReason,
 		&user.TwoFactorEnabled,
 		&twoFactorSecret,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 		&lastLoginIP,
 	)
 
@@ -354,8 +397,14 @@ func (m *UserModel) GetByUsername(username string) (*User, error) {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		user.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		user.UpdatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		user.LastLoginAt = &parsed
 	}
 	if lastLoginIP.Valid {
 		user.LastLoginIP = lastLoginIP.String
@@ -373,10 +422,15 @@ func (m *UserModel) GetByUsername(username string) (*User, error) {
 // GetByEmail retrieves a user by email
 func (m *UserModel) GetByEmail(email string) (*User, error) {
 	var user User
-	var lastLoginAt sql.NullTime
+
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedUpdatedAt interface{}
+	var storedLastLoginAt interface{}
 	var lastLoginIP, banReason, twoFactorSecret sql.NullString
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, username, email, password_hash, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, two_factor_secret, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		WHERE email = ?
@@ -391,9 +445,9 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 		&banReason,
 		&user.TwoFactorEnabled,
 		&twoFactorSecret,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-		&lastLoginAt,
+		&storedCreatedAt,
+		&storedUpdatedAt,
+		&storedLastLoginAt,
 		&lastLoginIP,
 	)
 
@@ -404,8 +458,14 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
-	if lastLoginAt.Valid {
-		user.LastLoginAt = &lastLoginAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		user.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		user.UpdatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+		user.LastLoginAt = &parsed
 	}
 	if lastLoginIP.Valid {
 		user.LastLoginIP = lastLoginIP.String
@@ -422,7 +482,7 @@ func (m *UserModel) GetByEmail(email string) (*User, error) {
 
 // ListUsers retrieves all users with pagination
 func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
 		SELECT id, username, email, email_verified, is_active, is_banned, ban_reason, two_factor_enabled, created_at, updated_at, last_login_at, last_login_ip
 		FROM user_accounts
 		ORDER BY created_at DESC
@@ -437,8 +497,14 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		var user User
-		var lastLoginAt sql.NullTime
 		var lastLoginIP, banReason sql.NullString
+
+		// See UserModel.GetByID for why the timestamp columns are scanned as raw
+		// driver values. Here a single legacy row would have aborted the entire
+		// user listing, not just its own entry.
+		var storedCreatedAt interface{}
+		var storedUpdatedAt interface{}
+		var storedLastLoginAt interface{}
 
 		err := rows.Scan(
 			&user.ID,
@@ -449,17 +515,23 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 			&user.IsBanned,
 			&banReason,
 			&user.TwoFactorEnabled,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-			&lastLoginAt,
+			&storedCreatedAt,
+			&storedUpdatedAt,
+			&storedLastLoginAt,
 			&lastLoginIP,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 
-		if lastLoginAt.Valid {
-			user.LastLoginAt = &lastLoginAt.Time
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			user.CreatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+			user.UpdatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedLastLoginAt); ok {
+			user.LastLoginAt = &parsed
 		}
 		if lastLoginIP.Valid {
 			user.LastLoginIP = lastLoginIP.String
@@ -477,7 +549,7 @@ func (m *UserModel) ListUsers(offset, limit int) ([]*User, error) {
 // CountUsers returns the total number of users
 func (m *UserModel) CountUsers() (int, error) {
 	var count int
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_accounts`).Scan(&count)
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `SELECT COUNT(*) FROM user_accounts`).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count users: %w", err)
 	}
@@ -485,24 +557,26 @@ func (m *UserModel) CountUsers() (int, error) {
 }
 
 // Update updates a user's information
+// updated_at is bound as canonical UTC text on both branches so the value does
+// not depend on what CURRENT_TIMESTAMP means to the backend in use.
 func (m *UserModel) Update(id int64, username, email string, role ...string) error {
 	// If role is provided, update it too
 	if len(role) > 0 && role[0] != "" {
-		_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 			UPDATE user_accounts
-			SET username = ?, email = ?, role = ?, updated_at = CURRENT_TIMESTAMP
+			SET username = ?, email = ?, role = ?, updated_at = ?
 			WHERE id = ?
-		`, username, email, role[0], id)
+		`, username, email, role[0], sqlTimestamp(time.Now()), id)
 
 		if err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
 		}
 	} else {
-		_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 			UPDATE user_accounts
-			SET username = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+			SET username = ?, email = ?, updated_at = ?
 			WHERE id = ?
-		`, username, email, id)
+		`, username, email, sqlTimestamp(time.Now()), id)
 
 		if err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
@@ -521,11 +595,11 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+		SET password_hash = ?, updated_at = ?
 		WHERE id = ?
-	`, passwordHash, id)
+	`, passwordHash, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -534,13 +608,15 @@ func (m *UserModel) UpdatePassword(id int64, newPassword string) error {
 	return nil
 }
 
-// UpdateLastLogin updates the last login timestamp and IP
+// UpdateLastLogin updates the last login timestamp and IP.
+// last_login_at is bound as canonical UTC text; its placeholder is first in the
+// SET list, so the timestamp is the first value in the argument list.
 func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET last_login_at = CURRENT_TIMESTAMP, last_login_ip = ?
+		SET last_login_at = ?, last_login_ip = ?
 		WHERE id = ?
-	`, ipAddress, id)
+	`, sqlTimestamp(time.Now()), ipAddress, id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update last login: %w", err)
@@ -551,11 +627,11 @@ func (m *UserModel) UpdateLastLogin(id int64, ipAddress string) error {
 
 // VerifyEmail marks a user's email as verified
 func (m *UserModel) VerifyEmail(id int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET email_verified = 1, updated_at = CURRENT_TIMESTAMP
+		SET email_verified = 1, updated_at = ?
 		WHERE id = ?
-	`, id)
+	`, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to verify email: %w", err)
@@ -566,11 +642,11 @@ func (m *UserModel) VerifyEmail(id int64) error {
 
 // SetActive sets the user's active status
 func (m *UserModel) SetActive(id int64, isActive bool) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+		SET is_active = ?, updated_at = ?
 		WHERE id = ?
-	`, isActive, id)
+	`, isActive, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to set active status: %w", err)
@@ -581,11 +657,11 @@ func (m *UserModel) SetActive(id int64, isActive bool) error {
 
 // BanUser bans a user with a reason
 func (m *UserModel) BanUser(id int64, reason string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET is_banned = 1, ban_reason = ?, updated_at = CURRENT_TIMESTAMP
+		SET is_banned = 1, ban_reason = ?, updated_at = ?
 		WHERE id = ?
-	`, reason, id)
+	`, reason, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to ban user: %w", err)
@@ -596,11 +672,11 @@ func (m *UserModel) BanUser(id int64, reason string) error {
 
 // UnbanUser unbans a user
 func (m *UserModel) UnbanUser(id int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET is_banned = 0, ban_reason = NULL, updated_at = CURRENT_TIMESTAMP
+		SET is_banned = 0, ban_reason = NULL, updated_at = ?
 		WHERE id = ?
-	`, id)
+	`, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to unban user: %w", err)
@@ -612,7 +688,7 @@ func (m *UserModel) UnbanUser(id int64) error {
 // Delete deletes a user account
 func (m *UserModel) Delete(id int64) error {
 	// Delete user (cascades to sessions, preferences, etc.)
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `DELETE FROM user_accounts WHERE id = ?`, id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_accounts WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -664,11 +740,11 @@ func (m *UserModel) Enable2FA(id int64, secret string) error {
 		return fmt.Errorf("failed to encrypt 2FA secret: %w", err)
 	}
 
-	_, err = database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET two_factor_enabled = 1, two_factor_secret = ?, updated_at = CURRENT_TIMESTAMP
+		SET two_factor_enabled = 1, two_factor_secret = ?, updated_at = ?
 		WHERE id = ?
-	`, encryptedSecret, id)
+	`, encryptedSecret, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to enable 2FA: %w", err)
@@ -728,11 +804,11 @@ func DecryptTwoFactorSecret(stored string) (string, error) {
 
 // Disable2FA disables two-factor authentication for a user
 func (m *UserModel) Disable2FA(id int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET two_factor_enabled = 0, two_factor_secret = NULL, updated_at = CURRENT_TIMESTAMP
+		SET two_factor_enabled = 0, two_factor_secret = NULL, updated_at = ?
 		WHERE id = ?
-	`, id)
+	`, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to disable 2FA: %w", err)
@@ -779,11 +855,11 @@ func (m *UserModel) CheckPassword(user *User, password string) bool {
 
 // UpdateProfile updates current-user profile information.
 func (m *UserModel) UpdateProfile(id int64, displayName, phone string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_accounts
-		SET display_name = ?, phone = ?, updated_at = CURRENT_TIMESTAMP
+		SET display_name = ?, phone = ?, updated_at = ?
 		WHERE id = ?
-	`, displayName, phone, id)
+	`, displayName, phone, sqlTimestamp(time.Now()), id)
 
 	if err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
@@ -816,6 +892,22 @@ type UserSessionModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserSessionModel touches (user_sessions) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *UserSessionModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // CreateSession creates a new user session
 func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent string, duration time.Duration) (*UserSession, error) {
 	sessionID, err := GenerateSessionID()
@@ -823,17 +915,20 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 		return nil, fmt.Errorf("failed to generate session ID: %w", err)
 	}
 
-	expiresAt := time.Now().Add(duration)
+	now := time.Now()
+	expiresAt := now.Add(duration)
 
-	// Bind expires_at as SQLite's own canonical "YYYY-MM-DD HH:MM:SS" text
-	// format (matching CURRENT_TIMESTAMP's output). Binding a raw time.Time
-	// serializes to RFC3339Nano with a numeric UTC offset, which SQLite's
-	// datetime() cannot parse -- every datetime(expires_at) comparison
-	// elsewhere then silently evaluates to NULL.
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	// Bind all three timestamps through sqlTimestamp, the single canonical UTC
+	// "YYYY-MM-DD HH:MM:SS" layout this package writes (matching SQLite's
+	// CURRENT_TIMESTAMP output, and identical on every other backend). Binding a
+	// raw time.Time would store the local-zone time.Time.String() form, and
+	// leaving CURRENT_TIMESTAMP in place would store a server-zone value on
+	// PostgreSQL/MySQL; either compares wrongly against rows written by
+	// SessionModel.
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_sessions (user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at)
-		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-	`, userID, hashUserToken(sessionID), ipAddress, userAgent, expiresAt.UTC().Format("2006-01-02 15:04:05"))
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, userID, hashUserToken(sessionID), ipAddress, userAgent, sqlTimestamp(now), sqlTimestamp(expiresAt), sqlTimestamp(now))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -850,9 +945,9 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 		SessionID:  sessionID,
 		IPAddress:  ipAddress,
 		UserAgent:  userAgent,
-		CreatedAt:  time.Now(),
+		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
-		LastUsedAt: time.Now(),
+		LastUsedAt: now,
 	}, nil
 }
 
@@ -861,7 +956,17 @@ func (m *UserSessionModel) CreateSession(userID int64, ipAddress, userAgent stri
 func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 	var session UserSession
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	// The three timestamp columns are scanned as raw driver values and resolved
+	// with parseStoredTimestamp instead of being scanned straight into time.Time.
+	// user_sessions has several writers, and a row an older build wrote holds the
+	// local-zone time.Time.String() text, which database/sql cannot convert to a
+	// time.Time - the whole lookup failed with a scan error instead of returning
+	// the session.
+	var storedCreatedAt interface{}
+	var storedExpiresAt interface{}
+	var storedLastUsedAt interface{}
+
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
 		WHERE token_hash = ?
@@ -871,9 +976,9 @@ func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 		&session.SessionID,
 		&session.IPAddress,
 		&session.UserAgent,
-		&session.CreatedAt,
-		&session.ExpiresAt,
-		&session.LastUsedAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
+		&storedLastUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -883,17 +988,27 @@ func (m *UserSessionModel) GetSession(rawToken string) (*UserSession, error) {
 		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		session.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		session.ExpiresAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedLastUsedAt); ok {
+		session.LastUsedAt = parsed
+	}
+
 	return &session, nil
 }
 
 // UpdateSessionLastUsed refreshes the last-used timestamp for a session.
 // rawToken is the bearer token from the cookie.
 func (m *UserSessionModel) UpdateSessionLastUsed(rawToken string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_sessions
-		SET last_used_at = CURRENT_TIMESTAMP
+		SET last_used_at = ?
 		WHERE token_hash = ?
-	`, hashUserToken(rawToken))
+	`, sqlTimestamp(time.Now()), hashUserToken(rawToken))
 
 	if err != nil {
 		return fmt.Errorf("failed to update session: %w", err)
@@ -904,7 +1019,7 @@ func (m *UserSessionModel) UpdateSessionLastUsed(rawToken string) error {
 
 // DeleteSession removes a session by its raw bearer token (logout).
 func (m *UserSessionModel) DeleteSession(rawToken string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM user_sessions WHERE token_hash = ?
 	`, hashUserToken(rawToken))
 
@@ -918,30 +1033,46 @@ func (m *UserSessionModel) DeleteSession(rawToken string) error {
 // DeleteSessionByRowID removes a session by its integer row ID.
 // Used by the session-revocation endpoint where the client supplies the row ID.
 func (m *UserSessionModel) DeleteSessionByRowID(rowID int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE id = ?", rowID)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE id = ?", rowID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 	return nil
 }
 
-// GetRowIDByTokenHash returns the integer row ID for the session whose
+// GetRowIDByToken returns the integer row ID for the session whose
 // token_hash matches hashUserToken(rawToken). Returns 0 if not found.
+// The expiry test runs in Go, not in SQL. "expires_at > ?" is a raw
+// lexicographic TEXT comparison, and this column can hold either the canonical
+// UTC text this package writes or the local-zone time.Time.String() form an
+// older build bound directly; comparing those two layouts against each other
+// resolved a still-live session as expired, or an expired one as live.
+// parseStoredTimestamp fails closed, so a value this project cannot interpret
+// yields no row ID rather than a usable session.
 func (m *UserSessionModel) GetRowIDByToken(rawToken string) (int64, error) {
 	var rowID int64
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect,
-		"SELECT id FROM user_sessions WHERE token_hash = ? AND datetime(expires_at) > datetime('now')",
+	var storedExpiresAt interface{}
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect,
+		"SELECT id, expires_at FROM user_sessions WHERE token_hash = ?",
 		hashUserToken(rawToken),
-	).Scan(&rowID)
+	).Scan(&rowID, &storedExpiresAt)
 	if err == sql.ErrNoRows {
 		return 0, nil
 	}
-	return rowID, err
+	if err != nil {
+		return 0, err
+	}
+
+	if !isTimestampAfter(storedExpiresAt, time.Now().UTC()) {
+		return 0, nil
+	}
+
+	return rowID, nil
 }
 
 // DeleteAllSessionsForUser deletes all sessions for a user (logout all)
 func (m *UserSessionModel) DeleteAllSessionsForUser(userID int64) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM user_sessions WHERE user_id = ?
 	`, userID)
 
@@ -953,11 +1084,12 @@ func (m *UserSessionModel) DeleteAllSessionsForUser(userID int64) error {
 }
 
 // DeleteExpiredSessions deletes all expired sessions (cleanup)
+// The expiry test runs in Go against a UTC cutoff rather than through SQLite's
+// datetime(): user_sessions.expires_at has more than one producer, datetime()
+// does not exist on PostgreSQL/MySQL, and a row stored in an unrecognised
+// layout must never be deleted early.
 func (m *UserSessionModel) DeleteExpiredSessions() error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
-		DELETE FROM user_sessions WHERE datetime(expires_at) < datetime('now')
-	`)
-
+	_, err := deleteRowsWithTimestampBefore(m.getDB(), "user_sessions", "id", "expires_at", time.Now().UTC(), false)
 	if err != nil {
 		return fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
@@ -965,17 +1097,23 @@ func (m *UserSessionModel) DeleteExpiredSessions() error {
 	return nil
 }
 
-// GetActiveSessions returns all active sessions for a user
 // GetActiveSessions returns all active (non-expired) sessions for a user.
 // SessionID in each returned UserSession is the stored token_hash (SHA-256),
 // NOT the raw bearer token. Callers can use it for "is this my current
 // session?" comparisons by hashing the current raw token.
 func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	// Both the expiry filter and the recency ordering are done in Go rather than
+	// in SQL. "expires_at > ?" and "ORDER BY last_used_at DESC" are raw
+	// lexicographic TEXT operations, and these columns can hold either the
+	// canonical UTC text this package writes or the local-zone
+	// time.Time.String() form an older build bound directly - so an expired
+	// session could be listed as active, a live one hidden, and the list ordered
+	// by wall-clock text instead of by real instant. Rows whose expires_at is
+	// NULL or unparseable fail closed and are omitted.
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
 		SELECT id, user_id, token_hash, ip_address, user_agent, created_at, expires_at, last_used_at
 		FROM user_sessions
-		WHERE user_id = ? AND datetime(expires_at) > datetime('now')
-		ORDER BY last_used_at DESC
+		WHERE user_id = ?
 	`, userID)
 
 	if err != nil {
@@ -983,24 +1121,51 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 	}
 	defer rows.Close()
 
+	now := time.Now().UTC()
+
 	var sessions []UserSession
 	for rows.Next() {
 		var session UserSession
+		var storedCreatedAt interface{}
+		var storedExpiresAt interface{}
+		var storedLastUsedAt interface{}
 		err := rows.Scan(
 			&session.ID,
 			&session.UserID,
 			&session.SessionID,
 			&session.IPAddress,
 			&session.UserAgent,
-			&session.CreatedAt,
-			&session.ExpiresAt,
-			&session.LastUsedAt,
+			&storedCreatedAt,
+			&storedExpiresAt,
+			&storedLastUsedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
 		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !now.Before(expiresAt) {
+			continue
+		}
+		session.ExpiresAt = expiresAt
+
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			session.CreatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedLastUsedAt); ok {
+			session.LastUsedAt = parsed
+		}
+
 		sessions = append(sessions, session)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read sessions: %w", err)
+	}
+
+	// Most recently used first, compared as absolute instants.
+	sort.SliceStable(sessions, func(i, j int) bool {
+		return sessions[i].LastUsedAt.After(sessions[j].LastUsedAt)
+	})
 
 	return sessions, nil
 }
@@ -1008,6 +1173,22 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 // UserEmailVerificationModel handles email verification operations
 type UserEmailVerificationModel struct {
 	DB *sql.DB
+}
+
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserEmailVerificationModel touches (user_email_verifications) is
+// declared in database.UsersSchema, so the injected handle is the correct
+// database for every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *UserEmailVerificationModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
 }
 
 // CreateVerification creates a new email verification token (24-hour expiry)
@@ -1025,10 +1206,10 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_email_verifications (user_id, token, email, created_at, expires_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"))
+		VALUES (?, ?, ?, ?, ?)
+	`, userID, tokenHash, email, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create verification: %w", err)
@@ -1052,9 +1233,13 @@ func (m *UserEmailVerificationModel) CreateVerification(userID int64, email stri
 // GetVerification retrieves a verification by token
 func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVerification, error) {
 	var verification UserEmailVerification
-	var usedAt sql.NullTime
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedExpiresAt interface{}
+	var storedUsedAt interface{}
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, email, created_at, expires_at, used_at
 		FROM user_email_verifications
 		WHERE token = ?
@@ -1063,9 +1248,9 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 		&verification.UserID,
 		&verification.Token,
 		&verification.Email,
-		&verification.CreatedAt,
-		&verification.ExpiresAt,
-		&usedAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
+		&storedUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -1075,8 +1260,14 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 		return nil, fmt.Errorf("failed to get verification: %w", err)
 	}
 
-	if usedAt.Valid {
-		verification.UsedAt = &usedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		verification.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		verification.ExpiresAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+		verification.UsedAt = &parsed
 	}
 
 	return &verification, nil
@@ -1084,11 +1275,11 @@ func (m *UserEmailVerificationModel) GetVerification(token string) (*UserEmailVe
 
 // MarkVerificationUsed marks a verification as used
 func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_email_verifications
-		SET used_at = CURRENT_TIMESTAMP
+		SET used_at = ?
 		WHERE token = ?
-	`, HashAPIToken(token))
+	`, sqlTimestamp(time.Now()), HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark verification as used: %w", err)
@@ -1098,13 +1289,20 @@ func (m *UserEmailVerificationModel) MarkVerificationUsed(token string) error {
 }
 
 // DeleteExpiredVerifications deletes expired and used verifications (cleanup)
+// Used rows are removed by a plain SQL predicate; the expiry test runs in Go
+// against a UTC cutoff so mixed layouts and SQLite-only datetime() are both out
+// of the picture.
 func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
 		DELETE FROM user_email_verifications
-		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
+		WHERE used_at IS NOT NULL
 	`)
 
 	if err != nil {
+		return fmt.Errorf("failed to delete expired verifications: %w", err)
+	}
+
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "user_email_verifications", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired verifications: %w", err)
 	}
 
@@ -1114,6 +1312,22 @@ func (m *UserEmailVerificationModel) DeleteExpiredVerifications() error {
 // UserPasswordResetModel handles password reset operations
 type UserPasswordResetModel struct {
 	DB *sql.DB
+}
+
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserPasswordResetModel touches (user_password_resets) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *UserPasswordResetModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
 }
 
 // CreateReset creates a new password reset token (1-hour expiry)
@@ -1131,10 +1345,10 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 
 	// See CreateSession for why expires_at must be bound as SQLite's own
 	// canonical text format rather than a raw time.Time.
-	result, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_password_resets (user_id, token, created_at, expires_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP, ?)
-	`, userID, tokenHash, expiresAt.UTC().Format("2006-01-02 15:04:05"))
+		VALUES (?, ?, ?, ?)
+	`, userID, tokenHash, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reset: %w", err)
@@ -1157,9 +1371,14 @@ func (m *UserPasswordResetModel) CreateReset(userID int64) (*UserPasswordReset, 
 // GetReset retrieves a reset by token
 func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, error) {
 	var reset UserPasswordReset
-	var usedAt sql.NullTime
 
-	err := database.QueryRowContext(context.Background(), database.GetUsersDB(), database.TimeoutSimpleSelect, `
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedExpiresAt interface{}
+	var storedUsedAt interface{}
+
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, token, created_at, expires_at, used_at
 		FROM user_password_resets
 		WHERE token = ?
@@ -1167,9 +1386,9 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 		&reset.ID,
 		&reset.UserID,
 		&reset.Token,
-		&reset.CreatedAt,
-		&reset.ExpiresAt,
-		&usedAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
+		&storedUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
@@ -1179,8 +1398,14 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 		return nil, fmt.Errorf("failed to get reset: %w", err)
 	}
 
-	if usedAt.Valid {
-		reset.UsedAt = &usedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		reset.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		reset.ExpiresAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+		reset.UsedAt = &parsed
 	}
 
 	return &reset, nil
@@ -1188,11 +1413,11 @@ func (m *UserPasswordResetModel) GetReset(token string) (*UserPasswordReset, err
 
 // MarkResetUsed marks a reset as used
 func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_password_resets
-		SET used_at = CURRENT_TIMESTAMP
+		SET used_at = ?
 		WHERE token = ?
-	`, HashAPIToken(token))
+	`, sqlTimestamp(time.Now()), HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark reset as used: %w", err)
@@ -1202,13 +1427,20 @@ func (m *UserPasswordResetModel) MarkResetUsed(token string) error {
 }
 
 // DeleteExpiredResets deletes expired and used resets (cleanup)
+// Used rows are removed by a plain SQL predicate; the expiry test runs in Go
+// against a UTC cutoff so mixed layouts and SQLite-only datetime() are both out
+// of the picture.
 func (m *UserPasswordResetModel) DeleteExpiredResets() error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
 		DELETE FROM user_password_resets
-		WHERE datetime(expires_at) < datetime('now') OR used_at IS NOT NULL
+		WHERE used_at IS NOT NULL
 	`)
 
 	if err != nil {
+		return fmt.Errorf("failed to delete expired resets: %w", err)
+	}
+
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "user_password_resets", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired resets: %w", err)
 	}
 
@@ -1220,14 +1452,30 @@ type UserActivityLogModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserActivityLogModel touches (user_activity_log) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *UserActivityLogModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // LogActivity logs a user activity
 // user_activity_log's text column is named "description" (see
 // src/database/users_schema.go); there is no "details" column.
 func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress, userAgent, details string) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_activity_log (user_id, activity_type, ip_address, user_agent, description, created_at)
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-	`, userID, activityType, ipAddress, userAgent, details)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, userID, activityType, ipAddress, userAgent, details, sqlTimestamp(time.Now()))
 
 	if err != nil {
 		return fmt.Errorf("failed to log activity: %w", err)
@@ -1238,7 +1486,7 @@ func (m *UserActivityLogModel) LogActivity(userID int64, activityType, ipAddress
 
 // GetActivities retrieves activities for a user with pagination
 func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([]UserActivityLog, error) {
-	rows, err := database.QueryContext(context.Background(), database.GetUsersDB(), database.TimeoutComplexSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutComplexSelect, `
 		SELECT id, user_id, activity_type, ip_address, user_agent, description, created_at
 		FROM user_activity_log
 		WHERE user_id = ?
@@ -1256,6 +1504,10 @@ func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([
 		var activity UserActivityLog
 		var details sql.NullString
 
+		// See UserModel.GetByID for why created_at is scanned as a raw driver
+		// value; here one legacy row would have aborted the whole activity list.
+		var storedCreatedAt interface{}
+
 		err := rows.Scan(
 			&activity.ID,
 			&activity.UserID,
@@ -1263,10 +1515,14 @@ func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([
 			&activity.IPAddress,
 			&activity.UserAgent,
 			&details,
-			&activity.CreatedAt,
+			&storedCreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan activity: %w", err)
+		}
+
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			activity.CreatedAt = parsed
 		}
 
 		if details.Valid {
@@ -1280,12 +1536,13 @@ func (m *UserActivityLogModel) GetActivities(userID int64, offset, limit int) ([
 }
 
 // DeleteOldActivities deletes activities older than specified duration
+// The retention cutoff is computed in Go and compared in Go: SQLite's
+// datetime() modifiers do not exist on PostgreSQL/MySQL, and a row stored in an
+// unrecognised layout must never be deleted early.
 func (m *UserActivityLogModel) DeleteOldActivities(days int) error {
-	_, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutBulk, `
-		DELETE FROM user_activity_log
-		WHERE created_at < datetime('now', '-' || ? || ' days')
-	`, days)
+	cutoff := time.Now().UTC().AddDate(0, 0, -days)
 
+	_, err := deleteRowsWithTimestampBefore(m.getDB(), "user_activity_log", "id", "created_at", cutoff, false)
 	if err != nil {
 		return fmt.Errorf("failed to delete old activities: %w", err)
 	}
@@ -1313,6 +1570,14 @@ type UserInviteModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the users.db handle this model was constructed with. The only
+// table UserInviteModel touches (user_invites) is declared in
+// database.UsersSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global users handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
 func (m *UserInviteModel) getDB() *sql.DB {
 	if m.DB != nil {
 		return m.DB
@@ -1393,8 +1658,8 @@ func (m *UserInviteModel) CreateInvite(username, email, role string, expiresInDa
 	// as SQLite's own canonical text format rather than a raw time.Time.
 	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_invites (code, email, invited_by, created_at, expires_at, used_by, used_at, max_uses, use_count, username, role)
-		VALUES (?, ?, NULL, CURRENT_TIMESTAMP, ?, NULL, NULL, 1, 0, ?, ?)
-	`, tokenHash, email, expiresAt.UTC().Format("2006-01-02 15:04:05"), username, role)
+		VALUES (?, ?, NULL, ?, ?, NULL, NULL, 1, 0, ?, ?)
+	`, tokenHash, email, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt), username, role)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invite: %w", err)
@@ -1427,7 +1692,12 @@ func (m *UserInviteModel) GetByToken(token string) (*UserInvite, error) {
 
 	var invite UserInvite
 	var createdBy sql.NullInt64
-	var usedAt sql.NullTime
+
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedExpiresAt interface{}
+	var storedUsedAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
@@ -1440,11 +1710,11 @@ func (m *UserInviteModel) GetByToken(token string) (*UserInvite, error) {
 		&invite.Email,
 		&invite.Role,
 		&createdBy,
-		&invite.CreatedAt,
-		&invite.ExpiresAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
 		&invite.MaxUses,
 		&invite.UseCount,
-		&usedAt,
+		&storedUsedAt,
 	)
 
 	if err != nil {
@@ -1454,8 +1724,14 @@ func (m *UserInviteModel) GetByToken(token string) (*UserInvite, error) {
 		return nil, fmt.Errorf("failed to get invite: %w", err)
 	}
 
-	if usedAt.Valid {
-		invite.UsedAt = &usedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		invite.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		invite.ExpiresAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+		invite.UsedAt = &parsed
 	}
 	if createdBy.Valid {
 		invite.CreatedBy = createdBy.Int64
@@ -1472,7 +1748,12 @@ func (m *UserInviteModel) GetByID(id int64) (*UserInvite, error) {
 
 	var invite UserInvite
 	var createdBy sql.NullInt64
-	var usedAt sql.NullTime
+
+	// See UserModel.GetByID for why the timestamp columns are scanned as raw
+	// driver values instead of straight into time.Time/sql.NullTime.
+	var storedCreatedAt interface{}
+	var storedExpiresAt interface{}
+	var storedUsedAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, code, COALESCE(username, ''), COALESCE(email, ''), COALESCE(role, 'user'), invited_by, created_at, expires_at, max_uses, use_count, used_at
@@ -1485,11 +1766,11 @@ func (m *UserInviteModel) GetByID(id int64) (*UserInvite, error) {
 		&invite.Email,
 		&invite.Role,
 		&createdBy,
-		&invite.CreatedAt,
-		&invite.ExpiresAt,
+		&storedCreatedAt,
+		&storedExpiresAt,
 		&invite.MaxUses,
 		&invite.UseCount,
-		&usedAt,
+		&storedUsedAt,
 	)
 
 	if err != nil {
@@ -1499,8 +1780,14 @@ func (m *UserInviteModel) GetByID(id int64) (*UserInvite, error) {
 		return nil, fmt.Errorf("failed to get invite: %w", err)
 	}
 
-	if usedAt.Valid {
-		invite.UsedAt = &usedAt.Time
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		invite.CreatedAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		invite.ExpiresAt = parsed
+	}
+	if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+		invite.UsedAt = &parsed
 	}
 	if createdBy.Valid {
 		invite.CreatedBy = createdBy.Int64
@@ -1539,9 +1826,9 @@ func (m *UserInviteModel) MarkUsed(token string, usedBy int64) error {
 
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_invites
-		SET used_by = ?, used_at = datetime('now'), use_count = use_count + 1
+		SET used_by = ?, used_at = ?, use_count = use_count + 1
 		WHERE code = ?
-	`, usedBy, HashAPIToken(token))
+	`, usedBy, sqlTimestamp(time.Now()), HashAPIToken(token))
 
 	if err != nil {
 		return fmt.Errorf("failed to mark invite used: %w", err)
@@ -1556,12 +1843,19 @@ func (m *UserInviteModel) DeleteExpiredInvites() error {
 		return err
 	}
 
+	// Used rows are removed by a plain SQL predicate; the expiry test runs in Go
+	// against a UTC cutoff so mixed layouts and SQLite-only datetime() are both
+	// out of the picture.
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutBulk, `
 		DELETE FROM user_invites
-		WHERE expires_at < datetime('now') OR used_at IS NOT NULL
+		WHERE used_at IS NOT NULL
 	`)
 
 	if err != nil {
+		return fmt.Errorf("failed to delete expired invites: %w", err)
+	}
+
+	if _, err := deleteRowsWithTimestampBefore(m.getDB(), "user_invites", "id", "expires_at", time.Now().UTC(), false); err != nil {
 		return fmt.Errorf("failed to delete expired invites: %w", err)
 	}
 
@@ -1589,7 +1883,14 @@ func (m *UserInviteModel) ListInvites() ([]UserInvite, error) {
 	for rows.Next() {
 		var invite UserInvite
 		var createdBy sql.NullInt64
-		var usedAt sql.NullTime
+
+		// The timestamp columns are scanned as raw driver values and resolved with
+		// parseStoredTimestamp. Rows an older build wrote hold the local-zone
+		// time.Time.String() text, which database/sql cannot convert to a time.Time,
+		// so a single legacy row failed the whole listing with a scan error.
+		var storedCreatedAt interface{}
+		var storedExpiresAt interface{}
+		var storedUsedAt interface{}
 
 		err := rows.Scan(
 			&invite.ID,
@@ -1598,21 +1899,27 @@ func (m *UserInviteModel) ListInvites() ([]UserInvite, error) {
 			&invite.Email,
 			&invite.Role,
 			&createdBy,
-			&invite.CreatedAt,
-			&invite.ExpiresAt,
+			&storedCreatedAt,
+			&storedExpiresAt,
 			&invite.MaxUses,
 			&invite.UseCount,
-			&usedAt,
+			&storedUsedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan invite: %w", err)
 		}
 
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			invite.CreatedAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+			invite.ExpiresAt = parsed
+		}
+		if parsed, ok := parseStoredTimestamp(storedUsedAt); ok {
+			invite.UsedAt = &parsed
+		}
 		if createdBy.Valid {
 			invite.CreatedBy = createdBy.Int64
-		}
-		if usedAt.Valid {
-			invite.UsedAt = &usedAt.Time
 		}
 
 		invites = append(invites, invite)

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func newHealthComprehensiveTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
+func newHealthAdminTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -26,26 +26,7 @@ func TestReadVersion(t *testing.T) {
 	}
 }
 
-func TestGetStatusStringComprehensive(t *testing.T) {
-	tests := []struct {
-		name   string
-		loaded bool
-		want   string
-	}{
-		{"loaded is true", true, "loaded"},
-		{"loaded is false", false, "loading"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getStatusString(tt.loaded); got != tt.want {
-				t.Errorf("getStatusString(%v) = %q, want %q", tt.loaded, got, tt.want)
-			}
-		})
-	}
-}
-
-// getDataDir/getLogDir/GetLogDir/SetDirectoryPaths share the same
+// getDataDir/getLogDir/SetDirectoryPaths share the same
 // global-override-then-env-fallback-then-default pattern; SetDirectoryPaths
 // mutates package-level state so each subtest resets it afterward.
 func TestDirectoryPaths(t *testing.T) {
@@ -58,9 +39,6 @@ func TestDirectoryPaths(t *testing.T) {
 		}
 		if got := getLogDir(); got != "/custom/log" {
 			t.Errorf("getLogDir() = %q, want %q", got, "/custom/log")
-		}
-		if got := GetLogDir(); got != "/custom/log" {
-			t.Errorf("GetLogDir() = %q, want %q", got, "/custom/log")
 		}
 	})
 
@@ -187,7 +165,7 @@ func (f fakeHTTPSChecker) IsHTTPSEnabled() bool { return f.enabled }
 
 func TestGetServerInfo(t *testing.T) {
 	t.Run("nil ssl manager reports https disabled", func(t *testing.T) {
-		c, _ := newHealthComprehensiveTestContext("/healthz")
+		c, _ := newHealthAdminTestContext("/healthz")
 		got := getServerInfo(c, "8080", 8443, nil)
 
 		if got["http_port"] != "8080" {
@@ -208,7 +186,7 @@ func TestGetServerInfo(t *testing.T) {
 	})
 
 	t.Run("manager implementing httpsChecker reports its value", func(t *testing.T) {
-		c, _ := newHealthComprehensiveTestContext("/healthz")
+		c, _ := newHealthAdminTestContext("/healthz")
 		got := getServerInfo(c, "8080", 8443, fakeHTTPSChecker{enabled: true})
 
 		if got["https_enabled"] != true {
@@ -217,7 +195,7 @@ func TestGetServerInfo(t *testing.T) {
 	})
 
 	t.Run("manager not implementing httpsChecker reports https disabled", func(t *testing.T) {
-		c, _ := newHealthComprehensiveTestContext("/healthz")
+		c, _ := newHealthAdminTestContext("/healthz")
 		got := getServerInfo(c, "8080", 8443, "not a checker")
 
 		if got["https_enabled"] != false {

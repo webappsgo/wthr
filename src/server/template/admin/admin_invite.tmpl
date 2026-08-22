@@ -1,0 +1,39 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+{{- $apiPath := "/api/v1/server/admin" -}}
+{{- if .admin_api_path}}{{$apiPath = .admin_api_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.invite.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.invite.intro"}}</p>
+  </div>
+
+  <section class="admin-section" aria-labelledby="invite-endpoint-heading">
+    <div class="section-header">
+      <h2 id="invite-endpoint-heading">{{t $lang "admin.invite.endpoint_heading"}}</h2>
+    </div>
+    <dl class="admin-detail-list">
+      <dt class="admin-detail-list__term">{{t $lang "admin.invite.endpoint_label"}}</dt>
+      <dd class="admin-detail-list__value admin-break-all"><code>POST {{$apiPath}}/config/admins/invite</code></dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.invite.field_email"}}</dt>
+      <dd class="admin-detail-list__value">{{t $lang "admin.invite.field_email_desc"}}</dd>
+      <dt class="admin-detail-list__term">{{t $lang "admin.invite.field_expires_in"}}</dt>
+      <dd class="admin-detail-list__value">{{t $lang "admin.invite.field_expires_in_desc"}}</dd>
+    </dl>
+  </section>
+
+  <section class="admin-section" aria-labelledby="invite-pending-heading">
+    <div class="section-header">
+      <h2 id="invite-pending-heading">{{t $lang "admin.invite.pending_heading"}}</h2>
+    </div>
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#9993;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.invite.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.invite.empty_message"}}</p>
+      <a class="btn btn-primary" href="{{$ap}}/config/admins">{{t $lang "admin.invite.empty_action"}}</a>
+    </div>
+  </section>
+{{template "admin_footer" .}}

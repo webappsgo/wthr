@@ -84,6 +84,7 @@ var mustResolveRenderNames = []string{
 	"admin/admin_notifications.tmpl",
 	"admin/admin_passkey_login.tmpl",
 	"admin/admin_scheduler.tmpl",
+	"admin/admin_search.tmpl",
 	"admin/admin_security.tmpl",
 	"admin/admin_settings.tmpl",
 	"admin/admin_ssl.tmpl",

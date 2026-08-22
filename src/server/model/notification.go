@@ -11,6 +11,74 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 )
 
+// noNotificationLimit asks the scan helpers for every matching row. It mirrors
+// SQLite's own rule that a negative LIMIT means "no limit", so a caller that
+// passes a limit straight through from a request keeps the semantics the SQL
+// LIMIT clause used to give it.
+const noNotificationLimit = -1
+
+// countUnexpiredRows counts rows of a single-column result set holding a stored
+// expires_at value, keeping only those that parse to an instant later than now.
+// An unparseable or NULL value fails closed and is not counted.
+func countUnexpiredRows(rows *sql.Rows, now time.Time) (int, error) {
+	count := 0
+
+	for rows.Next() {
+		var storedExpiresAt interface{}
+		if err := rows.Scan(&storedExpiresAt); err != nil {
+			return 0, err
+		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+
+		count++
+	}
+
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+// tallyNotificationStatistics accumulates the totals, per-type and per-display
+// counters GetStatistics reports from a "type, display, read, dismissed,
+// expires_at" result set, skipping every row whose expires_at does not parse to
+// an instant later than now.
+func tallyNotificationStatistics(rows *sql.Rows, now time.Time, stats *NotificationStatistics) error {
+	for rows.Next() {
+		var notifType NotificationType
+		var display NotificationDisplay
+		var read, dismissed bool
+		var storedExpiresAt interface{}
+
+		if err := rows.Scan(&notifType, &display, &read, &dismissed, &storedExpiresAt); err != nil {
+			return err
+		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+
+		stats.Total++
+		if !read && !dismissed {
+			stats.Unread++
+		}
+		if read {
+			stats.Read++
+		}
+
+		stats.ByType[notifType]++
+		stats.ByDisplay[display]++
+	}
+
+	return rows.Err()
+}
+
 // NotificationType represents the type of notification
 type NotificationType string
 
@@ -129,7 +197,7 @@ func (m *UserNotificationModel) Create(userID int, notifType NotificationType, d
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO user_notifications (id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, id, userID, notifType, display, title, message, actionJSON, false, false, time.Now(), expiresAt)
+	`, id, userID, notifType, display, title, message, actionJSON, false, false, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user notification: %w", err)
@@ -142,13 +210,13 @@ func (m *UserNotificationModel) Create(userID int, notifType NotificationType, d
 func (m *UserNotificationModel) GetByID(id string) (*Notification, error) {
 	notif := &Notification{}
 	var actionJSON sql.NullString
-	var expiresAt sql.NullTime
+	var storedCreatedAt, storedExpiresAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM user_notifications WHERE id = ?
 	`, id).Scan(&notif.ID, &notif.UserID, &notif.Type, &notif.Display, &notif.Title,
-		&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &notif.CreatedAt, &expiresAt)
+		&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &storedCreatedAt, &storedExpiresAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("notification not found")
@@ -165,58 +233,80 @@ func (m *UserNotificationModel) GetByID(id string) (*Notification, error) {
 		}
 	}
 
-	if expiresAt.Valid {
-		notif.ExpiresAt = &expiresAt.Time
+	// created_at and expires_at are scanned as raw driver values and parsed with
+	// parseStoredTimestamp so a row written in the old local-zone layout and a
+	// row written in the canonical UTC layout both come back as the same
+	// absolute instant.
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		notif.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		notif.ExpiresAt = &parsed
 	}
 
 	return notif, nil
 }
 
 // GetByUserID retrieves all notifications for a user with pagination
+// The "not expired" test runs in Go rather than as an SQL "expires_at > ?"
+// comparison: that comparison is lexicographic on TEXT, so it is only correct
+// while every stored value uses the canonical UTC layout, and a row written by
+// an older local-zone writer compares wrong in either direction. The LIMIT and
+// OFFSET window moves into Go for the same reason - SQL cannot slice the rows
+// before the expiry test it cannot be trusted to make. Scanning still stops as
+// soon as the window is full, so the query reads no more rows than the
+// LIMIT-ed statement did.
 func (m *UserNotificationModel) GetByUserID(userID int, limit, offset int) ([]*Notification, error) {
 	query := `
 		SELECT id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM user_notifications
-		WHERE user_id = ? AND expires_at > ?
+		WHERE user_id = ? AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID, time.Now(), limit, offset)
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	return m.scanNotifications(rows)
+	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), offset, limit)
 }
 
 // GetUnread retrieves unread notifications for a user
+// The expiry test runs in Go for the reason described on GetByUserID.
 func (m *UserNotificationModel) GetUnread(userID int) ([]*Notification, error) {
 	query := `
 		SELECT id, user_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM user_notifications
-		WHERE user_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
+		WHERE user_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`
 
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID, time.Now())
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	return m.scanNotifications(rows)
+	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), 0, noNotificationLimit)
 }
 
 // GetUnreadCount returns the count of unread notifications for a user
+// The count is accumulated in Go rather than by SQL COUNT(*) so the expiry test
+// is the same instant comparison every other read in this file performs.
 func (m *UserNotificationModel) GetUnreadCount(userID int) (int, error) {
-	var count int
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM user_notifications
-		WHERE user_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
-	`, userID, time.Now()).Scan(&count)
-	return count, err
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+		SELECT expires_at FROM user_notifications
+		WHERE user_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
+	`, userID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	return countUnexpiredRows(rows, time.Now().UTC())
 }
 
 // MarkAsRead marks a notification as read
@@ -283,12 +373,13 @@ func (m *UserNotificationModel) Delete(id string, userID int) error {
 }
 
 // CleanupExpired deletes expired notifications
+// The expiry test runs in Go against a UTC cutoff rather than as an SQL
+// comparison against a local time.Now(): stored timestamps can still be in the
+// local-zone time.Time.String() layout written before normalization, and
+// comparing those lexicographically deleted notifications that had not expired.
+// Rows whose expires_at is NULL or unparseable are left alone.
 func (m *UserNotificationModel) CleanupExpired() (int64, error) {
-	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutBulk, "DELETE FROM user_notifications WHERE expires_at <= ?", time.Now())
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return deleteRowsWithTimestampBefore(m.DB, "user_notifications", "id", "expires_at", time.Now().UTC(), true)
 }
 
 // EnforceLimit enforces the 100 notification limit per user
@@ -309,81 +400,66 @@ func (m *UserNotificationModel) EnforceLimit(userID int, limit int) (int64, erro
 }
 
 // GetStatistics returns notification statistics for a user
+// The three GROUP BY / aggregate queries collapse into a single scan that is
+// tallied in Go: SQL cannot be trusted to decide which rows are still live, so
+// every counter has to be driven by the same parsed-instant expiry test.
 func (m *UserNotificationModel) GetStatistics(userID int) (*NotificationStatistics, error) {
 	stats := &NotificationStatistics{
 		ByType:    make(map[NotificationType]int),
 		ByDisplay: make(map[NotificationDisplay]int),
 	}
 
-	// Get total and read counts
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT
-			COUNT(*) as total,
-			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
-			COALESCE(SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END), 0) as read
-		FROM user_notifications
-		WHERE user_id = ? AND expires_at > ?
-	`, userID, time.Now()).Scan(&stats.Total, &stats.Unread, &stats.Read)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get counts by type
 	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT type, COUNT(*) FROM user_notifications
-		WHERE user_id = ? AND expires_at > ?
-		GROUP BY type
-	`, userID, time.Now())
+		SELECT type, display, read, dismissed, expires_at FROM user_notifications
+		WHERE user_id = ? AND expires_at IS NOT NULL
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var notifType NotificationType
-		var count int
-		if err := rows.Scan(&notifType, &count); err != nil {
-			return nil, err
-		}
-		stats.ByType[notifType] = count
-	}
-
-	// Get counts by display
-	rows, err = database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT display, COUNT(*) FROM user_notifications
-		WHERE user_id = ? AND expires_at > ?
-		GROUP BY display
-	`, userID, time.Now())
-	if err != nil {
+	if err := tallyNotificationStatistics(rows, time.Now().UTC(), stats); err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var display NotificationDisplay
-		var count int
-		if err := rows.Scan(&display, &count); err != nil {
-			return nil, err
-		}
-		stats.ByDisplay[display] = count
 	}
 
 	return stats, nil
 }
 
-// scanNotifications scans multiple notifications from rows
-func (m *UserNotificationModel) scanNotifications(rows *sql.Rows) ([]*Notification, error) {
+// scanUnexpiredNotifications scans user notification rows, keeping only those
+// whose expires_at parses to an instant later than now, then applies the offset
+// and limit window in Go. A row whose stored timestamp cannot be parsed fails
+// closed and is skipped, exactly as the SQL text comparison would have dropped
+// a value it could not order.
+func (m *UserNotificationModel) scanUnexpiredNotifications(rows *sql.Rows, now time.Time, offset, limit int) ([]*Notification, error) {
+	if limit == 0 {
+		return nil, nil
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	var notifications []*Notification
+	skipped := 0
 
 	for rows.Next() {
 		notif := &Notification{}
 		var actionJSON sql.NullString
-		var expiresAt sql.NullTime
+		var storedCreatedAt, storedExpiresAt interface{}
 
 		err := rows.Scan(&notif.ID, &notif.UserID, &notif.Type, &notif.Display, &notif.Title,
-			&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &notif.CreatedAt, &expiresAt)
+			&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &storedCreatedAt, &storedExpiresAt)
 		if err != nil {
 			return nil, err
+		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+
+		if skipped < offset {
+			skipped++
+			continue
 		}
 
 		// Decode action if present
@@ -394,11 +470,20 @@ func (m *UserNotificationModel) scanNotifications(rows *sql.Rows) ([]*Notificati
 			}
 		}
 
-		if expiresAt.Valid {
-			notif.ExpiresAt = &expiresAt.Time
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			notif.CreatedAt = parsed
 		}
 
+		notif.ExpiresAt = &expiresAt
 		notifications = append(notifications, notif)
+
+		if limit > 0 && len(notifications) >= limit {
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return notifications, nil
@@ -431,7 +516,7 @@ func (m *AdminNotificationModel) Create(adminID int, notifType NotificationType,
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO server_admin_notifications (id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, id, adminID, notifType, display, title, message, actionJSON, false, false, time.Now(), expiresAt)
+	`, id, adminID, notifType, display, title, message, actionJSON, false, false, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin notification: %w", err)
@@ -444,13 +529,13 @@ func (m *AdminNotificationModel) Create(adminID int, notifType NotificationType,
 func (m *AdminNotificationModel) GetByID(id string) (*Notification, error) {
 	notif := &Notification{}
 	var actionJSON sql.NullString
-	var expiresAt sql.NullTime
+	var storedCreatedAt, storedExpiresAt interface{}
 
 	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM server_admin_notifications WHERE id = ?
 	`, id).Scan(&notif.ID, &notif.AdminID, &notif.Type, &notif.Display, &notif.Title,
-		&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &notif.CreatedAt, &expiresAt)
+		&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &storedCreatedAt, &storedExpiresAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("notification not found")
@@ -467,58 +552,75 @@ func (m *AdminNotificationModel) GetByID(id string) (*Notification, error) {
 		}
 	}
 
-	if expiresAt.Valid {
-		notif.ExpiresAt = &expiresAt.Time
+	// Both timestamps are parsed with parseStoredTimestamp so a row written in
+	// the old local-zone layout resolves to the same absolute instant as one
+	// written in the canonical UTC layout.
+	if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+		notif.CreatedAt = parsed
+	}
+
+	if parsed, ok := parseStoredTimestamp(storedExpiresAt); ok {
+		notif.ExpiresAt = &parsed
 	}
 
 	return notif, nil
 }
 
 // GetByAdminID retrieves all notifications for an admin with pagination
+// The expiry test and the LIMIT/OFFSET window both move into Go for the reason
+// described on UserNotificationModel.GetByUserID - an SQL "expires_at > ?" is a
+// lexicographic TEXT comparison that misreads any row written in the old
+// local-zone layout. The scan still stops as soon as the window is full.
 func (m *AdminNotificationModel) GetByAdminID(adminID int, limit, offset int) ([]*Notification, error) {
 	query := `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM server_admin_notifications
-		WHERE admin_id = ? AND expires_at > ?
+		WHERE admin_id = ? AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
 	`
 
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID, time.Now(), limit, offset)
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	return m.scanNotifications(rows)
+	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), offset, limit)
 }
 
 // GetUnread retrieves unread notifications for an admin
+// The expiry test runs in Go for the reason described on GetByAdminID.
 func (m *AdminNotificationModel) GetUnread(adminID int) ([]*Notification, error) {
 	query := `
 		SELECT id, admin_id, type, display, title, message, action_json, read, dismissed, created_at, expires_at
 		FROM server_admin_notifications
-		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
+		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
 		ORDER BY created_at DESC
 	`
 
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID, time.Now())
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, adminID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	return m.scanNotifications(rows)
+	return m.scanUnexpiredNotifications(rows, time.Now().UTC(), 0, noNotificationLimit)
 }
 
 // GetUnreadCount returns the count of unread notifications for an admin
+// The count is accumulated in Go rather than by SQL COUNT(*) so the expiry test
+// is the same instant comparison every other read in this file performs.
 func (m *AdminNotificationModel) GetUnreadCount(adminID int) (int, error) {
-	var count int
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT COUNT(*) FROM server_admin_notifications
-		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at > ?
-	`, adminID, time.Now()).Scan(&count)
-	return count, err
+	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+		SELECT expires_at FROM server_admin_notifications
+		WHERE admin_id = ? AND read = 0 AND dismissed = 0 AND expires_at IS NOT NULL
+	`, adminID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	return countUnexpiredRows(rows, time.Now().UTC())
 }
 
 // MarkAsRead marks a notification as read
@@ -585,12 +687,12 @@ func (m *AdminNotificationModel) Delete(id string, adminID int) error {
 }
 
 // CleanupExpired deletes expired notifications
+// The expiry test runs in Go against a UTC cutoff for the same reason as
+// UserNotificationModel.CleanupExpired: stored timestamps may still carry the
+// writer's local zone, so a lexicographic SQL comparison deleted rows that had
+// not expired. Rows whose expires_at is NULL or unparseable are left alone.
 func (m *AdminNotificationModel) CleanupExpired() (int64, error) {
-	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutBulk, "DELETE FROM server_admin_notifications WHERE expires_at <= ?", time.Now())
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return deleteRowsWithTimestampBefore(m.DB, "server_admin_notifications", "id", "expires_at", time.Now().UTC(), true)
 }
 
 // EnforceLimit enforces the 100 notification limit per admin
@@ -611,81 +713,65 @@ func (m *AdminNotificationModel) EnforceLimit(adminID int, limit int) (int64, er
 }
 
 // GetStatistics returns notification statistics for an admin
+// The three GROUP BY / aggregate queries collapse into a single scan tallied in
+// Go for the same reason as UserNotificationModel.GetStatistics: every counter
+// has to be driven by the same parsed-instant expiry test.
 func (m *AdminNotificationModel) GetStatistics(adminID int) (*NotificationStatistics, error) {
 	stats := &NotificationStatistics{
 		ByType:    make(map[NotificationType]int),
 		ByDisplay: make(map[NotificationDisplay]int),
 	}
 
-	// Get total and read counts
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT
-			COUNT(*) as total,
-			COALESCE(SUM(CASE WHEN read = 0 AND dismissed = 0 THEN 1 ELSE 0 END), 0) as unread,
-			COALESCE(SUM(CASE WHEN read = 1 THEN 1 ELSE 0 END), 0) as read
-		FROM server_admin_notifications
-		WHERE admin_id = ? AND expires_at > ?
-	`, adminID, time.Now()).Scan(&stats.Total, &stats.Unread, &stats.Read)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get counts by type
 	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT type, COUNT(*) FROM server_admin_notifications
-		WHERE admin_id = ? AND expires_at > ?
-		GROUP BY type
-	`, adminID, time.Now())
+		SELECT type, display, read, dismissed, expires_at FROM server_admin_notifications
+		WHERE admin_id = ? AND expires_at IS NOT NULL
+	`, adminID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	for rows.Next() {
-		var notifType NotificationType
-		var count int
-		if err := rows.Scan(&notifType, &count); err != nil {
-			return nil, err
-		}
-		stats.ByType[notifType] = count
-	}
-
-	// Get counts by display
-	rows, err = database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
-		SELECT display, COUNT(*) FROM server_admin_notifications
-		WHERE admin_id = ? AND expires_at > ?
-		GROUP BY display
-	`, adminID, time.Now())
-	if err != nil {
+	if err := tallyNotificationStatistics(rows, time.Now().UTC(), stats); err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var display NotificationDisplay
-		var count int
-		if err := rows.Scan(&display, &count); err != nil {
-			return nil, err
-		}
-		stats.ByDisplay[display] = count
 	}
 
 	return stats, nil
 }
 
-// scanNotifications scans multiple notifications from rows
-func (m *AdminNotificationModel) scanNotifications(rows *sql.Rows) ([]*Notification, error) {
+// scanUnexpiredNotifications scans admin notification rows, keeping only those
+// whose expires_at parses to an instant later than now, then applies the offset
+// and limit window in Go. A row whose stored timestamp cannot be parsed fails
+// closed and is skipped.
+func (m *AdminNotificationModel) scanUnexpiredNotifications(rows *sql.Rows, now time.Time, offset, limit int) ([]*Notification, error) {
+	if limit == 0 {
+		return nil, nil
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	var notifications []*Notification
+	skipped := 0
 
 	for rows.Next() {
 		notif := &Notification{}
 		var actionJSON sql.NullString
-		var expiresAt sql.NullTime
+		var storedCreatedAt, storedExpiresAt interface{}
 
 		err := rows.Scan(&notif.ID, &notif.AdminID, &notif.Type, &notif.Display, &notif.Title,
-			&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &notif.CreatedAt, &expiresAt)
+			&notif.Message, &actionJSON, &notif.Read, &notif.Dismissed, &storedCreatedAt, &storedExpiresAt)
 		if err != nil {
 			return nil, err
+		}
+
+		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
+		if !ok || !expiresAt.After(now) {
+			continue
+		}
+
+		if skipped < offset {
+			skipped++
+			continue
 		}
 
 		// Decode action if present
@@ -696,11 +782,20 @@ func (m *AdminNotificationModel) scanNotifications(rows *sql.Rows) ([]*Notificat
 			}
 		}
 
-		if expiresAt.Valid {
-			notif.ExpiresAt = &expiresAt.Time
+		if parsed, ok := parseStoredTimestamp(storedCreatedAt); ok {
+			notif.CreatedAt = parsed
 		}
 
+		notif.ExpiresAt = &expiresAt
 		notifications = append(notifications, notif)
+
+		if limit > 0 && len(notifications) >= limit {
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return notifications, nil
@@ -726,21 +821,30 @@ func (m *NotificationPreferencesModel) GetUserPreferences(userID int) (*Notifica
 		ToastDurationWarning: 10,
 	}
 
+	var storedUpdatedAt interface{}
+
 	err := database.QueryRowContext(context.Background(), m.UserDB, database.TimeoutSimpleSelect, `
 		SELECT enable_toast, enable_banner, enable_center, enable_sound,
 		       toast_duration_success, toast_duration_info, toast_duration_warning, updated_at
 		FROM user_notification_preferences
 		WHERE user_id = ?
 	`, userID).Scan(&prefs.EnableToast, &prefs.EnableBanner, &prefs.EnableCenter, &prefs.EnableSound,
-		&prefs.ToastDurationSuccess, &prefs.ToastDurationInfo, &prefs.ToastDurationWarning, &prefs.UpdatedAt)
+		&prefs.ToastDurationSuccess, &prefs.ToastDurationInfo, &prefs.ToastDurationWarning, &storedUpdatedAt)
 
 	if err == sql.ErrNoRows {
 		// Return defaults if no preferences set
-		prefs.UpdatedAt = time.Now()
+		prefs.UpdatedAt = time.Now().UTC()
 		return prefs, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// updated_at is scanned untyped and parsed here so rows written in the old
+	// local-zone layout and rows written in the canonical UTC layout both come
+	// back as the same absolute instant.
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		prefs.UpdatedAt = parsed
 	}
 
 	return prefs, nil
@@ -763,7 +867,7 @@ func (m *NotificationPreferencesModel) UpdateUserPreferences(userID int, prefs *
 			toast_duration_warning = excluded.toast_duration_warning,
 			updated_at = excluded.updated_at
 	`, userID, prefs.EnableToast, prefs.EnableBanner, prefs.EnableCenter, prefs.EnableSound,
-		prefs.ToastDurationSuccess, prefs.ToastDurationInfo, prefs.ToastDurationWarning, time.Now())
+		prefs.ToastDurationSuccess, prefs.ToastDurationInfo, prefs.ToastDurationWarning, sqlTimestamp(time.Now()))
 
 	return err
 }
@@ -782,21 +886,29 @@ func (m *NotificationPreferencesModel) GetAdminPreferences(adminID int) (*Notifi
 		ToastDurationWarning: 10,
 	}
 
+	var storedUpdatedAt interface{}
+
 	err := database.QueryRowContext(context.Background(), m.ServerDB, database.TimeoutSimpleSelect, `
 		SELECT enable_toast, enable_banner, enable_center, enable_sound,
 		       toast_duration_success, toast_duration_info, toast_duration_warning, updated_at
 		FROM server_admin_notification_preferences
 		WHERE admin_id = ?
 	`, adminID).Scan(&prefs.EnableToast, &prefs.EnableBanner, &prefs.EnableCenter, &prefs.EnableSound,
-		&prefs.ToastDurationSuccess, &prefs.ToastDurationInfo, &prefs.ToastDurationWarning, &prefs.UpdatedAt)
+		&prefs.ToastDurationSuccess, &prefs.ToastDurationInfo, &prefs.ToastDurationWarning, &storedUpdatedAt)
 
 	if err == sql.ErrNoRows {
 		// Return defaults if no preferences set
-		prefs.UpdatedAt = time.Now()
+		prefs.UpdatedAt = time.Now().UTC()
 		return prefs, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// updated_at is scanned untyped and parsed here for the same mixed-layout
+	// reason as GetUserPreferences.
+	if parsed, ok := parseStoredTimestamp(storedUpdatedAt); ok {
+		prefs.UpdatedAt = parsed
 	}
 
 	return prefs, nil
@@ -819,7 +931,7 @@ func (m *NotificationPreferencesModel) UpdateAdminPreferences(adminID int, prefs
 			toast_duration_warning = excluded.toast_duration_warning,
 			updated_at = excluded.updated_at
 	`, adminID, prefs.EnableToast, prefs.EnableBanner, prefs.EnableCenter, prefs.EnableSound,
-		prefs.ToastDurationSuccess, prefs.ToastDurationInfo, prefs.ToastDurationWarning, time.Now())
+		prefs.ToastDurationSuccess, prefs.ToastDurationInfo, prefs.ToastDurationWarning, sqlTimestamp(time.Now()))
 
 	return err
 }

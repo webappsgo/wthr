@@ -1,45 +1,46 @@
 {{define "admin/admin_system.tmpl"}}
 {{template "head" .}}
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
-                <h1>⚙️ System Information</h1>
-                <p class="subtitle">Server status, resources, and system monitoring</p>
+                <h1>⚙️ {{t $lang "admin.system.title"}}</h1>
+                <p class="subtitle">{{t $lang "admin.system.subtitle"}}</p>
             </div>
 
             <!-- System Status Section -->
             <section class="admin-card" aria-labelledby="status-heading">
                 <div class="card-header">
-                    <h2 id="status-heading">System Status</h2>
-                    <p class="card-description">Current system health and uptime</p>
+                    <h2 id="status-heading">{{t $lang "admin.system.status_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.status_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Server Status</div>
+                            <div class="stat-label">{{t $lang "admin.system.server_status_label"}}</div>
                             <div class="stat-value">
-                                <span class="badge badge-success">✅ Online</span>
+                                <span class="badge badge-success">✅ {{t $lang "admin.system.online"}}</span>
                             </div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Uptime</div>
+                            <div class="stat-label">{{t $lang "admin.system.uptime_label"}}</div>
                             <div class="stat-value" id="uptime">
-                                <span class="loading">Loading...</span>
+                                <span class="loading">{{t $lang "admin.system.loading"}}</span>
                             </div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Version</div>
+                            <div class="stat-label">{{t $lang "admin.system.version_label"}}</div>
                             <div class="stat-value" id="version">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Build Date</div>
+                            <div class="stat-label">{{t $lang "admin.system.build_date_label"}}</div>
                             <div class="stat-value" id="build-date">-</div>
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" onclick="refreshSystemInfo()" aria-label="Refresh system information">
-                        🔄 Refresh
+                    <button class="btn btn-secondary" onclick="refreshSystemInfo()" aria-label="{{t $lang "admin.system.refresh_system_aria"}}">
+                        🔄 {{t $lang "action.refresh"}}
                     </button>
                 </div>
             </section>
@@ -47,33 +48,33 @@
             <!-- Server Information Section -->
             <section class="admin-card" aria-labelledby="server-info-heading">
                 <div class="card-header">
-                    <h2 id="server-info-heading">Server Information</h2>
-                    <p class="card-description">Platform and runtime details</p>
+                    <h2 id="server-info-heading">{{t $lang "admin.system.server_info_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.server_info_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">Operating System</div>
+                            <div class="info-label">{{t $lang "admin.system.os_label"}}</div>
                             <div class="info-value" id="os">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Architecture</div>
+                            <div class="info-label">{{t $lang "admin.system.arch_label"}}</div>
                             <div class="info-value" id="arch">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Go Version</div>
+                            <div class="info-label">{{t $lang "admin.system.go_version_label"}}</div>
                             <div class="info-value" id="go-version">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Hostname</div>
+                            <div class="info-label">{{t $lang "admin.system.hostname_label"}}</div>
                             <div class="info-value" id="hostname">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Working Directory</div>
+                            <div class="info-label">{{t $lang "admin.system.working_dir_label"}}</div>
                             <div class="info-value" id="working-dir">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Process ID</div>
+                            <div class="info-label">{{t $lang "admin.system.pid_label"}}</div>
                             <div class="info-value" id="pid">-</div>
                         </div>
                     </div>
@@ -83,41 +84,41 @@
             <!-- Resource Usage Section -->
             <section class="admin-card" aria-labelledby="resources-heading">
                 <div class="card-header">
-                    <h2 id="resources-heading">Resource Usage</h2>
-                    <p class="card-description">Memory, CPU, and goroutine statistics</p>
+                    <h2 id="resources-heading">{{t $lang "admin.system.resources_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.resources_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Memory Allocated</div>
+                            <div class="stat-label">{{t $lang "admin.system.memory_alloc_label"}}</div>
                             <div class="stat-value" id="memory-alloc">
-                                <span class="loading">Loading...</span>
+                                <span class="loading">{{t $lang "admin.system.loading"}}</span>
                             </div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Memory System</div>
+                            <div class="stat-label">{{t $lang "admin.system.memory_sys_label"}}</div>
                             <div class="stat-value" id="memory-sys">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Goroutines</div>
+                            <div class="stat-label">{{t $lang "admin.system.goroutines_label"}}</div>
                             <div class="stat-value" id="goroutines">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">GC Runs</div>
+                            <div class="stat-label">{{t $lang "admin.system.gc_runs_label"}}</div>
                             <div class="stat-value" id="gc-runs">-</div>
                         </div>
                     </div>
 
                     <div class="alert alert-info mt-4" role="status">
-                        <strong>Note:</strong> Memory usage is automatically managed by Go's garbage collector. High values are normal for busy servers.
+                        <strong>{{t $lang "admin.system.note_label"}}</strong> {{t $lang "admin.system.memory_note_text"}}
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-secondary" onclick="triggerGC()" aria-label="Trigger garbage collection">
-                            🧹 Run Garbage Collection
+                        <button class="btn btn-secondary" onclick="triggerGC()" aria-label="{{t $lang "admin.system.trigger_gc_aria"}}">
+                            🧹 {{t $lang "admin.system.run_gc_action"}}
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshResourceUsage()" aria-label="Refresh resource usage">
-                            🔄 Refresh
+                        <button class="btn btn-secondary" onclick="refreshResourceUsage()" aria-label="{{t $lang "admin.system.refresh_resources_aria"}}">
+                            🔄 {{t $lang "action.refresh"}}
                         </button>
                     </div>
                 </div>
@@ -126,33 +127,33 @@
             <!-- Network Information Section -->
             <section class="admin-card" aria-labelledby="network-heading">
                 <div class="card-header">
-                    <h2 id="network-heading">Network Configuration</h2>
-                    <p class="card-description">Server addresses and ports</p>
+                    <h2 id="network-heading">{{t $lang "admin.system.network_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.network_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">HTTP Port</div>
+                            <div class="info-label">{{t $lang "admin.system.http_port_label"}}</div>
                             <div class="info-value" id="http-port">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">HTTPS Port</div>
+                            <div class="info-label">{{t $lang "admin.system.https_port_label"}}</div>
                             <div class="info-value" id="https-port">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">HTTPS Enabled</div>
+                            <div class="info-label">{{t $lang "admin.system.https_enabled_label"}}</div>
                             <div class="info-value" id="https-enabled">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Tor Hidden Service</div>
+                            <div class="info-label">{{t $lang "admin.system.tor_hidden_service_label"}}</div>
                             <div class="info-value" id="tor-status">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">.onion Address</div>
+                            <div class="info-label">{{t $lang "admin.system.onion_address_label"}}</div>
                             <div class="info-value" id="onion-address">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Server URL</div>
+                            <div class="info-label">{{t $lang "admin.system.server_url_label"}}</div>
                             <div class="info-value" id="server-url">-</div>
                         </div>
                     </div>
@@ -162,33 +163,33 @@
             <!-- Environment Section -->
             <section class="admin-card" aria-labelledby="env-heading">
                 <div class="card-header">
-                    <h2 id="env-heading">Environment</h2>
-                    <p class="card-description">Runtime environment variables</p>
+                    <h2 id="env-heading">{{t $lang "admin.system.env_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.env_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="info-grid">
                         <div class="info-item">
-                            <div class="info-label">Mode</div>
+                            <div class="info-label">{{t $lang "admin.system.mode_label"}}</div>
                             <div class="info-value" id="mode">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Debug Enabled</div>
+                            <div class="info-label">{{t $lang "admin.system.debug_enabled_label"}}</div>
                             <div class="info-value" id="debug">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Data Directory</div>
+                            <div class="info-label">{{t $lang "admin.system.data_dir_label"}}</div>
                             <div class="info-value" id="data-dir">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Config Directory</div>
+                            <div class="info-label">{{t $lang "admin.system.config_dir_label"}}</div>
                             <div class="info-value" id="config-dir">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Log Directory</div>
+                            <div class="info-label">{{t $lang "admin.system.log_dir_label"}}</div>
                             <div class="info-value" id="log-dir">-</div>
                         </div>
                         <div class="info-item">
-                            <div class="info-label">Timezone</div>
+                            <div class="info-label">{{t $lang "admin.system.timezone_label"}}</div>
                             <div class="info-value" id="timezone">-</div>
                         </div>
                     </div>
@@ -198,30 +199,29 @@
             <!-- Actions Section -->
             <section class="admin-card" aria-labelledby="actions-heading">
                 <div class="card-header">
-                    <h2 id="actions-heading">System Actions</h2>
-                    <p class="card-description">Maintenance and diagnostic tools</p>
+                    <h2 id="actions-heading">{{t $lang "admin.system.actions_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.system.actions_desc"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-warning" role="alert">
-                        <strong>Warning:</strong> Some actions may temporarily affect service availability. Use with caution on production systems.
+                        <strong>{{t $lang "admin.system.warning_label"}}</strong> {{t $lang "admin.system.actions_warning_text"}}
                     </div>
 
                     <div class="action-buttons">
-                        <button class="btn btn-secondary" onclick="reloadConfig()" aria-label="Reload configuration">
-                            🔄 Reload Configuration
+                        <button class="btn btn-secondary" onclick="reloadConfig()" aria-label="{{t $lang "admin.system.reload_config_aria"}}">
+                            🔄 {{t $lang "admin.system.reload_config_action"}}
                         </button>
-                        <button class="btn btn-info" onclick="viewAllRoutes()" aria-label="View all routes">
-                            🗺️ View All Routes
+                        <button class="btn btn-info" onclick="viewAllRoutes()" aria-label="{{t $lang "admin.system.view_routes_aria"}}">
+                            🗺️ {{t $lang "admin.system.view_routes_action"}}
                         </button>
-                        <button class="btn btn-info" onclick="exportSystemInfo()" aria-label="Export system information">
-                            📥 Export System Info
+                        <button class="btn btn-info" onclick="exportSystemInfo()" aria-label="{{t $lang "admin.system.export_info_aria"}}">
+                            📥 {{t $lang "admin.system.export_info_action"}}
                         </button>
                     </div>
 
                     <div id="action-result" class="alert d-none mt-4" role="status" aria-live="polite"></div>
                 </div>
             </section>
-        </main>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -417,5 +417,5 @@
     }
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

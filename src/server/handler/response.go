@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // APIResponse represents a standardized action response per AI.md PART 14
@@ -252,7 +254,9 @@ func NegotiateResponse(c *gin.Context, htmlTemplate string, data gin.H) {
 		RespondData(c, data)
 		return
 	}
-	c.HTML(http.StatusOK, htmlTemplate, data)
+	// Templates including the shared head/navbar/footer partials need the chrome keys.
+	// util.TemplateData merges caller keys last, so it is safe for already-wrapped data.
+	c.HTML(http.StatusOK, htmlTemplate, util.TemplateData(c, data))
 }
 
 // NegotiateErrorResponse returns JSON or HTML error based on Accept header
@@ -265,12 +269,12 @@ func NegotiateErrorResponse(c *gin.Context, status int, htmlTemplate string, err
 		RespondError(c, status, errCode, message)
 		return
 	}
-	if data == nil {
-		data = gin.H{}
-	}
-	data["Error"] = message
-	data["ErrorCode"] = errCode
-	c.HTML(status, htmlTemplate, data)
+	// Enrich first so the error page keeps the shared chrome keys, then layer the
+	// error fields on top of the enriched copy instead of mutating the caller's map.
+	enriched := util.TemplateData(c, data)
+	enriched["Error"] = message
+	enriched["ErrorCode"] = errCode
+	c.HTML(status, htmlTemplate, enriched)
 }
 
 // Helper functions for common error scenarios

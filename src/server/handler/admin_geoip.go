@@ -14,9 +14,9 @@ type AdminGeoIPHandler struct {
 
 // ShowGeoIPSettings displays GeoIP settings page
 func (h *AdminGeoIPHandler) ShowGeoIPSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_geoip.tmpl", gin.H{
+	c.HTML(http.StatusOK, "admin/admin_geoip.tmpl", util.TemplateData(c, gin.H{
 		"title": "GeoIP Settings",
-	})
+	}))
 }
 
 // UpdateGeoIPSettings updates GeoIP settings

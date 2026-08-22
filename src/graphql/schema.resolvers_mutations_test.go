@@ -405,10 +405,13 @@ func TestMutationResolver_ResetUserPassword(t *testing.T) {
 
 	t.Run("expired token rejected", func(t *testing.T) {
 		user := seedGraphQLUser(t, ddb, "expreset", "expreset@example.com", "correctpass1")
+		// ResetUserPassword (via handler.ResetAPIUserPassword) looks the row up
+		// by models.HashAPIToken(token), matching what RequestAPIUserPasswordReset
+		// stores (PART 11 forbids keeping a usable token at rest).
 		if _, err := ddb.Users.Exec(`
 			INSERT INTO user_password_resets (user_id, token, ip_address, created_at, expires_at)
-			VALUES (?, 'expired-tok', '127.0.0.1', ?, ?)
-		`, user.ID, time.Now().Add(-2*time.Hour), time.Now().Add(-1*time.Hour)); err != nil {
+			VALUES (?, ?, '127.0.0.1', ?, ?)
+		`, user.ID, models.HashAPIToken("expired-tok"), time.Now().Add(-2*time.Hour), time.Now().Add(-1*time.Hour)); err != nil {
 			t.Fatalf("seed expired reset: %v", err)
 		}
 
@@ -422,8 +425,8 @@ func TestMutationResolver_ResetUserPassword(t *testing.T) {
 		user := seedGraphQLUser(t, ddb, "resetok", "resetok@example.com", "correctpass1")
 		if _, err := ddb.Users.Exec(`
 			INSERT INTO user_password_resets (user_id, token, ip_address, created_at, expires_at)
-			VALUES (?, 'valid-tok', '127.0.0.1', ?, ?)
-		`, user.ID, time.Now(), time.Now().Add(1*time.Hour)); err != nil {
+			VALUES (?, ?, '127.0.0.1', ?, ?)
+		`, user.ID, models.HashAPIToken("valid-tok"), time.Now(), time.Now().Add(1*time.Hour)); err != nil {
 			t.Fatalf("seed valid reset: %v", err)
 		}
 		session, err := (&models.SessionModel{DB: ddb.Users}).Create(user.ID, 900)
@@ -467,10 +470,13 @@ func TestMutationResolver_VerifyUserEmail(t *testing.T) {
 
 	t.Run("expired token rejected", func(t *testing.T) {
 		user := seedGraphQLUser(t, ddb, "expverify", "expverify@example.com", "correctpass1")
+		// VerifyUserEmail (via handler.VerifyAPIUserEmail) looks the row up by
+		// models.HashAPIToken(token), matching what CreateVerification stores
+		// (PART 11 forbids keeping a usable token at rest).
 		if _, err := ddb.Users.Exec(`
 			INSERT INTO user_email_verifications (user_id, email, token, created_at, expires_at)
-			VALUES (?, ?, 'expired-verify-tok', ?, ?)
-		`, user.ID, user.Email, time.Now().Add(-2*time.Hour), time.Now().Add(-1*time.Hour)); err != nil {
+			VALUES (?, ?, ?, ?, ?)
+		`, user.ID, user.Email, models.HashAPIToken("expired-verify-tok"), time.Now().Add(-2*time.Hour), time.Now().Add(-1*time.Hour)); err != nil {
 			t.Fatalf("seed expired verification: %v", err)
 		}
 
@@ -484,8 +490,8 @@ func TestMutationResolver_VerifyUserEmail(t *testing.T) {
 		user := seedGraphQLUser(t, ddb, "verifyok", "verifyok@example.com", "correctpass1")
 		if _, err := ddb.Users.Exec(`
 			INSERT INTO user_email_verifications (user_id, email, token, created_at, expires_at)
-			VALUES (?, ?, 'valid-verify-tok', ?, ?)
-		`, user.ID, user.Email, time.Now(), time.Now().Add(1*time.Hour)); err != nil {
+			VALUES (?, ?, ?, ?, ?)
+		`, user.ID, user.Email, models.HashAPIToken("valid-verify-tok"), time.Now(), time.Now().Add(1*time.Hour)); err != nil {
 			t.Fatalf("seed valid verification: %v", err)
 		}
 

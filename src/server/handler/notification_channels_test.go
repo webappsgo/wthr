@@ -10,19 +10,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // newNotificationChannelsTestDB opens a fresh in-memory SQLite database with
-// the legacy database.Schema applied. NotificationChannelHandler and
-// service.ChannelManager query the "notification_channels" /
-// "notification_queue" / "notification_history" tables, which only exist in
-// database.Schema (SchemaVersion 2, applied by InitDBWithConfig) — not in
-// database.ServerSchema (the dual-DB schema used elsewhere in this package),
-// which defines the differently-named "server_notification_channels" table
-// instead. See the final report for this cross-schema inconsistency, flagged
-// as a production bug rather than fixed here.
+// the real database.ServerSchema applied verbatim — the same DDL initServerDB
+// applies to server.db in production, so every column these tests exercise is
+// the column the running server has. No DDL is written by hand here: a
+// hand-rolled table that shadows a real one hides the "no such column" failures
+// that would fire in production.
 func newNotificationChannelsTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := fmt.Sprintf("file:handler_notif_%d?mode=memory&cache=shared", time.Now().UnixNano())
@@ -30,16 +28,16 @@ func newNotificationChannelsTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("open notification channels db: %v", err)
 	}
-	if _, err := db.Exec(database.Schema); err != nil {
+	if _, err := db.Exec(database.ServerSchema); err != nil {
 		db.Close()
-		t.Fatalf("apply legacy Schema: %v", err)
+		t.Fatalf("apply ServerSchema: %v", err)
 	}
 	t.Cleanup(func() { db.Close() })
 	return db
 }
 
 // newNotificationChannelsTestHandler wires a NotificationChannelHandler
-// against a fresh legacy-schema in-memory DB. SMTP-dependent handlers
+// against a fresh in-memory DB carrying the real server schema. SMTP-dependent handlers
 // (TestChannel's "email" branch, AutoDetectSMTP) are deliberately not
 // exercised here — SendTestEmail/AutoDetect perform real SMTP/network I/O,
 // which this package's testing rules treat as untestable in a unit test.
@@ -54,14 +52,19 @@ func newNotificationChannelsTestHandler(t *testing.T) *NotificationChannelHandle
 }
 
 // insertTestNotificationChannel inserts a single row directly, bypassing
-// InitializeChannels, so tests can control exactly which channels exist.
+// InitializeChannels, so tests can control exactly which channels exist. The
+// row goes into server_notification_channels, the one table the handler,
+// service.ChannelManager and smtp.go all read. Timestamps are written through
+// dbtime so the fixture holds the canonical UTC layout production writes rather
+// than the driver's local-zone rendering of a bound time.Time.
 func insertTestNotificationChannel(t *testing.T, db *sql.DB, channelType, channelName string, enabled bool, state string) {
 	t.Helper()
+	now := dbtime.FormatSQLTimestamp(time.Now())
 	_, err := db.Exec(`
-		INSERT INTO notification_channels
+		INSERT INTO server_notification_channels
 		(channel_type, channel_name, enabled, state, config, created_at, updated_at)
 		VALUES (?, ?, ?, ?, '{}', ?, ?)
-	`, channelType, channelName, enabled, state, time.Now(), time.Now())
+	`, channelType, channelName, enabled, state, now, now)
 	if err != nil {
 		t.Fatalf("insert test channel: %v", err)
 	}
@@ -70,7 +73,7 @@ func insertTestNotificationChannel(t *testing.T, db *sql.DB, channelType, channe
 func TestNotificationChannelHandlerListChannels(t *testing.T) {
 	t.Run("empty table returns empty list", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/notifications/channels")
+		c, w := newAPITestContext("/server/admin/config/channels")
 
 		h.ListChannels(c)
 
@@ -87,7 +90,7 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 		insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
 
-		c, w := newAPITestContext("/server/admin/notifications/channels")
+		c, w := newAPITestContext("/server/admin/config/channels")
 		h.ListChannels(c)
 
 		if w.Code != http.StatusOK {
@@ -106,7 +109,7 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 	t.Run("unknown channel returns 404", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/notifications/channels/slack")
+		c, w := newAPITestContext("/server/admin/config/channels/slack")
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 
 		h.GetChannel(c)
@@ -120,7 +123,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		c, w := newAPITestContext("/server/admin/notifications/channels/slack")
+		c, w := newAPITestContext("/server/admin/config/channels/slack")
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 		h.GetChannel(c)
 
@@ -136,7 +139,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/server/admin/notifications/channels/slack", "not json")
+		c, w := newTestContextJSON(t, http.MethodPut, "/server/admin/config/channels/slack", "not json")
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 
 		h.UpdateChannel(c)
@@ -150,7 +153,7 @@ func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/server/admin/notifications/channels/slack", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPut, "/server/admin/config/channels/slack", map[string]interface{}{
 			"enabled": true,
 			"config":  map[string]interface{}{"webhook_url": "https://example.com/hook"},
 		})
@@ -164,7 +167,7 @@ func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 
 		var enabled bool
 		var config string
-		if err := h.DB.QueryRow("SELECT enabled, config FROM notification_channels WHERE channel_type = ?", "slack").Scan(&enabled, &config); err != nil {
+		if err := h.DB.QueryRow("SELECT enabled, config FROM server_notification_channels WHERE channel_type = ?", "slack").Scan(&enabled, &config); err != nil {
 			t.Fatalf("query updated row: %v", err)
 		}
 		if !enabled {
@@ -180,7 +183,7 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
 	insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
 
-	c, w := newAPITestContext("/server/admin/notifications/channels/discord/enable")
+	c, w := newAPITestContext("/server/admin/config/channels/discord/enable")
 	c.Params = gin.Params{{Key: "type", Value: "discord"}}
 	h.EnableChannel(c)
 	if w.Code != http.StatusOK {
@@ -189,21 +192,21 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 
 	var state string
 	var enabled bool
-	if err := h.DB.QueryRow("SELECT enabled, state FROM notification_channels WHERE channel_type = ?", "discord").Scan(&enabled, &state); err != nil {
+	if err := h.DB.QueryRow("SELECT enabled, state FROM server_notification_channels WHERE channel_type = ?", "discord").Scan(&enabled, &state); err != nil {
 		t.Fatalf("query after enable: %v", err)
 	}
 	if !enabled || state != "enabled" {
 		t.Errorf("after EnableChannel: enabled=%v state=%q, want true/enabled", enabled, state)
 	}
 
-	c2, w2 := newAPITestContext("/server/admin/notifications/channels/discord/disable")
+	c2, w2 := newAPITestContext("/server/admin/config/channels/discord/disable")
 	c2.Params = gin.Params{{Key: "type", Value: "discord"}}
 	h.DisableChannel(c2)
 	if w2.Code != http.StatusOK {
 		t.Fatalf("disable status = %d, want 200: %s", w2.Code, w2.Body.String())
 	}
 
-	if err := h.DB.QueryRow("SELECT enabled, state FROM notification_channels WHERE channel_type = ?", "discord").Scan(&enabled, &state); err != nil {
+	if err := h.DB.QueryRow("SELECT enabled, state FROM server_notification_channels WHERE channel_type = ?", "discord").Scan(&enabled, &state); err != nil {
 		t.Fatalf("query after disable: %v", err)
 	}
 	if enabled || state != "disabled" {
@@ -214,7 +217,7 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 	t.Run("missing recipient returns 400", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/notifications/channels/slack/test", map[string]interface{}{})
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/channels/slack/test", map[string]interface{}{})
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 
 		h.TestChannel(c)
@@ -231,7 +234,7 @@ func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/notifications/channels/slack/test", map[string]interface{}{
+		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/channels/slack/test", map[string]interface{}{
 			"recipient": "someone",
 		})
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
@@ -247,7 +250,7 @@ func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 func TestNotificationChannelHandlerGetChannelStats(t *testing.T) {
 	t.Run("unknown channel returns 404", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/notifications/channels/slack/stats")
+		c, w := newAPITestContext("/server/admin/config/channels/slack/stats")
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 
 		h.GetChannelStats(c)
@@ -261,7 +264,7 @@ func TestNotificationChannelHandlerGetChannelStats(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		c, w := newAPITestContext("/server/admin/notifications/channels/slack/stats")
+		c, w := newAPITestContext("/server/admin/config/channels/slack/stats")
 		c.Params = gin.Params{{Key: "type", Value: "slack"}}
 		h.GetChannelStats(c)
 
@@ -304,7 +307,7 @@ func TestNotificationChannelHandlerListSMTPProviders(t *testing.T) {
 
 func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
-	c, w := newAPITestContext("/server/admin/notifications/channels/initialize")
+	c, w := newAPITestContext("/server/admin/config/channels/initialize")
 
 	h.InitializeChannels(c)
 
@@ -313,7 +316,7 @@ func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 	}
 
 	var count int
-	if err := h.DB.QueryRow("SELECT COUNT(*) FROM notification_channels").Scan(&count); err != nil {
+	if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_channels").Scan(&count); err != nil {
 		t.Fatalf("count channels: %v", err)
 	}
 	if count != len(service.ChannelRegistry) {
@@ -322,7 +325,7 @@ func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 
 	// Calling again must not duplicate rows (existence check short-circuits).
 	h.InitializeChannels(c)
-	if err := h.DB.QueryRow("SELECT COUNT(*) FROM notification_channels").Scan(&count); err != nil {
+	if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_channels").Scan(&count); err != nil {
 		t.Fatalf("count channels after re-init: %v", err)
 	}
 	if count != len(service.ChannelRegistry) {
@@ -333,7 +336,7 @@ func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 func TestNotificationChannelHandlerGetChannelDefinitions(t *testing.T) {
 	t.Run("no category returns all definitions", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/notifications/channels/definitions")
+		c, w := newAPITestContext("/server/admin/config/channels/definitions")
 
 		h.GetChannelDefinitions(c)
 
@@ -347,7 +350,7 @@ func TestNotificationChannelHandlerGetChannelDefinitions(t *testing.T) {
 
 	t.Run("filters by category", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		c, w := newAPITestContext("/server/admin/notifications/channels/definitions?category=sms")
+		c, w := newAPITestContext("/server/admin/config/channels/definitions?category=sms")
 
 		h.GetChannelDefinitions(c)
 
@@ -406,7 +409,7 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 
 	_, err := h.DB.Exec(`
 		INSERT INTO notification_history
-		(queue_id, user_id, channel_type, status, subject, sent_at)
+		(queue_id, user_id, channel_type, status, subject, created_at)
 		VALUES (NULL, 1, 'email', 'sent', 'hello', ?)
 	`, time.Now())
 	if err != nil {
@@ -414,7 +417,7 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 	}
 	_, err = h.DB.Exec(`
 		INSERT INTO notification_history
-		(queue_id, user_id, channel_type, status, subject, sent_at)
+		(queue_id, user_id, channel_type, status, subject, created_at)
 		VALUES (NULL, 1, 'slack', 'failed', 'oops', ?)
 	`, time.Now())
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -264,19 +265,24 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 			emailVerified = 1
 		}
 
+		// Every timestamp below is bound as canonical UTC text rather than
+		// produced by SQL's CURRENT_TIMESTAMP, which yields a different type and
+		// zone on PostgreSQL, MySQL and SQL Server than it does on SQLite.
+		now := dbtime.FormatSQLTimestamp(time.Now())
+
 		result, err := database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_accounts
 				(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
-			VALUES (?, ?, ?, ?, 'user', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, username, email, displayName, pwHash, emailVerified)
+			VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
+		`, username, email, displayName, pwHash, emailVerified, now, now)
 		if err != nil {
 			// Username or email collision — generate a unique suffix
 			username = username + "_" + provider
 			result, err = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 				INSERT INTO user_accounts
 					(username, email, display_name, password_hash, role, is_active, email_verified, created_at, updated_at)
-				VALUES (?, ?, ?, ?, 'user', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-			`, username, email, displayName, pwHash, emailVerified)
+				VALUES (?, ?, ?, ?, 'user', 1, ?, ?, ?)
+			`, username, email, displayName, pwHash, emailVerified, now, now)
 			if err != nil {
 				c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
 					"title":    "OIDC Callback",
@@ -292,8 +298,8 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		_, _ = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
 			INSERT INTO user_oidc_mappings
 				(user_id, provider_name, provider_user_id, issuer, email, name, created_at, updated_at, last_login_at)
-			VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, userID, provider, claims.Sub, cfg.Issuer, claims.Email, claims.Name)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, userID, provider, claims.Sub, cfg.Issuer, claims.Email, claims.Name, now, now, now)
 
 	} else if err != nil {
 		c.HTML(http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(c, gin.H{
@@ -303,11 +309,15 @@ func (h *OIDCAuthHandler) Callback(c *gin.Context) {
 		}))
 		return
 	} else {
-		// Existing user — update last login and sync identity mapping
+		// Existing user — update last login and sync identity mapping.
+		// last_login_at/updated_at are bound as canonical UTC text rather than
+		// produced by SQL's CURRENT_TIMESTAMP, which yields a different type and
+		// zone on PostgreSQL, MySQL and SQL Server than it does on SQLite.
+		now := dbtime.FormatSQLTimestamp(time.Now())
 		_, _ = database.ExecContext(context.Background(), usersDB, database.TimeoutWrite, `
-			UPDATE user_oidc_mappings SET last_login_at = CURRENT_TIMESTAMP, email = ?, name = ?, updated_at = CURRENT_TIMESTAMP
+			UPDATE user_oidc_mappings SET last_login_at = ?, email = ?, name = ?, updated_at = ?
 			WHERE provider_name = ? AND provider_user_id = ?
-		`, claims.Email, claims.Name, provider, claims.Sub)
+		`, now, claims.Email, claims.Name, now, provider, claims.Sub)
 
 		// Verify user is still active and not banned
 		var isActive, isBanned bool

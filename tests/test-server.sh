@@ -79,7 +79,7 @@ echo -e "Server PID: ${YELLOW}$SERVER_PID${NC}"
 # Wait for server to start
 echo -e "${BLUE}⏳ Waiting for server...${NC}"
 for i in {1..30}; do
-    if curl -s "http://localhost:$PORT/healthz" > /dev/null 2>&1; then
+    if curl -s "http://localhost:$PORT/server/healthz" > /dev/null 2>&1; then
         echo -e "${GREEN}✅ Server is ready!${NC}"
         break
     fi
@@ -89,7 +89,7 @@ done
 # Display information
 echo ""
 echo -e "${GREEN}🌤️  Server running at: ${YELLOW}http://localhost:$PORT${NC}"
-echo -e "${GREEN}📊 Health check: ${YELLOW}http://localhost:$PORT/healthz${NC}"
+echo -e "${GREEN}📊 Health check: ${YELLOW}http://localhost:$PORT/server/healthz${NC}"
 echo -e "${GREEN}📝 API docs: ${YELLOW}http://localhost:$PORT/docs${NC}"
 echo -e "${GREEN}📁 Data directory: ${YELLOW}$TEST_DIR${NC}"
 echo -e "${GREEN}📋 Server log: ${YELLOW}$TEST_DIR/server.log${NC}"

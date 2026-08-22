@@ -1,43 +1,44 @@
 {{define "admin/admin_database.tmpl"}}
 {{template "head" .}}
-{{template "navbar" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
 
-    <main class="admin-content" role="main" id="main-content">
             <div class="content-header">
-                <h1>🗄️ Database & Cache Management</h1>
-                <p class="subtitle">Optimize database performance and manage caching</p>
+                <h1>🗄️ {{t $lang "admin.database.title"}}</h1>
+                <p class="subtitle">{{t $lang "admin.database.subtitle"}}</p>
             </div>
 
             <!-- Database Status Section -->
             <section class="admin-card" aria-labelledby="db-status-heading">
                 <div class="card-header">
-                    <h2 id="db-status-heading">Database Status</h2>
-                    <p class="card-description">Current database connection and statistics</p>
+                    <h2 id="db-status-heading">{{t $lang "admin.database.status_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.database.status_description"}}</p>
                 </div>
                 <div class="card-body">
                     <div id="db-stats" class="stats-grid">
                         <div class="stat-item">
-                            <div class="stat-label">Connection Status</div>
+                            <div class="stat-label">{{t $lang "admin.database.connection_status"}}</div>
                             <div class="stat-value" id="db-status">
-                                <span class="loading">Loading...</span>
+                                <span class="loading">{{t $lang "admin.database.loading"}}</span>
                             </div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Database Type</div>
+                            <div class="stat-label">{{t $lang "admin.database.database_type"}}</div>
                             <div class="stat-value" id="db-type">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Database Size</div>
+                            <div class="stat-label">{{t $lang "admin.database.database_size"}}</div>
                             <div class="stat-value" id="db-size">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Total Tables</div>
+                            <div class="stat-label">{{t $lang "admin.database.total_tables"}}</div>
                             <div class="stat-value" id="db-tables">-</div>
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" onclick="refreshStats()" aria-label="Refresh database statistics">
-                        🔄 Refresh Stats
+                    <button class="btn btn-secondary" onclick="refreshStats()" aria-label="{{t $lang "admin.database.refresh_stats_label"}}">
+                        🔄 {{t $lang "admin.database.refresh_stats"}}
                     </button>
                 </div>
             </section>
@@ -45,57 +46,57 @@
             <!-- Database Optimization Section -->
             <section class="admin-card" aria-labelledby="db-optimize-heading">
                 <div class="card-header">
-                    <h2 id="db-optimize-heading">Database Optimization</h2>
-                    <p class="card-description">Improve database performance with optimization tools</p>
+                    <h2 id="db-optimize-heading">{{t $lang "admin.database.optimize_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.database.optimize_description"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info" role="status">
-                        <strong>Note:</strong> These operations may take a few seconds depending on database size. They are safe to run on a live database.
+                        <strong>{{t $lang "admin.database.note_label"}}</strong> {{t $lang "admin.database.optimize_note"}}
                     </div>
 
                     <div class="optimization-actions">
                         <div class="action-card">
                             <div class="action-info">
-                                <h3>Optimize Database</h3>
-                                <p>Defragment tables and rebuild indexes for better performance</p>
+                                <h3>{{t $lang "admin.database.optimize_card_title"}}</h3>
+                                <p>{{t $lang "admin.database.optimize_card_description"}}</p>
                                 <ul>
-                                    <li>Reclaims unused space</li>
-                                    <li>Improves query speed</li>
-                                    <li>Rebuilds table statistics</li>
+                                    <li>{{t $lang "admin.database.optimize_benefit_space"}}</li>
+                                    <li>{{t $lang "admin.database.optimize_benefit_speed"}}</li>
+                                    <li>{{t $lang "admin.database.optimize_benefit_stats"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="optimize-btn" onclick="optimizeDatabase()" aria-label="Optimize database">
-                                ⚡ Optimize Now
+                            <button class="btn btn-primary" id="optimize-btn" onclick="optimizeDatabase()" aria-label="{{t $lang "admin.database.optimize_button_label"}}">
+                                ⚡ {{t $lang "admin.database.optimize_button"}}
                             </button>
                         </div>
 
                         <div class="action-card">
                             <div class="action-info">
-                                <h3>Vacuum Database (SQLite)</h3>
-                                <p>Compact the database file and free unused space</p>
+                                <h3>{{t $lang "admin.database.vacuum_card_title"}}</h3>
+                                <p>{{t $lang "admin.database.vacuum_card_description"}}</p>
                                 <ul>
-                                    <li>Reduces file size</li>
-                                    <li>Improves disk I/O</li>
-                                    <li>Cleans deleted data</li>
+                                    <li>{{t $lang "admin.database.vacuum_benefit_size"}}</li>
+                                    <li>{{t $lang "admin.database.vacuum_benefit_io"}}</li>
+                                    <li>{{t $lang "admin.database.vacuum_benefit_clean"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="vacuum-btn" onclick="vacuumDatabase()" aria-label="Vacuum database">
-                                🧹 Vacuum Now
+                            <button class="btn btn-primary" id="vacuum-btn" onclick="vacuumDatabase()" aria-label="{{t $lang "admin.database.vacuum_button_label"}}">
+                                🧹 {{t $lang "admin.database.vacuum_button"}}
                             </button>
                         </div>
 
                         <div class="action-card">
                             <div class="action-info">
-                                <h3>Test Connection</h3>
-                                <p>Verify database connectivity and performance</p>
+                                <h3>{{t $lang "admin.database.test_card_title"}}</h3>
+                                <p>{{t $lang "admin.database.test_card_description"}}</p>
                                 <ul>
-                                    <li>Tests read/write access</li>
-                                    <li>Measures response time</li>
-                                    <li>Validates configuration</li>
+                                    <li>{{t $lang "admin.database.test_benefit_access"}}</li>
+                                    <li>{{t $lang "admin.database.test_benefit_response"}}</li>
+                                    <li>{{t $lang "admin.database.test_benefit_config"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-secondary" id="test-btn" onclick="testConnection()" aria-label="Test database connection">
-                                🔍 Test Connection
+                            <button class="btn btn-secondary" id="test-btn" onclick="testConnection()" aria-label="{{t $lang "admin.database.test_button_label"}}">
+                                🔍 {{t $lang "admin.database.test_button"}}
                             </button>
                         </div>
                     </div>
@@ -107,38 +108,38 @@
             <!-- Cache Management Section -->
             <section class="admin-card" aria-labelledby="cache-heading">
                 <div class="card-header">
-                    <h2 id="cache-heading">Cache Management</h2>
-                    <p class="card-description">Configure and manage application caching (Redis/Valkey)</p>
+                    <h2 id="cache-heading">{{t $lang "admin.database.cache_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.database.cache_description"}}</p>
                 </div>
                 <div class="card-body">
                     <div class="cache-status">
                         <div class="stat-item">
-                            <div class="stat-label">Cache Status</div>
+                            <div class="stat-label">{{t $lang "admin.database.cache_status_label"}}</div>
                             <div class="stat-value" id="cache-status">
-                                <span class="loading">Loading...</span>
+                                <span class="loading">{{t $lang "admin.database.loading"}}</span>
                             </div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Cache Type</div>
+                            <div class="stat-label">{{t $lang "admin.database.cache_type_label"}}</div>
                             <div class="stat-value" id="cache-type">-</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">Hit Rate</div>
+                            <div class="stat-label">{{t $lang "admin.database.cache_hit_rate_label"}}</div>
                             <div class="stat-value" id="cache-hitrate">-</div>
                         </div>
                     </div>
 
                     <div class="alert alert-info my-3" role="status">
-                        <strong>Cache Configuration:</strong> Cache is automatically enabled if Redis or Valkey is detected. Configure via environment variables:
+                        <strong>{{t $lang "admin.database.cache_config_label"}}</strong> {{t $lang "admin.database.cache_config_note"}}
                         <code>REDIS_HOST</code>, <code>REDIS_PORT</code>, <code>REDIS_PASSWORD</code>
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-warning" id="clear-cache-btn" onclick="clearCache()" aria-label="Clear all cached data">
-                            🗑️ Clear All Cache
+                        <button class="btn btn-warning" id="clear-cache-btn" onclick="clearCache()" aria-label="{{t $lang "admin.database.clear_cache_label"}}">
+                            🗑️ {{t $lang "admin.database.clear_cache_button"}}
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshCacheStats()" aria-label="Refresh cache statistics">
-                            🔄 Refresh Cache Stats
+                        <button class="btn btn-secondary" onclick="refreshCacheStats()" aria-label="{{t $lang "admin.database.refresh_cache_label"}}">
+                            🔄 {{t $lang "admin.database.refresh_cache_button"}}
                         </button>
                     </div>
 
@@ -149,36 +150,36 @@
             <!-- Database Configuration Section -->
             <section class="admin-card" aria-labelledby="db-config-heading">
                 <div class="card-header">
-                    <h2 id="db-config-heading">Database Configuration</h2>
-                    <p class="card-description">Configure database connection settings</p>
+                    <h2 id="db-config-heading">{{t $lang "admin.database.config_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.database.config_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="db-config-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="db_driver">Driver</label>
+                            <label for="db_driver">{{t $lang "admin.database.driver_label"}}</label>
                             <select
                                 id="db_driver"
                                 name="database.driver"
                                 class="form-control"
                                 aria-describedby="db_driver_help"
                             >
-                                <option value="file">SQLite (file)</option>
-                                <option value="sqlite">SQLite</option>
-                                <option value="postgres">PostgreSQL</option>
-                                <option value="mysql">MySQL</option>
-                                <option value="mariadb">MariaDB</option>
-                                <option value="mssql">Microsoft SQL Server</option>
-                                <option value="mongodb">MongoDB</option>
+                                <option value="file">{{t $lang "admin.database.driver_sqlite_file"}}</option>
+                                <option value="sqlite">{{t $lang "admin.database.driver_sqlite"}}</option>
+                                <option value="postgres">{{t $lang "admin.database.driver_postgres"}}</option>
+                                <option value="mysql">{{t $lang "admin.database.driver_mysql"}}</option>
+                                <option value="mariadb">{{t $lang "admin.database.driver_mariadb"}}</option>
+                                <option value="mssql">{{t $lang "admin.database.driver_mssql"}}</option>
+                                <option value="mongodb">{{t $lang "admin.database.driver_mongodb"}}</option>
                             </select>
                             <small id="db_driver_help" class="form-text">
-                                Database type (default: file)
+                                {{t $lang "admin.database.driver_help"}}
                             </small>
                         </div>
 
                         <div id="remote-db-fields" class="hidden">
                             <div class="form-group">
-                                <label for="db_host">Host</label>
+                                <label for="db_host">{{t $lang "admin.database.host_label"}}</label>
                                 <input
                                     type="text"
                                     id="db_host"
@@ -188,12 +189,12 @@
                                     aria-describedby="db_host_help"
                                 >
                                 <small id="db_host_help" class="form-text">
-                                    Database server hostname or IP address
+                                    {{t $lang "admin.database.host_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="db_port">Port</label>
+                                <label for="db_port">{{t $lang "admin.database.port_label"}}</label>
                                 <input
                                     type="number"
                                     id="db_port"
@@ -205,12 +206,12 @@
                                     aria-describedby="db_port_help"
                                 >
                                 <small id="db_port_help" class="form-text">
-                                    Database server port (1-65535)
+                                    {{t $lang "admin.database.port_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="db_name">Database Name</label>
+                                <label for="db_name">{{t $lang "admin.database.name_label"}}</label>
                                 <input
                                     type="text"
                                     id="db_name"
@@ -220,12 +221,12 @@
                                     aria-describedby="db_name_help"
                                 >
                                 <small id="db_name_help" class="form-text">
-                                    Name of the database to connect to
+                                    {{t $lang "admin.database.name_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="db_username">Username</label>
+                                <label for="db_username">{{t $lang "admin.database.username_label"}}</label>
                                 <input
                                     type="text"
                                     id="db_username"
@@ -235,19 +236,19 @@
                                     aria-describedby="db_username_help"
                                 >
                                 <small id="db_username_help" class="form-text">
-                                    Database username for authentication
+                                    {{t $lang "admin.database.username_help"}}
                                 </small>
                             </div>
 
                             <div class="form-group">
-                                <label for="db_password">Password</label>
+                                <label for="db_password">{{t $lang "admin.database.password_label"}}</label>
                                 <div class="position-relative">
                                     <input
                                         type="password"
                                         id="db_password"
                                         name="database.password"
                                         class="form-control input-with-toggle"
-                                        placeholder="Enter password"
+                                        placeholder="{{t $lang "admin.database.password_placeholder"}}"
                                         aria-describedby="db_password_help"
                                     >
                                     <button
@@ -255,32 +256,32 @@
                                         id="toggle-password"
                                         class="btn-toggle-password"
                                         onclick="togglePasswordVisibility()"
-                                        aria-label="Toggle password visibility"
+                                        aria-label="{{t $lang "admin.database.toggle_password_label"}}"
                                     >
                                         👁️
                                     </button>
                                 </div>
                                 <small id="db_password_help" class="form-text">
-                                    Database password for authentication
+                                    {{t $lang "admin.database.password_help"}}
                                 </small>
                             </div>
 
                             <div id="postgres-fields" class="hidden">
                                 <div class="form-group">
-                                    <label for="db_sslmode">SSL Mode</label>
+                                    <label for="db_sslmode">{{t $lang "admin.database.sslmode_label"}}</label>
                                     <select
                                         id="db_sslmode"
                                         name="database.sslmode"
                                         class="form-control"
                                         aria-describedby="db_sslmode_help"
                                     >
-                                        <option value="disable">Disable</option>
-                                        <option value="require">Require</option>
-                                        <option value="verify-ca">Verify CA</option>
-                                        <option value="verify-full">Verify Full</option>
+                                        <option value="disable">{{t $lang "admin.database.sslmode_disable"}}</option>
+                                        <option value="require">{{t $lang "admin.database.sslmode_require"}}</option>
+                                        <option value="verify-ca">{{t $lang "admin.database.sslmode_verify_ca"}}</option>
+                                        <option value="verify-full">{{t $lang "admin.database.sslmode_verify_full"}}</option>
                                     </select>
                                     <small id="db_sslmode_help" class="form-text">
-                                        SSL connection mode for PostgreSQL
+                                        {{t $lang "admin.database.sslmode_help"}}
                                     </small>
                                 </div>
                             </div>
@@ -288,22 +289,22 @@
 
                         <div class="button-group mt-3">
                             <button type="button" class="btn btn-secondary" id="test-db-connection-btn" onclick="testDatabaseConnectionConfig()">
-                                🔍 Test Connection
+                                🔍 {{t $lang "admin.database.test_button"}}
                             </button>
                         </div>
 
                         <div class="alert alert-warning my-3" role="status">
-                            <strong>⚠️ Warning:</strong> Changes to database configuration require a server restart to take effect.
+                            <strong>⚠️ {{t $lang "admin.database.warning_label"}}</strong> {{t $lang "admin.database.restart_required_note"}}
                         </div>
 
                         <div id="db-config-result" class="alert alert-result hidden" role="status" aria-live="polite"></div>
 
                         <div class="button-group">
                             <button type="button" class="btn btn-secondary" onclick="cancelDatabaseConfig()">
-                                Cancel
+                                {{t $lang "action.cancel"}}
                             </button>
-                            <button type="submit" class="btn btn-primary" aria-label="Save database configuration">
-                                💾 Save Configuration
+                            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.database.save_config_label"}}">
+                                💾 {{t $lang "admin.database.save_config_button"}}
                             </button>
                         </div>
                     </form>
@@ -313,14 +314,14 @@
             <!-- Database Settings Section -->
             <section class="admin-card" aria-labelledby="db-settings-heading">
                 <div class="card-header">
-                    <h2 id="db-settings-heading">Database Settings</h2>
-                    <p class="card-description">Configure database behavior</p>
+                    <h2 id="db-settings-heading">{{t $lang "admin.database.settings_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.database.settings_description"}}</p>
                 </div>
                 <div class="card-body">
                     <form id="db-settings-form" class="settings-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="db_connection_pool">Connection Pool Size</label>
+                            <label for="db_connection_pool">{{t $lang "admin.database.pool_size_label"}}</label>
                             <input
                                 type="number"
                                 id="db_connection_pool"
@@ -332,12 +333,12 @@
                                 aria-describedby="db_connection_pool_help"
                             >
                             <small id="db_connection_pool_help" class="form-text">
-                                Maximum number of database connections (default: 25). Higher values support more concurrent requests.
+                                {{t $lang "admin.database.pool_size_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="db_timeout">Query Timeout (seconds)</label>
+                            <label for="db_timeout">{{t $lang "admin.database.timeout_label"}}</label>
                             <input
                                 type="number"
                                 id="db_timeout"
@@ -349,7 +350,7 @@
                                 aria-describedby="db_timeout_help"
                             >
                             <small id="db_timeout_help" class="form-text">
-                                Maximum time to wait for a query to complete (default: 30 seconds)
+                                {{t $lang "admin.database.timeout_help"}}
                             </small>
                         </div>
 
@@ -363,20 +364,19 @@
                                     aria-describedby="db_auto_optimize_help"
                                 >
                                 <span class="toggle-slider"></span>
-                                Enable Auto-Optimization
+                                {{t $lang "admin.database.auto_optimize_label"}}
                             </label>
                             <small id="db_auto_optimize_help" class="form-text">
-                                Automatically optimize database weekly during low-traffic periods
+                                {{t $lang "admin.database.auto_optimize_help"}}
                             </small>
                         </div>
 
-                        <button type="submit" class="btn btn-primary" aria-label="Save database settings">
-                            💾 Save Settings
+                        <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.database.save_settings_label"}}">
+                            💾 {{t $lang "admin.database.save_settings_button"}}
                         </button>
                     </form>
                 </div>
             </section>
-        </main>
 
     <script>
     // Path variables - SPEC compliant (AI.md PART 13)
@@ -833,5 +833,5 @@
     }
     </script>
 
-{{template "footer" .}}
+{{template "admin_footer" .}}
 {{end}}

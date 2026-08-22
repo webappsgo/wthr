@@ -3,10 +3,12 @@ package graphql
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
@@ -793,4 +795,347 @@ func TestQueryResolver_Health_Initializing(t *testing.T) {
 	if got.Status != "initializing" {
 		t.Fatalf("Status = %q, want %q", got.Status, "initializing")
 	}
+}
+
+// Fixed, non-local zones for timestamp fixtures. -11h renders wall-clock text
+// that reads earlier than the true instant and +13h later, so a text-ordering
+// comparison reaches the opposite conclusion from an instant comparison no
+// matter what timezone the test host runs in.
+// The zone abbreviations must be three to five upper-case letters ending in T:
+// that is the only shape time.Parse accepts for the trailing "MST" element of
+// the local layout below, so a name like "EST13" would make every fixture
+// written in that zone unparseable and the tests would assert nothing.
+var (
+	graphqlZoneWest = time.FixedZone("WST", -11*60*60)
+	graphqlZoneEast = time.FixedZone("EAST", 13*60*60)
+)
+
+// graphqlLocalLayout is the layout modernc.org/sqlite writes when a time.Time
+// is bound directly, i.e. what time.Time.String() produces.
+const graphqlLocalLayout = "2006-01-02 15:04:05.999999999 -0700 MST"
+
+// TestQueryResolver_AdminStats_ActiveUsersCountedByInstant is the regression
+// test for the 30-day active-user cutoff, which used to read
+// "last_login_at >= datetime('now', '-30 days')". SQLite's datetime() returns
+// NULL for the local-zone layout above, so a user who logged in an hour ago
+// never counted as active. The three fixtures below contradict text ordering
+// and cover the fail-closed case, so this test fails against the old query.
+func TestQueryResolver_AdminStats_ActiveUsersCountedByInstant(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+	now := time.Now()
+
+	fixtures := []struct {
+		username    string
+		email       string
+		lastLoginAt string
+	}{
+		{"statsactive", "statsactive@example.com", now.Add(-time.Hour).In(graphqlZoneWest).Format(graphqlLocalLayout)},
+		{"statsstale", "statsstale@example.com", now.AddDate(0, 0, -60).In(graphqlZoneEast).Format(graphqlLocalLayout)},
+		{"statsunparseable", "statsunparseable@example.com", "not-a-timestamp"},
+	}
+	for _, fixture := range fixtures {
+		user := seedGraphQLUser(t, ddb, fixture.username, fixture.email, "correctpass1")
+		if _, err := ddb.Users.Exec(`
+			UPDATE user_accounts SET last_login_at = ? WHERE id = ?
+		`, fixture.lastLoginAt, user.ID); err != nil {
+			t.Fatalf("seed last_login_at for %s: %v", fixture.username, err)
+		}
+	}
+
+	adminCtx := withGraphQLAdminValues(context.Background(), 1, "admin@example.com")
+	got, err := q.AdminStats(adminCtx)
+	if err != nil {
+		t.Fatalf("AdminStats() error = %v", err)
+	}
+	if got == nil || got.Users == nil {
+		t.Fatalf("got = %+v, want populated user stats", got)
+	}
+	if got.Users.Total != len(fixtures) {
+		t.Errorf("Users.Total = %d, want %d", got.Users.Total, len(fixtures))
+	}
+	if got.Users.Active == nil {
+		t.Fatalf("Users.Active = nil, want a populated active-user count")
+	}
+	if *got.Users.Active != 1 {
+		t.Errorf("Users.Active = %d, want 1 (only the account whose true last login is inside 30 days)", *got.Users.Active)
+	}
+}
+
+// --- Newest-first ordering regressions -----------------------------------
+//
+// Every test below seeds the same contradiction: the row with the newest true
+// instant is stored in the legacy local-zone layout of a zone 11 hours BEHIND
+// UTC, so its text reads earlier than a genuinely older row stored in a zone 13
+// hours AHEAD. A third row holds text no layout can parse; in an SQL text
+// ordering it sorts above both real timestamps (letters outrank digits in
+// ASCII) while its true instant is unknown. Under the "ORDER BY created_at
+// DESC" these queries used to run, the returned order is therefore the reverse
+// of the truth, and where a LIMIT was stacked on top of it the true-newest row
+// was cut from the page entirely.
+
+// graphqlOrderingFixture is one seeded row: the name it is identified by in the
+// assertions, and the exact text planted in its timestamp column.
+type graphqlOrderingFixture struct {
+	name      string
+	timestamp string
+}
+
+// graphqlOrderingFixtures returns the three contradicting rows described above,
+// listed in the insertion order the fixtures use, together with the order the
+// resolver must return them in once each value is resolved to a real instant.
+func graphqlOrderingFixtures(now time.Time) ([]graphqlOrderingFixture, []string) {
+	fixtures := []graphqlOrderingFixture{
+		{"east-older", now.Add(-2 * time.Hour).In(graphqlZoneEast).Format(graphqlLocalLayout)},
+		{"west-newest", now.In(graphqlZoneWest).Format(graphqlLocalLayout)},
+		{"unparseable", "not-a-timestamp"},
+	}
+	want := []string{"west-newest", "east-older", "unparseable"}
+
+	return fixtures, want
+}
+
+// assertGraphQLOrder compares the names a resolver returned against the wanted
+// order, reporting the whole sequence so a wrong ordering is readable at once.
+func assertGraphQLOrder(t *testing.T, query string, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s returned %d rows %v, want %d rows %v", query, len(got), got, len(want), want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("%s order = %v, want %v", query, got, want)
+		}
+	}
+}
+
+func TestQueryResolver_UserTokens_OrderedByInstant(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	user := seedGraphQLUser(t, ddb, "tokenorder", "tokenorder@example.com", "correctpass1")
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
+	for i, fixture := range fixtures {
+		if _, err := ddb.Users.Exec(`
+			INSERT INTO user_tokens (user_id, token_hash, token_prefix, name, scopes, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, user.ID, fmt.Sprintf("token-hash-%d", i), fmt.Sprintf("usr_%04d", i), fixture.name, "read", fixture.timestamp); err != nil {
+			t.Fatalf("seed token %s: %v", fixture.name, err)
+		}
+	}
+
+	got, err := q.UserTokens(withGraphQLUserContext(context.Background(), user))
+	if err != nil {
+		t.Fatalf("UserTokens() error = %v", err)
+	}
+
+	names := make([]string, 0, len(got))
+	for _, token := range got {
+		if token.Name == nil {
+			t.Fatalf("token %s has no name, fixtures always set one", token.ID)
+		}
+		names = append(names, *token.Name)
+	}
+	assertGraphQLOrder(t, "UserTokens", names, want)
+}
+
+func TestQueryResolver_SavedLocations_OrderedByInstant(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	user := seedGraphQLUser(t, ddb, "locationorder", "locationorder@example.com", "correctpass1")
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
+	for _, fixture := range fixtures {
+		if _, err := ddb.Users.Exec(`
+			INSERT INTO user_saved_locations (user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`, user.ID, fixture.name, 41.5, -81.6, "UTC", 1, fixture.timestamp, fixture.timestamp); err != nil {
+			t.Fatalf("seed location %s: %v", fixture.name, err)
+		}
+	}
+
+	got, err := q.SavedLocations(withGraphQLUserContext(context.Background(), user))
+	if err != nil {
+		t.Fatalf("SavedLocations() error = %v", err)
+	}
+
+	names := make([]string, 0, len(got))
+	for _, loc := range got {
+		names = append(names, loc.Name)
+	}
+	assertGraphQLOrder(t, "SavedLocations", names, want)
+}
+
+func TestQueryResolver_AdminUsers_OrderedByInstant(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
+	for _, fixture := range fixtures {
+		user := seedGraphQLUser(t, ddb, fixture.name, fixture.name+"@example.com", "correctpass1")
+		if _, err := ddb.Users.Exec(`
+			UPDATE user_accounts SET created_at = ? WHERE id = ?
+		`, fixture.timestamp, user.ID); err != nil {
+			t.Fatalf("seed created_at for %s: %v", fixture.name, err)
+		}
+	}
+
+	got, err := q.AdminUsers(withGraphQLAdminValues(context.Background(), 1, "admin@example.com"))
+	if err != nil {
+		t.Fatalf("AdminUsers() error = %v", err)
+	}
+
+	names := make([]string, 0, len(got))
+	for _, user := range got {
+		names = append(names, user.Username)
+	}
+	assertGraphQLOrder(t, "AdminUsers", names, want)
+}
+
+// TestQueryResolver_AdminAuditLogs_OrderedByInstantAndPaged also pins the page
+// boundary: with limit 1 the single entry served must be the true newest, which
+// under the old text ordering was the entry sorted last of the three.
+func TestQueryResolver_AdminAuditLogs_OrderedByInstantAndPaged(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
+	for i, fixture := range fixtures {
+		if _, err := ddb.Server.Exec(`
+			INSERT INTO server_audit_log (ulid, action, timestamp)
+			VALUES (?, ?, ?)
+		`, fmt.Sprintf("audit-ulid-%d", i), fixture.name, fixture.timestamp); err != nil {
+			t.Fatalf("seed audit log %s: %v", fixture.name, err)
+		}
+	}
+
+	adminCtx := withGraphQLAdminValues(context.Background(), 1, "admin@example.com")
+
+	got, err := q.AdminAuditLogs(adminCtx, nil, nil)
+	if err != nil {
+		t.Fatalf("AdminAuditLogs() error = %v", err)
+	}
+	actions := make([]string, 0, len(got))
+	for _, entry := range got {
+		actions = append(actions, entry.Action)
+	}
+	assertGraphQLOrder(t, "AdminAuditLogs", actions, want)
+
+	firstPageSize := 1
+	firstPage, err := q.AdminAuditLogs(adminCtx, &firstPageSize, nil)
+	if err != nil {
+		t.Fatalf("AdminAuditLogs(limit=1) error = %v", err)
+	}
+	if len(firstPage) != 1 {
+		t.Fatalf("AdminAuditLogs(limit=1) returned %d rows, want 1", len(firstPage))
+	}
+	if firstPage[0].Action != want[0] {
+		t.Errorf("AdminAuditLogs(limit=1) served %q, want %q (the entry with the newest true instant)", firstPage[0].Action, want[0])
+	}
+
+	secondPage, err := q.AdminAuditLogs(adminCtx, &firstPageSize, &firstPageSize)
+	if err != nil {
+		t.Fatalf("AdminAuditLogs(limit=1, offset=1) error = %v", err)
+	}
+	if len(secondPage) != 1 || secondPage[0].Action != want[1] {
+		t.Errorf("AdminAuditLogs(limit=1, offset=1) = %+v, want the single entry %q", secondPage, want[1])
+	}
+
+	zeroLimit := 0
+	emptyPage, err := q.AdminAuditLogs(adminCtx, &zeroLimit, nil)
+	if err != nil {
+		t.Fatalf("AdminAuditLogs(limit=0) error = %v", err)
+	}
+	if len(emptyPage) != 0 {
+		t.Errorf("AdminAuditLogs(limit=0) returned %d rows, want 0 to match the old SQL LIMIT 0 contract", len(emptyPage))
+	}
+}
+
+// TestQueryResolver_Notifications_NewestByInstantSurvivesLimit is the sharpest
+// of this group: the notifications query caps its result, so a wrong ordering
+// did not merely reorder the list, it decided which rows existed in it. The
+// true-newest notification is stored in the legacy layout of a zone behind UTC,
+// so its text sorts below all graphQLNotificationListLimit canonical-UTC
+// fillers; the old "ORDER BY created_at DESC LIMIT 50" kept every filler and
+// dropped it. The cut must now fall on the oldest filler instead.
+func TestQueryResolver_Notifications_NewestByInstantSurvivesLimit(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	user := seedGraphQLUser(t, ddb, "notiforder", "notiforder@example.com", "correctpass1")
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	insertNotification := func(id, timestamp string) {
+		t.Helper()
+		if _, err := ddb.Users.Exec(`
+			INSERT INTO user_notifications (id, user_id, type, display, title, message, created_at)
+			VALUES (?, ?, 'info', 'center', ?, 'fixture', ?)
+		`, id, user.ID, id, timestamp); err != nil {
+			t.Fatalf("seed notification %s: %v", id, err)
+		}
+	}
+
+	insertNotification("newest", now.In(graphqlZoneWest).Format(graphqlLocalLayout))
+
+	// The fillers sit within the hour before "newest", close enough together
+	// that the newest row's local-zone text (11 hours behind its real instant)
+	// reads older than all of them.
+	var oldestFiller string
+	for i := 1; i <= graphQLNotificationListLimit; i++ {
+		oldestFiller = fmt.Sprintf("filler-%02d", i)
+		insertNotification(oldestFiller, dbtime.FormatSQLTimestamp(now.Add(-time.Duration(i)*time.Minute)))
+	}
+
+	got, err := q.Notifications(withGraphQLUserContext(context.Background(), user))
+	if err != nil {
+		t.Fatalf("Notifications() error = %v", err)
+	}
+	if len(got) != graphQLNotificationListLimit {
+		t.Fatalf("Notifications() returned %d rows, want %d", len(got), graphQLNotificationListLimit)
+	}
+	if got[0].ID != "newest" {
+		t.Errorf("Notifications()[0].ID = %q, want %q (the notification with the newest true instant)", got[0].ID, "newest")
+	}
+	for _, notif := range got {
+		if notif.ID == oldestFiller {
+			t.Errorf("Notifications() kept %q, want it cut as the oldest row by true instant", oldestFiller)
+		}
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i].CreatedAt.After(got[i-1].CreatedAt) {
+			t.Fatalf("Notifications() is not newest-first: %q (%s) precedes %q (%s)",
+				got[i-1].ID, got[i-1].CreatedAt, got[i].ID, got[i].CreatedAt)
+		}
+	}
+}
+
+// TestQueryResolver_Notifications_UnparseableTimestampIsListedLast proves the
+// other half of the contract: a notification whose created_at cannot be read
+// still appears - it sorts to the end, where it can neither be reported as the
+// newest nor displace a genuinely recent row - rather than being dropped, which
+// is what the old code did when such a value failed to scan into a time.Time.
+func TestQueryResolver_Notifications_UnparseableTimestampIsListedLast(t *testing.T) {
+	ddb := newAuthMutationTestDB(t)
+	user := seedGraphQLUser(t, ddb, "notifbroken", "notifbroken@example.com", "correctpass1")
+	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
+
+	fixtures, want := graphqlOrderingFixtures(time.Now().UTC().Truncate(time.Second))
+	for _, fixture := range fixtures {
+		if _, err := ddb.Users.Exec(`
+			INSERT INTO user_notifications (id, user_id, type, display, title, message, created_at)
+			VALUES (?, ?, 'info', 'center', ?, 'fixture', ?)
+		`, fixture.name, user.ID, fixture.name, fixture.timestamp); err != nil {
+			t.Fatalf("seed notification %s: %v", fixture.name, err)
+		}
+	}
+
+	got, err := q.Notifications(withGraphQLUserContext(context.Background(), user))
+	if err != nil {
+		t.Fatalf("Notifications() error = %v", err)
+	}
+
+	ids := make([]string, 0, len(got))
+	for _, notif := range got {
+		ids = append(ids, notif.ID)
+	}
+	assertGraphQLOrder(t, "Notifications", ids, want)
 }

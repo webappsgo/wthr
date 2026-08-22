@@ -114,6 +114,10 @@ jobs:
 
   build-aio:
     runs-on: ubuntu-latest
+    # Serialized after build-standard: both jobs push to the same ghcr.io repository, and a
+    # concurrent second pusher gets 403 on the blob HEAD check until that package exists and
+    # is linked to the repository.
+    needs: build-standard
     permissions:
       contents: read
       packages: write

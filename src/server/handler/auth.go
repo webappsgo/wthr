@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -61,13 +62,21 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 	adminPath := "/server/" + cfg.GetAdminPath()
 	adminSessionID, err := c.Cookie("admin_session")
 	if err == nil && adminSessionID != "" {
-		// Validate admin session exists in database
+		// Validate admin session exists in database.
+		// expires_at is scanned as a raw driver value and compared in Go rather
+		// than tested with SQLite's datetime(): a row holding a non-UTC or
+		// non-canonical layout makes datetime() return NULL, so the predicate
+		// never matches and a live session is treated as expired. The Go
+		// comparison also works on PostgreSQL and MySQL, which have no
+		// datetime('now'). dbtime.IsAfter reports false for NULL and for
+		// unparseable values, so an uninterpretable session stays invalid.
 		var adminID int
+		var storedExpiresAt interface{}
 		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-			SELECT admin_id FROM server_admin_sessions
-			WHERE id = ? AND datetime(expires_at) > datetime('now')
-		`, adminSessionID).Scan(&adminID)
-		if err == nil {
+			SELECT admin_id, expires_at FROM server_admin_sessions
+			WHERE id = ?
+		`, adminSessionID).Scan(&adminID, &storedExpiresAt)
+		if err == nil && dbtime.IsAfter(storedExpiresAt, time.Now()) {
 			c.Redirect(http.StatusFound, adminPath)
 			return
 		}
@@ -415,7 +424,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	username := util.NormalizeUsername(req.Username)
 
 	// All users created via /register are regular users.
-	// Admin accounts are created through the /{admin_path}/server/setup wizard on first run.
+	// Admin accounts are created through the /{admin_path}/config/setup wizard on first run.
 	role := "user"
 
 	// Create user

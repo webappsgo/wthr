@@ -134,6 +134,21 @@ func NewSMTPService(db *sql.DB) *SMTPService {
 	}
 }
 
+// serverDB returns the server.db handle this SMTP service was constructed
+// with. Both tables the SMTP service touches (server_config,
+// server_notification_channels) are declared in database.ServerSchema, so the
+// injected handle is the correct database for every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global server handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (s *SMTPService) serverDB() *sql.DB {
+	if s.db != nil {
+		return s.db
+	}
+	return database.GetServerDB()
+}
+
 // GetConfig returns the current SMTP configuration
 func (s *SMTPService) GetConfig() *SMTPConfig {
 	return s.config
@@ -376,7 +391,7 @@ func (s *SMTPService) SendTestEmail(to string) error {
 // EnableChannel enables the SMTP notification channel
 func (s *SMTPService) EnableChannel() error {
 	// Update channel state to enabled
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), s.serverDB(), database.TimeoutWrite, `
 		INSERT INTO server_notification_channels (channel_type, channel_name, enabled, state, config, updated_at)
 		VALUES ('email', 'Email (SMTP)', 1, 'enabled', ?, ?)
 		ON CONFLICT(channel_type) DO UPDATE SET
@@ -393,12 +408,12 @@ func (s *SMTPService) EnableChannel() error {
 
 func (s *SMTPService) getSetting(key string) (string, error) {
 	var value string
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
+	err := database.QueryRowContext(context.Background(), s.serverDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
 	return value, err
 }
 
 func (s *SMTPService) saveSetting(key, value string) error {
-	_, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), s.serverDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, updated_at)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?

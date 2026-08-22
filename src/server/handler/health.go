@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -158,14 +159,14 @@ type publicHealthResponse struct {
 	Maintenance *publicHealthMaintenance `json:"maintenance,omitempty"`
 }
 
-// HealthCheck handles GET /healthz with browser/html, CLI/text, and API/json negotiation.
+// HealthCheck handles GET /server/healthz with browser/html, CLI/text, and API/json negotiation.
 // @Summary Health status
 // @Description Public health status. Responds with HTML for browsers, plain text for CLI, JSON for API clients.
 // @Tags System
 // @Produce json
 // @Success 200 {object} map[string]interface{} "Service healthy"
 // @Failure 503 {object} map[string]interface{} "Service unhealthy"
-// @Router /healthz [get]
+// @Router /server/healthz [get]
 func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, c)
@@ -226,7 +227,7 @@ func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 }
 
 // FullHealthCheck handles GET /health/full — comprehensive JSON status per AI.md PART 13.
-// Always returns JSON (same payload as /healthz with explicit JSON accept).
+// Always returns JSON (same payload as /server/healthz with explicit JSON accept).
 // @Summary Full health status
 // @Description Comprehensive health status as JSON — includes DB, scheduler, GeoIP, Tor, cluster state.
 // @Tags System
@@ -249,10 +250,22 @@ func DebugInfo(c *gin.Context) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	// Name and version come from the same sources /server/healthz uses -
+	// branding config and the ldflags-injected Version - so the two surfaces
+	// can never disagree.
+	serviceName := "wthr"
+	if cfg := config.GetGlobalConfig(); cfg != nil && strings.TrimSpace(cfg.Server.Branding.Title) != "" {
+		serviceName = strings.TrimSpace(cfg.Server.Branding.Title)
+	}
+	serviceVersion := strings.TrimSpace(Version)
+	if serviceVersion == "" {
+		serviceVersion = "dev"
+	}
+
 	info := gin.H{
 		"service": gin.H{
-			"name":    "Weather",
-			"version": "2.0.0-go",
+			"name":    serviceName,
+			"version": serviceVersion,
 			"uptime":  uptime.String(),
 			"started": status.Started.Format(time.RFC3339),
 		},
@@ -326,7 +339,7 @@ Uptime: %s
 ⏳ Please wait a moment and try again...
 
 Tip: Check status with:
-  curl -q -LSs %s/healthz
+  curl -q -LSs %s/server/healthz
 `,
 			checkmark(status.Countries),
 			checkmark(status.Cities),
@@ -373,7 +386,7 @@ func findSubstring(s, substr string) bool {
 	return false
 }
 
-// APIHealthCheck handles GET /api/v1/healthz - same JSON as /healthz, always JSON.
+// APIHealthCheck handles GET /api/{api_version}/server/healthz - same JSON as /server/healthz, always JSON.
 func APIHealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, c)
@@ -621,7 +634,15 @@ func getPublicStats(db *database.DB) publicHealthStats {
 	stats := publicHealthStats{}
 
 	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&stats.RequestsTotal)
-	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= datetime('now', '-24 hours')").Scan(&stats.Requests24H)
+	// The cutoff is computed in Go and bound as canonical UTC text rather than
+	// left to SQLite's datetime('now', '-24 hours'). Every producer of
+	// server_audit_log.timestamp writes dbtime.FormatSQLTimestamp output, which
+	// is fixed-width UTC, so a plain text comparison against a cutoff in the
+	// same layout orders correctly - and unlike datetime(), it does not depend
+	// on a SQLite-only function this project's other supported drivers
+	// (PostgreSQL, MySQL) spell differently.
+	cutoff := dbtime.FormatSQLTimestamp(time.Now().Add(-24 * time.Hour))
+	_ = database.QueryRowContext(context.Background(), db.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE timestamp >= ?", cutoff).Scan(&stats.Requests24H)
 
 	sessionCount, err := db.GetSessionCount()
 	if err == nil {

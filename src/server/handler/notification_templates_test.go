@@ -4,27 +4,36 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // newNotificationTemplateTestHandler wires a NotificationTemplateHandler
-// against a fresh legacy-schema in-memory DB. notification_templates only
-// exists in database.Schema (legacy), the same schema-mismatch pattern
-// documented for notification_channels.go / notification_preferences.go.
+// against a fresh in-memory DB built from the real production
+// database.ServerSchema, which is the only definition of
+// server_notification_templates the handler uses.
 func newNotificationTemplateTestHandler(t *testing.T) *NotificationTemplateHandler {
 	t.Helper()
 	db := newNotificationChannelsTestDB(t)
 	return NewNotificationTemplateHandler(db)
 }
 
-func insertTestTemplate(t *testing.T, h *NotificationTemplateHandler, channelType, name, tmplType, subject, body string, isDefault bool) int64 {
+// insertTestTemplate seeds one row of server_notification_templates. The table
+// carries no is_default column: a channel's default template is the one named
+// service.DefaultTemplateName, so callers make a seed the default by passing
+// that name.
+func insertTestTemplate(t *testing.T, h *NotificationTemplateHandler, channelType, name, tmplType, subject, body string) int64 {
 	t.Helper()
+	now := dbtime.FormatSQLTimestamp(time.Now())
 	res, err := h.DB.Exec(`
-		INSERT INTO notification_templates
-		(channel_type, template_name, template_type, subject_template, body_template, is_default, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-	`, channelType, name, tmplType, subject, body, isDefault)
+		INSERT INTO server_notification_templates
+		(channel_type, template_name, template_type, subject, body, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, channelType, name, tmplType, subject, body, now, now)
 	if err != nil {
 		t.Fatalf("insert template: %v", err)
 	}
@@ -49,8 +58,8 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 
 	t.Run("returns grouped templates", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "Hi {{.Name}}", "Body", true)
-		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!", false)
+		insertTestTemplate(t, h, "email", "welcome", "general", "Hi {{.Name}}", "Body")
+		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!")
 
 		c, w := newAPITestContext("/notifications/templates")
 
@@ -70,8 +79,8 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 
 	t.Run("filters by channel_type", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body", true)
-		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!", false)
+		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
+		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!")
 
 		c, w := newAPITestContext("/notifications/templates?channel_type=sms")
 
@@ -105,7 +114,7 @@ func TestNotificationTemplateHandlerGetTemplate(t *testing.T) {
 
 	t.Run("existing template returns its fields", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		id := insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body", true)
+		id := insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 
 		c, w := newAPITestContext("/notifications/templates/1")
 		c.Params = gin.Params{{Key: "id", Value: "1"}}
@@ -172,7 +181,6 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 			"template_type":    "general",
 			"subject_template": "Hi {{.Name}}",
 			"body_template":    "Welcome, {{.Name}}!",
-			"is_default":       true,
 		})
 
 		h.CreateTemplate(c)
@@ -182,7 +190,7 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 		}
 
 		var count int
-		if err := h.DB.QueryRow("SELECT COUNT(*) FROM notification_templates WHERE template_name = 'welcome'").Scan(&count); err != nil {
+		if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_templates WHERE template_name = 'welcome'").Scan(&count); err != nil {
 			t.Fatalf("count: %v", err)
 		}
 		if count != 1 {
@@ -190,16 +198,15 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 		}
 	})
 
-	t.Run("setting is_default clears other defaults for the channel", func(t *testing.T) {
+	// Default-ness is derived from the reserved template name rather than
+	// stored, so a template created under that name reads back as the default.
+	t.Run("template created under the reserved name reads back as default", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "old-default", "general", "", "Body", true)
-
 		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
 			"channel_type":  "email",
-			"template_name": "new-default",
+			"template_name": service.DefaultTemplateName,
 			"template_type": "general",
 			"body_template": "Body",
-			"is_default":    true,
 		})
 
 		h.CreateTemplate(c)
@@ -208,12 +215,16 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
 		}
 
-		var oldIsDefault bool
-		if err := h.DB.QueryRow("SELECT is_default FROM notification_templates WHERE template_name = 'old-default'").Scan(&oldIsDefault); err != nil {
-			t.Fatalf("query old default: %v", err)
+		c, w = newAPITestContext("/notifications/templates/1")
+		c.Params = gin.Params{{Key: "id", Value: "1"}}
+
+		h.GetTemplate(c)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if oldIsDefault {
-			t.Errorf("expected old default to be cleared")
+		if !strings.Contains(w.Body.String(), `"is_default":true`) {
+			t.Errorf("expected is_default:true, got: %s", w.Body.String())
 		}
 	})
 }
@@ -247,7 +258,7 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 
 	t.Run("invalid body template syntax returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body", false)
+		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body")
 
 		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
 			"body_template": "{{.Unclosed",
@@ -263,7 +274,7 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 
 	t.Run("valid update persists fields", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "", "Old body", false)
+		insertTestTemplate(t, h, "email", "welcome", "general", "", "Old body")
 
 		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
 			"template_name": "welcome-v2",
@@ -279,7 +290,7 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 		}
 
 		var name, body string
-		if err := h.DB.QueryRow("SELECT template_name, body_template FROM notification_templates WHERE id = 1").Scan(&name, &body); err != nil {
+		if err := h.DB.QueryRow("SELECT template_name, body FROM server_notification_templates WHERE id = 1").Scan(&name, &body); err != nil {
 			t.Fatalf("query updated row: %v", err)
 		}
 		if name != "welcome-v2" || body != "New body" {
@@ -303,7 +314,7 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 
 	t.Run("default template cannot be deleted", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body", true)
+		insertTestTemplate(t, h, "email", service.DefaultTemplateName, "general", "", "Body")
 
 		c, w := newAPITestContext("/notifications/templates/1")
 		c.Params = gin.Params{{Key: "id", Value: "1"}}
@@ -317,7 +328,7 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 
 	t.Run("non-default template is deleted", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body", false)
+		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body")
 
 		c, w := newAPITestContext("/notifications/templates/1")
 		c.Params = gin.Params{{Key: "id", Value: "1"}}
@@ -329,7 +340,7 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 		}
 
 		var count int
-		if err := h.DB.QueryRow("SELECT COUNT(*) FROM notification_templates WHERE id = 1").Scan(&count); err != nil {
+		if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_templates WHERE id = 1").Scan(&count); err != nil {
 			t.Fatalf("count: %v", err)
 		}
 		if count != 0 {
@@ -434,9 +445,9 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 		}
 	})
 
-	t.Run("valid clone creates a non-default copy", func(t *testing.T) {
+	t.Run("valid clone copies the source under the new name", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body", true)
+		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
 			"new_name": "welcome-copy",
@@ -449,12 +460,28 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
 		}
 
-		var isDefault bool
-		if err := h.DB.QueryRow("SELECT is_default FROM notification_templates WHERE template_name = 'welcome-copy'").Scan(&isDefault); err != nil {
+		var clonedBody string
+		if err := h.DB.QueryRow("SELECT body FROM server_notification_templates WHERE template_name = 'welcome-copy'").Scan(&clonedBody); err != nil {
 			t.Fatalf("query clone: %v", err)
 		}
-		if isDefault {
-			t.Errorf("expected cloned template to not be default")
+		if clonedBody != "Body" {
+			t.Errorf("cloned body = %q, want %q", clonedBody, "Body")
+		}
+	})
+
+	t.Run("cloning onto the reserved default name returns 400", func(t *testing.T) {
+		h := newNotificationTemplateTestHandler(t)
+		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
+
+		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
+			"new_name": service.DefaultTemplateName,
+		})
+		c.Params = gin.Params{{Key: "id", Value: "1"}}
+
+		h.CloneTemplate(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
 	})
 }
@@ -470,7 +497,7 @@ func TestNotificationTemplateHandlerInitializeDefaults(t *testing.T) {
 	}
 
 	var count int
-	if err := h.DB.QueryRow("SELECT COUNT(*) FROM notification_templates").Scan(&count); err != nil {
+	if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_templates").Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if count == 0 {

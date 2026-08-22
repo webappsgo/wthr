@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cretz/bine/tor"
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 )
@@ -61,7 +62,7 @@ func (ts *TorService) Start(httpPort int) error {
 	// Check if Tor is enabled
 	enabled := settingsModel.GetBool("tor.enabled", true)
 	if !enabled {
-		log.Println("ℹ️  Tor hidden service is disabled in settings")
+		log.Printf("%s Tor hidden service is disabled in settings", display.Emoji("ℹ️", "INFO:"))
 		return nil
 	}
 
