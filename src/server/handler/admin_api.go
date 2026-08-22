@@ -583,11 +583,11 @@ func SaveBackupSchedule(c *gin.Context) {
 func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
 	db, exists := c.Get("db")
 	if !exists {
-		return nil, fmt.Errorf("Database connection not available")
+		return nil, fmt.Errorf("database connection not available")
 	}
 	handle, ok := db.(*sql.DB)
 	if !ok || handle == nil {
-		return nil, fmt.Errorf("Database connection not available")
+		return nil, fmt.Errorf("database connection not available")
 	}
 	return &model.SettingsModel{DB: handle}, nil
 }
