@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 
@@ -405,4 +408,82 @@ func TestT_ConcurrentReads(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// interpolationVarPattern matches `{var}`-style interpolation placeholders,
+// per AI.md PART 31 ("Key rules: ... `{variable}` interpolation").
+var interpolationVarPattern = regexp.MustCompile(`\{[a-zA-Z0-9_]+\}`)
+
+// interpolationVars returns the sorted, de-duplicated set of `{var}`
+// placeholders found in s.
+func interpolationVars(s string) []string {
+	matches := interpolationVarPattern.FindAllString(s, -1)
+	seen := make(map[string]struct{}, len(matches))
+	for _, m := range matches {
+		seen[m] = struct{}{}
+	}
+	vars := make([]string, 0, len(seen))
+	for v := range seen {
+		vars = append(vars, v)
+	}
+	sort.Strings(vars)
+	return vars
+}
+
+// TestLocaleKeyParity is the build-time i18n validation required by AI.md
+// PART 31 / .claude/rules/testing-rules.md ("ALWAYS keep every language
+// file's keys identical to en.json — enforced by `make i18n-validate` /
+// build-time check"). AI.md PART 26 explicitly forbids adding Makefile
+// targets beyond the six core ones ("Six core targets. DO NOT ADD MORE."),
+// so this check is wired into `go test` (the existing `test` target) rather
+// than as a new `make i18n-validate` target — `make test` already satisfies
+// "build-time check" for every other package-logic requirement in the repo.
+//
+// Validates, per the PART 31 "Build-Time Validation" spec:
+//   - every locale has the same key set as en.json (no missing, no orphaned)
+//   - no empty string values in any locale
+//   - `{var}` interpolation placeholders match en.json for every shared key
+func TestLocaleKeyParity(t *testing.T) {
+	locales := loadRealLocales(t)
+
+	en, ok := locales["en"]
+	if !ok {
+		t.Fatal("en.json not found among locale fixtures")
+	}
+
+	langs := make([]string, 0, len(locales))
+	for lang := range locales {
+		langs = append(langs, lang)
+	}
+	sort.Strings(langs)
+
+	for _, lang := range langs {
+		translations := locales[lang]
+
+		for key, enValue := range en {
+			value, exists := translations[key]
+			if !exists {
+				t.Errorf("locale %q: missing key %q (present in en.json)", lang, key)
+				continue
+			}
+			if strings.TrimSpace(value) == "" {
+				t.Errorf("locale %q: key %q has an empty value", lang, key)
+			}
+
+			enVars := interpolationVars(enValue)
+			gotVars := interpolationVars(value)
+			if !reflect.DeepEqual(enVars, gotVars) {
+				t.Errorf("locale %q: key %q interpolation vars = %v, want %v (per en.json)", lang, key, gotVars, enVars)
+			}
+		}
+
+		if lang == "en" {
+			continue
+		}
+		for key := range translations {
+			if _, existsInEn := en[key]; !existsInEn {
+				t.Errorf("locale %q: orphaned key %q (not present in en.json)", lang, key)
+			}
+		}
+	}
 }

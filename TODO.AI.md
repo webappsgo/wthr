@@ -3625,19 +3625,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     Docker build+vet+full test suite verified: all packages pass,
     project-wide coverage 61.3% (clears the 60% gate).
 
-162. TODO (flagged 2026-08-22 while investigating item 155): no
-    `make i18n-validate` target exists (`grep -n "i18n" Makefile` and
-    `grep -rn "i18n-validate\|i18n_validate" src --include=*.go` both
-    return nothing), but `.claude/rules/testing-rules.md` and AI.md PART
-    31 both state key-set parity across all 7 locale files (`en, es, zh,
-    fr, ar, de, ja`) is "enforced by `make i18n-validate` / build-time
-    check". Today that parity holds only because the 2026-08-21 rebuild
-    (see item 155) manually made all 7 files identical - there is no
-    tooling that would catch future drift (a key added to `en.json` but
-    missed in one other locale, or vice versa) at build or test time.
-    Needs a `Makefile` target (or a `go test` in `src/common/i18n/`) that
-    loads all 7 locale files and fails on any key-set mismatch. Read:
-    AI.md PART 31.
+162. DONE (2026-08-22): added the missing build-time i18n key-parity
+    check required by AI.md PART 31 / testing-rules.md ("enforced by
+    `make i18n-validate` / build-time check"). AI.md PART 26 explicitly
+    states "Six core targets. DO NOT ADD MORE." for the Makefile, so a new
+    `make i18n-validate` target (as illustrated in PART 31's example
+    snippet) would violate that hard rule; resolved the conflict by
+    wiring the check into `go test` instead, via a new
+    `TestLocaleKeyParity` test in `src/common/i18n/i18n_test.go` using the
+    existing `loadRealLocales` fixture helper. `make test` already runs
+    `go test ./...`, so this satisfies "build-time check" without adding
+    a Makefile target.
+    - src/common/i18n/i18n_test.go: added `TestLocaleKeyParity` (validates
+      every locale has the same key set as en.json - no missing, no
+      orphaned keys - no empty string values, and `{var}` interpolation
+      placeholders match en.json per shared key), plus `interpolationVars`/
+      `interpolationVarPattern` helpers. Added `reflect`, `regexp`,
+      `strings` imports.
+    - Sanity-checked the test actually catches drift: temporarily emptied
+      one value in a scratch copy of es.json and confirmed the test fails
+      with a clear message, then restored the real file via git (verified
+      `git status --porcelain` clean before continuing).
+    - Not implemented (not currently applicable): plural-category (CLDR
+      zero/one/two/few/many/other) validation - the current locale files
+      are flat `map[string]string` with no nested plural structures
+      anywhere in the codebase, so there is nothing to validate yet; add
+      this check if/when plural support is actually implemented.
+    Docker go vet + full test suite verified: all packages pass, `go
+    vet ./...` clean, `src/common/i18n` coverage 78.9%.
 
 163. TODO (flagged 2026-08-22 while working item 156): 152 `onclick=`
     occurrences remain across 27 files under `src/server/template/`, and 54
