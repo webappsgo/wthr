@@ -42,7 +42,8 @@ docker run --rm \
   -v "$BUILD_DIR:/output" \
   -w /build \
   -e CGO_ENABLED=0 \
-  golang:alpine go build -o "/output/$PROJECTNAME" ./src
+  -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest go build -o "/output/$PROJECTNAME" ./src
 
 echo "=== Launching Incus container ==="
 incus launch images:debian/trixie "$CONTAINER_NAME"

@@ -37,7 +37,8 @@ docker run --rm \
   -v "$(pwd):/build" \
   -w /build \
   -e CGO_ENABLED=0 \
-  golang:alpine sh -c "
+  -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest sh -c "
     go build -o /build/binaries/$PROJECTNAME ./src
     go build -o /build/binaries/${PROJECTNAME}-cli ./src/client
   "
