@@ -3140,14 +3140,16 @@ any of the above: `src/graphql/context_keys_test.go`,
     nothing, `make test` (re-run after this fix) passes at 61.3%
     coverage. Read: AI.md PART 8 (binary-rules.md).
 
-159. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
-    pass): `tests/docker.sh` line 40 uses `golang:alpine` instead of
-    `casjaysdev/go:latest` (PART 26/27 mandate `casjaysdev/go:latest`
-    for all Go builds, never a bare upstream image) and is missing
-    `-e GOFLAGS=-buildvcs=false` in the same `docker run` invocation,
-    required whenever `.git` is mounted into a Go build. Fix both.
-    Read: AI.md PART 26, 27, 29 (testing-rules.md container-only
-    execution) before starting.
+159. DONE (2026-08-22). `tests/docker.sh` line 40 used `golang:alpine`
+    instead of `casjaysdev/go:latest` (PART 26/27 mandate
+    `casjaysdev/go:latest` for all Go builds, never a bare upstream
+    image) and was missing `-e GOFLAGS=-buildvcs=false` in the same
+    `docker run` invocation, required whenever `.git` is mounted into a
+    Go build. Fixed both. Fix-completeness sweep (`grep -rn
+    "golang:alpine"`) found the identical bug in `tests/incus.sh` line
+    45 (same Docker build step used before Incus systemd testing) —
+    fixed it too in the same commit. Both scripts verified clean by
+    `script-lint`. Committed as `c44040305e7f`.
 
 157. DONE (2026-08-22). Wired `#authSettingsForm` in
     `src/server/template/admin/admin_auth_settings.tmpl` to

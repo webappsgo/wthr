@@ -439,7 +439,8 @@ docker run -it --rm \
   -w /app \
   -p 8080:8080 \
   -p 2345:2345 \
-  golang:alpine \
+  -e GOFLAGS=-buildvcs=false \
+  casjaysdev/go:latest \
   sh -c "go install github.com/go-delve/delve/cmd/dlv@latest && \
          dlv debug ./src --headless --listen=:2345 --api-version=2"
 ```
