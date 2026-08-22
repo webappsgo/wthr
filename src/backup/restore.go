@@ -5,14 +5,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // RestoreOptions configures backup restoration per AI.md PART 25
@@ -69,10 +69,19 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 		return fmt.Errorf("failed to extract archive: %w", err)
 	}
 
-	// Per AI.md PART 25 lines 22603-22622:
+	// Per AI.md PART 22 lines 36635-36667:
 	// When restoring to NEW server, primary admin must re-authenticate
-	// Generate setup token for re-authentication
-	setupToken := generateSetupToken()
+	// through a one-time setup token. Reuse the same first-run mechanism
+	// (util.GenerateSetupToken/SaveSetupToken) so the printed token actually
+	// authenticates against SetupTokenRequired/ValidateSetupToken instead of
+	// being decorative output nothing checks.
+	setupToken, err := util.GenerateSetupToken()
+	if err != nil {
+		return fmt.Errorf("failed to generate setup token: %w", err)
+	}
+	if err := util.SaveSetupToken(opts.ConfigDir, setupToken); err != nil {
+		return fmt.Errorf("failed to save setup token: %w", err)
+	}
 
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("Restore completed. Primary admin re-authentication required.")
@@ -198,11 +207,4 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 	}
 
 	return nil
-}
-
-// generateSetupToken generates a 32-character hex setup token per AI.md PART 25 line 22609
-func generateSetupToken() string {
-	token := make([]byte, 16)
-	rand.Read(token)
-	return hex.EncodeToString(token)
 }

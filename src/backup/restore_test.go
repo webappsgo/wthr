@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // buildTestArchive creates a valid tar.gz backup archive (optionally
@@ -260,24 +262,45 @@ func TestExtractManifestMissing(t *testing.T) {
 	}
 }
 
-// TestGenerateSetupToken verifies the setup token is a 32-character hex
-// string (16 random bytes) and that successive calls produce different
-// tokens.
-func TestGenerateSetupToken(t *testing.T) {
-	a := generateSetupToken()
-	b := generateSetupToken()
+// TestRestorePersistsSetupToken verifies Restore() actually persists the
+// setup token it prints (AI.md PART 22 lines 36635-36667: restoring to a new
+// server must force Primary Admin re-authentication via a one-time setup
+// token). A token that is only printed and never written to
+// {config_dir}/setup_token.txt cannot be validated by
+// util.ValidateSetupToken/SetupTokenRequired, so this asserts the persisted
+// file exists and hashes to something ValidateSetupToken accepts.
+func TestRestorePersistsSetupToken(t *testing.T) {
+	srcConfigDir := t.TempDir()
+	srcDataDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(srcConfigDir, "server.yml"), []byte("mode: original"), 0600); err != nil {
+		t.Fatalf("failed to seed server.yml: %v", err)
+	}
 
-	if len(a) != 32 {
-		t.Errorf("generateSetupToken() length = %d, want 32", len(a))
+	svc := New(srcConfigDir, srcDataDir)
+	archive := buildTestArchive(t, svc, srcConfigDir, srcDataDir, "")
+
+	backupPath := filepath.Join(t.TempDir(), "wthr_backup_test.tar.gz")
+	if err := os.WriteFile(backupPath, archive, 0600); err != nil {
+		t.Fatalf("failed to write backup fixture: %v", err)
 	}
-	for _, r := range a {
-		isHex := (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')
-		if !isHex {
-			t.Errorf("generateSetupToken() = %q contains non-hex character %q", a, r)
-			break
-		}
+
+	restoreConfigDir := t.TempDir()
+	restoreDataDir := t.TempDir()
+
+	if err := svc.Restore(RestoreOptions{
+		BackupPath: backupPath,
+		ConfigDir:  restoreConfigDir,
+		DataDir:    restoreDataDir,
+	}); err != nil {
+		t.Fatalf("Restore() error = %v", err)
 	}
-	if a == b {
-		t.Error("generateSetupToken() should produce different tokens on successive calls")
+
+	tokenPath := filepath.Join(restoreConfigDir, "setup_token.txt")
+	if _, err := os.Stat(tokenPath); err != nil {
+		t.Fatalf("Restore() did not persist setup_token.txt: %v", err)
+	}
+
+	if !util.SetupTokenExists(restoreConfigDir) {
+		t.Error("util.SetupTokenExists() = false after Restore(), want true")
 	}
 }

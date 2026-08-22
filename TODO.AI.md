@@ -3413,15 +3413,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     something; the DB-agnostic CLI (`maintenance_backup.go`) and the
     dead-code `BackupTask` discard the new return value. Read: AI.md PART 22.
 
-151. TODO (flagged 2026-08-21): `Restore` in `src/backup/restore.go`
-    generates a one-time setup token through `generateSetupToken()` and only
-    prints it - the token is never written to `server.db`, so the PART 22
-    requirement that restoring to a new server forces Primary Admin
-    re-authentication through a one-time setup token cannot actually be
-    satisfied. The printed value authenticates nothing. Either persist it
-    the way `--maintenance setup` does or drop the output entirely; printing
-    a token that does not work is worse than printing nothing. Read: AI.md
-    PART 22.
+151. DONE (2026-08-22). RESOLVED: `Restore()` in `src/backup/restore.go` now
+    generates the setup token via `util.GenerateSetupToken()` and persists it
+    with `util.SaveSetupToken(opts.ConfigDir, setupToken)` - the exact same
+    first-run mechanism `--maintenance setup` uses (SHA-256 hash written to
+    `{config_dir}/setup_token.txt`), so the printed token now actually
+    validates against `SetupTokenRequired`/`util.ValidateSetupToken` at
+    `/server/{admin_path}` instead of authenticating nothing. Removed the
+    local duplicate `generateSetupToken()` (and its now-unused `crypto/rand`/
+    `encoding/hex` imports) per the reuse-before-creating rule - `server.db`
+    was never the right store for this anyway; AI.md PART 22's own diagram
+    (lines 36639-36650) matches the file-based setup-token flow, not a DB
+    table. `restore_test.go`: removed `TestGenerateSetupToken` (tested the
+    deleted local function; `util.GenerateSetupToken` already has its own
+    test in `firstrun_test.go`), added `TestRestorePersistsSetupToken`
+    (round-trips a real `Restore()` call and asserts
+    `{config_dir}/setup_token.txt` exists and `util.SetupTokenExists()`
+    returns true). `make test`: all packages `ok`, `src/backup` 76.5%
+    coverage. Read: AI.md PART 22 lines 36620-36676.
 
 152. DONE (2026-08-22). RESOLVED: confirmed with the user that there is no
     `SPEC.md` in this repo and none is needed — a prior session had
