@@ -3064,22 +3064,6 @@ any of the above: `src/graphql/context_keys_test.go`,
     Nothing else in the repo references `server_cve_alerts`, so no reader
     needed updating alongside the rename.
 
-134. TODO (carved out of item 94): `src/server/template/admin/backup.tmpl` is
-    a dead duplicate. `admin_backup_enhanced.tmpl` is canonical - it is the
-    template actually rendered by the live `GET {admin}/config/backup` route
-    in `src/main.go`. `backup.tmpl` is reachable only through
-    `AdminBackupHandler` in `src/server/handler/admin_backup.go`, and all
-    four handlers in that file (`AdminBackupHandler`,
-    `AdminBackupCreateHandler`, `AdminBackupDownloadHandler`,
-    `AdminBackupDeleteHandler`) are registered nowhere outside their own file
-    and their test. The larger implication is that the create/download/delete
-    backup ACTIONS are unreachable from the live page, so PART 22 backup
-    management may be non-functional in the browser. Determine whether the
-    enhanced page has its own working action routes; if it does, delete
-    `backup.tmpl` and the four dead handlers outright (PART 0 forbids dead
-    parallel implementations). If it does not, wire the handlers up instead.
-    Read: AI.md PART 22, 17.
-
 135. TODO (flagged 2026-08-21 during the item 94 locale pass): the non-admin
     templates under `src/server/template/page/**` and
     `src/server/template/email/**` still contain zero `t` calls and hardcode
@@ -3174,7 +3158,17 @@ any of the above: `src/graphql/context_keys_test.go`,
     an unparseable row) and `TestGetAllTaskInfoUsesTrueLastRun`. All three
     fail under the old SQL text ordering.
 
-140. TODO (flagged 2026-08-21 by the graphql timestamp conversion): roughly
+140. DONE (2026-08-21). RESOLVED: the sort moved into Go. Five resolvers now
+    read an id-ordered result set and order it with
+    `dbtime.ParseStoredTimestamp`, so rows written by earlier builds in the
+    driver's local-zone rendering sort by instant rather than lexically. The
+    `LIMIT 50` notifications query no longer limits in SQL - it overscans and
+    truncates in Go after sorting, so it can no longer return the wrong rows;
+    `server_audit_log` keeps an id-ordered `offset + limit + 500` prefilter
+    for bounded memory. Unparseable and NULL timestamps sort last instead of
+    being dropped. Six ordering tests were added. Original finding follows.
+
+    FINDING (flagged 2026-08-21 by the graphql timestamp conversion): roughly
     eight `ORDER BY created_at DESC` / `timestamp DESC` clauses in
     `src/graphql/schema.resolvers.go` sort mixed on-disk layouts
     lexicographically rather than by instant. The one paired with `LIMIT 50`
@@ -3312,3 +3306,89 @@ any of the above: `src/graphql/context_keys_test.go`,
     `TestHandleContactFormSubmission` success case already ran against a
     fixture built from `database.ServerSchema`, so it needed no change and
     now exercises the presence check for real.
+
+149. BLOCKED - NEEDS A USER DECISION (2026-08-21). DATA LOSS caused by this
+    session: `git checkout -- src/common/i18n/locales/` was run to undo a
+    reformatting mistake in those seven files, and it also discarded the
+    uncommitted translation work that was already in the working tree. Each
+    locale file went from 1933 keys back to the 205 keys in HEAD; 1728 keys
+    per language across `en, es, zh, fr, ar, de, ja` are gone. Verified
+    scope: 1713 distinct `t $lang "..."` references in
+    `src/server/template/**/*.tmpl` now resolve to no key, so every
+    converted admin and public page renders raw keys until this is rebuilt.
+    Recovery was attempted and failed on every avenue: the content was never
+    committed (`git log --all -S` finds no commit containing it), no stash
+    or dangling git object holds it, Claude Code's `file-history` snapshots
+    do not contain it, the session and subagent transcripts contain only the
+    small incremental scripts that produced it rather than the values
+    themselves, and no copy exists anywhere else on the filesystem.
+    The template-side conversion itself is intact and uncommitted, which is
+    what makes a rebuild possible: for every `t $lang "key"` call in the
+    working-tree template, the corresponding English text still exists at
+    the same position in that template's HEAD version
+    (`git show HEAD:{path}`), so `en.json` can be reconstructed
+    mechanically by diffing each template against HEAD. The other six
+    locales have no such source and would have to be re-translated from the
+    reconstructed `en.json`. That is roughly 1713 English strings plus
+    around 10000 translations, so it is a deliberate, separately scoped
+    piece of work and not something to start without the user choosing the
+    approach. Do not commit the working tree until this is settled: the
+    committed result would be a set of templates whose keys mostly do not
+    exist. Read: AI.md PART 31.
+
+150. TODO (flagged 2026-08-21 while wiring the admin backup page): PART 22
+    tiered backup retention is not implemented. `config.BackupConfig` has no
+    `Retention` block, so `server.backup.retention.max_backups`,
+    `keep_weekly`, `keep_monthly`, `keep_yearly` and `max_total_size` do not
+    exist anywhere, and `src/backup/backup.go` prunes with a hardcoded
+    `cleanupOldBackups(backupDir, 4)` - a flat count with no yearly >
+    monthly > weekly > daily priority and no total-size cap. The admin
+    schedule endpoints added this pass bind to the pre-existing
+    `backup.enabled` / `backup.interval` / `backup.retention` settings keys
+    because those are the only ones with a backing store; once the spec's
+    retention block exists, both `GetBackupSchedule` and
+    `SaveBackupSchedule` in `src/server/handler/admin_api.go` must be
+    re-pointed at it and the legacy keys migrated. Read: AI.md PART 22.
+
+151. TODO (flagged 2026-08-21): `Restore` in `src/backup/restore.go`
+    generates a one-time setup token through `generateSetupToken()` and only
+    prints it - the token is never written to `server.db`, so the PART 22
+    requirement that restoring to a new server forces Primary Admin
+    re-authentication through a one-time setup token cannot actually be
+    satisfied. The printed value authenticates nothing. Either persist it
+    the way `--maintenance setup` does or drop the output entirely; printing
+    a token that does not work is worse than printing nothing. Read: AI.md
+    PART 22.
+
+152. TODO (flagged 2026-08-21): `.claude/rules/optional-rules.md` opens with
+    "There is no `SPEC.md` in this repo; activation is declared in `IDEA.md`
+    instead." A `SPEC.md` does exist and, per PART 0, overrides AI.md. The
+    two overrides it carries (the coverage gate excluding
+    `src/graphql/generated.go`, and the self-hosted GraphQL Playground
+    assets) are unrelated to PART 34-36 activation, so the file's actual
+    conclusions still hold - but the sentence is false and will mislead the
+    next session into skipping `SPEC.md`. Read: AI.md PART 0.
+
+153. TODO (flagged 2026-08-21 by the model-injection agent): `SettingsModel`
+    reads `server_config`, which lives in `ServerSchema`, but is constructed
+    almost everywhere with the users handle - the root cause is
+    `src/main.go:346` (`db := &database.DB{DB: dualDB.Users}`), which then
+    propagates through `main.go` (388, 403, 406, 536, 2815-2924),
+    `middleware/server_context.go:39`, `service/tor.go:60`,
+    `handler/server_pages.go` (40, 154, 212), `handler/health.go` (597, 656),
+    `handler/admin.go:715`, `handler/admin_scheduler.go` (83, 161, 409) and
+    `handler/admin_api.go` (41, 81, 372). Only `handler/admin_settings.go:185`
+    and `graphql/schema.resolvers.go:1216` inject the right handle. Every
+    other model type now honours its injected handle; `SettingsModel` alone
+    resolves the server handle globally instead, because honouring the
+    injected one would point settings at `users.db` and break
+    `server_config` in production. The injection sites are the fix and they
+    are outside that agent's scope. Read: AI.md PART 10.
+
+154. TODO (flagged 2026-08-21): `server_audit_log` has no bounded retention.
+    Rows accumulate without limit and no scheduler task prunes them, so the
+    table grows forever and the GraphQL audit-log resolver's overscan
+    prefilter degrades with it. PART 11 makes `audit.log` append-only with
+    rotation as the only removal path; the database-backed mirror needs the
+    equivalent - a `log_rotation`-adjacent scheduled prune with a
+    configurable window. Read: AI.md PART 11, 19.
