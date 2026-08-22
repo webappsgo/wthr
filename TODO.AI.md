@@ -3583,24 +3583,47 @@ any of the above: `src/graphql/context_keys_test.go`,
     build+vet+test verified: `backup` package 79.7% coverage, `scheduler`
     package 63.6% coverage (both clear the 60% gate). Read: AI.md PART 22.
 
-161. TODO (flagged 2026-08-22 while closing item 150): three separate,
-    inconsistent controls exist for "how many backups to keep".
-    `src/scheduler/backup_task.go`'s `BackupTask`/`RegisterBackupTask`
-    registers a `"backup_auto"` scheduler task via `s.AddTask` at daily
-    01:00, but `RegisterBackupTask` is never called from anywhere in
-    `src/` (confirmed by `grep -rn RegisterBackupTask`) - it and `BackupTask`
-    are dead code, fully superseded by `scheduler.CreateSystemBackup`
-    (wired live at `main.go:878`) and now item 150's tiered retention.
-    Separately, `src/server/handler/admin_scheduler.go` reads/writes a
-    third settings key, `scheduler.tasks.backup_auto.keep_count` (default
-    4), which does not correspond to any of `backup.retention.*`, the
-    legacy `backup.retention`, or anything `applyRetention` reads - it is
-    unclear whether this key is meant to be the same knob under yet
-    another name, a leftover from the same dead `"backup_auto"` task
-    concept, or a genuinely separate scheduler-UI-only setting. Needs a
-    decision: delete `BackupTask`/`RegisterBackupTask` as dead code and
-    either remove `keep_count` or migrate it into `backup.retention.
-    max_backups`. Read: AI.md PART 19, 22.
+161. DONE (2026-08-22): resolved per user instruction "adhere to AI.md!" -
+    researched AI.md PART 19/22 directly and confirmed neither a
+    `backup_auto` scheduler task nor a `scheduler.tasks.backup_auto.
+    keep_count` config key exists anywhere in the spec; the spec's real
+    controls are `backup.enabled` and `backup.retention.max_backups`
+    (+ siblings), both already correctly wired in `admin_settings.tmpl`/
+    `admin_backup_enhanced.tmpl`/`admin_api.go`. The entire `backup_auto`
+    surface was therefore dead/non-spec duplication and was deleted
+    outright (not migrated):
+    - src/scheduler/backup_task.go: removed dead `BackupTask` and
+      `RegisterBackupTask` functions; kept the live, item-160-wired
+      `BackupHourlyTask` untouched.
+    - src/scheduler/backup_task_test.go: removed `TestBackupTask` and
+      `TestRegisterBackupTask`; kept `TestBackupHourlyTask` and its
+      shared `anyTarGzUnder` helper.
+    - src/server/handler/admin_scheduler.go: removed `TaskConfigBackup`
+      struct, the `BackupAuto` field on `SchedulerTasks`, both population
+      blocks (`ShowSchedulerConfig` and `GetSchedulerConfigJSON`), the
+      `"backup_auto"` task-list entry, and the `case "backup_auto":`
+      save-handling block. All other real task configs (ssl_renewal,
+      geoip_update, blocklist_update, cve_update, session_cleanup,
+      token_cleanup, log_rotation, healthcheck_self, tor_health) left
+      untouched.
+    - src/server/handler/admin_scheduler_test.go: removed the
+      `backup_auto` sub-block from the "valid full config persists all
+      task fields" test payload and its keep_count assertion.
+    - src/server/template/admin/admin_scheduler.tmpl: removed the
+      "Automatic Backup" `<div class="task-section">` block.
+    - src/common/i18n/locales/{en,es,zh,fr,ar,de,ja}.json: removed the 4
+      orphaned keys (`admin.scheduler.backup_auto_title`,
+      `backup_auto_help`, `keep_count_label`, `keep_count_help`) from
+      all 7 locales; verified all 7 files remain valid JSON with
+      identical key counts (1928) after removal.
+    Deliberately left untouched: `src/config/config.go`'s
+    `CleanupConfig.BackupKeepCount` (`server.maintenance.cleanup.
+    backup_keep_count`, AI.md line 7977) - a separate, legitimately
+    spec'd PART 4/5 maintenance-mode disk-pressure setting, distinct
+    from this item's `scheduler.tasks.backup_auto.keep_count` and not
+    named in this item's own description.
+    Docker build+vet+full test suite verified: all packages pass,
+    project-wide coverage 61.3% (clears the 60% gate).
 
 162. TODO (flagged 2026-08-22 while investigating item 155): no
     `make i18n-validate` target exists (`grep -n "i18n" Makefile` and

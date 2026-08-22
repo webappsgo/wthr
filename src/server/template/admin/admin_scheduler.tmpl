@@ -352,46 +352,6 @@
                     </div>
                 </div>
 
-                <!-- Automatic Backup -->
-                <div class="task-section">
-                    <h3>{{t $lang "admin.scheduler.backup_auto_title"}}</h3>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="toggle-label">
-                                <span>{{t $lang "admin.scheduler.enabled_label"}}</span>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" name="backup_auto.enabled"
-                                           {{if .config.Tasks.BackupAuto.Enabled}}checked{{end}}>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </label>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="backup_auto_schedule">{{t $lang "admin.scheduler.schedule_label"}}</label>
-                            <input type="text"
-                                   name="backup_auto.schedule"
-                                   id="backup_auto_schedule"
-                                   value="{{.config.Tasks.BackupAuto.Schedule}}"
-                                   placeholder="0 1 * * *"
-                                   onchange="previewCron('backup_auto', this.value)">
-                            <div class="help-text">{{t $lang "admin.scheduler.backup_auto_help"}}</div>
-                            <div class="cron-preview" id="backup_auto_preview" class="hidden"></div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="backup_auto_keep_count">{{t $lang "admin.scheduler.keep_count_label"}}</label>
-                        <input type="text"
-                               name="backup_auto.keep_count"
-                               id="backup_auto_keep_count"
-                               value="{{.config.Tasks.BackupAuto.KeepCount}}"
-                               placeholder="4">
-                        <div class="help-text">{{t $lang "admin.scheduler.keep_count_help"}}</div>
-                    </div>
-                </div>
-
                 <div class="task-category">{{t $lang "admin.scheduler.category_health"}}</div>
 
                 <!-- Self Health Check -->

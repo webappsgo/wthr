@@ -31,7 +31,6 @@ type SchedulerTasks struct {
 	SessionCleanup  TaskConfigBasic     `json:"session_cleanup"`
 	TokenCleanup    TaskConfigBasic     `json:"token_cleanup"`
 	LogRotation     TaskConfigLogRot    `json:"log_rotation"`
-	BackupAuto      TaskConfigBackup    `json:"backup_auto"`
 	HealthcheckSelf TaskConfigBasic     `json:"healthcheck_self"`
 	TorHealth       TaskConfigTorHealth `json:"tor_health"`
 }
@@ -57,13 +56,6 @@ type TaskConfigLogRot struct {
 	MaxAge   string `json:"max_age"`
 	MaxSize  string `json:"max_size"`
 	Compress bool   `json:"compress"`
-}
-
-// TaskConfigBackup is for backup task
-type TaskConfigBackup struct {
-	Schedule  string `json:"schedule"`
-	Enabled   bool   `json:"enabled"`
-	KeepCount int    `json:"keep_count"`
 }
 
 // TaskConfigTorHealth is for Tor health check task
@@ -123,11 +115,6 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 				MaxAge:   settingsModel.GetString("scheduler.tasks.log_rotation.max_age", "30d"),
 				MaxSize:  settingsModel.GetString("scheduler.tasks.log_rotation.max_size", "100MB"),
 				Compress: settingsModel.GetBool("scheduler.tasks.log_rotation.compress", true),
-			},
-			BackupAuto: TaskConfigBackup{
-				Schedule:  settingsModel.GetString("scheduler.tasks.backup_auto.schedule", "0 1 * * *"),
-				Enabled:   settingsModel.GetBool("scheduler.tasks.backup_auto.enabled", false),
-				KeepCount: settingsModel.GetInt("scheduler.tasks.backup_auto.keep_count", 4),
 			},
 			HealthcheckSelf: TaskConfigBasic{
 				Schedule: settingsModel.GetString("scheduler.tasks.healthcheck_self.schedule", "@every 5m"),
@@ -196,7 +183,6 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		{"session_cleanup", getTaskConfig(config, "session_cleanup")},
 		{"token_cleanup", getTaskConfig(config, "token_cleanup")},
 		{"log_rotation", getTaskConfig(config, "log_rotation")},
-		{"backup_auto", getTaskConfig(config, "backup_auto")},
 		{"healthcheck_self", getTaskConfig(config, "healthcheck_self")},
 		{"tor_health", getTaskConfig(config, "tor_health")},
 	}
@@ -269,15 +255,6 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 			}
 			if compress, ok := task.config["compress"].(bool); ok {
 				settingsModel.SetBool(prefix+".compress", compress)
-			}
-
-		case "backup_auto":
-			if keepCount, ok := task.config["keep_count"].(float64); ok {
-				settingsModel.SetInt(prefix+".keep_count", int(keepCount))
-			} else if keepCountStr, ok := task.config["keep_count"].(string); ok {
-				if count, err := strconv.Atoi(keepCountStr); err == nil {
-					settingsModel.SetInt(prefix+".keep_count", count)
-				}
 			}
 
 		case "tor_health":
@@ -447,11 +424,6 @@ func (h *AdminHandler) GetSchedulerConfigJSON(c *gin.Context) {
 				MaxAge:   settingsModel.GetString("scheduler.tasks.log_rotation.max_age", "30d"),
 				MaxSize:  settingsModel.GetString("scheduler.tasks.log_rotation.max_size", "100MB"),
 				Compress: settingsModel.GetBool("scheduler.tasks.log_rotation.compress", true),
-			},
-			BackupAuto: TaskConfigBackup{
-				Schedule:  settingsModel.GetString("scheduler.tasks.backup_auto.schedule", "0 1 * * *"),
-				Enabled:   settingsModel.GetBool("scheduler.tasks.backup_auto.enabled", false),
-				KeepCount: settingsModel.GetInt("scheduler.tasks.backup_auto.keep_count", 4),
 			},
 			HealthcheckSelf: TaskConfigBasic{
 				Schedule: settingsModel.GetString("scheduler.tasks.healthcheck_self.schedule", "@every 5m"),

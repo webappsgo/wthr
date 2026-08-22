@@ -139,9 +139,6 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 				"schedule": "@daily", "enabled": true,
 				"max_age": "30d", "max_size": "100MB", "compress": true,
 			},
-			"backup_auto": map[string]interface{}{
-				"schedule": "@every 1h", "enabled": true, "keep_count": "7",
-			},
 			"tor_health": map[string]interface{}{
 				"schedule": "@every 10m", "enabled": true, "restart_on_fail": false,
 			},
@@ -170,9 +167,6 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		}
 		if got := settingsModel.GetString("scheduler.tasks.blocklist_update.retry_delay", ""); got != "1h" {
 			t.Errorf("blocklist_update.retry_delay = %q, want 1h", got)
-		}
-		if got := settingsModel.GetInt("scheduler.tasks.backup_auto.keep_count", 0); got != 7 {
-			t.Errorf("backup_auto.keep_count = %d, want 7 (string branch)", got)
 		}
 		if got := settingsModel.GetBool("scheduler.tasks.tor_health.restart_on_fail", true); got != false {
 			t.Errorf("tor_health.restart_on_fail = %v, want false", got)

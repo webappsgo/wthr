@@ -10,24 +10,6 @@ import (
 // backup.Create() only does real local filesystem I/O (tar.gz archive creation,
 // optional local encryption) with no network calls, so exercising it against a
 // t.TempDir() is real local logic, not a mocked external service.
-func TestBackupTask(t *testing.T) {
-	configDir := t.TempDir()
-	dataDir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("mode: testing\n"), 0644); err != nil {
-		t.Fatalf("seed server.yml: %v", err)
-	}
-
-	fn := BackupTask(configDir, dataDir)
-	if err := fn(); err != nil {
-		t.Fatalf("BackupTask()() error: %v", err)
-	}
-
-	if !anyTarGzUnder(t, dataDir) {
-		t.Errorf("expected a .tar.gz backup file to be created somewhere under %s", dataDir)
-	}
-}
-
 func TestBackupHourlyTask(t *testing.T) {
 	configDir := t.TempDir()
 	dataDir := t.TempDir()
@@ -64,29 +46,4 @@ func anyTarGzUnder(t *testing.T, dataDir string) bool {
 		t.Fatalf("walk dataDir: %v", err)
 	}
 	return found
-}
-
-func TestRegisterBackupTask(t *testing.T) {
-	s := NewScheduler(nil)
-
-	t.Run("registers the backup_auto task regardless of the enabled flag", func(t *testing.T) {
-		RegisterBackupTask(s, false)
-		task := s.GetTask("backup_auto")
-		if task == nil {
-			t.Fatal("expected backup_auto task to be registered")
-		}
-		if task.Schedule != "0 1 * * *" {
-			t.Errorf("Schedule = %q, want %q", task.Schedule, "0 1 * * *")
-		}
-
-		// BUG (not fixed, per task constraints): RegisterBackupTask's `enabled`
-		// parameter only changes a log message; AddTask() unconditionally sets
-		// enabled: true on any new Task, so the task is left enabled here even
-		// though we passed enabled=false and the code comments claim it should
-		// be "disabled by default". This assertion documents that actual (buggy)
-		// behavior rather than the intended behavior.
-		if !statusEnabled(t, s, "backup_auto") {
-			t.Error("backup_auto unexpectedly reported as disabled - if this now fails, the enabled-flag bug in RegisterBackupTask has been fixed upstream")
-		}
-	})
 }
