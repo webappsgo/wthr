@@ -463,13 +463,13 @@ func CleanupOldSessions(db *sql.DB) error {
 
 // CleanupOldAuditLogs removes audit logs older than retention period
 func CleanupOldAuditLogs(db *sql.DB) error {
-	// Get retention days from settings
-	var retentionDays int
-	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'audit.retention_days'").Scan(&retentionDays)
-	if err != nil {
-		// Default to 90 days
-		retentionDays = 90
-	}
+	// Get retention days from settings. Key matches the one the admin panel
+	// reads/writes (handler/admin.go "scheduler_cleanup_audit_logs_days" ->
+	// "scheduler.cleanup_audit_logs_days") - a prior mismatched key here
+	// ("audit.retention_days") meant the configured value was silently
+	// ignored and the 90-day default always applied.
+	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	retentionDays := settingsModel.GetInt("scheduler.cleanup_audit_logs_days", 90)
 
 	// The retained window is measured against server_audit_log.timestamp (the
 	// table has no created_at column). That column has two producers - SQLite's

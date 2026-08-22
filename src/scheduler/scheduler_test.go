@@ -973,6 +973,37 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 
 		assertSurvivors(t, serverDB, "server_audit_log", fixtures)
 	})
+
+	t.Run("configured retention (scheduler.cleanup_audit_logs_days) overrides the default", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+
+		// A 5-day retention window: a row 10 days old must be pruned even
+		// though it is well inside the 90-day default, proving the function
+		// actually reads 'scheduler.cleanup_audit_logs_days' (the key the
+		// admin panel writes) rather than silently falling back to 90.
+		if _, err := serverDB.Exec(
+			"INSERT INTO server_config (key, value) VALUES ('scheduler.cleanup_audit_logs_days','5')",
+		); err != nil {
+			t.Fatalf("failed to seed retention config: %v", err)
+		}
+
+		fixtures := []expiryFixture{
+			{id: 1, name: "10 days old, outside 5-day window", value: time.Now().AddDate(0, 0, -10), survives: false},
+			{id: 2, name: "1 day old, inside 5-day window", value: time.Now().AddDate(0, 0, -1), survives: true},
+		}
+
+		seedTimestampRows(t, serverDB, "server_audit_log", "timestamp", fixtures,
+			seedColumn{name: "ulid", value: func(id int64) interface{} { return fmt.Sprintf("audit-ulid-cfg-%d", id) }},
+			seedColumn{name: "actor_type", value: func(int64) interface{} { return "scheduler" }},
+			seedColumn{name: "action", value: func(id int64) interface{} { return fmt.Sprintf("task-cfg-%d", id) }},
+		)
+
+		if err := CleanupOldAuditLogs(nil); err != nil {
+			t.Fatalf("CleanupOldAuditLogs() error: %v", err)
+		}
+
+		assertSurvivors(t, serverDB, "server_audit_log", fixtures)
+	})
 }
 
 // tokenZoneWest and tokenZoneEast are fixed offsets far enough from UTC that

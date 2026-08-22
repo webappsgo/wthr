@@ -3471,13 +3471,34 @@ any of the above: `src/graphql/context_keys_test.go`,
     correct server-DB handle; `grep -n "serverDB" src/server/model/settings.go`
     returns zero matches. Read: AI.md PART 10.
 
-154. TODO (flagged 2026-08-21): `server_audit_log` has no bounded retention.
-    Rows accumulate without limit and no scheduler task prunes them, so the
-    table grows forever and the GraphQL audit-log resolver's overscan
-    prefilter degrades with it. PART 11 makes `audit.log` append-only with
-    rotation as the only removal path; the database-backed mirror needs the
-    equivalent - a `log_rotation`-adjacent scheduled prune with a
-    configurable window. Read: AI.md PART 11, 19.
+154. DONE (2026-08-22). RESOLVED: the pruning task already existed and was
+    already registered/running (`cleanup-audit-logs` @daily in `main.go`
+    calling `scheduler.CleanupOldAuditLogs`, deleting `server_audit_log`
+    rows older than a retention window measured against its `timestamp`
+    column) - so the premise that no task pruned the table was wrong. The
+    actual bug: `CleanupOldAuditLogs` read the retention days via a raw SQL
+    query against config key `'audit.retention_days'`, but the admin panel
+    (`handler/admin.go`) reads/writes `'scheduler.cleanup_audit_logs_days'`.
+    Since that key never existed under the old name, the lookup always
+    failed and the function silently fell back to the hardcoded 90-day
+    default, making the admin-configured retention setting a no-op.
+    Fixed in `src/scheduler/scheduler.go`: replaced the raw SQL lookup with
+    `settingsModel := &model.SettingsModel{DB: database.GetServerDB()};
+    retentionDays := settingsModel.GetInt("scheduler.cleanup_audit_logs_days",
+    90)`, matching the AI.md PART 10 model-injection pattern used everywhere
+    else (see item 153) and the exact key the admin panel already exposes.
+    `src/scheduler/scheduler_test.go`: added a new subtest ("configured
+    retention (scheduler.cleanup_audit_logs_days) overrides the default")
+    that seeds a 5-day retention config row and asserts a 10-day-old row is
+    pruned while a 1-day-old row survives - this fails against the old code
+    (always used 90 days) and passes against the fix. `make test`: all 32
+    packages `ok`, zero `FAIL`; `TestCleanupOldAuditLogs` both subtests
+    (default-90-days and configured-override) pass. go-lint agent reviewed
+    both changed files: no violations, no changes needed; noted the unused
+    `db *sql.DB` parameter on `CleanupOldAuditLogs` is a pre-existing
+    pattern shared by every sibling cleanup function in the file (all
+    resolve `database.GetServerDB()` internally instead), so left as-is -
+    out of this fix's scope. Read: AI.md PART 10, 11, 19.
 
 155. TODO (opened 2026-08-21 when item 149 was resolved): human review of the
     English wording for the 371 locale keys that had no HEAD source string.
