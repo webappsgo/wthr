@@ -930,6 +930,77 @@
     }
   };
 
+  // ============================================
+  // ADMIN AUTH SETTINGS (AI.md PART 16, 11)
+  // ============================================
+
+  const AdminAuthSettings = {
+    /**
+     * Append a blank OIDC provider row to #oidcProviders.
+     * Bound via data-action delegation (CSP blocks inline onclick).
+     */
+    addOIDCProvider: function() {
+      const container = document.getElementById('oidcProviders');
+      if (!container) return;
+
+      const index = container.children.length;
+      const labels = container.dataset;
+      const row = document.createElement('div');
+      row.className = 'oidc-provider-row';
+      row.dataset.index = String(index);
+      row.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">${labels.labelName || 'Name'}</label>
+          <input class="form-input" type="text" name="oidc_provider_name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${labels.labelClientId || 'Client ID'}</label>
+          <input class="form-input" type="text" name="oidc_provider_client_id">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${labels.labelClientSecret || 'Client Secret'}</label>
+          <input class="form-input" type="password" name="oidc_provider_client_secret">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${labels.labelIssuerUrl || 'Issuer URL'}</label>
+          <input class="form-input" type="text" name="oidc_provider_issuer_url">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${labels.labelRedirectUrl || 'Redirect URL'}</label>
+          <input class="form-input" type="text" name="oidc_provider_redirect_url">
+        </div>
+        <button type="button" class="btn btn-sm btn-danger" data-action="remove-oidc-provider">${labels.labelRemove || 'Remove'}</button>
+      `;
+      container.appendChild(row);
+    },
+
+    /**
+     * Remove the OIDC provider row containing the clicked button.
+     */
+    removeOIDCProvider: function(button) {
+      const row = button.closest('.oidc-provider-row');
+      if (row) row.remove();
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+
+      switch (btn.dataset.action) {
+        case 'add-oidc-provider':
+          AdminAuthSettings.addOIDCProvider();
+          break;
+        case 'remove-oidc-provider':
+          AdminAuthSettings.removeOIDCProvider(btn);
+          break;
+      }
+    });
+  });
+
+  window.AdminAuthSettings = AdminAuthSettings;
+
   /**
    * Confirmation dialog (replaces JS alerts per AI.md PART 18)
    */

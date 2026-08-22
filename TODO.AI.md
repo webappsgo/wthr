@@ -3071,13 +3071,70 @@ any of the above: `src/graphql/context_keys_test.go`,
     so this is the same violation item 94 fixed, just outside its
     admin-only scope. Read: AI.md PART 31, 18.
 
-136. TODO (flagged 2026-08-21 during the item 94 locale pass):
-    `src/server/template/admin/admin_auth_settings.tmpl` carries
-    `onclick="addOIDCProvider()"`, an inline handler the CSP in PART 11
-    blocks outright - the button is dead in any browser enforcing the policy.
-    This is a concrete instance of item 52(e); move the handler into
-    `static/js/app.js` and bind it via `data-action` delegation. Read: AI.md
-    PART 16, 11.
+136. DONE (2026-08-22). RESOLVED: replaced the inline
+    `onclick="addOIDCProvider()"` handler in
+    `src/server/template/admin/admin_auth_settings.tmpl` with
+    `data-action="add-oidc-provider"`, following the canonical delegation
+    pattern from AI.md PART 16. Added an `AdminAuthSettings` module to
+    `static/js/app.js` with a single delegated click listener handling
+    `add-oidc-provider`/`remove-oidc-provider` actions; new provider rows
+    are built with server-rendered i18n labels passed via `data-label-*`
+    attributes on `#oidcProviders` (`admin.auth.oidc_provider_name_label`,
+    `oidc_client_id_label`, `oidc_client_secret_label`, `oidc_issuer_url_label`,
+    `oidc_redirect_url_label`, `oidc_remove_provider`), added to all 7 locale
+    files (`en`, `es`, `zh`, `fr`, `ar`, `de`, `ja`) to keep key parity with
+    `en.json` per PART 31. `make test` passes, coverage 61.3% (>= 60%).
+    Two related but out-of-scope gaps found during this fix, logged here
+    rather than left only in conversation: (a) `security_headers.go`'s CSP
+    `script-src` still includes `'unsafe-inline'` and `https://unpkg.com`,
+    which conflicts with PART 11's "CSP default `script-src 'self'` (no
+    inline)" rule and with the "never inline onclick" rule elsewhere in the
+    codebase (e.g. `app.js`'s own dynamically-built `onclick="Modal.close(...)"`
+    strings in `showAlert`/`showConfirm`/`showPrompt`, and an inline
+    `<script>` block in `admin_backup_enhanced.tmpl`); (b) `#authSettingsForm`
+    has no JS wiring to serialize itself to JSON and POST to
+    `UpdateAuthSettings` - the whole Auth Settings page (OIDC/LDAP/TOTP/
+    Passkeys) may not currently persist changes via the browser. See items
+    156 and 157 below.
+
+156. TODO: `src/server/middleware/security_headers.go`'s CSP `script-src`
+    directive includes `'unsafe-inline'` and `https://unpkg.com`, violating
+    PART 11's "CSP default `script-src 'self'` (no inline)" rule. Multiple
+    call sites currently rely on this laxity (dynamically-built
+    `onclick="Modal.close(...)"` strings in `app.js`'s `showAlert`/
+    `showConfirm`/`showPrompt`, and an inline `<script>` block in
+    `admin_backup_enhanced.tmpl`) and must be converted to `data-action`
+    delegation / external script before `'unsafe-inline'` and the CDN
+    source can be removed. Read: AI.md PART 11, 16.
+
+158. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
+    pass): `src/client/version.go` declares `GitCommit` but the shared
+    `Makefile` `LDFLAGS` (line 23) targets `-X 'main.CommitID=...'` —
+    name mismatch means the CLI binary's commit ID is silently never
+    set (stays "unknown"). `src/client/version.go` also has no
+    `OfficialSite` var at all, though `LDFLAGS` (line 24) also targets
+    `-X 'main.OfficialSite=...'` for it. Rename `GitCommit` to
+    `CommitID` and add the missing `OfficialSite` var, matching
+    `src/version.go`'s pattern for the server binary. Read: AI.md
+    PART 8 (binary-rules.md) before starting.
+
+159. TODO (flagged 2026-08-22 by go-lint during item 136's pre-commit
+    pass): `tests/docker.sh` line 40 uses `golang:alpine` instead of
+    `casjaysdev/go:latest` (PART 26/27 mandate `casjaysdev/go:latest`
+    for all Go builds, never a bare upstream image) and is missing
+    `-e GOFLAGS=-buildvcs=false` in the same `docker run` invocation,
+    required whenever `.git` is mounted into a Go build. Fix both.
+    Read: AI.md PART 26, 27, 29 (testing-rules.md container-only
+    execution) before starting.
+
+157. TODO: `#authSettingsForm` in
+    `src/server/template/admin/admin_auth_settings.tmpl` has no JS wiring
+    to serialize itself and POST to `UpdateAuthSettings`
+    (`src/server/handler/admin_auth_settings.go`) - the Auth Settings admin
+    page (OIDC/LDAP/TOTP/Passkeys sections) currently cannot persist changes
+    via the browser. Add form-submit handling (serialize to JSON matching
+    `OIDCProvider`/other bound structs, POST, handle response) per PART 16's
+    CRUD-via-forms rule. Read: AI.md PART 16, 14.
 
 137. DONE (2026-08-21): `getPublicStats` in
     `src/server/handler/health.go` now computes the 24-hour cutoff in Go with

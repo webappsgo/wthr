@@ -7,8 +7,14 @@
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 <section class="card"><h2>{{t $lang "admin.auth.oidc_heading"}}</h2>
 <label><input type="checkbox" name="oidc_enabled"> {{t $lang "admin.auth.oidc_enable"}}</label>
-<div id="oidcProviders"></div>
-<button type="button" onclick="addOIDCProvider()">{{t $lang "admin.auth.oidc_add_provider"}}</button>
+<div id="oidcProviders"
+    data-label-name="{{t $lang "admin.auth.oidc_provider_name_label"}}"
+    data-label-client-id="{{t $lang "admin.auth.oidc_client_id_label"}}"
+    data-label-client-secret="{{t $lang "admin.auth.oidc_client_secret_label"}}"
+    data-label-issuer-url="{{t $lang "admin.auth.oidc_issuer_url_label"}}"
+    data-label-redirect-url="{{t $lang "admin.auth.oidc_redirect_url_label"}}"
+    data-label-remove="{{t $lang "admin.auth.oidc_remove_provider"}}"></div>
+<button type="button" data-action="add-oidc-provider">{{t $lang "admin.auth.oidc_add_provider"}}</button>
 </section>
 <section class="card"><h2>{{t $lang "admin.auth.ldap_heading"}}</h2>
 <label><input type="checkbox" name="ldap_enabled"> {{t $lang "admin.auth.ldap_enable"}}</label>
