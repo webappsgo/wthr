@@ -69,6 +69,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 			ConfigDir:   configDir,
 			DataDir:     dataDir,
 			OutputPath:  "",
+			Kind:        backup.KindHourlyIncremental,
 			Password:    "",
 			IncludeSSL:  false,
 			IncludeData: false,

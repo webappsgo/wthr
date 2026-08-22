@@ -3560,21 +3560,28 @@ any of the above: `src/graphql/context_keys_test.go`,
     backed" flag on the 371-key subset, and that flag is now cleared to the
     extent an automated review can clear it. Read: AI.md PART 31.
 
-160. TODO (flagged 2026-08-22 while closing item 150): AI.md PART 22
-    describes a full backup + a separate `{project_name}-daily.tar.gz[.enc]`
-    incremental (and, with hourly enabled, a third
-    `{project_name}-hourly.tar.gz[.enc]` incremental), so "default: 2 files
-    total" / "with hourly: 3 files total" is a real per-tier file count. This
-    codebase only ever creates the single timestamped
-    `wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]` archive - `scheduler.
-    BackupHourlyTask` calls `svc.Create` with `OutputPath: ""`, so the
-    "hourly" backup is actually just another auto-named full backup, not a
-    replaced-in-place incremental. `applyRetention` (item 150) was written
-    against this codebase's actual single-format reality, not the spec's
-    three-format one. Implementing genuine incremental backups is a
-    separate, larger feature; until then this is a documented divergence
-    from PART 22, not a bug in the retention sweep itself. Read: AI.md
-    PART 22.
+160. DONE (2026-08-22). AI.md PART 22 describes a full backup + a separate
+    `{project_name}-daily.tar.gz[.enc]` incremental (and, with hourly
+    enabled, a third `{project_name}-hourly.tar.gz[.enc]` incremental).
+    Implemented real incremental backups: `backup.CreateBackup` now takes a
+    `Kind` (full/daily/hourly) and writes to the correct fixed,
+    replaced-in-place filename for daily/hourly instead of a new timestamped
+    archive each run; `scheduler.BackupHourlyTask`/the daily scheduled task
+    now pass the correct `Kind`. `applyRetention`/`ListDatedBackups` updated
+    so the size-cap sweep correctly distinguishes a dated full backup's
+    filename-derived date from an incremental's mtime-derived date when
+    merging both lists for eviction (see `src/backup/retention.go`,
+    `backup_test.go`'s `TestApplyRetentionIncrementalsExempt`). Added a
+    disk-space guard (`scheduler.backupDiskSpaceExceeded`, pure decision
+    logic split into `diskSpaceGuardDecision` for safe synthetic-data
+    testing) that skips a scheduled backup and logs a
+    `backup.skipped_disk_full` audit entry per PART 22's disk-space rule,
+    plus a `backup.daily_updated`-style audit entry when an incremental is
+    written. New/changed: `src/backup/{backup.go,retention.go,disk_unix.go,
+    disk_windows.go,backup_test.go,disk_unix_test.go}`,
+    `src/scheduler/{scheduler.go,backup_task.go,scheduler_test.go}`. Docker
+    build+vet+test verified: `backup` package 79.7% coverage, `scheduler`
+    package 63.6% coverage (both clear the 60% gate). Read: AI.md PART 22.
 
 161. TODO (flagged 2026-08-22 while closing item 150): three separate,
     inconsistent controls exist for "how many backups to keep".
@@ -3673,3 +3680,23 @@ any of the above: `src/graphql/context_keys_test.go`,
     guess/assume site.txt / OFFICIAL_SITE — must be explicitly created by
     the user`, so confirm with the user before editing this file since it
     is user-owned per that rule.
+
+168. TODO (flagged 2026-08-22 by go-lint while closing item 160): AI.md
+    PART 11 requires `log/slog` with `NewTextHandler` for structured
+    logging - "Log files must never contain ANSI escape codes or emojis.
+    Use `log/slog`... never write raw color-formatted strings to a file
+    writer." The project instead uses the standard `log` package
+    (`log.Printf`/`log.Println`) project-wide: `grep -rl '"log"' src/`
+    finds 39 files, `grep -rl "log/slog" src/` finds zero - there is no
+    existing `log/slog` usage anywhere to migrate toward. Confirmed
+    violation sites include `src/scheduler/scheduler.go` (57 call sites),
+    `src/scheduler/backup_task.go` (9), and `src/backup/backup.go` (1),
+    but the same pattern is present across all 39 files (handlers,
+    services, middleware, main.go, etc.), not just the ones touched by
+    item 160. This is a pre-existing, project-wide convention violation,
+    not something introduced by item 160's incremental-backups work -
+    migrating it is a separate, large refactor (39 files) out of scope for
+    that feature's working set. Needs a decision on migration approach
+    (e.g. one shared `slog.Logger` wired through `main.go` and passed
+    down, vs. `slog.Default()` calls at each site) before starting. Read:
+    AI.md PART 11.

@@ -145,11 +145,21 @@ func ParseMaxTotalSizeBytes(spec string, volumeTotalBytes int64) (int64, error) 
 	return int64(value * float64(multiplier)), nil
 }
 
-// backupNamePattern matches every full/manual backup archive src/backup
-// creates: wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc] (AI.md PART 22 lines
-// 36469-36471). The date comes from the filename, not the file's mtime, so
-// classification survives a restore or a copy that changes mtimes.
-var backupNamePattern = regexp.MustCompile(`^wthr_backup_(\d{4})-(\d{2})-(\d{2})_\d{6}\.tar\.gz(\.enc)?$`)
+// backupNamePattern matches every full backup archive src/backup creates
+// that is subject to count-based tiered retention: the date-only scheduled
+// daily full (wthr_backup_YYYY-MM-DD.tar.gz[.enc]) and the timestamped
+// manual/CLI/API backup (wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]), per
+// AI.md PART 22's "Backup Files Created" table (lines 36453-36471). The date
+// comes from the filename, not the file's mtime, so classification survives
+// a restore or a copy that changes mtimes.
+var backupNamePattern = regexp.MustCompile(`^wthr_backup_(\d{4})-(\d{2})-(\d{2})(?:_\d{6})?\.tar\.gz(\.enc)?$`)
+
+// incrementalNamePattern matches the daily/hourly incremental backup files
+// (wthr-daily.tar.gz[.enc], wthr-hourly.tar.gz[.enc]) per AI.md PART 22.
+// These are always exactly one file per kind, replaced in place by the next
+// scheduled run, and are never subject to the count-based tiered retention
+// sweep - only the max_total_size cap can remove them.
+var incrementalNamePattern = regexp.MustCompile(`^wthr-(daily|hourly)\.tar\.gz(\.enc)?$`)
 
 // retainedBackup is one backup archive under consideration by the retention
 // sweep.
@@ -192,6 +202,33 @@ func listRetainedBackups(backupDir string) ([]retainedBackup, error) {
 	return backups, nil
 }
 
+// listIncrementalBackups collects the daily/hourly incremental files present
+// in backupDir (0-2 entries - each kind is always exactly one file, replaced
+// in place). Their "date" is the file's mtime, since these files are
+// overwritten rather than renamed, so the filename carries no date.
+func listIncrementalBackups(backupDir string) ([]retainedBackup, error) {
+	matches, err := filepath.Glob(filepath.Join(backupDir, "wthr-*.tar.gz*"))
+	if err != nil {
+		return nil, err
+	}
+
+	backups := make([]retainedBackup, 0, len(matches))
+	for _, m := range matches {
+		name := filepath.Base(m)
+		if !incrementalNamePattern.MatchString(name) {
+			continue
+		}
+		info, err := os.Stat(m)
+		if err != nil {
+			continue
+		}
+		backups = append(backups, retainedBackup{path: m, name: name, date: info.ModTime(), size: info.Size()})
+	}
+
+	sort.Slice(backups, func(i, j int) bool { return backups[i].date.Before(backups[j].date) })
+	return backups, nil
+}
+
 // keepNewest marks the newest n entries of list (list must be sorted oldest
 // first) as kept in the given set.
 func keepNewest(list []retainedBackup, n int, kept map[string]bool) {
@@ -205,6 +242,30 @@ func keepNewest(list []retainedBackup, n int, kept map[string]bool) {
 	for _, b := range list[start:] {
 		kept[b.path] = true
 	}
+}
+
+// BackupInfo is a lightweight, exported view of a dated backup archive for
+// callers outside the package (e.g. the scheduler's disk-space guard).
+type BackupInfo struct {
+	Path string
+	Name string
+	Date time.Time
+	Size int64
+}
+
+// ListDatedBackups exposes the app-created full backups subject to
+// count-based tiered retention (wthr_backup_YYYY-MM-DD[_HHMMSS].tar.gz[.enc])
+// to callers outside the package, oldest first.
+func ListDatedBackups(backupDir string) ([]BackupInfo, error) {
+	backups, err := listRetainedBackups(backupDir)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BackupInfo, len(backups))
+	for i, b := range backups {
+		out[i] = BackupInfo{Path: b.path, Name: b.name, Date: b.date, Size: b.size}
+	}
+	return out, nil
 }
 
 // CountBackups returns how many app-created backup archives remain in
@@ -264,6 +325,17 @@ func applyRetention(backupDir string, retention RetentionConfig, volumeTotalByte
 		}
 		deleted = append(deleted, b.name)
 	}
+
+	// Daily/hourly incrementals are never pruned by the count-based tiers
+	// above (AI.md PART 22: "always exactly 1 file, always replaced"), but
+	// they still occupy space, so the size cap pass below - the one sweep
+	// step nothing is exempt from - considers them too.
+	incrementals, incErr := listIncrementalBackups(backupDir)
+	if incErr != nil {
+		return deleted, incErr
+	}
+	remaining = append(remaining, incrementals...)
+	sort.Slice(remaining, func(i, j int) bool { return remaining[i].date.Before(remaining[j].date) })
 
 	capBytes, capErr := ParseMaxTotalSizeBytes(normalized.MaxTotalSize, volumeTotalBytes)
 	if capErr == nil && capBytes > 0 {

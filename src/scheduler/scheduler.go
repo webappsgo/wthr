@@ -654,34 +654,171 @@ func CreateSystemBackup(db *sql.DB) error {
 	// Create backup service per AI.md PART 25
 	svc := backup.New(p.ConfigDir, p.DataDir)
 
+	// AI.md PART 22 Backup Creation Flow step 2: abort (log
+	// backup.skipped_disk_full, level=error) without creating a backup when
+	// free space is under 2x the most recent backup's size, or disk usage is
+	// above disk_threshold (default 90%).
+	backupDir := filepath.Join(p.DataDir, "backups")
+	if skip, reason := backupDiskSpaceExceeded(backupDir); skip {
+		logBackupSkippedDiskFullAudit(database.GetServerDB(), reason)
+		log.Printf("ERROR: %s", reason)
+		return nil
+	}
+
 	// Check for encryption password from settings
 	var encryptionPassword string
 	_ = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.encryption_password'").Scan(&encryptionPassword)
 
-	// Create backup with options per AI.md PART 25
-	opts := backup.BackupOptions{
+	retention := systemBackupRetention()
+
+	// AI.md PART 22 Backup Creation Flow steps 3-4: create and verify the
+	// full backup ({project_name}_backup_YYYY-MM-DD.tar.gz[.enc]).
+	fullOpts := backup.BackupOptions{
 		ConfigDir:   p.ConfigDir,
 		DataDir:     p.DataDir,
-		OutputPath:  "", // Auto-generate filename
+		OutputPath:  "", // Auto-generated from Kind
+		Kind:        backup.KindDailyFull,
 		Password:    encryptionPassword,
 		IncludeSSL:  false, // Don't include SSL in automated backups
 		IncludeData: false, // Don't include data files in automated backups
 		CreatedBy:   "scheduler",
 		AppVersion:  "1.0.0",
-		Retention:   systemBackupRetention(),
+		Retention:   retention,
 	}
 
 	log.Println("INFO: Starting automated backup...")
-	backupPath, deleted, err := svc.Create(opts)
+	backupPath, deleted, err := svc.Create(fullOpts)
 	if err != nil {
 		log.Printf("ERROR: Automated backup failed: %v", err)
 		return fmt.Errorf("backup failed: %w", err)
 	}
 
 	logBackupRetentionAudit(database.GetServerDB(), "scheduler", "daily", backupPath, deleted)
-
 	log.Printf("OK: Automated backup completed: %s", backupPath)
+
+	// AI.md PART 22 Backup Creation Flow steps 5-6: create and verify the
+	// daily incremental ({project_name}-daily.tar.gz[.enc]), replaced in
+	// place each run and always exactly 1 file.
+	dailyOpts := fullOpts
+	dailyOpts.OutputPath = ""
+	dailyOpts.Kind = backup.KindDailyIncremental
+
+	dailyPath, dailyDeleted, dailyErr := svc.Create(dailyOpts)
+	if dailyErr != nil {
+		log.Printf("ERROR: Daily incremental backup failed: %v", dailyErr)
+		return fmt.Errorf("daily incremental backup failed: %w", dailyErr)
+	}
+
+	logBackupRetentionAudit(database.GetServerDB(), "scheduler", "daily", dailyPath, dailyDeleted)
+	logBackupDailyUpdatedAudit(database.GetServerDB(), dailyPath)
+	log.Printf("OK: Daily incremental backup completed: %s", dailyPath)
+
 	return nil
+}
+
+// backupDiskSpaceExceeded implements AI.md PART 22 Backup Creation Flow step
+// 2's disk-space guard: skip (abort, do NOT create the backup) when free
+// space is under 2x the most recent backup's size, or disk usage is above
+// disk_threshold (default 90%, not currently admin-configurable). Returns
+// false with no reason when the backup dir doesn't exist yet (first run) or
+// space cannot be determined - a guard that can't evaluate must never block
+// the first backup. The actual free/total/prior-backup lookups happen here;
+// the pass/fail decision itself lives in diskSpaceGuardDecision so it can be
+// unit tested with synthetic numbers instead of real (and potentially huge)
+// files.
+func backupDiskSpaceExceeded(backupDir string) (bool, string) {
+	free, freeErr := backup.VolumeFreeBytes(backupDir)
+	total, totalErr := backup.VolumeTotalBytes(backupDir)
+	if freeErr != nil || totalErr != nil || total <= 0 {
+		return false, ""
+	}
+
+	backups, listErr := backup.ListDatedBackups(backupDir)
+	var mostRecentSize int64
+	hasPriorBackup := listErr == nil && len(backups) > 0
+	if hasPriorBackup {
+		mostRecentSize = backups[len(backups)-1].Size
+	}
+
+	return diskSpaceGuardDecision(free, total, mostRecentSize, hasPriorBackup)
+}
+
+// diskSpaceGuardDecision is the pure decision logic behind
+// backupDiskSpaceExceeded: given already-resolved free/total disk bytes and
+// the size of the most recent prior backup (if any), decide whether AI.md
+// PART 22's disk-space guard should abort the scheduled backup run.
+func diskSpaceGuardDecision(free, total, mostRecentBackupSize int64, hasPriorBackup bool) (bool, string) {
+	const diskThresholdPercent = 90
+
+	usedPercent := float64(total-free) / float64(total) * 100
+	if usedPercent > diskThresholdPercent {
+		return true, fmt.Sprintf("backup.skipped_disk_full: disk usage %.1f%% exceeds threshold %d%%", usedPercent, diskThresholdPercent)
+	}
+
+	if !hasPriorBackup {
+		return false, ""
+	}
+
+	if free < 2*mostRecentBackupSize {
+		return true, fmt.Sprintf("backup.skipped_disk_full: free space %d bytes is under 2x most recent backup size %d bytes", free, mostRecentBackupSize)
+	}
+
+	return false, ""
+}
+
+// logBackupSkippedDiskFullAudit records AI.md PART 22/36321's
+// "backup.skipped_disk_full" audit event ("Backup skipped - insufficient
+// free space or disk above threshold") when backupDiskSpaceExceeded aborts a
+// scheduled run before any backup file is created.
+func logBackupSkippedDiskFullAudit(db *sql.DB, reason string) {
+	if db == nil {
+		return
+	}
+
+	details, marshalErr := json.Marshal(map[string]interface{}{
+		"reason": reason,
+	})
+	if marshalErr != nil {
+		log.Printf("WARNING: failed to marshal backup.skipped_disk_full audit details: %v", marshalErr)
+		return
+	}
+
+	now := time.Now()
+	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, 'scheduler', 'daily', 'backup.skipped_disk_full', 'backup', '', ?, 'system', 'scheduler', 'error')
+	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), string(details))
+
+	if insertErr != nil {
+		log.Printf("WARNING: failed to log backup.skipped_disk_full: %v", insertErr)
+	}
+}
+
+// logBackupDailyUpdatedAudit records AI.md PART 22/36320's
+// "backup.daily_updated" audit event ("Daily incremental updated") after the
+// fixed-path daily incremental file is (re)created.
+func logBackupDailyUpdatedAudit(db *sql.DB, dailyPath string) {
+	if db == nil {
+		return
+	}
+
+	details, marshalErr := json.Marshal(map[string]interface{}{
+		"filename": filepath.Base(dailyPath),
+	})
+	if marshalErr != nil {
+		log.Printf("WARNING: failed to marshal backup.daily_updated audit details: %v", marshalErr)
+		return
+	}
+
+	now := time.Now()
+	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, 'scheduler', 'daily', 'backup.daily_updated', 'backup', ?, ?, 'system', 'scheduler', 'success')
+	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), filepath.Base(dailyPath), string(details))
+
+	if insertErr != nil {
+		log.Printf("WARNING: failed to log backup.daily_updated: %v", insertErr)
+	}
 }
 
 // logBackupRetentionAudit records AI.md PART 22's "backup.retention_cleanup"

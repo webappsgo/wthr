@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -408,6 +409,96 @@ func TestCleanupOldBackupsRetention(t *testing.T) {
 	})
 }
 
+// TestApplyRetentionIncrementalsExempt verifies daily/hourly incremental
+// files are never pruned by the count-based tiers (AI.md PART 22: "always
+// exactly 1 file, always replaced"), but ARE counted toward the
+// max_total_size cap once it is exceeded.
+func TestApplyRetentionIncrementalsExempt(t *testing.T) {
+	dir := t.TempDir()
+
+	// A single dated full backup, kept by MaxBackups: 1. The size-cap sweep
+	// sorts by each backup's *represented* date, not disk mtime: a dated full
+	// backup's date comes from its filename (midnight on that calendar day),
+	// while an incremental's date is its file mtime (it carries no date in
+	// its name). So to make the daily incremental sort strictly older than
+	// this full backup, its mtime must fall before the full backup's
+	// midnight, not merely be numerically smaller than "now".
+	full := filepath.Join(dir, "wthr_backup_2024-01-02.tar.gz")
+	if err := os.WriteFile(full, []byte("full-data"), 0600); err != nil {
+		t.Fatalf("failed to write full backup fixture: %v", err)
+	}
+
+	daily := filepath.Join(dir, "wthr-daily.tar.gz")
+	if err := os.WriteFile(daily, []byte("daily-data"), 0600); err != nil {
+		t.Fatalf("failed to write daily incremental fixture: %v", err)
+	}
+	// One hour before the full backup's midnight, so it sorts as the oldest
+	// entry and is the size-cap sweep's first eviction candidate.
+	old := time.Date(2024, time.January, 1, 23, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(daily, old, old); err != nil {
+		t.Fatalf("failed to set daily incremental modtime: %v", err)
+	}
+
+	t.Run("count_based_tiers_never_prune_incrementals", func(t *testing.T) {
+		deleted, err := applyRetention(dir, RetentionConfig{MaxBackups: 1}, 0)
+		if err != nil {
+			t.Fatalf("applyRetention() error = %v", err)
+		}
+		if len(deleted) != 0 {
+			t.Errorf("expected nothing deleted, got %v", deleted)
+		}
+		if _, err := os.Stat(daily); err != nil {
+			t.Errorf("daily incremental should survive count-based retention: %v", err)
+		}
+	})
+
+	t.Run("size_cap_can_evict_incrementals", func(t *testing.T) {
+		// Cap so tight only one of the two files fits - the older
+		// (incremental) file must be evicted first.
+		deleted, err := applyRetention(dir, RetentionConfig{MaxBackups: 1, MaxTotalSize: "9B"}, 0)
+		if err != nil {
+			t.Fatalf("applyRetention() error = %v", err)
+		}
+		if len(deleted) != 1 || deleted[0] != "wthr-daily.tar.gz" {
+			t.Fatalf("expected wthr-daily.tar.gz evicted by the size cap, got %v", deleted)
+		}
+		if _, err := os.Stat(full); err != nil {
+			t.Errorf("dated full backup should survive the size cap sweep: %v", err)
+		}
+	})
+}
+
+// TestListDatedBackups verifies the exported wrapper surfaces the app's
+// dated full backups (both the timestamped manual and date-only scheduled
+// formats), oldest first, and excludes incremental files.
+func TestListDatedBackups(t *testing.T) {
+	dir := t.TempDir()
+
+	for _, name := range []string{
+		"wthr_backup_2024-01-02.tar.gz",
+		"wthr_backup_2024-01-01_120000.tar.gz",
+		"wthr-daily.tar.gz",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("data"), 0600); err != nil {
+			t.Fatalf("failed to write fixture %q: %v", name, err)
+		}
+	}
+
+	backups, err := ListDatedBackups(dir)
+	if err != nil {
+		t.Fatalf("ListDatedBackups() error = %v", err)
+	}
+	if len(backups) != 2 {
+		t.Fatalf("expected 2 dated backups, got %d: %+v", len(backups), backups)
+	}
+	if backups[0].Name != "wthr_backup_2024-01-01_120000.tar.gz" {
+		t.Errorf("expected oldest backup first, got %q", backups[0].Name)
+	}
+	if backups[1].Name != "wthr_backup_2024-01-02.tar.gz" {
+		t.Errorf("expected newest backup second, got %q", backups[1].Name)
+	}
+}
+
 // TestBackupServiceCreateAndVerify exercises the full Create() workflow
 // end-to-end: collects real files, archives, optionally encrypts, writes to
 // disk, and self-verifies. Covers both the plaintext and encrypted paths.
@@ -449,6 +540,99 @@ func TestBackupServiceCreateAndVerify(t *testing.T) {
 				t.Fatalf("Verify() error = %v", err)
 			}
 		})
+	}
+}
+
+// TestCreateKindFilenames verifies BackupOptions.Kind selects the correct
+// auto-generated filename format per AI.md PART 22's "Backup Files Created"
+// table: date-only for the scheduled full backup, fixed replaced-in-place
+// names for the daily/hourly incrementals, and the timestamped manual format
+// when Kind is left unset.
+func TestCreateKindFilenames(t *testing.T) {
+	tests := []struct {
+		name       string
+		kind       string
+		wantPrefix string
+		wantExact  string
+	}{
+		{"manual_default", KindManual, "wthr_backup_", ""},
+		{"daily_full", KindDailyFull, "wthr_backup_", ""},
+		{"daily_incremental", KindDailyIncremental, "", "wthr-daily.tar.gz"},
+		{"hourly_incremental", KindHourlyIncremental, "", "wthr-hourly.tar.gz"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configDir := t.TempDir()
+			dataDir := t.TempDir()
+
+			if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("mode: production"), 0600); err != nil {
+				t.Fatalf("failed to seed server.yml: %v", err)
+			}
+
+			svc := New(configDir, dataDir)
+			outPath, _, err := svc.Create(BackupOptions{
+				ConfigDir:  configDir,
+				DataDir:    dataDir,
+				Kind:       tt.kind,
+				CreatedBy:  "tester",
+				AppVersion: "0.0.1-test",
+			})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+
+			name := filepath.Base(outPath)
+			if tt.wantExact != "" && name != tt.wantExact {
+				t.Errorf("filename = %q, want exactly %q", name, tt.wantExact)
+			}
+			if tt.wantPrefix != "" && !strings.HasPrefix(name, tt.wantPrefix) {
+				t.Errorf("filename = %q, want prefix %q", name, tt.wantPrefix)
+			}
+		})
+	}
+}
+
+// TestCreateIncrementalReplacesInPlace verifies the daily/hourly incremental
+// Kinds always produce exactly one file per kind, overwritten on each call,
+// per AI.md PART 22: "always exactly 1 file, always replaced".
+func TestCreateIncrementalReplacesInPlace(t *testing.T) {
+	configDir := t.TempDir()
+	dataDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(configDir, "server.yml"), []byte("mode: production"), 0600); err != nil {
+		t.Fatalf("failed to seed server.yml: %v", err)
+	}
+
+	svc := New(configDir, dataDir)
+	opts := BackupOptions{
+		ConfigDir:  configDir,
+		DataDir:    dataDir,
+		Kind:       KindDailyIncremental,
+		CreatedBy:  "tester",
+		AppVersion: "0.0.1-test",
+	}
+
+	firstPath, _, err := svc.Create(opts)
+	if err != nil {
+		t.Fatalf("first Create() error = %v", err)
+	}
+
+	secondPath, _, err := svc.Create(opts)
+	if err != nil {
+		t.Fatalf("second Create() error = %v", err)
+	}
+
+	if firstPath != secondPath {
+		t.Fatalf("incremental path changed between runs: %q != %q", firstPath, secondPath)
+	}
+
+	matches, err := filepath.Glob(filepath.Join(dataDir, "backups", "wthr-daily.tar.gz*"))
+	if err != nil {
+		t.Fatalf("glob error: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected exactly 1 daily incremental file, found %d: %v", len(matches), matches)
 	}
 }
 

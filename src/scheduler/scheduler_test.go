@@ -2,7 +2,10 @@ package scheduler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1437,6 +1440,194 @@ func TestParseNVDPublished(t *testing.T) {
 			if parsed, err := parseNVDPublished(input); err == nil {
 				t.Errorf("input %q: expected an error, got %s", input, parsed)
 			}
+		}
+	})
+}
+
+// TestBackupDiskSpaceExceeded exercises AI.md PART 22 Backup Creation Flow
+// step 2's disk-space guard. The disk_threshold (90% used) branch is not
+// covered here - it depends on real filesystem occupancy via
+// backup.VolumeTotalBytes/VolumeFreeBytes (concrete syscalls, not a fake or
+// interface), so it cannot be forced from a unit test without actually
+// filling a disk; the free-space-vs-prior-backup-size branch below is fully
+// under test instead, since that only depends on files this test creates.
+func TestBackupDiskSpaceExceeded(t *testing.T) {
+	t.Run("missing backup dir never blocks (space can't be determined)", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "does-not-exist")
+		skip, reason := backupDiskSpaceExceeded(missing)
+		if skip {
+			t.Errorf("backupDiskSpaceExceeded(%q) = (true, %q), want (false, \"\") when the dir doesn't exist yet", missing, reason)
+		}
+	})
+
+	t.Run("existing dir with no prior backups never blocks (first run)", func(t *testing.T) {
+		dir := t.TempDir()
+		skip, reason := backupDiskSpaceExceeded(dir)
+		if skip {
+			t.Errorf("backupDiskSpaceExceeded(%q) = (true, %q), want (false, \"\") with no prior backups on disk", dir, reason)
+		}
+	})
+
+	t.Run("existing dir with a small prior backup and ample free space does not block", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "wthr_backup_2026-01-01.tar.gz"), []byte("small"), 0o600); err != nil {
+			t.Fatalf("failed to seed prior backup file: %v", err)
+		}
+		skip, reason := backupDiskSpaceExceeded(dir)
+		if skip {
+			t.Errorf("backupDiskSpaceExceeded(%q) = (true, %q), want (false, \"\") when free space is well over 2x a tiny prior backup", dir, reason)
+		}
+	})
+
+}
+
+// TestDiskSpaceGuardDecision unit-tests the pure decision logic behind
+// backupDiskSpaceExceeded (AI.md PART 22 Backup Creation Flow step 2) with
+// synthetic free/total/prior-backup-size numbers - no real files are
+// written, since forcing the real disk-full or free-space-vs-backup-size
+// branches through backupDiskSpaceExceeded itself would require actually
+// filling a disk or allocating a file as large as the test host's free
+// space.
+func TestDiskSpaceGuardDecision(t *testing.T) {
+	const gb = int64(1) << 30
+
+	tests := []struct {
+		name                 string
+		free, total          int64
+		mostRecentBackupSize int64
+		hasPriorBackup       bool
+		wantSkip             bool
+		wantReasonContains   string
+	}{
+		{
+			name:     "plenty of free space, no prior backup",
+			free:     90 * gb,
+			total:    100 * gb,
+			wantSkip: false,
+		},
+		{
+			name:                 "plenty of free space relative to a small prior backup",
+			free:                 90 * gb,
+			total:                100 * gb,
+			mostRecentBackupSize: 1 * gb,
+			hasPriorBackup:       true,
+			wantSkip:             false,
+		},
+		{
+			name:               "disk usage over 90% blocks even with no prior backup",
+			free:               5 * gb,
+			total:              100 * gb,
+			wantSkip:           true,
+			wantReasonContains: "disk usage",
+		},
+		{
+			name:     "disk usage exactly at 90% does not block (threshold is exclusive)",
+			free:     10 * gb,
+			total:    100 * gb,
+			wantSkip: false,
+		},
+		{
+			name:                 "free space under 2x the most recent backup size blocks",
+			free:                 15 * gb,
+			total:                100 * gb,
+			mostRecentBackupSize: 10 * gb,
+			hasPriorBackup:       true,
+			wantSkip:             true,
+			wantReasonContains:   "free space",
+		},
+		{
+			name:                 "free space exactly 2x the most recent backup size does not block",
+			free:                 20 * gb,
+			total:                100 * gb,
+			mostRecentBackupSize: 10 * gb,
+			hasPriorBackup:       true,
+			wantSkip:             false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			skip, reason := diskSpaceGuardDecision(tt.free, tt.total, tt.mostRecentBackupSize, tt.hasPriorBackup)
+			if skip != tt.wantSkip {
+				t.Errorf("diskSpaceGuardDecision() skip = %v, want %v (reason = %q)", skip, tt.wantSkip, reason)
+			}
+			if tt.wantReasonContains != "" && !strings.Contains(reason, tt.wantReasonContains) {
+				t.Errorf("diskSpaceGuardDecision() reason = %q, want it to contain %q", reason, tt.wantReasonContains)
+			}
+			if !tt.wantSkip && reason != "" {
+				t.Errorf("diskSpaceGuardDecision() reason = %q, want empty when not skipping", reason)
+			}
+		})
+	}
+}
+
+// TestLogBackupSkippedDiskFullAudit verifies logBackupSkippedDiskFullAudit
+// records AI.md PART 22/36321's "backup.skipped_disk_full" audit event
+// (level=error per the Backup Creation Flow) with the guard's reason string
+// preserved in details, and that a nil db is a safe no-op.
+func TestLogBackupSkippedDiskFullAudit(t *testing.T) {
+	t.Run("nil db is a safe no-op", func(t *testing.T) {
+		logBackupSkippedDiskFullAudit(nil, "reason")
+	})
+
+	t.Run("writes the audit row with the guard's reason", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+
+		const reason = "backup.skipped_disk_full: disk usage 95.0% exceeds threshold 90%"
+		logBackupSkippedDiskFullAudit(serverDB, reason)
+
+		var action, status, detailsJSON string
+		if err := serverDB.QueryRow(
+			"SELECT action, status, details FROM server_audit_log WHERE action = 'backup.skipped_disk_full'",
+		).Scan(&action, &status, &detailsJSON); err != nil {
+			t.Fatalf("expected a backup.skipped_disk_full audit row: %v", err)
+		}
+		if status != "error" {
+			t.Errorf("status = %q, want %q per AI.md PART 22 (level=error)", status, "error")
+		}
+
+		var details map[string]interface{}
+		if err := json.Unmarshal([]byte(detailsJSON), &details); err != nil {
+			t.Fatalf("details is not valid JSON: %v", err)
+		}
+		if details["reason"] != reason {
+			t.Errorf("details.reason = %v, want %q", details["reason"], reason)
+		}
+	})
+}
+
+// TestLogBackupDailyUpdatedAudit verifies logBackupDailyUpdatedAudit records
+// AI.md PART 22/36320's "backup.daily_updated" audit event with the daily
+// incremental's filename, and that a nil db is a safe no-op.
+func TestLogBackupDailyUpdatedAudit(t *testing.T) {
+	t.Run("nil db is a safe no-op", func(t *testing.T) {
+		logBackupDailyUpdatedAudit(nil, "/tmp/wthr-daily.tar.gz")
+	})
+
+	t.Run("writes the audit row with the daily incremental's filename", func(t *testing.T) {
+		serverDB, _ := newSchedulerTestDBs(t)
+
+		logBackupDailyUpdatedAudit(serverDB, "/var/lib/wthr/backups/wthr-daily.tar.gz.enc")
+
+		var status, resourceID, detailsJSON string
+		if err := serverDB.QueryRow(
+			"SELECT status, resource_id, details FROM server_audit_log WHERE action = 'backup.daily_updated'",
+		).Scan(&status, &resourceID, &detailsJSON); err != nil {
+			t.Fatalf("expected a backup.daily_updated audit row: %v", err)
+		}
+		if status != "success" {
+			t.Errorf("status = %q, want %q", status, "success")
+		}
+		if resourceID != "wthr-daily.tar.gz.enc" {
+			t.Errorf("resource_id = %q, want %q", resourceID, "wthr-daily.tar.gz.enc")
+		}
+
+		var details map[string]interface{}
+		if err := json.Unmarshal([]byte(detailsJSON), &details); err != nil {
+			t.Fatalf("details is not valid JSON: %v", err)
+		}
+		if details["filename"] != "wthr-daily.tar.gz.enc" {
+			t.Errorf("details.filename = %v, want %q", details["filename"], "wthr-daily.tar.gz.enc")
 		}
 	})
 }

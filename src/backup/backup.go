@@ -34,6 +34,27 @@ type Manifest struct {
 	Checksum         string    `json:"checksum"`
 }
 
+// Backup kind values recognized by BackupOptions.Kind, controlling which
+// filename format Create auto-generates when OutputPath is empty, per AI.md
+// PART 22's "Backup Files Created" table (lines 36453-36471):
+//   - KindManual (default/""): {project_name}_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc],
+//     one new file per call, counted under max_backups. Used by the CLI/API
+//     "backup [filename]" command and any caller that doesn't set Kind.
+//   - KindDailyFull: {project_name}_backup_YYYY-MM-DD.tar.gz[.enc], date-only
+//     (no time), one per calendar day, counted under max_backups. Used by the
+//     scheduled backup_daily task (02:00).
+//   - KindDailyIncremental: {project_name}-daily.tar.gz[.enc], a single fixed
+//     filename replaced in place every run - never counted by the retention
+//     sweep's count-based tiers.
+//   - KindHourlyIncremental: {project_name}-hourly.tar.gz[.enc], same
+//     replaced-in-place behavior as KindDailyIncremental, on an hourly cadence.
+const (
+	KindManual            = ""
+	KindDailyFull         = "daily_full"
+	KindDailyIncremental  = "daily_incremental"
+	KindHourlyIncremental = "hourly_incremental"
+)
+
 // BackupOptions configures backup creation per AI.md PART 25
 type BackupOptions struct {
 	ConfigDir   string
@@ -44,6 +65,10 @@ type BackupOptions struct {
 	IncludeData bool
 	CreatedBy   string
 	AppVersion  string
+	// Kind selects the auto-generated filename format when OutputPath is
+	// empty - see the Kind* constants above. Ignored when OutputPath is set
+	// explicitly.
+	Kind string
 	// Retention controls the tiered pruning sweep per AI.md PART 22
 	// (Backup Retention). Nil uses DefaultRetention().
 	Retention *RetentionConfig
@@ -77,8 +102,6 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		opts.DataDir = s.dataDir
 	}
 	if opts.OutputPath == "" {
-		// Filename format per AI.md PART 22 line 22386: wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
-		timestamp := time.Now().Format("2006-01-02_150405")
 		ext := ".tar.gz"
 		if opts.Password != "" {
 			ext = ".tar.gz.enc"
@@ -88,7 +111,25 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		// the CLI list and the retention sweep - looks there. This used to
 		// write to "backup" (singular), so a backup created here was invisible
 		// to every one of those readers and the retention sweep never saw it.
-		opts.OutputPath = filepath.Join(opts.DataDir, "backups", fmt.Sprintf("wthr_backup_%s%s", timestamp, ext))
+		var filename string
+		switch opts.Kind {
+		case KindDailyFull:
+			// Date-only per AI.md PART 22's "Backup Files Created" table -
+			// one full backup per calendar day, distinct from the
+			// timestamped manual/CLI/API format.
+			filename = fmt.Sprintf("wthr_backup_%s%s", time.Now().Format("2006-01-02"), ext)
+		case KindDailyIncremental:
+			// Fixed filename, replaced in place every run - AI.md PART 22:
+			// "always exactly 1 file".
+			filename = "wthr-daily" + ext
+		case KindHourlyIncremental:
+			filename = "wthr-hourly" + ext
+		default:
+			// Manual/CLI/API backups per AI.md PART 22 line 22386:
+			// wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
+			filename = fmt.Sprintf("wthr_backup_%s%s", time.Now().Format("2006-01-02_150405"), ext)
+		}
+		opts.OutputPath = filepath.Join(opts.DataDir, "backups", filename)
 	}
 
 	// Ensure backup directory exists
@@ -158,7 +199,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 	if opts.Retention != nil {
 		retention = *opts.Retention
 	}
-	totalBytes, _ := volumeTotalBytes(backupDir)
+	totalBytes, _ := VolumeTotalBytes(backupDir)
 	deleted, err := applyRetention(backupDir, retention, totalBytes)
 	if err != nil {
 		// Log but don't fail - backup itself succeeded
