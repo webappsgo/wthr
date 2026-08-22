@@ -3364,19 +3364,54 @@ any of the above: `src/graphql/context_keys_test.go`,
     fixture built from `database.ServerSchema`, so it needed no change and
     now exercises the presence check for real.
 
-150. TODO (flagged 2026-08-21 while wiring the admin backup page): PART 22
-    tiered backup retention is not implemented. `config.BackupConfig` has no
-    `Retention` block, so `server.backup.retention.max_backups`,
-    `keep_weekly`, `keep_monthly`, `keep_yearly` and `max_total_size` do not
-    exist anywhere, and `src/backup/backup.go` prunes with a hardcoded
-    `cleanupOldBackups(backupDir, 4)` - a flat count with no yearly >
-    monthly > weekly > daily priority and no total-size cap. The admin
-    schedule endpoints added this pass bind to the pre-existing
-    `backup.enabled` / `backup.interval` / `backup.retention` settings keys
-    because those are the only ones with a backing store; once the spec's
-    retention block exists, both `GetBackupSchedule` and
-    `SaveBackupSchedule` in `src/server/handler/admin_api.go` must be
-    re-pointed at it and the legacy keys migrated. Read: AI.md PART 22.
+150. DONE (2026-08-22). RESOLVED: implemented PART 22 tiered backup
+    retention. New `src/backup/retention.go` adds `RetentionConfig`
+    (`MaxBackups`/`KeepWeekly`/`KeepMonthly`/`KeepYearly`/`MaxTotalSize`),
+    `DefaultRetention()` (`max_backups=1`, `max_total_size="10%"`),
+    falsey-value handling, `Normalize()` (warn-and-substitute, never
+    errors), `ParseMaxTotalSizeBytes()` (percent-of-volume or absolute
+    size), and `applyRetention()` implementing the spec's 8-step
+    yearly>monthly>weekly>daily-then-size-cap algorithm (lines
+    36481-36498) against the actual `wthr_backup_YYYY-MM-DD_HHMMSS`
+    filenames this codebase creates. `src/backup/disk_unix.go` /
+    `disk_windows.go` add `volumeTotalBytes()` (mirrors
+    `src/scheduler/disk_{unix,windows}.go`) to resolve percent caps.
+    `backup.go`'s `Create()` now calls `applyRetention` (via the new
+    `BackupOptions.Retention` field, defaulting to `DefaultRetention()`)
+    instead of the old hardcoded `cleanupOldBackups(backupDir, 4)`, which
+    was deleted along with its test; `backup_test.go`'s
+    `TestCleanupOldBackupsRetention` now drives `applyRetention` directly.
+    `GetBackupSchedule`/`SaveBackupSchedule` in
+    `src/server/handler/admin_api.go` are re-pointed at the new
+    `backup.retention.max_backups`/`keep_weekly`/`keep_monthly`/
+    `keep_yearly`/`max_total_size` settings keys (via
+    `backupRetentionFromSettings`), migrating from the legacy flat
+    `backup.retention` key only when the new key was never saved.
+    `CreateBackup` (admin API), `scheduler.CreateSystemBackup` (the live
+    `backup_daily` task wired at `main.go:878`), and
+    `scheduler.BackupHourlyTask` (the live hourly task at `main.go:891`)
+    all now pass the admin-configured `RetentionConfig` through
+    `backupRetentionFromSettings`/the new `systemBackupRetention()` helper,
+    so a saved admin policy actually governs every backup this project
+    creates, not just the settings API surface. The CLI's
+    `maintenance_backup.go` intentionally still leaves `Retention` unset
+    (falls back to `DefaultRetention()`) - the CLI is a remote client with
+    no direct DB access to the server's saved settings. Two follow-on gaps
+    found while closing this item are carved out to items 160 and 161
+    rather than fixed here (out of this item's scope). Also wired the
+    `backup.retention_cleanup` audit event AI.md PART 22 requires (lines
+    17009, 36318: "Old backups deleted" / "Deleted files, reason,
+    remaining count") - `backup.BackupService.Create()` now returns the
+    deleted-filenames list from `applyRetention()` as a second value
+    instead of discarding it; `backup.CountBackups()` (new,
+    `retention.go`) reports the post-sweep remaining count. The three
+    DB-aware live call sites (`admin_api.CreateBackup` via a new
+    `logBackupRetentionAudit(c, ...)` helper, `scheduler.CreateSystemBackup`
+    and `scheduler.BackupHourlyTask` via a new
+    `logBackupRetentionAudit(db, ...)` helper in `scheduler.go`) write the
+    event into `server_audit_log` only when the sweep actually deleted
+    something; the DB-agnostic CLI (`maintenance_backup.go`) and the
+    dead-code `BackupTask` discard the new return value. Read: AI.md PART 22.
 
 151. TODO (flagged 2026-08-21): `Restore` in `src/backup/restore.go`
     generates a one-time setup token through `generateSetupToken()` and only
@@ -3438,3 +3473,38 @@ any of the above: `src/graphql/context_keys_test.go`,
     the authored subset against the rendered admin pages and adjust wording,
     then re-translate any key whose English changes in all six other locales.
     Read: AI.md PART 31.
+
+160. TODO (flagged 2026-08-22 while closing item 150): AI.md PART 22
+    describes a full backup + a separate `{project_name}-daily.tar.gz[.enc]`
+    incremental (and, with hourly enabled, a third
+    `{project_name}-hourly.tar.gz[.enc]` incremental), so "default: 2 files
+    total" / "with hourly: 3 files total" is a real per-tier file count. This
+    codebase only ever creates the single timestamped
+    `wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]` archive - `scheduler.
+    BackupHourlyTask` calls `svc.Create` with `OutputPath: ""`, so the
+    "hourly" backup is actually just another auto-named full backup, not a
+    replaced-in-place incremental. `applyRetention` (item 150) was written
+    against this codebase's actual single-format reality, not the spec's
+    three-format one. Implementing genuine incremental backups is a
+    separate, larger feature; until then this is a documented divergence
+    from PART 22, not a bug in the retention sweep itself. Read: AI.md
+    PART 22.
+
+161. TODO (flagged 2026-08-22 while closing item 150): three separate,
+    inconsistent controls exist for "how many backups to keep".
+    `src/scheduler/backup_task.go`'s `BackupTask`/`RegisterBackupTask`
+    registers a `"backup_auto"` scheduler task via `s.AddTask` at daily
+    01:00, but `RegisterBackupTask` is never called from anywhere in
+    `src/` (confirmed by `grep -rn RegisterBackupTask`) - it and `BackupTask`
+    are dead code, fully superseded by `scheduler.CreateSystemBackup`
+    (wired live at `main.go:878`) and now item 150's tiered retention.
+    Separately, `src/server/handler/admin_scheduler.go` reads/writes a
+    third settings key, `scheduler.tasks.backup_auto.keep_count` (default
+    4), which does not correspond to any of `backup.retention.*`, the
+    legacy `backup.retention`, or anything `applyRetention` reads - it is
+    unclear whether this key is meant to be the same knob under yet
+    another name, a leftover from the same dead `"backup_auto"` task
+    concept, or a genuinely separate scheduler-UI-only setting. Needs a
+    decision: delete `BackupTask`/`RegisterBackupTask` as dead code and
+    either remove `keep_count` or migrate it into `backup.retention.
+    max_backups`. Read: AI.md PART 19, 22.

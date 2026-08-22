@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/oklog/ulid/v2"
 	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -267,8 +270,16 @@ func CreateBackup(c *gin.Context) {
 	includeSSL := c.PostForm("include_ssl") == "true"
 	includeData := c.PostForm("include_data") == "true"
 
+	// Manual admin-triggered backups honor the same tiered retention policy
+	// (AI.md PART 22) as the scheduled daily backup - falls back to
+	// backup.DefaultRetention() if the settings model can't be resolved.
+	retention := backup.DefaultRetention()
+	if settings, err := adminSettingsModel(c); err == nil {
+		retention = backupRetentionFromSettings(settings)
+	}
+
 	svc := backup.New(configDir, dataDir)
-	backupPath, err := svc.Create(backup.BackupOptions{
+	backupPath, deleted, err := svc.Create(backup.BackupOptions{
 		ConfigDir:   configDir,
 		DataDir:     dataDir,
 		Password:    password,
@@ -276,11 +287,14 @@ func CreateBackup(c *gin.Context) {
 		IncludeData: includeData,
 		CreatedBy:   AdminUsername(c),
 		AppVersion:  Version,
+		Retention:   &retention,
 	})
 	if err != nil {
 		InternalError(c, "Failed to create backup: "+err.Error())
 		return
 	}
+
+	logBackupRetentionAudit(c, backupPath, deleted)
 
 	info, err := os.Stat(backupPath)
 	if err != nil {
@@ -511,6 +525,34 @@ func DeleteBackup(c *gin.Context) {
 	RespondSuccess(c, "Backup deleted successfully")
 }
 
+// backupRetentionFromSettings resolves the tiered retention config from the
+// DB-backed settings keys per AI.md PART 22. If the tiered
+// `backup.retention.max_backups` key was never saved, it migrates the legacy
+// day-count `backup.retention` key (its closest analogue, since the
+// scheduler only ever creates one full backup per day) into max_backups
+// rather than silently discarding an operator's prior choice.
+func backupRetentionFromSettings(settings *model.SettingsModel) backup.RetentionConfig {
+	maxBackups := backupLegacyRetentionDefault
+	if _, err := settings.Get("backup.retention.max_backups"); err == nil {
+		maxBackups = settings.GetInt("backup.retention.max_backups", backupLegacyRetentionDefault)
+	} else if _, err := settings.Get("backup.retention"); err == nil {
+		maxBackups = settings.GetInt("backup.retention", backupLegacyRetentionDefault)
+	}
+
+	return backup.RetentionConfig{
+		MaxBackups:   maxBackups,
+		KeepWeekly:   settings.GetInt("backup.retention.keep_weekly", 0),
+		KeepMonthly:  settings.GetInt("backup.retention.keep_monthly", 0),
+		KeepYearly:   settings.GetInt("backup.retention.keep_yearly", 0),
+		MaxTotalSize: settings.GetString("backup.retention.max_total_size", "10%"),
+	}
+}
+
+// backupLegacyRetentionDefault is AI.md PART 22's max_backups default (1),
+// used both as the tiered-key default and as the fallback default for the
+// legacy day-count key when neither has ever been saved.
+const backupLegacyRetentionDefault = 1
+
 // GetBackupSchedule returns the stored automated-backup settings.
 func GetBackupSchedule(c *gin.Context) {
 	settings, err := adminSettingsModel(c)
@@ -519,10 +561,17 @@ func GetBackupSchedule(c *gin.Context) {
 		return
 	}
 
+	retention := backupRetentionFromSettings(settings)
 	RespondData(c, map[string]interface{}{
-		"enabled":   settings.GetBool("backup.enabled", true),
-		"interval":  settings.GetInt("backup.interval", 6),
-		"retention": settings.GetInt("backup.retention", 30),
+		"enabled":  settings.GetBool("backup.enabled", true),
+		"interval": settings.GetInt("backup.interval", 6),
+		"retention": map[string]interface{}{
+			"max_backups":    retention.MaxBackups,
+			"keep_weekly":    retention.KeepWeekly,
+			"keep_monthly":   retention.KeepMonthly,
+			"keep_yearly":    retention.KeepYearly,
+			"max_total_size": retention.MaxTotalSize,
+		},
 	})
 }
 
@@ -530,9 +579,13 @@ func GetBackupSchedule(c *gin.Context) {
 // on its next run.
 func SaveBackupSchedule(c *gin.Context) {
 	var payload struct {
-		Enabled   *bool `json:"enabled" form:"enabled"`
-		Interval  *int  `json:"interval" form:"interval"`
-		Retention *int  `json:"retention" form:"retention"`
+		Enabled      *bool   `json:"enabled" form:"enabled"`
+		Interval     *int    `json:"interval" form:"interval"`
+		MaxBackups   *int    `json:"max_backups" form:"max_backups"`
+		KeepWeekly   *int    `json:"keep_weekly" form:"keep_weekly"`
+		KeepMonthly  *int    `json:"keep_monthly" form:"keep_monthly"`
+		KeepYearly   *int    `json:"keep_yearly" form:"keep_yearly"`
+		MaxTotalSize *string `json:"max_total_size" form:"max_total_size"`
 	}
 	if err := c.ShouldBind(&payload); err != nil {
 		BadRequest(c, "Invalid request data")
@@ -551,9 +604,8 @@ func SaveBackupSchedule(c *gin.Context) {
 			return
 		}
 	}
-	// An interval of zero hours would make the scheduler run continuously and a
-	// negative retention would delete every archive, so both are rejected
-	// rather than stored.
+	// An interval of zero hours would make the scheduler run continuously, so
+	// it is rejected rather than stored.
 	if payload.Interval != nil {
 		if *payload.Interval < 1 || *payload.Interval > 168 {
 			BadRequest(c, "Backup interval must be between 1 and 168 hours")
@@ -564,12 +616,58 @@ func SaveBackupSchedule(c *gin.Context) {
 			return
 		}
 	}
-	if payload.Retention != nil {
-		if *payload.Retention < 1 || *payload.Retention > 3650 {
-			BadRequest(c, "Backup retention must be between 1 and 3650 days")
+
+	// Tiered retention per AI.md PART 22: invalid values are rejected at the
+	// API boundary (fail the save with a clear message) rather than silently
+	// substituted - substitution-on-invalid is reserved for values loaded
+	// from a config file at startup, where refusing to start is worse than a
+	// corrected default.
+	if payload.MaxBackups != nil {
+		if *payload.MaxBackups < 1 {
+			BadRequest(c, "max_backups must be at least 1")
 			return
 		}
-		if err := settings.SetInt("backup.retention", *payload.Retention); err != nil {
+		if err := settings.SetInt("backup.retention.max_backups", *payload.MaxBackups); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	if payload.KeepWeekly != nil {
+		if *payload.KeepWeekly < 0 {
+			BadRequest(c, "keep_weekly must be 0 or greater")
+			return
+		}
+		if err := settings.SetInt("backup.retention.keep_weekly", *payload.KeepWeekly); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	if payload.KeepMonthly != nil {
+		if *payload.KeepMonthly < 0 {
+			BadRequest(c, "keep_monthly must be 0 or greater")
+			return
+		}
+		if err := settings.SetInt("backup.retention.keep_monthly", *payload.KeepMonthly); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	if payload.KeepYearly != nil {
+		if *payload.KeepYearly < 0 {
+			BadRequest(c, "keep_yearly must be 0 or greater")
+			return
+		}
+		if err := settings.SetInt("backup.retention.keep_yearly", *payload.KeepYearly); err != nil {
+			InternalError(c, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	if payload.MaxTotalSize != nil {
+		if _, err := backup.ParseMaxTotalSizeBytes(*payload.MaxTotalSize, 0); err != nil && strings.TrimSpace(*payload.MaxTotalSize) != "" {
+			BadRequest(c, "max_total_size must be a percent (\"10%\") or an absolute size (\"50G\")")
+			return
+		}
+		if err := settings.SetString("backup.retention.max_total_size", *payload.MaxTotalSize); err != nil {
 			InternalError(c, "Failed to save backup settings: "+err.Error())
 			return
 		}
@@ -580,6 +678,57 @@ func SaveBackupSchedule(c *gin.Context) {
 
 // adminSettingsModel resolves the settings model from the request-scoped
 // database handle the admin API middleware installs.
+// logBackupRetentionAudit records AI.md PART 22's "backup.retention_cleanup"
+// audit event (lines 17009, 36318: "Old backups deleted" / "Deleted files,
+// reason, remaining count") after an admin-triggered backup's tiered
+// retention sweep removes at least one file. A no-op sweep writes nothing.
+// Mirrors logAdminPasskeyAudit's pattern (admin_passkey.go): a best-effort
+// write that never fails the request that already succeeded.
+func logBackupRetentionAudit(c *gin.Context, backupPath string, deleted []string) {
+	if len(deleted) == 0 {
+		return
+	}
+	dbHandle, exists := c.Get("db")
+	if !exists {
+		return
+	}
+	db, ok := dbHandle.(*sql.DB)
+	if !ok || db == nil {
+		return
+	}
+
+	remaining, err := backup.CountBackups(filepath.Dir(backupPath))
+	if err != nil {
+		remaining = 0
+	}
+
+	details, err := json.Marshal(map[string]interface{}{
+		"deleted_files":   deleted,
+		"reason":          "tiered retention policy",
+		"remaining_count": remaining,
+	})
+	if err != nil {
+		return
+	}
+
+	_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+		INSERT INTO server_audit_log
+			(ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, 'admin', ?, 'backup.retention_cleanup', 'backup', ?, ?, ?, ?, 'success')
+	`,
+		ulid.Make().String(),
+		dbtime.FormatSQLTimestamp(time.Now()),
+		AdminUsername(c),
+		filepath.Base(backupPath),
+		string(details),
+		c.ClientIP(),
+		c.Request.UserAgent(),
+	)
+	if err != nil {
+		_ = err // Non-fatal: the backup itself already completed.
+	}
+}
+
 func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
 	db, exists := c.Get("db")
 	if !exists {

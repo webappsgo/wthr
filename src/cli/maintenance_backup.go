@@ -89,7 +89,7 @@ func MaintenanceBackupCommand(args []string) error {
 		AppVersion:  Version,
 	}
 
-	backupPath, err := svc.Create(opts)
+	backupPath, _, err := svc.Create(opts)
 	if err != nil {
 		return fmt.Errorf("backup failed: %w", err)
 	}

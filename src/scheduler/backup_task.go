@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/webappsgo/wthr/src/backup"
+	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 )
 
@@ -41,7 +42,7 @@ func BackupTask(configDir, dataDir string) func() error {
 			AppVersion: "1.0.0",
 		}
 
-		backupPath, err := svc.Create(opts)
+		backupPath, _, err := svc.Create(opts)
 		if err != nil {
 			log.Printf("ERROR: Automated backup failed: %v", err)
 			return fmt.Errorf("backup failed: %w", err)
@@ -73,13 +74,16 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 			IncludeData: false,
 			CreatedBy:   "scheduler-hourly",
 			AppVersion:  "1.0.0",
+			Retention:   systemBackupRetention(),
 		}
 
-		backupPath, err := svc.Create(opts)
+		backupPath, deleted, err := svc.Create(opts)
 		if err != nil {
 			log.Printf("ERROR: Hourly backup failed: %v", err)
 			return fmt.Errorf("hourly backup failed: %w", err)
 		}
+
+		logBackupRetentionAudit(database.GetServerDB(), "scheduler", "hourly", backupPath, deleted)
 
 		log.Printf("OK: Hourly backup completed: %s", backupPath)
 		return nil

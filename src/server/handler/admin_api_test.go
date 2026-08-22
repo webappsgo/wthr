@@ -458,21 +458,31 @@ func TestBackupSchedule(t *testing.T) {
 		var schedule struct {
 			Enabled   bool `json:"enabled"`
 			Interval  int  `json:"interval"`
-			Retention int  `json:"retention"`
+			Retention struct {
+				MaxBackups   int    `json:"max_backups"`
+				KeepWeekly   int    `json:"keep_weekly"`
+				KeepMonthly  int    `json:"keep_monthly"`
+				KeepYearly   int    `json:"keep_yearly"`
+				MaxTotalSize string `json:"max_total_size"`
+			} `json:"retention"`
 		}
 		if err := json.Unmarshal(w.Body.Bytes(), &schedule); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if !schedule.Enabled || schedule.Interval != 6 || schedule.Retention != 30 {
+		if !schedule.Enabled || schedule.Interval != 6 || schedule.Retention.MaxBackups != 1 {
 			t.Fatalf("unexpected defaults: %+v", schedule)
 		}
 	})
 
 	t.Run("saves and reads back", func(t *testing.T) {
 		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
-			"enabled":   false,
-			"interval":  12,
-			"retention": 90,
+			"enabled":        false,
+			"interval":       12,
+			"max_backups":    5,
+			"keep_weekly":    2,
+			"keep_monthly":   3,
+			"keep_yearly":    1,
+			"max_total_size": "20%",
 		})
 		SaveBackupSchedule(c)
 		if w.Code != http.StatusOK {
@@ -485,12 +495,20 @@ func TestBackupSchedule(t *testing.T) {
 		var schedule struct {
 			Enabled   bool `json:"enabled"`
 			Interval  int  `json:"interval"`
-			Retention int  `json:"retention"`
+			Retention struct {
+				MaxBackups   int    `json:"max_backups"`
+				KeepWeekly   int    `json:"keep_weekly"`
+				KeepMonthly  int    `json:"keep_monthly"`
+				KeepYearly   int    `json:"keep_yearly"`
+				MaxTotalSize string `json:"max_total_size"`
+			} `json:"retention"`
 		}
 		if err := json.Unmarshal(readRec.Body.Bytes(), &schedule); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
-		if schedule.Enabled || schedule.Interval != 12 || schedule.Retention != 90 {
+		if schedule.Enabled || schedule.Interval != 12 || schedule.Retention.MaxBackups != 5 ||
+			schedule.Retention.KeepWeekly != 2 || schedule.Retention.KeepMonthly != 3 ||
+			schedule.Retention.KeepYearly != 1 || schedule.Retention.MaxTotalSize != "20%" {
 			t.Fatalf("unexpected saved schedule: %+v", schedule)
 		}
 	})
@@ -505,9 +523,19 @@ func TestBackupSchedule(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects out-of-range retention", func(t *testing.T) {
+	t.Run("rejects out-of-range max_backups", func(t *testing.T) {
 		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
-			"retention": 5000,
+			"max_backups": 0,
+		})
+		SaveBackupSchedule(c)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("rejects negative keep_weekly", func(t *testing.T) {
+		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+			"keep_weekly": -1,
 		})
 		SaveBackupSchedule(c)
 		if w.Code != http.StatusBadRequest {

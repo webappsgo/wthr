@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -667,17 +668,107 @@ func CreateSystemBackup(db *sql.DB) error {
 		IncludeData: false, // Don't include data files in automated backups
 		CreatedBy:   "scheduler",
 		AppVersion:  "1.0.0",
+		Retention:   systemBackupRetention(),
 	}
 
 	log.Println("INFO: Starting automated backup...")
-	backupPath, err := svc.Create(opts)
+	backupPath, deleted, err := svc.Create(opts)
 	if err != nil {
 		log.Printf("ERROR: Automated backup failed: %v", err)
 		return fmt.Errorf("backup failed: %w", err)
 	}
 
+	logBackupRetentionAudit(database.GetServerDB(), "scheduler", "daily", backupPath, deleted)
+
 	log.Printf("OK: Automated backup completed: %s", backupPath)
 	return nil
+}
+
+// logBackupRetentionAudit records AI.md PART 22's "backup.retention_cleanup"
+// audit event (lines 17009, 36318: "Old backups deleted" / "Deleted files,
+// reason, remaining count") after a tiered retention sweep removes at least
+// one backup. A no-op sweep writes nothing - there is no cleanup to audit.
+// db may be nil (e.g. BackupHourlyTask running before startup wiring
+// completes) - that case is treated as "audit unavailable", not an error.
+func logBackupRetentionAudit(db *sql.DB, actorType, actorID, backupPath string, deleted []string) {
+	if db == nil || len(deleted) == 0 {
+		return
+	}
+
+	remaining, err := backup.CountBackups(filepath.Dir(backupPath))
+	if err != nil {
+		log.Printf("WARNING: failed to count remaining backups for audit log: %v", err)
+	}
+
+	details, marshalErr := json.Marshal(map[string]interface{}{
+		"deleted_files":   deleted,
+		"reason":          "tiered retention policy",
+		"remaining_count": remaining,
+	})
+	if marshalErr != nil {
+		log.Printf("WARNING: failed to marshal backup retention audit details: %v", marshalErr)
+		return
+	}
+
+	now := time.Now()
+	_, insertErr := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+		INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, details, ip_address, user_agent, status)
+		VALUES (?, ?, ?, ?, 'backup.retention_cleanup', 'backup', ?, ?, 'system', 'scheduler', 'success')
+	`, ulid.MustNew(ulid.Timestamp(now), rand.Reader).String(), now.UTC().Format(sqlTimestampLayout), actorType, actorID, filepath.Base(backupPath), string(details))
+
+	if insertErr != nil {
+		log.Printf("WARNING: failed to log backup retention cleanup: %v", insertErr)
+	}
+}
+
+// systemBackupRetention reads the admin-configured tiered retention policy
+// (AI.md PART 22, "backup.retention.*" keys) for the scheduled system backup.
+// It mirrors CreateSystemBackup's own raw-SQL settings lookups rather than
+// SettingsModel, so a missing key (never saved by the admin) silently falls
+// through to backup.DefaultRetention()'s zero value and is left unset on the
+// pointer's fields, never blocking the scheduled run.
+func systemBackupRetention() *backup.RetentionConfig {
+	retention := backup.DefaultRetention()
+
+	serverDB := database.GetServerDB()
+	if serverDB == nil {
+		// Server DB not initialized (e.g. BackupHourlyTask/BackupTask
+		// exercised directly in tests, or called before startup wiring
+		// completes) - fall back to the spec default rather than panic.
+		return &retention
+	}
+
+	get := func(key string) (string, bool) {
+		var value string
+		err := database.QueryRowContext(context.Background(), serverDB, database.TimeoutSimpleSelect,
+			"SELECT value FROM server_config WHERE key = ?", key).Scan(&value)
+		return value, err == nil
+	}
+
+	if v, ok := get("backup.retention.max_backups"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			retention.MaxBackups = n
+		}
+	}
+	if v, ok := get("backup.retention.keep_weekly"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			retention.KeepWeekly = n
+		}
+	}
+	if v, ok := get("backup.retention.keep_monthly"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			retention.KeepMonthly = n
+		}
+	}
+	if v, ok := get("backup.retention.keep_yearly"); ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			retention.KeepYearly = n
+		}
+	}
+	if v, ok := get("backup.retention.max_total_size"); ok && v != "" {
+		retention.MaxTotalSize = v
+	}
+	return &retention
 }
 
 // CleanupExpiredTokens removes expired API tokens

@@ -13,9 +13,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -44,6 +44,9 @@ type BackupOptions struct {
 	IncludeData bool
 	CreatedBy   string
 	AppVersion  string
+	// Retention controls the tiered pruning sweep per AI.md PART 22
+	// (Backup Retention). Nil uses DefaultRetention().
+	Retention *RetentionConfig
 }
 
 // BackupService handles backup operations per AI.md PART 25
@@ -61,8 +64,11 @@ func New(configDir, dataDir string) *BackupService {
 }
 
 // Create creates a new backup per AI.md PART 25 lines 22351-22542
-// Follows complete backup workflow with verification and cleanup
-func (s *BackupService) Create(opts BackupOptions) (string, error) {
+// Follows complete backup workflow with verification and cleanup.
+// The second return value lists backup filenames deleted by the tiered
+// retention sweep (AI.md PART 22's "backup.retention_cleanup" audit event) -
+// callers with DB access log it, callers without (the CLI) may discard it.
+func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 	// Set defaults
 	if opts.ConfigDir == "" {
 		opts.ConfigDir = s.configDir
@@ -88,13 +94,13 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 	// Ensure backup directory exists
 	backupDir := filepath.Dir(opts.OutputPath)
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
-		return "", fmt.Errorf("failed to create backup directory: %w", err)
+		return "", nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
 	// Collect files to backup per AI.md PART 25 lines 22357-22367
 	files, err := s.collectFiles(opts)
 	if err != nil {
-		return "", fmt.Errorf("failed to collect files: %w", err)
+		return "", nil, fmt.Errorf("failed to collect files: %w", err)
 	}
 
 	// Create manifest per AI.md PART 25 lines 22390-22408
@@ -115,7 +121,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 	// "Unencrypted archive never touches disk"
 	archiveData, checksumStr, err := s.createArchive(opts.ConfigDir, opts.DataDir, files, manifest)
 	if err != nil {
-		return "", fmt.Errorf("failed to create archive: %w", err)
+		return "", nil, fmt.Errorf("failed to create archive: %w", err)
 	}
 
 	// Update manifest with checksum
@@ -126,7 +132,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 	if opts.Password != "" {
 		encrypted, err := s.encrypt(archiveData, opts.Password)
 		if err != nil {
-			return "", fmt.Errorf("failed to encrypt backup: %w", err)
+			return "", nil, fmt.Errorf("failed to encrypt backup: %w", err)
 		}
 		finalData = encrypted
 	} else {
@@ -135,7 +141,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 
 	// Write to disk
 	if err := os.WriteFile(opts.OutputPath, finalData, 0600); err != nil {
-		return "", fmt.Errorf("failed to write backup file: %w", err)
+		return "", nil, fmt.Errorf("failed to write backup file: %w", err)
 	}
 
 	// Verify backup per AI.md PART 25 lines 22544-22556
@@ -143,17 +149,23 @@ func (s *BackupService) Create(opts BackupOptions) (string, error) {
 	if err := s.Verify(opts.OutputPath, opts.Password); err != nil {
 		// Delete failed backup per AI.md PART 25 line 22539
 		os.Remove(opts.OutputPath)
-		return "", fmt.Errorf("backup verification failed: %w", err)
+		return "", nil, fmt.Errorf("backup verification failed: %w", err)
 	}
 
-	// Cleanup old backups per AI.md PART 25 lines 22496-22542
+	// Apply tiered retention per AI.md PART 22 (Backup Retention)
 	// "Only delete old backups if new backup passes ALL verification checks"
-	if err := s.cleanupOldBackups(backupDir, 4); err != nil {
+	retention := DefaultRetention()
+	if opts.Retention != nil {
+		retention = *opts.Retention
+	}
+	totalBytes, _ := volumeTotalBytes(backupDir)
+	deleted, err := applyRetention(backupDir, retention, totalBytes)
+	if err != nil {
 		// Log but don't fail - backup itself succeeded
-		fmt.Fprintf(os.Stderr, "Warning: failed to cleanup old backups: %v\n", err)
+		log.Printf("WARNING: failed to apply backup retention: %v", err)
 	}
 
-	return opts.OutputPath, nil
+	return opts.OutputPath, deleted, nil
 }
 
 // collectFiles identifies files to include in backup per AI.md PART 25 lines 22357-22367
@@ -463,47 +475,4 @@ func (s *BackupService) decrypt(data []byte, password string) ([]byte, error) {
 	}
 
 	return plaintext, nil
-}
-
-// cleanupOldBackups removes old backups per AI.md PART 25 lines 22496-22542
-// Retention policy: keep last 4 backups (default)
-func (s *BackupService) cleanupOldBackups(backupDir string, maxBackups int) error {
-	// List all backup files
-	files, err := filepath.Glob(filepath.Join(backupDir, "wthr_backup_*.tar.gz*"))
-	if err != nil {
-		return err
-	}
-
-	// If under limit, nothing to do per AI.md PART 25
-	if len(files) <= maxBackups {
-		return nil
-	}
-
-	// Sort by modification time (oldest first)
-	type fileInfo struct {
-		path    string
-		modTime time.Time
-	}
-	var fileInfos []fileInfo
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil {
-			continue
-		}
-		fileInfos = append(fileInfos, fileInfo{path: file, modTime: info.ModTime()})
-	}
-
-	sort.Slice(fileInfos, func(i, j int) bool {
-		return fileInfos[i].modTime.Before(fileInfos[j].modTime)
-	})
-
-	// Delete oldest files
-	toDelete := len(fileInfos) - maxBackups
-	for i := 0; i < toDelete; i++ {
-		if err := os.Remove(fileInfos[i].path); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete old backup %s: %v\n", fileInfos[i].path, err)
-		}
-	}
-
-	return nil
 }

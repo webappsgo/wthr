@@ -360,11 +360,12 @@ func TestCleanupOldBackupsRetention(t *testing.T) {
 		return names
 	}
 
+	retention := RetentionConfig{MaxBackups: 4}
+
 	t.Run("zero_backups", func(t *testing.T) {
 		dir := t.TempDir()
-		svc := New("", "")
-		if err := svc.cleanupOldBackups(dir, 4); err != nil {
-			t.Fatalf("cleanupOldBackups() error = %v", err)
+		if _, err := applyRetention(dir, retention, 0); err != nil {
+			t.Fatalf("applyRetention() error = %v", err)
 		}
 		remaining, _ := filepath.Glob(filepath.Join(dir, "wthr_backup_*.tar.gz*"))
 		if len(remaining) != 0 {
@@ -375,9 +376,8 @@ func TestCleanupOldBackupsRetention(t *testing.T) {
 	t.Run("exactly_at_limit_keeps_all", func(t *testing.T) {
 		dir := t.TempDir()
 		names := makeBackups(t, dir, 4)
-		svc := New("", "")
-		if err := svc.cleanupOldBackups(dir, 4); err != nil {
-			t.Fatalf("cleanupOldBackups() error = %v", err)
+		if _, err := applyRetention(dir, retention, 0); err != nil {
+			t.Fatalf("applyRetention() error = %v", err)
 		}
 		remaining, _ := filepath.Glob(filepath.Join(dir, "wthr_backup_*.tar.gz*"))
 		if len(remaining) != len(names) {
@@ -388,9 +388,8 @@ func TestCleanupOldBackupsRetention(t *testing.T) {
 	t.Run("one_over_limit_prunes_oldest", func(t *testing.T) {
 		dir := t.TempDir()
 		names := makeBackups(t, dir, 5)
-		svc := New("", "")
-		if err := svc.cleanupOldBackups(dir, 4); err != nil {
-			t.Fatalf("cleanupOldBackups() error = %v", err)
+		if _, err := applyRetention(dir, retention, 0); err != nil {
+			t.Fatalf("applyRetention() error = %v", err)
 		}
 		remaining, _ := filepath.Glob(filepath.Join(dir, "wthr_backup_*.tar.gz*"))
 		if len(remaining) != 4 {
@@ -431,7 +430,7 @@ func TestBackupServiceCreateAndVerify(t *testing.T) {
 			}
 
 			svc := New(configDir, dataDir)
-			outPath, err := svc.Create(BackupOptions{
+			outPath, _, err := svc.Create(BackupOptions{
 				ConfigDir:  configDir,
 				DataDir:    dataDir,
 				Password:   tt.password,
