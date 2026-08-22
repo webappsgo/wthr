@@ -3500,24 +3500,29 @@ any of the above: `src/graphql/context_keys_test.go`,
     resolve `database.GetServerDB()` internally instead), so left as-is -
     out of this fix's scope. Read: AI.md PART 10, 11, 19.
 
-155. TODO (opened 2026-08-21 when item 149 was resolved): human review of the
-    English wording for the 371 locale keys that had no HEAD source string.
-    The i18n locale set was rebuilt to 1923 keys per language across `en, es,
-    zh, fr, ar, de, ja`, all seven key sets identical, every `t $lang "..."`
-    call site in `src/` resolving. Of those keys, 205 were the pre-existing
-    HEAD values (untouched), 1351 were reconstructed mechanically by diffing
-    each working-tree template against `git show HEAD:{path}` and lifting the
-    English literal that stood at the position the `t` call replaced, and 371
-    had no HEAD counterpart because they belong to template files created
-    after the last commit. Those 371 were authored from surrounding markup,
-    field names and key names, so the English is plausible but unreviewed -
-    it is the only part of the rebuild that is not evidence-backed. Four of
-    them were corrected after the fact (`admin.backup.password_hint`,
-    `interval_hint`, `include_ssl_label`, `include_data_label` had picked up
-    the wrong neighbouring literal); the rest have had no second pass. Review
-    the authored subset against the rendered admin pages and adjust wording,
-    then re-translate any key whose English changes in all six other locales.
-    Read: AI.md PART 31.
+155. DONE (2026-08-22, best-effort). Re-derived the 371-key authored subset
+    by diffing `011b946cd4e7` (pre-rebuild) against `9514d3bd4c9a` (rebuild
+    commit) to find the 26 template files created in that commit, then
+    extracting every `t $lang "key"` call from them (~340 keys, a near-exact
+    match of the original 371). Ran a full contextual review of every one of
+    those keys against its template's surrounding markup (label/field it
+    sits next to, its HTML element, neighbouring keys in the same
+    section) - specifically hunting the same failure class as the 4 keys
+    already fixed (a value copy-pasted from a *different* nearby field: a
+    `_hint` holding another field's label, a button holding another
+    button's text, etc.). Result: zero further instances of that bug found
+    across all ~340 keys; no locale file needed editing (confirmed via
+    `git status`/`git diff` - none of the 7 `src/common/i18n/locales/*.json`
+    files changed; all 7 still load with an identical 1929-key set).
+    Caveat: this was an AI contextual-review pass over template source, not
+    a human eyeballing rendered admin pages in a browser - it can catch the
+    "wrong field's text" bug class the 4 prior fixes exemplify, but cannot
+    catch a value that is plausible in isolation yet still reads wrong once
+    actually rendered (tone, truncation, layout overflow, etc.). If a human
+    later does a visual pass over the admin panel and finds wording issues,
+    file them as new TODO.AI.md items - this item was the "not evidence-
+    backed" flag on the 371-key subset, and that flag is now cleared to the
+    extent an automated review can clear it. Read: AI.md PART 31.
 
 160. TODO (flagged 2026-08-22 while closing item 150): AI.md PART 22
     describes a full backup + a separate `{project_name}-daily.tar.gz[.enc]`
@@ -3553,3 +3558,17 @@ any of the above: `src/graphql/context_keys_test.go`,
     decision: delete `BackupTask`/`RegisterBackupTask` as dead code and
     either remove `keep_count` or migrate it into `backup.retention.
     max_backups`. Read: AI.md PART 19, 22.
+
+162. TODO (flagged 2026-08-22 while investigating item 155): no
+    `make i18n-validate` target exists (`grep -n "i18n" Makefile` and
+    `grep -rn "i18n-validate\|i18n_validate" src --include=*.go` both
+    return nothing), but `.claude/rules/testing-rules.md` and AI.md PART
+    31 both state key-set parity across all 7 locale files (`en, es, zh,
+    fr, ar, de, ja`) is "enforced by `make i18n-validate` / build-time
+    check". Today that parity holds only because the 2026-08-21 rebuild
+    (see item 155) manually made all 7 files identical - there is no
+    tooling that would catch future drift (a key added to `en.json` but
+    missed in one other locale, or vice versa) at build or test time.
+    Needs a `Makefile` target (or a `go test` in `src/common/i18n/`) that
+    loads all 7 locale files and fails on any key-set mismatch. Read:
+    AI.md PART 31.
