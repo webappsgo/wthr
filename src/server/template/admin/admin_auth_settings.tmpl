@@ -3,7 +3,9 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 <div class="admin-header"><h1>🔐 {{t $lang "admin.auth.title"}}</h1></div>
-<form id="authSettingsForm">
+<form id="authSettingsForm" action="{{.admin_api_path}}/config/security/auth"
+    data-msg-saved="{{t $lang "admin.common.settings_saved"}}"
+    data-msg-error="{{t $lang "admin.common.settings_save_error"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 <section class="card"><h2>{{t $lang "admin.auth.oidc_heading"}}</h2>
 <label><input type="checkbox" name="oidc_enabled"> {{t $lang "admin.auth.oidc_enable"}}</label>
@@ -36,6 +38,6 @@
 <label>{{t $lang "admin.auth.passkeys_rp_id_label"}} <input type="text" name="passkeys_rp_id"></label>
 <label>{{t $lang "admin.auth.passkeys_rp_name_label"}} <input type="text" name="passkeys_rp_name" value="Weather"></label>
 </section>
-<button type="submit">{{t $lang "admin.common.save_settings"}}</button>
+<button type="submit" data-label-save="{{t $lang "admin.common.save_settings"}}" data-label-saving="{{t $lang "admin.common.saving"}}">{{t $lang "admin.common.save_settings"}}</button>
 </form>
 {{template "admin_footer" .}}

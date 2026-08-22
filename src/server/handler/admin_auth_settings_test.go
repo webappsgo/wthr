@@ -73,6 +73,37 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_Success(t *testing.T) {
 	}
 }
 
+// TestAdminAuthSettingsHandler_UpdateAuthSettings_PersistsOIDCProviders
+// verifies the oidc_providers list is actually written to server.yml, not
+// silently dropped (regression: the updates map used to omit this field).
+func TestAdminAuthSettingsHandler_UpdateAuthSettings_PersistsOIDCProviders(t *testing.T) {
+	h := &AdminAuthSettingsHandler{ConfigPath: newAuthSettingsTestConfigFile(t)}
+
+	body := []byte(`{"oidc_enabled":true,"oidc_providers":[{"name":"okta","client_id":"abc123","client_secret":"shh","issuer_url":"https://okta.example.com","redirect_url":"https://wthr.example.com/callback"}]}`)
+
+	c, w := newAPITestContext("/admin/config/auth")
+	c.Request.Method = http.MethodPost
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	h.UpdateAuthSettings(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	updated, err := os.ReadFile(h.ConfigPath)
+	if err != nil {
+		t.Fatalf("failed to read updated config: %v", err)
+	}
+	if !bytes.Contains(updated, []byte("client_id: abc123")) {
+		t.Errorf("expected config to contain persisted OIDC provider client_id 'abc123', got:\n%s", updated)
+	}
+	if !bytes.Contains(updated, []byte("name: okta")) {
+		t.Errorf("expected config to contain persisted OIDC provider name 'okta', got:\n%s", updated)
+	}
+}
+
 // TestAdminAuthSettingsHandler_UpdateAuthSettings_InvalidJSON verifies
 // malformed request bodies are rejected with 400 and never reach the
 // config writer.

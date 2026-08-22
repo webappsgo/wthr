@@ -3149,14 +3149,26 @@ any of the above: `src/graphql/context_keys_test.go`,
     Read: AI.md PART 26, 27, 29 (testing-rules.md container-only
     execution) before starting.
 
-157. TODO: `#authSettingsForm` in
-    `src/server/template/admin/admin_auth_settings.tmpl` has no JS wiring
-    to serialize itself and POST to `UpdateAuthSettings`
-    (`src/server/handler/admin_auth_settings.go`) - the Auth Settings admin
-    page (OIDC/LDAP/TOTP/Passkeys sections) currently cannot persist changes
-    via the browser. Add form-submit handling (serialize to JSON matching
-    `OIDCProvider`/other bound structs, POST, handle response) per PART 16's
-    CRUD-via-forms rule. Read: AI.md PART 16, 14.
+157. DONE (2026-08-22). Wired `#authSettingsForm` in
+    `src/server/template/admin/admin_auth_settings.tmpl` to
+    `UpdateAuthSettings` (`src/server/handler/admin_auth_settings.go`) via
+    a new `AdminAuthSettings.submitForm`/`serialize`/`collectOIDCProviders`
+    set in `app.js`: preventDefault → serialize to the `OIDCProvider`/other
+    bound-struct JSON shape → POST with `X-CSRF-Token` header → disable
+    button + show i18n-driven saving/saved/error label and Toast (new
+    `admin.common.saving`/`settings_saved`/`settings_save_error` keys in
+    all 7 locales, no hardcoded strings, per PART 31). Also fixed an
+    incidental bug found while reading the handler: `req.OIDCProviders`
+    was parsed but never written into the persisted `updates` map, so the
+    OIDC provider list silently never saved; added `yaml` tags to
+    `OIDCProvider` and a regression test
+    (`TestAdminAuthSettingsHandler_UpdateAuthSettings_PersistsOIDCProviders`)
+    proving it now persists. Also switched `UpdateAuthSettings`'s two
+    `gin.JSON` responses to the canonical API error/success shape (PART 14)
+    instead of an ad-hoc `{"error":"..."}` body. `make test` passes at
+    61.3% coverage; `node --check` (Docker `node:alpine`) confirms
+    `app.js` syntax is valid (caught and fixed a `*/`-inside-comment bug
+    that would have truncated a JSDoc block early).
 
 137. DONE (2026-08-21): `getPublicStats` in
     `src/server/handler/health.go` now computes the 24-hour cutoff in Go with

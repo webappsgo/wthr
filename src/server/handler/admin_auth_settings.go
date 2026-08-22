@@ -41,12 +41,13 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "VALIDATION_FAILED", "message": err.Error()})
 		return
 	}
 
 	updates := map[string]interface{}{
 		"server.auth.oidc.enabled":       req.OIDCEnabled,
+		"server.auth.oidc.providers":     req.OIDCProviders,
 		"server.auth.ldap.enabled":       req.LDAPEnabled,
 		"server.auth.ldap.server":        req.LDAPServer,
 		"server.auth.ldap.port":          req.LDAPPort,
@@ -64,17 +65,17 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(c *gin.Context) {
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "INTERNAL_ERROR", "message": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "data": gin.H{}})
 }
 
 type OIDCProvider struct {
-	Name         string `json:"name"`
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	IssuerURL    string `json:"issuer_url"`
-	RedirectURL  string `json:"redirect_url"`
+	Name         string `json:"name" yaml:"name"`
+	ClientID     string `json:"client_id" yaml:"client_id"`
+	ClientSecret string `json:"client_secret" yaml:"client_secret"`
+	IssuerURL    string `json:"issuer_url" yaml:"issuer_url"`
+	RedirectURL  string `json:"redirect_url" yaml:"redirect_url"`
 }

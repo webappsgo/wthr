@@ -976,10 +976,107 @@
     removeOIDCProvider: function(button) {
       const row = button.closest('.oidc-provider-row');
       if (row) row.remove();
+    },
+
+    /**
+     * Read every .oidc-provider-row into the OIDCProvider JSON shape
+     * expected by UpdateAuthSettings.
+     */
+    collectOIDCProviders: function(form) {
+      const rows = form.querySelectorAll('#oidcProviders .oidc-provider-row');
+      return Array.from(rows).map(function(row) {
+        return {
+          name: row.querySelector('[name="oidc_provider_name"]').value,
+          client_id: row.querySelector('[name="oidc_provider_client_id"]').value,
+          client_secret: row.querySelector('[name="oidc_provider_client_secret"]').value,
+          issuer_url: row.querySelector('[name="oidc_provider_issuer_url"]').value,
+          redirect_url: row.querySelector('[name="oidc_provider_redirect_url"]').value
+        };
+      });
+    },
+
+    /**
+     * Serialize #authSettingsForm into the request shape UpdateAuthSettings expects.
+     */
+    serialize: function(form) {
+      const data = new FormData(form);
+      return {
+        oidc_enabled: form.querySelector('[name="oidc_enabled"]').checked,
+        oidc_providers: AdminAuthSettings.collectOIDCProviders(form),
+        ldap_enabled: form.querySelector('[name="ldap_enabled"]').checked,
+        ldap_server: data.get('ldap_server') || '',
+        ldap_port: parseInt(data.get('ldap_port'), 10) || 0,
+        ldap_bind_dn: data.get('ldap_bind_dn') || '',
+        ldap_bind_password: data.get('ldap_bind_password') || '',
+        ldap_base_dn: data.get('ldap_base_dn') || '',
+        ldap_user_filter: data.get('ldap_user_filter') || '',
+        totp_enabled: form.querySelector('[name="totp_enabled"]').checked,
+        totp_issuer: data.get('totp_issuer') || '',
+        totp_digits: parseInt(data.get('totp_digits'), 10) || 0,
+        totp_period: parseInt(data.get('totp_period'), 10) || 0,
+        passkeys_enabled: form.querySelector('[name="passkeys_enabled"]').checked,
+        passkeys_rp_id: data.get('passkeys_rp_id') || '',
+        passkeys_rp_name: data.get('passkeys_rp_name') || ''
+      };
+    },
+
+    /**
+     * Serialize and POST #authSettingsForm to its action URL, showing
+     * saving/saved/error state via the button and Toast (i18n-driven
+     * data-label- and data-msg- attributes, no hardcoded strings).
+     */
+    submitForm: function(form) {
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const csrfInput = form.querySelector('[name="csrf_token"]');
+      const savingLabel = submitBtn ? submitBtn.dataset.labelSaving : '';
+      const savedLabel = submitBtn ? submitBtn.dataset.labelSave : '';
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        if (savingLabel) submitBtn.textContent = savingLabel;
+      }
+
+      fetch(form.action, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfInput ? csrfInput.value : ''
+        },
+        body: JSON.stringify(AdminAuthSettings.serialize(form))
+      })
+        .then(function(response) {
+          return response.json().then(function(payload) {
+            return { ok: response.ok && payload.ok, payload: payload };
+          });
+        })
+        .then(function(result) {
+          if (result.ok) {
+            Toast.show(form.dataset.msgSaved, 'success');
+          } else {
+            Toast.show((result.payload && result.payload.message) || form.dataset.msgError, 'error');
+          }
+        })
+        .catch(function() {
+          Toast.show(form.dataset.msgError, 'error');
+        })
+        .finally(function() {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            if (savedLabel) submitBtn.textContent = savedLabel;
+          }
+        });
     }
   };
 
   document.addEventListener('DOMContentLoaded', function() {
+    const authSettingsForm = document.getElementById('authSettingsForm');
+    if (authSettingsForm) {
+      authSettingsForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        AdminAuthSettings.submitForm(authSettingsForm);
+      });
+    }
+
     document.addEventListener('click', function(e) {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
