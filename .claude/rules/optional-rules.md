@@ -4,9 +4,8 @@
 
 ## Activation status for this project (wthr)
 
-`SPEC.md` exists and outranks AI.md, but it addresses only the coverage-gate
-exclusion and the vendored GraphQL Playground assets — it says nothing about
-PART 34/35/36. Activation for these three PARTs is declared in `IDEA.md`.
+There is no `SPEC.md` in this repo — it isn't needed; activation for
+PART 34/35/36 is declared in `IDEA.md` instead.
 
 - **PART 34 (Multi-User): ACTIVE / REQUIRED** — IDEA.md explicitly states
   "User account rules (Multi-User — PART 34 REQUIRED)". Regular user accounts

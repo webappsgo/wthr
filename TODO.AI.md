@@ -3331,14 +3331,13 @@ any of the above: `src/graphql/context_keys_test.go`,
     a token that does not work is worse than printing nothing. Read: AI.md
     PART 22.
 
-152. TODO (flagged 2026-08-21): `.claude/rules/optional-rules.md` opens with
-    "There is no `SPEC.md` in this repo; activation is declared in `IDEA.md`
-    instead." A `SPEC.md` does exist and, per PART 0, overrides AI.md. The
-    two overrides it carries (the coverage gate excluding
-    `src/graphql/generated.go`, and the self-hosted GraphQL Playground
-    assets) are unrelated to PART 34-36 activation, so the file's actual
-    conclusions still hold - but the sentence is false and will mislead the
-    next session into skipping `SPEC.md`. Read: AI.md PART 0.
+152. DONE (2026-08-22). RESOLVED: confirmed with the user that there is no
+    `SPEC.md` in this repo and none is needed — a prior session had
+    incorrectly rewritten `.claude/rules/optional-rules.md`'s opening
+    paragraph to claim `SPEC.md` exists and overrides AI.md per PART 0.
+    Reverted the paragraph to correctly state there is no `SPEC.md` in this
+    repo, activation for PART 34/35/36 is declared in `IDEA.md`. PART 34
+    (Multi-User) stays the only active optional PART; 35/36 remain dormant.
 
 153. TODO (flagged 2026-08-21 by the model-injection agent): `SettingsModel`
     reads `server_config`, which lives in `ServerSchema`, but is constructed
