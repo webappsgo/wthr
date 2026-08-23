@@ -175,7 +175,7 @@ func TestDeleteRowsWithTimestampBeforeMixedLayouts(t *testing.T) {
 		// Same trap, plus the monotonic-clock suffix time.Time.String() appends.
 		{name: "local-live-monotonic", expiresAt: cleanupCutoff.Add(2*time.Hour).In(testZone).Format(localLayout) + " m=+0.000000001"},
 		// 2025-01-01T05:00:00Z in the -0700 local layout: genuinely expired.
-		{name: "local-expired", expiresAt: cleanupCutoff.Add(-7*time.Hour).In(testZone).Format(localLayout)},
+		{name: "local-expired", expiresAt: cleanupCutoff.Add(-7 * time.Hour).In(testZone).Format(localLayout)},
 		// Exactly the cutoff instant.
 		{name: "exact-cutoff", expiresAt: "2025-01-01 12:00:00"},
 		// Junk the project never writes: must never be deleted.

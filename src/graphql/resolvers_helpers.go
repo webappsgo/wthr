@@ -872,6 +872,7 @@ func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, erro
 
 	return float64(pageCount * pageSize), tables, nil
 }
+
 // ensureGraphQLContactSubmissionsTable verifies that contact_submissions is
 // present before the contact mutation writes to it.
 //

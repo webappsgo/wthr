@@ -3799,16 +3799,12 @@ any of the above: `src/graphql/context_keys_test.go`,
     to keep that commit scoped to router-shape changes only. Read: AI.md
     PART 3 (validator/v10), PART 14 (request validation expectations).
 
-170. TODO (flagged 2026-08-23 during item 165's gin->chi Phase 5
-    service/swagger/graphql conversion, by the Phase 5 conversion agent
-    and confirmed independently via `git diff`/`git status`): running
-    `gofmt -l src/swagger src/graphql` reports `src/graphql/resolvers_helpers.go`
-    as not gofmt-clean. Confirmed via `git status`/`git diff` that this
-    file was untouched by the Phase 5 gin->chi conversion (pre-existing
-    condition, unrelated to the migration) and deliberately left
-    out of scope to keep the migration commit scoped to router-shape
-    changes only. Fix: run `gofmt -w src/graphql/resolvers_helpers.go`
-    (Docker casjaysdev/go:latest) in its own commit.
+170. DONE (2026-08-23): ran `gofmt -w src/graphql/resolvers_helpers.go`
+    (Docker casjaysdev/go:latest) — added the missing blank line between
+    `loadGraphQLSQLiteStats` and the `ensureGraphQLContactSubmissionsTable`
+    doc comment. Verified `gofmt -l src/graphql` clean, `go build ./...`
+    clean, `go vet ./...` clean, `go test ./src/graphql/...` passes.
+    Committed together with item 172 (both pure gofmt, no logic change).
 
 171. TODO (flagged 2026-08-23 during item 165's gin->chi Phase 6 main.go
     bootstrap conversion, confirmed independently by reading
@@ -3838,14 +3834,10 @@ any of the above: `src/graphql/context_keys_test.go`,
     back to `r.RemoteAddr` otherwise, and audit all call sites of
     `GetClientIP` for the new signature.
 
-172. TODO (flagged 2026-08-23 by the go-lint agent during item 165's
-    Phase 8 verification pass): `gofmt -l` flags
-    `src/server/model/timestamp_cleanup_test.go:178` — the local-expired
-    test case uses `cleanupCutoff.Add(-7*time.Hour)` where gofmt wants
-    `-7 * time.Hour` (spaces around the binary `*` operator). Confirmed
-    via `git diff --stat -- src/server/model/timestamp_cleanup_test.go`
-    that this file is untouched by item 165's gin->chi migration
-    (pre-existing formatting drift, not a regression from that work) —
-    left out of scope to keep item 165's commit limited to router-shape
-    changes. Fix: run `gofmt -w src/server/model/timestamp_cleanup_test.go`
-    (Docker casjaysdev/go:latest) in its own commit.
+172. DONE (2026-08-23): ran
+    `gofmt -w src/server/model/timestamp_cleanup_test.go` (Docker
+    casjaysdev/go:latest) — added spaces around the binary `*` operator
+    in the local-expired test case's `cleanupCutoff.Add(-7 * time.Hour)`.
+    Verified `gofmt -l src tests` clean, `go build ./...` clean,
+    `go vet ./...` clean, `go test ./src/server/model/...` passes.
+    Committed together with item 170 (both pure gofmt, no logic change).
