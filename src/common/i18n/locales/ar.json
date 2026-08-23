@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "إدارة المهام المجدولة",
   "admin.templates.api_only_note": "تُدار قوالب الإشعارات عبر API فقط. لا تتضمن لوحة التحكم محرر قوالب حتى الآن.",
   "admin.templates.clone_note_term": "نص طلب الاستنساخ",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "الوصف",
   "admin.templates.col_field": "الحقل",
   "admin.templates.col_required": "مطلوب",

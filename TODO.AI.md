@@ -3690,16 +3690,19 @@ any of the above: `src/graphql/context_keys_test.go`,
     tests/docker.sh and tests/incus.sh, out of this item's scope).
     Committed `471ee51dd210`, pushed, CI green.
 
-164. TODO (flagged 2026-08-22 while working item 156): `src/middleware/
-    security.go` defines a second, separate `SecurityHeaders(sslEnabled
-    bool) gin.HandlerFunc` in package `src/middleware`, distinct from the
-    live one in `src/server/middleware/security_headers.go`. `main.go`
-    only imports `"github.com/webappsgo/wthr/src/server/middleware"`
-    (confirmed via `grep -n '"wthr\|/middleware"' src/main.go`) - the
-    `src/middleware/security.go` copy is never wired up and appears to be
-    dead code left over from an earlier refactor. Needs a decision: delete
-    it, or confirm it's still needed for something not yet found. Read:
-    AI.md PART 11.
+164. DONE (2026-08-22): confirmed zero importers of `src/middleware`
+    project-wide (`grep -rln "webappsgo/wthr/src/middleware\"" src`
+    returned nothing). ai-rules.md is explicit ("No partially implemented
+    code... no stubs" and reuse-before-creating discipline) and a second,
+    unwired, weaker copy of `SecurityHeaders` (missing nonce support, a
+    laxer CSP than the live handler) is exactly the kind of dead code
+    AI.md forbids keeping around. Deleted the whole package.
+    - src/middleware/security.go: removed (dead, unreferenced duplicate
+      of src/server/middleware/security_headers.go's SecurityHeaders).
+    - src/middleware/security_test.go: removed (tested only the deleted
+      dead code).
+    Verified via `go build ./... && go vet ./... && go test ./...` in
+    Docker (casjaysdev/go:latest) — all packages pass, no importers broke.
 
 165. TODO (flagged 2026-08-22 while working item 156, needs a user
     decision before any code changes - architectural divergence, not a
@@ -3716,42 +3719,48 @@ any of the above: `src/graphql/context_keys_test.go`,
     equivalent) to document the exception. Do not start (a) without
     explicit confirmation. Read: AI.md PART 2, 3 (project-rules.md).
 
-166. TODO (flagged 2026-08-22 by the item 155 i18n review agent,
-    incidental finding, not a wrong-key-value bug): `src/server/template/
-    template_editor.tmpl` around line 152, the `clone_note_term`
-    definition-list term pairs with a raw untranslated
-    `&lt;code&gt;{"new_name": "..."}&lt;/code&gt;` string instead of going
-    through `t $lang`. Needs a translation key added and the template
-    updated to use it. Read: AI.md PART 31.
+166. DONE (2026-08-22): added `admin.templates.clone_note_desc` key
+    (value `{"new_name": "..."}`, a non-linguistic JSON example snippet)
+    to all 7 locale files, matching value in every language since it's
+    example code, not prose - key-set parity preserved (PART 31).
+    - src/server/template/template_editor.tmpl: line 152 now uses
+      `{{t $lang "admin.templates.clone_note_desc"}}` instead of a raw
+      hardcoded string.
+    - src/common/i18n/locales/{en,es,zh,fr,ar,de,ja}.json: new key added
+      to each, right after `admin.templates.clone_note_term`.
+    Verified via `go build ./... && go vet ./... && go test ./...` in
+    Docker (casjaysdev/go:latest) — all packages pass.
 
-167. TODO (flagged 2026-08-22 by go-lint during item 158's pre-commit
-    pass): `site.txt` at project root contains bare `wthr.top` instead of
-    the full `https://wthr.top`. The Makefile's `OFFICIALSITE` var reads
-    `site.txt` verbatim and feeds it to `-X 'main.OfficialSite=...'`
-    (line 25), which would silently override `src/client/cli.go`'s
-    correct `var OfficialSite = "https://wthr.top"` default with a
-    scheme-less value on any ldflags-linked build. Fix `site.txt` to read
-    `https://wthr.top`. Read: AI.md PART 26 (makefile-rules.md) — `NEVER
-    guess/assume site.txt / OFFICIAL_SITE — must be explicitly created by
-    the user`, so confirm with the user before editing this file since it
-    is user-owned per that rule.
+167. DONE (2026-08-22): confirmed with the user before editing (per
+    makefile-rules.md's site.txt user-ownership rule), then fixed.
+    - site.txt: `wthr.top` -> `https://wthr.top`, matching the correct
+      default already hardcoded in src/client/cli.go and giving the
+      Makefile's `OFFICIALSITE` var a properly-schemed value to feed
+      `-X 'main.OfficialSite=...'`.
 
-168. TODO (flagged 2026-08-22 by go-lint while closing item 160): AI.md
-    PART 11 requires `log/slog` with `NewTextHandler` for structured
-    logging - "Log files must never contain ANSI escape codes or emojis.
-    Use `log/slog`... never write raw color-formatted strings to a file
-    writer." The project instead uses the standard `log` package
-    (`log.Printf`/`log.Println`) project-wide: `grep -rl '"log"' src/`
-    finds 39 files, `grep -rl "log/slog" src/` finds zero - there is no
-    existing `log/slog` usage anywhere to migrate toward. Confirmed
-    violation sites include `src/scheduler/scheduler.go` (57 call sites),
-    `src/scheduler/backup_task.go` (9), and `src/backup/backup.go` (1),
-    but the same pattern is present across all 39 files (handlers,
-    services, middleware, main.go, etc.), not just the ones touched by
-    item 160. This is a pre-existing, project-wide convention violation,
-    not something introduced by item 160's incremental-backups work -
-    migrating it is a separate, large refactor (39 files) out of scope for
-    that feature's working set. Needs a decision on migration approach
-    (e.g. one shared `slog.Logger` wired through `main.go` and passed
-    down, vs. `slog.Default()` calls at each site) before starting. Read:
-    AI.md PART 11.
+168. RESOLVED-NOT-A-VIOLATION (2026-08-22): re-read AI.md in full for
+    every `slog`/logging mention (`grep -n "slog\." AI.md`, plus the
+    literal text around line 16792). AI.md's actual, stated rule is
+    narrower than item 160's go-lint flag assumed: "Log files = raw/plain
+    text. Console = pretty is OK" (line 16792) - there is no prose rule
+    anywhere in AI.md mandating `log/slog` as the only allowed logging
+    package, and no `slog.NewTextHandler` reference exists in AI.md at
+    all (grepped, zero hits - the go-lint finding's quoted phrase doesn't
+    appear verbatim in the spec). `slog` appears in exactly two places:
+    (1) PART 9's "Debug Logging" illustrative code sample
+    (`debugLog`/`debugLogDB`/`debugLogCache` on `*Server`, gated by
+    `--debug`/`DEBUG=true`) - this project has no functions by those
+    names (`grep -rn "func.*debugLog"` returns nothing), so there is
+    nothing existing to migrate; and (2) one example of building
+    `slog.Attr` values for an error struct field (line 14195), which is
+    about structuring error-log fields, not a package mandate.
+    The project's actual logging (`src/util/logger.go`, `Logger.Info/
+    Error/Server/Security/Debug/Audit/Access`) already satisfies the
+    real requirement: every log file (`access.log`, `error.log`,
+    `server.log`, `audit.log`, `security.log`, `debug.log`) is written as
+    plain timestamped/JSON text via `log.New(...).Printf`/`.Println` with
+    no ANSI codes and no emojis anywhere in the writer paths - confirmed
+    by reading the full file. A 39-file mechanical `log`->`log/slog`
+    swap would not fix any actual spec gap and was not undertaken.
+    No code changes. Read: AI.md PART 9 ("Debug Logging"), PART 11
+    (line 16792, Console vs Logs).

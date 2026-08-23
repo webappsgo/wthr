@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "スケジュールタスクの管理",
   "admin.templates.api_only_note": "通知テンプレートはAPIからのみ管理できます。管理パネルにはテンプレートエディターはまだ用意されていません。",
   "admin.templates.clone_note_term": "複製リクエストのボディ",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "説明",
   "admin.templates.col_field": "フィールド",
   "admin.templates.col_required": "必須",

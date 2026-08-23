@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "Verwaltung geplanter Aufgaben",
   "admin.templates.api_only_note": "Benachrichtigungsvorlagen werden ausschließlich über die API verwaltet. Das Admin-Panel enthält noch keinen Vorlageneditor.",
   "admin.templates.clone_note_term": "Anfragetext für Klonen",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "Beschreibung",
   "admin.templates.col_field": "Feld",
   "admin.templates.col_required": "Erforderlich",

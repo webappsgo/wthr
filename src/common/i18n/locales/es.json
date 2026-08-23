@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "Gestión de tareas programadas",
   "admin.templates.api_only_note": "Las plantillas de notificación se gestionan únicamente a través de la API. El panel de administración todavía no incluye un editor de plantillas.",
   "admin.templates.clone_note_term": "Cuerpo de la solicitud de clonación",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "Descripción",
   "admin.templates.col_field": "Campo",
   "admin.templates.col_required": "Obligatorio",

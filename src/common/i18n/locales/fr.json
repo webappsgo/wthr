@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "Gestion des tâches planifiées",
   "admin.templates.api_only_note": "Les modèles de notification se gèrent uniquement via l'API. Le panneau d'administration ne comprend pas encore d'éditeur de modèles.",
   "admin.templates.clone_note_term": "Corps de la requête de clonage",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "Description",
   "admin.templates.col_field": "Champ",
   "admin.templates.col_required": "Obligatoire",

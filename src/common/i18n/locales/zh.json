@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "计划任务管理",
   "admin.templates.api_only_note": "通知模板目前仅能通过 API 管理，管理面板尚未提供模板编辑器。",
   "admin.templates.clone_note_term": "克隆请求体",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "说明",
   "admin.templates.col_field": "字段",
   "admin.templates.col_required": "是否必填",

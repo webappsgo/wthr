@@ -1478,6 +1478,7 @@
   "admin.tasks.title": "Scheduled Tasks Management",
   "admin.templates.api_only_note": "Notification templates are managed through the API only. The admin panel does not include a template editor yet.",
   "admin.templates.clone_note_term": "Clone request body",
+  "admin.templates.clone_note_desc": "{\"new_name\": \"...\"}",
   "admin.templates.col_description": "Description",
   "admin.templates.col_field": "Field",
   "admin.templates.col_required": "Required",
