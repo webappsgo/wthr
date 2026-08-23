@@ -10,17 +10,17 @@ import (
 
 	"github.com/webappsgo/wthr/src/database"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // DebugHandlers provides debug endpoints when DEBUG mode is enabled
 type DebugHandlers struct {
 	db     *sql.DB
-	router *gin.Engine
+	router chi.Router
 }
 
 // NewDebugHandlers creates debug endpoint handlers
-func NewDebugHandlers(db *sql.DB, router *gin.Engine) *DebugHandlers {
+func NewDebugHandlers(db *sql.DB, router chi.Router) *DebugHandlers {
 	return &DebugHandlers{
 		db:     db,
 		router: router,
@@ -28,43 +28,41 @@ func NewDebugHandlers(db *sql.DB, router *gin.Engine) *DebugHandlers {
 }
 
 // RegisterDebugRoutes registers all debug endpoints
-func (h *DebugHandlers) RegisterDebugRoutes(r *gin.Engine) {
-	debug := r.Group("/debug")
-	{
-		debug.GET("/routes", h.ListRoutes)
-		debug.GET("/config", h.ShowConfig)
-		debug.GET("/memory", h.ShowMemory)
-		debug.GET("/db", h.ShowDatabase)
-		debug.POST("/reload", h.ReloadConfig)
-		debug.POST("/gc", h.TriggerGC)
-	}
+func (h *DebugHandlers) RegisterDebugRoutes(r chi.Router) {
+	r.Route("/debug", func(debug chi.Router) {
+		debug.Get("/routes", h.ListRoutes)
+		debug.Get("/config", h.ShowConfig)
+		debug.Get("/memory", h.ShowMemory)
+		debug.Get("/db", h.ShowDatabase)
+		debug.Post("/reload", h.ReloadConfig)
+		debug.Post("/gc", h.TriggerGC)
+	})
 }
 
 // ListRoutes shows all registered routes
-func (h *DebugHandlers) ListRoutes(c *gin.Context) {
-	routes := h.router.Routes()
-
-	routeList := make([]gin.H, 0, len(routes))
-	for _, route := range routes {
-		routeList = append(routeList, gin.H{
-			"method":  route.Method,
-			"path":    route.Path,
-			"handler": route.Handler,
+func (h *DebugHandlers) ListRoutes(w http.ResponseWriter, r *http.Request) {
+	routeList := make([]map[string]interface{}, 0)
+	_ = chi.Walk(h.router, func(method, path string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		routeList = append(routeList, map[string]interface{}{
+			"method":  method,
+			"path":    path,
+			"handler": fmt.Sprintf("%T", handler),
 		})
-	}
+		return nil
+	})
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"routes": routeList,
-		"count":  len(routes),
+		"count":  len(routeList),
 	})
 }
 
 // ShowConfig shows current configuration
-func (h *DebugHandlers) ShowConfig(c *gin.Context) {
+func (h *DebugHandlers) ShowConfig(w http.ResponseWriter, r *http.Request) {
 	// Query all settings from database
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, category FROM server_config ORDER BY category, key")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to query settings",
 		})
 		return
@@ -72,7 +70,7 @@ func (h *DebugHandlers) ShowConfig(c *gin.Context) {
 	defer rows.Close()
 
 	settings := make(map[string]interface{})
-	categories := make(map[string][]gin.H)
+	categories := make(map[string][]map[string]interface{})
 
 	for rows.Next() {
 		var key, value, typ, category string
@@ -83,16 +81,16 @@ func (h *DebugHandlers) ShowConfig(c *gin.Context) {
 		settings[key] = value
 
 		if categories[category] == nil {
-			categories[category] = make([]gin.H, 0)
+			categories[category] = make([]map[string]interface{}, 0)
 		}
-		categories[category] = append(categories[category], gin.H{
+		categories[category] = append(categories[category], map[string]interface{}{
 			"key":   key,
 			"value": value,
 			"type":  typ,
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"settings":   settings,
 		"categories": categories,
 		"count":      len(settings),
@@ -100,11 +98,11 @@ func (h *DebugHandlers) ShowConfig(c *gin.Context) {
 }
 
 // ShowMemory shows memory usage statistics
-func (h *DebugHandlers) ShowMemory(c *gin.Context) {
+func (h *DebugHandlers) ShowMemory(w http.ResponseWriter, r *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"alloc_mb":       m.Alloc / 1024 / 1024,
 		"total_alloc_mb": m.TotalAlloc / 1024 / 1024,
 		"sys_mb":         m.Sys / 1024 / 1024,
@@ -119,7 +117,7 @@ func (h *DebugHandlers) ShowMemory(c *gin.Context) {
 }
 
 // ShowDatabase shows database statistics
-func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
+func (h *DebugHandlers) ShowDatabase(w http.ResponseWriter, r *http.Request) {
 	stats := database.GetServerDB().Stats()
 
 	// Count tables
@@ -129,7 +127,7 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 	}
 
 	// Get table names and row counts
-	tables := make([]gin.H, 0)
+	tables := make([]map[string]interface{}, 0)
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
 	if err == nil {
 		defer rows.Close()
@@ -143,7 +141,7 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 					log.Printf("ERROR: ShowDatabase: failed to count rows in table %s: %v", tableName, err)
 				}
 
-				tables = append(tables, gin.H{
+				tables = append(tables, map[string]interface{}{
 					"name": tableName,
 					"rows": rowCount,
 				})
@@ -151,8 +149,8 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"connection_stats": gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"connection_stats": map[string]interface{}{
 			"max_open_connections": stats.MaxOpenConnections,
 			"open_connections":     stats.OpenConnections,
 			"in_use":               stats.InUse,
@@ -166,16 +164,16 @@ func (h *DebugHandlers) ShowDatabase(c *gin.Context) {
 }
 
 // ReloadConfig forces configuration reload
-func (h *DebugHandlers) ReloadConfig(c *gin.Context) {
+func (h *DebugHandlers) ReloadConfig(w http.ResponseWriter, r *http.Request) {
 	// This would trigger SIGHUP internally
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Configuration reload triggered",
 		"note":    "Send SIGHUP to process for full reload",
 	})
 }
 
 // TriggerGC triggers garbage collection
-func (h *DebugHandlers) TriggerGC(c *gin.Context) {
+func (h *DebugHandlers) TriggerGC(w http.ResponseWriter, r *http.Request) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
 
@@ -183,7 +181,7 @@ func (h *DebugHandlers) TriggerGC(c *gin.Context) {
 
 	runtime.ReadMemStats(&after)
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":         "Garbage collection triggered",
 		"before_alloc_mb": before.Alloc / 1024 / 1024,
 		"after_alloc_mb":  after.Alloc / 1024 / 1024,

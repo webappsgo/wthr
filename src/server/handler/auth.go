@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -15,8 +16,6 @@ import (
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
@@ -56,12 +55,13 @@ type RegisterRequest struct {
 }
 
 // ShowLoginPage renders the login page
-func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
+func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 	// Check if already authenticated as admin (admin_session cookie)
 	cfg := config.GetGlobalConfig()
 	adminPath := "/server/" + cfg.GetAdminPath()
-	adminSessionID, err := c.Cookie("admin_session")
-	if err == nil && adminSessionID != "" {
+	adminSessionCookie, err := r.Cookie("admin_session")
+	if err == nil && adminSessionCookie.Value != "" {
+		adminSessionID := adminSessionCookie.Value
 		// Validate admin session exists in database.
 		// expires_at is scanned as a raw driver value and compared in Go rather
 		// than tested with SQLite's datetime(): a row holding a non-UTC or
@@ -77,67 +77,67 @@ func (h *AuthHandler) ShowLoginPage(c *gin.Context) {
 			WHERE id = ?
 		`, adminSessionID).Scan(&adminID, &storedExpiresAt)
 		if err == nil && dbtime.IsAfter(storedExpiresAt, time.Now()) {
-			c.Redirect(http.StatusFound, adminPath)
+			http.Redirect(w, r, adminPath, http.StatusFound)
 			return
 		}
 	}
 
 	// Check if already authenticated as user (weather_session cookie)
-	if middleware.IsAuthenticated(c) {
-		c.Redirect(http.StatusFound, "/users/dashboard")
+	if middleware.IsAuthenticated(r) {
+		http.Redirect(w, r, "/users/dashboard", http.StatusFound)
 		return
 	}
 
-	NegotiateResponse(c, "page/login.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/login.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":               "Login",
-		"verified":            c.Query("verified") == "1",
-		"pendingVerification": c.Query("pending_verification") == "1",
+		"verified":            r.URL.Query().Get("verified") == "1",
+		"pendingVerification": r.URL.Query().Get("pending_verification") == "1",
 		"registrationPublic":  isPublicRegistrationEnabled(),
 	}))
 }
 
 // ShowRegisterPage renders the registration page
-func (h *AuthHandler) ShowRegisterPage(c *gin.Context) {
+func (h *AuthHandler) ShowRegisterPage(w http.ResponseWriter, r *http.Request) {
 	if !isPublicRegistrationEnabled() {
-		NegotiateErrorResponse(c, http.StatusNotFound, "page/error.tmpl", ErrNotFound, "Registration is not available", util.TemplateData(c, gin.H{
+		NegotiateErrorResponse(w, r, http.StatusNotFound, "page/error.tmpl", ErrNotFound, "Registration is not available", util.TemplateData(r, map[string]interface{}{
 			"title": "Not Found",
 		}))
 		return
 	}
 
 	// Check if already authenticated
-	if middleware.IsAuthenticated(c) {
-		c.Redirect(http.StatusFound, "/users/dashboard")
+	if middleware.IsAuthenticated(r) {
+		http.Redirect(w, r, "/users/dashboard", http.StatusFound)
 		return
 	}
 
-	NegotiateResponse(c, "page/register.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/register.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "Register",
 	}))
 }
 
 // HandleLogin processes login requests
 // Per spec: checks server_admin_credentials FIRST, then user_accounts
-func (h *AuthHandler) HandleLogin(c *gin.Context) {
+func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 
 	// Support both JSON and form data
-	contentType := c.GetHeader("Content-Type")
+	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAuthJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
 			return
 		}
 	} else {
 		// Accept both "identifier" and legacy "email" field names
-		req.Identifier = c.PostForm("identifier")
+		req.Identifier = r.PostFormValue("identifier")
 		if req.Identifier == "" {
 			// Backward compatibility
-			req.Identifier = c.PostForm("email")
+			req.Identifier = r.PostFormValue("email")
 		}
-		req.Password = c.PostForm("password")
-		req.TwoFactorCode = c.PostForm("two_factor_code")
-		req.UseRecoveryKey = c.PostForm("use_recovery_key") == "true"
+		req.Password = r.PostFormValue("password")
+		req.TwoFactorCode = r.PostFormValue("two_factor_code")
+		req.UseRecoveryKey = r.PostFormValue("use_recovery_key") == "true"
 	}
 
 	// Trim whitespace from non-password fields
@@ -146,7 +146,13 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 
 	// Passwords cannot start or end with whitespace
 	if req.Password != strings.TrimSpace(req.Password) {
-		respondWithError(c, http.StatusBadRequest, "Password cannot start or end with whitespace")
+		respondWithError(w, r, http.StatusBadRequest, "Password cannot start or end with whitespace")
+		return
+	}
+
+	// Identifier and password are required before any credential lookup
+	if req.Identifier == "" || req.Password == "" {
+		respondWithError(w, r, http.StatusBadRequest, "Identifier and password are required")
 		return
 	}
 
@@ -163,14 +169,14 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		serverDB := database.GetServerDB()
 		hasPasskeys, hpkErr := AdminHasPasskeys(serverDB, admin.ID)
 		if hpkErr != nil {
-			respondWithError(c, http.StatusInternalServerError, "Failed to load passkey status")
+			respondWithError(w, r, http.StatusInternalServerError, "Failed to load passkey status")
 			return
 		}
 
 		if hasPasskeys {
-			pendingToken, perr := CreateAdminPendingSession(admin.ID, c.ClientIP(), c.Request.UserAgent())
+			pendingToken, perr := CreateAdminPendingSession(admin.ID, util.GetClientIP(r), r.UserAgent())
 			if perr != nil {
-				respondWithError(c, http.StatusInternalServerError, "Failed to create pending session")
+				respondWithError(w, r, http.StatusInternalServerError, "Failed to create pending session")
 				return
 			}
 
@@ -178,7 +184,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			adminPath := "/server/" + cfg.GetAdminPath()
 
 			if strings.Contains(contentType, "application/json") {
-				c.JSON(http.StatusOK, gin.H{
+				writeAuthJSON(w, http.StatusOK, map[string]interface{}{
 					"message":            "Passkey verification required",
 					"type":               "admin",
 					"requires_passkey":   true,
@@ -191,8 +197,8 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 				// Non-JSON callers (HTML form login) get redirected to a
 				// challenge page; the pending token is propagated via a
 				// short-lived cookie so the in-browser JS can reach it.
-				isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-				http.SetCookie(c.Writer, &http.Cookie{
+				isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+				http.SetCookie(w, &http.Cookie{
 					Name:     "admin_passkey_pending",
 					Value:    pendingToken,
 					Path:     "/",
@@ -201,7 +207,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 					Secure:   isHTTPS,
 					SameSite: http.SameSiteLaxMode,
 				})
-				c.Redirect(http.StatusFound, adminPath+"/passkey")
+				http.Redirect(w, r, adminPath+"/passkey", http.StatusFound)
 			}
 			return
 		}
@@ -212,17 +218,17 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 
 		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 		duration := 30 * 24 * time.Hour
-		adminSession, err := adminSessionModel.CreateSession(admin.ID, c.ClientIP(), c.Request.UserAgent(), duration)
+		adminSession, err := adminSessionModel.CreateSession(admin.ID, util.GetClientIP(r), r.UserAgent(), duration)
 		if err != nil {
-			respondWithError(c, http.StatusInternalServerError, "Failed to create session")
+			respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
 			return
 		}
 
 		adminModel.UpdateLastLogin(admin.ID)
 
-		isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+		isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 
-		http.SetCookie(c.Writer, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{
 			Name:     "admin_session",
 			Value:    adminSession.SessionID,
 			Path:     "/",
@@ -233,18 +239,18 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		})
 
 		if strings.Contains(contentType, "application/json") {
-			c.JSON(http.StatusOK, gin.H{
+			writeAuthJSON(w, http.StatusOK, map[string]interface{}{
 				"message":  "Login successful",
 				"type":     "admin",
 				"redirect": adminPath,
-				"admin": gin.H{
+				"admin": map[string]interface{}{
 					"id":       admin.ID,
 					"username": admin.Username,
 					"email":    admin.Email,
 				},
 			})
 		} else {
-			c.Redirect(http.StatusFound, adminPath)
+			http.Redirect(w, r, adminPath, http.StatusFound)
 		}
 		return
 	}
@@ -253,17 +259,17 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.GetByIdentifier(req.Identifier)
 	if err != nil {
-		respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
+		respondWithError(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
 	if !userModel.CheckPassword(user, req.Password) {
-		respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
+		respondWithError(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
 	if requiresEmailVerification() && !user.EmailVerified {
-		respondWithError(c, http.StatusUnauthorized, "Invalid credentials")
+		respondWithError(w, r, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 
@@ -272,14 +278,14 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		// If 2FA code not provided, return specific response
 		if req.TwoFactorCode == "" {
 			if strings.Contains(contentType, "application/json") {
-				c.JSON(http.StatusUnauthorized, gin.H{
+				writeAuthJSON(w, http.StatusUnauthorized, map[string]interface{}{
 					"error":       "Two-factor authentication required",
 					"require_2fa": true,
 					"user_id":     user.ID,
 				})
 			} else {
 				// Render login page with 2FA prompt
-				c.HTML(http.StatusOK, "page/login.tmpl", util.TemplateData(c, gin.H{
+				middleware.RenderHTML(w, r, http.StatusOK, "page/login.tmpl", util.TemplateData(r, map[string]interface{}{
 					"title":       "Login - Two-Factor Required",
 					"require_2fa": true,
 					"identifier":  req.Identifier,
@@ -295,7 +301,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 			verified, err = recoveryKeyModel.VerifyAndUseRecoveryKey(int(user.ID), req.TwoFactorCode)
 			if err != nil {
-				respondWithError(c, http.StatusInternalServerError, "Failed to verify recovery key")
+				respondWithError(w, r, http.StatusInternalServerError, "Failed to verify recovery key")
 				return
 			}
 		} else {
@@ -303,18 +309,18 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 			var secret string
 			secret, err = model.DecryptTwoFactorSecret(user.TwoFactorSecret)
 			if err != nil {
-				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
+				respondWithError(w, r, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return
 			}
 			verified, err = util.VerifyTOTP(secret, req.TwoFactorCode)
 			if err != nil {
-				respondWithError(c, http.StatusInternalServerError, "Failed to verify 2FA code")
+				respondWithError(w, r, http.StatusInternalServerError, "Failed to verify 2FA code")
 				return
 			}
 		}
 
 		if !verified {
-			respondWithError(c, http.StatusUnauthorized, "Invalid two-factor authentication code")
+			respondWithError(w, r, http.StatusUnauthorized, "Invalid two-factor authentication code")
 			return
 		}
 	}
@@ -330,27 +336,27 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	sessionModel := &model.SessionModel{DB: h.DB}
 	session, err := sessionModel.Create(user.ID, sessionTimeout)
 	if err != nil {
-		respondWithError(c, http.StatusInternalServerError, "Failed to create session")
+		respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
 		return
 	}
 
 	// Set weather_session cookie (user sessions only)
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     middleware.SessionCookieName,
 		Value:    session.ID,
 		Path:     "/",
 		MaxAge:   sessionTimeout,
 		HttpOnly: true,
-		Secure:   c.Request.TLS != nil,
+		Secure:   r.TLS != nil,
 		SameSite: http.SameSiteLaxMode,
 	})
 
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
-		c.JSON(http.StatusOK, gin.H{
+		writeAuthJSON(w, http.StatusOK, map[string]interface{}{
 			"message": "Login successful",
 			"type":    "user",
-			"user": gin.H{
+			"user": map[string]interface{}{
 				"id":       user.ID,
 				"username": user.Username,
 				"email":    user.Email,
@@ -359,36 +365,36 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		})
 	} else {
 		// Check for redirect parameter
-		redirect := c.Query("redirect")
+		redirect := r.URL.Query().Get("redirect")
 		if redirect != "" && strings.HasPrefix(redirect, "/") {
-			c.Redirect(http.StatusFound, redirect)
+			http.Redirect(w, r, redirect, http.StatusFound)
 		} else {
-			c.Redirect(http.StatusFound, "/users/dashboard")
+			http.Redirect(w, r, "/users/dashboard", http.StatusFound)
 		}
 	}
 }
 
 // HandleRegister processes registration requests
-func (h *AuthHandler) HandleRegister(c *gin.Context) {
+func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	if !isPublicRegistrationEnabled() {
-		respondWithError(c, http.StatusNotFound, "Registration is not available")
+		respondWithError(w, r, http.StatusNotFound, "Registration is not available")
 		return
 	}
 
 	var req RegisterRequest
 
 	// Support both JSON and form data
-	contentType := c.GetHeader("Content-Type")
+	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAuthJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
 			return
 		}
 	} else {
-		req.Username = c.PostForm("username")
-		req.Email = c.PostForm("email")
-		req.Password = c.PostForm("password")
-		req.ConfirmPassword = c.PostForm("confirm_password")
+		req.Username = r.PostFormValue("username")
+		req.Email = r.PostFormValue("email")
+		req.Password = r.PostFormValue("password")
+		req.ConfirmPassword = r.PostFormValue("confirm_password")
 	}
 
 	// Trim whitespace from non-password fields
@@ -397,18 +403,18 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 
 	// Passwords cannot start or end with whitespace
 	if req.Password != strings.TrimSpace(req.Password) {
-		respondWithError(c, http.StatusBadRequest, "Password cannot start or end with whitespace")
+		respondWithError(w, r, http.StatusBadRequest, "Password cannot start or end with whitespace")
 		return
 	}
 
 	// Validate passwords match
 	if req.Password != req.ConfirmPassword {
-		respondWithError(c, http.StatusBadRequest, "Passwords do not match")
+		respondWithError(w, r, http.StatusBadRequest, "Passwords do not match")
 		return
 	}
 
 	if err := util.ValidateEmail(req.Email); err != nil {
-		respondWithError(c, http.StatusBadRequest, "Please enter a valid email address")
+		respondWithError(w, r, http.StatusBadRequest, "Please enter a valid email address")
 		return
 	}
 
@@ -416,7 +422,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 
 	// Validate username
 	if err := util.ValidateUsername(req.Username); err != nil {
-		respondWithError(c, http.StatusBadRequest, err.Error())
+		respondWithError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -431,24 +437,24 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	user, err := userModel.Create(username, req.Email, req.Password, role)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			respondWithError(c, http.StatusBadRequest, "Unable to complete registration. [Forgot credentials?](/server/auth/password/forgot)")
+			respondWithError(w, r, http.StatusBadRequest, "Unable to complete registration. [Forgot credentials?](/server/auth/password/forgot)")
 			return
 		}
-		respondWithError(c, http.StatusInternalServerError, "Failed to create account. Please try again later.")
+		respondWithError(w, r, http.StatusInternalServerError, "Failed to create account. Please try again later.")
 		return
 	}
 
 	if requiresEmailVerification() {
 		if _, err := createUserEmailVerification(user.ID, user.Email); err != nil {
-			respondWithError(c, http.StatusInternalServerError, "Failed to start email verification")
+			respondWithError(w, r, http.StatusInternalServerError, "Failed to start email verification")
 			return
 		}
 
 		if strings.Contains(contentType, "application/json") {
-			c.JSON(http.StatusCreated, gin.H{
+			writeAuthJSON(w, http.StatusCreated, map[string]interface{}{
 				"message":               "Registration successful. Please verify your email before logging in.",
 				"verification_required": true,
-				"user": gin.H{
+				"user": map[string]interface{}{
 					"id":       user.ID,
 					"username": user.Username,
 					"email":    user.Email,
@@ -458,7 +464,7 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 			return
 		}
 
-		c.Redirect(http.StatusFound, "/server/auth/login?pending_verification=1")
+		http.Redirect(w, r, "/server/auth/login?pending_verification=1", http.StatusFound)
 		return
 	}
 
@@ -473,29 +479,29 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 	sessionModel := &model.SessionModel{DB: h.DB}
 	session, err := sessionModel.Create(user.ID, sessionTimeout)
 	if err != nil {
-		respondWithError(c, http.StatusInternalServerError, "User created but failed to login")
+		respondWithError(w, r, http.StatusInternalServerError, "User created but failed to login")
 		return
 	}
 
 	// Set session cookie with proper security settings per AI.md PART 11
 	// Secure: auto (based on TLS), HttpOnly: true, SameSite: Lax
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     middleware.SessionCookieName,
 		Value:    session.ID,
 		Path:     "/",
 		MaxAge:   sessionTimeout,
 		HttpOnly: true,
 		// Secure: auto-detect based on TLS (AI.md: secure: auto)
-		Secure: c.Request.TLS != nil,
+		Secure: r.TLS != nil,
 		// SameSite: Lax per AI.md session configuration
 		SameSite: http.SameSiteLaxMode,
 	})
 
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
-		c.JSON(http.StatusCreated, gin.H{
+		writeAuthJSON(w, http.StatusCreated, map[string]interface{}{
 			"message": "Registration successful",
-			"user": gin.H{
+			"user": map[string]interface{}{
 				"id":       user.ID,
 				"username": user.Username,
 				"email":    user.Email,
@@ -505,80 +511,80 @@ func (h *AuthHandler) HandleRegister(c *gin.Context) {
 		})
 	} else {
 		// Honor ?redirect= param, but never redirect to admin routes
-		redirect := c.Query("redirect")
+		redirect := r.URL.Query().Get("redirect")
 		if redirect == "" || strings.HasPrefix(redirect, "/server/admin") {
 			redirect = "/users"
 		}
-		c.Redirect(http.StatusFound, redirect)
+		http.Redirect(w, r, redirect, http.StatusFound)
 	}
 }
 
 // HandleLogout processes logout requests
-func (h *AuthHandler) HandleLogout(c *gin.Context) {
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	// Get session from context
-	session, exists := middleware.GetCurrentSession(c)
+	session, exists := middleware.GetCurrentSession(r)
 	if exists {
 		sessionModel := &model.SessionModel{DB: h.DB}
 		sessionModel.Delete(session.ID)
 	}
 
 	// Clear session cookie
-	c.SetCookie(
-		middleware.SessionCookieName,
-		"",
-		-1,
-		"/",
-		"",
-		false,
-		true,
-	)
+	http.SetCookie(w, &http.Cookie{
+		Name:     middleware.SessionCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Domain:   "",
+		Secure:   false,
+		HttpOnly: true,
+	})
 
 	// Respond based on request type
-	acceptHeader := c.GetHeader("Accept")
+	acceptHeader := r.Header.Get("Accept")
 	if strings.Contains(acceptHeader, "application/json") {
-		c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+		writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": "Logged out successfully"})
 	} else {
-		c.Redirect(http.StatusFound, "/")
+		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }
 
 // GetCurrentUser returns current user info
-func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *AuthHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeAuthJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	response, err := LoadCurrentUserProfile(h.DB, user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load current user"})
+		writeAuthJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load current user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	writeAuthJSON(w, http.StatusOK, response)
 }
 
 // UpdateProfile updates user profile (display name and phone only)
-func (h *AuthHandler) UpdateProfile(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeAuthJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	var req UpdateCurrentUserProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAuthJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	if err := UpdateCurrentUserProfile(h.DB, user.ID, &req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		writeAuthJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update profile"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
+	writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": "Profile updated successfully"})
 }
 
 // LoadCurrentUserProfile returns the same current-user payload used by GET /api/v1/users.
@@ -626,29 +632,39 @@ func (h *AuthHandler) getSessionTimeout() (int, error) {
 	return timeout, nil
 }
 
-func respondWithError(c *gin.Context, statusCode int, message string) {
-	contentType := c.GetHeader("Content-Type")
+// writeAuthJSON writes the non-canonical ad-hoc {"error": "..."}/{"message": "..."}
+// shapes this handler has always used, preserved verbatim (this predates the
+// canonical {"ok","error":CODE,"message"} response format and is not upgraded
+// here — a mechanical framework conversion must not change response bodies).
+func writeAuthJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func respondWithError(w http.ResponseWriter, r *http.Request, statusCode int, message string) {
+	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
-		c.JSON(statusCode, gin.H{"error": message})
+		writeAuthJSON(w, statusCode, map[string]interface{}{"error": message})
 	} else {
 		// For form submissions, render inline error on same page
 		// Get the current path to determine which template to render
-		path := c.Request.URL.Path
+		path := r.URL.Path
 
 		if strings.Contains(path, "login") {
-			c.HTML(statusCode, "page/login.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, statusCode, "page/login.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title":              "Login",
 				"error":              message,
 				"registrationPublic": isPublicRegistrationEnabled(),
 			}))
 		} else if strings.Contains(path, "register") {
-			c.HTML(statusCode, "page/register.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, statusCode, "page/register.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title": "Register",
 				"error": message,
 			}))
 		} else {
 			// Fallback to error page for other cases
-			c.HTML(statusCode, "page/error.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, statusCode, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 				"error": message,
 			}))
 		}

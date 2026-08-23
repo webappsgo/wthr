@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/model"
-
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 const (
@@ -20,118 +20,127 @@ const (
 )
 
 // AuthMiddleware checks for valid session or API token
-func AuthMiddleware(db *sql.DB, required bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		sessionModel := &model.SessionModel{DB: db}
-		userModel := &model.UserModel{DB: db}
-		tokenModel := &model.TokenModel{DB: db}
+func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sessionModel := &model.SessionModel{DB: db}
+			userModel := &model.UserModel{DB: db}
+			tokenModel := &model.TokenModel{DB: db}
 
-		var user *model.User
-		var session *model.Session
+			var user *model.User
+			var session *model.Session
 
-		// First, check for API token in Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader != "" {
-			// Extract token from "Bearer <token>" format
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) == 2 && parts[0] == "Bearer" {
-				token := parts[1]
-				apiToken, err := tokenModel.GetByToken(token)
-				if err == nil {
-					// Valid API token found
-					user, err = userModel.GetByID(int64(apiToken.UserID))
+			// First, check for API token in Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader != "" {
+				// Extract token from "Bearer <token>" format
+				parts := strings.SplitN(authHeader, " ", 2)
+				if len(parts) == 2 && parts[0] == "Bearer" {
+					token := parts[1]
+					apiToken, err := tokenModel.GetByToken(token)
 					if err == nil {
-						// Update last used timestamp asynchronously
-						go tokenModel.UpdateLastUsed(apiToken.ID)
-						c.Set(UserContextKey, user)
-						// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-						c.Set(UserIDContextKey, int(user.ID))
-						c.Set("auth_method", "api_token")
-						c.Next()
+						// Valid API token found
+						user, err = userModel.GetByID(int64(apiToken.UserID))
+						if err == nil {
+							// Update last used timestamp asynchronously
+							go tokenModel.UpdateLastUsed(apiToken.ID)
+							ctx := reqctx.Set(r.Context(), UserContextKey, user)
+							// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+							ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
+							ctx = reqctx.Set(ctx, "auth_method", "api_token")
+							r = r.WithContext(ctx)
+							next.ServeHTTP(w, r)
+							return
+						}
+					}
+				}
+			}
+
+			// Check for session cookie
+			sessionCookie, err := r.Cookie(SessionCookieName)
+			if err == nil && sessionCookie.Value != "" {
+				sessionID := sessionCookie.Value
+				session, err = sessionModel.GetByID(sessionID)
+				if err == nil {
+					user, err = userModel.GetByID(int64(session.UserID))
+					if err == nil {
+						ctx := reqctx.Set(r.Context(), UserContextKey, user)
+						// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+						ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
+						ctx = reqctx.Set(ctx, SessionContextKey, session)
+						ctx = reqctx.Set(ctx, "auth_method", "session")
+						r = r.WithContext(ctx)
+						next.ServeHTTP(w, r)
 						return
 					}
 				}
 			}
-		}
 
-		// Check for session cookie
-		sessionID, err := c.Cookie(SessionCookieName)
-		if err == nil && sessionID != "" {
-			session, err = sessionModel.GetByID(sessionID)
-			if err == nil {
-				user, err = userModel.GetByID(int64(session.UserID))
-				if err == nil {
-					c.Set(UserContextKey, user)
-					// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-					c.Set(UserIDContextKey, int(user.ID))
-					c.Set(SessionContextKey, session)
-					c.Set("auth_method", "session")
-					c.Next()
+			// No valid authentication found
+			if required {
+				// Check if request is from browser or API
+				acceptHeader := r.Header.Get("Accept")
+				if strings.Contains(acceptHeader, "text/html") {
+					http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 					return
 				}
-			}
-		}
 
-		// No valid authentication found
-		if required {
-			// Check if request is from browser or API
-			acceptHeader := c.GetHeader("Accept")
-			if strings.Contains(acceptHeader, "text/html") {
-				c.Redirect(http.StatusFound, "/server/auth/login")
-				c.Abort()
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": "Authentication required",
+				})
 				return
 			}
 
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Authentication required",
-			})
-			c.Abort()
-			return
-		}
-
-		// Authentication not required, continue
-		c.Next()
+			// Authentication not required, continue
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 // RequireAuth is a convenience wrapper for required authentication
-func RequireAuth(db *sql.DB) gin.HandlerFunc {
+func RequireAuth(db *sql.DB) func(http.Handler) http.Handler {
 	return AuthMiddleware(db, true)
 }
 
 // OptionalAuth is a convenience wrapper for optional authentication
-func OptionalAuth(db *sql.DB) gin.HandlerFunc {
+func OptionalAuth(db *sql.DB) func(http.Handler) http.Handler {
 	return AuthMiddleware(db, false)
 }
 
 // RequireAdmin checks if user has admin role
-func RequireAdmin() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userInterface, exists := c.Get(UserContextKey)
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Authentication required",
-			})
-			c.Abort()
-			return
-		}
+func RequireAdmin() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userInterface, exists := reqctx.Get(r.Context(), UserContextKey)
+			if !exists {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusUnauthorized)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": "Authentication required",
+				})
+				return
+			}
 
-		user, ok := userInterface.(*model.User)
-		if !ok || user.Role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Admin access required",
-			})
-			c.Abort()
-			return
-		}
+			user, ok := userInterface.(*model.User)
+			if !ok || user.Role != "admin" {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": "Admin access required",
+				})
+				return
+			}
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 // GetCurrentUser retrieves the current user from context
-func GetCurrentUser(c *gin.Context) (*model.User, bool) {
-	userInterface, exists := c.Get(UserContextKey)
+func GetCurrentUser(r *http.Request) (*model.User, bool) {
+	userInterface, exists := reqctx.Get(r.Context(), UserContextKey)
 	if !exists {
 		return nil, false
 	}
@@ -141,8 +150,8 @@ func GetCurrentUser(c *gin.Context) (*model.User, bool) {
 }
 
 // GetCurrentSession retrieves the current session from context
-func GetCurrentSession(c *gin.Context) (*model.Session, bool) {
-	sessionInterface, exists := c.Get(SessionContextKey)
+func GetCurrentSession(r *http.Request) (*model.Session, bool) {
+	sessionInterface, exists := reqctx.Get(r.Context(), SessionContextKey)
 	if !exists {
 		return nil, false
 	}
@@ -152,20 +161,20 @@ func GetCurrentSession(c *gin.Context) (*model.Session, bool) {
 }
 
 // IsAuthenticated checks if user is authenticated
-func IsAuthenticated(c *gin.Context) bool {
-	_, ok := GetCurrentUser(c)
+func IsAuthenticated(r *http.Request) bool {
+	_, ok := GetCurrentUser(r)
 	return ok
 }
 
 // IsAdmin checks if user is admin
-func IsAdmin(c *gin.Context) bool {
-	user, ok := GetCurrentUser(c)
+func IsAdmin(r *http.Request) bool {
+	user, ok := GetCurrentUser(r)
 	return ok && user.Role == "admin"
 }
 
 // RestrictAdminToAdminRoutes middleware that forces admins to only access /server/admin routes
 // Admins are treated as guest/anonymous on all non-admin routes
-func RestrictAdminToAdminRoutes() gin.HandlerFunc {
+func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
 	adminPath := "/server/admin"
@@ -173,40 +182,43 @@ func RestrictAdminToAdminRoutes() gin.HandlerFunc {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
 
-		// Skip this middleware for admin routes, setup routes, API routes, static files, and auth routes
-		if strings.HasPrefix(path, adminPath) ||
-			strings.HasPrefix(path, "/api") ||
-			strings.HasPrefix(path, "/static") ||
-			strings.HasPrefix(path, "/server/auth/login") ||
-			strings.HasPrefix(path, "/server/auth/logout") ||
-			strings.HasPrefix(path, "/server/auth/register") ||
-			strings.HasPrefix(path, "/server/healthz") ||
-			strings.HasPrefix(path, "/healthz") ||
-			strings.HasPrefix(path, "/debug") ||
-			strings.HasPrefix(path, "/docs") {
-			c.Next()
-			return
-		}
+			// Skip this middleware for admin routes, setup routes, API routes, static files, and auth routes
+			if strings.HasPrefix(path, adminPath) ||
+				strings.HasPrefix(path, "/api") ||
+				strings.HasPrefix(path, "/static") ||
+				strings.HasPrefix(path, "/server/auth/login") ||
+				strings.HasPrefix(path, "/server/auth/logout") ||
+				strings.HasPrefix(path, "/server/auth/register") ||
+				strings.HasPrefix(path, "/server/healthz") ||
+				strings.HasPrefix(path, "/healthz") ||
+				strings.HasPrefix(path, "/debug") ||
+				strings.HasPrefix(path, "/docs") {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		// Check if user is admin
-		user, ok := GetCurrentUser(c)
-		if ok && user.Role == "admin" {
-			// Admin accessing non-admin route - treat as guest/anonymous
-			// Clear user and session context so they appear as unauthenticated
-			c.Set(UserContextKey, nil)
-			c.Set(SessionContextKey, nil)
-		}
+			// Check if user is admin
+			user, ok := GetCurrentUser(r)
+			if ok && user.Role == "admin" {
+				// Admin accessing non-admin route - treat as guest/anonymous
+				// Clear user and session context so they appear as unauthenticated
+				ctx := reqctx.Set(r.Context(), UserContextKey, nil)
+				ctx = reqctx.Set(ctx, SessionContextKey, nil)
+				r = r.WithContext(ctx)
+			}
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 // BlockAdminFromUserRoutes blocks admin users from accessing /users routes
 // Admins should only access admin routes
-func BlockAdminFromUserRoutes() gin.HandlerFunc {
+func BlockAdminFromUserRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
 	adminPath := "/server/admin"
@@ -214,35 +226,37 @@ func BlockAdminFromUserRoutes() gin.HandlerFunc {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}
 
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
 
-		// Only apply to /users routes
-		if !strings.HasPrefix(path, "/users") {
-			c.Next()
-			return
-		}
-
-		// Check if user is admin
-		user, ok := GetCurrentUser(c)
-		if ok && user.Role == "admin" {
-			// Admin trying to access user route - block them
-			acceptHeader := c.GetHeader("Accept")
-			if strings.Contains(acceptHeader, "text/html") {
-				// Redirect to admin dashboard for HTML requests
-				c.Redirect(http.StatusFound, adminPath)
-				c.Abort()
+			// Only apply to /users routes
+			if !strings.HasPrefix(path, "/users") {
+				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Return error for API requests
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "Admin users cannot access user routes. Please use /admin routes instead.",
-			})
-			c.Abort()
-			return
-		}
+			// Check if user is admin
+			user, ok := GetCurrentUser(r)
+			if ok && user.Role == "admin" {
+				// Admin trying to access user route - block them
+				acceptHeader := r.Header.Get("Accept")
+				if strings.Contains(acceptHeader, "text/html") {
+					// Redirect to admin dashboard for HTML requests
+					http.Redirect(w, r, adminPath, http.StatusFound)
+					return
+				}
 
-		c.Next()
+				// Return error for API requests
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": "Admin users cannot access user routes. Please use /admin routes instead.",
+				})
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
 	}
 }

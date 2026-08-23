@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
 // TestSaveLocationCookies_RoundTripsThroughGetLocationFromCookies verifies
@@ -13,17 +11,9 @@ import (
 // GetLocationFromCookies, simulating a real browser round trip (set on one
 // response, sent back on the next request).
 func TestSaveLocationCookies_RoundTripsThroughGetLocationFromCookies(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.GET("/set", func(c *gin.Context) {
-		SaveLocationCookies(c, 51.5074, -0.1278, "London")
-		c.String(http.StatusOK, "ok")
-	})
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/set", nil)
-	router.ServeHTTP(w, req)
+	SaveLocationCookies(w, req, 51.5074, -0.1278, "London")
 
 	resp := w.Result()
 	cookies := resp.Cookies()
@@ -36,10 +26,8 @@ func TestSaveLocationCookies_RoundTripsThroughGetLocationFromCookies(t *testing.
 	for _, ck := range cookies {
 		req2.AddCookie(ck)
 	}
-	c2, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c2.Request = req2
 
-	lat, lon, name, found := GetLocationFromCookies(c2)
+	lat, lon, name, found := GetLocationFromCookies(req2)
 	if !found {
 		t.Fatal("GetLocationFromCookies found = false, want true")
 	}
@@ -57,12 +45,9 @@ func TestSaveLocationCookies_RoundTripsThroughGetLocationFromCookies(t *testing.
 // TestGetLocationFromCookies_NotFoundWhenMissing verifies the zero-value,
 // found=false contract when no location cookies are present at all.
 func TestGetLocationFromCookies_NotFoundWhenMissing(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	lat, lon, name, found := GetLocationFromCookies(c)
+	lat, lon, name, found := GetLocationFromCookies(req)
 	if found {
 		t.Error("found = true with no cookies present, want false")
 	}
@@ -76,8 +61,6 @@ func TestGetLocationFromCookies_NotFoundWhenMissing(t *testing.T) {
 // non-numeric value) is treated as not-found rather than silently
 // succeeding with a zero-valued field.
 func TestGetLocationFromCookies_PartialOrCorruptCookies(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name    string
 		cookies map[string]string
@@ -113,10 +96,8 @@ func TestGetLocationFromCookies_PartialOrCorruptCookies(t *testing.T) {
 			for k, v := range tt.cookies {
 				req.AddCookie(&http.Cookie{Name: k, Value: v})
 			}
-			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = req
 
-			_, _, _, found := GetLocationFromCookies(c)
+			_, _, _, found := GetLocationFromCookies(req)
 			if found {
 				t.Error("found = true for partial/corrupt cookie set, want false")
 			}
@@ -128,17 +109,9 @@ func TestGetLocationFromCookies_PartialOrCorruptCookies(t *testing.T) {
 // emits deletion cookies (MaxAge -1, empty value) for all four cookie names,
 // rather than merely omitting them.
 func TestClearLocationCookies_SetsExpiredCookies(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.GET("/clear", func(c *gin.Context) {
-		ClearLocationCookies(c)
-		c.String(http.StatusOK, "ok")
-	})
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/clear", nil)
-	router.ServeHTTP(w, req)
+	ClearLocationCookies(w, req)
 
 	cookies := w.Result().Cookies()
 	wantNames := map[string]bool{

@@ -6,19 +6,15 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
-// newWebTestContext builds a bare GET gin.Context/recorder pair, matching
+// newWebTestContext builds a bare GET request/recorder pair, matching
 // the newWeatherTestContext convention already established in
 // weather_test.go for this package's not-initialized guard-clause tests.
-func newWebTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newWebTestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	return r, w
 }
 
 // ServeWebInterface and ServeMoonInterface both gate on IsInitialized()
@@ -30,10 +26,10 @@ func TestWebHandlerServeWebInterface_NotInitialized(t *testing.T) {
 	t.Cleanup(func() { SetInitStatus(false, false, false) })
 
 	h := NewWebHandler(nil, nil)
-	c, w := newWebTestContext("/")
-	c.Request.Header.Set("Accept", "application/json")
+	r, w := newWebTestContext("/")
+	r.Header.Set("Accept", "application/json")
 
-	h.ServeWebInterface(c)
+	h.ServeWebInterface(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusServiceUnavailable, w.Body.String())
@@ -48,10 +44,10 @@ func TestWebHandlerServeMoonInterface_NotInitialized(t *testing.T) {
 	t.Cleanup(func() { SetInitStatus(false, false, false) })
 
 	h := NewWebHandler(nil, nil)
-	c, w := newWebTestContext("/moon")
-	c.Request.Header.Set("Accept", "application/json")
+	r, w := newWebTestContext("/moon")
+	r.Header.Set("Accept", "application/json")
 
-	h.ServeMoonInterface(c)
+	h.ServeMoonInterface(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusServiceUnavailable, w.Body.String())

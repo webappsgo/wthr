@@ -3,10 +3,12 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // LogFormat represents supported log format types
@@ -404,29 +406,33 @@ func escapeCEF(s string) string {
 	return s
 }
 
-// ExtractLogEntry extracts log entry data from Gin context
-func ExtractLogEntry(c *gin.Context, startTime time.Time, bytesWritten int) *LogEntry {
+// ExtractLogEntry extracts log entry data from an http.Request
+func ExtractLogEntry(r *http.Request, startTime time.Time, statusCode int, bytesWritten int) *LogEntry {
 	entry := &LogEntry{
 		Timestamp:   startTime,
-		RemoteAddr:  c.ClientIP(),
-		Method:      c.Request.Method,
-		Path:        c.Request.URL.Path,
-		Protocol:    c.Request.Proto,
-		StatusCode:  c.Writer.Status(),
+		RemoteAddr:  util.GetClientIP(r),
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		Protocol:    r.Proto,
+		StatusCode:  statusCode,
 		BytesSent:   bytesWritten,
-		Referer:     c.Request.Referer(),
-		UserAgent:   c.Request.UserAgent(),
+		Referer:     r.Referer(),
+		UserAgent:   r.UserAgent(),
 		RequestTime: time.Since(startTime).Seconds(),
 	}
 
 	// Extract request ID if available
-	if requestID, exists := c.Get("request_id"); exists {
-		entry.RequestID = requestID.(string)
+	if requestID, exists := reqctx.Get(r.Context(), "request_id"); exists {
+		if rid, ok := requestID.(string); ok {
+			entry.RequestID = rid
+		}
 	}
 
 	// Extract username if authenticated
-	if username, exists := c.Get("username"); exists {
-		entry.Username = username.(string)
+	if username, exists := reqctx.Get(r.Context(), "username"); exists {
+		if uname, ok := username.(string); ok {
+			entry.Username = uname
+		}
 	}
 
 	return entry

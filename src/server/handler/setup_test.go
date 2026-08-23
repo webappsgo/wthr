@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-
 	paths "github.com/webappsgo/wthr/src/path"
 	utils "github.com/webappsgo/wthr/src/util"
 )
@@ -51,10 +49,11 @@ func TestVerifySetupToken(t *testing.T) {
 		h, _ := newSetupTestHandler(t)
 		writeRealSetupToken(t, "correct-setup-token")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/setup/verify-token", map[string]string{
-			"setup_token": "correct-setup-token",
-		})
-		h.VerifySetupToken(c)
+		raw, _ := json.Marshal(map[string]string{"setup_token": "correct-setup-token"})
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/verify-token", bytes.NewReader(raw))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.VerifySetupToken(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -72,8 +71,11 @@ func TestVerifySetupToken(t *testing.T) {
 
 	t.Run("missing token returns 400", func(t *testing.T) {
 		h, _ := newSetupTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/setup/verify-token", map[string]string{})
-		h.VerifySetupToken(c)
+		raw, _ := json.Marshal(map[string]string{})
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/verify-token", bytes.NewReader(raw))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.VerifySetupToken(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -83,34 +85,33 @@ func TestVerifySetupToken(t *testing.T) {
 		h, _ := newSetupTestHandler(t)
 		writeRealSetupToken(t, "correct-setup-token")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/setup/verify-token", map[string]string{
-			"setup_token": "totally-wrong",
-		})
-		h.VerifySetupToken(c)
+		raw, _ := json.Marshal(map[string]string{"setup_token": "totally-wrong"})
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/verify-token", bytes.NewReader(raw))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		h.VerifySetupToken(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
 	})
 }
 
-// newVerifiedSetupContext builds a JSON gin context for CreateAdmin that
-// already carries a valid setup_token_verified cookie, mirroring what a
-// real browser would send after VerifySetupToken succeeded.
-func newVerifiedSetupContext(t *testing.T, body map[string]interface{}) (*gin.Context, *httptest.ResponseRecorder) {
+// newVerifiedSetupRequest builds a JSON request for CreateAdmin that already
+// carries a valid setup_token_verified cookie, mirroring what a real browser
+// would send after VerifySetupToken succeeded.
+func newVerifiedSetupRequest(t *testing.T, body map[string]interface{}) (*http.Request, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
 
 	raw, err := json.Marshal(body)
 	if err != nil {
 		t.Fatalf("marshal body: %v", err)
 	}
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/setup/admin", bytes.NewReader(raw))
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Request.Header.Set("Accept", "application/json")
-	c.Request.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
-	return c, w
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/admin", bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Accept", "application/json")
+	r.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
+	return r, w
 }
 
 // TestCreateAdmin covers the Primary Admin creation success path (session +
@@ -121,13 +122,13 @@ func TestCreateAdmin(t *testing.T) {
 	t.Run("success creates the primary admin and issues cookies", func(t *testing.T) {
 		h, serverDB := newSetupTestHandler(t)
 
-		c, w := newVerifiedSetupContext(t, map[string]interface{}{
+		r, w := newVerifiedSetupRequest(t, map[string]interface{}{
 			"username":         "administrator",
 			"email":            "admin@example.com",
 			"password":         "correct-horse-battery-staple",
 			"confirm_password": "correct-horse-battery-staple",
 		})
-		h.CreateAdmin(c)
+		h.CreateAdmin(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -153,14 +154,17 @@ func TestCreateAdmin(t *testing.T) {
 
 	t.Run("unverified setup token is rejected with 401", func(t *testing.T) {
 		h, _ := newSetupTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/setup/admin", map[string]interface{}{
+		raw, _ := json.Marshal(map[string]interface{}{
 			"username":         "administrator",
 			"email":            "admin@example.com",
 			"password":         "correct-horse-battery-staple",
 			"confirm_password": "correct-horse-battery-staple",
 		})
-		c.Request.Header.Set("Accept", "application/json")
-		h.CreateAdmin(c)
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/admin", bytes.NewReader(raw))
+		r.Header.Set("Content-Type", "application/json")
+		r.Header.Set("Accept", "application/json")
+		w := httptest.NewRecorder()
+		h.CreateAdmin(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -168,13 +172,13 @@ func TestCreateAdmin(t *testing.T) {
 
 	t.Run("too-short password is rejected with 400 before touching the DB", func(t *testing.T) {
 		h, serverDB := newSetupTestHandler(t)
-		c, w := newVerifiedSetupContext(t, map[string]interface{}{
+		r, w := newVerifiedSetupRequest(t, map[string]interface{}{
 			"username":         "administrator",
 			"email":            "admin@example.com",
 			"password":         "short",
 			"confirm_password": "short",
 		})
-		h.CreateAdmin(c)
+		h.CreateAdmin(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -194,8 +198,9 @@ func TestCreateAdmin(t *testing.T) {
 func TestGetSetupStatus(t *testing.T) {
 	t.Run("no admin yet reports not_started", func(t *testing.T) {
 		h, _ := newSetupTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/setup/status")
-		h.GetSetupStatus(c)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/setup/status", nil)
+		w := httptest.NewRecorder()
+		h.GetSetupStatus(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -226,8 +231,9 @@ func TestGetSetupStatus(t *testing.T) {
 			t.Fatalf("seed setup.completed: %v", err)
 		}
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/setup/status")
-		h.GetSetupStatus(c)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/setup/status", nil)
+		w := httptest.NewRecorder()
+		h.GetSetupStatus(w, r)
 
 		var body struct {
 			Status     string `json:"status"`
@@ -247,8 +253,9 @@ func TestGetSetupStatus(t *testing.T) {
 			t.Fatalf("drop table: %v", err)
 		}
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/setup/status")
-		h.GetSetupStatus(c)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/setup/status", nil)
+		w := httptest.NewRecorder()
+		h.GetSetupStatus(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())

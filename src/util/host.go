@@ -3,19 +3,18 @@ package util
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 // GetHostInfo detects the host information from request headers
-func GetHostInfo(c *gin.Context) *HostInfo {
+func GetHostInfo(r *http.Request) *HostInfo {
 	// Detect protocol from headers or TLS
-	protocol := c.GetHeader("X-Forwarded-Proto")
+	protocol := r.Header.Get("X-Forwarded-Proto")
 	if protocol == "" {
-		if c.Request.TLS != nil {
+		if r.TLS != nil {
 			protocol = "https"
 		} else {
 			protocol = "http"
@@ -23,7 +22,7 @@ func GetHostInfo(c *gin.Context) *HostInfo {
 	}
 
 	// Get hostname from request (reverse proxy headers first)
-	hostname := GetHostFromRequest(c)
+	hostname := GetHostFromRequest(r)
 
 	// Build full host URL
 	fullHost := fmt.Sprintf("%s://%s", protocol, hostname)
@@ -39,10 +38,10 @@ func GetHostInfo(c *gin.Context) *HostInfo {
 
 // GetHostFromRequest resolves hostname from request (TEMPLATE.md compliant)
 // Priority: X-Forwarded-Host > X-Real-Host > X-Original-Host > GetFQDN()
-func GetHostFromRequest(c *gin.Context) string {
+func GetHostFromRequest(r *http.Request) string {
 	// 1. Reverse proxy headers (highest priority)
 	for _, header := range []string{"X-Forwarded-Host", "X-Real-Host", "X-Original-Host"} {
-		if host := c.GetHeader(header); host != "" {
+		if host := r.Header.Get(header); host != "" {
 			// Strip port if present
 			if h, _, err := net.SplitHostPort(host); err == nil {
 				return h
@@ -139,19 +138,19 @@ func getGlobalIPv4() string {
 }
 
 // GetClientIP extracts the real client IP from reverse proxy headers
-func GetClientIP(c *gin.Context) string {
+func GetClientIP(r *http.Request) string {
 	// Check Cloudflare header first
-	if ip := c.GetHeader("CF-Connecting-IP"); ip != "" {
+	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
 		return ip
 	}
 
 	// Check X-Real-IP
-	if ip := c.GetHeader("X-Real-IP"); ip != "" {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip
 	}
 
 	// Check X-Forwarded-For (use first IP)
-	if ip := c.GetHeader("X-Forwarded-For"); ip != "" {
+	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
 		// X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
 		// We want the first one (the actual client)
 		for i, char := range ip {
@@ -163,12 +162,15 @@ func GetClientIP(c *gin.Context) string {
 	}
 
 	// Check True-Client-IP
-	if ip := c.GetHeader("True-Client-IP"); ip != "" {
+	if ip := r.Header.Get("True-Client-IP"); ip != "" {
 		return ip
 	}
 
-	// Fallback to Gin's ClientIP
-	return c.ClientIP()
+	// Fallback to the raw remote address (host part only)
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 // IsLocalhost checks if an IP is localhost or private
@@ -214,9 +216,9 @@ func IsLocalhost(ip string) bool {
 
 // IsBrowser detects if the request is from a web browser
 // AI.md PART 13: Content negotiation based on Accept header first, then User-Agent
-func IsBrowser(c *gin.Context) bool {
+func IsBrowser(r *http.Request) bool {
 	// Priority 1: Check Accept header (SPEC requirement)
-	accept := c.GetHeader("Accept")
+	accept := r.Header.Get("Accept")
 	if accept != "" {
 		// Explicit text/html request = browser behavior
 		if contains(accept, "text/html") {
@@ -229,7 +231,7 @@ func IsBrowser(c *gin.Context) bool {
 	}
 
 	// Priority 2: Check User-Agent for browser detection
-	userAgent := c.GetHeader("User-Agent")
+	userAgent := r.Header.Get("User-Agent")
 	if userAgent == "" {
 		return false
 	}

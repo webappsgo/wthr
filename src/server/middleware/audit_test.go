@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
@@ -183,7 +183,6 @@ func TestGetResourceFromPath_ConfiguredAdminPathNotDefault(t *testing.T) {
 // and for GET/OPTIONS on admin routes - it must not attempt to write for
 // read-only traffic.
 func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	db := openAuditTestDB(t)
 
 	tests := []struct {
@@ -198,13 +197,15 @@ func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := gin.New()
-			router.Use(AuditLogger(db))
-			router.Handle(tt.method, tt.path, func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+			})
+			handler := AuditLogger(db)(next)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
-			router.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("status = %d, want 200", w.Code)
@@ -220,32 +221,19 @@ func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
 // test: a mutating request to an admin route should result in a row being
 // written to the real audit-log table defined by database.ServerSchema
 // (server_audit_log).
-//
-// This test encodes CORRECT expected behavior. It is expected to FAIL
-// against the current implementation because audit.go:47 issues
-// `INSERT INTO audit_log (...)` - a table that does not exist anywhere in
-// database.ServerSchema (the real table is `server_audit_log` with an
-// entirely different column set: ulid, timestamp, actor_type, actor_id,
-// resource_type, resource_id, details, status, error - none of which match
-// audit.go's user_id/resource/created_at/success columns). Every admin
-// audit-log write therefore fails with "no such table: audit_log" in
-// production, and AuditLogger swallows the error via c.Error(err) without
-// aborting the request, so this is currently silent: admin actions are
-// never actually audited despite backend-rules.md's non-negotiable
-// requirement to "Audit log every admin action".
 func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	db := openAuditTestDB(t)
 
-	router := gin.New()
-	router.Use(AuditLogger(db))
-	router.POST("/server/admin/users", func(c *gin.Context) {
-		c.JSON(http.StatusCreated, gin.H{"ok": true})
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
+	handler := AuditLogger(db)(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", w.Code)
@@ -257,26 +245,19 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 		t.Fatalf("query server_audit_log: %v", err)
 	}
 	if count != 1 {
-		t.Errorf("server_audit_log rows for this request = %d, want 1 - "+
-			"AuditLogger (audit.go:46-49) inserts into a table named 'audit_log' "+
-			"that does not exist in database.ServerSchema; the real table is "+
-			"'server_audit_log' with different columns, so this write silently "+
-			"fails in production and no audit trail is ever recorded for admin actions", count)
+		t.Errorf("server_audit_log rows for this request = %d, want 1", count)
 	}
 }
 
 // TestAuditLogger_ReportsFailedWrite verifies a failed audit insert is loud in
 // the log rather than silent.
 //
-// The middleware must never fail the request over a broken audit table, but the
-// previous c.Error(err) only attached the error to the gin context and nothing
-// in this project reads c.Errors - so a missing or broken server_audit_log
-// dropped every admin action with no operator-visible signal at all. PART 11
-// makes recording security-relevant actions non-negotiable, which makes a
-// failure to record one a security event in its own right.
+// The middleware must never fail the request over a broken audit table, but a
+// missing or broken server_audit_log must never drop every admin action with
+// no operator-visible signal at all. PART 11 makes recording security-relevant
+// actions non-negotiable, which makes a failure to record one a security event
+// in its own right.
 func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	// A database with no schema at all, so the insert cannot succeed.
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:audit_noschema_%d?mode=memory&cache=shared", time.Now().UnixNano()))
 	if err != nil {
@@ -294,23 +275,23 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 		log.SetFlags(previousFlags)
 	})
 
-	router := gin.New()
-	router.Use(AuditLogger(db))
-	router.POST("/server/admin/users", func(c *gin.Context) {
-		c.JSON(http.StatusCreated, gin.H{"ok": true})
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
+	handler := AuditLogger(db)(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("status = %d, want 201 - a failed audit write must not fail the request", w.Code)
 	}
 	if got := logged.String(); !strings.Contains(got, "audit:") {
 		t.Errorf("log output = %q, want an \"audit:\" failure line - a dropped audit "+
-			"record must be visible to the operator, not swallowed into c.Errors "+
-			"where nothing ever reads it", got)
+			"record must be visible to the operator", got)
 	}
 }
 
@@ -332,20 +313,20 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 // this test fails against the raw-time.Time bind and passes only once the
 // write goes through dbtime.FormatSQLTimestamp.
 func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	db := openAuditTestDB(t)
 
-	router := gin.New()
-	router.Use(AuditLogger(db))
-	router.POST("/server/admin/users", func(c *gin.Context) {
-		c.JSON(http.StatusCreated, gin.H{"ok": true})
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
+	handler := AuditLogger(db)(next)
 
 	before := time.Now().UTC().Truncate(time.Second)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", w.Code)

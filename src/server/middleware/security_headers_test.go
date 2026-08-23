@@ -4,17 +4,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
+
+// stubOKHandler is the next handler used across these tests — it never gets
+// to write anything itself, so any status/body assertions below reflect only
+// what the middleware under test wrote to the ResponseWriter.
+var stubOKHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+})
 
 // TestSecurityHeaders_ExactValues verifies SecurityHeaders sets the exact
 // documented header values (AI.md: XSS/clickjacking/MIME-sniffing/CORP
 // protections), not just "some CSP present". Wrong values silently defeat
 // the protection.
 func TestSecurityHeaders_ExactValues(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		header string
 		want   string
@@ -29,13 +33,9 @@ func TestSecurityHeaders_ExactValues(t *testing.T) {
 		{"Cross-Origin-Resource-Policy", "cross-origin"},
 	}
 
-	router := gin.New()
-	router.Use(SecurityHeaders())
-	router.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	router.ServeHTTP(w, req)
+	SecurityHeaders()(stubOKHandler).ServeHTTP(w, req)
 
 	for _, tt := range tests {
 		t.Run(tt.header, func(t *testing.T) {
@@ -63,16 +63,10 @@ func TestSecurityHeaders_ExactValues(t *testing.T) {
 // request is detected as HTTPS (TLS or X-Forwarded-Proto), never on plain
 // HTTP - setting it unconditionally would be a bug (breaks local HTTP dev).
 func TestSecurityHeaders_HSTSOnlyOnHTTPS(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	t.Run("no forwarded proto - HSTS absent", func(t *testing.T) {
-		router := gin.New()
-		router.Use(SecurityHeaders())
-		router.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		router.ServeHTTP(w, req)
+		SecurityHeaders()(stubOKHandler).ServeHTTP(w, req)
 
 		if got := w.Header().Get("Strict-Transport-Security"); got != "" {
 			t.Errorf("HSTS = %q on plain HTTP, want empty", got)
@@ -80,14 +74,10 @@ func TestSecurityHeaders_HSTSOnlyOnHTTPS(t *testing.T) {
 	})
 
 	t.Run("X-Forwarded-Proto https - HSTS present", func(t *testing.T) {
-		router := gin.New()
-		router.Use(SecurityHeaders())
-		router.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("X-Forwarded-Proto", "https")
-		router.ServeHTTP(w, req)
+		SecurityHeaders()(stubOKHandler).ServeHTTP(w, req)
 
 		want := "max-age=31536000; includeSubDomains"
 		if got := w.Header().Get("Strict-Transport-Security"); got != want {
@@ -99,15 +89,9 @@ func TestSecurityHeaders_HSTSOnlyOnHTTPS(t *testing.T) {
 // TestSecurityHeadersAPI_ExactValues checks the API-specific variant, which
 // is intentionally more restrictive (default-src 'none', no-store caching).
 func TestSecurityHeadersAPI_ExactValues(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.Use(SecurityHeadersAPI())
-	router.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	router.ServeHTTP(w, req)
+	SecurityHeadersAPI()(stubOKHandler).ServeHTTP(w, req)
 
 	tests := []struct {
 		header string

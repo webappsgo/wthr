@@ -3,6 +3,7 @@ package graphql
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,12 +13,13 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
-	"github.com/gin-gonic/gin"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // contextKey is an unexported type used for context keys
@@ -54,41 +56,45 @@ func NewServer(resolver *Resolver) *gqlhandler.Server {
 	return srv
 }
 
-// GraphQLHandler wraps the gqlgen handler for Gin.
-func GraphQLHandler(h *gqlhandler.Server) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authCtx, err := buildGraphQLAuthContext(c)
+// GraphQLHandler wraps the gqlgen handler for net/http.
+func GraphQLHandler(h *gqlhandler.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authCtx, err := buildGraphQLAuthContext(r)
 		if err != nil {
-			c.AbortWithStatusJSON(401, gin.H{
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"ok":    false,
 				"error": err.Error(),
 			})
 			return
 		}
-		c.Request = c.Request.WithContext(authCtx)
-		h.ServeHTTP(c.Writer, c.Request)
+		r = r.WithContext(authCtx)
+		h.ServeHTTP(w, r)
 	}
 }
 
 // PlaygroundHandler serves the GraphiQL playground with theme support, from
 // this binary's own embedded assets (see playground.go) rather than a CDN.
-func PlaygroundHandler(endpoint string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		theme := GetTheme(c)
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(http.StatusOK, renderPlaygroundHTML(theme, endpoint))
+func PlaygroundHandler(endpoint string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		theme := GetTheme(r)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(renderPlaygroundHTML(theme, endpoint)))
 	}
 }
 
-func buildGraphQLAuthContext(c *gin.Context) (context.Context, error) {
-	ctx := c.Request.Context()
-	ctx = context.WithValue(ctx, ctxKeyRequestIP, c.ClientIP())
-	ctx = context.WithValue(ctx, ctxKeyClientIP, c.ClientIP())
-	ctx = context.WithValue(ctx, ctxKeyRequestHost, c.Request.Host)
+func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
+	ctx := r.Context()
+	clientIP := util.GetClientIP(r)
+	ctx = context.WithValue(ctx, ctxKeyRequestIP, clientIP)
+	ctx = context.WithValue(ctx, ctxKeyClientIP, clientIP)
+	ctx = context.WithValue(ctx, ctxKeyRequestHost, r.Host)
 
-	scheme := c.GetHeader("X-Forwarded-Proto")
+	scheme := r.Header.Get("X-Forwarded-Proto")
 	if scheme == "" {
-		if c.Request.TLS != nil {
+		if r.TLS != nil {
 			scheme = "https"
 		} else {
 			scheme = "http"
@@ -96,14 +102,14 @@ func buildGraphQLAuthContext(c *gin.Context) (context.Context, error) {
 	}
 	ctx = context.WithValue(ctx, ctxKeyRequestScheme, scheme)
 
-	userAgent := strings.TrimSpace(c.Request.UserAgent())
+	userAgent := strings.TrimSpace(r.UserAgent())
 	if userAgent != "" {
 		ctx = context.WithValue(ctx, ctxKeyRequestUserAgent, userAgent)
 	}
 
-	if userValue, exists := c.Get(middleware.UserContextKey); exists {
+	if userValue, exists := reqctx.Get(r.Context(), middleware.UserContextKey); exists {
 		if user, ok := userValue.(*models.User); ok && user != nil {
-			if sessionValue, sessionExists := c.Get(middleware.SessionContextKey); sessionExists {
+			if sessionValue, sessionExists := reqctx.Get(r.Context(), middleware.SessionContextKey); sessionExists {
 				if session, ok := sessionValue.(*models.Session); ok && session != nil {
 					return withGraphQLUserSessionContext(ctx, user, session), nil
 				}
@@ -112,23 +118,23 @@ func buildGraphQLAuthContext(c *gin.Context) (context.Context, error) {
 		}
 	}
 
-	if adminIDValue, exists := c.Get("admin_id"); exists {
+	if adminIDValue, exists := reqctx.Get(r.Context(), "admin_id"); exists {
 		if adminID, ok := adminIDValue.(int); ok && adminID > 0 {
 			return withGraphQLAdminContext(ctx, adminID)
 		}
 	}
 
-	authHeader := strings.TrimSpace(c.GetHeader("Authorization"))
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authHeader != "" {
 		return buildGraphQLTokenContext(ctx, authHeader)
 	}
 
-	if adminSessionID, err := c.Cookie("admin_session"); err == nil && strings.TrimSpace(adminSessionID) != "" {
-		return buildGraphQLAdminSessionContext(ctx, adminSessionID)
+	if adminSessionCookie, err := r.Cookie("admin_session"); err == nil && strings.TrimSpace(adminSessionCookie.Value) != "" {
+		return buildGraphQLAdminSessionContext(ctx, adminSessionCookie.Value)
 	}
 
-	if userSessionID, err := c.Cookie(middleware.SessionCookieName); err == nil && strings.TrimSpace(userSessionID) != "" {
-		return buildGraphQLUserSessionContext(ctx, userSessionID)
+	if userSessionCookie, err := r.Cookie(middleware.SessionCookieName); err == nil && strings.TrimSpace(userSessionCookie.Value) != "" {
+		return buildGraphQLUserSessionContext(ctx, userSessionCookie.Value)
 	}
 
 	return ctx, nil

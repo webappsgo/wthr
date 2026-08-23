@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,8 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
@@ -167,17 +166,19 @@ type publicHealthResponse struct {
 // @Success 200 {object} map[string]interface{} "Service healthy"
 // @Failure 503 {object} map[string]interface{} "Service unhealthy"
 // @Router /server/healthz [get]
-func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		statusCode, response := buildPublicHealthResponse(db, startTime, c)
+func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		statusCode, response := buildPublicHealthResponse(db, startTime, r)
 
 		switch {
-		case shouldRespondText(c):
-			c.Data(statusCode, "text/plain; charset=utf-8", []byte(formatPublicHealthText(response)))
-		case wantsExplicitJSON(c):
-			renderIndentedJSON(c, statusCode, response)
-		case util.IsBrowser(c):
-			c.HTML(statusCode, "page/healthz.tmpl", util.TemplateData(c, gin.H{
+		case shouldRespondText(r):
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(statusCode)
+			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+		case wantsExplicitJSON(r):
+			renderIndentedJSON(w, statusCode, response)
+		case util.IsBrowser(r):
+			middleware.RenderHTML(w, r, statusCode, "page/healthz.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title":               "Health Status",
 				"page":                "healthz",
 				"health":              response,
@@ -185,7 +186,9 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 				"health_status_text":  publicHealthStatusText(response.Status),
 			}))
 		default:
-			c.Data(statusCode, "text/plain; charset=utf-8", []byte(formatPublicHealthText(response)))
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(statusCode)
+			_, _ = w.Write([]byte(formatPublicHealthText(response)))
 		}
 	}
 }
@@ -198,8 +201,8 @@ func HealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 // @Produce json
 // @Success 200 {object} map[string]interface{} "Alive"
 // @Router /health [get]
-func LivenessCheck(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"status": "alive"})
+func LivenessCheck(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "alive"})
 }
 
 // ReadinessCheck handles GET /health/ready — readiness probe per AI.md PART 13.
@@ -211,18 +214,18 @@ func LivenessCheck(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Ready"
 // @Failure 503 {object} map[string]interface{} "Not ready"
 // @Router /health/ready [get]
-func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func ReadinessCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		if !IsInitialized() {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "reason": "initializing"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"status": "not_ready", "reason": "initializing"})
 			return
 		}
 		_, _, dbErr := db.HealthCheck()
 		if dbErr != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "reason": "database_unavailable"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"status": "not_ready", "reason": "database_unavailable"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"status": "ready", "uptime": formatUptime(time.Since(startTime))})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ready", "uptime": formatUptime(time.Since(startTime))})
 	}
 }
 
@@ -235,15 +238,15 @@ func ReadinessCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
 // @Success 200 {object} map[string]interface{} "Full health payload"
 // @Failure 503 {object} map[string]interface{} "Service unhealthy"
 // @Router /health/full [get]
-func FullHealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		statusCode, response := buildPublicHealthResponse(db, startTime, c)
-		renderIndentedJSON(c, statusCode, response)
+func FullHealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		statusCode, response := buildPublicHealthResponse(db, startTime, r)
+		renderIndentedJSON(w, statusCode, response)
 	}
 }
 
 // DebugInfo handles GET /debug/info
-func DebugInfo(c *gin.Context) {
+func DebugInfo(w http.ResponseWriter, r *http.Request) {
 	status := GetInitStatus()
 	uptime := time.Since(status.Started)
 
@@ -262,25 +265,25 @@ func DebugInfo(c *gin.Context) {
 		serviceVersion = "dev"
 	}
 
-	info := gin.H{
-		"service": gin.H{
+	info := map[string]interface{}{
+		"service": map[string]interface{}{
 			"name":    serviceName,
 			"version": serviceVersion,
 			"uptime":  uptime.String(),
 			"started": status.Started.Format(time.RFC3339),
 		},
-		"initialization": gin.H{
+		"initialization": map[string]interface{}{
 			"ready":     IsInitialized(),
 			"countries": status.Countries,
 			"cities":    status.Cities,
 			"weather":   status.Weather,
 		},
-		"runtime": gin.H{
+		"runtime": map[string]interface{}{
 			"go_version":    runtime.Version(),
 			"num_cpu":       runtime.NumCPU(),
 			"num_goroutine": runtime.NumGoroutine(),
 		},
-		"memory": gin.H{
+		"memory": map[string]interface{}{
 			"alloc_mb":       fmt.Sprintf("%.2f", float64(m.Alloc)/1024/1024),
 			"total_alloc_mb": fmt.Sprintf("%.2f", float64(m.TotalAlloc)/1024/1024),
 			"sys_mb":         fmt.Sprintf("%.2f", float64(m.Sys)/1024/1024),
@@ -289,11 +292,11 @@ func DebugInfo(c *gin.Context) {
 		"timestamp": util.Now(),
 	}
 
-	c.JSON(http.StatusOK, info)
+	writeJSON(w, http.StatusOK, info)
 }
 
 // ServeLoadingPage renders the loading/initialization page
-func ServeLoadingPage(c *gin.Context) {
+func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 	status := GetInitStatus()
 	uptime := time.Since(status.Started)
 
@@ -302,19 +305,19 @@ func ServeLoadingPage(c *gin.Context) {
 	// ASCII-banner branch unreachable. Explicit JSON requests (Accept:
 	// application/json, ?format=json, or /api/ routes) still take
 	// priority and are handled below via WantsJSON.
-	userAgent := c.GetHeader("User-Agent")
+	userAgent := r.Header.Get("User-Agent")
 	isCurl := contains(userAgent, "curl") || contains(userAgent, "wget") || contains(userAgent, "HTTPie")
-	accept := c.GetHeader("Accept")
+	accept := r.Header.Get("Accept")
 	explicitJSON := strings.Contains(accept, "application/json") ||
-		c.Query("format") == "json" ||
-		strings.HasPrefix(c.Request.URL.Path, "/api/")
+		r.URL.Query().Get("format") == "json" ||
+		strings.HasPrefix(r.URL.Path, "/api/")
 
 	// Check if it's an API request (wants JSON)
-	if explicitJSON || (WantsJSON(c) && !isCurl) {
-		RespondNegotiatedData(c, http.StatusServiceUnavailable, gin.H{
+	if explicitJSON || (WantsJSON(r) && !isCurl) {
+		RespondNegotiatedData(w, r, http.StatusServiceUnavailable, map[string]interface{}{
 			"status":  "Initializing",
 			"message": "Services are starting up. Please wait a moment.",
-			"initialization": gin.H{
+			"initialization": map[string]interface{}{
 				"countries": status.Countries,
 				"cities":    status.Cities,
 				"weather":   status.Weather,
@@ -345,18 +348,19 @@ Tip: Check status with:
 			checkmark(status.Cities),
 			checkmark(status.Weather),
 			uptime.Round(time.Second).String(),
-			util.GetHostInfo(c).FullHost,
+			util.GetHostInfo(r).FullHost,
 		)
 
-		c.Header("Content-Type", "text/plain; charset=utf-8")
-		c.String(http.StatusServiceUnavailable, output)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(output))
 		return
 	}
 
 	// Browser gets HTML loading page
-	hostInfo := util.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(r)
 
-	c.HTML(http.StatusServiceUnavailable, "component/loading.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusServiceUnavailable, "component/loading.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":    "Starting Up - Weather",
 		"Status":   status,
 		"Uptime":   uptime.String(),
@@ -387,10 +391,10 @@ func findSubstring(s, substr string) bool {
 }
 
 // APIHealthCheck handles GET /api/{api_version}/server/healthz - same JSON as /server/healthz, always JSON.
-func APIHealthCheck(db *database.DB, startTime time.Time) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		statusCode, response := buildPublicHealthResponse(db, startTime, c)
-		renderIndentedJSON(c, statusCode, response)
+func APIHealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		statusCode, response := buildPublicHealthResponse(db, startTime, r)
+		renderIndentedJSON(w, statusCode, response)
 	}
 }
 
@@ -409,7 +413,7 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-func buildPublicHealthResponse(db *database.DB, startTime time.Time, c *gin.Context) (int, publicHealthResponse) {
+func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Request) (int, publicHealthResponse) {
 	cfg := config.GetGlobalConfig()
 	brandingTitle := "wthr"
 	brandingTagline := ""
@@ -451,7 +455,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, c *gin.Cont
 
 	diskCheck := getPublicDiskCheck()
 	schedulerCheck := getPublicSchedulerCheck()
-	cluster := getPublicClusterInfo(db, c)
+	cluster := getPublicClusterInfo(db, r)
 	geoIPEnabled := getPublicGeoIPStatus(db)
 	torFeature, torCheck := getPublicTorStatus(cfg)
 	stats := getPublicStats(db)
@@ -561,7 +565,7 @@ func getPublicSchedulerCheck() string {
 	}
 }
 
-func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
+func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster {
 	cluster := publicHealthCluster{
 		Enabled: false,
 		Primary: "",
@@ -573,7 +577,7 @@ func getPublicClusterInfo(db *database.DB, c *gin.Context) publicHealthCluster {
 		return cluster
 	}
 
-	hostInfo := util.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(r)
 	cluster.Enabled = true
 	cluster.Primary = hostInfo.FullHost
 	cluster.Nodes = []string{hostInfo.FullHost}
@@ -668,18 +672,22 @@ func clusterCheckFromStatus(status string) string {
 	}
 }
 
-func renderIndentedJSON(c *gin.Context, status int, data interface{}) {
+func renderIndentedJSON(w http.ResponseWriter, status int, data interface{}) {
 	payload, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		c.String(http.StatusInternalServerError, "INTERNAL_ERROR: failed to render response\n")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("INTERNAL_ERROR: failed to render response\n"))
 		return
 	}
-	c.Data(status, "application/json; charset=utf-8", append(payload, '\n'))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(append(payload, '\n'))
 }
 
-func wantsExplicitJSON(c *gin.Context) bool {
-	accept := c.GetHeader("Accept")
-	return strings.Contains(accept, "application/json") || c.Query("format") == "json"
+func wantsExplicitJSON(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "application/json") || r.URL.Query().Get("format") == "json"
 }
 
 func formatPublicHealthText(health publicHealthResponse) string {

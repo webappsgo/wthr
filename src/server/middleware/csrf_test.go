@@ -7,23 +7,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // TestCSRFProtection_SkipsWhenDisabled verifies the config.Enabled=false
 // escape hatch is a true no-op (no cookie set, no validation).
 func TestCSRFProtection_SkipsWhenDisabled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 	cfg.Enabled = false
 
-	router := gin.New()
-	router.Use(CSRFProtection(cfg))
-	router.POST("/mutate", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mutate", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 when CSRF disabled", w.Code)
@@ -33,18 +30,15 @@ func TestCSRFProtection_SkipsWhenDisabled(t *testing.T) {
 // TestCSRFProtection_SkipsSafeMethods verifies GET/HEAD/OPTIONS never
 // require a token, per AI.md PART 22 - safe methods must not be blocked.
 func TestCSRFProtection_SkipsSafeMethods(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
 	for _, method := range []string{http.MethodGet, http.MethodHead, http.MethodOptions} {
 		t.Run(method, func(t *testing.T) {
-			router := gin.New()
-			router.Use(CSRFProtection(cfg))
-			router.Handle(method, "/page", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+			handler := CSRFProtection(cfg)(okHandler)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(method, "/page", nil)
-			router.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("%s: status = %d, want 200", method, w.Code)
@@ -57,16 +51,13 @@ func TestCSRFProtection_SkipsSafeMethods(t *testing.T) {
 // /metrics, /openapi paths are exempted since they authenticate via API
 // tokens rather than cookies.
 func TestCSRFProtection_SkipsPublicAPIEndpoints(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(CSRFProtection(cfg))
-	router.POST("/api/v1/tokens", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/tokens", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 for public API path", w.Code)
@@ -77,16 +68,13 @@ func TestCSRFProtection_SkipsPublicAPIEndpoints(t *testing.T) {
 // mutating request with neither "user_id" nor "admin_id" set in context is
 // treated as unauthenticated and exempted (no session = no CSRF risk).
 func TestCSRFProtection_SkipsTrulyUnauthenticatedRequests(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(CSRFProtection(cfg))
-	router.POST("/mutate", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mutate", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 for unauthenticated mutating request", w.Code)
@@ -98,20 +86,15 @@ func TestCSRFProtection_SkipsTrulyUnauthenticatedRequests(t *testing.T) {
 // with 403 - this is the one authenticated path the gate correctly covers
 // today (admin_auth.go does set "admin_id").
 func TestCSRFProtection_RejectsAuthenticatedAdminWithoutToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("admin_id", 1)
-		c.Next()
-	})
-	router.Use(CSRFProtection(cfg))
-	router.POST("/mutate", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/mutate", nil)
-	router.ServeHTTP(w, req)
+	ctx := reqctx.Set(req.Context(), "admin_id", 1)
+	req = req.WithContext(ctx)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403 for admin-authenticated request with no CSRF cookie", w.Code)
@@ -121,24 +104,19 @@ func TestCSRFProtection_RejectsAuthenticatedAdminWithoutToken(t *testing.T) {
 // TestCSRFProtection_RejectsMismatchedToken verifies a request carrying a
 // CSRF cookie but a different form/header token is rejected.
 func TestCSRFProtection_RejectsMismatchedToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("admin_id", 1)
-		c.Next()
-	})
-	router.Use(CSRFProtection(cfg))
-	router.POST("/mutate", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	form := url.Values{"csrf_token": {"wrong-token"}}
 	req := httptest.NewRequest(http.MethodPost, "/mutate", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: "correct-token"})
+	ctx := reqctx.Set(req.Context(), "admin_id", 1)
+	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403 for mismatched CSRF token", w.Code)
@@ -148,23 +126,18 @@ func TestCSRFProtection_RejectsMismatchedToken(t *testing.T) {
 // TestCSRFProtection_AcceptsMatchingHeaderToken verifies a request whose
 // X-CSRF-Token header matches the cookie is accepted.
 func TestCSRFProtection_AcceptsMatchingHeaderToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("admin_id", 1)
-		c.Next()
-	})
-	router.Use(CSRFProtection(cfg))
-	router.POST("/mutate", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	req := httptest.NewRequest(http.MethodPost, "/mutate", nil)
 	req.Header.Set(cfg.HeaderName, "matching-token")
 	req.AddCookie(&http.Cookie{Name: cfg.CookieName, Value: "matching-token"})
+	ctx := reqctx.Set(req.Context(), "admin_id", 1)
+	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 for matching CSRF header/cookie", w.Code)
@@ -184,23 +157,18 @@ func TestCSRFProtection_AcceptsMatchingHeaderToken(t *testing.T) {
 // mirrors that pair and asserts the mutating request is rejected per AI.md
 // PART 16 - CSRF Protection.
 func TestCSRFProtection_SessionAuthenticatedRegularUserIsProtected(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	cfg := DefaultCSRFConfig()
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		// Mirrors what auth.go's AuthMiddleware sets for a session-authenticated
-		// regular user: both the user object and its numeric id.
-		c.Set(UserContextKey, "some-authenticated-user")
-		c.Set(UserIDContextKey, 7)
-		c.Next()
-	})
-	router.Use(CSRFProtection(cfg))
-	router.POST("/users/settings", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := CSRFProtection(cfg)(okHandler)
 
 	req := httptest.NewRequest(http.MethodPost, "/users/settings", nil)
+	// Mirrors what auth.go's AuthMiddleware sets for a session-authenticated
+	// regular user: both the user object and its numeric id.
+	ctx := reqctx.Set(req.Context(), UserContextKey, "some-authenticated-user")
+	ctx = reqctx.Set(ctx, UserIDContextKey, 7)
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403 - a session-authenticated regular user with no CSRF "+

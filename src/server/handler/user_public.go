@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,7 +18,7 @@ import (
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // UserPublicHandler handles public user profiles and avatars
@@ -124,24 +125,24 @@ func (h *UserPublicHandler) loadPublicProfile(username string, viewerUserID int6
 // @Success 200 {object} map[string]interface{} "Public user profile"
 // @Failure 404 {object} map[string]interface{} "User not found or profile is private"
 // @Router /api/v1/public/users/{username} [get]
-func (h *UserPublicHandler) GetPublicProfile(c *gin.Context) {
-	username := strings.ToLower(c.Param("username"))
+func (h *UserPublicHandler) GetPublicProfile(w http.ResponseWriter, r *http.Request) {
+	username := strings.ToLower(chi.URLParam(r, "username"))
 	var viewerUserID int64
-	if currentUser, ok := middleware.GetCurrentUser(c); ok {
+	if currentUser, ok := middleware.GetCurrentUser(r); ok {
 		viewerUserID = currentUser.ID
 	}
 
 	profile, err := h.loadPublicProfile(username, viewerUserID)
 	if err == sql.ErrNoRows {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "User not found"})
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Database error"})
 		return
 	}
 
-	c.JSON(http.StatusOK, profile)
+	writeJSON(w, http.StatusOK, profile)
 }
 
 // GetGravatarURL generates a Gravatar URL for an email address
@@ -355,20 +356,20 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 // @Success 200 {object} map[string]interface{} "Avatar info"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/avatar [get]
-func (h *UserPublicHandler) GetCurrentUserAvatar(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) GetCurrentUserAvatar(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	response, err := h.loadCurrentUserAvatar(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get avatar info"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get avatar info"})
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // UpdateAvatarRequest represents a request to update avatar settings
@@ -389,30 +390,30 @@ type UpdateAvatarRequest struct {
 // @Success 200 {object} map[string]interface{} "Updated avatar info"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/avatar [patch]
-func (h *UserPublicHandler) UpdateAvatarSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	var req UpdateAvatarRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	response, err := UpdateCurrentUserAvatar(h.DB, user.ID, &req)
 	if err != nil {
 		if err.Error() == "avatar type must be one of: gravatar, url" || err.Error() == "URL is required for url avatar type" || err.Error() == "avatar URL must use HTTPS" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update avatar"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update avatar"})
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // ResetAvatar resets the user's avatar to Gravatar
@@ -425,19 +426,19 @@ func (h *UserPublicHandler) UpdateAvatarSettings(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Avatar reset"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/avatar [delete]
-func (h *UserPublicHandler) ResetAvatar(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) ResetAvatar(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	if err := h.resetCurrentUserAvatar(user.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset avatar"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to reset avatar"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Avatar reset to Gravatar"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Avatar reset to Gravatar"})
 }
 
 // UploadAvatar handles avatar file upload
@@ -454,36 +455,37 @@ func (h *UserPublicHandler) ResetAvatar(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request or file too large"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/avatar [post]
-func (h *UserPublicHandler) UploadAvatar(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	file, err := c.FormFile("file")
+	uploadedFile, header, err := r.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No file uploaded"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "No file uploaded"})
 		return
 	}
+	_ = uploadedFile.Close()
 
 	response, err := UploadCurrentUserAvatar(h.DB, user.ID, &AvatarUploadRequest{
-		Filename:    file.Filename,
-		Size:        file.Size,
-		ContentType: file.Header.Get("Content-Type"),
+		Filename:    header.Filename,
+		Size:        header.Size,
+		ContentType: header.Header.Get("Content-Type"),
 	})
 	if err != nil {
 		switch err.Error() {
 		case "No file uploaded", "File too large (max 2MB)", "Invalid image type":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 			return
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save avatar"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save avatar"})
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // getExtension returns file extension for content type
@@ -575,37 +577,42 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 // @Failure 400 {object} map[string]interface{} "Validation error"
 // @Failure 401 {object} map[string]interface{} "Wrong current password or not authenticated"
 // @Router /api/v1/users/security/password [post]
-func (h *UserPublicHandler) ChangePassword(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	var req ChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "current_password and new_password are required"})
 		return
 	}
 
 	if err := h.changeCurrentUserPassword(user.ID, &req); err != nil {
 		if err.Error() == "current password is incorrect" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password changed successfully"})
 }
 
 // ChangeEmail allows an authenticated user to change their email address.
 // The new email is marked unverified until the user completes email verification.
-func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
@@ -613,20 +620,25 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 		NewEmail        string `json:"new_email" binding:"required,email"`
 		CurrentPassword string `json:"current_password" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewEmail == "" || util.ValidateEmail(req.NewEmail) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "new_email and current_password are required"})
 		return
 	}
 
 	// Verify current password before allowing email change
 	var passwordHash string
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify credentials"})
 		return
 	}
 	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
 		return
 	}
 
@@ -634,7 +646,7 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 	var existing int64
 	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
 	if existing != 0 {
-		c.JSON(http.StatusConflict, gin.H{"error": "Email address is already in use"})
+		writeJSON(w, http.StatusConflict, map[string]interface{}{"error": "Email address is already in use"})
 		return
 	}
 
@@ -646,19 +658,19 @@ func (h *UserPublicHandler) ChangeEmail(c *gin.Context) {
 		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
 		req.NewEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
 	); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update email"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update email"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Email address updated. Please verify your new email address."})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Email address updated. Please verify your new email address."})
 }
 
 // DeleteAccount permanently deletes the authenticated user's account.
 // Requires current password and the literal string "DELETE" as confirmation.
-func (h *UserPublicHandler) DeleteAccount(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
@@ -666,34 +678,34 @@ func (h *UserPublicHandler) DeleteAccount(c *gin.Context) {
 		CurrentPassword string `json:"current_password" binding:"required"`
 		Confirm         string `json:"confirm" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	if req.Confirm != "DELETE" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": `Confirmation must be the exact string "DELETE"`})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": `Confirmation must be the exact string "DELETE"`})
 		return
 	}
 
 	// Verify password before allowing deletion
 	var passwordHash string
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify credentials"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify credentials"})
 		return
 	}
 	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
 		return
 	}
 
 	// Delete the account (cascades to sessions, preferences, locations, etc.)
 	userModel := &models.UserModel{DB: h.DB}
 	if err := userModel.Delete(user.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete account"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Account deleted successfully"})
 }

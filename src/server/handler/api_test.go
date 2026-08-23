@@ -5,19 +5,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-// newAPITestContext builds a bare GET gin.Context/recorder pair, mirroring
+// newAPITestRequest builds a bare GET request/recorder pair, mirroring
 // the pattern used in weather_test.go, kept local to avoid depending on
 // unexported helpers owned by another file beyond handler_helpers_test.go.
-func newAPITestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newAPITestRequest(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	return r, w
 }
 
 // GetWeather validates city_id / lat / lon before ever touching the (here
@@ -44,8 +40,8 @@ func TestAPIHandler_GetWeather_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, w := newAPITestContext("/api/v1/weather" + tt.query)
-			h.GetWeather(c)
+			r, w := newAPITestRequest("/api/v1/weather" + tt.query)
+			h.GetWeather(w, r)
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", w.Code, tt.wantStatus, w.Body.String())
 			}
@@ -71,8 +67,8 @@ func TestAPIHandler_GetForecast_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, w := newAPITestContext("/api/v1/forecast" + tt.query)
-			h.GetForecast(c)
+			r, w := newAPITestRequest("/api/v1/forecast" + tt.query)
+			h.GetForecast(w, r)
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", w.Code, tt.wantStatus, w.Body.String())
 			}
@@ -82,8 +78,8 @@ func TestAPIHandler_GetForecast_ValidationErrors(t *testing.T) {
 
 func TestAPIHandler_SearchLocations_MissingQuery(t *testing.T) {
 	h := NewAPIHandler(nil, nil)
-	c, w := newAPITestContext("/api/v1/search")
-	h.SearchLocations(c)
+	r, w := newAPITestRequest("/api/v1/search")
+	h.SearchLocations(w, r)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())
 	}
@@ -93,11 +89,11 @@ func TestAPIHandler_SearchLocations_MissingQuery(t *testing.T) {
 // request, so it's fully exercisable with a nil-service handler.
 func TestAPIHandler_GetIP(t *testing.T) {
 	h := NewAPIHandler(nil, nil)
-	c, w := newAPITestContext("/api/v1/ip")
-	c.Request.Header.Set("X-Forwarded-For", "203.0.113.5")
-	c.Request.Header.Set("X-Real-IP", "203.0.113.6")
+	r, w := newAPITestRequest("/api/v1/ip")
+	r.Header.Set("X-Forwarded-For", "203.0.113.5")
+	r.Header.Set("X-Real-IP", "203.0.113.6")
 
-	h.GetIP(c)
+	h.GetIP(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
@@ -110,9 +106,9 @@ func TestAPIHandler_GetIP(t *testing.T) {
 // GetDocsJSON is a pure builder with no service dependency.
 func TestAPIHandler_GetDocsJSON(t *testing.T) {
 	h := NewAPIHandler(nil, nil)
-	c, w := newAPITestContext("/api/v1/docs")
+	r, w := newAPITestRequest("/api/v1/docs")
 
-	h.GetDocsJSON(c)
+	h.GetDocsJSON(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
@@ -148,8 +144,8 @@ func TestAPIHandler_GetHistoricalWeather_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, w := newAPITestContext("/api/v1/history" + tt.query)
-			h.GetHistoricalWeather(c)
+			r, w := newAPITestRequest("/api/v1/history" + tt.query)
+			h.GetHistoricalWeather(w, r)
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", w.Code, tt.wantStatus, w.Body.String())
 			}

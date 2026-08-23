@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -44,14 +44,14 @@ func NewAPIHandler(ws *service.WeatherService, le *service.LocationEnhancer) *AP
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/weather [get]
-func (h *APIHandler) GetWeather(c *gin.Context) {
+func (h *APIHandler) GetWeather(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	location := strings.TrimSpace(c.Query("location"))
-	lat := strings.TrimSpace(c.Query("lat"))
-	lon := strings.TrimSpace(c.Query("lon"))
-	cityID := strings.TrimSpace(c.Query("city_id"))
-	nearest := strings.TrimSpace(c.Query("nearest"))
-	unitsParam := strings.TrimSpace(c.Query("units"))
+	location := strings.TrimSpace(r.URL.Query().Get("location"))
+	lat := strings.TrimSpace(r.URL.Query().Get("lat"))
+	lon := strings.TrimSpace(r.URL.Query().Get("lon"))
+	cityID := strings.TrimSpace(r.URL.Query().Get("city_id"))
+	nearest := strings.TrimSpace(r.URL.Query().Get("nearest"))
+	unitsParam := strings.TrimSpace(r.URL.Query().Get("units"))
 
 	var coords *service.Coordinates
 	var enhanced *service.EnhancedLocation
@@ -62,18 +62,18 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 		// Find city by ID
 		id, parseErr := strconv.Atoi(cityID)
 		if parseErr != nil {
-			InvalidInput(c, "Invalid city ID format")
+			InvalidInput(w, r, "Invalid city ID format")
 			return
 		}
 		enhanced, err = h.locationEnhancer.FindCityByID(id)
 		if err != nil {
-			NotFound(c, fmt.Sprintf("City ID %d not found", id))
+			NotFound(w, r, fmt.Sprintf("City ID %d not found", id))
 			return
 		}
 	} else if lat != "" || lon != "" {
 		// Validate that both lat and lon are provided
 		if lat == "" || lon == "" {
-			InvalidInput(c, "Both 'lat' and 'lon' parameters are required")
+			InvalidInput(w, r, "Both 'lat' and 'lon' parameters are required")
 			return
 		}
 
@@ -83,21 +83,21 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 
 		// Validate coordinate parsing
 		if latErr != nil {
-			InvalidInput(c, "Invalid latitude format")
+			InvalidInput(w, r, "Invalid latitude format")
 			return
 		}
 		if lonErr != nil {
-			InvalidInput(c, "Invalid longitude format")
+			InvalidInput(w, r, "Invalid longitude format")
 			return
 		}
 
 		// Validate coordinate ranges
 		if latitude < -90 || latitude > 90 {
-			InvalidInput(c, "Latitude must be between -90 and 90")
+			InvalidInput(w, r, "Latitude must be between -90 and 90")
 			return
 		}
 		if longitude < -180 || longitude > 180 {
-			InvalidInput(c, "Longitude must be between -180 and 180")
+			InvalidInput(w, r, "Longitude must be between -180 and 180")
 			return
 		}
 
@@ -108,7 +108,7 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 				// Fallback to coordinate-based location
 				coords, err = h.weatherService.GetCoordinates(fmt.Sprintf("%f,%f", latitude, longitude), "")
 				if err != nil {
-					BadRequest(c, err.Error())
+					BadRequest(w, r, err.Error())
 					return
 				}
 				// Convert to GeocodeResult and enhance
@@ -128,7 +128,7 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 		} else {
 			coords, err = h.weatherService.GetCoordinates(fmt.Sprintf("%f,%f", latitude, longitude), "")
 			if err != nil {
-				RespondError(c, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
+				RespondError(w, r, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
 				return
 			}
 			// Convert to GeocodeResult and enhance
@@ -146,10 +146,10 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 			enhanced, _ = h.locationEnhancer.EnhanceLocationData(geocodeResult)
 		}
 	} else if location != "" {
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
+			RespondError(w, r, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
 			return
 		}
 		// Convert to GeocodeResult and enhance
@@ -167,10 +167,10 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 		enhanced, _ = h.locationEnhancer.EnhanceLocationData(geocodeResult)
 	} else {
 		// IP-based location detection
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
+			RespondError(w, r, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
 			return
 		}
 		// Convert to GeocodeResult and enhance
@@ -199,7 +199,7 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 	// Get current weather
 	current, err := h.weatherService.GetCurrentWeather(enhanced.Latitude, enhanced.Longitude, units)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "WEATHER_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "WEATHER_ERROR", err.Error())
 		return
 	}
 
@@ -210,8 +210,8 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 	}
 
 	// Build response
-	response := gin.H{
-		"location": gin.H{
+	response := map[string]interface{}{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -221,7 +221,7 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 			"longitude":   enhanced.Longitude,
 			"timezone":    enhanced.Timezone,
 		},
-		"current": gin.H{
+		"current": map[string]interface{}{
 			"temperature":   current.Temperature,
 			"feelsLike":     current.FeelsLike,
 			"humidity":      current.Humidity,
@@ -236,7 +236,7 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 			"icon":          h.weatherService.GetWeatherIcon(current.WeatherCode, current.IsDay == 1),
 			"isDay":         current.IsDay,
 		},
-		"meta": gin.H{
+		"meta": map[string]interface{}{
 			"source":      "Open-Meteo",
 			"timestamp":   util.Now(),
 			"api_version": "1.0",
@@ -247,35 +247,35 @@ func (h *APIHandler) GetWeather(c *gin.Context) {
 	// Add today forecast if available
 	if len(forecast.Days) > 0 {
 		day := forecast.Days[0]
-		response["today"] = gin.H{
+		response["today"] = map[string]interface{}{
 			"date":        day.Date,
 			"weatherCode": day.WeatherCode,
 			"description": h.weatherService.GetWeatherDescription(day.WeatherCode),
 			"icon":        h.weatherService.GetWeatherIcon(day.WeatherCode, true),
-			"temperature": gin.H{
+			"temperature": map[string]interface{}{
 				"min": day.TempMin,
 				"max": day.TempMax,
 			},
-			"precipitation": gin.H{
+			"precipitation": map[string]interface{}{
 				"sum":         day.Precipitation,
 				"probability": day.PrecipitationProbability,
 			},
 		}
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, response)
+	RespondNegotiatedData(w, r, http.StatusOK, response)
 }
 
-// GetWeatherByLocation returns weather for specific location (GET /api/v1/weather/:location)
-func (h *APIHandler) GetWeatherByLocation(c *gin.Context) {
+// GetWeatherByLocation returns weather for specific location (GET /api/v1/weather/{location})
+func (h *APIHandler) GetWeatherByLocation(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	location := strings.TrimSpace(c.Param("location"))
-	unitsParam := strings.TrimSpace(c.Query("units"))
+	location := strings.TrimSpace(chi.URLParam(r, "location"))
+	unitsParam := strings.TrimSpace(r.URL.Query().Get("units"))
 
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(location, clientIP)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "WEATHER_ERROR", err.Error())
+		RespondError(w, r, http.StatusBadRequest, "WEATHER_ERROR", err.Error())
 		return
 	}
 
@@ -293,12 +293,12 @@ func (h *APIHandler) GetWeatherByLocation(c *gin.Context) {
 	// Get current weather
 	current, err := h.weatherService.GetCurrentWeather(enhanced.Latitude, enhanced.Longitude, units)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "WEATHER_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "WEATHER_ERROR", err.Error())
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
-		"location": gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -308,7 +308,7 @@ func (h *APIHandler) GetWeatherByLocation(c *gin.Context) {
 			"longitude":   enhanced.Longitude,
 			"timezone":    enhanced.Timezone,
 		},
-		"current": gin.H{
+		"current": map[string]interface{}{
 			"temperature":   current.Temperature,
 			"feelsLike":     current.FeelsLike,
 			"humidity":      current.Humidity,
@@ -323,7 +323,7 @@ func (h *APIHandler) GetWeatherByLocation(c *gin.Context) {
 			"icon":          h.weatherService.GetWeatherIcon(current.WeatherCode, current.IsDay == 1),
 			"isDay":         current.IsDay,
 		},
-		"meta": gin.H{
+		"meta": map[string]interface{}{
 			"source":      "Open-Meteo",
 			"timestamp":   util.Now(),
 			"api_version": "1.0",
@@ -348,13 +348,13 @@ func (h *APIHandler) GetWeatherByLocation(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/forecast [get]
-func (h *APIHandler) GetForecast(c *gin.Context) {
+func (h *APIHandler) GetForecast(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	location := strings.TrimSpace(c.Query("location"))
-	lat := strings.TrimSpace(c.Query("lat"))
-	lon := strings.TrimSpace(c.Query("lon"))
-	daysParam := strings.TrimSpace(c.Query("days"))
-	unitsParam := strings.TrimSpace(c.Query("units"))
+	location := strings.TrimSpace(r.URL.Query().Get("location"))
+	lat := strings.TrimSpace(r.URL.Query().Get("lat"))
+	lon := strings.TrimSpace(r.URL.Query().Get("lon"))
+	daysParam := strings.TrimSpace(r.URL.Query().Get("days"))
+	unitsParam := strings.TrimSpace(r.URL.Query().Get("units"))
 
 	// Parse days
 	days := 7
@@ -371,7 +371,7 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 	if lat != "" || lon != "" {
 		// Validate that both lat and lon are provided
 		if lat == "" || lon == "" {
-			InvalidInput(c, "Both 'lat' and 'lon' parameters are required")
+			InvalidInput(w, r, "Both 'lat' and 'lon' parameters are required")
 			return
 		}
 
@@ -380,35 +380,35 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 
 		// Validate coordinate parsing
 		if latErr != nil {
-			InvalidInput(c, "Invalid latitude format")
+			InvalidInput(w, r, "Invalid latitude format")
 			return
 		}
 		if lonErr != nil {
-			InvalidInput(c, "Invalid longitude format")
+			InvalidInput(w, r, "Invalid longitude format")
 			return
 		}
 
 		// Validate coordinate ranges
 		if latitude < -90 || latitude > 90 {
-			InvalidInput(c, "Latitude must be between -90 and 90")
+			InvalidInput(w, r, "Latitude must be between -90 and 90")
 			return
 		}
 		if longitude < -180 || longitude > 180 {
-			InvalidInput(c, "Longitude must be between -180 and 180")
+			InvalidInput(w, r, "Longitude must be between -180 and 180")
 			return
 		}
 
 		coords, err = h.weatherService.GetCoordinates(fmt.Sprintf("%f,%f", latitude, longitude), "")
 	} else if location != "" {
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 	} else {
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 	}
 
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "FORECAST_ERROR", err.Error())
+		RespondError(w, r, http.StatusBadRequest, "FORECAST_ERROR", err.Error())
 		return
 	}
 
@@ -426,32 +426,32 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 	// Get forecast
 	forecast, err := h.weatherService.GetForecast(enhanced.Latitude, enhanced.Longitude, days, units)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "FORECAST_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "FORECAST_ERROR", err.Error())
 		return
 	}
 
 	// Build forecast response
-	forecastDays := make([]gin.H, len(forecast.Days))
+	forecastDays := make([]map[string]interface{}, len(forecast.Days))
 	for i, day := range forecast.Days {
-		forecastDays[i] = gin.H{
+		forecastDays[i] = map[string]interface{}{
 			"date":        day.Date,
 			"weatherCode": day.WeatherCode,
 			"description": h.weatherService.GetWeatherDescription(day.WeatherCode),
 			"icon":        h.weatherService.GetWeatherIcon(day.WeatherCode, true),
-			"temperature": gin.H{
+			"temperature": map[string]interface{}{
 				"min": day.TempMin,
 				"max": day.TempMax,
 			},
-			"feelsLike": gin.H{
+			"feelsLike": map[string]interface{}{
 				"min": day.FeelsLikeMin,
 				"max": day.FeelsLikeMax,
 			},
-			"precipitation": gin.H{
+			"precipitation": map[string]interface{}{
 				"sum":         day.Precipitation,
 				"hours":       day.PrecipitationHours,
 				"probability": day.PrecipitationProbability,
 			},
-			"wind": gin.H{
+			"wind": map[string]interface{}{
 				"speedMax":  day.WindSpeedMax,
 				"gustsMax":  day.WindGustsMax,
 				"direction": day.WindDirection,
@@ -460,8 +460,8 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 		}
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
-		"location": gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -471,10 +471,10 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 			"longitude":   enhanced.Longitude,
 			"timezone":    enhanced.Timezone,
 		},
-		"forecast": gin.H{
+		"forecast": map[string]interface{}{
 			"days": forecastDays,
 		},
-		"meta": gin.H{
+		"meta": map[string]interface{}{
 			"source":      "Open-Meteo",
 			"timestamp":   util.Now(),
 			"api_version": "1.0",
@@ -483,12 +483,12 @@ func (h *APIHandler) GetForecast(c *gin.Context) {
 	})
 }
 
-// GetForecastByLocation returns forecast for specific location (GET /api/v1/forecast/:location)
-func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
+// GetForecastByLocation returns forecast for specific location (GET /api/v1/forecast/{location})
+func (h *APIHandler) GetForecastByLocation(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	location := strings.TrimSpace(c.Param("location"))
-	daysParam := strings.TrimSpace(c.Query("days"))
-	unitsParam := strings.TrimSpace(c.Query("units"))
+	location := strings.TrimSpace(chi.URLParam(r, "location"))
+	daysParam := strings.TrimSpace(r.URL.Query().Get("days"))
+	unitsParam := strings.TrimSpace(r.URL.Query().Get("units"))
 
 	// Parse days
 	days := 7
@@ -498,10 +498,10 @@ func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
 		}
 	}
 
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(location, clientIP)
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, "FORECAST_ERROR", err.Error())
+		RespondError(w, r, http.StatusBadRequest, "FORECAST_ERROR", err.Error())
 		return
 	}
 
@@ -519,32 +519,32 @@ func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
 	// Get forecast
 	forecast, err := h.weatherService.GetForecast(enhanced.Latitude, enhanced.Longitude, days, units)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "FORECAST_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "FORECAST_ERROR", err.Error())
 		return
 	}
 
 	// Build forecast response
-	forecastDays := make([]gin.H, len(forecast.Days))
+	forecastDays := make([]map[string]interface{}, len(forecast.Days))
 	for i, day := range forecast.Days {
-		forecastDays[i] = gin.H{
+		forecastDays[i] = map[string]interface{}{
 			"date":        day.Date,
 			"weatherCode": day.WeatherCode,
 			"description": h.weatherService.GetWeatherDescription(day.WeatherCode),
 			"icon":        h.weatherService.GetWeatherIcon(day.WeatherCode, true),
-			"temperature": gin.H{
+			"temperature": map[string]interface{}{
 				"min": day.TempMin,
 				"max": day.TempMax,
 			},
-			"feelsLike": gin.H{
+			"feelsLike": map[string]interface{}{
 				"min": day.FeelsLikeMin,
 				"max": day.FeelsLikeMax,
 			},
-			"precipitation": gin.H{
+			"precipitation": map[string]interface{}{
 				"sum":         day.Precipitation,
 				"hours":       day.PrecipitationHours,
 				"probability": day.PrecipitationProbability,
 			},
-			"wind": gin.H{
+			"wind": map[string]interface{}{
 				"speedMax":  day.WindSpeedMax,
 				"gustsMax":  day.WindGustsMax,
 				"direction": day.WindDirection,
@@ -553,8 +553,8 @@ func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
 		}
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
-		"location": gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -564,10 +564,10 @@ func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
 			"longitude":   enhanced.Longitude,
 			"timezone":    enhanced.Timezone,
 		},
-		"forecast": gin.H{
+		"forecast": map[string]interface{}{
 			"days": forecastDays,
 		},
-		"meta": gin.H{
+		"meta": map[string]interface{}{
 			"source":      "Open-Meteo",
 			"timestamp":   util.Now(),
 			"api_version": "1.0",
@@ -587,18 +587,18 @@ func (h *APIHandler) GetForecastByLocation(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Missing or invalid search query"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/search [get]
-func (h *APIHandler) SearchLocations(c *gin.Context) {
+func (h *APIHandler) SearchLocations(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	query := strings.TrimSpace(c.Query("q"))
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 
 	if query == "" {
-		InvalidInput(c, "Query parameter 'q' is required")
+		InvalidInput(w, r, "Query parameter 'q' is required")
 		return
 	}
 
 	// Get limit from query parameter (default 50, max 100)
 	limit := 50
-	if limitStr := strings.TrimSpace(c.Query("limit")); limitStr != "" {
+	if limitStr := strings.TrimSpace(r.URL.Query().Get("limit")); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			if l > 100 {
 				// Cap at 100
@@ -611,14 +611,14 @@ func (h *APIHandler) SearchLocations(c *gin.Context) {
 	// Search for locations
 	results, err := h.weatherService.SearchLocations(query, limit)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "SEARCH_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "SEARCH_ERROR", err.Error())
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"query":   query,
 		"results": results,
-		"meta": gin.H{
+		"meta": map[string]interface{}{
 			"source":      "Open-Meteo Geocoding",
 			"timestamp":   util.Now(),
 			"api_version": "1.0",
@@ -634,16 +634,16 @@ func (h *APIHandler) SearchLocations(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} map[string]interface{} "Client IP information and headers"
 // @Router /api/v1/ip [get]
-func (h *APIHandler) GetIP(c *gin.Context) {
-	clientIP := util.GetClientIP(c)
+func (h *APIHandler) GetIP(w http.ResponseWriter, r *http.Request) {
+	clientIP := util.GetClientIP(r)
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ip":        clientIP,
 		"timestamp": util.Now(),
-		"headers": gin.H{
-			"x-forwarded-for":  c.GetHeader("X-Forwarded-For"),
-			"x-real-ip":        c.GetHeader("X-Real-IP"),
-			"cf-connecting-ip": c.GetHeader("CF-Connecting-IP"),
+		"headers": map[string]interface{}{
+			"x-forwarded-for":  r.Header.Get("X-Forwarded-For"),
+			"x-real-ip":        r.Header.Get("X-Real-IP"),
+			"cf-connecting-ip": r.Header.Get("CF-Connecting-IP"),
 		},
 	})
 }
@@ -657,12 +657,12 @@ func (h *APIHandler) GetIP(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Detected location with coordinates and place information"
 // @Failure 500 {object} map[string]interface{} "Unable to detect location"
 // @Router /api/v1/location [get]
-func (h *APIHandler) GetLocation(c *gin.Context) {
-	clientIP := util.GetClientIP(c)
+func (h *APIHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
+	clientIP := util.GetClientIP(r)
 
 	coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, "LOCATION_ERROR", err.Error())
+		RespondError(w, r, http.StatusInternalServerError, "LOCATION_ERROR", err.Error())
 		return
 	}
 
@@ -675,9 +675,9 @@ func (h *APIHandler) GetLocation(c *gin.Context) {
 		units = "imperial"
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ip": clientIP,
-		"location": gin.H{
+		"location": map[string]interface{}{
 			"city":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -685,7 +685,7 @@ func (h *APIHandler) GetLocation(c *gin.Context) {
 			"countryCode": enhanced.CountryCode,
 			"state":       enhanced.Admin1,
 			"units":       units,
-			"coordinates": gin.H{
+			"coordinates": map[string]interface{}{
 				"latitude":  enhanced.Latitude,
 				"longitude": enhanced.Longitude,
 			},
@@ -698,33 +698,33 @@ func (h *APIHandler) GetLocation(c *gin.Context) {
 }
 
 // GetDocsJSON returns API documentation in JSON format (GET /api/v1/docs)
-func (h *APIHandler) GetDocsJSON(c *gin.Context) {
-	hostInfo := util.GetHostInfo(c)
+func (h *APIHandler) GetDocsJSON(w http.ResponseWriter, r *http.Request) {
+	hostInfo := util.GetHostInfo(r)
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"service":     "Weather API",
 		"version":     "2.0.0",
 		"description": "Free weather API with no API key required",
 		"base_url":    hostInfo.FullHost,
-		"endpoints": gin.H{
-			"weather": gin.H{
+		"endpoints": map[string]interface{}{
+			"weather": map[string]interface{}{
 				"GET /api/v1/weather":           "Get weather for current location (IP-based)",
 				"GET /api/v1/weather/:location": "Get weather for specific location",
 			},
-			"forecast": gin.H{
+			"forecast": map[string]interface{}{
 				"GET /api/v1/forecast":           "Get forecast for current location (IP-based)",
 				"GET /api/v1/forecast/:location": "Get forecast for specific location",
 			},
-			"location": gin.H{
+			"location": map[string]interface{}{
 				"GET /api/v1/location": "Get current location from IP",
 				"GET /api/v1/search":   "Search for locations by name",
 			},
-			"utility": gin.H{
+			"utility": map[string]interface{}{
 				"GET /api/v1/ip":   "Get client IP address",
 				"GET /api/v1/docs": "API documentation (JSON)",
 			},
 		},
-		"parameters": gin.H{
+		"parameters": map[string]interface{}{
 			"location": "City name, coordinates (lat,lon), or zipcode",
 			"units":    "imperial (°F, mph) or metric (°C, km/h). Default: imperial",
 			"days":     "Number of forecast days (1-7). Default: 7",
@@ -740,13 +740,13 @@ func (h *APIHandler) GetDocsJSON(c *gin.Context) {
 }
 
 // GetHistoricalWeather returns historical weather data for a specific day across multiple years (GET /api/v1/history)
-func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
+func (h *APIHandler) GetHistoricalWeather(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	location := strings.TrimSpace(c.Query("location"))
-	lat := strings.TrimSpace(c.Query("lat"))
-	lon := strings.TrimSpace(c.Query("lon"))
-	dateStr := strings.TrimSpace(c.Query("date"))
-	yearsStr := strings.TrimSpace(c.Query("years"))
+	location := strings.TrimSpace(r.URL.Query().Get("location"))
+	lat := strings.TrimSpace(r.URL.Query().Get("lat"))
+	lon := strings.TrimSpace(r.URL.Query().Get("lon"))
+	dateStr := strings.TrimSpace(r.URL.Query().Get("date"))
+	yearsStr := strings.TrimSpace(r.URL.Query().Get("years"))
 
 	// Parse coordinates
 	var coords *service.Coordinates
@@ -755,7 +755,7 @@ func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
 	if lat != "" || lon != "" {
 		// Validate that both lat and lon are provided
 		if lat == "" || lon == "" {
-			InvalidInput(c, "Both 'lat' and 'lon' parameters are required")
+			InvalidInput(w, r, "Both 'lat' and 'lon' parameters are required")
 			return
 		}
 
@@ -765,21 +765,21 @@ func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
 
 		// Validate coordinate parsing
 		if latErr != nil {
-			InvalidInput(c, "Invalid latitude format")
+			InvalidInput(w, r, "Invalid latitude format")
 			return
 		}
 		if lonErr != nil {
-			InvalidInput(c, "Invalid longitude format")
+			InvalidInput(w, r, "Invalid longitude format")
 			return
 		}
 
 		// Validate coordinate ranges per AI.md
 		if latitude < -90 || latitude > 90 {
-			InvalidInput(c, "Latitude must be between -90 and 90")
+			InvalidInput(w, r, "Latitude must be between -90 and 90")
 			return
 		}
 		if longitude < -180 || longitude > 180 {
-			InvalidInput(c, "Longitude must be between -180 and 180")
+			InvalidInput(w, r, "Longitude must be between -180 and 180")
 			return
 		}
 
@@ -791,18 +791,18 @@ func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
 		// Geocode location
 		coords, err = h.weatherService.GetCoordinates(location, "")
 		if err != nil {
-			NotFound(c, fmt.Sprintf("Could not find location: %s", location))
+			NotFound(w, r, fmt.Sprintf("Could not find location: %s", location))
 			return
 		}
 	} else {
-		InvalidInput(c, "Please provide either 'location' or 'lat' and 'lon' parameters")
+		InvalidInput(w, r, "Please provide either 'location' or 'lat' and 'lon' parameters")
 		return
 	}
 
 	// Parse date
 	month, day, startYear, err := parseHistoricalDateAPI(dateStr)
 	if err != nil {
-		InvalidInput(c, fmt.Sprintf("Invalid date format: %v", err))
+		InvalidInput(w, r, fmt.Sprintf("Invalid date format: %v", err))
 		return
 	}
 
@@ -811,7 +811,7 @@ func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
 	if yearsStr != "" {
 		years, err := strconv.Atoi(yearsStr)
 		if err != nil || years < 1 || years > 100 {
-			InvalidInput(c, "Number of years must be between 1 and 100")
+			InvalidInput(w, r, "Number of years must be between 1 and 100")
 			return
 		}
 		numberOfYears = years
@@ -827,13 +827,13 @@ func (h *APIHandler) GetHistoricalWeather(c *gin.Context) {
 		numberOfYears,
 	)
 	if err != nil {
-		InternalError(c, fmt.Sprintf("Error fetching historical weather: %v", err))
+		InternalError(w, r, fmt.Sprintf("Error fetching historical weather: %v", err))
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"historical": historical,
-		"location": gin.H{
+		"location": map[string]interface{}{
 			"latitude":  coords.Latitude,
 			"longitude": coords.Longitude,
 		},
@@ -872,10 +872,10 @@ func parseHistoricalDateAPI(dateStr string) (month, day, year int, err error) {
 }
 
 // GetDocsHTML returns API documentation as HTML page (GET /docs)
-func (h *APIHandler) GetDocsHTML(c *gin.Context) {
-	hostInfo := util.GetHostInfo(c)
+func (h *APIHandler) GetDocsHTML(w http.ResponseWriter, r *http.Request) {
+	hostInfo := util.GetHostInfo(r)
 
-	NegotiateResponse(c, "page/api_docs.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/api_docs.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":      "API Documentation - Weather",
 		"HostInfo":   hostInfo,
 		"HideFooter": false,

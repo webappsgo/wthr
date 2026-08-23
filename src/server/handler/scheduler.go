@@ -1,11 +1,13 @@
 package handler
 
 import (
-	"github.com/webappsgo/wthr/src/scheduler"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/webappsgo/wthr/src/scheduler"
 )
 
 // SchedulerHandler handles scheduler-related requests
@@ -19,26 +21,29 @@ func NewSchedulerHandler(s *scheduler.Scheduler) *SchedulerHandler {
 }
 
 // GetAllTasks returns all tasks with their status and history
-func (h *SchedulerHandler) GetAllTasks(c *gin.Context) {
+func (h *SchedulerHandler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 	tasks, err := h.Scheduler.GetAllTaskInfo()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to get task information",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"tasks": tasks,
 		"count": len(tasks),
 	})
 }
 
 // GetTaskHistory returns execution history for a specific task
-func (h *SchedulerHandler) GetTaskHistory(c *gin.Context) {
-	taskName := c.Param("name")
-	limitStr := c.DefaultQuery("limit", "50")
+func (h *SchedulerHandler) GetTaskHistory(w http.ResponseWriter, r *http.Request) {
+	taskName := chi.URLParam(r, "name")
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "50"
+	}
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -47,14 +52,14 @@ func (h *SchedulerHandler) GetTaskHistory(c *gin.Context) {
 
 	history, err := h.Scheduler.GetTaskHistory(taskName, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to get task history",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"task_name": taskName,
 		"history":   history,
 		"count":     len(history),
@@ -62,49 +67,49 @@ func (h *SchedulerHandler) GetTaskHistory(c *gin.Context) {
 }
 
 // EnableTask enables a specific task
-func (h *SchedulerHandler) EnableTask(c *gin.Context) {
-	taskName := c.Param("name")
+func (h *SchedulerHandler) EnableTask(w http.ResponseWriter, r *http.Request) {
+	taskName := chi.URLParam(r, "name")
 
 	err := h.Scheduler.EnableTask(taskName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":   "Task enabled successfully",
 		"task_name": taskName,
 	})
 }
 
 // DisableTask disables a specific task
-func (h *SchedulerHandler) DisableTask(c *gin.Context) {
-	taskName := c.Param("name")
+func (h *SchedulerHandler) DisableTask(w http.ResponseWriter, r *http.Request) {
+	taskName := chi.URLParam(r, "name")
 
 	err := h.Scheduler.DisableTask(taskName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":   "Task disabled successfully",
 		"task_name": taskName,
 	})
 }
 
 // UpdateTask updates task settings (enable/disable)
-func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
-	taskName := c.Param("name")
+func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
+	taskName := chi.URLParam(r, "name")
 
 	task := h.Scheduler.GetTask(taskName)
 	if task == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": gin.H{"code": "TASK_NOT_FOUND", "message": "Task not found: " + taskName},
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{
+			"error": map[string]interface{}{"code": "TASK_NOT_FOUND", "message": "Task not found: " + taskName},
 		})
 		return
 	}
@@ -112,9 +117,9 @@ func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
 	var req struct {
 		Enabled *bool `json:"enabled"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{"code": "INVALID_REQUEST", "message": "Invalid request body"},
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": "Invalid request body"},
 		})
 		return
 	}
@@ -127,14 +132,14 @@ func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
 			err = h.Scheduler.DisableTask(taskName)
 		}
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": gin.H{"code": "UPDATE_FAILED", "message": err.Error()},
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+				"error": map[string]interface{}{"code": "UPDATE_FAILED", "message": err.Error()},
 			})
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":        true,
 		"message":   "Task updated successfully",
 		"task_name": taskName,
@@ -142,18 +147,18 @@ func (h *SchedulerHandler) UpdateTask(c *gin.Context) {
 }
 
 // TriggerTask manually triggers a task to run immediately
-func (h *SchedulerHandler) TriggerTask(c *gin.Context) {
-	taskName := c.Param("name")
+func (h *SchedulerHandler) TriggerTask(w http.ResponseWriter, r *http.Request) {
+	taskName := chi.URLParam(r, "name")
 
 	err := h.Scheduler.TriggerTask(taskName)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":   "Task triggered successfully",
 		"task_name": taskName,
 	})

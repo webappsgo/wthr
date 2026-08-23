@@ -2,16 +2,17 @@ package handler
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -27,24 +28,24 @@ func NewAdminWebHandler(db *database.DB) *AdminWebHandler {
 
 // ShowWebSettings renders the web settings admin page
 // GET /admin/server/web
-func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
+func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
-	adminIDValue, exists := c.Get("admin_id")
+	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminModel := &models.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
@@ -57,14 +58,14 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 
 	// Get app URL for template variable replacement
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if r.TLS != nil {
 		scheme = "https"
 	}
-	appURL := scheme + "://" + c.Request.Host
+	appURL := scheme + "://" + r.Host
 
-	serverCtx, _ := middleware.GetServerContext(c)
+	serverCtx, _ := middleware.GetServerContext(r.Context())
 
-	c.HTML(http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":       "Web Settings",
 		"RobotsTxt":   robotsTxt,
 		"SecurityTxt": securityTxt,
@@ -76,7 +77,7 @@ func (h *AdminWebHandler) ShowWebSettings(c *gin.Context) {
 
 // GetRobotsTxt retrieves robots.txt content
 // GET /{api_version}/admin/server/web/robots
-func (h *AdminWebHandler) GetRobotsTxt(c *gin.Context) {
+func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	robotsTxt := ""
 
@@ -84,7 +85,7 @@ func (h *AdminWebHandler) GetRobotsTxt(c *gin.Context) {
 		robotsTxt = cfg.Web.RobotsTxt
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"content": robotsTxt,
 	})
@@ -92,16 +93,26 @@ func (h *AdminWebHandler) GetRobotsTxt(c *gin.Context) {
 
 // UpdateRobotsTxt updates robots.txt content
 // PATCH /{api_version}/admin/server/web/robots
-func (h *AdminWebHandler) UpdateRobotsTxt(c *gin.Context) {
+func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Content string `json:"content" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
 				"message": "Invalid request body",
+			},
+		})
+		return
+	}
+
+	if req.Content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "MISSING_CONTENT",
+				"message": "content is required",
 			},
 		})
 		return
@@ -109,8 +120,8 @@ func (h *AdminWebHandler) UpdateRobotsTxt(c *gin.Context) {
 
 	// Update server.yml file (config watcher will auto-reload)
 	if err := config.UpdateWebRobotsTxt(req.Content); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "UPDATE_FAILED",
 				"message": "Failed to update robots.txt in server.yml",
 			},
@@ -118,7 +129,7 @@ func (h *AdminWebHandler) UpdateRobotsTxt(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "robots.txt updated successfully (will auto-reload)",
 	})
@@ -126,7 +137,7 @@ func (h *AdminWebHandler) UpdateRobotsTxt(c *gin.Context) {
 
 // GetSecurityTxt retrieves security.txt content
 // GET /{api_version}/admin/server/web/security
-func (h *AdminWebHandler) GetSecurityTxt(c *gin.Context) {
+func (h *AdminWebHandler) GetSecurityTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	securityTxt := ""
 
@@ -134,7 +145,7 @@ func (h *AdminWebHandler) GetSecurityTxt(c *gin.Context) {
 		securityTxt = cfg.Web.SecurityTxt
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"content": securityTxt,
 	})
@@ -142,14 +153,14 @@ func (h *AdminWebHandler) GetSecurityTxt(c *gin.Context) {
 
 // UpdateSecurityTxt updates security.txt content
 // PATCH /{api_version}/admin/server/web/security
-func (h *AdminWebHandler) UpdateSecurityTxt(c *gin.Context) {
+func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Content string `json:"content" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
 				"message": "Invalid request body",
 			},
@@ -157,10 +168,20 @@ func (h *AdminWebHandler) UpdateSecurityTxt(c *gin.Context) {
 		return
 	}
 
+	if req.Content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "MISSING_CONTENT",
+				"message": "content is required",
+			},
+		})
+		return
+	}
+
 	// Update server.yml file (config watcher will auto-reload)
 	if err := config.UpdateWebSecurityTxt(req.Content); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "UPDATE_FAILED",
 				"message": "Failed to update security.txt in server.yml",
 			},
@@ -168,7 +189,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "security.txt updated successfully (will auto-reload)",
 	})
@@ -176,7 +197,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(c *gin.Context) {
 
 // ServeRobotsTxt serves robots.txt file
 // GET /robots.txt
-func (h *AdminWebHandler) ServeRobotsTxt(c *gin.Context) {
+func (h *AdminWebHandler) ServeRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	robotsTxt := `User-agent: *
 Allow: /`
@@ -187,22 +208,23 @@ Allow: /`
 
 	// Replace template variables
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if r.TLS != nil {
 		scheme = "https"
 	}
-	appURL := scheme + "://" + c.Request.Host
+	appURL := scheme + "://" + r.Host
 
 	robotsTxt = strings.ReplaceAll(robotsTxt, "{app_url}", appURL)
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	// Cache for 24 hours
-	c.Header("Cache-Control", "public, max-age=86400")
-	c.String(http.StatusOK, robotsTxt)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, robotsTxt)
 }
 
 // ServeSecurityTxt serves security.txt file
 // GET /.well-known/security.txt
-func (h *AdminWebHandler) ServeSecurityTxt(c *gin.Context) {
+func (h *AdminWebHandler) ServeSecurityTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	securityTxt := ""
 
@@ -223,29 +245,30 @@ Preferred-Languages: en`,
 
 	// Replace template variables
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if r.TLS != nil {
 		scheme = "https"
 	}
-	appURL := scheme + "://" + c.Request.Host
+	appURL := scheme + "://" + r.Host
 
 	securityTxt = strings.ReplaceAll(securityTxt, "{app_url}", appURL)
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	// Cache for 24 hours
-	c.Header("Cache-Control", "public, max-age=86400")
-	c.String(http.StatusOK, securityTxt)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, securityTxt)
 }
 
 // ServeSitemap serves dynamically generated sitemap.xml
 // GET /sitemap.xml
 // Per AI.md PART 16: Include homepage, public pages, docs, API docs
 // NEVER include: admin pages, auth pages, api endpoints
-func (h *AdminWebHandler) ServeSitemap(c *gin.Context) {
+func (h *AdminWebHandler) ServeSitemap(w http.ResponseWriter, r *http.Request) {
 	scheme := "http"
-	if c.Request.TLS != nil {
+	if r.TLS != nil {
 		scheme = "https"
 	}
-	appURL := scheme + "://" + c.Request.Host
+	appURL := scheme + "://" + r.Host
 	lastmod := time.Now().Format("2006-01-02")
 
 	// Build sitemap XML
@@ -284,22 +307,23 @@ func (h *AdminWebHandler) ServeSitemap(c *gin.Context) {
 
 	sb.WriteString("</urlset>\n")
 
-	c.Header("Content-Type", "application/xml; charset=utf-8")
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	// Cache for 1 hour
-	c.Header("Cache-Control", "public, max-age=3600")
-	c.String(http.StatusOK, sb.String())
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, sb.String())
 }
 
 // ServeFavicon serves the favicon.ico
 // GET /favicon.ico
 // Per AI.md PART 16: Embedded default, customizable via admin panel
-func (h *AdminWebHandler) ServeFavicon(c *gin.Context) {
+func (h *AdminWebHandler) ServeFavicon(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 
 	// Check if custom favicon is configured
 	if cfg != nil && cfg.Web.FaviconURL != "" {
 		// Redirect to custom favicon URL
-		c.Redirect(http.StatusFound, cfg.Web.FaviconURL)
+		http.Redirect(w, r, cfg.Web.FaviconURL, http.StatusFound)
 		return
 	}
 
@@ -309,12 +333,13 @@ func (h *AdminWebHandler) ServeFavicon(c *gin.Context) {
 
 	faviconData, err := base64.StdEncoding.DecodeString(faviconB64)
 	if err != nil {
-		c.Status(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	c.Header("Content-Type", "image/x-icon")
+	w.Header().Set("Content-Type", "image/x-icon")
 	// Cache for 7 days
-	c.Header("Cache-Control", "public, max-age=604800")
-	c.Data(http.StatusOK, "image/x-icon", faviconData)
+	w.Header().Set("Cache-Control", "public, max-age=604800")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(faviconData)
 }

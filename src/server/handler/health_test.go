@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -90,8 +88,9 @@ func TestGetTorStatus_WithProvider(t *testing.T) {
 // always return 200/alive regardless of init state, since Kubernetes uses
 // this endpoint to decide whether to kill the container.
 func TestLivenessCheck(t *testing.T) {
-	c, w := newTestContext(http.MethodGet, "/health")
-	LivenessCheck(c)
+	r := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	LivenessCheck(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -114,9 +113,10 @@ func TestReadinessCheck(t *testing.T) {
 	t.Run("not initialized returns 503 initializing", func(t *testing.T) {
 		resetInitStatus(t)
 		db := newTestDatabaseDB(t)
-		c, w := newTestContext(http.MethodGet, "/health/ready")
+		r := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
 
-		ReadinessCheck(db, time.Now())(c)
+		ReadinessCheck(db, time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want 503", w.Code)
@@ -135,9 +135,10 @@ func TestReadinessCheck(t *testing.T) {
 		SetInitStatus(true, true, true)
 		db := newTestDatabaseDB(t)
 		db.DB.Close() // force HealthCheck's "SELECT 1" to fail
-		c, w := newTestContext(http.MethodGet, "/health/ready")
+		r := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
 
-		ReadinessCheck(db, time.Now())(c)
+		ReadinessCheck(db, time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want 503", w.Code)
@@ -155,9 +156,10 @@ func TestReadinessCheck(t *testing.T) {
 		resetInitStatus(t)
 		SetInitStatus(true, true, true)
 		db := newTestDatabaseDB(t)
-		c, w := newTestContext(http.MethodGet, "/health/ready")
+		r := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
+		w := httptest.NewRecorder()
 
-		ReadinessCheck(db, time.Now().Add(-90*time.Second))(c)
+		ReadinessCheck(db, time.Now().Add(-90*time.Second))(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -179,9 +181,10 @@ func TestReadinessCheck(t *testing.T) {
 // expected top-level sections, and does not panic when init state is zero.
 func TestDebugInfo(t *testing.T) {
 	resetInitStatus(t)
-	c, w := newTestContext(http.MethodGet, "/debug/info")
+	r := httptest.NewRequest(http.MethodGet, "/debug/info", nil)
+	w := httptest.NewRecorder()
 
-	DebugInfo(c)
+	DebugInfo(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -268,9 +271,10 @@ func TestAPIHealthCheck(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
-		c, w := newTestContext(http.MethodGet, "/api/v1/healthz")
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(c)
+		APIHealthCheck(db, time.Now())(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -298,9 +302,10 @@ func TestAPIHealthCheck(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
-		c, w := newTestContext(http.MethodGet, "/api/v1/healthz")
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(c)
+		APIHealthCheck(db, time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want 503; body=%s", w.Code, w.Body.String())
@@ -321,9 +326,10 @@ func TestAPIHealthCheck(t *testing.T) {
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
 		db.DB.Close()
-		c, w := newTestContext(http.MethodGet, "/api/v1/healthz")
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		w := httptest.NewRecorder()
 
-		APIHealthCheck(db, time.Now())(c)
+		APIHealthCheck(db, time.Now())(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("status = %d, want 503 when db is closed", w.Code)
@@ -336,10 +342,11 @@ func TestAPIHealthCheck(t *testing.T) {
 // polling readiness during startup will hit.
 func TestServeLoadingPage_JSON(t *testing.T) {
 	resetInitStatus(t)
-	c, w := newTestContext(http.MethodGet, "/api/v1/loading")
-	c.Request.Header.Set("Accept", "application/json")
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/loading", nil)
+	r.Header.Set("Accept", "application/json")
+	w := httptest.NewRecorder()
 
-	ServeLoadingPage(c)
+	ServeLoadingPage(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)
@@ -354,13 +361,11 @@ func TestServeLoadingPage_JSON(t *testing.T) {
 // registered template and isn't what a terminal client wants anyway).
 func TestServeLoadingPage_CLI(t *testing.T) {
 	resetInitStatus(t)
-	gin.SetMode(gin.TestMode)
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.Header.Set("User-Agent", "curl/8.0")
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.Request.Header.Set("User-Agent", "curl/8.0")
 
-	ServeLoadingPage(c)
+	ServeLoadingPage(w, r)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)

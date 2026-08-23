@@ -27,7 +27,7 @@ func TestAdminHandlerShowSchedulerConfig_Unauthenticated(t *testing.T) {
 	h := newSchedulerTestHandler(t)
 	c, w := newAPITestContext("/server/admin/config/scheduler")
 
-	h.ShowSchedulerConfig(c)
+	h.ShowSchedulerConfig(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302: %s", w.Code, w.Body.String())
@@ -38,7 +38,7 @@ func TestAdminHandlerGetSchedulerConfigJSON(t *testing.T) {
 	h := newSchedulerTestHandler(t)
 	c, w := newAPITestContext("/server/admin/config/scheduler/json")
 
-	h.GetSchedulerConfigJSON(c)
+	h.GetSchedulerConfigJSON(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -52,7 +52,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 	t.Run("malformed body", func(t *testing.T) {
 		h := newSchedulerTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", "not json")
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -63,7 +63,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"timezone": "Mars/Olympus",
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -74,7 +74,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"catch_up_window": "not-a-duration",
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -85,7 +85,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"geoip_update": map[string]interface{}{"schedule": "not a cron", "enabled": true},
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -96,7 +96,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"blocklist_update": map[string]interface{}{"retry_delay": "bogus"},
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -107,7 +107,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"log_rotation": map[string]interface{}{"max_age": "bogus"},
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -118,7 +118,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"log_rotation": map[string]interface{}{"max_size": "bogus"},
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
@@ -144,7 +144,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 			},
 		})
 
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -181,7 +181,7 @@ func TestAdminHandlerSaveSchedulerConfig(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/scheduler", map[string]interface{}{
 			"nonexistent_field": "value",
 		})
-		h.SaveSchedulerConfig(c)
+		h.SaveSchedulerConfig(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}

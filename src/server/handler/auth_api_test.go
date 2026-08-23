@@ -1,19 +1,72 @@
 package handler
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 )
+
+// newAuthAPITestRequest builds a request/recorder pair for the auth API
+// handler tests, kept local to avoid depending on the shared gin-based
+// newTestContext/newTestContextJSON helpers owned by response_test.go/
+// handler_helpers_test.go.
+func newAuthAPITestRequest(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+
+	var raw []byte
+	switch v := body.(type) {
+	case nil:
+		raw = nil
+	case string:
+		raw = []byte(v)
+	case []byte:
+		raw = v
+	default:
+		var err error
+		raw, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
+	}
+
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	return r, w
+}
+
+// withAuthAPISession attaches an authenticated session to the request
+// context, the same key middleware.AuthMiddleware sets on a real request.
+func withAuthAPISession(r *http.Request, session *models.Session) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), middleware.SessionContextKey, session))
+}
+
+// withAuthAPIUser attaches an authenticated user to the request context,
+// the same key middleware.AuthMiddleware sets on a real request.
+func withAuthAPIUser(r *http.Request, user *models.User) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, user))
+}
+
+// withAuthAPIURLParam attaches a chi route param to the request context.
+func withAuthAPIURLParam(r *http.Request, key, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add(key, value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
 
 // newAuthAPITestHandler wires an AuthAPIHandler against fresh in-memory
 // server.db/users.db instances and primes the database.GetServerDB/
@@ -34,11 +87,11 @@ func TestHandleAPILogin(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		seedAuthUser(t, h.DB, "apiuser", "apiuser@example.com", "correcthorse123")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
 			Identifier: "apiuser",
 			Password:   "correcthorse123",
 		})
-		h.HandleAPILogin(c)
+		h.HandleAPILogin(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -61,11 +114,11 @@ func TestHandleAPILogin(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		seedAuthUser(t, h.DB, "apiuser2", "apiuser2@example.com", "correcthorse123")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
 			Identifier: "apiuser2",
 			Password:   "totallywrong",
 		})
-		h.HandleAPILogin(c)
+		h.HandleAPILogin(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -75,11 +128,11 @@ func TestHandleAPILogin(t *testing.T) {
 	t.Run("whitespace-padded password is rejected with 400 before any DB lookup", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
 			Identifier: "nobody",
 			Password:   " padded ",
 		})
-		h.HandleAPILogin(c)
+		h.HandleAPILogin(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -88,8 +141,8 @@ func TestHandleAPILogin(t *testing.T) {
 
 	t.Run("malformed JSON body returns 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/login", "{not json")
-		h.HandleAPILogin(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/login", "{not json")
+		h.HandleAPILogin(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -103,11 +156,11 @@ func TestHandleAPILogin(t *testing.T) {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/login", APILoginRequest{
 			Identifier: "apiuser3",
 			Password:   "correcthorse123",
 		})
-		h.HandleAPILogin(c)
+		h.HandleAPILogin(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -136,12 +189,12 @@ func TestHandleAPIRegister(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
 			Username: "newapiuser",
 			Email:    "newapiuser@example.com",
 			Password: "correcthorse123",
 		})
-		h.HandleAPIRegister(c)
+		h.HandleAPIRegister(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -153,12 +206,12 @@ func TestHandleAPIRegister(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "open"}}})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
 			Username: "newapiuser2",
 			Email:    "newapiuser2@example.com",
 			Password: "correcthorse123",
 		})
-		h.HandleAPIRegister(c)
+		h.HandleAPIRegister(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
@@ -178,12 +231,12 @@ func TestHandleAPIRegister(t *testing.T) {
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		seedAuthUser(t, h.DB, "dupeuser", "dupeuser@example.com", "correcthorse123")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/register", APIRegisterRequest{
 			Username: "dupeuser",
 			Email:    "other@example.com",
 			Password: "correcthorse123",
 		})
-		h.HandleAPIRegister(c)
+		h.HandleAPIRegister(w, r)
 
 		if w.Code != http.StatusConflict {
 			t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
@@ -196,8 +249,8 @@ func TestHandleAPIRegister(t *testing.T) {
 func TestHandleAPILogout(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/logout", nil)
-		h.HandleAPILogout(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/logout", nil)
+		h.HandleAPILogout(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -212,9 +265,9 @@ func TestHandleAPILogout(t *testing.T) {
 			t.Fatalf("create session: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/logout", nil)
-		c.Set("session", session)
-		h.HandleAPILogout(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/logout", nil)
+		r = withAuthAPISession(r, session)
+		h.HandleAPILogout(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -251,11 +304,11 @@ func TestHandleAPI2FA(t *testing.T) {
 			t.Fatalf("generate totp code: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
 			SessionToken:  pendingToken,
 			TwoFactorCode: code,
 		})
-		h.HandleAPI2FA(c)
+		h.HandleAPI2FA(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -266,11 +319,11 @@ func TestHandleAPI2FA(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		_, pendingToken := setupPending(t, h)
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
 			SessionToken:  pendingToken,
 			TwoFactorCode: "000000",
 		})
-		h.HandleAPI2FA(c)
+		h.HandleAPI2FA(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -279,11 +332,11 @@ func TestHandleAPI2FA(t *testing.T) {
 
 	t.Run("unknown pending session token is rejected with 401", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/2fa", API2FARequest{
 			SessionToken:  "does-not-exist",
 			TwoFactorCode: "123456",
 		})
-		h.HandleAPI2FA(c)
+		h.HandleAPI2FA(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -308,11 +361,11 @@ func TestHandleAPIRecoveryUse(t *testing.T) {
 			t.Fatalf("create pending session: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/recovery/use", APIRecoveryUseRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/recovery/use", APIRecoveryUseRequest{
 			SessionToken: pending.ID,
 			RecoveryKey:  keys[0],
 		})
-		h.HandleAPIRecoveryUse(c)
+		h.HandleAPIRecoveryUse(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -327,11 +380,11 @@ func TestHandleAPIRecoveryUse(t *testing.T) {
 			t.Fatalf("create pending session: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/recovery/use", APIRecoveryUseRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/recovery/use", APIRecoveryUseRequest{
 			SessionToken: pending.ID,
 			RecoveryKey:  "wrong-key",
 		})
-		h.HandleAPIRecoveryUse(c)
+		h.HandleAPIRecoveryUse(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -344,8 +397,8 @@ func TestHandleAPIRecoveryUse(t *testing.T) {
 func TestHandleAPIRefresh(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/refresh", nil)
-		h.HandleAPIRefresh(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/refresh", nil)
+		h.HandleAPIRefresh(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -365,10 +418,10 @@ func TestHandleAPIRefresh(t *testing.T) {
 			t.Fatalf("get user: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/refresh", nil)
-		c.Set("session", session)
-		c.Set("user", user)
-		h.HandleAPIRefresh(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/refresh", nil)
+		r = withAuthAPISession(r, session)
+		r = withAuthAPIUser(r, user)
+		h.HandleAPIRefresh(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -403,8 +456,8 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 			t.Fatalf("seed verification row: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "good-token"})
-		h.HandleAPIVerifyEmail(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "good-token"})
+		h.HandleAPIVerifyEmail(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -420,8 +473,8 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 
 	t.Run("unknown token returns 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "bogus"})
-		h.HandleAPIVerifyEmail(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "bogus"})
+		h.HandleAPIVerifyEmail(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -448,8 +501,8 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 			t.Fatalf("drop user_accounts to force update failure: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "bug-token"})
-		h.HandleAPIVerifyEmail(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/verify", APIVerifyEmailRequest{Token: "bug-token"})
+		h.HandleAPIVerifyEmail(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("KNOWN BUG (auth_api.go:1001): status = %d, want 500 for a DB failure; got body=%s", w.Code, w.Body.String())
@@ -462,8 +515,8 @@ func TestHandleAPIVerifyEmail(t *testing.T) {
 func TestHandleAPIPasswordForgot(t *testing.T) {
 	t.Run("valid email always returns 200 regardless of existence", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/forgot", APIPasswordForgotRequest{Email: "nobody@example.com"})
-		h.HandleAPIPasswordForgot(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/forgot", APIPasswordForgotRequest{Email: "nobody@example.com"})
+		h.HandleAPIPasswordForgot(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -471,8 +524,8 @@ func TestHandleAPIPasswordForgot(t *testing.T) {
 
 	t.Run("malformed JSON body returns 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/forgot", "{not json")
-		h.HandleAPIPasswordForgot(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/forgot", "{not json")
+		h.HandleAPIPasswordForgot(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -504,11 +557,11 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 		}
 		seedResetRow(t, h, userID, "reset-token")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
 			Token:    "reset-token",
 			Password: "brandnewpassword1",
 		})
-		h.HandleAPIPasswordReset(c)
+		h.HandleAPIPasswordReset(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -520,11 +573,11 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 
 	t.Run("unknown token returns 400", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
 			Token:    "bogus",
 			Password: "brandnewpassword1",
 		})
-		h.HandleAPIPasswordReset(c)
+		h.HandleAPIPasswordReset(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -532,8 +585,8 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 
 	t.Run("short password returns 400 before touching the DB", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/reset", "{\"token\":\"x\",\"password\":\"short\"}")
-		h.HandleAPIPasswordReset(c)
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/reset", "{\"token\":\"x\",\"password\":\"short\"}")
+		h.HandleAPIPasswordReset(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -556,11 +609,11 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 			t.Fatalf("drop user_accounts to force update failure: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/password/reset", APIPasswordResetRequest{
 			Token:    "bug-reset-token",
 			Password: "brandnewpassword1",
 		})
-		h.HandleAPIPasswordReset(c)
+		h.HandleAPIPasswordReset(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("KNOWN BUG (auth_api.go:1080): status = %d, want 500 for a DB failure; got body=%s", w.Code, w.Body.String())
@@ -661,9 +714,9 @@ func TestHandleAPIUserInviteValidate(t *testing.T) {
 			t.Fatalf("create invite: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/auth/invite/user/"+invite.Token, nil)
-		c.Params = []gin.Param{{Key: "token", Value: invite.Token}}
-		h.HandleAPIUserInviteValidate(c)
+		r, w := newAuthAPITestRequest(t, http.MethodGet, "/api/v1/server/auth/invite/user/"+invite.Token, nil)
+		r = withAuthAPIURLParam(r, "token", invite.Token)
+		h.HandleAPIUserInviteValidate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -672,9 +725,9 @@ func TestHandleAPIUserInviteValidate(t *testing.T) {
 
 	t.Run("unknown invite token returns 410", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/auth/invite/user/bogus", nil)
-		c.Params = []gin.Param{{Key: "token", Value: "bogus"}}
-		h.HandleAPIUserInviteValidate(c)
+		r, w := newAuthAPITestRequest(t, http.MethodGet, "/api/v1/server/auth/invite/user/bogus", nil)
+		r = withAuthAPIURLParam(r, "token", "bogus")
+		h.HandleAPIUserInviteValidate(w, r)
 		if w.Code != http.StatusGone {
 			t.Fatalf("status = %d, want 410; body=%s", w.Code, w.Body.String())
 		}
@@ -691,12 +744,12 @@ func TestHandleAPIUserInviteComplete(t *testing.T) {
 			t.Fatalf("create invite: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/invite/user/"+invite.Token, map[string]string{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/invite/user/"+invite.Token, map[string]string{
 			"username": "completedinviteuser",
 			"password": "correcthorse123",
 		})
-		c.Params = []gin.Param{{Key: "token", Value: invite.Token}}
-		h.HandleAPIUserInviteComplete(c)
+		r = withAuthAPIURLParam(r, "token", invite.Token)
+		h.HandleAPIUserInviteComplete(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
@@ -712,12 +765,12 @@ func TestHandleAPIUserInviteComplete(t *testing.T) {
 
 	t.Run("expired/unknown invite token returns an error status", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/invite/user/bogus", map[string]string{
+		r, w := newAuthAPITestRequest(t, http.MethodPost, "/api/v1/server/auth/invite/user/bogus", map[string]string{
 			"username": "whoever",
 			"password": "correcthorse123",
 		})
-		c.Params = []gin.Param{{Key: "token", Value: "bogus"}}
-		h.HandleAPIUserInviteComplete(c)
+		r = withAuthAPIURLParam(r, "token", "bogus")
+		h.HandleAPIUserInviteComplete(w, r)
 		if w.Code < 400 {
 			t.Fatalf("status = %d, want a 4xx error", w.Code)
 		}

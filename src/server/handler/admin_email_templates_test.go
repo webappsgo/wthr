@@ -1,14 +1,52 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
+
+// newEmailTemplateTestRequest builds a request/recorder pair with a
+// JSON-encoded body and the given chi URL params attached, mirroring the
+// pattern the other converted handlers/tests in this package use.
+func newEmailTemplateTestRequest(t *testing.T, method, target string, body interface{}, params map[string]string) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var raw []byte
+	switch v := body.(type) {
+	case nil:
+		raw = nil
+	case string:
+		raw = []byte(v)
+	case []byte:
+		raw = v
+	default:
+		var err error
+		raw, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
+	}
+
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+
+	rctx := chi.NewRouteContext()
+	for key, value := range params {
+		rctx.URLParams.Add(key, value)
+	}
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	return r, httptest.NewRecorder()
+}
 
 // TestNewEmailTemplateHandler verifies the constructor wires the
 // templatesDir field as passed.
@@ -81,11 +119,10 @@ func TestEmailTemplateHandler_UpdateTemplate_Success(t *testing.T) {
 	}
 	h := &EmailTemplateHandler{templatesDir: dir}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/email-templates/welcome",
-		map[string]string{"Subject": "Welcome!", "Body": "Hello there."})
-	c.Params = []gin.Param{{Key: "name", Value: "welcome"}}
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/admin/config/email-templates/welcome",
+		map[string]string{"Subject": "Welcome!", "Body": "Hello there."}, map[string]string{"name": "welcome"})
 
-	h.UpdateTemplate(c)
+	h.UpdateTemplate(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -105,11 +142,10 @@ func TestEmailTemplateHandler_UpdateTemplate_Success(t *testing.T) {
 func TestEmailTemplateHandler_UpdateTemplate_InvalidName(t *testing.T) {
 	h := &EmailTemplateHandler{templatesDir: t.TempDir()}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/email-templates/nope",
-		map[string]string{"Subject": "x", "Body": "y"})
-	c.Params = []gin.Param{{Key: "name", Value: "nope"}}
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/admin/config/email-templates/nope",
+		map[string]string{"Subject": "x", "Body": "y"}, map[string]string{"name": "nope"})
 
-	h.UpdateTemplate(c)
+	h.UpdateTemplate(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -132,9 +168,9 @@ func TestEmailTemplateHandler_ListTemplates(t *testing.T) {
 	}
 
 	h := &EmailTemplateHandler{templatesDir: dir}
-	c, w := newAPITestContext("/server/admin/config/email-templates")
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/admin/config/email-templates", nil, nil)
 
-	h.ListTemplates(c)
+	h.ListTemplates(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())

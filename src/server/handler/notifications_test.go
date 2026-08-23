@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/server/model"
 )
@@ -81,12 +79,6 @@ func decodeNotificationList(t *testing.T, body []byte) notificationListResponse 
 	return payload
 }
 
-// setUserIDInt sets the context key notifications.go reads to identify the
-// caller. The unauthenticated subtests deliberately leave it unset.
-func setUserIDInt(c *gin.Context, id int) {
-	c.Set("user_id", id)
-}
-
 // readNotificationRow returns the stored read/dismissed flags and action_json
 // of one row, for asserting the effect of a write.
 func readNotificationRow(t *testing.T, db *sql.DB, id string) (read bool, dismissed bool, action sql.NullString) {
@@ -112,10 +104,10 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 		seedNotification(t, db, "01JNEWEST0000000000000000", 1, "warning", "toast", "newer", nil, true, false, base.Add(time.Hour))
 		seedNotification(t, db, "01JOTHERUSER000000000000", 2, "info", "toast", "not mine", nil, false, false, base.Add(2*time.Hour))
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications", "")
-		setUserIDInt(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications", "")
+		r = setUserIDContext(r, 1)
 
-		h.ListNotifications(c)
+		h.ListNotifications(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -148,10 +140,10 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 		seedNotification(t, db, "01JBROKEN0000000000000000", 1, "info", "toast", "broken action",
 			`not json`, false, false, base.Add(-time.Hour))
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications", "")
-		setUserIDInt(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications", "")
+		r = setUserIDContext(r, 1)
 
-		h.ListNotifications(c)
+		h.ListNotifications(w, r)
 
 		payload := decodeNotificationList(t, w.Body.Bytes())
 		if len(payload.Notifications) != 2 {
@@ -173,10 +165,10 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 		seedNotification(t, db, "01JALREADYREAD0000000000", 1, "info", "toast", "read", nil, true, false, base)
 		seedNotification(t, db, "01JDISMISSED000000000000", 1, "info", "toast", "dismissed", nil, false, true, base)
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications?unread=true", "")
-		setUserIDInt(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications?unread=true", "")
+		r = setUserIDContext(r, 1)
 
-		h.ListNotifications(c)
+		h.ListNotifications(w, r)
 
 		payload := decodeNotificationList(t, w.Body.Bytes())
 		if payload.Total != 1 {
@@ -206,10 +198,10 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 				db := newNotificationsTestDB(t)
 				h := &NotificationHandler{DB: db}
 
-				c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications"+tc.query, "")
-				setUserIDInt(c, 1)
+				r, w := newAPIRequest(t, http.MethodGet, "/api/notifications"+tc.query, "")
+				r = setUserIDContext(r, 1)
 
-				h.ListNotifications(c)
+				h.ListNotifications(w, r)
 
 				if w.Code != http.StatusOK {
 					t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -230,9 +222,9 @@ func TestNotificationHandler_ListNotifications(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications", "")
 
-		h.ListNotifications(c)
+		h.ListNotifications(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -253,10 +245,10 @@ func TestNotificationHandler_GetUnreadCount(t *testing.T) {
 		seedNotification(t, db, "01JCOUNTD0000000000000000", 1, "info", "toast", "d", nil, false, true, base)
 		seedNotification(t, db, "01JCOUNTE0000000000000000", 2, "info", "toast", "e", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications/unread-count", "")
-		setUserIDInt(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications/unread-count", "")
+		r = setUserIDContext(r, 1)
 
-		h.GetUnreadCount(c)
+		h.GetUnreadCount(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -277,9 +269,9 @@ func TestNotificationHandler_GetUnreadCount(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/notifications/unread-count", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/notifications/unread-count", "")
 
-		h.GetUnreadCount(c)
+		h.GetUnreadCount(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -295,11 +287,11 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 		h := &NotificationHandler{DB: db}
 		seedNotification(t, db, "01JMARKOWN000000000000000", 1, "info", "toast", "mine", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/01JMARKOWN000000000000000/read", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JMARKOWN000000000000000"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/01JMARKOWN000000000000000/read", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JMARKOWN000000000000000")
 
-		h.MarkAsRead(c)
+		h.MarkAsRead(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -313,11 +305,11 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/missing/read", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JDOESNOTEXIST000000000"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/missing/read", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JDOESNOTEXIST000000000")
 
-		h.MarkAsRead(c)
+		h.MarkAsRead(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -329,11 +321,11 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 		h := &NotificationHandler{DB: db}
 		seedNotification(t, db, "01JMARKTHEIRS000000000000", 2, "info", "toast", "theirs", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/01JMARKTHEIRS000000000000/read", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JMARKTHEIRS000000000000"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/01JMARKTHEIRS000000000000/read", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JMARKTHEIRS000000000000")
 
-		h.MarkAsRead(c)
+		h.MarkAsRead(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403; body=%s", w.Code, w.Body.String())
@@ -347,10 +339,10 @@ func TestNotificationHandler_MarkAsRead(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/x/read", "")
-		c.Params = gin.Params{{Key: "id", Value: "01JANY000000000000000000"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/x/read", "")
+		r = withURLParam(r, "id", "01JANY000000000000000000")
 
-		h.MarkAsRead(c)
+		h.MarkAsRead(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -369,10 +361,10 @@ func TestNotificationHandler_MarkAllAsRead(t *testing.T) {
 		seedNotification(t, db, "01JALLB00000000000000000", 1, "info", "toast", "b", nil, false, false, base)
 		seedNotification(t, db, "01JALLC00000000000000000", 2, "info", "toast", "c", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/read-all", "")
-		setUserIDInt(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/read-all", "")
+		r = setUserIDContext(r, 1)
 
-		h.MarkAllAsRead(c)
+		h.MarkAllAsRead(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -395,9 +387,9 @@ func TestNotificationHandler_MarkAllAsRead(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/notifications/read-all", "")
+		r, w := newAPIRequest(t, http.MethodPost, "/api/notifications/read-all", "")
 
-		h.MarkAllAsRead(c)
+		h.MarkAllAsRead(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -413,11 +405,11 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 		h := &NotificationHandler{DB: db}
 		seedNotification(t, db, "01JDELMINE000000000000000", 1, "info", "toast", "mine", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/notifications/01JDELMINE000000000000000", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JDELMINE000000000000000"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/01JDELMINE000000000000000", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JDELMINE000000000000000")
 
-		h.DeleteNotification(c)
+		h.DeleteNotification(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -437,11 +429,11 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 		h := &NotificationHandler{DB: db}
 		seedNotification(t, db, "01JDELTHEIRS0000000000000", 2, "info", "toast", "theirs", nil, false, false, base)
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/notifications/01JDELTHEIRS0000000000000", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JDELTHEIRS0000000000000"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/01JDELTHEIRS0000000000000", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JDELTHEIRS0000000000000")
 
-		h.DeleteNotification(c)
+		h.DeleteNotification(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403; body=%s", w.Code, w.Body.String())
@@ -460,11 +452,11 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/notifications/missing", "")
-		setUserIDInt(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "01JDOESNOTEXIST000000000"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/missing", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "01JDOESNOTEXIST000000000")
 
-		h.DeleteNotification(c)
+		h.DeleteNotification(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -475,10 +467,10 @@ func TestNotificationHandler_DeleteNotification(t *testing.T) {
 		db := newNotificationsTestDB(t)
 		h := &NotificationHandler{DB: db}
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/notifications/x", "")
-		c.Params = gin.Params{{Key: "id", Value: "01JANY000000000000000000"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/api/notifications/x", "")
+		r = withURLParam(r, "id", "01JANY000000000000000000")
 
-		h.DeleteNotification(c)
+		h.DeleteNotification(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401; body=%s", w.Code, w.Body.String())

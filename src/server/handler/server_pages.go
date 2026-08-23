@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,10 +12,9 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Build info variables - set from main via SetBuildInfo()
@@ -32,9 +32,9 @@ func SetBuildInfo(version, buildDate, commitID string) {
 }
 
 // ShowAboutPage renders the about page with content negotiation (AI.md PART 14)
-func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
+func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.Get(r.Context(), "user")
 
 		// Get server configuration
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
@@ -43,10 +43,10 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 
-		data := gin.H{
+		data := map[string]interface{}{
 			"user": user,
 			"page": "about",
-			"server": gin.H{
+			"server": map[string]interface{}{
 				"Title":       cfg.Server.Branding.Title,
 				"Description": cfg.Server.Branding.Description,
 				"Version":     Version,
@@ -54,108 +54,108 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"Mode":        cfg.Server.Mode,
 				"GitOrg":      "webappsgo",
 				"GitRepo":     "wthr",
-				"Tor": gin.H{
+				"Tor": map[string]interface{}{
 					"Enabled":      torEnabled,
 					"OnionAddress": onionAddress,
 				},
 			},
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "page/about.tmpl", data)
+		NegotiateResponse(w, r, "page/about.tmpl", data)
 	}
 }
 
 // ShowPrivacyPage renders the privacy policy page with content negotiation (AI.md PART 14)
-func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
+func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.Get(r.Context(), "user")
 
-		data := gin.H{
+		data := map[string]interface{}{
 			"user": user,
 			"page": "privacy",
-			"server": gin.H{
+			"server": map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
 			},
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "page/privacy.tmpl", data)
+		NegotiateResponse(w, r, "page/privacy.tmpl", data)
 	}
 }
 
 // ShowContactPage renders the contact form page with content negotiation (AI.md PART 14)
-func ShowContactPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
+func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.Get(r.Context(), "user")
 
-		data := gin.H{
+		data := map[string]interface{}{
 			"user": user,
 			"page": "contact",
-			"server": gin.H{
+			"server": map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
 				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
 			},
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "page/contact.tmpl", data)
+		NegotiateResponse(w, r, "page/contact.tmpl", data)
 	}
 }
 
 // ShowHelpPage renders the help & documentation page with content negotiation (AI.md PART 14)
-func ShowHelpPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
+func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.Get(r.Context(), "user")
 
-		data := gin.H{
+		data := map[string]interface{}{
 			"user": user,
 			"page": "help",
-			"server": gin.H{
+			"server": map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
 				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
 			},
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
-		NegotiateResponse(c, "page/help.tmpl", data)
+		NegotiateResponse(w, r, "page/help.tmpl", data)
 	}
 }
 
 // ShowTermsPage renders the terms of service page with content negotiation (AI.md PART 16)
-func ShowTermsPage(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
+func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.Get(r.Context(), "user")
 
-		data := gin.H{
+		data := map[string]interface{}{
 			"user": user,
 			"page": "terms",
-			"server": gin.H{
+			"server": map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
 			},
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 		}
 
-		NegotiateResponse(c, "page/terms.tmpl", data)
+		NegotiateResponse(w, r, "page/terms.tmpl", data)
 	}
 }
 
 // GetAboutAPI returns about information as JSON (AI.md PART 14: /api/v1/server/about)
-func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 
-		RespondNegotiatedData(c, http.StatusOK, gin.H{
+		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 			"title":       cfg.Server.Branding.Title,
 			"description": cfg.Server.Branding.Description,
 			"version":     Version,
@@ -172,12 +172,12 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				"WebSocket real-time alert notifications",
 				"Passkey / WebAuthn admin authentication",
 			},
-			"links": gin.H{
+			"links": map[string]interface{}{
 				"github":  "https://github.com/webappsgo/wthr",
 				"docs":    "/openapi",
 				"graphql": "/graphql",
 			},
-			"tor": gin.H{
+			"tor": map[string]interface{}{
 				"enabled":       torEnabled,
 				"onion_address": onionAddress,
 			},
@@ -186,14 +186,14 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 }
 
 // GetPrivacyAPI returns the privacy policy as JSON (AI.md PART 14: /api/v1/server/privacy)
-func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		RespondNegotiatedData(c, http.StatusOK, gin.H{
+func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 			"title":        "Privacy Policy",
 			"last_updated": BuildDate,
 			"data_stored":  true,
 			"data_sold":    false,
-			"cookies": gin.H{
+			"cookies": map[string]interface{}{
 				"essential":   true,
 				"preferences": true,
 				"analytics":   false,
@@ -207,25 +207,25 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 }
 
 // GetHelpAPI returns help content as JSON (AI.md PART 14: /api/v1/server/help)
-func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 		torEnabled := settingsModel.GetBool("tor.enabled", false)
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
-		hostInfo := util.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(r)
 		baseURL := hostInfo.ExampleURL
 
-		help := gin.H{
+		help := map[string]interface{}{
 			"title": "Help",
-			"getting_started": gin.H{
+			"getting_started": map[string]interface{}{
 				"description": "Get weather data with a single request",
-				"examples": []gin.H{
+				"examples": []map[string]interface{}{
 					{"description": "Current weather for a city", "curl": "curl " + baseURL + "/London"},
 					{"description": "JSON API", "curl": "curl " + baseURL + "/api/v1/weather?location=London"},
 					{"description": "Forecast", "curl": "curl " + baseURL + "/api/v1/forecasts?location=Paris&days=5"},
 				},
 			},
-			"features": []gin.H{
+			"features": []map[string]interface{}{
 				{"name": "Weather Forecasts", "description": "16-day global forecasts with hourly/daily breakdown"},
 				{"name": "Severe Weather Alerts", "description": "Real-time alerts from US, Canada, UK, Australia, Japan, Mexico"},
 				{"name": "Earthquake Data", "description": "Real-time seismic activity from USGS"},
@@ -234,12 +234,12 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 				{"name": "GraphQL API", "description": "Full GraphQL endpoint at /graphql including passkey/WebAuthn auth mutations"},
 				{"name": "Passkey / WebAuthn", "description": "Admin passkey authentication via beginAdminPasskeyChallenge and finishAdminPasskeyChallenge GraphQL mutations"},
 			},
-			"api_documentation": gin.H{
+			"api_documentation": map[string]interface{}{
 				"swagger":  "/openapi",
 				"graphql":  "/graphql",
 				"examples": "/examples",
 			},
-			"faq": []gin.H{
+			"faq": []map[string]interface{}{
 				{"question": "Do I need an API key?", "answer": "No, the API is free and requires no authentication for basic access."},
 				{"question": "What is the rate limit?", "answer": "Anonymous: 20 requests/minute. Authenticated: 100 requests/minute."},
 				{"question": "What data sources are used?", "answer": "Open-Meteo for weather, USGS for earthquakes, NOAA for hurricanes and US alerts."},
@@ -247,24 +247,24 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 		}
 
 		if torEnabled && onionAddress != "" {
-			help["tor_access"] = gin.H{
+			help["tor_access"] = map[string]interface{}{
 				"enabled":       true,
 				"onion_address": onionAddress,
 				"instructions":  "Download Tor Browser from https://www.torproject.org/download/ and navigate to the onion address.",
 			}
 		}
 
-		RespondNegotiatedData(c, http.StatusOK, help)
+		RespondNegotiatedData(w, r, http.StatusOK, help)
 	}
 }
 
 // GetTermsAPI returns terms of service as JSON (AI.md PART 14: /api/v1/server/terms)
-func GetTermsAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		RespondNegotiatedData(c, http.StatusOK, gin.H{
+func GetTermsAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 			"title":        "Terms of Service",
 			"last_updated": BuildDate,
-			"sections": []gin.H{
+			"sections": []map[string]interface{}{
 				{"title": "Acceptance of Terms", "content": "By accessing or using Weather, you agree to be bound by these terms. If you do not agree, do not use the service."},
 				{"title": "Description of Service", "content": "Weather provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and moon phase information through a web interface and API."},
 				{"title": "Acceptable Use", "content": "You may use the service for lawful purposes. You must not attempt to disrupt the service, circumvent rate limits, or use the service to harm others."},
@@ -277,8 +277,8 @@ func GetTermsAPI(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
 }
 
 // HandleContactFormSubmission handles the contact form POST request (API endpoint)
-func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var form struct {
 			Name    string `json:"name" binding:"required"`
 			Email   string `json:"email" binding:"required,email"`
@@ -286,13 +286,18 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) gin.Han
 			Message string `json:"message" binding:"required"`
 		}
 
-		if err := c.ShouldBindJSON(&form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form data"})
+		if err := json.NewDecoder(r.Body).Decode(&form); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid form data"})
+			return
+		}
+
+		if form.Name == "" || form.Email == "" || !strings.Contains(form.Email, "@") || form.Subject == "" || form.Message == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid form data"})
 			return
 		}
 
 		// Try to send email via SMTP if configured (AI.md PART 26)
-		smtpService := GetSMTPService(c)
+		smtpService := GetSMTPService(r)
 		if smtpService != nil {
 			// SMTP available - send email
 			emailBody := fmt.Sprintf(`Contact Form Submission
@@ -306,47 +311,47 @@ Message:
 ---
 IP: %s
 User Agent: %s
-Time: %s`, form.Name, form.Email, form.Subject, form.Message, c.ClientIP(), c.Request.UserAgent(), time.Now().Format("2006-01-02 15:04:05"))
+Time: %s`, form.Name, form.Email, form.Subject, form.Message, util.GetClientIP(r), r.UserAgent(), time.Now().Format("2006-01-02 15:04:05"))
 
 			adminEmail := ""
 			if cfg != nil {
 				adminEmail = strings.TrimSpace(cfg.Server.Admin.Email)
 			}
 			if adminEmail == "" {
-				if err := saveContactToDB(c, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to save message"})
+				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to save message"})
 					return
 				}
-				c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
 				return
 			}
 
 			err := smtpService.SendEmail(adminEmail, fmt.Sprintf("Contact: %s", form.Subject), emailBody)
 			if err != nil {
 				// Email failed - save to database as fallback
-				if err := saveContactToDB(c, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to send message"})
+				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to send message"})
 					return
 				}
-				c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Thank you for contacting us. We'll get back to you soon."})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Thank you for contacting us. We'll get back to you soon."})
 		} else {
 			// No SMTP - save to database (AI.md PART 26)
-			if err := saveContactToDB(c, form.Name, form.Email, form.Subject, form.Message); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to save message"})
+			if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to save message"})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
 		}
 	}
 }
 
 // saveContactToDB saves contact form submission to database when SMTP unavailable
 // Per AI.md PART 26: Graceful degradation when SMTP not configured
-func saveContactToDB(c *gin.Context, name, email, subject, message string) error {
-	dbInterface, exists := c.Get("db")
+func saveContactToDB(r *http.Request, name, email, subject, message string) error {
+	dbInterface, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
 		return fmt.Errorf("database not available")
 	}
@@ -379,14 +384,14 @@ func saveContactToDB(c *gin.Context, name, email, subject, message string) error
 	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
 		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, name, email, subject, message, c.ClientIP(), c.Request.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))
+	`, name, email, subject, message, util.GetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))
 
 	return err
 }
 
 // GetSMTPService returns the SMTP service from context if available
-func GetSMTPService(c *gin.Context) *service.SMTPService {
-	if smtp, exists := c.Get("smtp"); exists {
+func GetSMTPService(r *http.Request) *service.SMTPService {
+	if smtp, exists := reqctx.Get(r.Context(), "smtp"); exists {
 		if smtpService, ok := smtp.(*service.SMTPService); ok {
 			return smtpService
 		}

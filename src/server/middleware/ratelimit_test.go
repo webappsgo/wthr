@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // uniqueTestIP returns a distinct RemoteAddr per call so tests exercising
@@ -21,35 +22,23 @@ func uniqueTestIP() string {
 	return fmt.Sprintf("203.0.%d.%d:12345", (ratelimitTestIPCounter>>8)&0xff, ratelimitTestIPCounter&0xff)
 }
 
+// rateLimitOKHandler writes a plain 200 "ok" body, mirroring the gin version's
+// c.String(http.StatusOK, "ok") route handlers.
+func rateLimitOKHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("ok"))
+}
+
 // TestRegistrationRateLimitMiddleware_BlocksAfterLimit actually exceeds the
 // configured limit (RegistrationRequestsPerWindow = 5/hour) from a single
 // source IP and verifies the 6th request is rejected with 429, while the
 // first 5 succeed - this is the cheapest limiter to exhaust in a unit test.
-//
-// This documents a real production bug: wrapRateLimiter (ratelimit.go:
-// 164-205) assumes httprate's RateLimiter.Handler calls next.ServeHTTP even
-// when the limit is exceeded, and tries to detect that case from inside the
-// inner handler by checking the "X-RateLimit-Remaining" header. But
-// httprate's Handler (limiter.go:136-150) calls RespondOnLimit and returns
-// immediately WITHOUT calling next.ServeHTTP once the limit is exceeded -
-// the default limit handler writes 429 directly via http.Error. wrapRate
-// Limiter's rateLimitResponseWriter.WriteHeader (ratelimit.go:214-221)
-// swallows that WriteHeader(429) call ("don't write header yet, let Gin
-// handle it") betting that the inner handler will run afterward and trigger
-// its own c.JSON(429, ...) - but since the inner handler never runs on the
-// exceeded path, rateLimitExceeded stays false, nothing is ever written,
-// c.Abort() is never called, and gin falls through to the real route
-// handler, returning 200 for every rate-limited request. Rate limiting is
-// completely non-functional in production. This test encodes the CORRECT
-// expected behavior (429 once the limit is exceeded) and is expected to
-// FAIL against the current implementation.
 func TestRegistrationRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(RegistrationRateLimitMiddleware())
-	router.POST("/server/auth/register", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Post("/server/auth/register", rateLimitOKHandler)
 
 	for i := 1; i <= RegistrationRequestsPerWindow; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/server/auth/register", nil)
@@ -74,20 +63,12 @@ func TestRegistrationRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
 
 // TestLoginRateLimitMiddleware_BlocksAfterLimit exercises the
 // login-specific limiter (5/15min) similarly, from an isolated IP.
-//
-// Same underlying bug as TestRegistrationRateLimitMiddleware_BlocksAfterLimit
-// above: wrapRateLimiter (ratelimit.go:164-205) never observes a rate-limit
-// rejection from httprate.RateLimiter.Handler, so it never writes 429 or
-// aborts, and the request falls through to the real route handler. This test
-// encodes the CORRECT expected behavior and is expected to FAIL against the
-// current implementation.
 func TestLoginRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(LoginRateLimitMiddleware())
-	router.POST("/server/auth/login", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Post("/server/auth/login", rateLimitOKHandler)
 
 	for i := 1; i <= LoginRequestsPerWindow; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/server/auth/login", nil)
@@ -114,12 +95,11 @@ func TestLoginRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
 // limit (APIUnauthRequestsPerWindow = 20/min), reflected in the
 // X-RateLimit-Limit response header.
 func TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(APIRateLimitMiddleware())
-	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Get("/api/v1/weather", rateLimitOKHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
 	req.RemoteAddr = ip
@@ -145,19 +125,20 @@ func TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault(t *testing.
 // UserContextKey and UserIDContextKey at every authentication site. This test
 // mirrors that pair and asserts the authenticated limit is advertised.
 func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
 		// Mirrors what auth.go's AuthMiddleware sets on a successfully
 		// authenticated request: both the user object and its numeric id.
-		c.Set(UserContextKey, "some-authenticated-user")
-		c.Set(UserIDContextKey, 7)
-		c.Next()
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := reqctx.Set(r.Context(), UserContextKey, "some-authenticated-user")
+			ctx = reqctx.Set(ctx, UserIDContextKey, 7)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	})
 	router.Use(APIRateLimitMiddleware())
-	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Get("/api/v1/weather", rateLimitOKHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
 	req.RemoteAddr = ip
@@ -180,12 +161,11 @@ func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
 // "error":"RATE_LIMITED"}) plus a Retry-After header carrying the retry
 // timing, and NO ad-hoc top-level body fields (no retry_after in the body).
 func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(RegistrationRateLimitMiddleware())
-	router.POST("/server/auth/register", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Post("/server/auth/register", rateLimitOKHandler)
 
 	// Exhaust the limit so the next request is rejected.
 	for i := 1; i <= RegistrationRequestsPerWindow; i++ {
@@ -225,12 +205,11 @@ func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
 // global limiter (GlobalRPS=100/GlobalBurst=200) does not reject ordinary,
 // low-volume traffic.
 func TestGlobalRateLimitMiddleware_AllowsWithinBurst(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	ip := uniqueTestIP()
 
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(GlobalRateLimitMiddleware())
-	router.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	router.Get("/", rateLimitOKHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = ip

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,15 +27,8 @@ func newGeoIPTestConfigFile(t *testing.T) string {
 func TestAdminGeoIPHandler_ShowGeoIPSettings(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
 	c, w := newAPITestContext("/server/admin/config/geoip")
-	// c.HTML needs an HTMLRender configured or gin panics; recover so a
-	// missing-template failure doesn't crash the run, since we only assert
-	// the handler didn't error out before reaching HTML().
-	defer func() {
-		if r := recover(); r != nil {
-			t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
-		}
-	}()
-	h.ShowGeoIPSettings(c)
+	defer htmlRenderGuard(t)
+	h.ShowGeoIPSettings(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -47,14 +39,11 @@ func TestAdminGeoIPHandler_ShowGeoIPSettings(t *testing.T) {
 func TestAdminGeoIPHandler_UpdateGeoIPSettings_Success(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
 
-	body := []byte(`{"enabled":true,"dir":"/data/geoip","update_frequency":7,"deny_countries":["CN","RU"],"database_asn":true,"database_country":true,"database_city":false}`)
+	body := `{"enabled":true,"dir":"/data/geoip","update_frequency":7,"deny_countries":["CN","RU"],"database_asn":true,"database_country":true,"database_city":false}`
 
-	c, w := newAPITestContext("/admin/config/geoip")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", body)
 
-	h.UpdateGeoIPSettings(c)
+	h.UpdateGeoIPSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -80,12 +69,9 @@ func TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminGeoIPHandler{ConfigPath: configPath}
 
-	c, w := newAPITestContext("/admin/config/geoip")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte("{not valid json")))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", "{not valid json")
 
-	h.UpdateGeoIPSettings(c)
+	h.UpdateGeoIPSettings(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -105,12 +91,9 @@ func TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON(t *testing.T) {
 func TestAdminGeoIPHandler_UpdateGeoIPSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newAPITestContext("/admin/config/geoip")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte(`{"enabled":true}`)))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", `{"enabled":true}`)
 
-	h.UpdateGeoIPSettings(c)
+	h.UpdateGeoIPSettings(w, c)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())

@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -13,14 +14,14 @@ type AdminNotificationsHandler struct {
 }
 
 // ShowNotificationSettings displays notification settings page
-func (h *AdminNotificationsHandler) ShowNotificationSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", util.TemplateData(c, gin.H{
+func (h *AdminNotificationsHandler) ShowNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_notifications.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "Notification Settings",
 	}))
 }
 
 // UpdateNotificationSettings updates notification settings
-func (h *AdminNotificationsHandler) UpdateNotificationSettings(c *gin.Context) {
+func (h *AdminNotificationsHandler) UpdateNotificationSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		// Email Events
 		EmailStartup        bool `json:"email_startup"`
@@ -39,8 +40,8 @@ func (h *AdminNotificationsHandler) UpdateNotificationSettings(c *gin.Context) {
 		WebUIRetentionDays int    `json:"webui_retention_days"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -59,9 +60,9 @@ func (h *AdminNotificationsHandler) UpdateNotificationSettings(c *gin.Context) {
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

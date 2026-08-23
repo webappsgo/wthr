@@ -17,7 +17,7 @@ func TestLDAPAuthHandlerLogin_MissingCredentials(t *testing.T) {
 
 	c, w := newTestContextJSON(t, http.MethodPost, "/auth/ldap", map[string]string{"username": "alice"})
 
-	h.Login(c)
+	h.Login(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
@@ -33,7 +33,7 @@ func TestLDAPAuthHandlerLogin_MalformedBody(t *testing.T) {
 
 	c, w := newTestContextJSON(t, http.MethodPost, "/auth/ldap", "not json")
 
-	h.Login(c)
+	h.Login(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())
@@ -53,7 +53,7 @@ func TestLDAPAuthHandlerLogin_Disabled(t *testing.T) {
 		Password: "secret",
 	})
 
-	h.Login(c)
+	h.Login(w, c)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected status 503, got %d: %s", w.Code, w.Body.String())

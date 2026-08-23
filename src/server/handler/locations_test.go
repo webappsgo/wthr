@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
@@ -23,8 +21,8 @@ func newLocationTestHandler(t *testing.T) (*LocationHandler, *sql.DB) {
 // setCurrentUser injects a fake authenticated user into the context the way
 // the real auth middleware does, so handlers under test see an
 // authenticated request without needing the full auth stack.
-func setCurrentUser(c *gin.Context, id int64) {
-	c.Set(middleware.UserContextKey, &models.User{ID: id})
+func setCurrentUser(r *http.Request, id int64) *http.Request {
+	return withReqCtxValue(r, middleware.UserContextKey, &models.User{ID: id})
 }
 
 // seedLocation inserts a saved location directly and returns its ID, so
@@ -52,9 +50,9 @@ func seedLocation(t *testing.T, db *sql.DB, userID int, name string, lat, lon fl
 func TestListLocations(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
 
-		h.ListLocations(c)
+		h.ListLocations(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
@@ -67,10 +65,10 @@ func TestListLocations(t *testing.T) {
 		seedLocation(t, db, 1, "Work", 41.0, -73.9)
 		seedLocation(t, db, 2, "Someone Else's", 10.0, 10.0)
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
-		setCurrentUser(c, 1)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
+		r = setCurrentUser(r, 1)
 
-		h.ListLocations(c)
+		h.ListLocations(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -87,10 +85,10 @@ func TestListLocations(t *testing.T) {
 	t.Run("db error returns 500 without panicking", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		db.Close() // force the query to fail
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
-		setCurrentUser(c, 1)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
+		r = setCurrentUser(r, 1)
 
-		h.ListLocations(c)
+		h.ListLocations(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500", w.Code)
@@ -103,10 +101,10 @@ func TestListLocations(t *testing.T) {
 func TestGetLocation(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations/1")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/1")
+		r = setURLParam(r, "id", "1")
 
-		h.GetLocation(c)
+		h.GetLocation(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
@@ -115,11 +113,11 @@ func TestGetLocation(t *testing.T) {
 
 	t.Run("non-numeric id returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations/abc")
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "abc"}}
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/abc")
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", "abc")
 
-		h.GetLocation(c)
+		h.GetLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -128,11 +126,11 @@ func TestGetLocation(t *testing.T) {
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations/999")
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/999")
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", "999")
 
-		h.GetLocation(c)
+		h.GetLocation(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404", w.Code)
@@ -142,11 +140,11 @@ func TestGetLocation(t *testing.T) {
 	t.Run("another user's location returns 403", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 2, "Not Yours", 1, 1)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations/x")
-		setCurrentUser(c, 1) // requesting as user 1, location belongs to user 2
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/x")
+		r = setCurrentUser(r, 1) // requesting as user 1, location belongs to user 2
+		r = setURLParam(r, "id", itoa(id))
 
-		h.GetLocation(c)
+		h.GetLocation(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403", w.Code)
@@ -156,11 +154,11 @@ func TestGetLocation(t *testing.T) {
 	t.Run("owner can fetch their own location", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 1, "Mine", 5, 5)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/locations/x")
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/x")
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.GetLocation(c)
+		h.GetLocation(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -174,9 +172,9 @@ func TestGetLocation(t *testing.T) {
 func TestCreateLocation(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", map[string]interface{}{})
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", map[string]interface{}{})
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
@@ -185,10 +183,10 @@ func TestCreateLocation(t *testing.T) {
 
 	t.Run("malformed JSON returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", "{not json")
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", "{not json")
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -198,10 +196,10 @@ func TestCreateLocation(t *testing.T) {
 	t.Run("latitude out of range returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
 		body := map[string]interface{}{"name": "Bad Lat", "latitude": 95.0, "longitude": 10.0}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -211,10 +209,10 @@ func TestCreateLocation(t *testing.T) {
 	t.Run("longitude out of range returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
 		body := map[string]interface{}{"name": "Bad Lon", "latitude": 10.0, "longitude": 190.0}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -231,10 +229,10 @@ func TestCreateLocation(t *testing.T) {
 	t.Run("BUG: latitude of exactly zero is wrongly rejected as missing", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
 		body := map[string]interface{}{"name": "Null Island", "latitude": 0.0, "longitude": 0.0}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Errorf("status = %d, want 201 (latitude/longitude 0 is a valid coordinate); body=%s", w.Code, w.Body.String())
@@ -247,10 +245,10 @@ func TestCreateLocation(t *testing.T) {
 			seedLocation(t, db, 1, "Loc", 1, 1)
 		}
 		body := map[string]interface{}{"name": "One Too Many", "latitude": 2.0, "longitude": 2.0}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400 once at the 10-location cap; body=%s", w.Code, w.Body.String())
@@ -260,10 +258,10 @@ func TestCreateLocation(t *testing.T) {
 	t.Run("valid request creates a location", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
 		body := map[string]interface{}{"name": "Paris", "latitude": 48.85, "longitude": 2.35, "timezone": "Europe/Paris"}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
-		setCurrentUser(c, 1)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations", body)
+		r = setCurrentUser(r, 1)
 
-		h.CreateLocation(c)
+		h.CreateLocation(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
@@ -278,10 +276,10 @@ func TestUpdateLocation(t *testing.T) {
 
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/1", body)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/1", body)
+		r = setURLParam(r, "id", "1")
 
-		h.UpdateLocation(c)
+		h.UpdateLocation(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
@@ -290,11 +288,11 @@ func TestUpdateLocation(t *testing.T) {
 
 	t.Run("non-numeric id returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "x"}}
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", "x")
 
-		h.UpdateLocation(c)
+		h.UpdateLocation(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -303,11 +301,11 @@ func TestUpdateLocation(t *testing.T) {
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/999", body)
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/999", body)
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", "999")
 
-		h.UpdateLocation(c)
+		h.UpdateLocation(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404", w.Code)
@@ -317,11 +315,11 @@ func TestUpdateLocation(t *testing.T) {
 	t.Run("another user's location returns 403", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 2, "Not Yours", 1, 1)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.UpdateLocation(c)
+		h.UpdateLocation(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403", w.Code)
@@ -331,11 +329,11 @@ func TestUpdateLocation(t *testing.T) {
 	t.Run("owner can update their own location", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 1, "Mine", 1, 1)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users/locations/x", body)
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.UpdateLocation(c)
+		h.UpdateLocation(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -350,11 +348,11 @@ func TestDeleteLocation(t *testing.T) {
 	t.Run("another user's location returns 403", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 2, "Not Yours", 1, 1)
-		c, w := newTestContext(http.MethodDelete, "/api/v1/users/locations/x")
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContext(http.MethodDelete, "/api/v1/users/locations/x")
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.DeleteLocation(c)
+		h.DeleteLocation(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403", w.Code)
@@ -364,11 +362,11 @@ func TestDeleteLocation(t *testing.T) {
 	t.Run("owner can delete their own location", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 1, "Mine", 1, 1)
-		c, w := newTestContext(http.MethodDelete, "/api/v1/users/locations/x")
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContext(http.MethodDelete, "/api/v1/users/locations/x")
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.DeleteLocation(c)
+		h.DeleteLocation(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -388,11 +386,11 @@ func TestToggleAlerts(t *testing.T) {
 	t.Run("another user's location returns 403", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 2, "Not Yours", 1, 1)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations/x/alerts", map[string]interface{}{"enabled": false})
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations/x/alerts", map[string]interface{}{"enabled": false})
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.ToggleAlerts(c)
+		h.ToggleAlerts(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403", w.Code)
@@ -402,11 +400,11 @@ func TestToggleAlerts(t *testing.T) {
 	t.Run("owner can toggle their own location's alerts", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 1, "Mine", 1, 1)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations/x/alerts", map[string]interface{}{"enabled": false})
-		setCurrentUser(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: itoa(id)}}
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/locations/x/alerts", map[string]interface{}{"enabled": false})
+		r = setCurrentUser(r, 1)
+		r = setURLParam(r, "id", itoa(id))
 
-		h.ToggleAlerts(c)
+		h.ToggleAlerts(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -420,9 +418,9 @@ func TestToggleAlerts(t *testing.T) {
 func TestSearchLocations(t *testing.T) {
 	t.Run("query shorter than 2 chars returns 400", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/locations/search?q=a")
+		r, w := newTestContext(http.MethodGet, "/api/v1/locations/search?q=a")
 
-		h.SearchLocations(c)
+		h.SearchLocations(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
@@ -431,9 +429,9 @@ func TestSearchLocations(t *testing.T) {
 
 	t.Run("nil LocationEnhancer does not panic, returns empty results", func(t *testing.T) {
 		h, _ := newLocationTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/locations/search?q=paris")
+		r, w := newTestContext(http.MethodGet, "/api/v1/locations/search?q=paris")
 
-		h.SearchLocations(c)
+		h.SearchLocations(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -445,10 +443,10 @@ func TestSearchLocations(t *testing.T) {
 // requiring a live WeatherService.
 func TestLookupZipCode_MissingCode(t *testing.T) {
 	h, _ := newLocationTestHandler(t)
-	c, w := newTestContext(http.MethodGet, "/api/v1/locations/zip/")
-	c.Params = gin.Params{{Key: "code", Value: ""}}
+	r, w := newTestContext(http.MethodGet, "/api/v1/locations/zip/")
+	r = setURLParam(r, "code", "")
 
-	h.LookupZipCode(c)
+	h.LookupZipCode(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -472,9 +470,9 @@ func TestLookupCoordinates_Validation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h, _ := newLocationTestHandler(t)
-			c, w := newTestContext(http.MethodGet, "/api/v1/locations/reverse?lat="+tt.lat+"&lon="+tt.lon)
+			r, w := newTestContext(http.MethodGet, "/api/v1/locations/reverse?lat="+tt.lat+"&lon="+tt.lon)
 
-			h.LookupCoordinates(c)
+			h.LookupCoordinates(w, r)
 
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400; body=%s", w.Code, w.Body.String())

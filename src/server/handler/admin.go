@@ -3,19 +3,21 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 type AdminHandler struct {
@@ -24,33 +26,33 @@ type AdminHandler struct {
 
 // User Management APIs
 
-func (h *AdminHandler) ListUsers(c *gin.Context) {
+func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	userModel := &model.UserModel{DB: h.DB}
 	users, err := userModel.GetAll()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch users"})
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	writeJSON(w, http.StatusOK, users)
 }
 
-func (h *AdminHandler) CreateUser(c *gin.Context) {
+func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=8"`
-		Role     string `json:"role" binding:"required"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	// Validate username
 	if err := util.ValidateUsername(req.Username); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -60,45 +62,45 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.Create(username, req.Email, req.Password, req.Role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create user"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	writeJSON(w, http.StatusCreated, user)
 }
 
-func (h *AdminHandler) UpdateUser(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
 		return
 	}
 
 	// Prevent modifying your own account
-	currentUser, ok := middleware.GetCurrentUser(c)
+	currentUser, ok := middleware.GetCurrentUser(r)
 	if !ok || currentUser == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 	if currentUser.ID == id {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot modify your own account credentials. Contact another administrator if you need to change your username, email, or role."})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Cannot modify your own account credentials. Contact another administrator if you need to change your username, email, or role."})
 		return
 	}
 
 	var req struct {
-		Username string `json:"username" binding:"required"`
-		Email    string `json:"email" binding:"required,email"`
-		Role     string `json:"role" binding:"required"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		Role     string `json:"role"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	// Validate username
 	if err := util.ValidateUsername(req.Username); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -107,71 +109,76 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Update(id, username, req.Email, req.Role); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "User updated successfully"})
 }
 
-func (h *AdminHandler) DeleteUser(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
 		return
 	}
 
 	// Prevent deleting yourself
-	currentUser, ok := middleware.GetCurrentUser(c)
+	currentUser, ok := middleware.GetCurrentUser(r)
 	if !ok || currentUser == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 	if currentUser.ID == id {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot delete your own account"})
 		return
 	}
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "User deleted successfully"})
 }
 
-func (h *AdminHandler) UpdateUserPassword(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
 		return
 	}
 
 	var req struct {
-		Password string `json:"password" binding:"required,min=8"`
+		Password string `json:"password"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if len(req.Password) < 8 {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Password must be at least 8 characters"})
 		return
 	}
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.UpdatePassword(id, req.Password); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update password"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password updated successfully"})
 }
 
 // Settings Management APIs
 
-func (h *AdminHandler) ListSettings(c *gin.Context) {
+func (h *AdminHandler) ListSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config ORDER BY key")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch settings"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch settings"})
 		return
 	}
 	defer rows.Close()
@@ -192,11 +199,11 @@ func (h *AdminHandler) ListSettings(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, settings)
+	writeJSON(w, http.StatusOK, settings)
 }
 
-func (h *AdminHandler) GetSetting(c *gin.Context) {
-	key := c.Param("key")
+func (h *AdminHandler) GetSetting(w http.ResponseWriter, r *http.Request) {
+	key := chi.URLParam(r, "key")
 	var value, settingType, description string
 	var updatedAt time.Time
 
@@ -204,15 +211,15 @@ func (h *AdminHandler) GetSetting(c *gin.Context) {
 		Scan(&value, &settingType, &description, &updatedAt)
 
 	if err == sql.ErrNoRows {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Setting not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Setting not found"})
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch setting"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch setting"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"key":         key,
 		"value":       value,
 		"type":        settingType,
@@ -221,15 +228,20 @@ func (h *AdminHandler) GetSetting(c *gin.Context) {
 	})
 }
 
-func (h *AdminHandler) UpdateSetting(c *gin.Context) {
-	key := c.Param("key")
+func (h *AdminHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
+	key := chi.URLParam(r, "key")
 
 	var req struct {
-		Value string `json:"value" binding:"required"`
+		Value string `json:"value"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if req.Value == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Value is required"})
 		return
 	}
 
@@ -237,17 +249,17 @@ func (h *AdminHandler) UpdateSetting(c *gin.Context) {
 		req.Value, time.Now(), key)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update setting"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update setting"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Setting updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Setting updated successfully"})
 }
 
 // API Token Management APIs
 
-func (h *AdminHandler) ListTokens(c *gin.Context) {
-	userID := c.Query("user_id")
+func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
 
 	var rows *sql.Rows
 	var err error
@@ -257,10 +269,10 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 		tokenModel := &model.TokenModel{DB: h.DB}
 		tokens, err := tokenModel.GetByUserID(uid)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
 			return
 		}
-		c.JSON(http.StatusOK, tokens)
+		writeJSON(w, http.StatusOK, tokens)
 		return
 	}
 
@@ -272,7 +284,7 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
 		return
 	}
 	defer rows.Close()
@@ -293,7 +305,7 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 		var storedCreatedAt, storedLastUsedAt, storedExpiresAt interface{}
 
 		if err := rows.Scan(&id, &ownerID, &email, &name, &tokenPrefix, &storedCreatedAt, &storedLastUsedAt, &storedExpiresAt); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
 			return
 		}
 
@@ -318,58 +330,63 @@ func (h *AdminHandler) ListTokens(c *gin.Context) {
 		tokens = append(tokens, token)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tokens"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
 		return
 	}
 
-	c.JSON(http.StatusOK, tokens)
+	writeJSON(w, http.StatusOK, tokens)
 }
 
-func (h *AdminHandler) GenerateToken(c *gin.Context) {
+func (h *AdminHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		UserID int    `json:"user_id" binding:"required"`
-		Name   string `json:"name" binding:"required"`
+		UserID int    `json:"user_id"`
+		Name   string `json:"name"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if req.UserID == 0 || req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "user_id and name are required"})
 		return
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
 	token, err := tokenModel.Create(req.UserID, req.Name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to generate token"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Token generated successfully. Save it now - it won't be shown again!",
 		"token":   token,
 	})
 }
 
-func (h *AdminHandler) RevokeToken(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
+func (h *AdminHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid token ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid token ID"})
 		return
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
 	if err := tokenModel.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke token"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Token revoked successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token revoked successfully"})
 }
 
 // Audit Log APIs
 
-func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
+func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	limit := 100
-	if l := c.Query("limit"); l != "" {
+	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 1000 {
 			limit = parsed
 		}
@@ -386,7 +403,7 @@ func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
 	`, limit)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch audit logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch audit logs"})
 		return
 	}
 	defer rows.Close()
@@ -401,7 +418,7 @@ func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
 			continue
 		}
 
-		log := map[string]interface{}{
+		logEntry := map[string]interface{}{
 			"id":            id,
 			"action":        action.String,
 			"resource_type": resourceType.String,
@@ -413,20 +430,20 @@ func (h *AdminHandler) ListAuditLogs(c *gin.Context) {
 		}
 
 		if actorID.Valid {
-			log["actor_id"] = actorID.String
-			log["actor_type"] = actorType.String
+			logEntry["actor_id"] = actorID.String
+			logEntry["actor_type"] = actorType.String
 		}
 
-		logs = append(logs, log)
+		logs = append(logs, logEntry)
 	}
 
-	c.JSON(http.StatusOK, logs)
+	writeJSON(w, http.StatusOK, logs)
 }
 
-func (h *AdminHandler) ClearAuditLogs(c *gin.Context) {
+func (h *AdminHandler) ClearAuditLogs(w http.ResponseWriter, r *http.Request) {
 	// Default retention
 	days := 30
-	if d := c.Query("days"); d != "" {
+	if d := r.URL.Query().Get("days"); d != "" {
 		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 {
 			days = parsed
 		}
@@ -435,34 +452,34 @@ func (h *AdminHandler) ClearAuditLogs(c *gin.Context) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, "DELETE FROM server_audit_log WHERE timestamp < ?", cutoff)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to clear logs"})
 		return
 	}
 
 	affected, _ := result.RowsAffected()
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Audit logs cleared successfully",
 		"deleted": affected,
 	})
 }
 
 // GetLogsStats returns audit log statistics
-func (h *AdminHandler) GetLogsStats(c *gin.Context) {
+func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	var totalLogs, errorLogs, successLogs, recentLogs int64
 
 	// server_audit_log's real columns are status/timestamp (server_schema.go),
 	// not success/created_at. Scan errors must be propagated, not swallowed.
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&totalLogs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count total audit logs: %w", err).Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count total audit logs: %w", err).Error()})
 		return
 	}
 
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count error audit logs: %w", err).Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count error audit logs: %w", err).Error()})
 		return
 	}
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count success audit logs: %w", err).Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count success audit logs: %w", err).Error()})
 		return
 	}
 
@@ -477,7 +494,7 @@ func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 		WHERE timestamp IS NOT NULL
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
 		return
 	}
 	defer recentRows.Close()
@@ -487,7 +504,7 @@ func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 	for recentRows.Next() {
 		var storedTimestamp interface{}
 		if err := recentRows.Scan(&storedTimestamp); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
 			return
 		}
 
@@ -499,11 +516,11 @@ func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 		recentLogs++
 	}
 	if err := recentRows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"total":      totalLogs,
 		"errors":     errorLogs,
 		"success":    successLogs,
@@ -512,7 +529,7 @@ func (h *AdminHandler) GetLogsStats(c *gin.Context) {
 }
 
 // GetTasksStats returns scheduled task statistics
-func (h *AdminHandler) GetTasksStats(c *gin.Context) {
+func (h *AdminHandler) GetTasksStats(w http.ResponseWriter, r *http.Request) {
 	var totalTasks, enabledTasks, disabledTasks, failedTasks int64
 
 	// Get total count
@@ -531,7 +548,7 @@ func (h *AdminHandler) GetTasksStats(c *gin.Context) {
 		log.Printf("ERROR: GetTasksStats: failed to count failed tasks: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"total":    totalTasks,
 		"enabled":  enabledTasks,
 		"disabled": disabledTasks,
@@ -541,7 +558,7 @@ func (h *AdminHandler) GetTasksStats(c *gin.Context) {
 
 // System Stats APIs
 
-func (h *AdminHandler) GetSystemStats(c *gin.Context) {
+func (h *AdminHandler) GetSystemStats(w http.ResponseWriter, r *http.Request) {
 	userModel := &model.UserModel{DB: h.DB}
 
 	totalUsers, _ := userModel.Count()
@@ -561,8 +578,8 @@ func (h *AdminHandler) GetSystemStats(c *gin.Context) {
 		log.Printf("ERROR: GetSystemStats: failed to count notifications: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"users": gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"users": map[string]interface{}{
 			"total": totalUsers,
 			"admin": adminCount,
 			"user":  totalUsers - adminCount,
@@ -575,7 +592,7 @@ func (h *AdminHandler) GetSystemStats(c *gin.Context) {
 }
 
 // GetScheduledTasks returns status of all scheduled tasks
-func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
+func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request) {
 	// Check if tasks are already seeded (real table is server_scheduler_state
 	// per src/database/server_schema.go - there is no "scheduled_tasks" table)
 	var count int
@@ -595,7 +612,7 @@ func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
 		ORDER BY task_name
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch scheduled tasks", "details": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch scheduled tasks", "details": err.Error()})
 		return
 	}
 	defer rows.Close()
@@ -647,7 +664,7 @@ func (h *AdminHandler) GetScheduledTasks(c *gin.Context) {
 		tasks = []map[string]interface{}{}
 	}
 
-	c.JSON(http.StatusOK, tasks)
+	writeJSON(w, http.StatusOK, tasks)
 }
 
 // seedScheduledTasks seeds the database with default scheduled tasks
@@ -691,23 +708,23 @@ func (h *AdminHandler) seedScheduledTasks() {
 }
 
 // ShowSettingsPage renders the admin settings page
-func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
-	adminIDValue, exists := c.Get("admin_id")
+func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) {
+	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
@@ -832,7 +849,7 @@ func (h *AdminHandler) ShowSettingsPage(c *gin.Context) {
 		HistoryMaxYears:     settingsModel.GetInt("history.max_years", 50),
 	}
 
-	c.HTML(http.StatusOK, "admin/admin_settings.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_settings.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":    "Server Settings",
 		"user":     admin,
 		"settings": settings,

@@ -4,23 +4,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-func init() {
-	gin.SetMode(gin.TestMode)
-}
-
-func newTestContext(method, target string, headers map[string]string) (*gin.Context, *httptest.ResponseRecorder) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
+func newTestRequest(method, target string, headers map[string]string) *http.Request {
 	req := httptest.NewRequest(method, target, nil)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	c.Request = req
-	return c, w
+	return req
 }
 
 // TestGetHostFromRequest covers reverse-proxy header priority, port
@@ -42,16 +33,16 @@ func TestGetHostFromRequest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, _ := newTestContext(http.MethodGet, "/", tt.headers)
-			if got := GetHostFromRequest(c); got != tt.want {
+			r := newTestRequest(http.MethodGet, "/", tt.headers)
+			if got := GetHostFromRequest(r); got != tt.want {
 				t.Errorf("GetHostFromRequest() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 
 	t.Run("no_headers_falls_back_to_fqdn", func(t *testing.T) {
-		c, _ := newTestContext(http.MethodGet, "/", nil)
-		if got := GetHostFromRequest(c); got != GetFQDN() {
+		r := newTestRequest(http.MethodGet, "/", nil)
+		if got := GetHostFromRequest(r); got != GetFQDN() {
 			t.Errorf("GetHostFromRequest() = %q, want GetFQDN() = %q", got, GetFQDN())
 		}
 	})
@@ -60,8 +51,8 @@ func TestGetHostFromRequest(t *testing.T) {
 // TestGetHostInfo verifies protocol detection and derived fields.
 func TestGetHostInfo(t *testing.T) {
 	t.Run("http_default", func(t *testing.T) {
-		c, _ := newTestContext(http.MethodGet, "/", map[string]string{"X-Forwarded-Host": "example.com"})
-		info := GetHostInfo(c)
+		r := newTestRequest(http.MethodGet, "/", map[string]string{"X-Forwarded-Host": "example.com"})
+		info := GetHostInfo(r)
 		if info.Protocol != "http" {
 			t.Errorf("Protocol = %q, want http", info.Protocol)
 		}
@@ -77,11 +68,11 @@ func TestGetHostInfo(t *testing.T) {
 	})
 
 	t.Run("forwarded_proto_https", func(t *testing.T) {
-		c, _ := newTestContext(http.MethodGet, "/", map[string]string{
+		r := newTestRequest(http.MethodGet, "/", map[string]string{
 			"X-Forwarded-Proto": "https",
 			"X-Forwarded-Host":  "example.com",
 		})
-		info := GetHostInfo(c)
+		info := GetHostInfo(r)
 		if info.Protocol != "https" {
 			t.Errorf("Protocol = %q, want https", info.Protocol)
 		}
@@ -131,8 +122,8 @@ func TestGetClientIP(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, _ := newTestContext(http.MethodGet, "/", tt.headers)
-			if got := GetClientIP(c); got != tt.want {
+			r := newTestRequest(http.MethodGet, "/", tt.headers)
+			if got := GetClientIP(r); got != tt.want {
 				t.Errorf("GetClientIP() = %q, want %q", got, tt.want)
 			}
 		})
@@ -190,8 +181,8 @@ func TestIsBrowser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, _ := newTestContext(http.MethodGet, "/", tt.headers)
-			if got := IsBrowser(c); got != tt.want {
+			r := newTestRequest(http.MethodGet, "/", tt.headers)
+			if got := IsBrowser(r); got != tt.want {
 				t.Errorf("IsBrowser() = %v, want %v", got, tt.want)
 			}
 		})

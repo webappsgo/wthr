@@ -75,7 +75,7 @@ func TestAdminSearchAllEmptyQuery(t *testing.T) {
 // search endpoint.
 func TestAdminSearchAPIEnvelope(t *testing.T) {
 	c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/search?q=firewall")
-	AdminSearchAPI(c)
+	AdminSearchAPI(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)

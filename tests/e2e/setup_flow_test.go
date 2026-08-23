@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	_ "modernc.org/sqlite"
@@ -62,18 +62,16 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 
 // TestCompleteSetupFlow tests the admin setup wizard account step end-to-end.
 func TestCompleteSetupFlow(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	// Initialize fresh database
 	dualDB, cleanup := initTestDualDB(t)
 	defer cleanup()
 
 	// Create router
-	r := gin.New()
+	r := chi.NewRouter()
 	setupHandler := &handler.SetupHandler{DB: dualDB.Server}
 
 	// Setup route for the admin account step
-	r.POST("/admin/server/setup", setupHandler.CreateAdmin)
+	r.Post("/admin/server/setup", setupHandler.CreateAdmin)
 
 	// Step 1: Create administrator
 	t.Run("1. Create administrator", func(t *testing.T) {
@@ -128,14 +126,12 @@ func TestCompleteSetupFlow(t *testing.T) {
 
 // TestAdminSetupValidation tests validation in admin creation
 func TestAdminSetupValidation(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	dualDB, cleanup := initTestDualDB(t)
 	defer cleanup()
 
-	r := gin.New()
+	r := chi.NewRouter()
 	setupHandler := &handler.SetupHandler{DB: dualDB.Server}
-	r.POST("/admin/server/setup", setupHandler.CreateAdmin)
+	r.Post("/admin/server/setup", setupHandler.CreateAdmin)
 
 	tests := []struct {
 		name       string

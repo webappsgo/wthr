@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"net/http"
@@ -8,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -62,17 +63,26 @@ func (h *EarthquakeHandler) ListEarthquakes(feedType string, minMagnitude *float
 }
 
 // HandleEarthquakes serves the earthquake interface
-func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
+func (h *EarthquakeHandler) HandleEarthquakes(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
 	// Get query parameters
-	feedType := c.DefaultQuery("feed", "all_day")
-	sortBy := c.DefaultQuery("sort", "newest")
-	numberStr := c.DefaultQuery("number", "0")
+	feedType := r.URL.Query().Get("feed")
+	if feedType == "" {
+		feedType = "all_day"
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = "newest"
+	}
+	numberStr := r.URL.Query().Get("number")
+	if numberStr == "" {
+		numberStr = "0"
+	}
 	number, _ := strconv.Atoi(numberStr)
 
 	// Validate feed type
@@ -90,15 +100,15 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 
 	// Get client location for map centering and distance calculation
 	// Priority: 1. Saved cookies, 2. IP geolocation
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 	var centerLat, centerLon float64 = 0.0, 0.0
 	hasUserLocation := false
 
 	// Check cookies first
-	if latStr, err := c.Cookie("user_lat"); err == nil {
-		if lonStr, err := c.Cookie("user_lon"); err == nil {
-			if lat, err1 := strconv.ParseFloat(latStr, 64); err1 == nil {
-				if lon, err2 := strconv.ParseFloat(lonStr, 64); err2 == nil {
+	if latCookie, err := r.Cookie("user_lat"); err == nil {
+		if lonCookie, err := r.Cookie("user_lon"); err == nil {
+			if lat, err1 := strconv.ParseFloat(latCookie.Value, 64); err1 == nil {
+				if lon, err2 := strconv.ParseFloat(lonCookie.Value, 64); err2 == nil {
 					centerLat = lat
 					centerLon = lon
 					hasUserLocation = true
@@ -120,7 +130,7 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 	// Fetch earthquake data
 	earthquakes, err := h.earthquakeService.GetEarthquakes(feedType)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 			"error": "Failed to load earthquake data: " + err.Error(),
 		}))
 		return
@@ -139,10 +149,10 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 	earthquakes.SortAndLimit(sortBy, number)
 
 	// Get host info for console commands
-	hostInfo := util.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(r)
 
 	// Render earthquake page
-	c.HTML(http.StatusOK, "page/earthquake.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/earthquake.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Earthquakes":     earthquakes.Earthquakes,
 		"Metadata":        earthquakes.Metadata,
 		"FeedType":        feedType,
@@ -155,24 +165,36 @@ func (h *EarthquakeHandler) HandleEarthquakes(c *gin.Context) {
 }
 
 // HandleEarthquakesByLocation serves earthquakes near a specific location
-func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
+func (h *EarthquakeHandler) HandleEarthquakesByLocation(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
-	locationInput := c.Param("location")
+	locationInput := chi.URLParam(r, "location")
 	if locationInput == "" {
-		c.Redirect(http.StatusFound, "/earthquake")
+		http.Redirect(w, r, "/earthquake", http.StatusFound)
 		return
 	}
 
 	// Get query parameters
-	feedType := c.DefaultQuery("feed", "all_week")
-	radiusStr := c.DefaultQuery("radius", "500")
-	sortBy := c.DefaultQuery("sort", "newest")
-	numberStr := c.DefaultQuery("number", "0")
+	feedType := r.URL.Query().Get("feed")
+	if feedType == "" {
+		feedType = "all_week"
+	}
+	radiusStr := r.URL.Query().Get("radius")
+	if radiusStr == "" {
+		radiusStr = "500"
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = "newest"
+	}
+	numberStr := r.URL.Query().Get("number")
+	if numberStr == "" {
+		numberStr = "0"
+	}
 	number, _ := strconv.Atoi(numberStr)
 
 	radius, err := strconv.ParseFloat(radiusStr, 64)
@@ -182,10 +204,10 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	}
 
 	// Parse location
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(locationInput, clientIP)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/error.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 			"error": "Location not found: " + locationInput,
 		}))
 		return
@@ -195,7 +217,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	enhanced := h.locationEnhancer.EnhanceLocation(coords)
 
 	// Save location to cookies for persistence across navigation
-	middleware.SaveLocationCookies(c, enhanced.Latitude, enhanced.Longitude, enhanced.ShortName)
+	middleware.SaveLocationCookies(w, r, enhanced.Latitude, enhanced.Longitude, enhanced.ShortName)
 
 	// Get earthquakes near location
 	earthquakes, err := h.earthquakeService.GetEarthquakesByLocation(
@@ -205,7 +227,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 		feedType,
 	)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 			"error": "Failed to load earthquake data: " + err.Error(),
 		}))
 		return
@@ -215,7 +237,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	earthquakes.SortAndLimit(sortBy, number)
 
 	// Get host info for console commands
-	hostInfo := util.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(r)
 
 	// Create LocationData for uniform display
 	// Format population with commas
@@ -224,8 +246,8 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 		popFormatted = formatPopulation(enhanced.Population)
 	}
 
-	locationData := gin.H{
-		"Location": gin.H{
+	locationData := map[string]interface{}{
+		"Location": map[string]interface{}{
 			"Name":                enhanced.FullName,
 			"ShortName":           enhanced.ShortName,
 			"Country":             enhanced.Country,
@@ -238,7 +260,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 	}
 
 	// Render earthquake page
-	c.HTML(http.StatusOK, "page/earthquake.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/earthquake.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Earthquakes":     earthquakes.Earthquakes,
 		"Metadata":        earthquakes.Metadata,
 		"FeedType":        feedType,
@@ -263,16 +285,19 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Earthquake collection with metadata"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/earthquakes [get]
-func (h *EarthquakeHandler) HandleEarthquakeAPI(c *gin.Context) {
-	feedType := c.DefaultQuery("feed", "all_day")
+func (h *EarthquakeHandler) HandleEarthquakeAPI(w http.ResponseWriter, r *http.Request) {
+	feedType := r.URL.Query().Get("feed")
+	if feedType == "" {
+		feedType = "all_day"
+	}
 
 	earthquakes, err := h.earthquakeService.GetEarthquakes(feedType)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, ErrInternal, err.Error())
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, err.Error())
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, earthquakes)
+	RespondNegotiatedData(w, r, http.StatusOK, earthquakes)
 }
 
 // HandleEarthquakeByIDAPI serves JSON data for a specific earthquake by ID
@@ -286,10 +311,10 @@ func (h *EarthquakeHandler) HandleEarthquakeAPI(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request - ID required"
 // @Failure 404 {object} map[string]interface{} "Earthquake not found"
 // @Router /api/v1/earthquakes/{id} [get]
-func (h *EarthquakeHandler) HandleEarthquakeByIDAPI(c *gin.Context) {
-	earthquakeID := c.Param("id")
+func (h *EarthquakeHandler) HandleEarthquakeByIDAPI(w http.ResponseWriter, r *http.Request) {
+	earthquakeID := chi.URLParam(r, "id")
 	if earthquakeID == "" {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Earthquake ID required")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Earthquake ID required")
 		return
 	}
 
@@ -316,34 +341,39 @@ func (h *EarthquakeHandler) HandleEarthquakeByIDAPI(c *gin.Context) {
 	}
 
 	if earthquake == nil {
-		NotFound(c, "Earthquake not found")
+		NotFound(w, r, "Earthquake not found")
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ok":         true,
 		"earthquake": earthquake,
 	})
 }
 
 // HandleEarthquakeDetail serves detailed information for a specific earthquake
-func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
-	earthquakeID := c.Param("id")
+func (h *EarthquakeHandler) HandleEarthquakeDetail(w http.ResponseWriter, r *http.Request) {
+	earthquakeID := chi.URLParam(r, "id")
 	if earthquakeID == "" {
-		c.String(http.StatusBadRequest, "Earthquake ID required\n")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "Earthquake ID required\n")
 		return
 	}
 
 	// Fetch all earthquakes and find the one with matching ID
-	feedType := c.DefaultQuery("feed", "all_week")
+	feedType := r.URL.Query().Get("feed")
+	if feedType == "" {
+		feedType = "all_week"
+	}
 	earthquakes, err := h.earthquakeService.GetEarthquakes(feedType)
 	if err != nil {
-		if util.IsBrowser(c) {
-			c.HTML(http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(c, gin.H{
+		if util.IsBrowser(r) {
+			middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 				"error": "Failed to load earthquake data: " + err.Error(),
 			}))
 		} else {
-			c.String(http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
+			writeText(w, http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
 		}
 		return
 	}
@@ -358,29 +388,33 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 	}
 
 	if earthquake == nil {
-		if util.IsBrowser(c) {
-			c.HTML(http.StatusNotFound, "page/error.tmpl", util.TemplateData(c, gin.H{
+		if util.IsBrowser(r) {
+			middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 				"error": "Earthquake not found",
 			}))
 		} else {
-			c.String(http.StatusNotFound, "Earthquake not found\n")
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprint(w, "Earthquake not found\n")
 		}
 		return
 	}
 
 	// Check format parameter
-	format := c.DefaultQuery("format", "")
-	isBrowser := util.IsBrowser(c)
+	format := r.URL.Query().Get("format")
+	isBrowser := util.IsBrowser(r)
 
 	if !isBrowser || format != "" {
 		// Console output
 		output := h.renderASCIIEarthquakeDetail(earthquake)
-		c.String(http.StatusOK, output)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, output)
 	} else {
 		// Browser output
-		hostInfo := util.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(r)
 		title := fmt.Sprintf("Earthquake Detail · %s", earthquake.Place)
-		c.HTML(http.StatusOK, "page/earthquake_detail.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusOK, "page/earthquake_detail.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Earthquake": earthquake,
 			"HostInfo":   hostInfo,
 			"title":      title,
@@ -390,15 +424,15 @@ func (h *EarthquakeHandler) HandleEarthquakeDetail(c *gin.Context) {
 }
 
 // HandleEarthquakeRequest routes earthquake requests (console vs browser)
-func (h *EarthquakeHandler) HandleEarthquakeRequest(c *gin.Context) {
+func (h *EarthquakeHandler) HandleEarthquakeRequest(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
 	// Extract location from path
-	location := c.Param("location")
+	location := chi.URLParam(r, "location")
 	if location != "" {
 		location = strings.TrimPrefix(location, "/")
 	}
@@ -406,33 +440,46 @@ func (h *EarthquakeHandler) HandleEarthquakeRequest(c *gin.Context) {
 	// Check if this is a detail request
 	if strings.HasPrefix(location, "detail/") {
 		earthquakeID := strings.TrimPrefix(location, "detail/")
-		c.Params = []gin.Param{{Key: "id", Value: earthquakeID}}
-		h.HandleEarthquakeDetail(c)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", earthquakeID)
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+		h.HandleEarthquakeDetail(w, r)
 		return
 	}
 
-	isBrowser := util.IsBrowser(c)
+	isBrowser := util.IsBrowser(r)
 
 	if isBrowser {
 		// Browser users get HTML interface
 		if location == "" {
-			h.HandleEarthquakes(c)
+			h.HandleEarthquakes(w, r)
 		} else {
 			// Set the param for HandleEarthquakesByLocation
-			c.Params = []gin.Param{{Key: "location", Value: location}}
-			h.HandleEarthquakesByLocation(c)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("location", location)
+			r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+			h.HandleEarthquakesByLocation(w, r)
 		}
 	} else {
 		// Console users get ASCII text
-		h.serveASCIIEarthquakes(c, location)
+		h.serveASCIIEarthquakes(w, r, location)
 	}
 }
 
 // serveASCIIEarthquakes serves earthquake data as ASCII text for console
-func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath string) {
-	feedType := c.DefaultQuery("feed", "all_day")
-	sortBy := c.DefaultQuery("sort", "newest")
-	numberStr := c.DefaultQuery("number", "0")
+func (h *EarthquakeHandler) serveASCIIEarthquakes(w http.ResponseWriter, r *http.Request, locationPath string) {
+	feedType := r.URL.Query().Get("feed")
+	if feedType == "" {
+		feedType = "all_day"
+	}
+	sortBy := r.URL.Query().Get("sort")
+	if sortBy == "" {
+		sortBy = "newest"
+	}
+	numberStr := r.URL.Query().Get("number")
+	if numberStr == "" {
+		numberStr = "0"
+	}
 	number, _ := strconv.Atoi(numberStr)
 
 	var earthquakes *service.EarthquakeCollection
@@ -442,16 +489,16 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 	if locationPath != "" {
 		// Get earthquakes near location
 		radius := 500.0
-		if r := c.Query("radius"); r != "" {
-			if parsed, err := strconv.ParseFloat(r, 64); err == nil {
+		if rad := r.URL.Query().Get("radius"); rad != "" {
+			if parsed, err := strconv.ParseFloat(rad, 64); err == nil {
 				radius = parsed
 			}
 		}
 
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err := h.weatherService.ParseAndResolveLocation(locationPath, clientIP)
 		if err != nil {
-			c.String(http.StatusBadRequest, "Location not found: %s\n", locationPath)
+			writeText(w, http.StatusBadRequest, "Location not found: %s\n", locationPath)
 			return
 		}
 
@@ -465,7 +512,7 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 			feedType,
 		)
 		if err != nil {
-			c.String(http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
+			writeText(w, http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
 			return
 		}
 	} else {
@@ -473,7 +520,7 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 	}
 
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
+		writeText(w, http.StatusInternalServerError, "Error fetching earthquake data: %v\n", err)
 		return
 	}
 
@@ -482,7 +529,9 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(c *gin.Context, locationPath s
 
 	// Render ASCII output
 	output := h.renderASCIIEarthquakes(earthquakes, locationName, feedType)
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, output)
 }
 
 // renderASCIIEarthquakes formats earthquake data as ASCII text

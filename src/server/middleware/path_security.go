@@ -3,14 +3,13 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 // Path security errors per AI.md PART 5
@@ -133,61 +132,67 @@ func SafeFilePath(baseDir, userPath string) (string, error) {
 
 // PathSecurityMiddleware normalizes paths and blocks traversal attempts per AI.md PART 5
 // This middleware MUST be first in the chain - before auth, before routing.
-func PathSecurityMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		original := c.Request.URL.Path
+func PathSecurityMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			original := r.URL.Path
 
-		// Check both raw path and URL-decoded for traversal
-		rawPath := c.Request.URL.RawPath
-		if rawPath == "" {
-			rawPath = c.Request.URL.Path
-		}
+			// Check both raw path and URL-decoded for traversal
+			rawPath := r.URL.RawPath
+			if rawPath == "" {
+				rawPath = r.URL.Path
+			}
 
-		// Block path traversal attempts (encoded and decoded)
-		// %2e = . so %2e%2e = ..
-		if strings.Contains(original, "..") ||
-			strings.Contains(rawPath, "..") ||
-			strings.Contains(strings.ToLower(rawPath), "%2e") {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "Bad Request",
-			})
-			return
-		}
+			// Block path traversal attempts (encoded and decoded)
+			// %2e = . so %2e%2e = ..
+			if strings.Contains(original, "..") ||
+				strings.Contains(rawPath, "..") ||
+				strings.Contains(strings.ToLower(rawPath), "%2e") {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": "Bad Request",
+				})
+				return
+			}
 
-		// Normalize the path
-		cleaned := path.Clean(original)
+			// Normalize the path
+			cleaned := path.Clean(original)
 
-		// Ensure leading slash
-		if !strings.HasPrefix(cleaned, "/") {
-			cleaned = "/" + cleaned
-		}
+			// Ensure leading slash
+			if !strings.HasPrefix(cleaned, "/") {
+				cleaned = "/" + cleaned
+			}
 
-		// Preserve trailing slash for directory paths
-		if original != "/" && strings.HasSuffix(original, "/") && !strings.HasSuffix(cleaned, "/") {
-			cleaned += "/"
-		}
+			// Preserve trailing slash for directory paths
+			if original != "/" && strings.HasSuffix(original, "/") && !strings.HasSuffix(cleaned, "/") {
+				cleaned += "/"
+			}
 
-		// Update request
-		c.Request.URL.Path = cleaned
+			// Update request
+			r.URL.Path = cleaned
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 // URLNormalizeMiddleware normalizes URLs (trailing slash, case, etc.) per AI.md PART 5
 // This should be the FIRST middleware in the chain
-func URLNormalizeMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Normalize double slashes
-		originalPath := c.Request.URL.Path
-		for strings.Contains(c.Request.URL.Path, "//") {
-			c.Request.URL.Path = strings.ReplaceAll(c.Request.URL.Path, "//", "/")
-		}
+func URLNormalizeMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Normalize double slashes
+			originalPath := r.URL.Path
+			for strings.Contains(r.URL.Path, "//") {
+				r.URL.Path = strings.ReplaceAll(r.URL.Path, "//", "/")
+			}
 
-		// If path was normalized, we might want to redirect in the future
-		// For now, just process with normalized path
-		_ = originalPath
+			// If path was normalized, we might want to redirect in the future
+			// For now, just process with normalized path
+			_ = originalPath
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	}
 }

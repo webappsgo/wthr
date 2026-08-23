@@ -3,11 +3,13 @@
 package middleware
 
 import (
+	"net/http"
 	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/webappsgo/wthr/src/server/metric"
 )
 
@@ -19,39 +21,47 @@ var (
 )
 
 // MetricsMiddleware records HTTP metrics for all requests per AI.md PART 21
-func MetricsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
+func MetricsMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
 
-		// Track active requests
-		metric.HTTPActiveRequests.Inc()
-		defer metric.HTTPActiveRequests.Dec()
+			// Track active requests
+			metric.HTTPActiveRequests.Inc()
+			defer metric.HTTPActiveRequests.Dec()
 
-		// Get normalized path (remove IDs for cardinality control)
-		path := normalizeMetricPath(c.FullPath())
-		if path == "" {
-			path = normalizeMetricPath(c.Request.URL.Path)
-		}
+			// Get normalized path (remove IDs for cardinality control).
+			// chi.RouteContext(...).RoutePattern() is the FullPath()
+			// equivalent - only populated once chi has matched a route, so
+			// this still falls back to the raw URL path exactly as the gin
+			// version fell back when FullPath() was empty (e.g. no matching
+			// route, or middleware running before routing per PART 0 rule 6).
+			path := normalizeMetricPath(chi.RouteContext(r.Context()).RoutePattern())
+			if path == "" {
+				path = normalizeMetricPath(r.URL.Path)
+			}
 
-		// Record request size
-		if c.Request.ContentLength > 0 {
-			metric.HTTPRequestSize.WithLabelValues(c.Request.Method, path).Observe(float64(c.Request.ContentLength))
-		}
+			// Record request size
+			if r.ContentLength > 0 {
+				metric.HTTPRequestSize.WithLabelValues(r.Method, path).Observe(float64(r.ContentLength))
+			}
 
-		// Process request
-		c.Next()
+			// Process request
+			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
 
-		// Record metrics
-		duration := time.Since(start).Seconds()
-		status := strconv.Itoa(c.Writer.Status())
-		responseSize := float64(c.Writer.Size())
-		if responseSize < 0 {
-			responseSize = 0
-		}
+			// Record metrics
+			duration := time.Since(start).Seconds()
+			status := strconv.Itoa(ww.Status())
+			responseSize := float64(ww.BytesWritten())
+			if responseSize < 0 {
+				responseSize = 0
+			}
 
-		metric.HTTPRequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
-		metric.HTTPRequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
-		metric.HTTPResponseSize.WithLabelValues(c.Request.Method, path).Observe(responseSize)
+			metric.HTTPRequestsTotal.WithLabelValues(r.Method, path, status).Inc()
+			metric.HTTPRequestDuration.WithLabelValues(r.Method, path).Observe(duration)
+			metric.HTTPResponseSize.WithLabelValues(r.Method, path).Observe(responseSize)
+		})
 	}
 }
 

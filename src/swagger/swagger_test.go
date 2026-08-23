@@ -7,12 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 func TestGetTheme(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name        string
 		query       string
@@ -69,9 +67,6 @@ func TestGetTheme(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
 			url := "/openapi"
 			if tt.query != "" {
 				url += "?" + tt.query
@@ -80,9 +75,8 @@ func TestGetTheme(t *testing.T) {
 			if tt.hasCookie {
 				req.AddCookie(&http.Cookie{Name: "theme", Value: tt.cookieValue})
 			}
-			c.Request = req
 
-			got := GetTheme(c)
+			got := GetTheme(req)
 			if got != tt.want {
 				t.Errorf("GetTheme() = %q, want %q", got, tt.want)
 			}
@@ -91,10 +85,8 @@ func TestGetTheme(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.GET("/openapi/health", HealthCheck())
+	router := chi.NewRouter()
+	router.Get("/openapi/health", HealthCheck())
 
 	req := httptest.NewRequest("GET", "/openapi/health", nil)
 	w := httptest.NewRecorder()
@@ -120,13 +112,11 @@ func TestHealthCheck(t *testing.T) {
 // TestGetOpenAPIJSON_FileAbsent documents current behavior when
 // ./docs/swagger.json is not present relative to the test working
 // directory (verified absent at repo docs/swagger.json before writing this
-// test): gin's c.File does not panic on a missing file, it just writes a
+// test): http.ServeFile does not panic on a missing file, it just writes a
 // non-2xx status (typically 404). This test asserts that contract holds.
 func TestGetOpenAPIJSON_FileAbsent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.GET("/openapi.json", GetOpenAPIJSON())
+	router := chi.NewRouter()
+	router.Get("/openapi.json", GetOpenAPIJSON())
 
 	req := httptest.NewRequest("GET", "/openapi.json", nil)
 	w := httptest.NewRecorder()
@@ -149,11 +139,9 @@ func TestGetOpenAPIJSON_FileAbsent(t *testing.T) {
 // the theme cookie/query parsing branch, without asserting exact embedded
 // HTML content (which depends on the swaggo/files embedded asset set).
 func TestGetSwaggerUI(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	router.GET("/openapi", GetSwaggerUI())
-	router.GET("/openapi/*any", GetSwaggerUI())
+	router := chi.NewRouter()
+	router.Get("/openapi", GetSwaggerUI())
+	router.Get("/openapi/*", GetSwaggerUI())
 
 	t.Run("plain request does not panic", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/openapi/index.html", nil)
@@ -212,31 +200,31 @@ func TestGetSwaggerUI(t *testing.T) {
 }
 
 func TestRegisterRoutes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
+	router := chi.NewRouter()
 	RegisterRoutes(router)
 
-	routes := router.Routes()
-
-	var hasOpenAPI, hasOpenAPIAny bool
-	for _, r := range routes {
-		if r.Method != "GET" {
-			continue
+	var hasOpenAPI, hasOpenAPIWildcard bool
+	err := chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if method != "GET" {
+			return nil
 		}
-		switch r.Path {
+		switch route {
 		case "/openapi":
 			hasOpenAPI = true
-		case "/openapi/*any":
-			hasOpenAPIAny = true
+		case "/openapi/*":
+			hasOpenAPIWildcard = true
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("chi.Walk failed: %v", err)
 	}
 
 	if !hasOpenAPI {
 		t.Error("expected a GET route registered at /openapi")
 	}
-	if !hasOpenAPIAny {
-		t.Error("expected a GET route registered at /openapi/*any")
+	if !hasOpenAPIWildcard {
+		t.Error("expected a GET route registered at /openapi/*")
 	}
 }
 

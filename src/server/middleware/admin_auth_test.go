@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	_ "modernc.org/sqlite"
 )
 
@@ -37,15 +37,29 @@ func openAdminAuthTestServerDB(t *testing.T) *sql.DB {
 	return db
 }
 
-// newAdminTestRouter builds a gin router with a stub admin/login.tmpl -
-// RequireAdminAuth/AdminLoginHandler render that template name literally via
-// c.HTML on every reject path, so it must be registered or gin panics.
-func newAdminTestRouter() *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
+// setAdminTestRenderer installs a stub RenderHTML - RequireAdminAuth/
+// AdminLoginHandler render the "admin/login.tmpl" name literally on every
+// reject path, so a renderer must be wired up or those calls panic on a nil
+// func value.
+func setAdminTestRenderer(t *testing.T) {
+	t.Helper()
 	tmpl := template.Must(template.New("admin/login.tmpl").Parse("login stub {{.error}}"))
-	router.SetHTMLTemplate(tmpl)
-	return router
+	orig := RenderHTML
+	RenderHTML = func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{}) {
+		w.WriteHeader(status)
+		_ = tmpl.Execute(w, data)
+	}
+	t.Cleanup(func() { RenderHTML = orig })
+}
+
+// withDB returns a handler that stores db in the request context under the
+// same "db" key GetDB reads, mirroring gin's router.Use(func(c *gin.Context)
+// { c.Set("db", db); c.Next() }) stub.
+func withDB(db *sql.DB, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := reqctx.Set(r.Context(), "db", db)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func seedAdminCredential(t *testing.T, db *sql.DB, username, password string) int64 {
@@ -74,44 +88,44 @@ func seedAdminCredential(t *testing.T, db *sql.DB, username, password string) in
 // request with no admin_session cookie renders the login page (200) rather
 // than reaching the wrapped handler.
 func TestRequireAdminAuth_NoCookieShowsLoginPage(t *testing.T) {
-	router := newAdminTestRouter()
-	router.Use(func(c *gin.Context) {
-		c.Set("db", openAdminAuthTestServerDB(t))
-		c.Next()
-	})
-	router.Use(RequireAdminAuth())
-	router.GET("/server/admin/", func(c *gin.Context) {
+	setAdminTestRenderer(t)
+	db := openAdminAuthTestServerDB(t)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want login page instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("reached"))
 	})
+	handler := withDB(db, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (login page) for missing admin_session cookie", w.Code)
 	}
 }
 
-// TestRequireAdminAuth_NoDBReturns503 verifies that when GetDB(c) can't find
+// TestRequireAdminAuth_NoDBReturns503 verifies that when GetDB(r) can't find
 // a db in context and database.GetGlobalDualDB hasn't been set either, the
 // middleware fails closed with 503 instead of panicking or silently passing
 // through.
 func TestRequireAdminAuth_NoDBReturns503(t *testing.T) {
+	setAdminTestRenderer(t)
 	database.SetGlobalDualDB(nil)
 
-	router := newAdminTestRouter()
-	router.Use(RequireAdminAuth())
-	router.GET("/server/admin/", func(c *gin.Context) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want 503 instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("reached"))
 	})
+	handler := RequireAdminAuth()(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: "whatever"})
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want 503 when no db is reachable", w.Code)
@@ -122,23 +136,20 @@ func TestRequireAdminAuth_NoDBReturns503(t *testing.T) {
 // with no matching, unexpired row in server_admin_sessions is rejected back
 // to the login page rather than authenticating.
 func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
+	setAdminTestRenderer(t)
 	serverDB := openAdminAuthTestServerDB(t)
 
-	router := newAdminTestRouter()
-	router.Use(func(c *gin.Context) {
-		c.Set("db", serverDB)
-		c.Next()
-	})
-	router.Use(RequireAdminAuth())
-	router.GET("/server/admin/", func(c *gin.Context) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want login page instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("reached"))
 	})
+	handler := withDB(serverDB, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: "does-not-exist"})
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (login page) for an unknown session token", w.Code)
@@ -149,6 +160,7 @@ func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
 // server_admin_sessions row with a future expiry and verifies the request
 // reaches the wrapped handler with admin_id populated in context.
 func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
+	setAdminTestRenderer(t)
 	serverDB := openAdminAuthTestServerDB(t)
 	adminID := seedAdminCredential(t, serverDB, "root", "hunter2-hunter2")
 
@@ -163,26 +175,22 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 		t.Fatalf("seed admin session: %v", err)
 	}
 
-	router := newAdminTestRouter()
-	router.Use(func(c *gin.Context) {
-		c.Set("db", serverDB)
-		c.Next()
-	})
-	router.Use(RequireAdminAuth())
-	router.GET("/server/admin/", func(c *gin.Context) {
-		got, exists := c.Get("admin_id")
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, exists := reqctx.Get(r.Context(), "admin_id")
 		if !exists {
 			t.Error("admin_id not set in context for a valid session")
 		} else if got.(int) != int(adminID) {
 			t.Errorf("admin_id = %v, want %d", got, adminID)
 		}
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("reached"))
 	})
+	handler := withDB(serverDB, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 from the wrapped handler", w.Code)
@@ -250,6 +258,7 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			setAdminTestRenderer(t)
 			serverDB := openAdminAuthTestServerDB(t)
 			adminID := seedAdminCredential(t, serverDB, "root", "hunter2-hunter2")
 
@@ -262,21 +271,17 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 			}
 
 			var reached bool
-			router := newAdminTestRouter()
-			router.Use(func(c *gin.Context) {
-				c.Set("db", serverDB)
-				c.Next()
-			})
-			router.Use(RequireAdminAuth())
-			router.GET("/server/admin/", func(c *gin.Context) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				reached = true
-				c.String(http.StatusOK, "reached")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("reached"))
 			})
+			handler := withDB(serverDB, RequireAdminAuth()(next))
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
 			req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
-			router.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 
 			if reached != tc.wantHandler {
 				t.Errorf("wrapped handler reached = %v, want %v (%s)", reached, tc.wantHandler, tc.explanation)
@@ -295,15 +300,16 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 // TestAdminLoginHandler covers empty credentials, unknown username, wrong
 // password, and a fully correct login (new session row + cookie + redirect).
 func TestAdminLoginHandler(t *testing.T) {
+	setAdminTestRenderer(t)
+
 	t.Run("empty credentials rejected", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
-		router := newAdminTestRouter()
-		router.POST("/server/admin/login", AdminLoginHandler(serverDB))
+		handler := AdminLoginHandler(serverDB)
 
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(url.Values{}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		router.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401 for empty username/password", w.Code)
@@ -312,14 +318,13 @@ func TestAdminLoginHandler(t *testing.T) {
 
 	t.Run("unknown username rejected generically", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
-		router := newAdminTestRouter()
-		router.POST("/server/admin/login", AdminLoginHandler(serverDB))
+		handler := AdminLoginHandler(serverDB)
 
 		form := url.Values{"username": {"nobody"}, "password": {"whatever123"}}
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		router.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401 for unknown username", w.Code)
@@ -332,14 +337,13 @@ func TestAdminLoginHandler(t *testing.T) {
 	t.Run("wrong password rejected generically", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
 		seedAdminCredential(t, serverDB, "root", "correct-password-123")
-		router := newAdminTestRouter()
-		router.POST("/server/admin/login", AdminLoginHandler(serverDB))
+		handler := AdminLoginHandler(serverDB)
 
 		form := url.Values{"username": {"root"}, "password": {"wrong-password"}}
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		router.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Errorf("status = %d, want 401 for wrong password", w.Code)
@@ -352,14 +356,13 @@ func TestAdminLoginHandler(t *testing.T) {
 	t.Run("correct credentials create a session and redirect", func(t *testing.T) {
 		serverDB := openAdminAuthTestServerDB(t)
 		seedAdminCredential(t, serverDB, "root", "correct-password-123")
-		router := newAdminTestRouter()
-		router.POST("/server/admin/login", AdminLoginHandler(serverDB))
+		handler := AdminLoginHandler(serverDB)
 
 		form := url.Values{"username": {"root"}, "password": {"correct-password-123"}}
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		router.ServeHTTP(w, req)
+		handler.ServeHTTP(w, req)
 
 		if w.Code != http.StatusFound {
 			t.Errorf("status = %d, want 302 redirect for correct credentials", w.Code)
@@ -388,12 +391,11 @@ func TestAdminLoginHandler(t *testing.T) {
 // TestAdminLogoutHandler verifies logout clears the admin_session cookie
 // (maxAge < 0) and redirects to the admin path.
 func TestAdminLogoutHandler(t *testing.T) {
-	router := newAdminTestRouter()
-	router.GET("/server/admin/logout", AdminLogoutHandler())
+	handler := AdminLogoutHandler()
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/logout", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect on logout", w.Code)

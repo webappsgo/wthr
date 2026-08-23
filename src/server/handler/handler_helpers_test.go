@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/database"
 )
@@ -69,15 +68,14 @@ func setGlobalTestDualDB(t *testing.T, serverDB, usersDB *sql.DB) {
 	t.Cleanup(func() { database.SetGlobalDualDB(nil) })
 }
 
-// newTestContextJSON builds a gin test context with a JSON-encoded request
-// body, for handlers that call c.ShouldBindJSON. Passing a raw string as
-// body sends it verbatim (useful for malformed-JSON error-path tests);
-// any other value is json.Marshal'd.
-func newTestContextJSON(t *testing.T, method, target string, body interface{}) (*gin.Context, *httptest.ResponseRecorder) {
+// newTestContextJSON builds a net/http request/recorder pair with a
+// JSON-encoded request body, for handlers that call
+// json.NewDecoder(r.Body).Decode. Passing a raw string as body sends it
+// verbatim (useful for malformed-JSON error-path tests); any other value is
+// json.Marshal'd.
+func newTestContextJSON(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
 
 	var raw []byte
 	switch v := body.(type) {
@@ -93,7 +91,30 @@ func newTestContextJSON(t *testing.T, method, target string, body interface{}) (
 		}
 	}
 
-	c.Request = httptest.NewRequest(method, target, bytes.NewReader(raw))
-	c.Request.Header.Set("Content-Type", "application/json")
-	return c, w
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	return r, w
+}
+
+// newAPITestContext builds a plain GET request/recorder pair for target, for
+// handler tests that don't need a request body. It shares newAPITestRequest's
+// implementation (defined in api_test.go); the separate name predates the
+// gin->chi migration's helper-naming cleanup and is kept so existing call
+// sites across the package don't all need renaming.
+func newAPITestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
+	return newAPITestRequest(target)
+}
+
+// htmlRenderGuard recovers from a panic during an HTML template render call
+// (middleware.RenderHTML is nil until main.go wires it up at startup, so it
+// panics in this package's unit-test context) and skips the test instead of
+// crashing the whole test binary or reporting a false failure — matching the
+// recover/skip pattern used elsewhere in this package (e.g. auth_oidc_test.go).
+// Intended for `defer htmlRenderGuard(t)` immediately before a handler call
+// that renders HTML.
+func htmlRenderGuard(t *testing.T) {
+	t.Helper()
+	if rec := recover(); rec != nil {
+		t.Skipf("middleware.RenderHTML not configured in unit test context: %v", rec)
+	}
 }

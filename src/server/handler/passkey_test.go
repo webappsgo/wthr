@@ -1,13 +1,19 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
+	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // newPasskeyHandlerTestSetup wires a PasskeyHandler against a fresh
@@ -22,18 +28,67 @@ func newPasskeyHandlerTestSetup(t *testing.T) (*PasskeyHandler, *models.User) {
 	return NewPasskeyHandler(usersDB), user
 }
 
-// withPasskeyHost sets a valid Host header on the test request so
-// buildWebAuthn can derive an RPID from it.
-func withPasskeyHost(c *gin.Context) {
-	c.Request.Host = "example.com"
+// withPasskeyHost sets a valid Host on the test request so buildWebAuthn
+// can derive an RPID from it.
+func withPasskeyHost(r *http.Request) *http.Request {
+	r.Host = "example.com"
+	return r
+}
+
+// withPasskeyUser attaches an authenticated user to the request context,
+// the same key middleware.AuthMiddleware sets on a real request.
+func withPasskeyUser(r *http.Request, user *models.User) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, user))
+}
+
+// withPasskeyURLParam attaches a chi route param to the request context.
+func withPasskeyURLParam(r *http.Request, key, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add(key, value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
+// newPasskeyTestRequest builds a plain GET request/recorder pair.
+func newPasskeyTestRequest(target string) (*http.Request, *httptest.ResponseRecorder) {
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	w := httptest.NewRecorder()
+	return r, w
+}
+
+// newPasskeyTestJSONRequest builds a request/recorder pair with a JSON
+// (or raw string/[]byte passthrough) body, mirroring the shared
+// newTestContextJSON test helper's body-encoding behavior.
+func newPasskeyTestJSONRequest(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var raw []byte
+	switch v := body.(type) {
+	case nil:
+		raw = nil
+	case string:
+		raw = []byte(v)
+	case []byte:
+		raw = v
+	default:
+		var err error
+		raw, err = json.Marshal(v)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+	}
+
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	return r, w
 }
 
 func TestPasskeyHandlerListPasskeys(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newAPITestContext("/api/v1/users/security/passkeys")
+		r, w := newPasskeyTestRequest("/api/v1/users/security/passkeys")
 
-		h.ListPasskeys(c)
+		h.ListPasskeys(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -42,10 +97,10 @@ func TestPasskeyHandlerListPasskeys(t *testing.T) {
 
 	t.Run("authenticated with no passkeys returns empty list", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newAPITestContext("/api/v1/users/security/passkeys")
-		c.Set("user", user)
+		r, w := newPasskeyTestRequest("/api/v1/users/security/passkeys")
+		r = withPasskeyUser(r, user)
 
-		h.ListPasskeys(c)
+		h.ListPasskeys(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -59,9 +114,9 @@ func TestPasskeyHandlerListPasskeys(t *testing.T) {
 func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{})
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{})
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -70,10 +125,10 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", "not json")
-		c.Set("user", user)
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", "not json")
+		r = withPasskeyUser(r, user)
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -82,10 +137,10 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 
 	t.Run("missing name and password returns 400", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{})
-		c.Set("user", user)
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{})
+		r = withPasskeyUser(r, user)
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -94,13 +149,13 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 
 	t.Run("wrong password returns 401", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
 			"name":     "my key",
 			"password": "wrong-password",
 		})
-		c.Set("user", user)
+		r = withPasskeyUser(r, user)
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -109,14 +164,14 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 
 	t.Run("valid start request returns registration options", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
 			"name":     "my key",
 			"password": "password123",
 		})
-		c.Set("user", user)
-		withPasskeyHost(c)
+		r = withPasskeyUser(r, user)
+		r = withPasskeyHost(r)
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -128,12 +183,12 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 
 	t.Run("registration completion with unknown ceremony returns 400", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/users/security/passkeys", map[string]interface{}{
 			"response": map[string]interface{}{"id": "abc"},
 		})
-		c.Set("user", user)
+		r = withPasskeyUser(r, user)
 
-		h.RegisterPasskey(c)
+		h.RegisterPasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -144,10 +199,10 @@ func TestPasskeyHandlerRegisterPasskey(t *testing.T) {
 func TestPasskeyHandlerDeletePasskey(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newAPITestContext("/api/v1/users/security/passkeys/1")
-		c.Params = gin.Params{{Key: "passkey_id", Value: "1"}}
+		r, w := newPasskeyTestRequest("/api/v1/users/security/passkeys/1")
+		r = withPasskeyURLParam(r, "passkey_id", "1")
 
-		h.DeletePasskey(c)
+		h.DeletePasskey(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -156,11 +211,11 @@ func TestPasskeyHandlerDeletePasskey(t *testing.T) {
 
 	t.Run("invalid passkey id returns 400", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newAPITestContext("/api/v1/users/security/passkeys/abc")
-		c.Set("user", user)
-		c.Params = gin.Params{{Key: "passkey_id", Value: "abc"}}
+		r, w := newPasskeyTestRequest("/api/v1/users/security/passkeys/abc")
+		r = withPasskeyUser(r, user)
+		r = withPasskeyURLParam(r, "passkey_id", "abc")
 
-		h.DeletePasskey(c)
+		h.DeletePasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -169,11 +224,11 @@ func TestPasskeyHandlerDeletePasskey(t *testing.T) {
 
 	t.Run("unknown passkey returns 404", func(t *testing.T) {
 		h, user := newPasskeyHandlerTestSetup(t)
-		c, w := newAPITestContext("/api/v1/users/security/passkeys/999")
-		c.Set("user", user)
-		c.Params = gin.Params{{Key: "passkey_id", Value: "999"}}
+		r, w := newPasskeyTestRequest("/api/v1/users/security/passkeys/999")
+		r = withPasskeyUser(r, user)
+		r = withPasskeyURLParam(r, "passkey_id", "999")
 
-		h.DeletePasskey(c)
+		h.DeletePasskey(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -184,10 +239,10 @@ func TestPasskeyHandlerDeletePasskey(t *testing.T) {
 func TestPasskeyHandlerBeginPasskeyChallenge(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", "not json")
-		withPasskeyHost(c)
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", "not json")
+		r = withPasskeyHost(r)
 
-		h.BeginPasskeyChallenge(c)
+		h.BeginPasskeyChallenge(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -196,10 +251,10 @@ func TestPasskeyHandlerBeginPasskeyChallenge(t *testing.T) {
 
 	t.Run("no session token performs discoverable login", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{})
-		withPasskeyHost(c)
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{})
+		r = withPasskeyHost(r)
 
-		h.BeginPasskeyChallenge(c)
+		h.BeginPasskeyChallenge(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -211,12 +266,12 @@ func TestPasskeyHandlerBeginPasskeyChallenge(t *testing.T) {
 
 	t.Run("unknown session token returns 401", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{
 			"session_token": "no-such-session",
 		})
-		withPasskeyHost(c)
+		r = withPasskeyHost(r)
 
-		h.BeginPasskeyChallenge(c)
+		h.BeginPasskeyChallenge(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401: %s", w.Code, w.Body.String())
@@ -230,12 +285,12 @@ func TestPasskeyHandlerBeginPasskeyChallenge(t *testing.T) {
 			t.Fatalf("create pending session: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/challenge", map[string]interface{}{
 			"session_token": pending.ID,
 		})
-		withPasskeyHost(c)
+		r = withPasskeyHost(r)
 
-		h.BeginPasskeyChallenge(c)
+		h.BeginPasskeyChallenge(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -246,9 +301,9 @@ func TestPasskeyHandlerBeginPasskeyChallenge(t *testing.T) {
 func TestPasskeyHandlerVerifyPasskey(t *testing.T) {
 	t.Run("empty body returns 400", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/verify", nil)
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/verify", nil)
 
-		h.VerifyPasskey(c)
+		h.VerifyPasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -257,9 +312,9 @@ func TestPasskeyHandlerVerifyPasskey(t *testing.T) {
 
 	t.Run("no ceremony cookie returns 400", func(t *testing.T) {
 		h, _ := newPasskeyHandlerTestSetup(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/auth/passkey/verify", map[string]interface{}{})
+		r, w := newPasskeyTestJSONRequest(t, http.MethodPost, "/api/v1/server/auth/passkey/verify", map[string]interface{}{})
 
-		h.VerifyPasskey(c)
+		h.VerifyPasskey(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())

@@ -7,20 +7,22 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 // UserSettingsHandler handles user settings pages and API
@@ -35,14 +37,14 @@ func NewUserSettingsHandler(db *sql.DB) *UserSettingsHandler {
 
 // ShowAccountSettings renders the account settings page
 // Route: GET /users/settings
-func (h *UserSettingsHandler) ShowAccountSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ShowAccountSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
-	NegotiateResponse(c, "page/user/settings.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/user/settings.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       "Account Settings",
 		"page":        "settings",
 		"settingsTab": "account",
@@ -52,17 +54,17 @@ func (h *UserSettingsHandler) ShowAccountSettings(c *gin.Context) {
 
 // ShowPrivacySettings renders the privacy settings page
 // Route: GET /users/settings/privacy
-func (h *UserSettingsHandler) ShowPrivacySettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ShowPrivacySettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
 	// Get user preferences for privacy settings
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings_privacy.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/user/settings_privacy.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       "Privacy Settings",
 		"page":        "settings",
 		"settingsTab": "privacy",
@@ -73,17 +75,17 @@ func (h *UserSettingsHandler) ShowPrivacySettings(c *gin.Context) {
 
 // ShowNotificationSettings renders the notification settings page
 // Route: GET /users/settings/notifications
-func (h *UserSettingsHandler) ShowNotificationSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ShowNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
 	// Get user preferences
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings_notifications.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/user/settings_notifications.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       "Notification Settings",
 		"page":        "settings",
 		"settingsTab": "notifications",
@@ -94,17 +96,17 @@ func (h *UserSettingsHandler) ShowNotificationSettings(c *gin.Context) {
 
 // ShowAppearanceSettings renders the appearance settings page
 // Route: GET /users/settings/appearance
-func (h *UserSettingsHandler) ShowAppearanceSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ShowAppearanceSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
 	// Get user preferences
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
-	NegotiateResponse(c, "page/user/settings_appearance.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/user/settings_appearance.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       "Appearance Settings",
 		"page":        "settings",
 		"settingsTab": "appearance",
@@ -115,17 +117,17 @@ func (h *UserSettingsHandler) ShowAppearanceSettings(c *gin.Context) {
 
 // ShowTokensSettings renders the API tokens management page
 // Route: GET /users/settings/tokens
-func (h *UserSettingsHandler) ShowTokensSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ShowTokensSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
 	// Get user's API tokens
 	tokens, _ := h.getUserTokens(user.ID)
 
-	NegotiateResponse(c, "page/user/settings_tokens.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/user/settings_tokens.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       "API Tokens",
 		"page":        "settings",
 		"settingsTab": "tokens",
@@ -192,19 +194,19 @@ type AppearanceSettings struct {
 // @Success 200 {object} map[string]interface{} "User settings"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/settings [get]
-func (h *UserSettingsHandler) GetSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	response, err := h.loadSettings(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get preferences"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get preferences"})
 		return
 	}
-	c.JSON(http.StatusOK, response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // UpdateSettingsRequest represents a partial settings update
@@ -228,25 +230,25 @@ type UpdateSettingsRequest struct {
 // @Failure 400 {object} map[string]interface{} "Validation error"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/settings [patch]
-func (h *UserSettingsHandler) UpdateSettings(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	var req UpdateSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	if err := h.applySettingsUpdate(user.ID, &req); err != nil {
 		switch err.Error() {
 		case "bio must be 500 characters or fewer", "theme must be one of: dark, light, auto":
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update settings"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update settings"})
 		}
 		return
 	}
@@ -256,10 +258,10 @@ func (h *UserSettingsHandler) UpdateSettings(c *gin.Context) {
 	// reads the cookie, renders the correct <html> class on the next
 	// request without a per-request DB lookup.
 	if req.Appearance != nil && req.Appearance.Theme != "" {
-		server.SetThemeCookie(c, req.Appearance.Theme)
+		server.SetThemeCookie(w, r, req.Appearance.Theme)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Settings updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Settings updated successfully"})
 }
 
 // LoadUserSettings loads the live user settings payload used by /api/v1/users/settings.
@@ -609,16 +611,16 @@ type CreateTokenRequest struct {
 // @Failure 400 {object} map[string]interface{} "Validation error or token limit reached"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/tokens [post]
-func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	var req CreateTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
 		return
 	}
 
@@ -626,14 +628,14 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 	var count int
 	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", user.ID).Scan(&count)
 	if count >= 5 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 5 tokens per user"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Maximum 5 tokens per user"})
 		return
 	}
 
 	// Generate token with usr_ prefix per AI.md PART 11
 	token, err := models.GenerateTokenWithPrefix(models.PrefixUser)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to generate token"})
 		return
 	}
 	tokenHash := models.HashToken(token)
@@ -656,12 +658,12 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, dbtime.FormatSQLTimestamp(time.Now()), expiresAt)
 
 	if dbErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create token"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create token"})
 		return
 	}
 
 	// Return the full token (only shown once)
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"token":   token,
 		"message": "Token created. This token will only be shown once.",
 	})
@@ -679,31 +681,31 @@ func (h *UserSettingsHandler) CreateToken(c *gin.Context) {
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 404 {object} map[string]interface{} "Token not found"
 // @Router /api/v1/users/tokens/{id} [delete]
-func (h *UserSettingsHandler) RevokeToken(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	tokenID := c.Param("id")
+	tokenID := chi.URLParam(r, "id")
 
 	result, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
 		DELETE FROM user_tokens WHERE id = ? AND user_id = ?
 	`, tokenID, user.ID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke token"})
 		return
 	}
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Token not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Token not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Token revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token revoked"})
 }
 
 // ListTokens returns all tokens for the current user
@@ -716,35 +718,35 @@ func (h *UserSettingsHandler) RevokeToken(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Token list"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/tokens [get]
-func (h *UserSettingsHandler) ListTokens(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	tokens, err := h.getUserTokens(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get tokens"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get tokens"})
 		return
 	}
 
-	c.JSON(http.StatusOK, tokens)
+	writeJSON(w, http.StatusOK, tokens)
 }
 
 // ListSessions returns the authenticated user's active sessions.
 // Route: GET /api/v1/users/sessions
-func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	sessions, err := sessionModel.GetActiveSessions(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list sessions"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to list sessions"})
 		return
 	}
 
@@ -752,7 +754,7 @@ func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
 	// The middleware stores the Session struct under SessionContextKey ("session").
 	// Session.ID is the raw bearer token; we hash it to compare against stored hashes.
 	var currentTokenHash string
-	if sessionVal, ok := c.Get(middleware.SessionContextKey); ok {
+	if sessionVal, ok := reqctx.Get(r.Context(), middleware.SessionContextKey); ok {
 		if sess, ok := sessionVal.(*models.Session); ok && sess != nil {
 			h := sha256.Sum256([]byte(sess.ID))
 			currentTokenHash = hex.EncodeToString(h[:])
@@ -786,27 +788,27 @@ func (h *UserSettingsHandler) ListSessions(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{"sessions": items})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"sessions": items})
 }
 
 // RevokeSession deletes a specific session by its integer row ID.
 // Route: DELETE /api/v1/users/sessions/:id
 // The `:id` is the integer primary key from the session list, NOT the raw token.
-func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	rowIDStr := c.Param("id")
+	rowIDStr := chi.URLParam(r, "id")
 	if rowIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Session ID required"})
 		return
 	}
 	rowID, err := strconv.ParseInt(rowIDStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid session ID"})
 		return
 	}
 
@@ -825,41 +827,41 @@ func (h *UserSettingsHandler) RevokeSession(c *gin.Context) {
 		rowID,
 	).Scan(&ownerID, &expiresAtRaw)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Session not found"})
 		return
 	}
 	if !dbtime.IsAfter(expiresAtRaw, time.Now()) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Session not found"})
 		return
 	}
 	if ownerID != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Session does not belong to you"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Session does not belong to you"})
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	if err := sessionModel.DeleteSessionByRowID(rowID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke session"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke session"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Session revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Session revoked"})
 }
 
 // RevokeAllSessions deletes all sessions for the authenticated user (logout everywhere).
 // Route: DELETE /api/v1/users/sessions
-func (h *UserSettingsHandler) RevokeAllSessions(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *UserSettingsHandler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	if err := sessionModel.DeleteAllSessionsForUser(user.ID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke sessions"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke sessions"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "All sessions revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "All sessions revoked"})
 }

@@ -12,9 +12,10 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // NotificationHandler serves the user notification center. DB must be the
@@ -61,11 +62,12 @@ const notificationColumns = "id, user_id, type, display, title, message, action_
 const unreadNotificationPredicate = " AND read = 0 AND dismissed = 0"
 
 // authedUserID returns the authenticated user's id from context. Unlike
-// c.GetInt, which silently returns 0 when the key is absent, this reports
-// whether a valid caller was actually authenticated so handlers can reject
-// unauthenticated requests instead of silently scoping them to user_id=0.
-func authedUserID(c *gin.Context) (int, bool) {
-	val, exists := c.Get("user_id")
+// reqctx.GetInt, which silently returns 0 when the key is absent, this
+// reports whether a valid caller was actually authenticated so handlers can
+// reject unauthenticated requests instead of silently scoping them to
+// user_id=0.
+func authedUserID(r *http.Request) (int, bool) {
+	val, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
 		return 0, false
 	}
@@ -116,28 +118,40 @@ func scanNotification(scan func(dest ...interface{}) error) (Notification, error
 }
 
 // ListNotifications returns all notifications for the current user
-func (h *NotificationHandler) ListNotifications(c *gin.Context) {
-	userID, ok := authedUserID(c)
+func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authedUserID(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
 
 	// Get pagination params. Both values are clamped: a non-numeric, zero or
 	// negative "limit" would otherwise reach SQLite as LIMIT -1 (no limit at
 	// all) and a page below 1 would produce a negative OFFSET.
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageParam := r.URL.Query().Get("page")
+	if pageParam == "" {
+		pageParam = "1"
+	}
+	page, _ := strconv.Atoi(pageParam)
 	if page < 1 {
 		page = 1
 	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(defaultNotificationPageSize)))
+	limitParam := r.URL.Query().Get("limit")
+	if limitParam == "" {
+		limitParam = strconv.Itoa(defaultNotificationPageSize)
+	}
+	limit, _ := strconv.Atoi(limitParam)
 	if limit < 1 || limit > maxNotificationPageSize {
 		limit = defaultNotificationPageSize
 	}
 	offset := (page - 1) * limit
 
 	// Get unread filter
-	unreadOnly := c.DefaultQuery("unread", "false") == "true"
+	unreadParam := r.URL.Query().Get("unread")
+	if unreadParam == "" {
+		unreadParam = "false"
+	}
+	unreadOnly := unreadParam == "true"
 
 	// Build query
 	query := "SELECT " + notificationColumns + " FROM user_notifications WHERE user_id = ?"
@@ -152,7 +166,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
 		return
 	}
 	defer rows.Close()
@@ -161,14 +175,14 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	for rows.Next() {
 		n, scanErr := scanNotification(rows.Scan)
 		if scanErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
 			return
 		}
 
 		notifications = append(notifications, n)
 	}
 	if err := rows.Err(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
 		return
 	}
 
@@ -180,11 +194,11 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 		countQuery += unreadNotificationPredicate
 	}
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, countQuery, countArgs...).Scan(&total); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"notifications": notifications,
 		"total":         total,
 		"page":          page,
@@ -193,10 +207,10 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 }
 
 // GetUnreadCount returns the count of unread notifications
-func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
-	userID, ok := authedUserID(c)
+func (h *NotificationHandler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authedUserID(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
 
@@ -204,35 +218,35 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT COUNT(*) FROM user_notifications WHERE user_id = ?"+unreadNotificationPredicate, userID).Scan(&count)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get unread count"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get unread count"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"unread_count": count,
 	})
 }
 
 // MarkAsRead marks a notification as read
-func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
-	userID, ok := authedUserID(c)
+func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authedUserID(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 
 	// Verify ownership
 	var ownerID int
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT user_id FROM user_notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Notification not found"})
 		return
 	}
 
 	if ownerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
@@ -242,51 +256,51 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"UPDATE user_notifications SET read = 1 WHERE id = ? AND user_id = ?", notificationID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notification as read"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to mark notification as read"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }
 
 // MarkAllAsRead marks all notifications as read for the current user
-func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
-	userID, ok := authedUserID(c)
+func (h *NotificationHandler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authedUserID(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
 
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notifications as read"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to mark notifications as read"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }
 
 // DeleteNotification deletes a notification
-func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
-	userID, ok := authedUserID(c)
+func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.Request) {
+	userID, ok := authedUserID(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 
 	// Verify ownership
 	var ownerID int
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT user_id FROM user_notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Notification not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Notification not found"})
 		return
 	}
 
 	if ownerID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
@@ -294,11 +308,11 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"DELETE FROM user_notifications WHERE id = ? AND user_id = ?", notificationID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete notification"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete notification"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }
 
 // isValidNotificationType reports whether notifType is one of the five values
@@ -342,10 +356,10 @@ func (h *NotificationHandler) CreateNotification(userID int, notifType, title, m
 }
 
 // ShowNotificationsPage renders the notifications page
-func (h *NotificationHandler) ShowNotificationsPage(c *gin.Context) {
-	userRole := c.GetString("user_role")
+func (h *NotificationHandler) ShowNotificationsPage(w http.ResponseWriter, r *http.Request) {
+	userRole := reqctx.GetString(r.Context(), "user_role")
 
-	NegotiateResponse(c, "page/notifications.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/notifications.tmpl", util.TemplateData(r, map[string]interface{}{
 		"IsAdmin": userRole == "admin",
 		"title":   "Notifications",
 		"page":    "notifications",

@@ -8,9 +8,8 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 type DashboardHandler struct {
@@ -18,10 +17,10 @@ type DashboardHandler struct {
 }
 
 // ShowDashboard renders the user dashboard
-func (h *DashboardHandler) ShowDashboard(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
@@ -40,7 +39,7 @@ func (h *DashboardHandler) ShowDashboard(c *gin.Context) {
 		unreadCount = 0
 	}
 
-	NegotiateResponse(c, "page/dashboard.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/dashboard.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":         "Dashboard - Weather",
 		"user":          user,
 		"locations":     locations,
@@ -51,23 +50,23 @@ func (h *DashboardHandler) ShowDashboard(c *gin.Context) {
 }
 
 // ShowAdminPanel renders the admin panel
-func (h *DashboardHandler) ShowAdminPanel(c *gin.Context) {
-	adminIDValue, exists := c.Get("admin_id")
+func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
+	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
 	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		c.Redirect(http.StatusFound, "/server/admin")
+		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return
 	}
 
@@ -81,7 +80,7 @@ func (h *DashboardHandler) ShowAdminPanel(c *gin.Context) {
 	var totalLocations int
 	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
 
-	c.HTML(http.StatusOK, "admin/admin.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":          "Admin Panel - Weather",
 		"user":           admin,
 		"totalUsers":     totalUsers,

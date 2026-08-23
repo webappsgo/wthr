@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	utils "github.com/webappsgo/wthr/src/util"
 )
@@ -18,20 +18,21 @@ import (
 // access.log entry containing the method, path, and status code for a
 // completed request.
 func TestAccessLogger_WritesRequestLine(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	logDir := t.TempDir()
 	logger, err := utils.NewLogger(logDir)
 	if err != nil {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	router := gin.New()
-	router.Use(AccessLogger(logger))
-	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	handler := AccessLogger(logger)(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -66,26 +67,29 @@ func TestAccessLogger_WritesRequestLine(t *testing.T) {
 // username should appear in the access log) and is expected to FAIL against
 // the current implementation.
 func TestAccessLogger_UsernameNeverPopulatedForRealAuthenticatedUser(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	logDir := t.TempDir()
 	logger, err := utils.NewLogger(logDir)
 	if err != nil {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		// Mirrors exactly what auth.go / token_auth.go set: a *model.User,
-		// not a map[string]interface{}.
-		c.Set(UserContextKey, &model.User{ID: 1, Username: "alice"})
-		c.Next()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	})
-	router.Use(AccessLogger(logger))
-	router.GET("/users/settings", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	accessLogger := AccessLogger(logger)(next)
+
+	// Mirrors exactly what auth.go / token_auth.go set: a *model.User,
+	// not a map[string]interface{}.
+	setUser := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := reqctx.Set(r.Context(), UserContextKey, &model.User{ID: 1, Username: "alice"})
+		r = r.WithContext(ctx)
+		accessLogger.ServeHTTP(w, r)
+	})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/users/settings", nil)
-	router.ServeHTTP(w, req)
+	setUser.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -109,7 +113,6 @@ func TestAccessLogger_UsernameNeverPopulatedForRealAuthenticatedUser(t *testing.
 // format-configurable variant also produces output via the formatter and
 // logger.Write path, for a representative format.
 func TestAccessLoggerWithFormat_WritesFormattedLine(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	logDir := t.TempDir()
 	logger, err := utils.NewLogger(logDir)
 	if err != nil {
@@ -117,13 +120,15 @@ func TestAccessLoggerWithFormat_WritesFormattedLine(t *testing.T) {
 	}
 	formatter := service.NewLogFormatter(service.LogFormatText)
 
-	router := gin.New()
-	router.Use(AccessLoggerWithFormat(logger, formatter))
-	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	handler := AccessLoggerWithFormat(logger, formatter)(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)

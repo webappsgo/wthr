@@ -4,13 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-func newParamsTestContext(rawQuery string, headers map[string]string) *gin.Context {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
+func newParamsTestRequest(rawQuery string, headers map[string]string) *http.Request {
 	target := "/"
 	if rawQuery != "" {
 		target += "?" + rawQuery
@@ -19,14 +15,13 @@ func newParamsTestContext(rawQuery string, headers map[string]string) *gin.Conte
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	c.Request = req
-	return c
+	return req
 }
 
 // TestParseQueryParams_Defaults verifies the zero-query default values.
 func TestParseQueryParams_Defaults(t *testing.T) {
-	c := newParamsTestContext("", nil)
-	p := ParseQueryParams(c)
+	r := newParamsTestRequest("", nil)
+	p := ParseQueryParams(r)
 
 	if p.Format != 0 {
 		t.Errorf("Format = %d, want 0", p.Format)
@@ -61,8 +56,8 @@ func TestParseQueryParams_UnitFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newParamsTestContext(tt.query, nil)
-			p := ParseQueryParams(c)
+			r := newParamsTestRequest(tt.query, nil)
+			p := ParseQueryParams(r)
 			if p.Units != tt.want {
 				t.Errorf("Units = %q, want %q", p.Units, tt.want)
 			}
@@ -86,8 +81,8 @@ func TestParseQueryParams_StyleFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newParamsTestContext(tt.query, nil)
-			p := ParseQueryParams(c)
+			r := newParamsTestRequest(tt.query, nil)
+			p := ParseQueryParams(r)
 			if !tt.check(p) {
 				t.Errorf("flag from query %q not set", tt.query)
 			}
@@ -98,8 +93,8 @@ func TestParseQueryParams_StyleFlags(t *testing.T) {
 // TestParseQueryParams_CombinedFlags covers a single combined-flag query
 // key like "?Tqn" applying multiple flags at once.
 func TestParseQueryParams_CombinedFlags(t *testing.T) {
-	c := newParamsTestContext("Tqn", nil)
-	p := ParseQueryParams(c)
+	r := newParamsTestRequest("Tqn", nil)
+	p := ParseQueryParams(r)
 	if !p.NoColors {
 		t.Error("combined flag Tqn: NoColors not set")
 	}
@@ -128,8 +123,8 @@ func TestParseQueryParams_Format(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("format_"+tt.format, func(t *testing.T) {
-			c := newParamsTestContext("format="+tt.format, nil)
-			p := ParseQueryParams(c)
+			r := newParamsTestRequest("format="+tt.format, nil)
+			p := ParseQueryParams(r)
 			if p.Format != tt.wantFormat {
 				t.Errorf("Format = %d, want %d", p.Format, tt.wantFormat)
 			}
@@ -162,8 +157,8 @@ func TestParseQueryParams_Days(t *testing.T) {
 			if tt.days != "" {
 				query = "days=" + tt.days
 			}
-			c := newParamsTestContext(query, nil)
-			p := ParseQueryParams(c)
+			r := newParamsTestRequest(query, nil)
+			p := ParseQueryParams(r)
 			if p.Days != tt.want {
 				t.Errorf("Days = %d, want %d", p.Days, tt.want)
 			}
@@ -174,8 +169,8 @@ func TestParseQueryParams_Days(t *testing.T) {
 // TestParseQueryParams_AcceptHeaderTextPlain verifies the Accept header
 // also disables colors, independent of query params.
 func TestParseQueryParams_AcceptHeaderTextPlain(t *testing.T) {
-	c := newParamsTestContext("", map[string]string{"Accept": "text/plain"})
-	p := ParseQueryParams(c)
+	r := newParamsTestRequest("", map[string]string{"Accept": "text/plain"})
+	p := ParseQueryParams(r)
 	if !p.NoColors {
 		t.Error("Accept: text/plain should force NoColors = true")
 	}
@@ -184,8 +179,8 @@ func TestParseQueryParams_AcceptHeaderTextPlain(t *testing.T) {
 // TestParseQueryParams_Language verifies the lang query param overrides
 // the "en" default.
 func TestParseQueryParams_Language(t *testing.T) {
-	c := newParamsTestContext("lang=es", nil)
-	p := ParseQueryParams(c)
+	r := newParamsTestRequest("lang=es", nil)
+	p := ParseQueryParams(r)
 	if p.Language != "es" {
 		t.Errorf("Language = %q, want es", p.Language)
 	}
@@ -209,8 +204,8 @@ func TestParseQueryParams_Width(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newParamsTestContext(tt.query, tt.headers)
-			p := ParseQueryParams(c)
+			r := newParamsTestRequest(tt.query, tt.headers)
+			p := ParseQueryParams(r)
 			if p.Width != tt.want {
 				t.Errorf("Width = %d, want %d", p.Width, tt.want)
 			}

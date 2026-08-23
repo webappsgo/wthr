@@ -1,14 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -25,16 +29,43 @@ func newNotificationAPIHandlers(t *testing.T) *NotificationAPIHandlers {
 	return NewNotificationAPIHandlers(svc, nil)
 }
 
-// setUserIDContext / setAdminIDContext mirror exactly what notification_api.go
-// reads (c.Get("user_id") / c.Get("admin_id")) so the success paths are
-// reachable; see the context-key-mismatch subtest below for what real
-// middleware actually sets.
-func setUserIDContext(c *gin.Context, id int) {
-	c.Set("user_id", id)
+// newAPIRequest builds a request/recorder pair for direct handler
+// invocation, encoding non-string bodies as JSON and passing string bodies
+// through verbatim (used to exercise malformed-JSON test cases).
+func newAPIRequest(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var bodyReader io.Reader
+	switch v := body.(type) {
+	case nil:
+		bodyReader = nil
+	case string:
+		if v != "" {
+			bodyReader = strings.NewReader(v)
+		}
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatalf("failed to marshal body: %v", err)
+		}
+		bodyReader = bytes.NewReader(b)
+	}
+
+	req := httptest.NewRequest(method, target, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	return req, httptest.NewRecorder()
 }
 
-func setAdminIDContext(c *gin.Context, id int) {
-	c.Set("admin_id", id)
+// setUserIDContext / setAdminIDContext mirror exactly what notification_api.go
+// reads (reqctx.Get(r.Context(), "user_id") / reqctx.Get(r.Context(),
+// "admin_id")) so the success paths are reachable; see the
+// context-key-mismatch subtest below for what real middleware actually sets.
+func setUserIDContext(r *http.Request, id int) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), "user_id", id))
+}
+
+func setAdminIDContext(r *http.Request, id int) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), "admin_id", id))
 }
 
 // GetUserNotifications covers the success path (service call reaches the
@@ -43,10 +74,10 @@ func TestNotificationAPIHandlers_GetUserNotifications(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("success with no notifications yet", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications", "")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications", "")
+		r = setUserIDContext(r, 1)
 
-		h.GetUserNotifications(c)
+		h.GetUserNotifications(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -57,9 +88,9 @@ func TestNotificationAPIHandlers_GetUserNotifications(t *testing.T) {
 	})
 
 	t.Run("missing user_id context returns 401", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications", "")
 
-		h.GetUserNotifications(c)
+		h.GetUserNotifications(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -70,18 +101,18 @@ func TestNotificationAPIHandlers_GetUserNotifications(t *testing.T) {
 // This directly demonstrates BUG #7: real auth middleware (see
 // src/server/middleware/auth.go) stores the authenticated user under
 // middleware.UserContextKey ("user"), and never calls
-// c.Set("user_id", ...) anywhere in production code. A genuinely
+// reqctx.Set(ctx, "user_id", ...) anywhere in production code. A genuinely
 // authenticated request therefore still gets 401 from every user-facing
 // notification API endpoint.
 func TestNotificationAPIHandlers_GetUserNotifications_RealMiddlewareContextKeyMismatch(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications", "")
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications", "")
 
 	// Mirrors what real auth middleware actually does: sets "user" to a
 	// value, never "user_id" to an int.
-	c.Set("user", struct{ ID int }{ID: 1})
+	r = r.WithContext(reqctx.Set(r.Context(), "user", struct{ ID int }{ID: 1}))
 
-	h.GetUserNotifications(c)
+	h.GetUserNotifications(w, r)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 (BUG #7: handler reads \"user_id\" but middleware sets \"user\"); body=%s", w.Code, w.Body.String())
@@ -92,10 +123,10 @@ func TestNotificationAPIHandlers_GetUserUnreadNotifications(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("success", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/unread", "")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/unread", "")
+		r = setUserIDContext(r, 1)
 
-		h.GetUserUnreadNotifications(c)
+		h.GetUserUnreadNotifications(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -103,9 +134,9 @@ func TestNotificationAPIHandlers_GetUserUnreadNotifications(t *testing.T) {
 	})
 
 	t.Run("missing auth returns 401", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/unread", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/unread", "")
 
-		h.GetUserUnreadNotifications(c)
+		h.GetUserUnreadNotifications(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -115,10 +146,10 @@ func TestNotificationAPIHandlers_GetUserUnreadNotifications(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetUserUnreadCount(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/count", "")
-	setUserIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/count", "")
+	r = setUserIDContext(r, 1)
 
-	h.GetUserUnreadCount(c)
+	h.GetUserUnreadCount(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -130,10 +161,10 @@ func TestNotificationAPIHandlers_GetUserUnreadCount(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetUserNotificationStats(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/stats", "")
-	setUserIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/stats", "")
+	r = setUserIDContext(r, 1)
 
-	h.GetUserNotificationStats(c)
+	h.GetUserNotificationStats(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -146,11 +177,11 @@ func TestNotificationAPIHandlers_MarkUserNotificationRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/does-not-exist/read", "")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "does-not-exist"}}
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/does-not-exist/read", "")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "does-not-exist")
 
-		h.MarkUserNotificationRead(c)
+		h.MarkUserNotificationRead(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -158,10 +189,10 @@ func TestNotificationAPIHandlers_MarkUserNotificationRead(t *testing.T) {
 	})
 
 	t.Run("missing auth returns 401 before touching id", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/x/read", "")
-		c.Params = gin.Params{{Key: "id", Value: "x"}}
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/x/read", "")
+		r = withURLParam(r, "id", "x")
 
-		h.MarkUserNotificationRead(c)
+		h.MarkUserNotificationRead(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -171,10 +202,10 @@ func TestNotificationAPIHandlers_MarkUserNotificationRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_MarkAllUserNotificationsRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/read", "")
-	setUserIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/read", "")
+	r = setUserIDContext(r, 1)
 
-	h.MarkAllUserNotificationsRead(c)
+	h.MarkAllUserNotificationsRead(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -183,11 +214,11 @@ func TestNotificationAPIHandlers_MarkAllUserNotificationsRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_DismissUserNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/x/dismiss", "")
-	setUserIDContext(c, 1)
-	c.Params = gin.Params{{Key: "id", Value: "x"}}
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/x/dismiss", "")
+	r = setUserIDContext(r, 1)
+	r = withURLParam(r, "id", "x")
 
-	h.DismissUserNotification(c)
+	h.DismissUserNotification(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for unknown notification; body=%s", w.Code, w.Body.String())
@@ -196,11 +227,11 @@ func TestNotificationAPIHandlers_DismissUserNotification(t *testing.T) {
 
 func TestNotificationAPIHandlers_DeleteUserNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/user/notifications/x", "")
-	setUserIDContext(c, 1)
-	c.Params = gin.Params{{Key: "id", Value: "x"}}
+	r, w := newAPIRequest(t, http.MethodDelete, "/api/v1/user/notifications/x", "")
+	r = setUserIDContext(r, 1)
+	r = withURLParam(r, "id", "x")
 
-	h.DeleteUserNotification(c)
+	h.DeleteUserNotification(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for unknown notification; body=%s", w.Code, w.Body.String())
@@ -214,10 +245,10 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("get returns defaults with no row present", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/preferences", "")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/preferences", "")
+		r = setUserIDContext(r, 1)
 
-		h.GetUserNotificationPreferences(c)
+		h.GetUserNotificationPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -237,10 +268,10 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/preferences", body)
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/preferences", body)
+		r = setUserIDContext(r, 1)
 
-		h.UpdateUserNotificationPreferences(c)
+		h.UpdateUserNotificationPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -253,10 +284,10 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/preferences", body)
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/preferences", body)
+		r = setUserIDContext(r, 1)
 
-		h.UpdateUserNotificationPreferences(c)
+		h.UpdateUserNotificationPreferences(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -264,10 +295,10 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 	})
 
 	t.Run("update rejects malformed JSON body", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/user/notifications/preferences", "{not-json")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/user/notifications/preferences", "{not-json")
+		r = setUserIDContext(r, 1)
 
-		h.UpdateUserNotificationPreferences(c)
+		h.UpdateUserNotificationPreferences(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -282,10 +313,10 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("success with no notifications yet", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
+		r = setAdminIDContext(r, 1)
 
-		h.GetAdminNotifications(c)
+		h.GetAdminNotifications(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -293,9 +324,9 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 	})
 
 	t.Run("missing admin_id returns 401", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
 
-		h.GetAdminNotifications(c)
+		h.GetAdminNotifications(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -305,10 +336,10 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetAdminUnreadCount(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/count", "")
-	setAdminIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/count", "")
+	r = setAdminIDContext(r, 1)
 
-	h.GetAdminUnreadCount(c)
+	h.GetAdminUnreadCount(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -317,10 +348,10 @@ func TestNotificationAPIHandlers_GetAdminUnreadCount(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetAdminNotificationStats(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
-	setAdminIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
+	r = setAdminIDContext(r, 1)
 
-	h.GetAdminNotificationStats(c)
+	h.GetAdminNotificationStats(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -329,11 +360,11 @@ func TestNotificationAPIHandlers_GetAdminNotificationStats(t *testing.T) {
 
 func TestNotificationAPIHandlers_MarkAdminNotificationRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/read", "")
-	setAdminIDContext(c, 1)
-	c.Params = gin.Params{{Key: "id", Value: "x"}}
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/read", "")
+	r = setAdminIDContext(r, 1)
+	r = withURLParam(r, "id", "x")
 
-	h.MarkAdminNotificationRead(c)
+	h.MarkAdminNotificationRead(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for unknown notification; body=%s", w.Code, w.Body.String())
@@ -342,10 +373,10 @@ func TestNotificationAPIHandlers_MarkAdminNotificationRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_MarkAllAdminNotificationsRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/read", "")
-	setAdminIDContext(c, 1)
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/read", "")
+	r = setAdminIDContext(r, 1)
 
-	h.MarkAllAdminNotificationsRead(c)
+	h.MarkAllAdminNotificationsRead(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -354,11 +385,11 @@ func TestNotificationAPIHandlers_MarkAllAdminNotificationsRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_DismissAdminNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/dismiss", "")
-	setAdminIDContext(c, 1)
-	c.Params = gin.Params{{Key: "id", Value: "x"}}
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/dismiss", "")
+	r = setAdminIDContext(r, 1)
+	r = withURLParam(r, "id", "x")
 
-	h.DismissAdminNotification(c)
+	h.DismissAdminNotification(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for unknown notification; body=%s", w.Code, w.Body.String())
@@ -367,11 +398,11 @@ func TestNotificationAPIHandlers_DismissAdminNotification(t *testing.T) {
 
 func TestNotificationAPIHandlers_DeleteAdminNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/server/admin/admin/notifications/x", "")
-	setAdminIDContext(c, 1)
-	c.Params = gin.Params{{Key: "id", Value: "x"}}
+	r, w := newAPIRequest(t, http.MethodDelete, "/api/v1/server/admin/admin/notifications/x", "")
+	r = setAdminIDContext(r, 1)
+	r = withURLParam(r, "id", "x")
 
-	h.DeleteAdminNotification(c)
+	h.DeleteAdminNotification(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404 for unknown notification; body=%s", w.Code, w.Body.String())
@@ -382,10 +413,10 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("get returns defaults", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/preferences", "")
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/preferences", "")
+		r = setAdminIDContext(r, 1)
 
-		h.GetAdminNotificationPreferences(c)
+		h.GetAdminNotificationPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -401,10 +432,10 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
+		r = setAdminIDContext(r, 1)
 
-		h.UpdateAdminNotificationPreferences(c)
+		h.UpdateAdminNotificationPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -417,10 +448,10 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
+		r = setAdminIDContext(r, 1)
 
-		h.UpdateAdminNotificationPreferences(c)
+		h.UpdateAdminNotificationPreferences(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -440,10 +471,10 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 			"title":   "Hello",
 			"message": "World",
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r = setAdminIDContext(r, 1)
 
-		h.SendTestNotification(c)
+		h.SendTestNotification(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
@@ -454,9 +485,9 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "toast", "title": "t", "message": "m",
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
 
-		h.SendTestNotification(c)
+		h.SendTestNotification(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -467,10 +498,10 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "toast", "message": "m",
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r = setAdminIDContext(r, 1)
 
-		h.SendTestNotification(c)
+		h.SendTestNotification(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -481,10 +512,10 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "bogus", "display": "toast", "title": "t", "message": "m",
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r = setAdminIDContext(r, 1)
 
-		h.SendTestNotification(c)
+		h.SendTestNotification(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -495,10 +526,10 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "bogus", "title": "t", "message": "m",
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
-		setAdminIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r = setAdminIDContext(r, 1)
 
-		h.SendTestNotification(c)
+		h.SendTestNotification(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -511,9 +542,9 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 // runs first and short-circuits.
 func TestNotificationAPIHandlers_HandleWebSocketConnection_Unauthorized(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	c, w := newTestContextJSON(t, http.MethodGet, "/ws/notifications", "")
+	r, w := newAPIRequest(t, http.MethodGet, "/ws/notifications", "")
 
-	h.HandleWebSocketConnection(c)
+	h.HandleWebSocketConnection(w, r)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -525,16 +556,16 @@ func TestNotificationAPIHandlers_Aliases(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("GetUserStats delegates and requires auth", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/user/notifications/stats", "")
-		h.GetUserStats(c)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/user/notifications/stats", "")
+		h.GetUserStats(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("GetAdminStats delegates and requires auth", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
-		h.GetAdminStats(c)
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
+		h.GetAdminStats(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -542,17 +573,16 @@ func TestNotificationAPIHandlers_Aliases(t *testing.T) {
 }
 
 // RegisterNotificationAPIRoutes is exercised end-to-end through a real
-// gin.Engine to confirm the route table wires up without panicking and
-// that an unauthenticated request through the full router still yields 401.
+// chi.Mux to confirm the route table wires up without panicking and that an
+// unauthenticated request through the full router still yields 401.
 func TestRegisterNotificationAPIRoutes(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
+	router := chi.NewRouter()
 
 	RegisterNotificationAPIRoutes(router, h, nil, nil)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/notifications", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/notifications/", nil)
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {

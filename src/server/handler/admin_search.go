@@ -3,10 +3,9 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/database"
 )
@@ -57,27 +56,27 @@ var adminSearchPages = []adminSearchPage{
 }
 
 // AdminSearchPage renders the global admin search results page.
-func AdminSearchPage(c *gin.Context) {
-	data := AdminTemplateData(c, gin.H{
-		"title": AdminTranslate(c, "admin.search.title"),
+func AdminSearchPage(w http.ResponseWriter, r *http.Request) {
+	data := AdminTemplateData(r, map[string]interface{}{
+		"title": AdminTranslate(r, "admin.search.title"),
 		"page":  "search",
 	})
 
-	query := strings.TrimSpace(c.Query("q"))
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	data["query"] = query
-	data["results"] = adminSearchAll(c, query, adminPathFromData(data))
+	data["results"] = adminSearchAll(r, query, adminPathFromData(data))
 
-	c.HTML(http.StatusOK, "admin/admin_search.tmpl", data)
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_search.tmpl", data)
 }
 
 // AdminSearchAPI returns the same results as JSON for the API surface.
-func AdminSearchAPI(c *gin.Context) {
-	query := strings.TrimSpace(c.Query("q"))
-	results := adminSearchAll(c, query, adminPathFromData(AdminTemplateData(c, gin.H{})))
+func AdminSearchAPI(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	results := adminSearchAll(r, query, adminPathFromData(AdminTemplateData(r, map[string]interface{}{})))
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ok": true,
-		"data": gin.H{
+		"data": map[string]interface{}{
 			"query":   query,
 			"results": results,
 			"count":   len(results),
@@ -87,7 +86,7 @@ func AdminSearchAPI(c *gin.Context) {
 
 // adminPathFromData reads the configurable admin path out of template data so
 // result links never hardcode the literal "admin" segment.
-func adminPathFromData(data gin.H) string {
+func adminPathFromData(data map[string]interface{}) string {
 	if adminPath, ok := data["admin_path"].(string); ok && adminPath != "" {
 		return adminPath
 	}
@@ -96,28 +95,28 @@ func adminPathFromData(data gin.H) string {
 
 // adminSearchAll runs every source search for the given query. An empty query
 // returns no results rather than everything.
-func adminSearchAll(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchAll(r *http.Request, query, adminPath string) []AdminSearchResult {
 	results := []AdminSearchResult{}
 	if query == "" {
 		return results
 	}
 
-	results = append(results, adminSearchPageCatalog(c, query, adminPath)...)
-	results = append(results, adminSearchSettings(c, query, adminPath)...)
-	results = append(results, adminSearchTasks(c, query, adminPath)...)
-	results = append(results, adminSearchAuditLog(c, query, adminPath)...)
-	results = append(results, adminSearchUsers(c, query, adminPath)...)
+	results = append(results, adminSearchPageCatalog(r, query, adminPath)...)
+	results = append(results, adminSearchSettings(r, query, adminPath)...)
+	results = append(results, adminSearchTasks(r, query, adminPath)...)
+	results = append(results, adminSearchAuditLog(r, query, adminPath)...)
+	results = append(results, adminSearchUsers(r, query, adminPath)...)
 	return results
 }
 
 // adminSearchPageCatalog matches the query against admin page names.
-func adminSearchPageCatalog(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchPageCatalog(r *http.Request, query, adminPath string) []AdminSearchResult {
 	needle := strings.ToLower(query)
-	category := AdminTranslate(c, "admin.search.category.pages")
+	category := AdminTranslate(r, "admin.search.category.pages")
 
 	results := []AdminSearchResult{}
 	for _, page := range adminSearchPages {
-		title := AdminTranslate(c, page.titleKey)
+		title := AdminTranslate(r, page.titleKey)
 		if !strings.Contains(strings.ToLower(title), needle) && !strings.Contains(page.path, needle) {
 			continue
 		}
@@ -132,7 +131,7 @@ func adminSearchPageCatalog(c *gin.Context, query, adminPath string) []AdminSear
 }
 
 // adminSearchSettings matches stored server configuration keys and descriptions.
-func adminSearchSettings(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchSettings(r *http.Request, query, adminPath string) []AdminSearchResult {
 	db := database.GetServerDB()
 	if db == nil {
 		return nil
@@ -148,12 +147,12 @@ func adminSearchSettings(c *gin.Context, query, adminPath string) []AdminSearchR
 	}
 	defer rows.Close()
 
-	category := AdminTranslate(c, "admin.search.category.settings")
+	category := AdminTranslate(r, "admin.search.category.settings")
 	return adminSearchScanPairs(rows, category, adminPath+"/config/settings")
 }
 
 // adminSearchTasks matches scheduled task ids and names.
-func adminSearchTasks(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchResult {
 	db := database.GetServerDB()
 	if db == nil {
 		return nil
@@ -169,12 +168,12 @@ func adminSearchTasks(c *gin.Context, query, adminPath string) []AdminSearchResu
 	}
 	defer rows.Close()
 
-	category := AdminTranslate(c, "admin.search.category.tasks")
+	category := AdminTranslate(r, "admin.search.category.tasks")
 	return adminSearchScanPairs(rows, category, adminPath+"/config/scheduler")
 }
 
 // adminSearchAuditLog matches recent audit entries by action or resource.
-func adminSearchAuditLog(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearchResult {
 	db := database.GetServerDB()
 	if db == nil {
 		return nil
@@ -190,14 +189,14 @@ func adminSearchAuditLog(c *gin.Context, query, adminPath string) []AdminSearchR
 	}
 	defer rows.Close()
 
-	category := AdminTranslate(c, "admin.search.category.audit")
+	category := AdminTranslate(r, "admin.search.category.audit")
 	return adminSearchScanPairs(rows, category, adminPath+"/config/logs/audit")
 }
 
 // adminSearchUsers matches user accounts by username or display name. Email is
 // deliberately not returned: AI.md PART 34 keeps a user's full email hidden from
 // the Server Admin surface.
-func adminSearchUsers(c *gin.Context, query, adminPath string) []AdminSearchResult {
+func adminSearchUsers(r *http.Request, query, adminPath string) []AdminSearchResult {
 	db := database.GetUsersDB()
 	if db == nil {
 		return nil
@@ -213,7 +212,7 @@ func adminSearchUsers(c *gin.Context, query, adminPath string) []AdminSearchResu
 	}
 	defer rows.Close()
 
-	category := AdminTranslate(c, "admin.search.category.users")
+	category := AdminTranslate(r, "admin.search.category.users")
 	return adminSearchScanPairs(rows, category, adminPath+"/config/users")
 }
 

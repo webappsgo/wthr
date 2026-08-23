@@ -14,8 +14,9 @@ import (
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/util"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/patrickmn/go-cache"
@@ -101,8 +102,8 @@ func (h *PasskeyHandler) loadWebAuthnUser(user *models.User) (*passkeyUser, erro
 	return &passkeyUser{user: user, credentials: credentials}, nil
 }
 
-func (h *PasskeyHandler) buildWebAuthn(c *gin.Context) (*webauthn.WebAuthn, error) {
-	host := strings.TrimSpace(c.Request.Host)
+func (h *PasskeyHandler) buildWebAuthn(r *http.Request) (*webauthn.WebAuthn, error) {
+	host := strings.TrimSpace(r.Host)
 	if host == "" {
 		return nil, fmt.Errorf("missing request host")
 	}
@@ -114,7 +115,7 @@ func (h *PasskeyHandler) buildWebAuthn(c *gin.Context) (*webauthn.WebAuthn, erro
 	rpID = strings.TrimPrefix(strings.TrimSuffix(rpID, "]"), "[")
 
 	scheme := "http"
-	if requestUsesHTTPS(c) {
+	if requestUsesHTTPS(r) {
 		scheme = "https"
 	}
 
@@ -136,19 +137,34 @@ func (h *PasskeyHandler) buildWebAuthn(c *gin.Context) (*webauthn.WebAuthn, erro
 	})
 }
 
-func setPasskeyCeremonyCookie(c *gin.Context, token string) {
-	c.SetCookie(passkeyCeremonyCookieName, token, int(passkeyCeremonyTTL.Seconds()), "/", "", requestUsesHTTPS(c), true)
+func setPasskeyCeremonyCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     passkeyCeremonyCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(passkeyCeremonyTTL.Seconds()),
+		Secure:   requestUsesHTTPS(r),
+		HttpOnly: true,
+	})
 }
 
-func clearPasskeyCeremonyCookie(c *gin.Context) {
-	c.SetCookie(passkeyCeremonyCookieName, "", -1, "/", "", requestUsesHTTPS(c), true)
+func clearPasskeyCeremonyCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     passkeyCeremonyCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Secure:   requestUsesHTTPS(r),
+		HttpOnly: true,
+	})
 }
 
-func loadPasskeyCeremonyState(c *gin.Context) (*passkeyCeremonyState, string, error) {
-	token, err := c.Cookie(passkeyCeremonyCookieName)
-	if err != nil || strings.TrimSpace(token) == "" {
+func loadPasskeyCeremonyState(r *http.Request) (*passkeyCeremonyState, string, error) {
+	cookie, err := r.Cookie(passkeyCeremonyCookieName)
+	if err != nil || cookie == nil || strings.TrimSpace(cookie.Value) == "" {
 		return nil, "", fmt.Errorf("passkey session not found")
 	}
+	token := cookie.Value
 
 	rawState, found := passkeyCeremonyCache.Get(token)
 	if !found {
@@ -163,14 +179,14 @@ func loadPasskeyCeremonyState(c *gin.Context) (*passkeyCeremonyState, string, er
 	return state, token, nil
 }
 
-func storePasskeyCeremonyState(c *gin.Context, state *passkeyCeremonyState) error {
+func storePasskeyCeremonyState(w http.ResponseWriter, r *http.Request, state *passkeyCeremonyState) error {
 	token, err := models.GenerateSessionID()
 	if err != nil {
 		return fmt.Errorf("failed to generate passkey session: %w", err)
 	}
 
 	passkeyCeremonyCache.Set(token, state, passkeyCeremonyTTL)
-	setPasskeyCeremonyCookie(c, token)
+	setPasskeyCeremonyCookie(w, r, token)
 	return nil
 }
 
@@ -188,8 +204,8 @@ func parsePasskeyUserHandle(userHandle []byte) (int64, error) {
 	return userID, nil
 }
 
-func cloneRequestWithBody(c *gin.Context, body []byte) *http.Request {
-	req := c.Request.Clone(c.Request.Context())
+func cloneRequestWithBody(r *http.Request, body []byte) *http.Request {
+	req := r.Clone(r.Context())
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	req.ContentLength = int64(len(body))
 	return req
@@ -232,17 +248,17 @@ func (h *PasskeyHandler) passkeyLookup(rawID []byte, userHandle []byte) (webauth
 // @Success 200 {object} map[string]interface{} "Passkey list"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/security/passkeys [get]
-func (h *PasskeyHandler) ListPasskeys(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *PasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
 	passkeys, err := passkeyModel.ListByUserID(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 		return
 	}
 
@@ -256,7 +272,7 @@ func (h *PasskeyHandler) ListPasskeys(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
 		"passkeys": summaries,
 	})
@@ -272,51 +288,51 @@ func (h *PasskeyHandler) ListPasskeys(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "WebAuthn creation options or success on completion"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/security/passkeys [post]
-func (h *PasskeyHandler) RegisterPasskey(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
 	if _, hasResponse := envelope["response"]; hasResponse {
-		h.finishPasskeyRegistration(c, user, body)
+		h.finishPasskeyRegistration(w, r, user, body)
 		return
 	}
 
 	var req passkeyRegistrationStartRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" || strings.TrimSpace(req.Password) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Passkey name and password are required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Passkey name and password are required"})
 		return
 	}
 
 	userModel := &models.UserModel{DB: h.DB}
 	if !userModel.CheckPassword(user, req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Invalid password"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid password"})
 		return
 	}
 
 	waUser, err := h.loadWebAuthnUser(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 		return
 	}
 
@@ -325,9 +341,9 @@ func (h *PasskeyHandler) RegisterPasskey(c *gin.Context) {
 		exclusions = append(exclusions, credential.Descriptor())
 	}
 
-	wa, err := h.buildWebAuthn(c)
+	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
 		return
 	}
 
@@ -341,66 +357,66 @@ func (h *PasskeyHandler) RegisterPasskey(c *gin.Context) {
 		webauthn.WithExclusions(exclusions),
 	)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	if err := storePasskeyCeremonyState(c, &passkeyCeremonyState{
+	if err := storePasskeyCeremonyState(w, r, &passkeyCeremonyState{
 		Kind:        passkeyKindRegistration,
 		UserID:      user.ID,
 		Name:        req.Name,
 		SessionData: *sessionData,
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to start passkey registration"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey registration"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"options": options,
 	})
 }
 
-func (h *PasskeyHandler) finishPasskeyRegistration(c *gin.Context, user *models.User, body []byte) {
-	state, token, err := loadPasskeyCeremonyState(c)
+func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *http.Request, user *models.User, body []byte) {
+	state, token, err := loadPasskeyCeremonyState(r)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != user.ID {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid passkey registration session"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey registration session"})
 		return
 	}
 
 	waUser, err := h.loadWebAuthnUser(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 		return
 	}
 
-	wa, err := h.buildWebAuthn(c)
+	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
 		return
 	}
 
-	credential, err := wa.FinishRegistration(waUser, state.SessionData, cloneRequestWithBody(c, body))
+	credential, err := wa.FinishRegistration(waUser, state.SessionData, cloneRequestWithBody(r, body))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
 	passkey, err := passkeyModel.Create(user.ID, state.Name, credential)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
 	passkeyCeremonyCache.Delete(token)
-	clearPasskeyCeremonyCookie(c)
+	clearPasskeyCeremonyCookie(w, r)
 
-	response := gin.H{
+	response := map[string]interface{}{
 		"ok":      true,
 		"message": "Passkey registered successfully",
 		"passkey": passkeySummary{
@@ -423,7 +439,7 @@ func (h *PasskeyHandler) finishPasskeyRegistration(c *gin.Context, user *models.
 		}
 	}
 
-	c.JSON(http.StatusOK, response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // @Summary Delete passkey
@@ -436,16 +452,16 @@ func (h *PasskeyHandler) finishPasskeyRegistration(c *gin.Context, user *models.
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 404 {object} map[string]interface{} "Passkey not found"
 // @Router /api/v1/users/security/passkeys/{passkey_id} [delete]
-func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *PasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
-	passkeyID, err := strconv.ParseInt(strings.TrimSpace(c.Param("passkey_id")), 10, 64)
+	passkeyID, err := strconv.ParseInt(strings.TrimSpace(chi.URLParam(r, "passkey_id")), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid passkey id"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey id"})
 		return
 	}
 
@@ -455,11 +471,11 @@ func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 		if err.Error() == "passkey not found" {
 			status = http.StatusNotFound
 		}
-		c.JSON(status, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Passkey deleted successfully",
 	})
@@ -474,64 +490,64 @@ func (h *PasskeyHandler) DeletePasskey(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "WebAuthn request options"
 // @Failure 500 {object} map[string]interface{} "Server error"
 // @Router /api/v1/server/auth/passkey/challenge [post]
-func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
+func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	var req passkeyChallengeRequest
-	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
-	wa, err := h.buildWebAuthn(c)
+	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
 		return
 	}
 
 	if strings.TrimSpace(req.SessionToken) != "" {
 		pendingSession, err := loadPendingTwoFactorSession(h.DB, req.SessionToken)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
 		userModel := &models.UserModel{DB: h.DB}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Invalid session token"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid session token"})
 			return
 		}
 		if err := validateAuthUser(user); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
 		waUser, err := h.loadWebAuthnUser(user)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 			return
 		}
 		if len(waUser.credentials) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "No passkeys registered for this account"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "No passkeys registered for this account"})
 			return
 		}
 
 		options, sessionData, err := wa.BeginLogin(waUser, webauthn.WithUserVerification(protocol.VerificationRequired))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
-		if err := storePasskeyCeremonyState(c, &passkeyCeremonyState{
+		if err := storePasskeyCeremonyState(w, r, &passkeyCeremonyState{
 			Kind:                passkeyKindTwoFactor,
 			UserID:              user.ID,
 			PendingSessionToken: pendingSession.ID,
 			SessionData:         *sessionData,
 		}); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to start passkey challenge"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey challenge"})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
 			"options": options,
 		})
@@ -540,19 +556,19 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 
 	options, sessionData, err := wa.BeginDiscoverableLogin(webauthn.WithUserVerification(protocol.VerificationRequired))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	if err := storePasskeyCeremonyState(c, &passkeyCeremonyState{
+	if err := storePasskeyCeremonyState(w, r, &passkeyCeremonyState{
 		Kind:        passkeyKindLogin,
 		SessionData: *sessionData,
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to start passkey challenge"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey challenge"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"options": options,
 	})
@@ -567,22 +583,22 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 401 {object} map[string]interface{} "Verification failed"
 // @Router /api/v1/server/auth/passkey/verify [post]
-func (h *PasskeyHandler) VerifyPasskey(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
-	state, token, err := loadPasskeyCeremonyState(c)
+	state, token, err := loadPasskeyCeremonyState(r)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	wa, err := h.buildWebAuthn(c)
+	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
 		return
 	}
 
@@ -597,21 +613,21 @@ func (h *PasskeyHandler) VerifyPasskey(c *gin.Context) {
 
 	switch state.Kind {
 	case passkeyKindLogin:
-		parsed, parseErr := protocol.ParseCredentialRequestResponse(cloneRequestWithBody(c, body))
+		parsed, parseErr := protocol.ParseCredentialRequestResponse(cloneRequestWithBody(r, body))
 		if parseErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": parseErr.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": parseErr.Error()})
 			return
 		}
 
 		waResolvedUser, resolvedCredential, validateErr := wa.ValidatePasskeyLogin(h.passkeyLookup, state.SessionData, parsed)
 		if validateErr != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": validateErr.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": validateErr.Error()})
 			return
 		}
 
 		resolvedUser, ok := waResolvedUser.(*passkeyUser)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to resolve passkey user"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to resolve passkey user"})
 			return
 		}
 
@@ -619,62 +635,62 @@ func (h *PasskeyHandler) VerifyPasskey(c *gin.Context) {
 		credential = resolvedCredential
 		response, err = createFullAuthSession(h.DB, user)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to create session"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to create session"})
 			return
 		}
 	case passkeyKindTwoFactor:
 		pendingSession, sessionErr := loadPendingTwoFactorSession(h.DB, state.PendingSessionToken)
 		if sessionErr != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": sessionErr.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": sessionErr.Error()})
 			return
 		}
 
 		user, err = userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Invalid session token"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid session token"})
 			return
 		}
 		if err := validateAuthUser(user); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
 		waUser, loadErr := h.loadWebAuthnUser(user)
 		if loadErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 			return
 		}
 
-		credential, err = wa.FinishLogin(waUser, state.SessionData, cloneRequestWithBody(c, body))
+		credential, err = wa.FinishLogin(waUser, state.SessionData, cloneRequestWithBody(r, body))
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
 		response, err = createFullAuthSession(h.DB, user)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to create session"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to create session"})
 			return
 		}
 
 		sessionModel := &models.SessionModel{DB: h.DB}
 		_ = sessionModel.Delete(pendingSession.ID)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid passkey session"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey session"})
 		return
 	}
 
 	if err := passkeyModel.UpdateCredential(user.ID, credential); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to update passkey"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to update passkey"})
 		return
 	}
 
-	_ = userModel.UpdateLastLogin(user.ID, c.ClientIP())
+	_ = userModel.UpdateLastLogin(user.ID, util.GetClientIP(r))
 	passkeyCeremonyCache.Delete(token)
-	clearPasskeyCeremonyCookie(c)
-	setUserSessionCookie(c, response.Token, *response.ExpiresAt)
+	clearPasskeyCeremonyCookie(w, r)
+	setUserSessionCookie(w, r, response.Token, *response.ExpiresAt)
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Passkey authentication successful",
 		"result":  response,

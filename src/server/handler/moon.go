@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -48,8 +46,8 @@ func (h *MoonHandler) GetMoonData(lat, lon float64, date time.Time) *service.Moo
 // @Failure 400 {object} map[string]interface{} "Bad request - invalid coordinates"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/moon [get]
-func (h *MoonHandler) HandleMoonAPI(c *gin.Context) {
-	coords, enhanced, err := h.getLocationFromRequest(c)
+func (h *MoonHandler) HandleMoonAPI(w http.ResponseWriter, r *http.Request) {
+	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
 		return // Error already sent
 	}
@@ -60,8 +58,8 @@ func (h *MoonHandler) HandleMoonAPI(c *gin.Context) {
 	// Calculate sun times
 	sunData := h.calculateSunTimes(coords.Latitude, coords.Longitude, time.Now())
 
-	moonData := gin.H{
-		"location": gin.H{
+	moonData := map[string]interface{}{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -71,7 +69,7 @@ func (h *MoonHandler) HandleMoonAPI(c *gin.Context) {
 			"country":     enhanced.Country,
 			"countryCode": enhanced.CountryCode,
 		},
-		"moon": gin.H{
+		"moon": map[string]interface{}{
 			"phase":        moon.Phase,
 			"illumination": moon.Illumination,
 			"icon":         moon.Icon,
@@ -86,7 +84,7 @@ func (h *MoonHandler) HandleMoonAPI(c *gin.Context) {
 		"sun": sunData,
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, moonData)
+	RespondNegotiatedData(w, r, http.StatusOK, moonData)
 }
 
 // HandleMoonCalendarAPI handles GET /api/v1/moon/calendar
@@ -104,15 +102,15 @@ func (h *MoonHandler) HandleMoonAPI(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/moon/calendar [get]
-func (h *MoonHandler) HandleMoonCalendarAPI(c *gin.Context) {
-	coords, enhanced, err := h.getLocationFromRequest(c)
+func (h *MoonHandler) HandleMoonCalendarAPI(w http.ResponseWriter, r *http.Request) {
+	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
 		return // Error already sent
 	}
 
 	// Get year and month parameters
-	yearStr := c.DefaultQuery("year", "")
-	monthStr := c.DefaultQuery("month", "")
+	yearStr := r.URL.Query().Get("year")
+	monthStr := r.URL.Query().Get("month")
 
 	now := time.Now()
 	year := now.Year()
@@ -134,11 +132,11 @@ func (h *MoonHandler) HandleMoonCalendarAPI(c *gin.Context) {
 	startDate := time.Date(year, time.Month(month), 1, 12, 0, 0, 0, time.UTC)
 	daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
 
-	days := make([]gin.H, daysInMonth)
+	days := make([]map[string]interface{}, daysInMonth)
 	for i := 0; i < daysInMonth; i++ {
 		date := startDate.AddDate(0, 0, i)
 		moon := h.moonService.Calculate(coords.Latitude, coords.Longitude, date)
-		days[i] = gin.H{
+		days[i] = map[string]interface{}{
 			"date":         date.Format("2006-01-02"),
 			"phase":        moon.Phase,
 			"illumination": moon.Illumination,
@@ -147,15 +145,15 @@ func (h *MoonHandler) HandleMoonCalendarAPI(c *gin.Context) {
 		}
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ok": true,
-		"location": gin.H{
+		"location": map[string]interface{}{
 			"name":      enhanced.Name,
 			"shortName": enhanced.ShortName,
 			"latitude":  enhanced.Latitude,
 			"longitude": enhanced.Longitude,
 		},
-		"calendar": gin.H{
+		"calendar": map[string]interface{}{
 			"year":  year,
 			"month": month,
 			"days":  days,
@@ -177,14 +175,14 @@ func (h *MoonHandler) HandleMoonCalendarAPI(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/sun [get]
-func (h *MoonHandler) HandleSunAPI(c *gin.Context) {
-	coords, enhanced, err := h.getLocationFromRequest(c)
+func (h *MoonHandler) HandleSunAPI(w http.ResponseWriter, r *http.Request) {
+	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
 		return // Error already sent
 	}
 
 	// Get optional date parameter
-	dateStr := c.DefaultQuery("date", "")
+	dateStr := r.URL.Query().Get("date")
 	date := time.Now()
 
 	if dateStr != "" {
@@ -195,9 +193,9 @@ func (h *MoonHandler) HandleSunAPI(c *gin.Context) {
 
 	sunData := h.calculateSunTimes(coords.Latitude, coords.Longitude, date)
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ok": true,
-		"location": gin.H{
+		"location": map[string]interface{}{
 			"name":        enhanced.Name,
 			"shortName":   enhanced.ShortName,
 			"fullName":    enhanced.FullName,
@@ -213,11 +211,11 @@ func (h *MoonHandler) HandleSunAPI(c *gin.Context) {
 }
 
 // getLocationFromRequest extracts location from request parameters
-func (h *MoonHandler) getLocationFromRequest(c *gin.Context) (*service.Coordinates, *service.Coordinates, error) {
-	location := c.Query("location")
-	lat := c.Query("lat")
-	lon := c.Query("lon")
-	clientIP := util.GetClientIP(c)
+func (h *MoonHandler) getLocationFromRequest(w http.ResponseWriter, r *http.Request) (*service.Coordinates, *service.Coordinates, error) {
+	location := r.URL.Query().Get("location")
+	lat := r.URL.Query().Get("lat")
+	lon := r.URL.Query().Get("lon")
+	clientIP := util.GetClientIP(r)
 
 	var coords *service.Coordinates
 	var err error
@@ -227,7 +225,7 @@ func (h *MoonHandler) getLocationFromRequest(c *gin.Context) (*service.Coordinat
 		latFloat, err1 := strconv.ParseFloat(lat, 64)
 		lonFloat, err2 := strconv.ParseFloat(lon, 64)
 		if err1 != nil || err2 != nil {
-			RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid coordinates format")
+			RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid coordinates format")
 			return nil, nil, err1
 		}
 		coords = &service.Coordinates{
@@ -237,15 +235,15 @@ func (h *MoonHandler) getLocationFromRequest(c *gin.Context) (*service.Coordinat
 	} else if location != "" {
 		coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 		if err != nil {
-			RespondError(c, http.StatusBadRequest, ErrInvalidInput, err.Error())
+			RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, err.Error())
 			return nil, nil, err
 		}
 	} else {
 		// Try cookies first
-		if latStr, err := c.Cookie("user_lat"); err == nil {
-			if lonStr, err := c.Cookie("user_lon"); err == nil {
-				if latFloat, err1 := strconv.ParseFloat(latStr, 64); err1 == nil {
-					if lonFloat, err2 := strconv.ParseFloat(lonStr, 64); err2 == nil {
+		if latCookie, err := r.Cookie("user_lat"); err == nil {
+			if lonCookie, err := r.Cookie("user_lon"); err == nil {
+				if latFloat, err1 := strconv.ParseFloat(latCookie.Value, 64); err1 == nil {
+					if lonFloat, err2 := strconv.ParseFloat(lonCookie.Value, 64); err2 == nil {
 						coords = &service.Coordinates{
 							Latitude:  latFloat,
 							Longitude: lonFloat,
@@ -259,7 +257,7 @@ func (h *MoonHandler) getLocationFromRequest(c *gin.Context) (*service.Coordinat
 		if coords == nil {
 			coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 			if err != nil {
-				RespondError(c, http.StatusInternalServerError, ErrInternal, "Could not determine location")
+				RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Could not determine location")
 				return nil, nil, err
 			}
 		}
@@ -273,7 +271,7 @@ func (h *MoonHandler) getLocationFromRequest(c *gin.Context) (*service.Coordinat
 
 // calculateSunTimes calculates sunrise, sunset, and related times
 // Uses basic astronomical algorithms
-func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) gin.H {
+func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) map[string]interface{} {
 	// Simplified sun calculation based on location and date
 	// For accurate production use, would integrate with Open-Meteo or similar
 
@@ -306,7 +304,7 @@ func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) gin.H 
 	// Clamp for polar regions
 	if cosHa > 1 {
 		// No sunrise (polar night)
-		return gin.H{
+		return map[string]interface{}{
 			"sunrise":   nil,
 			"sunset":    nil,
 			"solarNoon": formatTime(12, 0),
@@ -315,7 +313,7 @@ func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) gin.H 
 		}
 	} else if cosHa < -1 {
 		// No sunset (midnight sun)
-		return gin.H{
+		return map[string]interface{}{
 			"sunrise":   nil,
 			"sunset":    nil,
 			"solarNoon": formatTime(12, 0),
@@ -352,7 +350,7 @@ func (h *MoonHandler) calculateSunTimes(lat, lon float64, date time.Time) gin.H 
 	dayLengthHours := int(dayLength / 60)
 	dayLengthMins := int(dayLength) % 60
 
-	return gin.H{
+	return map[string]interface{}{
 		"sunrise":   formatTime(sunriseHour, sunriseMin),
 		"sunset":    formatTime(sunsetHour, sunsetMin),
 		"solarNoon": formatTime(noonHour, noonMin),

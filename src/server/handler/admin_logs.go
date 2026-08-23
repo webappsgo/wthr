@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -35,9 +34,12 @@ type LogEntry struct {
 }
 
 // GetLogs retrieves application logs with filtering
-func (h *LogsHandler) GetLogs(c *gin.Context) {
+func (h *LogsHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	// Get tail parameter (number of lines to return)
-	tailParam := c.DefaultQuery("tail", "250")
+	tailParam := r.URL.Query().Get("tail")
+	if tailParam == "" {
+		tailParam = "250"
+	}
 	var tailLines int
 	if tailParam == "all" {
 		// All lines
@@ -53,47 +55,47 @@ func (h *LogsHandler) GetLogs(c *gin.Context) {
 	// Read log file
 	logs, err := h.readLogs(tailLines)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"logs":  logs,
 		"count": len(logs),
 	})
 }
 
 // DownloadLogs allows downloading the complete log file
-func (h *LogsHandler) DownloadLogs(c *gin.Context) {
+func (h *LogsHandler) DownloadLogs(w http.ResponseWriter, r *http.Request) {
 	// Check if log file exists
 	if _, err := os.Stat(h.logFile); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Log file not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Log file not found"})
 		return
 	}
 
 	// Set headers for download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=weather_%s.log", time.Now().Format("2006-01-02")))
-	c.Header("Content-Type", "text/plain")
-	c.File(h.logFile)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=weather_%s.log", time.Now().Format("2006-01-02")))
+	w.Header().Set("Content-Type", "text/plain")
+	http.ServeFile(w, r, h.logFile)
 }
 
 // ClearLogs clears all log entries
-func (h *LogsHandler) ClearLogs(c *gin.Context) {
+func (h *LogsHandler) ClearLogs(w http.ResponseWriter, r *http.Request) {
 	// Truncate log file
 	if err := os.Truncate(h.logFile, 0); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to clear logs"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logs cleared successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Logs cleared successfully"})
 }
 
 // GetLogStats returns statistics about the logs
-func (h *LogsHandler) GetLogStats(c *gin.Context) {
+func (h *LogsHandler) GetLogStats(w http.ResponseWriter, r *http.Request) {
 	// Read all logs
 	logs, err := h.readLogs(-1)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs"})
 		return
 	}
 
@@ -125,20 +127,26 @@ func (h *LogsHandler) GetLogStats(c *gin.Context) {
 		sources[log.Source]++
 	}
 
-	c.JSON(http.StatusOK, stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // StreamLogs streams logs in real-time (Server-Sent Events)
-func (h *LogsHandler) StreamLogs(c *gin.Context) {
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Access-Control-Allow-Origin", "*")
+func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Streaming unsupported"})
+		return
+	}
 
 	// Get current file size
 	fileInfo, err := os.Stat(h.logFile)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stat log file"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to stat log file"})
 		return
 	}
 
@@ -148,7 +156,7 @@ func (h *LogsHandler) StreamLogs(c *gin.Context) {
 
 	for {
 		select {
-		case <-c.Request.Context().Done():
+		case <-r.Context().Done():
 			return
 		case <-ticker.C:
 			// Check for new content
@@ -171,16 +179,26 @@ func (h *LogsHandler) StreamLogs(c *gin.Context) {
 					line := scanner.Text()
 					if line != "" {
 						entry := h.parseLine(line)
-						c.SSEvent("log", entry)
+						writeSSEEvent(w, "log", entry)
 					}
 				}
 
 				file.Close()
 				lastSize = fileInfo.Size()
-				c.Writer.Flush()
+				flusher.Flush()
 			}
 		}
 	}
+}
+
+// Helper: write a Server-Sent Event using the standard SSE wire framing
+// ("event: <name>\ndata: <json>\n\n").
+func writeSSEEvent(w http.ResponseWriter, event string, data interface{}) {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, payload)
 }
 
 // Helper: Read logs from file
@@ -249,34 +267,34 @@ func (h *LogsHandler) parseLine(line string) LogEntry {
 }
 
 // RotateLogs rotates the current log file
-func (h *LogsHandler) RotateLogs(c *gin.Context) {
+func (h *LogsHandler) RotateLogs(w http.ResponseWriter, r *http.Request) {
 	// Create archive filename
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	archivePath := filepath.Join(h.logsDir, fmt.Sprintf("weather_%s.log", timestamp))
 
 	// Copy current log to archive
 	if err := copyFile(h.logFile, archivePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to archive logs"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to archive logs"})
 		return
 	}
 
 	// Truncate current log file
 	if err := os.Truncate(h.logFile, 0); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to truncate log file"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to truncate log file"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Logs rotated successfully",
 		"archive": archivePath,
 	})
 }
 
 // ListArchivedLogs lists all archived log files
-func (h *LogsHandler) ListArchivedLogs(c *gin.Context) {
+func (h *LogsHandler) ListArchivedLogs(w http.ResponseWriter, r *http.Request) {
 	files, err := os.ReadDir(h.logsDir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read logs directory"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs directory"})
 		return
 	}
 
@@ -298,7 +316,7 @@ func (h *LogsHandler) ListArchivedLogs(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"archives": archives})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"archives": archives})
 }
 
 // Helper: Copy file
@@ -320,16 +338,23 @@ func copyFile(src, dst string) error {
 }
 
 // GetAuditLogs retrieves audit logs with filtering and pagination
-func (h *LogsHandler) GetAuditLogs(c *gin.Context) {
+func (h *LogsHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 	auditFile := filepath.Join(h.logsDir, "audit.log")
 
 	// Get query parameters
-	limitParam := c.DefaultQuery("limit", "100")
-	offsetParam := c.DefaultQuery("offset", "0")
-	eventType := c.Query("event_type")
-	username := c.Query("username")
-	startDate := c.Query("start_date")
-	endDate := c.Query("end_date")
+	query := r.URL.Query()
+	limitParam := query.Get("limit")
+	if limitParam == "" {
+		limitParam = "100"
+	}
+	offsetParam := query.Get("offset")
+	if offsetParam == "" {
+		offsetParam = "0"
+	}
+	eventType := query.Get("event_type")
+	username := query.Get("username")
+	startDate := query.Get("start_date")
+	endDate := query.Get("end_date")
 
 	limit, _ := strconv.Atoi(limitParam)
 	offset, _ := strconv.Atoi(offsetParam)
@@ -337,8 +362,8 @@ func (h *LogsHandler) GetAuditLogs(c *gin.Context) {
 	// Read audit log
 	events, total, err := h.readAuditLogs(auditFile, limit, offset, eventType, username, startDate, endDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "READ_FAILED",
 				"message": "Failed to read audit logs",
 			},
@@ -346,9 +371,9 @@ func (h *LogsHandler) GetAuditLogs(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok": true,
-		"data": gin.H{
+		"data": map[string]interface{}{
 			"events": events,
 			"total":  total,
 			"limit":  limit,
@@ -358,13 +383,13 @@ func (h *LogsHandler) GetAuditLogs(c *gin.Context) {
 }
 
 // DownloadAuditLogs allows downloading the complete audit log file
-func (h *LogsHandler) DownloadAuditLogs(c *gin.Context) {
+func (h *LogsHandler) DownloadAuditLogs(w http.ResponseWriter, r *http.Request) {
 	auditFile := filepath.Join(h.logsDir, "audit.log")
 
 	// Check if file exists
 	if _, err := os.Stat(auditFile); os.IsNotExist(err) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "NOT_FOUND",
 				"message": "Audit log file not found",
 			},
@@ -373,13 +398,13 @@ func (h *LogsHandler) DownloadAuditLogs(c *gin.Context) {
 	}
 
 	// Set headers for download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=audit_%s.log", time.Now().Format("2006-01-02")))
-	c.Header("Content-Type", "application/json")
-	c.File(auditFile)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=audit_%s.log", time.Now().Format("2006-01-02")))
+	w.Header().Set("Content-Type", "application/json")
+	http.ServeFile(w, r, auditFile)
 }
 
 // SearchAuditLogs searches audit logs with advanced filtering
-func (h *LogsHandler) SearchAuditLogs(c *gin.Context) {
+func (h *LogsHandler) SearchAuditLogs(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		EventType string `json:"event_type"`
 		Username  string `json:"username"`
@@ -391,9 +416,9 @@ func (h *LogsHandler) SearchAuditLogs(c *gin.Context) {
 		Offset    int    `json:"offset"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
 				"message": "Invalid search parameters",
 			},
@@ -409,8 +434,8 @@ func (h *LogsHandler) SearchAuditLogs(c *gin.Context) {
 	auditFile := filepath.Join(h.logsDir, "audit.log")
 	events, total, err := h.searchAuditLogs(auditFile, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "SEARCH_FAILED",
 				"message": "Failed to search audit logs",
 			},
@@ -418,9 +443,9 @@ func (h *LogsHandler) SearchAuditLogs(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok": true,
-		"data": gin.H{
+		"data": map[string]interface{}{
 			"events": events,
 			"total":  total,
 			"limit":  req.Limit,
@@ -430,14 +455,14 @@ func (h *LogsHandler) SearchAuditLogs(c *gin.Context) {
 }
 
 // GetAuditStats returns statistics about audit events
-func (h *LogsHandler) GetAuditStats(c *gin.Context) {
+func (h *LogsHandler) GetAuditStats(w http.ResponseWriter, r *http.Request) {
 	auditFile := filepath.Join(h.logsDir, "audit.log")
 
 	// Read all audit logs
 	events, _, err := h.readAuditLogs(auditFile, -1, 0, "", "", "", "")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "READ_FAILED",
 				"message": "Failed to read audit logs",
 			},
@@ -499,7 +524,7 @@ func (h *LogsHandler) GetAuditStats(c *gin.Context) {
 	}
 	stats["recent_failures"] = failures
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": stats,
 	})

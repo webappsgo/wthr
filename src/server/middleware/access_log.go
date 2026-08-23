@@ -1,83 +1,74 @@
 package middleware
 
 import (
+	"net/http"
 	"time"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 // AccessLogger creates middleware for logging HTTP requests
 // TEMPLATE.md Part 25: Supports 7 log formats
-func AccessLogger(logger *util.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Start timer
-		start := time.Now()
+func AccessLogger(logger *util.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
+			duration := time.Since(start)
 
-		// Process request
-		c.Next()
+			clientIP := util.GetClientIP(r)
+			method := r.Method
+			path := r.URL.Path
+			protocol := r.Proto
+			statusCode := ww.Status()
+			bodySize := int64(ww.BytesWritten())
+			referer := r.Referer()
+			userAgent := r.UserAgent()
 
-		// Calculate request duration
-		duration := time.Since(start)
-
-		// Extract request details
-		clientIP := c.ClientIP()
-		method := c.Request.Method
-		path := c.Request.URL.Path
-		protocol := c.Request.Proto
-		statusCode := c.Writer.Status()
-		bodySize := int64(c.Writer.Size())
-		referer := c.Request.Referer()
-		userAgent := c.Request.UserAgent()
-
-		// Get username from context (if authenticated)
-		username := ""
-		if user, exists := c.Get(UserContextKey); exists {
-			if u, ok := user.(*model.User); ok && u != nil {
-				username = u.Username
+			username := ""
+			if user, exists := reqctx.Get(r.Context(), UserContextKey); exists {
+				if u, ok := user.(*model.User); ok && u != nil {
+					username = u.Username
+				}
 			}
-		}
 
-		// Log access (legacy method for backward compatibility)
-		logger.Access(clientIP, username, method, path, protocol, statusCode, bodySize, referer, userAgent)
+			logger.Access(clientIP, username, method, path, protocol, statusCode, bodySize, referer, userAgent)
 
-		// Also log slow requests as warnings
-		if duration > 1*time.Second {
-			logger.Error("Slow request: %s %s took %v", method, path, duration)
-		}
+			if duration > 1*time.Second {
+				logger.Error("Slow request: %s %s took %v", method, path, duration)
+			}
+		})
 	}
 }
 
 // AccessLoggerWithFormat creates middleware for logging HTTP requests with configurable format
 // TEMPLATE.md Part 25: Support 7 log formats (apache, nginx, json, fail2ban, syslog, cef, text)
-func AccessLoggerWithFormat(logger *util.Logger, formatter *service.LogFormatter) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Start timer
-		start := time.Now()
+func AccessLoggerWithFormat(logger *util.Logger, formatter *service.LogFormatter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
 
-		// Process request
-		c.Next()
+			entry := service.ExtractLogEntry(r, start, ww.Status(), ww.BytesWritten())
 
-		// Extract log entry from request
-		entry := service.ExtractLogEntry(c, start, c.Writer.Size())
-
-		// Get username from context (if authenticated)
-		if user, exists := c.Get(UserContextKey); exists {
-			if u, ok := user.(*model.User); ok && u != nil {
-				entry.Username = u.Username
+			if user, exists := reqctx.Get(r.Context(), UserContextKey); exists {
+				if u, ok := user.(*model.User); ok && u != nil {
+					entry.Username = u.Username
+				}
 			}
-		}
 
-		// Format and write log
-		logLine := formatter.Format(entry)
-		logger.Write(logLine)
+			logLine := formatter.Format(entry)
+			logger.Write(logLine)
 
-		// Also log slow requests as warnings
-		if entry.RequestTime > 1.0 {
-			logger.Error("Slow request: %s %s took %.3fs", entry.Method, entry.Path, entry.RequestTime)
-		}
+			if entry.RequestTime > 1.0 {
+				logger.Error("Slow request: %s %s took %.3fs", entry.Method, entry.Path, entry.RequestTime)
+			}
+		})
 	}
 }

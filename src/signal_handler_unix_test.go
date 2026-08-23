@@ -7,36 +7,35 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/mode"
 )
 
-// TestHandlePlatformSignal_SIGUSR2 exercises the gin debug-mode toggle branch.
+// TestHandlePlatformSignal_SIGUSR2 exercises the debug-mode toggle branch.
 // It does not touch db/appLogger/dirPaths, so nils are safe fixtures here.
 func TestHandlePlatformSignal_SIGUSR2(t *testing.T) {
-	origMode := gin.Mode()
-	defer gin.SetMode(origMode)
+	origDebug := mode.IsDebugEnabled()
+	defer mode.SetDebugEnabled(origDebug)
 
 	tests := []struct {
-		name      string
-		startMode string
-		wantMode  string
+		name       string
+		startDebug bool
+		wantDebug  bool
 	}{
-		{"debug toggles to release", gin.DebugMode, gin.ReleaseMode},
-		{"release toggles to debug", gin.ReleaseMode, gin.DebugMode},
-		{"test mode toggles to debug", gin.TestMode, gin.DebugMode},
+		{"debug toggles to release", true, false},
+		{"release toggles to debug", false, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gin.SetMode(tt.startMode)
+			mode.SetDebugEnabled(tt.startDebug)
 
 			shouldShutdown := handlePlatformSignal(syscall.SIGUSR2, nil, nil, nil)
 
 			if shouldShutdown {
 				t.Errorf("handlePlatformSignal(SIGUSR2) = shutdown true, want false")
 			}
-			if got := gin.Mode(); got != tt.wantMode {
-				t.Errorf("gin.Mode() after SIGUSR2 = %q, want %q", got, tt.wantMode)
+			if got := mode.IsDebugEnabled(); got != tt.wantDebug {
+				t.Errorf("mode.IsDebugEnabled() after SIGUSR2 = %v, want %v", got, tt.wantDebug)
 			}
 		})
 	}

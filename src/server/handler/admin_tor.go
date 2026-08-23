@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -117,35 +119,35 @@ func (h *TorAdminHandler) ExportTorKeys() ([]byte, []byte, error) {
 
 // GetStatus returns Tor service status
 // GET /{api_version}/admin/server/tor/status
-func (h *TorAdminHandler) GetStatus(c *gin.Context) {
+func (h *TorAdminHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	status := h.torService.GetStatus()
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status": status,
 	})
 }
 
 // GetHealth returns Tor service health status
 // GET /{api_version}/admin/server/tor/health
-func (h *TorAdminHandler) GetHealth(c *gin.Context) {
+func (h *TorAdminHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	health := h.torService.GetHealthStatus()
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"health": health,
 	})
 }
 
 // Enable enables the Tor service
 // POST /{api_version}/admin/server/tor/enable
-func (h *TorAdminHandler) Enable(c *gin.Context) {
+func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 	// Get HTTP port from settings or context
 	// Default, should be retrieved from actual server config
 	httpPort := 8080
 
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", true); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "DATABASE_ERROR",
 				"message": fmt.Sprintf("Failed to update settings: %v", err),
 			},
@@ -155,8 +157,8 @@ func (h *TorAdminHandler) Enable(c *gin.Context) {
 
 	// Start Tor service
 	if err := h.torService.Start(httpPort); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "TOR_START_FAILED",
 				"message": fmt.Sprintf("Failed to start Tor: %v", err),
 			},
@@ -164,7 +166,7 @@ func (h *TorAdminHandler) Enable(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Tor service enabled and started",
 		"status":  h.torService.GetStatus(),
@@ -173,11 +175,11 @@ func (h *TorAdminHandler) Enable(c *gin.Context) {
 
 // Disable disables the Tor service
 // POST /{api_version}/admin/server/tor/disable
-func (h *TorAdminHandler) Disable(c *gin.Context) {
+func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", false); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "DATABASE_ERROR",
 				"message": fmt.Sprintf("Failed to update settings: %v", err),
 			},
@@ -187,8 +189,8 @@ func (h *TorAdminHandler) Disable(c *gin.Context) {
 
 	// Stop Tor service
 	if err := h.torService.Stop(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "TOR_STOP_FAILED",
 				"message": fmt.Sprintf("Failed to stop Tor: %v", err),
 			},
@@ -196,7 +198,7 @@ func (h *TorAdminHandler) Disable(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Tor service disabled and stopped",
 	})
@@ -204,13 +206,13 @@ func (h *TorAdminHandler) Disable(c *gin.Context) {
 
 // UpdateSettings handles PATCH /server/tor per AI.md spec
 // Accepts {"enabled": bool} to enable/disable Tor
-func (h *TorAdminHandler) UpdateSettings(c *gin.Context) {
+func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Enabled *bool `json:"enabled"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
 				"message": "Invalid request body",
 			},
@@ -220,15 +222,15 @@ func (h *TorAdminHandler) UpdateSettings(c *gin.Context) {
 
 	if req.Enabled != nil {
 		if *req.Enabled {
-			h.Enable(c)
+			h.Enable(w, r)
 		} else {
-			h.Disable(c)
+			h.Disable(w, r)
 		}
 		return
 	}
 
-	c.JSON(http.StatusBadRequest, gin.H{
-		"error": gin.H{
+	writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+		"error": map[string]interface{}{
 			"code":    "INVALID_REQUEST",
 			"message": "No settings to update",
 		},
@@ -237,13 +239,13 @@ func (h *TorAdminHandler) UpdateSettings(c *gin.Context) {
 
 // Regenerate regenerates the .onion address
 // POST /{api_version}/admin/server/tor/regenerate
-func (h *TorAdminHandler) Regenerate(c *gin.Context) {
+func (h *TorAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	// Should be retrieved from actual server config
 	httpPort := 8080
 
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "REGENERATE_FAILED",
 				"message": fmt.Sprintf("Failed to regenerate address: %v", err),
 			},
@@ -251,7 +253,7 @@ func (h *TorAdminHandler) Regenerate(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Tor address regenerated successfully",
 		"address": h.torService.GetOnionAddress(),
@@ -260,14 +262,25 @@ func (h *TorAdminHandler) Regenerate(c *gin.Context) {
 
 // GenerateVanity starts vanity address generation
 // POST /{api_version}/admin/server/tor/vanity/generate
-func (h *TorAdminHandler) GenerateVanity(c *gin.Context) {
+func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Prefix string `json:"prefix" binding:"required"`
+		Prefix string `json:"prefix"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "INVALID_REQUEST",
+				"message": "Missing or invalid prefix",
+			},
+		})
+		return
+	}
+
+	// binding:"required" equivalent
+	if req.Prefix == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
 				"message": "Missing or invalid prefix",
 			},
@@ -276,8 +289,8 @@ func (h *TorAdminHandler) GenerateVanity(c *gin.Context) {
 	}
 
 	if err := h.vanityGenerator.Start(req.Prefix); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "GENERATION_FAILED",
 				"message": fmt.Sprintf("Failed to start generation: %v", err),
 			},
@@ -288,7 +301,7 @@ func (h *TorAdminHandler) GenerateVanity(c *gin.Context) {
 	// Start monitoring for completion in background
 	go h.monitorVanityGeneration()
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": fmt.Sprintf("Started generating vanity address with prefix: %s", req.Prefix),
 		"status":  h.vanityGenerator.GetStatus(),
@@ -306,17 +319,17 @@ func (h *TorAdminHandler) monitorVanityGeneration() {
 
 // GetVanityStatus returns vanity generation status
 // GET /{api_version}/admin/server/tor/vanity/status
-func (h *TorAdminHandler) GetVanityStatus(c *gin.Context) {
+func (h *TorAdminHandler) GetVanityStatus(w http.ResponseWriter, r *http.Request) {
 	status := h.vanityGenerator.GetStatus()
 
 	if status == nil {
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"running": false,
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"running":        status.Running,
 		"prefix":         status.Prefix,
 		"start_time":     status.StartTime,
@@ -328,10 +341,10 @@ func (h *TorAdminHandler) GetVanityStatus(c *gin.Context) {
 
 // CancelVanity cancels vanity generation
 // POST /{api_version}/admin/server/tor/vanity/cancel
-func (h *TorAdminHandler) CancelVanity(c *gin.Context) {
+func (h *TorAdminHandler) CancelVanity(w http.ResponseWriter, r *http.Request) {
 	if err := h.vanityGenerator.Cancel(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "CANCEL_FAILED",
 				"message": fmt.Sprintf("Failed to cancel: %v", err),
 			},
@@ -339,7 +352,7 @@ func (h *TorAdminHandler) CancelVanity(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Vanity generation cancelled",
 	})
@@ -347,12 +360,12 @@ func (h *TorAdminHandler) CancelVanity(c *gin.Context) {
 
 // ApplyVanity applies the generated vanity keys
 // POST /{api_version}/admin/server/tor/vanity/apply
-func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
+func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 	// Get generated keys
 	publicKey, privateKey, err := h.vanityGenerator.GetKeys()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "NO_KEYS",
 				"message": fmt.Sprintf("No keys available: %v", err),
 			},
@@ -362,8 +375,8 @@ func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
 
 	// Import keys
 	if err := h.keyManager.ImportKeys(publicKey, privateKey); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "IMPORT_FAILED",
 				"message": fmt.Sprintf("Failed to import keys: %v", err),
 			},
@@ -374,8 +387,8 @@ func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
 	// Restart Tor with new keys
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "RESTART_FAILED",
 				"message": fmt.Sprintf("Failed to restart Tor: %v", err),
 			},
@@ -383,7 +396,7 @@ func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Vanity address applied successfully",
 		"address": h.torService.GetOnionAddress(),
@@ -392,23 +405,29 @@ func (h *TorAdminHandler) ApplyVanity(c *gin.Context) {
 
 // ImportKeys imports external Tor keys
 // POST /{api_version}/admin/server/tor/keys/import
-func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
-	file, err := c.FormFile("key_file")
+func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
+	file, _, err := r.FormFile("key_file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "NO_FILE",
 				"message": "No key file provided",
 			},
 		})
 		return
 	}
+	defer file.Close()
 
 	// Save uploaded file temporarily
 	tempPath := "/tmp/tor_key_upload"
-	if err := c.SaveUploadedFile(file, tempPath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+	dest, err := os.Create(tempPath)
+	if err == nil {
+		_, err = io.Copy(dest, file)
+		dest.Close()
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "SAVE_FAILED",
 				"message": fmt.Sprintf("Failed to save file: %v", err),
 			},
@@ -418,8 +437,8 @@ func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
 
 	// Import from file
 	if err := h.keyManager.ImportFromFile(tempPath); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "IMPORT_FAILED",
 				"message": fmt.Sprintf("Failed to import keys: %v", err),
 			},
@@ -430,8 +449,8 @@ func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
 	// Restart Tor with new keys
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "RESTART_FAILED",
 				"message": fmt.Sprintf("Failed to restart Tor: %v", err),
 			},
@@ -439,7 +458,7 @@ func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Keys imported and Tor restarted successfully",
 		"address": h.torService.GetOnionAddress(),
@@ -448,11 +467,11 @@ func (h *TorAdminHandler) ImportKeys(c *gin.Context) {
 
 // ExportKeys exports current Tor keys
 // GET /{api_version}/admin/server/tor/keys/export
-func (h *TorAdminHandler) ExportKeys(c *gin.Context) {
+func (h *TorAdminHandler) ExportKeys(w http.ResponseWriter, r *http.Request) {
 	publicKey, privateKey, err := h.keyManager.ExportKeys()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error": map[string]interface{}{
 				"code":    "EXPORT_FAILED",
 				"message": fmt.Sprintf("Failed to export keys: %v", err),
 			},
@@ -461,16 +480,16 @@ func (h *TorAdminHandler) ExportKeys(c *gin.Context) {
 	}
 
 	// Return private key file for download
-	c.Header("Content-Disposition", "attachment; filename=hs_ed25519_secret_key")
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Length", strconv.Itoa(len(privateKey)))
+	w.Header().Set("Content-Disposition", "attachment; filename=hs_ed25519_secret_key")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.Itoa(len(privateKey)))
 
 	// Write key in Tor format (32-byte header + 32-byte key)
 	header := []byte("== ed25519v1-secret: type0 ==")
 	padding := make([]byte, 32-len(header))
-	c.Writer.Write(header)
-	c.Writer.Write(padding)
-	c.Writer.Write(privateKey)
+	w.Write(header)
+	w.Write(padding)
+	w.Write(privateKey)
 
 	// Public key can be derived from private
 	_ = publicKey

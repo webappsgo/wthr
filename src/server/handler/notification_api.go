@@ -1,18 +1,20 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/mode"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -80,20 +82,28 @@ func NewNotificationAPIHandlers(notificationService *service.NotificationService
 
 // GetUserNotifications returns all notifications for the authenticated user
 // GET /{api_version}/users/notifications
-func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) GetUserNotifications(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "50"
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+	limit, _ := strconv.Atoi(limitStr)
+	offset, _ := strconv.Atoi(offsetStr)
 
 	if limit < 1 || limit > 100 {
 		limit = 50
@@ -101,11 +111,11 @@ func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
 
 	notifications, err := h.NotificationService.GetUserNotifications(userID, limit, offset)
 	if err != nil {
-		InternalError(c, "failed to retrieve notifications")
+		InternalError(w, r, "failed to retrieve notifications")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"notifications": notifications,
 		"limit":         limit,
 		"offset":        offset,
@@ -115,25 +125,25 @@ func (h *NotificationAPIHandlers) GetUserNotifications(c *gin.Context) {
 
 // GetUserUnreadNotifications returns unread notifications for the authenticated user
 // GET /{api_version}/users/notifications/unread
-func (h *NotificationAPIHandlers) GetUserUnreadNotifications(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) GetUserUnreadNotifications(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	notifications, err := h.NotificationService.GetUserUnreadNotifications(userID)
 	if err != nil {
-		InternalError(c, "failed to retrieve unread notifications")
+		InternalError(w, r, "failed to retrieve unread notifications")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"notifications": notifications,
 		"count":         len(notifications),
 	})
@@ -141,208 +151,208 @@ func (h *NotificationAPIHandlers) GetUserUnreadNotifications(c *gin.Context) {
 
 // GetUserUnreadCount returns the count of unread notifications
 // GET /{api_version}/users/notifications/count
-func (h *NotificationAPIHandlers) GetUserUnreadCount(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) GetUserUnreadCount(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	count, err := h.NotificationService.GetUserUnreadCount(userID)
 	if err != nil {
-		InternalError(c, "failed to get unread count")
+		InternalError(w, r, "failed to get unread count")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"count": count,
 	})
 }
 
 // GetUserNotificationStats returns notification statistics
 // GET /{api_version}/users/notifications/stats
-func (h *NotificationAPIHandlers) GetUserNotificationStats(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) GetUserNotificationStats(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	stats, err := h.NotificationService.GetUserStatistics(userID)
 	if err != nil {
-		InternalError(c, "failed to get statistics")
+		InternalError(w, r, "failed to get statistics")
 		return
 	}
 
-	RespondData(c, stats)
+	RespondData(w, r, stats)
 }
 
 // MarkUserNotificationRead marks a notification as read
-// PATCH /{api_version}/users/notifications/:id/read
-func (h *NotificationAPIHandlers) MarkUserNotificationRead(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+// PATCH /{api_version}/users/notifications/{id}/read
+func (h *NotificationAPIHandlers) MarkUserNotificationRead(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.MarkUserNotificationAsRead(notificationID, userID)
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification marked as read", map[string]interface{}{
+	RespondSuccess(w, r, "notification marked as read", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // MarkAllUserNotificationsRead marks all notifications as read
 // PATCH /{api_version}/users/notifications/read
-func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	err := h.NotificationService.MarkAllUserNotificationsAsRead(userID)
 	if err != nil {
-		InternalError(c, "failed to mark notifications as read")
+		InternalError(w, r, "failed to mark notifications as read")
 		return
 	}
 
-	RespondSuccess(c, "all notifications marked as read")
+	RespondSuccess(w, r, "all notifications marked as read")
 }
 
 // DismissUserNotification dismisses a notification
-// PATCH /{api_version}/users/notifications/:id/dismiss
-func (h *NotificationAPIHandlers) DismissUserNotification(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+// PATCH /{api_version}/users/notifications/{id}/dismiss
+func (h *NotificationAPIHandlers) DismissUserNotification(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.DismissUserNotification(notificationID, userID)
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification dismissed", map[string]interface{}{
+	RespondSuccess(w, r, "notification dismissed", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // DeleteUserNotification deletes a notification
-// DELETE /{api_version}/users/notifications/:id
-func (h *NotificationAPIHandlers) DeleteUserNotification(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+// DELETE /{api_version}/users/notifications/{id}
+func (h *NotificationAPIHandlers) DeleteUserNotification(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.DeleteUserNotification(notificationID, userID)
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification deleted", map[string]interface{}{
+	RespondSuccess(w, r, "notification deleted", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // GetUserNotificationPreferences returns notification preferences
 // GET /{api_version}/users/notifications/preferences
-func (h *NotificationAPIHandlers) GetUserNotificationPreferences(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) GetUserNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	prefs, err := h.NotificationService.GetUserPreferences(userID)
 	if err != nil {
-		InternalError(c, "failed to get preferences")
+		InternalError(w, r, "failed to get preferences")
 		return
 	}
 
-	RespondData(c, prefs)
+	RespondData(w, r, prefs)
 }
 
 // UpdateUserNotificationPreferences updates notification preferences
 // PATCH /{api_version}/users/notifications/preferences
-func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(c *gin.Context) {
-	userIDVal, exists := c.Get("user_id")
+func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 	userID, ok := userIDVal.(int)
 	if !ok {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	var prefs model.NotificationPreferences
-	if err := c.ShouldBindJSON(&prefs); err != nil {
-		BadRequest(c, "invalid request body")
+	if err := json.NewDecoder(r.Body).Decode(&prefs); err != nil {
+		BadRequest(w, r, "invalid request body")
 		return
 	}
 
@@ -350,32 +360,40 @@ func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(c *gin.Conte
 	if prefs.ToastDurationSuccess < 1 || prefs.ToastDurationSuccess > 60 ||
 		prefs.ToastDurationInfo < 1 || prefs.ToastDurationInfo > 60 ||
 		prefs.ToastDurationWarning < 1 || prefs.ToastDurationWarning > 60 {
-		BadRequest(c, "toast durations must be between 1 and 60 seconds")
+		BadRequest(w, r, "toast durations must be between 1 and 60 seconds")
 		return
 	}
 
 	err := h.NotificationService.UpdateUserPreferences(userID, &prefs)
 	if err != nil {
-		InternalError(c, "failed to update preferences")
+		InternalError(w, r, "failed to update preferences")
 		return
 	}
 
-	RespondSuccess(c, "preferences updated successfully")
+	RespondSuccess(w, r, "preferences updated successfully")
 }
 
 // ========== ADMIN NOTIFICATION ENDPOINTS ==========
 
 // GetAdminNotifications returns all notifications for the authenticated admin
 // GET /{api_version}/admin/notifications
-func (h *NotificationAPIHandlers) GetAdminNotifications(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) GetAdminNotifications(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "50"
+	}
+	offsetStr := r.URL.Query().Get("offset")
+	if offsetStr == "" {
+		offsetStr = "0"
+	}
+	limit, _ := strconv.Atoi(limitStr)
+	offset, _ := strconv.Atoi(offsetStr)
 
 	if limit < 1 || limit > 100 {
 		limit = 50
@@ -383,11 +401,11 @@ func (h *NotificationAPIHandlers) GetAdminNotifications(c *gin.Context) {
 
 	notifications, err := h.NotificationService.GetAdminNotifications(adminID.(int), limit, offset)
 	if err != nil {
-		InternalError(c, "failed to retrieve notifications")
+		InternalError(w, r, "failed to retrieve notifications")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"notifications": notifications,
 		"limit":         limit,
 		"offset":        offset,
@@ -397,20 +415,20 @@ func (h *NotificationAPIHandlers) GetAdminNotifications(c *gin.Context) {
 
 // GetAdminUnreadNotifications returns unread notifications for the authenticated admin
 // GET /{api_version}/admin/notifications/unread
-func (h *NotificationAPIHandlers) GetAdminUnreadNotifications(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) GetAdminUnreadNotifications(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	notifications, err := h.NotificationService.GetAdminUnreadNotifications(adminID.(int))
 	if err != nil {
-		InternalError(c, "failed to retrieve unread notifications")
+		InternalError(w, r, "failed to retrieve unread notifications")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"notifications": notifications,
 		"count":         len(notifications),
 	})
@@ -418,168 +436,168 @@ func (h *NotificationAPIHandlers) GetAdminUnreadNotifications(c *gin.Context) {
 
 // GetAdminUnreadCount returns the count of unread notifications
 // GET /{api_version}/admin/notifications/count
-func (h *NotificationAPIHandlers) GetAdminUnreadCount(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) GetAdminUnreadCount(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	count, err := h.NotificationService.GetAdminUnreadCount(adminID.(int))
 	if err != nil {
-		InternalError(c, "failed to get unread count")
+		InternalError(w, r, "failed to get unread count")
 		return
 	}
 
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"count": count,
 	})
 }
 
 // GetAdminNotificationStats returns notification statistics
 // GET /{api_version}/admin/notifications/stats
-func (h *NotificationAPIHandlers) GetAdminNotificationStats(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) GetAdminNotificationStats(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	stats, err := h.NotificationService.GetAdminStatistics(adminID.(int))
 	if err != nil {
-		InternalError(c, "failed to get statistics")
+		InternalError(w, r, "failed to get statistics")
 		return
 	}
 
-	RespondData(c, stats)
+	RespondData(w, r, stats)
 }
 
 // MarkAdminNotificationRead marks a notification as read
-// PATCH /{api_version}/admin/notifications/:id/read
-func (h *NotificationAPIHandlers) MarkAdminNotificationRead(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+// PATCH /{api_version}/admin/notifications/{id}/read
+func (h *NotificationAPIHandlers) MarkAdminNotificationRead(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.MarkAdminNotificationAsRead(notificationID, adminID.(int))
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification marked as read", map[string]interface{}{
+	RespondSuccess(w, r, "notification marked as read", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // MarkAllAdminNotificationsRead marks all notifications as read
 // PATCH /{api_version}/admin/notifications/read
-func (h *NotificationAPIHandlers) MarkAllAdminNotificationsRead(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) MarkAllAdminNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	err := h.NotificationService.MarkAllAdminNotificationsAsRead(adminID.(int))
 	if err != nil {
-		InternalError(c, "failed to mark notifications as read")
+		InternalError(w, r, "failed to mark notifications as read")
 		return
 	}
 
-	RespondSuccess(c, "all notifications marked as read")
+	RespondSuccess(w, r, "all notifications marked as read")
 }
 
 // DismissAdminNotification dismisses a notification
-// PATCH /{api_version}/admin/notifications/:id/dismiss
-func (h *NotificationAPIHandlers) DismissAdminNotification(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+// PATCH /{api_version}/admin/notifications/{id}/dismiss
+func (h *NotificationAPIHandlers) DismissAdminNotification(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.DismissAdminNotification(notificationID, adminID.(int))
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification dismissed", map[string]interface{}{
+	RespondSuccess(w, r, "notification dismissed", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // DeleteAdminNotification deletes a notification
-// DELETE /{api_version}/admin/notifications/:id
-func (h *NotificationAPIHandlers) DeleteAdminNotification(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+// DELETE /{api_version}/admin/notifications/{id}
+func (h *NotificationAPIHandlers) DeleteAdminNotification(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
-	notificationID := c.Param("id")
+	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		BadRequest(c, "notification ID required")
+		BadRequest(w, r, "notification ID required")
 		return
 	}
 
 	err := h.NotificationService.DeleteAdminNotification(notificationID, adminID.(int))
 	if err != nil {
-		NotFound(c, "notification not found or access denied")
+		NotFound(w, r, "notification not found or access denied")
 		return
 	}
 
-	RespondSuccess(c, "notification deleted", map[string]interface{}{
+	RespondSuccess(w, r, "notification deleted", map[string]interface{}{
 		"id": notificationID,
 	})
 }
 
 // GetAdminNotificationPreferences returns notification preferences
 // GET /{api_version}/admin/notifications/preferences
-func (h *NotificationAPIHandlers) GetAdminNotificationPreferences(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) GetAdminNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	prefs, err := h.NotificationService.GetAdminPreferences(adminID.(int))
 	if err != nil {
-		InternalError(c, "failed to get preferences")
+		InternalError(w, r, "failed to get preferences")
 		return
 	}
 
-	RespondData(c, prefs)
+	RespondData(w, r, prefs)
 }
 
 // UpdateAdminNotificationPreferences updates notification preferences
 // PATCH /{api_version}/admin/notifications/preferences
-func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	var prefs model.NotificationPreferences
-	if err := c.ShouldBindJSON(&prefs); err != nil {
-		BadRequest(c, "invalid request body")
+	if err := json.NewDecoder(r.Body).Decode(&prefs); err != nil {
+		BadRequest(w, r, "invalid request body")
 		return
 	}
 
@@ -587,38 +605,43 @@ func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(c *gin.Cont
 	if prefs.ToastDurationSuccess < 1 || prefs.ToastDurationSuccess > 60 ||
 		prefs.ToastDurationInfo < 1 || prefs.ToastDurationInfo > 60 ||
 		prefs.ToastDurationWarning < 1 || prefs.ToastDurationWarning > 60 {
-		BadRequest(c, "toast durations must be between 1 and 60 seconds")
+		BadRequest(w, r, "toast durations must be between 1 and 60 seconds")
 		return
 	}
 
 	err := h.NotificationService.UpdateAdminPreferences(adminID.(int), &prefs)
 	if err != nil {
-		InternalError(c, "failed to update preferences")
+		InternalError(w, r, "failed to update preferences")
 		return
 	}
 
-	RespondSuccess(c, "preferences updated successfully")
+	RespondSuccess(w, r, "preferences updated successfully")
 }
 
 // SendTestNotification sends a test notification to the authenticated admin
 // POST /{api_version}/admin/notifications/send
-func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
-	adminID, exists := c.Get("admin_id")
+func (h *NotificationAPIHandlers) SendTestNotification(w http.ResponseWriter, r *http.Request) {
+	adminID, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	var req struct {
-		Type    model.NotificationType    `json:"type" binding:"required"`
-		Display model.NotificationDisplay `json:"display" binding:"required"`
-		Title   string                    `json:"title" binding:"required"`
-		Message string                    `json:"message" binding:"required"`
+		Type    model.NotificationType    `json:"type"`
+		Display model.NotificationDisplay `json:"display"`
+		Title   string                    `json:"title"`
+		Message string                    `json:"message"`
 		Action  *model.NotificationAction `json:"action,omitempty"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "invalid request body")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		BadRequest(w, r, "invalid request body")
+		return
+	}
+
+	if req.Type == "" || req.Display == "" || req.Title == "" || req.Message == "" {
+		BadRequest(w, r, "invalid request body")
 		return
 	}
 
@@ -631,7 +654,7 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 		model.NotificationTypeSecurity: true,
 	}
 	if !validTypes[req.Type] {
-		BadRequest(c, "invalid notification type")
+		BadRequest(w, r, "invalid notification type")
 		return
 	}
 
@@ -642,7 +665,7 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 		model.NotificationDisplayCenter: true,
 	}
 	if !validDisplays[req.Display] {
-		BadRequest(c, "invalid display type")
+		BadRequest(w, r, "invalid display type")
 		return
 	}
 
@@ -656,11 +679,11 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 		req.Action,
 	)
 	if err != nil {
-		InternalError(c, "failed to send test notification")
+		InternalError(w, r, "failed to send test notification")
 		return
 	}
 
-	RespondCreated(c, "test notification sent successfully", "", map[string]interface{}{
+	RespondCreated(w, r, "test notification sent successfully", "", map[string]interface{}{
 		"notification": notification,
 	})
 }
@@ -669,20 +692,20 @@ func (h *NotificationAPIHandlers) SendTestNotification(c *gin.Context) {
 
 // HandleWebSocketConnection handles WebSocket connections for real-time notifications
 // GET /ws/notifications
-func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
+func (h *NotificationAPIHandlers) HandleWebSocketConnection(w http.ResponseWriter, r *http.Request) {
 	// Check if user or admin is authenticated
-	userIDRaw, userExists := c.Get("user_id")
-	adminIDRaw, adminExists := c.Get("admin_id")
+	userIDRaw, userExists := reqctx.Get(r.Context(), "user_id")
+	adminIDRaw, adminExists := reqctx.Get(r.Context(), "admin_id")
 
 	if !userExists && !adminExists {
-		Unauthorized(c, "unauthorized")
+		Unauthorized(w, r, "unauthorized")
 		return
 	}
 
 	// Upgrade HTTP connection to WebSocket
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		InternalError(c, "failed to upgrade connection")
+		InternalError(w, r, "failed to upgrade connection")
 		return
 	}
 
@@ -691,7 +714,7 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 	if userExists {
 		userIDInt, ok := userIDRaw.(int)
 		if !ok {
-			InternalError(c, "invalid user context")
+			InternalError(w, r, "invalid user context")
 			return
 		}
 		client = &service.WebSocketClient{
@@ -705,7 +728,7 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 	} else {
 		adminIDInt, ok := adminIDRaw.(int)
 		if !ok {
-			InternalError(c, "invalid admin context")
+			InternalError(w, r, "invalid admin context")
 			return
 		}
 		client = &service.WebSocketClient{
@@ -729,87 +752,83 @@ func (h *NotificationAPIHandlers) HandleWebSocketConnection(c *gin.Context) {
 // ========== METHOD ALIASES FOR BACKWARDS COMPATIBILITY ==========
 
 // GetUserStats is an alias for GetUserNotificationStats
-func (h *NotificationAPIHandlers) GetUserStats(c *gin.Context) {
-	h.GetUserNotificationStats(c)
+func (h *NotificationAPIHandlers) GetUserStats(w http.ResponseWriter, r *http.Request) {
+	h.GetUserNotificationStats(w, r)
 }
 
 // GetUserPreferences is an alias for GetUserNotificationPreferences
-func (h *NotificationAPIHandlers) GetUserPreferences(c *gin.Context) {
-	h.GetUserNotificationPreferences(c)
+func (h *NotificationAPIHandlers) GetUserPreferences(w http.ResponseWriter, r *http.Request) {
+	h.GetUserNotificationPreferences(w, r)
 }
 
 // UpdateUserPreferences is an alias for UpdateUserNotificationPreferences
-func (h *NotificationAPIHandlers) UpdateUserPreferences(c *gin.Context) {
-	h.UpdateUserNotificationPreferences(c)
+func (h *NotificationAPIHandlers) UpdateUserPreferences(w http.ResponseWriter, r *http.Request) {
+	h.UpdateUserNotificationPreferences(w, r)
 }
 
 // GetAdminStats is an alias for GetAdminNotificationStats
-func (h *NotificationAPIHandlers) GetAdminStats(c *gin.Context) {
-	h.GetAdminNotificationStats(c)
+func (h *NotificationAPIHandlers) GetAdminStats(w http.ResponseWriter, r *http.Request) {
+	h.GetAdminNotificationStats(w, r)
 }
 
 // GetAdminPreferences is an alias for GetAdminNotificationPreferences
-func (h *NotificationAPIHandlers) GetAdminPreferences(c *gin.Context) {
-	h.GetAdminNotificationPreferences(c)
+func (h *NotificationAPIHandlers) GetAdminPreferences(w http.ResponseWriter, r *http.Request) {
+	h.GetAdminNotificationPreferences(w, r)
 }
 
 // UpdateAdminPreferences is an alias for UpdateAdminNotificationPreferences
-func (h *NotificationAPIHandlers) UpdateAdminPreferences(c *gin.Context) {
-	h.UpdateAdminNotificationPreferences(c)
+func (h *NotificationAPIHandlers) UpdateAdminPreferences(w http.ResponseWriter, r *http.Request) {
+	h.UpdateAdminNotificationPreferences(w, r)
 }
 
 // RegisterNotificationAPIRoutes registers all notification API routes
-func RegisterNotificationAPIRoutes(router *gin.Engine, handlers *NotificationAPIHandlers, userAuth, adminAuth gin.HandlerFunc) {
+func RegisterNotificationAPIRoutes(router chi.Router, handlers *NotificationAPIHandlers, userAuth, adminAuth func(http.Handler) http.Handler) {
 	// WebSocket endpoint (must be registered before /api/v1 to avoid conflicts)
-	router.GET("/ws/notifications", handlers.HandleWebSocketConnection)
+	router.Get("/ws/notifications", handlers.HandleWebSocketConnection)
 
 	// User notification endpoints
-	userAPI := router.Group("/api/v1/user")
-	if userAuth != nil {
-		userAPI.Use(userAuth)
-	}
-	{
-		notifications := userAPI.Group("/notifications")
-		{
-			notifications.GET("", handlers.GetUserNotifications)
-			notifications.GET("/unread", handlers.GetUserUnreadNotifications)
-			notifications.GET("/count", handlers.GetUserUnreadCount)
-			notifications.GET("/stats", handlers.GetUserNotificationStats)
-
-			notifications.PATCH("/:id/read", handlers.MarkUserNotificationRead)
-			notifications.PATCH("/read", handlers.MarkAllUserNotificationsRead)
-
-			notifications.PATCH("/:id/dismiss", handlers.DismissUserNotification)
-			notifications.DELETE("/:id", handlers.DeleteUserNotification)
-
-			notifications.GET("/preferences", handlers.GetUserNotificationPreferences)
-			notifications.PATCH("/preferences", handlers.UpdateUserNotificationPreferences)
+	router.Route("/api/v1/user", func(userAPI chi.Router) {
+		if userAuth != nil {
+			userAPI.Use(userAuth)
 		}
-	}
+		userAPI.Route("/notifications", func(notifications chi.Router) {
+			notifications.Get("/", handlers.GetUserNotifications)
+			notifications.Get("/unread", handlers.GetUserUnreadNotifications)
+			notifications.Get("/count", handlers.GetUserUnreadCount)
+			notifications.Get("/stats", handlers.GetUserNotificationStats)
+
+			notifications.Patch("/{id}/read", handlers.MarkUserNotificationRead)
+			notifications.Patch("/read", handlers.MarkAllUserNotificationsRead)
+
+			notifications.Patch("/{id}/dismiss", handlers.DismissUserNotification)
+			notifications.Delete("/{id}", handlers.DeleteUserNotification)
+
+			notifications.Get("/preferences", handlers.GetUserNotificationPreferences)
+			notifications.Patch("/preferences", handlers.UpdateUserNotificationPreferences)
+		})
+	})
 
 	// Admin notification endpoints
-	adminAPI := router.Group("/api/v1/server/admin")
-	if adminAuth != nil {
-		adminAPI.Use(adminAuth)
-	}
-	{
-		notifications := adminAPI.Group("/notifications")
-		{
-			notifications.GET("", handlers.GetAdminNotifications)
-			notifications.GET("/unread", handlers.GetAdminUnreadNotifications)
-			notifications.GET("/count", handlers.GetAdminUnreadCount)
-			notifications.GET("/stats", handlers.GetAdminNotificationStats)
-
-			notifications.PATCH("/:id/read", handlers.MarkAdminNotificationRead)
-			notifications.PATCH("/read", handlers.MarkAllAdminNotificationsRead)
-
-			notifications.PATCH("/:id/dismiss", handlers.DismissAdminNotification)
-			notifications.DELETE("/:id", handlers.DeleteAdminNotification)
-
-			notifications.GET("/preferences", handlers.GetAdminNotificationPreferences)
-			notifications.PATCH("/preferences", handlers.UpdateAdminNotificationPreferences)
-
-			notifications.POST("/send", handlers.SendTestNotification)
+	router.Route("/api/v1/server/admin", func(adminAPI chi.Router) {
+		if adminAuth != nil {
+			adminAPI.Use(adminAuth)
 		}
-	}
+		adminAPI.Route("/notifications", func(notifications chi.Router) {
+			notifications.Get("/", handlers.GetAdminNotifications)
+			notifications.Get("/unread", handlers.GetAdminUnreadNotifications)
+			notifications.Get("/count", handlers.GetAdminUnreadCount)
+			notifications.Get("/stats", handlers.GetAdminNotificationStats)
+
+			notifications.Patch("/{id}/read", handlers.MarkAdminNotificationRead)
+			notifications.Patch("/read", handlers.MarkAllAdminNotificationsRead)
+
+			notifications.Patch("/{id}/dismiss", handlers.DismissAdminNotification)
+			notifications.Delete("/{id}", handlers.DeleteAdminNotification)
+
+			notifications.Get("/preferences", handlers.GetAdminNotificationPreferences)
+			notifications.Patch("/preferences", handlers.UpdateAdminNotificationPreferences)
+
+			notifications.Post("/send", handlers.SendTestNotification)
+		})
+	})
 }

@@ -5,16 +5,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // routeMethodPaths collects the "METHOD PATH" pairs currently registered on
-// the engine so route assertions do not depend on registration order.
-func routeMethodPaths(r *gin.Engine) map[string]bool {
+// the router so route assertions do not depend on registration order.
+func routeMethodPaths(r chi.Router) map[string]bool {
 	registered := make(map[string]bool)
-	for _, route := range r.Routes() {
-		registered[route.Method+" "+route.Path] = true
-	}
+	_ = chi.Walk(r, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		registered[method+" "+route] = true
+		return nil
+	})
 	return registered
 }
 
@@ -23,13 +24,11 @@ func routeMethodPaths(r *gin.Engine) map[string]bool {
 // versioned API path, /api/healthz is an unversioned alias mounting the same
 // handler, and the root /healthz alias is config-gated (default off).
 func TestRegisterHealthRoutes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	frontend := func(c *gin.Context) { c.String(http.StatusOK, "frontend") }
-	api := func(c *gin.Context) { c.String(http.StatusOK, "api") }
+	frontend := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("frontend")) }
+	api := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("api")) }
 
 	t.Run("canonical routes without the root alias", func(t *testing.T) {
-		r := gin.New()
+		r := chi.NewRouter()
 		registerHealthRoutes(r, "/api/v1", false, frontend, api)
 		registered := routeMethodPaths(r)
 
@@ -48,7 +47,7 @@ func TestRegisterHealthRoutes(t *testing.T) {
 	})
 
 	t.Run("root alias mounted when enabled", func(t *testing.T) {
-		r := gin.New()
+		r := chi.NewRouter()
 		registerHealthRoutes(r, "/api/v1", true, frontend, api)
 
 		if !routeMethodPaths(r)["GET /healthz"] {
@@ -66,7 +65,7 @@ func TestRegisterHealthRoutes(t *testing.T) {
 	})
 
 	t.Run("unversioned api alias serves the same handler, never a redirect", func(t *testing.T) {
-		r := gin.New()
+		r := chi.NewRouter()
 		registerHealthRoutes(r, "/api/v1", false, frontend, api)
 
 		w := httptest.NewRecorder()
@@ -83,20 +82,18 @@ func TestRegisterHealthRoutes(t *testing.T) {
 // TestRegisterGraphQLRoutes covers AI.md PART 14: the API-path GraphQL alias
 // must mount the same handlers as /graphql instead of redirecting to it.
 func TestRegisterGraphQLRoutes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	query := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("query")) }
+	playground := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("playground")) }
+	assets := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("assets")) }
 
-	query := func(c *gin.Context) { c.String(http.StatusOK, "query") }
-	playground := func(c *gin.Context) { c.String(http.StatusOK, "playground") }
-	assets := func(c *gin.Context) { c.String(http.StatusOK, "assets") }
-
-	r := gin.New()
+	r := chi.NewRouter()
 	registerGraphQLRoutes(r, "/api/v1", query, playground, assets)
 	registered := routeMethodPaths(r)
 
 	for _, want := range []string{
 		"POST /graphql",
 		"GET /graphql",
-		"GET /graphql/assets/*filepath",
+		"GET /graphql/assets/*",
 		"POST /api/v1/graphql",
 		"GET /api/v1/graphql",
 	} {

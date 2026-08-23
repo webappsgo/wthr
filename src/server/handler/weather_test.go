@@ -1,24 +1,23 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
-// newWeatherTestContext builds a bare GET gin.Context/recorder pair, mirroring
+// newWeatherTestContext builds a bare GET request/recorder pair, mirroring
 // the newTestContext helper style already used in response_test.go, but kept
 // local since this file must not redefine or depend on unexported helpers
 // owned by another agent's file beyond what's in handler_helpers_test.go.
-func newWeatherTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newWeatherTestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	return r, w
 }
 
 // HandleRoot/HandleLocation both gate on IsInitialized() before touching the
@@ -32,10 +31,10 @@ func TestWeatherHandler_HandleRoot_NotInitialized(t *testing.T) {
 		t.Cleanup(func() { SetInitStatus(false, false, false) })
 
 		h := NewWeatherHandler(nil, nil)
-		c, w := newWeatherTestContext("/")
-		c.Request.Header.Set("Accept", "application/json")
+		r, w := newWeatherTestContext("/")
+		r.Header.Set("Accept", "application/json")
 
-		h.HandleRoot(c)
+		h.HandleRoot(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusServiceUnavailable, w.Body.String())
@@ -50,11 +49,14 @@ func TestWeatherHandler_HandleRoot_NotInitialized(t *testing.T) {
 		t.Cleanup(func() { SetInitStatus(false, false, false) })
 
 		h := NewWeatherHandler(nil, nil)
-		c, w := newWeatherTestContext("/London,GB")
-		c.Request.Header.Set("Accept", "application/json")
-		c.Params = gin.Params{{Key: "location", Value: "London,GB"}}
+		r, w := newWeatherTestContext("/London,GB")
+		r.Header.Set("Accept", "application/json")
 
-		h.HandleLocation(c)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("location", "London,GB")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		h.HandleLocation(w, r)
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusServiceUnavailable, w.Body.String())
@@ -153,8 +155,8 @@ func TestWeatherHandler_handleSpecialEndpoints(t *testing.T) {
 	h := NewWeatherHandler(nil, nil)
 
 	t.Run(":help is handled and returns usage text", func(t *testing.T) {
-		c, w := newWeatherTestContext("/:help")
-		handled := h.handleSpecialEndpoints(c, ":help")
+		r, w := newWeatherTestContext("/:help")
+		handled := h.handleSpecialEndpoints(w, r, ":help")
 		if !handled {
 			t.Fatalf("handleSpecialEndpoints(:help) = false, want true")
 		}
@@ -167,8 +169,8 @@ func TestWeatherHandler_handleSpecialEndpoints(t *testing.T) {
 	})
 
 	t.Run(":bash.function is handled and returns a shell function", func(t *testing.T) {
-		c, w := newWeatherTestContext("/:bash.function")
-		handled := h.handleSpecialEndpoints(c, ":bash.function")
+		r, w := newWeatherTestContext("/:bash.function")
+		handled := h.handleSpecialEndpoints(w, r, ":bash.function")
 		if !handled {
 			t.Fatalf("handleSpecialEndpoints(:bash.function) = false, want true")
 		}
@@ -181,8 +183,9 @@ func TestWeatherHandler_handleSpecialEndpoints(t *testing.T) {
 	})
 
 	t.Run("unrecognized path is not handled", func(t *testing.T) {
-		c, _ := newWeatherTestContext("/London,GB")
-		if h.handleSpecialEndpoints(c, "London,GB") {
+		r, _ := newWeatherTestContext("/London,GB")
+		w := httptest.NewRecorder()
+		if h.handleSpecialEndpoints(w, r, "London,GB") {
 			t.Errorf("handleSpecialEndpoints(London,GB) = true, want false")
 		}
 	})
@@ -208,8 +211,8 @@ func TestWeatherHandler_handleError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, w := newWeatherTestContext("/Nowhere")
-			h.handleError(c, tt.err, "Nowhere", false)
+			r, w := newWeatherTestContext("/Nowhere")
+			h.handleError(w, r, tt.err, "Nowhere", false)
 			if w.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body=%s", w.Code, tt.wantStatus, w.Body.String())
 			}
@@ -225,10 +228,10 @@ func TestWeatherHandler_handleError(t *testing.T) {
 // without a browser-detecting User-Agent and real templates.
 func TestWeatherHandler_handleMoonRequest_NonBrowser(t *testing.T) {
 	h := NewWeatherHandler(nil, nil)
-	c, w := newWeatherTestContext("/moon")
-	// No browser-like Accept/User-Agent header, so util.IsBrowser(c) is false.
+	r, w := newWeatherTestContext("/moon")
+	// No browser-like Accept/User-Agent header, so util.IsBrowser(r) is false.
 
-	h.handleMoonRequest(c, "moon")
+	h.handleMoonRequest(w, r, "moon")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())

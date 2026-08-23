@@ -6,20 +6,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/oklog/ulid/v2"
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // BackupFile represents a backup file information
@@ -30,17 +33,16 @@ type BackupFile struct {
 }
 
 // SaveWebSettings handles saving web configuration settings
-func SaveWebSettings(c *gin.Context) {
+func SaveWebSettings(w http.ResponseWriter, r *http.Request) {
 	var settings map[string]interface{}
-	if err := c.ShouldBindJSON(&settings); err != nil {
-		BadRequest(c, "Invalid request data")
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		BadRequest(w, r, "Invalid request data")
 		return
 	}
 
 	// Get database from context
-	_, exists := c.Get("db")
-	if !exists {
-		InternalError(c, "Database connection not available")
+	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
@@ -61,26 +63,25 @@ func SaveWebSettings(c *gin.Context) {
 		}
 
 		if err != nil {
-			InternalError(c, fmt.Sprintf("Failed to save setting %s: %v", key, err))
+			InternalError(w, r, fmt.Sprintf("Failed to save setting %s: %v", key, err))
 			return
 		}
 	}
 
-	RespondSuccess(c, "Web settings saved successfully")
+	RespondSuccess(w, r, "Web settings saved successfully")
 }
 
 // SaveSecuritySettings handles saving security configuration
-func SaveSecuritySettings(c *gin.Context) {
+func SaveSecuritySettings(w http.ResponseWriter, r *http.Request) {
 	var settings map[string]interface{}
-	if err := c.ShouldBindJSON(&settings); err != nil {
-		BadRequest(c, "Invalid request data")
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		BadRequest(w, r, "Invalid request data")
 		return
 	}
 
 	// Get database from context
-	_, exists := c.Get("db")
-	if !exists {
-		InternalError(c, "Database connection not available")
+	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
@@ -101,40 +102,40 @@ func SaveSecuritySettings(c *gin.Context) {
 		}
 
 		if err != nil {
-			InternalError(c, fmt.Sprintf("Failed to save setting %s: %v", key, err))
+			InternalError(w, r, fmt.Sprintf("Failed to save setting %s: %v", key, err))
 			return
 		}
 	}
 
-	RespondSuccess(c, "Security settings saved successfully")
+	RespondSuccess(w, r, "Security settings saved successfully")
 }
 
 // TestDatabaseConnection tests the database connection
-func TestDatabaseConnection(c *gin.Context) {
-	db, exists := c.Get("db")
+func TestDatabaseConnection(w http.ResponseWriter, r *http.Request) {
+	db, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
-		InternalError(c, "Database connection not available")
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
 	start := time.Now()
 	if err := db.(*sql.DB).Ping(); err != nil {
-		InternalError(c, fmt.Sprintf("Database connection failed: %v", err))
+		InternalError(w, r, fmt.Sprintf("Database connection failed: %v", err))
 		return
 	}
 	latency := time.Since(start)
 
-	RespondSuccess(c, "Database connection successful", map[string]interface{}{
+	RespondSuccess(w, r, "Database connection successful", map[string]interface{}{
 		"latency": latency.String(),
 		"status":  "connected",
 	})
 }
 
 // OptimizeDatabase optimizes the database
-func OptimizeDatabase(c *gin.Context) {
-	db, exists := c.Get("db")
+func OptimizeDatabase(w http.ResponseWriter, r *http.Request) {
+	db, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
-		InternalError(c, "Database connection not available")
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
@@ -142,44 +143,44 @@ func OptimizeDatabase(c *gin.Context) {
 
 	// Run ANALYZE to update statistics
 	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "ANALYZE"); err != nil {
-		InternalError(c, fmt.Sprintf("Failed to analyze database: %v", err))
+		InternalError(w, r, fmt.Sprintf("Failed to analyze database: %v", err))
 		return
 	}
 
-	RespondSuccess(c, "Database optimized successfully", map[string]interface{}{
+	RespondSuccess(w, r, "Database optimized successfully", map[string]interface{}{
 		"operation": "ANALYZE completed",
 	})
 }
 
 // ClearCache clears the application cache
-func ClearCache(c *gin.Context) {
+func ClearCache(w http.ResponseWriter, r *http.Request) {
 	// Get cache manager from context
-	cacheInterface, exists := c.Get("cache")
+	cacheInterface, exists := reqctx.Get(r.Context(), "cache")
 	if !exists {
-		RespondSuccess(c, "Cache not configured (running without cache)")
+		RespondSuccess(w, r, "Cache not configured (running without cache)")
 		return
 	}
 
 	cache, ok := cacheInterface.(*service.CacheManager)
 	if !ok || !cache.IsEnabled() {
-		RespondSuccess(c, "Cache not enabled")
+		RespondSuccess(w, r, "Cache not enabled")
 		return
 	}
 
 	// Flush all cache entries
 	if err := cache.Flush(); err != nil {
-		InternalError(c, fmt.Sprintf("Failed to clear cache: %v", err))
+		InternalError(w, r, fmt.Sprintf("Failed to clear cache: %v", err))
 		return
 	}
 
-	RespondSuccess(c, "Cache cleared successfully")
+	RespondSuccess(w, r, "Cache cleared successfully")
 }
 
 // VacuumDatabase performs database vacuum operation
-func VacuumDatabase(c *gin.Context) {
-	db, exists := c.Get("db")
+func VacuumDatabase(w http.ResponseWriter, r *http.Request) {
+	db, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
-		InternalError(c, "Database connection not available")
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
@@ -188,13 +189,13 @@ func VacuumDatabase(c *gin.Context) {
 
 	// Run VACUUM to reclaim space
 	if _, err := database.ExecContext(context.Background(), sqlDB, database.TimeoutBulk, "VACUUM"); err != nil {
-		InternalError(c, fmt.Sprintf("Failed to vacuum database: %v", err))
+		InternalError(w, r, fmt.Sprintf("Failed to vacuum database: %v", err))
 		return
 	}
 
 	duration := time.Since(start)
 
-	RespondSuccess(c, "Database vacuum completed", map[string]interface{}{
+	RespondSuccess(w, r, "Database vacuum completed", map[string]interface{}{
 		"duration":  duration.String(),
 		"operation": "VACUUM completed",
 	})
@@ -260,21 +261,21 @@ func resolveBackupFile(name string) (string, error) {
 }
 
 // CreateBackup creates a backup of the database and configuration
-func CreateBackup(c *gin.Context) {
+func CreateBackup(w http.ResponseWriter, r *http.Request) {
 	configDir, dataDir := adminBackupRoots()
 
 	// The admin panel exposes the same optional contents the CLI does: an
 	// encryption password (PART 22 makes it mandatory only under compliance
 	// mode) and the two optional payloads.
-	password := c.PostForm("password")
-	includeSSL := c.PostForm("include_ssl") == "true"
-	includeData := c.PostForm("include_data") == "true"
+	password := r.PostFormValue("password")
+	includeSSL := r.PostFormValue("include_ssl") == "true"
+	includeData := r.PostFormValue("include_data") == "true"
 
 	// Manual admin-triggered backups honor the same tiered retention policy
 	// (AI.md PART 22) as the scheduled daily backup - falls back to
 	// backup.DefaultRetention() if the settings model can't be resolved.
 	retention := backup.DefaultRetention()
-	if settings, err := adminSettingsModel(c); err == nil {
+	if settings, err := adminSettingsModel(r); err == nil {
 		retention = backupRetentionFromSettings(settings)
 	}
 
@@ -285,24 +286,24 @@ func CreateBackup(c *gin.Context) {
 		Password:    password,
 		IncludeSSL:  includeSSL,
 		IncludeData: includeData,
-		CreatedBy:   AdminUsername(c),
+		CreatedBy:   AdminUsername(r),
 		AppVersion:  Version,
 		Retention:   &retention,
 	})
 	if err != nil {
-		InternalError(c, "Failed to create backup: "+err.Error())
+		InternalError(w, r, "Failed to create backup: "+err.Error())
 		return
 	}
 
-	logBackupRetentionAudit(c, backupPath, deleted)
+	logBackupRetentionAudit(r, backupPath, deleted)
 
 	info, err := os.Stat(backupPath)
 	if err != nil {
-		InternalError(c, "Backup created but could not stat file: "+err.Error())
+		InternalError(w, r, "Backup created but could not stat file: "+err.Error())
 		return
 	}
 
-	RespondSuccess(c, "Backup created successfully", map[string]interface{}{
+	RespondSuccess(w, r, "Backup created successfully", map[string]interface{}{
 		"filename":  filepath.Base(backupPath),
 		"size":      info.Size(),
 		"created":   info.ModTime(),
@@ -313,32 +314,32 @@ func CreateBackup(c *gin.Context) {
 // RestoreBackup restores from a backup file. The archive is either uploaded in
 // the "backup" multipart field or named by the "filename" field, in which case
 // it is taken from the backup directory.
-func RestoreBackup(c *gin.Context) {
+func RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	configDir, dataDir := adminBackupRoots()
-	password := c.PostForm("password")
+	password := r.PostFormValue("password")
 
 	backupPath := ""
-	if name := c.PostForm("filename"); name != "" {
+	if name := r.PostFormValue("filename"); name != "" {
 		resolved, err := resolveBackupFile(name)
 		if err != nil {
-			BadRequest(c, err.Error())
+			BadRequest(w, r, err.Error())
 			return
 		}
 		if _, statErr := os.Stat(resolved); statErr != nil {
-			NotFound(c, "Backup file not found")
+			NotFound(w, r, "Backup file not found")
 			return
 		}
 		backupPath = resolved
 	} else {
-		file, header, err := c.Request.FormFile("backup")
+		file, header, err := r.FormFile("backup")
 		if err != nil {
-			BadRequest(c, "No backup file provided")
+			BadRequest(w, r, "No backup file provided")
 			return
 		}
 		defer file.Close()
 
 		if !isBackupArchiveName(filepath.Base(header.Filename)) {
-			BadRequest(c, "Uploaded file is not a backup archive")
+			BadRequest(w, r, "Uploaded file is not a backup archive")
 			return
 		}
 
@@ -346,7 +347,7 @@ func RestoreBackup(c *gin.Context) {
 		// system temp dir so a restore never crosses a filesystem boundary and
 		// never leaves an archive outside the app's own tree.
 		if err := os.MkdirAll(adminBackupDir(), 0o700); err != nil {
-			InternalError(c, "Failed to access backups directory")
+			InternalError(w, r, "Failed to access backups directory")
 			return
 		}
 		suffix := ".tar.gz"
@@ -355,7 +356,7 @@ func RestoreBackup(c *gin.Context) {
 		}
 		staged, err := os.CreateTemp(adminBackupDir(), "upload-*"+suffix)
 		if err != nil {
-			InternalError(c, "Failed to stage uploaded backup")
+			InternalError(w, r, "Failed to stage uploaded backup")
 			return
 		}
 		stagedPath := staged.Name()
@@ -364,11 +365,11 @@ func RestoreBackup(c *gin.Context) {
 		defer os.Remove(stagedPath)
 		if _, err := io.Copy(staged, file); err != nil {
 			staged.Close()
-			InternalError(c, "Failed to store uploaded backup")
+			InternalError(w, r, "Failed to store uploaded backup")
 			return
 		}
 		if err := staged.Close(); err != nil {
-			InternalError(c, "Failed to store uploaded backup")
+			InternalError(w, r, "Failed to store uploaded backup")
 			return
 		}
 		backupPath = stagedPath
@@ -382,24 +383,24 @@ func RestoreBackup(c *gin.Context) {
 		DataDir:    dataDir,
 		Force:      true,
 	}); err != nil {
-		InternalError(c, "Failed to restore backup: "+err.Error())
+		InternalError(w, r, "Failed to restore backup: "+err.Error())
 		return
 	}
 
-	RespondSuccess(c, "Backup restored successfully. Restart the server to load the restored configuration.", map[string]interface{}{
+	RespondSuccess(w, r, "Backup restored successfully. Restart the server to load the restored configuration.", map[string]interface{}{
 		"filename": filepath.Base(backupPath),
 	})
 }
 
 // ListBackups lists all available backup files
-func ListBackups(c *gin.Context) {
+func ListBackups(w http.ResponseWriter, r *http.Request) {
 	backups, err := readBackupFiles()
 	if err != nil {
-		InternalError(c, "Failed to read backups directory")
+		InternalError(w, r, "Failed to read backups directory")
 		return
 	}
 
-	RespondData(c, backups)
+	RespondData(w, r, backups)
 }
 
 // readBackupFiles returns every backup archive in the backup directory, newest
@@ -439,10 +440,10 @@ func readBackupFiles() ([]BackupFile, error) {
 // BackupStats reports the backup counters the admin backup page shows: how many
 // archives exist, how much disk they use, when the newest one was taken and
 // when the scheduler will take the next one.
-func BackupStats(c *gin.Context) {
+func BackupStats(w http.ResponseWriter, r *http.Request) {
 	backups, err := readBackupFiles()
 	if err != nil {
-		InternalError(c, "Failed to read backups directory")
+		InternalError(w, r, "Failed to read backups directory")
 		return
 	}
 
@@ -464,7 +465,7 @@ func BackupStats(c *gin.Context) {
 		stats["next_backup"] = nextRun
 	}
 
-	RespondData(c, stats)
+	RespondData(w, r, stats)
 }
 
 // nextScheduledBackup returns the stored next_run of the soonest enabled backup
@@ -486,43 +487,43 @@ func nextScheduledBackup() string {
 }
 
 // DownloadBackup downloads a specific backup file
-func DownloadBackup(c *gin.Context) {
-	backupPath, err := resolveBackupFile(c.Param("filename"))
+func DownloadBackup(w http.ResponseWriter, r *http.Request) {
+	backupPath, err := resolveBackupFile(chi.URLParam(r, "filename"))
 	if err != nil {
-		BadRequest(c, err.Error())
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if _, err := os.Stat(backupPath); err != nil {
-		NotFound(c, "Backup file not found")
+		NotFound(w, r, "Backup file not found")
 		return
 	}
 
-	c.Header("Content-Description", "File Transfer")
-	c.Header("Content-Disposition", "attachment; filename=\""+filepath.Base(backupPath)+"\"")
-	c.Header("Content-Type", "application/gzip")
-	c.File(backupPath)
+	w.Header().Set("Content-Description", "File Transfer")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(backupPath)+"\"")
+	w.Header().Set("Content-Type", "application/gzip")
+	http.ServeFile(w, r, backupPath)
 }
 
 // DeleteBackup deletes a backup file
-func DeleteBackup(c *gin.Context) {
-	backupPath, err := resolveBackupFile(c.Param("filename"))
+func DeleteBackup(w http.ResponseWriter, r *http.Request) {
+	backupPath, err := resolveBackupFile(chi.URLParam(r, "filename"))
 	if err != nil {
-		BadRequest(c, err.Error())
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if _, err := os.Stat(backupPath); err != nil {
-		NotFound(c, "Backup file not found")
+		NotFound(w, r, "Backup file not found")
 		return
 	}
 
 	if err := os.Remove(backupPath); err != nil {
-		InternalError(c, "Failed to delete backup: "+err.Error())
+		InternalError(w, r, "Failed to delete backup: "+err.Error())
 		return
 	}
 
-	RespondSuccess(c, "Backup deleted successfully")
+	RespondSuccess(w, r, "Backup deleted successfully")
 }
 
 // backupRetentionFromSettings resolves the tiered retention config from the
@@ -554,15 +555,15 @@ func backupRetentionFromSettings(settings *model.SettingsModel) backup.Retention
 const backupLegacyRetentionDefault = 1
 
 // GetBackupSchedule returns the stored automated-backup settings.
-func GetBackupSchedule(c *gin.Context) {
-	settings, err := adminSettingsModel(c)
+func GetBackupSchedule(w http.ResponseWriter, r *http.Request) {
+	settings, err := adminSettingsModel(r)
 	if err != nil {
-		InternalError(c, err.Error())
+		InternalError(w, r, err.Error())
 		return
 	}
 
 	retention := backupRetentionFromSettings(settings)
-	RespondData(c, map[string]interface{}{
+	RespondData(w, r, map[string]interface{}{
 		"enabled":  settings.GetBool("backup.enabled", true),
 		"interval": settings.GetInt("backup.interval", 6),
 		"retention": map[string]interface{}{
@@ -577,7 +578,7 @@ func GetBackupSchedule(c *gin.Context) {
 
 // SaveBackupSchedule persists the automated-backup settings the scheduler reads
 // on its next run.
-func SaveBackupSchedule(c *gin.Context) {
+func SaveBackupSchedule(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Enabled      *bool   `json:"enabled" form:"enabled"`
 		Interval     *int    `json:"interval" form:"interval"`
@@ -587,20 +588,20 @@ func SaveBackupSchedule(c *gin.Context) {
 		KeepYearly   *int    `json:"keep_yearly" form:"keep_yearly"`
 		MaxTotalSize *string `json:"max_total_size" form:"max_total_size"`
 	}
-	if err := c.ShouldBind(&payload); err != nil {
-		BadRequest(c, "Invalid request data")
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		BadRequest(w, r, "Invalid request data")
 		return
 	}
 
-	settings, err := adminSettingsModel(c)
+	settings, err := adminSettingsModel(r)
 	if err != nil {
-		InternalError(c, err.Error())
+		InternalError(w, r, err.Error())
 		return
 	}
 
 	if payload.Enabled != nil {
 		if err := settings.SetBool("backup.enabled", *payload.Enabled); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
@@ -608,11 +609,11 @@ func SaveBackupSchedule(c *gin.Context) {
 	// it is rejected rather than stored.
 	if payload.Interval != nil {
 		if *payload.Interval < 1 || *payload.Interval > 168 {
-			BadRequest(c, "Backup interval must be between 1 and 168 hours")
+			BadRequest(w, r, "Backup interval must be between 1 and 168 hours")
 			return
 		}
 		if err := settings.SetInt("backup.interval", *payload.Interval); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
@@ -624,56 +625,56 @@ func SaveBackupSchedule(c *gin.Context) {
 	// corrected default.
 	if payload.MaxBackups != nil {
 		if *payload.MaxBackups < 1 {
-			BadRequest(c, "max_backups must be at least 1")
+			BadRequest(w, r, "max_backups must be at least 1")
 			return
 		}
 		if err := settings.SetInt("backup.retention.max_backups", *payload.MaxBackups); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
 	if payload.KeepWeekly != nil {
 		if *payload.KeepWeekly < 0 {
-			BadRequest(c, "keep_weekly must be 0 or greater")
+			BadRequest(w, r, "keep_weekly must be 0 or greater")
 			return
 		}
 		if err := settings.SetInt("backup.retention.keep_weekly", *payload.KeepWeekly); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
 	if payload.KeepMonthly != nil {
 		if *payload.KeepMonthly < 0 {
-			BadRequest(c, "keep_monthly must be 0 or greater")
+			BadRequest(w, r, "keep_monthly must be 0 or greater")
 			return
 		}
 		if err := settings.SetInt("backup.retention.keep_monthly", *payload.KeepMonthly); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
 	if payload.KeepYearly != nil {
 		if *payload.KeepYearly < 0 {
-			BadRequest(c, "keep_yearly must be 0 or greater")
+			BadRequest(w, r, "keep_yearly must be 0 or greater")
 			return
 		}
 		if err := settings.SetInt("backup.retention.keep_yearly", *payload.KeepYearly); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
 	if payload.MaxTotalSize != nil {
 		if _, err := backup.ParseMaxTotalSizeBytes(*payload.MaxTotalSize, 0); err != nil && strings.TrimSpace(*payload.MaxTotalSize) != "" {
-			BadRequest(c, "max_total_size must be a percent (\"10%\") or an absolute size (\"50G\")")
+			BadRequest(w, r, "max_total_size must be a percent (\"10%\") or an absolute size (\"50G\")")
 			return
 		}
 		if err := settings.SetString("backup.retention.max_total_size", *payload.MaxTotalSize); err != nil {
-			InternalError(c, "Failed to save backup settings: "+err.Error())
+			InternalError(w, r, "Failed to save backup settings: "+err.Error())
 			return
 		}
 	}
 
-	RespondSuccess(c, "Backup settings saved successfully")
+	RespondSuccess(w, r, "Backup settings saved successfully")
 }
 
 // adminSettingsModel resolves the settings model from the request-scoped
@@ -684,11 +685,11 @@ func SaveBackupSchedule(c *gin.Context) {
 // retention sweep removes at least one file. A no-op sweep writes nothing.
 // Mirrors logAdminPasskeyAudit's pattern (admin_passkey.go): a best-effort
 // write that never fails the request that already succeeded.
-func logBackupRetentionAudit(c *gin.Context, backupPath string, deleted []string) {
+func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []string) {
 	if len(deleted) == 0 {
 		return
 	}
-	dbHandle, exists := c.Get("db")
+	dbHandle, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
 		return
 	}
@@ -718,19 +719,19 @@ func logBackupRetentionAudit(c *gin.Context, backupPath string, deleted []string
 	`,
 		ulid.Make().String(),
 		dbtime.FormatSQLTimestamp(time.Now()),
-		AdminUsername(c),
+		AdminUsername(r),
 		filepath.Base(backupPath),
 		string(details),
-		c.ClientIP(),
-		c.Request.UserAgent(),
+		util.GetClientIP(r),
+		r.UserAgent(),
 	)
 	if err != nil {
 		_ = err // Non-fatal: the backup itself already completed.
 	}
 }
 
-func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
-	db, exists := c.Get("db")
+func adminSettingsModel(r *http.Request) (*model.SettingsModel, error) {
+	db, exists := reqctx.Get(r.Context(), "db")
 	if !exists {
 		return nil, fmt.Errorf("database connection not available")
 	}
@@ -742,17 +743,16 @@ func adminSettingsModel(c *gin.Context) (*model.SettingsModel, error) {
 }
 
 // SaveDatabaseSettings handles saving database configuration
-func SaveDatabaseSettings(c *gin.Context) {
+func SaveDatabaseSettings(w http.ResponseWriter, r *http.Request) {
 	var settings map[string]interface{}
-	if err := c.ShouldBindJSON(&settings); err != nil {
-		BadRequest(c, "Invalid request data")
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		BadRequest(w, r, "Invalid request data")
 		return
 	}
 
 	// Get database from context
-	_, exists := c.Get("db")
-	if !exists {
-		InternalError(c, "Database connection not available")
+	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+		InternalError(w, r, "Database connection not available")
 		return
 	}
 
@@ -769,7 +769,7 @@ func SaveDatabaseSettings(c *gin.Context) {
 			}
 		}
 		if !isValid {
-			BadRequest(c, "Invalid database driver")
+			BadRequest(w, r, "Invalid database driver")
 			return
 		}
 
@@ -783,7 +783,7 @@ func SaveDatabaseSettings(c *gin.Context) {
 				fmt.Sscanf(v, "%d", &portNum)
 			}
 			if portNum < 1 || portNum > 65535 {
-				BadRequest(c, "Port must be between 1 and 65535")
+				BadRequest(w, r, "Port must be between 1 and 65535")
 				return
 			}
 		}
@@ -793,7 +793,7 @@ func SaveDatabaseSettings(c *gin.Context) {
 			requiredFields := []string{"database.host", "database.port", "database.name"}
 			for _, field := range requiredFields {
 				if val, ok := settings[field]; !ok || val == "" {
-					BadRequest(c, fmt.Sprintf("Field %s is required for remote databases", field))
+					BadRequest(w, r, fmt.Sprintf("Field %s is required for remote databases", field))
 					return
 				}
 			}
@@ -815,16 +815,16 @@ func SaveDatabaseSettings(c *gin.Context) {
 		}
 
 		if err != nil {
-			InternalError(c, fmt.Sprintf("Failed to save setting %s: %v", key, err))
+			InternalError(w, r, fmt.Sprintf("Failed to save setting %s: %v", key, err))
 			return
 		}
 	}
 
-	RespondSuccess(c, "Database settings saved successfully. Restart the server for changes to take effect.")
+	RespondSuccess(w, r, "Database settings saved successfully. Restart the server for changes to take effect.")
 }
 
 // TestDatabaseConfigConnection tests a database configuration without saving it
-func TestDatabaseConfigConnection(c *gin.Context) {
+func TestDatabaseConfigConnection(w http.ResponseWriter, r *http.Request) {
 	var config struct {
 		Driver   string `json:"driver"`
 		Host     string `json:"host"`
@@ -835,35 +835,35 @@ func TestDatabaseConfigConnection(c *gin.Context) {
 		SSLMode  string `json:"sslmode"`
 	}
 
-	if err := c.ShouldBindJSON(&config); err != nil {
-		BadRequest(c, "Invalid request data")
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		BadRequest(w, r, "Invalid request data")
 		return
 	}
 
 	// For file and sqlite, just return success
 	if config.Driver == "file" || config.Driver == "sqlite" {
-		RespondSuccess(c, "Local database configuration is valid", map[string]interface{}{
+		RespondSuccess(w, r, "Local database configuration is valid", map[string]interface{}{
 			"status": "valid",
 		})
 		return
 	}
 
 	if config.Host == "" {
-		BadRequest(c, "Host is required for remote databases")
+		BadRequest(w, r, "Host is required for remote databases")
 		return
 	}
 
 	if config.Port < 1 || config.Port > 65535 {
-		BadRequest(c, "Port must be between 1 and 65535")
+		BadRequest(w, r, "Port must be between 1 and 65535")
 		return
 	}
 
 	if config.Name == "" {
-		BadRequest(c, "Database name is required")
+		BadRequest(w, r, "Database name is required")
 		return
 	}
 
-	RespondSuccess(c, "Database configuration validated successfully", map[string]interface{}{
+	RespondSuccess(w, r, "Database configuration validated successfully", map[string]interface{}{
 		"status": "validated",
 	})
 }

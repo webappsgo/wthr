@@ -3,11 +3,12 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"log"
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -25,7 +26,7 @@ func NewLogFormatHandler(db *sql.DB) *LogFormatHandler {
 }
 
 // GetLogFormat returns the current log format setting
-func (h *LogFormatHandler) GetLogFormat(c *gin.Context) {
+func (h *LogFormatHandler) GetLogFormat(w http.ResponseWriter, r *http.Request) {
 	// Get log format from server config
 	var logFormat string
 	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
@@ -33,7 +34,7 @@ func (h *LogFormatHandler) GetLogFormat(c *gin.Context) {
 	`).Scan(&logFormat)
 
 	if err != nil && err != sql.ErrNoRows {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": "Failed to get log format setting",
 		})
 		return
@@ -44,7 +45,7 @@ func (h *LogFormatHandler) GetLogFormat(c *gin.Context) {
 		logFormat = "apache"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"format":  logFormat,
 		"formats": []string{"apache", "nginx", "json", "fail2ban", "syslog", "cef", "text"},
@@ -52,13 +53,13 @@ func (h *LogFormatHandler) GetLogFormat(c *gin.Context) {
 }
 
 // SetLogFormat updates the log format setting
-func (h *LogFormatHandler) SetLogFormat(c *gin.Context) {
+func (h *LogFormatHandler) SetLogFormat(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Format string `json:"format" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
@@ -74,7 +75,7 @@ func (h *LogFormatHandler) SetLogFormat(c *gin.Context) {
 	}
 
 	if !validFormats[request.Format] {
-		c.JSON(http.StatusBadRequest, gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error":         "Invalid log format",
 			"valid_formats": []string{"apache", "nginx", "json", "fail2ban", "syslog", "cef", "text"},
 		})
@@ -89,14 +90,14 @@ func (h *LogFormatHandler) SetLogFormat(c *gin.Context) {
 	`, request.Format, time.Now(), request.Format, time.Now())
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to update log format",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Log format updated successfully",
 		"format":  request.Format,
@@ -105,8 +106,8 @@ func (h *LogFormatHandler) SetLogFormat(c *gin.Context) {
 }
 
 // PreviewLogFormat shows a preview of different log formats
-func (h *LogFormatHandler) PreviewLogFormat(c *gin.Context) {
-	format := c.Query("format")
+func (h *LogFormatHandler) PreviewLogFormat(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "apache"
 	}
@@ -144,11 +145,11 @@ func (h *LogFormatHandler) PreviewLogFormat(c *gin.Context) {
 		previews[string(fmt)] = formatter.Format(sampleEntry)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":             true,
 		"current_format": format,
 		"previews":       previews,
-		"sample_data": gin.H{
+		"sample_data": map[string]interface{}{
 			"timestamp":    sampleEntry.Timestamp.Format(time.RFC3339),
 			"remote_addr":  sampleEntry.RemoteAddr,
 			"method":       sampleEntry.Method,
@@ -162,7 +163,7 @@ func (h *LogFormatHandler) PreviewLogFormat(c *gin.Context) {
 }
 
 // ShowLogFormatPage renders the log format configuration page
-func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
+func (h *LogFormatHandler) ShowLogFormatPage(w http.ResponseWriter, r *http.Request) {
 	// Get current format
 	var logFormat string
 	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
@@ -176,7 +177,7 @@ func (h *LogFormatHandler) ShowLogFormatPage(c *gin.Context) {
 		logFormat = "apache"
 	}
 
-	c.HTML(http.StatusOK, "admin/admin-logs-format.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin-logs-format.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":          "Log Format Configuration",
 		"page":           "logs-format",
 		"current_format": logFormat,

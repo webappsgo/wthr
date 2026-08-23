@@ -8,17 +8,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	_ "modernc.org/sqlite"
 )
 
-func setupNotificationAPITest(t *testing.T) (*gin.Engine, *sql.DB, *sql.DB, *service.NotificationService, func()) {
-	gin.SetMode(gin.TestMode)
-
+func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *service.NotificationService, func()) {
 	// Create test databases with shared cache mode
 	// Using file:NAME?mode=memory&cache=shared ensures all connections share the same in-memory database
 	// This is required because sql.DB uses connection pooling, and with plain :memory:
@@ -62,40 +61,38 @@ func setupNotificationAPITest(t *testing.T) (*gin.Engine, *sql.DB, *sql.DB, *ser
 	}
 
 	// Create router
-	r := gin.New()
+	r := chi.NewRouter()
 
 	// User notification routes
-	user := r.Group("/api/v1/users/notifications")
+	user := chi.NewRouter()
+	r.Mount("/api/v1/users/notifications", user)
 	user.Use(mockAuthMiddleware(1, false)) // Mock user ID = 1
-	{
-		user.GET("", notificationAPIHandler.GetUserNotifications)
-		user.GET("/unread", notificationAPIHandler.GetUserUnreadNotifications)
-		user.GET("/count", notificationAPIHandler.GetUserUnreadCount)
-		user.GET("/stats", notificationAPIHandler.GetUserStats)
-		user.PATCH("/:id/read", notificationAPIHandler.MarkUserNotificationRead)
-		user.PATCH("/read", notificationAPIHandler.MarkAllUserNotificationsRead)
-		user.PATCH("/:id/dismiss", notificationAPIHandler.DismissUserNotification)
-		user.DELETE("/:id", notificationAPIHandler.DeleteUserNotification)
-		user.GET("/preferences", notificationAPIHandler.GetUserPreferences)
-		user.PATCH("/preferences", notificationAPIHandler.UpdateUserPreferences)
-	}
+	user.Get("/", notificationAPIHandler.GetUserNotifications)
+	user.Get("/unread", notificationAPIHandler.GetUserUnreadNotifications)
+	user.Get("/count", notificationAPIHandler.GetUserUnreadCount)
+	user.Get("/stats", notificationAPIHandler.GetUserStats)
+	user.Patch("/{id}/read", notificationAPIHandler.MarkUserNotificationRead)
+	user.Patch("/read", notificationAPIHandler.MarkAllUserNotificationsRead)
+	user.Patch("/{id}/dismiss", notificationAPIHandler.DismissUserNotification)
+	user.Delete("/{id}", notificationAPIHandler.DeleteUserNotification)
+	user.Get("/preferences", notificationAPIHandler.GetUserPreferences)
+	user.Patch("/preferences", notificationAPIHandler.UpdateUserPreferences)
 
 	// Admin notification routes
-	admin := r.Group("/api/v1/admin/notifications")
+	admin := chi.NewRouter()
+	r.Mount("/api/v1/admin/notifications", admin)
 	admin.Use(mockAuthMiddleware(1, true)) // Mock admin ID = 1
-	{
-		admin.GET("", notificationAPIHandler.GetAdminNotifications)
-		admin.GET("/unread", notificationAPIHandler.GetAdminUnreadNotifications)
-		admin.GET("/count", notificationAPIHandler.GetAdminUnreadCount)
-		admin.GET("/stats", notificationAPIHandler.GetAdminStats)
-		admin.PATCH("/:id/read", notificationAPIHandler.MarkAdminNotificationRead)
-		admin.PATCH("/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
-		admin.PATCH("/:id/dismiss", notificationAPIHandler.DismissAdminNotification)
-		admin.DELETE("/:id", notificationAPIHandler.DeleteAdminNotification)
-		admin.GET("/preferences", notificationAPIHandler.GetAdminPreferences)
-		admin.PATCH("/preferences", notificationAPIHandler.UpdateAdminPreferences)
-		admin.POST("/send", notificationAPIHandler.SendTestNotification)
-	}
+	admin.Get("/", notificationAPIHandler.GetAdminNotifications)
+	admin.Get("/unread", notificationAPIHandler.GetAdminUnreadNotifications)
+	admin.Get("/count", notificationAPIHandler.GetAdminUnreadCount)
+	admin.Get("/stats", notificationAPIHandler.GetAdminStats)
+	admin.Patch("/{id}/read", notificationAPIHandler.MarkAdminNotificationRead)
+	admin.Patch("/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
+	admin.Patch("/{id}/dismiss", notificationAPIHandler.DismissAdminNotification)
+	admin.Delete("/{id}", notificationAPIHandler.DeleteAdminNotification)
+	admin.Get("/preferences", notificationAPIHandler.GetAdminPreferences)
+	admin.Patch("/preferences", notificationAPIHandler.UpdateAdminPreferences)
+	admin.Post("/send", notificationAPIHandler.SendTestNotification)
 
 	cleanup := func() {
 		wsHub.Stop()
@@ -119,14 +116,17 @@ func createNotificationTables(t *testing.T, userDB, serverDB *sql.DB) {
 	}
 }
 
-func mockAuthMiddleware(id int, isAdmin bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if isAdmin {
-			c.Set("admin_id", id)
-		} else {
-			c.Set("user_id", id)
-		}
-		c.Next()
+func mockAuthMiddleware(id int, isAdmin bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			if isAdmin {
+				ctx = reqctx.Set(ctx, "admin_id", id)
+			} else {
+				ctx = reqctx.Set(ctx, "user_id", id)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }
 

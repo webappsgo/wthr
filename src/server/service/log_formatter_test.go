@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // sample builds a representative LogEntry for happy-path formatting tests.
@@ -415,24 +415,19 @@ func TestLogFormatter_escapeCEF(t *testing.T) {
 }
 
 // TestLogFormatter_ExtractLogEntry drives ExtractLogEntry through a real
-// gin.Context built from an httptest request/recorder, covering the
-// request-id/username-present and absent branches.
+// http.Request built via httptest, covering the request-id/username-present
+// and absent branches.
 func TestLogFormatter_ExtractLogEntry(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	t.Run("request id and username present in context", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/weather/Chicago?x=1", nil)
 		req.Header.Set("Referer", "https://ref.example/")
 		req.Header.Set("User-Agent", "test-agent/1.0")
-		c.Request = req
-		c.Set("request_id", "req-xyz")
-		c.Set("username", "dave")
-		c.Writer.WriteHeader(http.StatusOK)
+		ctx := reqctx.Set(req.Context(), "request_id", "req-xyz")
+		ctx = reqctx.Set(ctx, "username", "dave")
+		req = req.WithContext(ctx)
 
 		start := time.Now().Add(-50 * time.Millisecond)
-		entry := ExtractLogEntry(c, start, 42)
+		entry := ExtractLogEntry(req, start, http.StatusOK, 42)
 
 		if entry.RequestID != "req-xyz" {
 			t.Errorf("RequestID = %q, want req-xyz", entry.RequestID)
@@ -464,11 +459,9 @@ func TestLogFormatter_ExtractLogEntry(t *testing.T) {
 	})
 
 	t.Run("request id and username absent leave zero values", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, "/unauth", nil)
+		req := httptest.NewRequest(http.MethodPost, "/unauth", nil)
 
-		entry := ExtractLogEntry(c, time.Now(), 0)
+		entry := ExtractLogEntry(req, time.Now(), 0, 0)
 
 		if entry.RequestID != "" {
 			t.Errorf("RequestID = %q, want empty when not set in context", entry.RequestID)

@@ -2,9 +2,8 @@ package util
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -13,7 +12,7 @@ const (
 )
 
 // ParseQueryParams parses query parameters for weather display formatting
-func ParseQueryParams(c *gin.Context) *RenderParams {
+func ParseQueryParams(r *http.Request) *RenderParams {
 	params := &RenderParams{
 		Format:   0,
 		Units:    "auto",
@@ -24,10 +23,12 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 		Width: 0,
 	}
 
+	query := r.URL.Query()
+
 	// Check for combined parameter flags (e.g., ?TFm or ?qn)
 	// Look for any query key that might be a combination of flags
-	for key := range c.Request.URL.Query() {
-		if len(key) > 1 && c.Query(key) == "" {
+	for key := range query {
+		if len(key) > 1 && query.Get(key) == "" {
 			// This might be a combined flag parameter
 			for _, char := range key {
 				switch char {
@@ -55,7 +56,7 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 	}
 
 	// Format parameters (0-4)
-	if format := c.Query("format"); format != "" {
+	if format := query.Get("format"); format != "" {
 		switch format {
 		case "0":
 			params.Format = 0
@@ -79,21 +80,21 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 	}
 
 	// Unit parameters - check if parameter exists
-	if _, exists := c.GetQuery("u"); exists {
+	if _, exists := query["u"]; exists {
 		// USCS/Imperial
 		params.Units = "imperial"
-	} else if _, exists := c.GetQuery("m"); exists {
+	} else if _, exists := query["m"]; exists {
 		// Metric
 		params.Units = "metric"
-	} else if _, exists := c.GetQuery("M"); exists {
+	} else if _, exists := query["M"]; exists {
 		// SI (metric with m/s for wind)
 		params.Units = "metric"
-	} else if units := c.Query("units"); units != "" {
+	} else if units := query.Get("units"); units != "" {
 		params.Units = units
 	}
 
 	// Days parameter with max capping
-	if days := c.Query("days"); days != "" {
+	if days := query.Get("days"); days != "" {
 		requestedDays := parseIntSafe(days)
 		if requestedDays < 0 {
 			// Negative values become 0 (current only)
@@ -107,50 +108,50 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 	}
 
 	// Style options - check if parameter exists
-	if _, exists := c.GetQuery("F"); exists {
+	if _, exists := query["F"]; exists {
 		// Hide footer
 		params.NoFooter = true
 	}
-	if _, exists := c.GetQuery("n"); exists {
+	if _, exists := query["n"]; exists {
 		// Narrow format
 		params.Narrow = true
 	}
-	if _, exists := c.GetQuery("q"); exists {
+	if _, exists := query["q"]; exists {
 		// Quiet mode
 		params.Quiet = true
 	}
-	if _, exists := c.GetQuery("Q"); exists {
+	if _, exists := query["Q"]; exists {
 		// Super quiet mode
 		params.SuperQuiet = true
 	}
-	if _, exists := c.GetQuery("T"); exists {
+	if _, exists := query["T"]; exists {
 		// No terminal colors
 		params.NoColors = true
 	}
-	if _, exists := c.GetQuery("A"); exists {
+	if _, exists := query["A"]; exists {
 		// Force ANSI/terminal output
 		params.ForceANSI = true
 	}
 
 	// Check Accept header for text/plain (also disable colors)
-	accept := c.GetHeader("Accept")
+	accept := r.Header.Get("Accept")
 	if strings.Contains(accept, "text/plain") {
 		params.NoColors = true
 	}
 
 	// Language
-	if lang := c.Query("lang"); lang != "" {
+	if lang := query.Get("lang"); lang != "" {
 		params.Language = lang
 	}
 
 	// Terminal width detection (for adaptive layout)
 	// Priority: query param > User-Agent header > default
-	if width := c.Query("width"); width != "" {
+	if width := query.Get("width"); width != "" {
 		// Manual width specification
 		if w := parseIntSafe(width); w > 0 {
 			params.Width = w
 		}
-	} else if width := c.Query("cols"); width != "" {
+	} else if width := query.Get("cols"); width != "" {
 		// Alternative: cols parameter
 		if w := parseIntSafe(width); w > 0 {
 			params.Width = w
@@ -158,7 +159,7 @@ func ParseQueryParams(c *gin.Context) *RenderParams {
 	} else {
 		// Try to parse from User-Agent (some terminal tools include columns info)
 		// Example: curl/<version> (COLUMNS=120)
-		userAgent := c.GetHeader("User-Agent")
+		userAgent := r.Header.Get("User-Agent")
 		if strings.Contains(userAgent, "COLUMNS=") {
 			parts := strings.Split(userAgent, "COLUMNS=")
 			if len(parts) > 1 {

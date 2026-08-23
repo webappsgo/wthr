@@ -29,7 +29,7 @@ func TestSchedulerHandler_GetAllTasks_Empty(t *testing.T) {
 	h := NewSchedulerHandler(s)
 
 	c, w := newAPITestContext("/server/admin/config/scheduler/tasks")
-	h.GetAllTasks(c)
+	h.GetAllTasks(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())

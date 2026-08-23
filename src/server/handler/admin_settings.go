@@ -12,9 +12,8 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
-
-	"github.com/gin-gonic/gin"
 )
 
 // AdminSettingsHandler handles admin settings API
@@ -24,20 +23,20 @@ type AdminSettingsHandler struct {
 }
 
 // GetAllSettings returns all settings
-func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
+func (h *AdminSettingsHandler) GetAllSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
 		SELECT key, value, type, COALESCE(description, '') as description
 		FROM server_config
 		ORDER BY key
 	`)
 	if err != nil {
-		InternalError(c, "Failed to fetch settings")
+		InternalError(w, r, "Failed to fetch settings")
 		return
 	}
 	defer rows.Close()
 
 	settings := make(map[string]interface{})
-	categories := make(map[string][]gin.H)
+	categories := make(map[string][]map[string]interface{})
 
 	for rows.Next() {
 		var key, value, typ, description string
@@ -78,9 +77,9 @@ func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
 		settings[key] = parsedValue
 
 		if categories[category] == nil {
-			categories[category] = make([]gin.H, 0)
+			categories[category] = make([]map[string]interface{}, 0)
 		}
-		categories[category] = append(categories[category], gin.H{
+		categories[category] = append(categories[category], map[string]interface{}{
 			"key":         key,
 			"value":       parsedValue,
 			"type":        typ,
@@ -88,20 +87,20 @@ func (h *AdminSettingsHandler) GetAllSettings(c *gin.Context) {
 		})
 	}
 
-	RespondSuccess(c, "", gin.H{
+	RespondSuccess(w, r, "", map[string]interface{}{
 		"settings":   settings,
 		"categories": categories,
 	})
 }
 
 // UpdateSettings updates multiple settings at once
-func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
+func (h *AdminSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Settings map[string]interface{} `json:"settings"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "Invalid request body")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		BadRequest(w, r, "Invalid request body")
 		return
 	}
 
@@ -150,7 +149,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 
 	// Send success notification to admin (AI.md PART 18 - WebUI Notifications)
 	if h.NotificationService != nil && len(applied) > 0 {
-		adminIDInterface, exists := c.Get("admin_id")
+		adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
 		if exists {
 			adminID, ok := adminIDInterface.(int)
 			if ok {
@@ -172,7 +171,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
-	RespondSuccess(c, "Settings applied successfully. Changes are live.", gin.H{
+	RespondSuccess(w, r, "Settings applied successfully. Changes are live.", map[string]interface{}{
 		"applied": applied,
 		"failed":  failed,
 		// All settings apply live
@@ -181,13 +180,13 @@ func (h *AdminSettingsHandler) UpdateSettings(c *gin.Context) {
 }
 
 // ResetSettings resets all settings to defaults
-func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
+func (h *AdminSettingsHandler) ResetSettings(w http.ResponseWriter, r *http.Request) {
 	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
 	backupPath := settingsModel.GetString("backup.location", "/data/backups")
 
 	tx, err := database.GetServerDB().Begin()
 	if err != nil {
-		InternalError(c, "Failed to start settings reset")
+		InternalError(w, r, "Failed to start settings reset")
 		return
 	}
 	defer tx.Rollback()
@@ -196,28 +195,28 @@ func (h *AdminSettingsHandler) ResetSettings(c *gin.Context) {
 	defer txCancel()
 
 	if _, err := tx.ExecContext(txCtx, "DELETE FROM server_config"); err != nil {
-		InternalError(c, "Failed to clear settings")
+		InternalError(w, r, "Failed to clear settings")
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		InternalError(c, "Failed to commit settings reset")
+		InternalError(w, r, "Failed to commit settings reset")
 		return
 	}
 
 	if err := settingsModel.InitializeDefaults(backupPath); err != nil {
-		InternalError(c, "Failed to restore default settings")
+		InternalError(w, r, "Failed to restore default settings")
 		return
 	}
 
-	RespondSuccess(c, "Settings reset to defaults")
+	RespondSuccess(w, r, "Settings reset to defaults")
 }
 
 // ExportSettings exports configuration as JSON
-func (h *AdminSettingsHandler) ExportSettings(c *gin.Context) {
+func (h *AdminSettingsHandler) ExportSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value FROM server_config ORDER BY key")
 	if err != nil {
-		InternalError(c, "Failed to export settings")
+		InternalError(w, r, "Failed to export settings")
 		return
 	}
 	defer rows.Close()
@@ -230,8 +229,8 @@ func (h *AdminSettingsHandler) ExportSettings(c *gin.Context) {
 		}
 	}
 
-	c.Header("Content-Disposition", "attachment; filename=weather-settings.json")
-	c.JSON(http.StatusOK, gin.H{
+	w.Header().Set("Content-Disposition", "attachment; filename=weather-settings.json")
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"version":     readVersion(),
 		"exported_at": time.Now().UTC().Format(time.RFC3339),
 		"settings":    settings,
@@ -239,13 +238,13 @@ func (h *AdminSettingsHandler) ExportSettings(c *gin.Context) {
 }
 
 // ImportSettings imports configuration from JSON
-func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
+func (h *AdminSettingsHandler) ImportSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Settings map[string]string `json:"settings"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		BadRequest(c, "Invalid request body")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		BadRequest(w, r, "Invalid request body")
 		return
 	}
 
@@ -265,18 +264,18 @@ func (h *AdminSettingsHandler) ImportSettings(c *gin.Context) {
 		}
 	}
 
-	RespondSuccess(c, "Settings imported successfully", gin.H{
+	RespondSuccess(w, r, "Settings imported successfully", map[string]interface{}{
 		"imported": imported,
 		"total":    len(req.Settings),
 	})
 }
 
 // ReloadConfig triggers a server configuration reload (similar to SIGHUP)
-func (h *AdminSettingsHandler) ReloadConfig(c *gin.Context) {
+func (h *AdminSettingsHandler) ReloadConfig(w http.ResponseWriter, r *http.Request) {
 	// Settings are stored in the database and are already live-reloaded on every
 	// request via SettingsModel, so no file I/O is needed here.
 
-	RespondSuccess(c, "Configuration reload triggered", gin.H{
+	RespondSuccess(w, r, "Configuration reload triggered", map[string]interface{}{
 		"note": "Settings are live-reloaded from database automatically",
 	})
 }

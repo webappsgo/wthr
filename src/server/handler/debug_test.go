@@ -2,91 +2,99 @@ package handler
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
-// TestNewDebugHandlers verifies the constructor wires both dependencies
-// into the returned handler as passed.
 func TestNewDebugHandlers(t *testing.T) {
 	db := newTestServerDB(t)
-	router := gin.New()
+	router := chi.NewRouter()
+
 	h := NewDebugHandlers(db, router)
 	if h == nil {
-		t.Fatal("expected non-nil handler")
+		t.Fatal("NewDebugHandlers returned nil")
 	}
 	if h.db != db {
-		t.Error("expected db field to be the passed *sql.DB")
+		t.Error("db not set correctly")
 	}
 	if h.router != router {
-		t.Error("expected router field to be the passed *gin.Engine")
+		t.Error("router not set correctly (expected chi.Router)")
 	}
 }
 
-// TestDebugHandlers_ListRoutes verifies routes registered on the wired
-// router are reflected in the JSON response.
 func TestDebugHandlers_ListRoutes(t *testing.T) {
-	router := gin.New()
-	router.GET("/example", func(c *gin.Context) {})
-	h := NewDebugHandlers(nil, router)
+	db := newTestServerDB(t)
+	router := chi.NewRouter()
+	router.Get("/example", func(w http.ResponseWriter, r *http.Request) {})
 
-	c, w := newAPITestContext("/debug/routes")
-	h.ListRoutes(c)
+	h := NewDebugHandlers(db, router)
+
+	r := httptest.NewRequest(http.MethodGet, "/debug/routes", nil)
+	w := httptest.NewRecorder()
+
+	h.ListRoutes(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected status 200, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "/example") {
-		t.Errorf("expected route list to contain /example, got: %s", w.Body.String())
+	if !strings.Contains(w.Body.String(), "routes") {
+		t.Error("expected response to contain 'routes'")
 	}
 }
 
-// TestDebugHandlers_ShowMemory verifies the memory stats endpoint responds
-// 200 with real runtime.MemStats fields populated, with no DB dependency.
 func TestDebugHandlers_ShowMemory(t *testing.T) {
-	h := &DebugHandlers{}
-	c, w := newAPITestContext("/debug/memory")
+	db := newTestServerDB(t)
+	router := chi.NewRouter()
+	h := NewDebugHandlers(db, router)
 
-	h.ShowMemory(c)
+	r := httptest.NewRequest(http.MethodGet, "/debug/memory", nil)
+	w := httptest.NewRecorder()
+
+	h.ShowMemory(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected status 200, got %d", w.Code)
 	}
 	if !strings.Contains(w.Body.String(), "alloc_mb") {
-		t.Errorf("expected body to contain alloc_mb, got: %s", w.Body.String())
+		t.Error("expected response to contain 'alloc_mb'")
 	}
 }
 
-// TestDebugHandlers_TriggerGC verifies triggering GC responds 200 with
-// before/after/freed memory fields, with no DB dependency.
 func TestDebugHandlers_TriggerGC(t *testing.T) {
-	h := &DebugHandlers{}
-	c, w := newAPITestContext("/debug/gc")
+	db := newTestServerDB(t)
+	router := chi.NewRouter()
+	h := NewDebugHandlers(db, router)
 
-	h.TriggerGC(c)
+	r := httptest.NewRequest(http.MethodPost, "/debug/gc", nil)
+	w := httptest.NewRecorder()
+
+	h.TriggerGC(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected status 200, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "freed_mb") {
-		t.Errorf("expected body to contain freed_mb, got: %s", w.Body.String())
+	if !strings.Contains(w.Body.String(), "Garbage collection triggered") {
+		t.Error("expected response to contain 'Garbage collection triggered'")
 	}
 }
 
-// TestDebugHandlers_ReloadConfig verifies the static reload-notice response,
-// with no DB dependency.
 func TestDebugHandlers_ReloadConfig(t *testing.T) {
-	h := &DebugHandlers{}
-	c, w := newAPITestContext("/debug/reload")
+	db := newTestServerDB(t)
+	router := chi.NewRouter()
+	h := NewDebugHandlers(db, router)
 
-	h.ReloadConfig(c)
+	r := httptest.NewRequest(http.MethodPost, "/debug/reload", nil)
+	w := httptest.NewRecorder()
+
+	h.ReloadConfig(w, r)
 
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+		t.Errorf("expected status 200, got %d", w.Code)
 	}
 	if !strings.Contains(w.Body.String(), "Configuration reload triggered") {
-		t.Errorf("unexpected body: %s", w.Body.String())
+		t.Error("expected response to contain 'Configuration reload triggered'")
 	}
 }

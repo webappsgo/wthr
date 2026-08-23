@@ -3,16 +3,18 @@ package handler
 import (
 	"net/http"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // TestDashboardHandler_ShowDashboard_Unauthenticated verifies an
-// unauthenticated request (no user in the gin context) is redirected to
+// unauthenticated request (no user in the request context) is redirected to
 // the login page rather than attempting a template render.
 func TestDashboardHandler_ShowDashboard_Unauthenticated(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
 	c, w := newAPITestContext("/dashboard")
-	h.ShowDashboard(c)
+	h.ShowDashboard(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
@@ -23,13 +25,13 @@ func TestDashboardHandler_ShowDashboard_Unauthenticated(t *testing.T) {
 }
 
 // TestDashboardHandler_ShowAdminPanel_MissingAdminID verifies a request
-// with no "admin_id" set in the gin context is redirected to the admin
+// with no "admin_id" set in the request context is redirected to the admin
 // login page rather than attempting a template render.
 func TestDashboardHandler_ShowAdminPanel_MissingAdminID(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
 	c, w := newAPITestContext("/server/admin")
-	h.ShowAdminPanel(c)
+	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
@@ -46,8 +48,8 @@ func TestDashboardHandler_ShowAdminPanel_WrongAdminIDType(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
 	c, w := newAPITestContext("/server/admin")
-	c.Set("admin_id", "not-an-int")
-	h.ShowAdminPanel(c)
+	c = c.WithContext(reqctx.Set(c.Context(), "admin_id", "not-an-int"))
+	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
@@ -67,8 +69,8 @@ func TestDashboardHandler_ShowAdminPanel_AdminNotFound(t *testing.T) {
 	h := &DashboardHandler{DB: serverDB}
 
 	c, w := newAPITestContext("/server/admin")
-	c.Set("admin_id", 999999)
-	h.ShowAdminPanel(c)
+	c = withAdminID(c, 999999)
+	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)

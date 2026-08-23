@@ -8,34 +8,31 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	"github.com/webappsgo/wthr/src/server/service"
 	_ "modernc.org/sqlite"
 )
 
-func setupIntegrationTest(t *testing.T) (*gin.Engine, *database.DB) {
-	gin.SetMode(gin.TestMode)
-
+func setupIntegrationTest(t *testing.T) (chi.Router, *database.DB) {
 	raw, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to initialize test database: %v", err)
 	}
 	db := &database.DB{DB: raw}
 
-	r := gin.New()
+	r := chi.NewRouter()
 	locationEnhancer := service.NewLocationEnhancer(db.DB)
 	weatherService := service.NewWeatherService(locationEnhancer, nil)
 	apiHandler := handler.NewAPIHandler(weatherService, locationEnhancer)
 
 	// Setup API routes
-	api := r.Group("/api/v1")
-	{
-		api.GET("/weather", apiHandler.GetWeather)
-		api.GET("/forecast", apiHandler.GetForecast)
-		api.GET("/search", apiHandler.SearchLocations)
-	}
+	r.Route("/api/v1", func(api chi.Router) {
+		api.Get("/weather", apiHandler.GetWeather)
+		api.Get("/forecast", apiHandler.GetForecast)
+		api.Get("/search", apiHandler.SearchLocations)
+	})
 
 	return r, db
 }

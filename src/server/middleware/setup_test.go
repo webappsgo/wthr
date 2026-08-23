@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
@@ -102,9 +101,16 @@ func writeSetupToken(t *testing.T) {
 	t.Cleanup(func() { removeSetupToken(t) })
 }
 
-func newSetupTestRouter() *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	return gin.New()
+// serveThroughMiddleware runs mw(next) directly against an httptest
+// request/recorder pair, mirroring what a chi router would do without
+// needing to register actual routes (SetupTokenRequired/
+// BlockSetupAfterComplete/etc. never inspect chi route params, only
+// r.URL.Path and cookies).
+func serveThroughMiddleware(t *testing.T, mw func(http.Handler) http.Handler, req *http.Request, next http.Handler) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	mw(next).ServeHTTP(w, req)
+	return w
 }
 
 // TestSetupTokenRequired_NonAdminRouteSkipped verifies a request outside the
@@ -113,13 +119,9 @@ func TestSetupTokenRequired_NonAdminRouteSkipped(t *testing.T) {
 	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 
-	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/api/v1/weather", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
-	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 for a non-admin route", w.Code)
@@ -132,13 +134,9 @@ func TestSetupTokenRequired_SetupRouteSkipped(t *testing.T) {
 	openSetupTestServerDB(t)
 	cfg := testAppConfig()
 
-	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
-	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 for the setup wizard route", w.Code)
@@ -152,13 +150,9 @@ func TestSetupTokenRequired_AdminExistsPassesThrough(t *testing.T) {
 	seedSetupAdmin(t, db)
 	cfg := testAppConfig()
 
-	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin/dashboard", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
-	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/dashboard", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (normal auth flow) once an admin exists", w.Code)
@@ -173,17 +167,13 @@ func TestSetupTokenRequired_NoAdminNoTokenFileShows503(t *testing.T) {
 	cfg := testAppConfig()
 	removeSetupToken(t)
 
-	router := newSetupTestRouter()
-	router.SetHTMLTemplate(template.Must(template.New("error.tmpl").Parse("error stub {{.error}}")))
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin", func(c *gin.Context) {
+	SetHTMLTemplates(template.Must(template.New("error.tmpl").Parse("error stub {{.error}}")))
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want the 503 error page instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
 	})
-
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want 503 when no admin exists and no setup token file is present", w.Code)
@@ -198,17 +188,13 @@ func TestSetupTokenRequired_NoAdminTokenFileUnverifiedShowsForm(t *testing.T) {
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
-	router := newSetupTestRouter()
-	router.SetHTMLTemplate(template.Must(template.New("admin/setup_token.tmpl").Parse("token form stub")))
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin", func(c *gin.Context) {
+	SetHTMLTemplates(template.Must(template.New("admin/setup_token.tmpl").Parse("token form stub")))
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want the token entry form instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
 	})
-
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (token entry form)", w.Code)
@@ -223,17 +209,13 @@ func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
-	router := newSetupTestRouter()
-	router.Use(SetupTokenRequired(cfg))
-	router.GET("/server/admin", func(c *gin.Context) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want a redirect instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
 	})
-
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin", nil)
 	req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect to the setup wizard", w.Code)
@@ -251,16 +233,12 @@ func TestBlockSetupAfterComplete_AdminExistsRedirects(t *testing.T) {
 	seedSetupAdmin(t, db)
 	cfg := testAppConfig()
 
-	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/config/setup", func(c *gin.Context) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want a redirect instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
 	})
-
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect once setup is complete", w.Code)
@@ -278,13 +256,9 @@ func TestBlockSetupAfterComplete_NoAdminTokenPresentPassesThrough(t *testing.T) 
 	cfg := testAppConfig()
 	writeSetupToken(t)
 
-	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
-	w := httptest.NewRecorder()
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 to let setup proceed", w.Code)
@@ -299,16 +273,12 @@ func TestBlockSetupAfterComplete_NoAdminNoTokenRedirectsToAdminRoot(t *testing.T
 	cfg := testAppConfig()
 	removeSetupToken(t)
 
-	router := newSetupTestRouter()
-	router.Use(BlockSetupAfterComplete(cfg))
-	router.GET("/server/admin/config/setup", func(c *gin.Context) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want a redirect instead")
-		c.String(http.StatusOK, "reached")
+		w.WriteHeader(http.StatusOK)
 	})
-
-	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-	router.ServeHTTP(w, req)
+	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect for the inconsistent no-admin/no-token state", w.Code)
@@ -335,20 +305,17 @@ func TestRequireSetupTokenVerified(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := newSetupTestRouter()
 			reached := false
-			router.Use(RequireSetupTokenVerified(cfg))
-			router.GET("/server/admin/config/setup", func(c *gin.Context) {
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				reached = true
-				c.String(http.StatusOK, "ok")
+				w.WriteHeader(http.StatusOK)
 			})
 
-			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
 			if tt.cookie != nil {
 				req.AddCookie(tt.cookie)
 			}
-			router.ServeHTTP(w, req)
+			w := serveThroughMiddleware(t, RequireSetupTokenVerified(cfg), req, next)
 
 			if w.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d", w.Code, tt.wantStatus)
@@ -368,16 +335,12 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 		seedSetupAdmin(t, db)
 		cfg := testAppConfig()
 
-		router := newSetupTestRouter()
-		router.Use(BlockSetupAfterAdminExists(cfg))
-		router.GET("/server/admin/config/setup", func(c *gin.Context) {
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Error("wrapped handler reached, want a redirect instead")
-			c.String(http.StatusOK, "reached")
+			w.WriteHeader(http.StatusOK)
 		})
-
-		w := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-		router.ServeHTTP(w, req)
+		w := serveThroughMiddleware(t, BlockSetupAfterAdminExists(cfg), req, next)
 
 		if w.Code != http.StatusFound {
 			t.Errorf("status = %d, want 302 redirect when an admin already exists", w.Code)
@@ -388,13 +351,9 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 		openSetupTestServerDB(t)
 		cfg := testAppConfig()
 
-		router := newSetupTestRouter()
-		router.Use(BlockSetupAfterAdminExists(cfg))
-		router.GET("/server/admin/config/setup", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
-
-		w := httptest.NewRecorder()
+		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 		req := httptest.NewRequest(http.MethodGet, "/server/admin/config/setup", nil)
-		router.ServeHTTP(w, req)
+		w := serveThroughMiddleware(t, BlockSetupAfterAdminExists(cfg), req, next)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want 200 to let setup proceed when no admin exists", w.Code)

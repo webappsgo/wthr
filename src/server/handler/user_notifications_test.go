@@ -24,7 +24,7 @@ func TestUserNotificationHandlers_GetNotifications_Unauthorized(t *testing.T) {
 	h := &UserNotificationHandlers{}
 	c, w := newAPITestContext("/api/v1/users/notifications")
 
-	h.GetNotifications(c)
+	h.GetNotifications(w, c)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", w.Code, w.Body.String())
@@ -37,7 +37,7 @@ func TestUserNotificationHandlers_GetUnreadNotifications_Unauthorized(t *testing
 	h := &UserNotificationHandlers{}
 	c, w := newAPITestContext("/api/v1/users/notifications/unread")
 
-	h.GetUnreadNotifications(c)
+	h.GetUnreadNotifications(w, c)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", w.Code, w.Body.String())
@@ -50,7 +50,7 @@ func TestUserNotificationHandlers_GetUnreadCount_Unauthorized(t *testing.T) {
 	h := &UserNotificationHandlers{}
 	c, w := newAPITestContext("/api/v1/users/notifications/unread/count")
 
-	h.GetUnreadCount(c)
+	h.GetUnreadCount(w, c)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", w.Code, w.Body.String())
@@ -63,7 +63,7 @@ func TestUserNotificationHandlers_MarkAllAsRead_Unauthorized(t *testing.T) {
 	h := &UserNotificationHandlers{}
 	c, w := newAPITestContext("/api/v1/users/notifications/read-all")
 
-	h.MarkAllAsRead(c)
+	h.MarkAllAsRead(w, c)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", w.Code, w.Body.String())

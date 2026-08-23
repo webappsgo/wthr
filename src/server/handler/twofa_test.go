@@ -8,6 +8,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
+	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 )
 
@@ -45,7 +46,7 @@ func TestGetTwoFactorStatus(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newTwoFactorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/security/2fa", nil)
-		h.GetTwoFactorStatus(c)
+		h.GetTwoFactorStatus(w, c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -59,9 +60,8 @@ func TestGetTwoFactorStatus(t *testing.T) {
 		}
 
 		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/security/2fa", nil)
-		setCurrentUser(c, user.ID)
-		c.Set("user", user)
-		h.GetTwoFactorStatus(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.GetTwoFactorStatus(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -75,7 +75,7 @@ func TestSetupTwoFactor(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newTwoFactorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/security/2fa/setup", nil)
-		h.SetupTwoFactor(c)
+		h.SetupTwoFactor(w, c)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -86,8 +86,8 @@ func TestSetupTwoFactor(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "setupuser", "setupuser@example.com", "correcthorse123", false, "")
 
 		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/security/2fa/setup", nil)
-		c.Set("user", user)
-		h.SetupTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.SetupTwoFactor(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -99,8 +99,8 @@ func TestSetupTwoFactor(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "setupuser2", "setupuser2@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
 
 		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/security/2fa/setup", nil)
-		c.Set("user", user)
-		h.SetupTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.SetupTwoFactor(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -125,8 +125,8 @@ func TestEnableTwoFactor(t *testing.T) {
 			"secret": secret,
 			"code":   code,
 		})
-		c.Set("user", user)
-		h.EnableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.EnableTwoFactor(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -148,8 +148,8 @@ func TestEnableTwoFactor(t *testing.T) {
 			"secret": secret,
 			"code":   "000000",
 		})
-		c.Set("user", user)
-		h.EnableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.EnableTwoFactor(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -161,8 +161,8 @@ func TestEnableTwoFactor(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "enableuser3", "enableuser3@example.com", "correcthorse123", false, "")
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/enable", map[string]string{})
-		c.Set("user", user)
-		h.EnableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.EnableTwoFactor(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -180,8 +180,8 @@ func TestDisableTwoFactor(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/disable", map[string]string{
 			"password": "correcthorse123",
 		})
-		c.Set("user", user)
-		h.DisableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.DisableTwoFactor(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -202,8 +202,8 @@ func TestDisableTwoFactor(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/disable", map[string]string{
 			"password": "totallywrong",
 		})
-		c.Set("user", user)
-		h.DisableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.DisableTwoFactor(w, c)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -217,8 +217,8 @@ func TestDisableTwoFactor(t *testing.T) {
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/disable", map[string]string{
 			"password": "correcthorse123",
 		})
-		c.Set("user", user)
-		h.DisableTwoFactor(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.DisableTwoFactor(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -240,8 +240,8 @@ func TestVerifyTwoFactorCode(t *testing.T) {
 		}
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/verify", map[string]string{"code": code})
-		c.Set("user", user)
-		h.VerifyTwoFactorCode(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.VerifyTwoFactorCode(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -253,8 +253,8 @@ func TestVerifyTwoFactorCode(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "verify2fauser2", "verify2fauser2@example.com", "correcthorse123", true, secret)
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/verify", map[string]string{"code": "000000"})
-		c.Set("user", user)
-		h.VerifyTwoFactorCode(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.VerifyTwoFactorCode(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -276,8 +276,8 @@ func TestRegenerateRecoveryKeys(t *testing.T) {
 		}
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/recovery/regenerate", map[string]string{"code": code})
-		c.Set("user", user)
-		h.RegenerateRecoveryKeys(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.RegenerateRecoveryKeys(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -289,8 +289,8 @@ func TestRegenerateRecoveryKeys(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "regenuser2", "regenuser2@example.com", "correcthorse123", false, "")
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/recovery/regenerate", map[string]string{"code": "123456"})
-		c.Set("user", user)
-		h.RegenerateRecoveryKeys(c)
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.RegenerateRecoveryKeys(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())

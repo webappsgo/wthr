@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 type MetricsHandler struct{}
@@ -30,7 +32,7 @@ type CustomMetric struct {
 }
 
 // GetConfig returns the current metrics configuration
-func (h *MetricsHandler) GetConfig(c *gin.Context) {
+func (h *MetricsHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config := MetricsConfig{
 		Enabled:               true,
 		Path:                  "/metrics",
@@ -40,15 +42,15 @@ func (h *MetricsHandler) GetConfig(c *gin.Context) {
 		IncludeProcessMetrics: true,
 	}
 
-	c.JSON(http.StatusOK, config)
+	writeJSON(w, http.StatusOK, config)
 }
 
 // UpdateConfig updates the metrics configuration
-func (h *MetricsHandler) UpdateConfig(c *gin.Context) {
+func (h *MetricsHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	var config MetricsConfig
 
-	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
@@ -58,14 +60,14 @@ func (h *MetricsHandler) UpdateConfig(c *gin.Context) {
 	}
 
 	// In a real implementation, this would update the Prometheus registry
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Metrics configuration updated successfully",
 		"config":  config,
 	})
 }
 
 // GetStats returns metrics statistics
-func (h *MetricsHandler) GetStats(c *gin.Context) {
+func (h *MetricsHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
 		"total":   24,
 		"enabled": 20,
@@ -73,11 +75,11 @@ func (h *MetricsHandler) GetStats(c *gin.Context) {
 		"builtin": 21,
 	}
 
-	c.JSON(http.StatusOK, stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // ListMetrics returns all available metrics
-func (h *MetricsHandler) ListMetrics(c *gin.Context) {
+func (h *MetricsHandler) ListMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := []map[string]interface{}{
 		{
 			"name":    "http_requests_total",
@@ -137,26 +139,26 @@ func (h *MetricsHandler) ListMetrics(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, gin.H{"metrics": metrics})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"metrics": metrics})
 }
 
 // CreateMetric creates a custom metric
-func (h *MetricsHandler) CreateMetric(c *gin.Context) {
+func (h *MetricsHandler) CreateMetric(w http.ResponseWriter, r *http.Request) {
 	var metric CustomMetric
 
-	if err := c.ShouldBindJSON(&metric); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Validate metric
 	if metric.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Metric name is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric name is required"})
 		return
 	}
 
 	if metric.Type == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Metric type is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric type is required"})
 		return
 	}
 
@@ -168,50 +170,50 @@ func (h *MetricsHandler) CreateMetric(c *gin.Context) {
 	}
 
 	if !validTypes[metric.Type] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid metric type"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid metric type"})
 		return
 	}
 
 	// In a real implementation, this would register the metric with Prometheus
-	c.JSON(http.StatusCreated, gin.H{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Custom metric created successfully",
 		"metric":  metric,
 	})
 }
 
 // DeleteMetric deletes a custom metric
-func (h *MetricsHandler) DeleteMetric(c *gin.Context) {
-	name := c.Param("name")
+func (h *MetricsHandler) DeleteMetric(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
 
 	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Metric name is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric name is required"})
 		return
 	}
 
 	// In a real implementation, this would unregister the metric
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Custom metric deleted successfully",
 		"name":    name,
 	})
 }
 
 // ExportMetrics exports metrics in specified format
-func (h *MetricsHandler) ExportMetrics(c *gin.Context) {
-	format := c.Query("format")
+func (h *MetricsHandler) ExportMetrics(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
 
 	switch format {
 	case "json":
-		h.exportJSON(c)
+		h.exportJSON(w, r)
 	case "openmetrics":
-		h.exportOpenMetrics(c)
+		h.exportOpenMetrics(w, r)
 	default:
 		// Default to Prometheus format
-		h.exportPrometheus(c)
+		h.exportPrometheus(w, r)
 	}
 }
 
 // Helper: Export in Prometheus format
-func (h *MetricsHandler) exportPrometheus(c *gin.Context) {
+func (h *MetricsHandler) exportPrometheus(w http.ResponseWriter, r *http.Request) {
 	output := `# HELP wthr_http_requests_total Total number of HTTP requests
 # TYPE wthr_http_requests_total counter
 wthr_http_requests_total{method="GET",path="/api/v1/weather"} 1234
@@ -230,12 +232,13 @@ wthr_http_request_duration_seconds_count 1260
 # TYPE wthr_active_connections gauge
 wthr_active_connections 42`
 
-	c.Header("Content-Type", "text/plain; version=0.0.4")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, output)
 }
 
 // Helper: Export in JSON format
-func (h *MetricsHandler) exportJSON(c *gin.Context) {
+func (h *MetricsHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
 	metrics := map[string]interface{}{
 		"http_requests_total": map[string]interface{}{
 			"type": "counter",
@@ -250,11 +253,11 @@ func (h *MetricsHandler) exportJSON(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, metrics)
+	writeJSON(w, http.StatusOK, metrics)
 }
 
 // Helper: Export in OpenMetrics format
-func (h *MetricsHandler) exportOpenMetrics(c *gin.Context) {
+func (h *MetricsHandler) exportOpenMetrics(w http.ResponseWriter, r *http.Request) {
 	output := `# HELP wthr_http_requests Total number of HTTP requests
 # TYPE wthr_http_requests counter
 # UNIT wthr_http_requests requests
@@ -262,24 +265,25 @@ wthr_http_requests_total{method="GET"} 1234
 wthr_http_requests_created{method="GET"} 1702598400
 # EOF`
 
-	c.Header("Content-Type", "application/openmetrics-text; version=1.0.0; charset=utf-8")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "application/openmetrics-text; version=1.0.0; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, output)
 }
 
 // ToggleMetric enables or disables a metric
-func (h *MetricsHandler) ToggleMetric(c *gin.Context) {
-	name := c.Param("name")
+func (h *MetricsHandler) ToggleMetric(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
 	var request struct {
 		Enabled bool `json:"enabled"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// In a real implementation, this would enable/disable the metric
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Metric updated successfully",
 		"name":    name,
 		"enabled": request.Enabled,

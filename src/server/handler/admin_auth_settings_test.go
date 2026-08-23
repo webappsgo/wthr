@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,16 +26,9 @@ func newAuthSettingsTestConfigFile(t *testing.T) string {
 // render path. No auth/data gating exists on this handler.
 func TestAdminAuthSettingsHandler_ShowAuthSettings(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: newAuthSettingsTestConfigFile(t)}
-	c, w := newAPITestContext("/admin/config/auth")
-	// c.HTML needs an HTMLRender configured or gin panics; recover so a
-	// missing-template failure doesn't crash the run, since we only assert
-	// the handler didn't error out before reaching HTML().
-	defer func() {
-		if r := recover(); r != nil {
-			t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
-		}
-	}()
-	h.ShowAuthSettings(c)
+	r, w := newAPITestContext("/admin/config/auth")
+	defer htmlRenderGuard(t)
+	h.ShowAuthSettings(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -48,14 +40,11 @@ func TestAdminAuthSettingsHandler_ShowAuthSettings(t *testing.T) {
 func TestAdminAuthSettingsHandler_UpdateAuthSettings_Success(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: newAuthSettingsTestConfigFile(t)}
 
-	body := []byte(`{"oidc_enabled":true,"ldap_enabled":true,"ldap_server":"ldap.example.com","ldap_port":636,"ldap_bind_dn":"cn=admin,dc=example,dc=com","ldap_bind_password":"secret","ldap_base_dn":"dc=example,dc=com","ldap_user_filter":"(uid=%s)","totp_enabled":true,"totp_issuer":"wthr","totp_digits":6,"totp_period":30,"passkeys_enabled":true,"passkeys_rp_id":"example.com","passkeys_rp_name":"wthr"}`)
+	body := `{"oidc_enabled":true,"ldap_enabled":true,"ldap_server":"ldap.example.com","ldap_port":636,"ldap_bind_dn":"cn=admin,dc=example,dc=com","ldap_bind_password":"secret","ldap_base_dn":"dc=example,dc=com","ldap_user_filter":"(uid=%s)","totp_enabled":true,"totp_issuer":"wthr","totp_digits":6,"totp_period":30,"passkeys_enabled":true,"passkeys_rp_id":"example.com","passkeys_rp_name":"wthr"}`
 
-	c, w := newAPITestContext("/admin/config/auth")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", body)
 
-	h.UpdateAuthSettings(c)
+	h.UpdateAuthSettings(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -79,14 +68,11 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_Success(t *testing.T) {
 func TestAdminAuthSettingsHandler_UpdateAuthSettings_PersistsOIDCProviders(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: newAuthSettingsTestConfigFile(t)}
 
-	body := []byte(`{"oidc_enabled":true,"oidc_providers":[{"name":"okta","client_id":"abc123","client_secret":"shh","issuer_url":"https://okta.example.com","redirect_url":"https://wthr.example.com/callback"}]}`)
+	body := `{"oidc_enabled":true,"oidc_providers":[{"name":"okta","client_id":"abc123","client_secret":"shh","issuer_url":"https://okta.example.com","redirect_url":"https://wthr.example.com/callback"}]}`
 
-	c, w := newAPITestContext("/admin/config/auth")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", body)
 
-	h.UpdateAuthSettings(c)
+	h.UpdateAuthSettings(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -116,12 +102,9 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminAuthSettingsHandler{ConfigPath: configPath}
 
-	c, w := newAPITestContext("/admin/config/auth")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte("{not valid json")))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", "{not valid json")
 
-	h.UpdateAuthSettings(c)
+	h.UpdateAuthSettings(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -141,12 +124,9 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_InvalidJSON(t *testing.T) {
 func TestAdminAuthSettingsHandler_UpdateAuthSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newAPITestContext("/admin/config/auth")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte(`{"oidc_enabled":true}`)))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", `{"oidc_enabled":true}`)
 
-	h.UpdateAuthSettings(c)
+	h.UpdateAuthSettings(w, r)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())

@@ -3,12 +3,12 @@ package handler
 import (
 	"crypto/tls"
 	"database/sql"
+	"encoding/json"
 	"fmt"
-	"github.com/webappsgo/wthr/src/server/service"
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 type SSLHandler struct {
@@ -60,12 +60,12 @@ type SSLStatus struct {
 }
 
 // GetStatus returns the current SSL certificate status
-func (h *SSLHandler) GetStatus(c *gin.Context) {
+func (h *SSLHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	// Try to load existing certificate
 	certInfo, err := h.getCertificateInfo()
 	if err != nil {
 		// No certificate or error loading
-		c.JSON(http.StatusOK, SSLStatus{
+		writeJSON(w, http.StatusOK, SSLStatus{
 			Certificate: nil,
 			NextCheck:   "Not scheduled",
 			NextRenewal: "No certificate",
@@ -83,12 +83,12 @@ func (h *SSLHandler) GetStatus(c *gin.Context) {
 		AutoRenewal: true,
 	}
 
-	c.JSON(http.StatusOK, status)
+	writeJSON(w, http.StatusOK, status)
 }
 
 // ObtainCertificate obtains a new Let's Encrypt certificate
 // TEMPLATE.md Part 8: Full Let's Encrypt integration with all 3 challenge types
-func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
+func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domain   string   `json:"domain" binding:"required"`
 		Email    string   `json:"email" binding:"required"`
@@ -99,8 +99,8 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 		Staging bool `json:"staging"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 		"dns-01":      true,
 	}
 	if !validChallenges[request.ChallengeType] {
-		c.JSON(http.StatusBadRequest, gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error":         "Invalid challenge type",
 			"validTypes":    []string{"http-01", "tls-alpn-01", "dns-01"},
 			"challengeType": request.ChallengeType,
@@ -122,7 +122,7 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 	// Initialize Let's Encrypt service if not already initialized
 	if h.leService == nil {
 		if err := h.InitLetsEncrypt(request.Email, request.Staging); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 				"error":   "Failed to initialize Let's Encrypt service",
 				"details": err.Error(),
 			})
@@ -133,14 +133,14 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 	// Obtain certificate
 	cert, err := h.leService.ObtainCertificate(request.Domain, request.AltNames, request.ChallengeType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to obtain certificate",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":                true,
 		"message":           "Certificate obtained successfully",
 		"domain":            request.Domain,
@@ -153,7 +153,7 @@ func (h *SSLHandler) ObtainCertificate(c *gin.Context) {
 
 // RenewCertificate renews an existing certificate
 // TEMPLATE.md Part 8: Auto-renewal support
-func (h *SSLHandler) RenewCertificate(c *gin.Context) {
+func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domain        string `json:"domain" binding:"required"`
 		ChallengeType string `json:"challengeType" binding:"required"`
@@ -161,14 +161,14 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 		Force bool `json:"force"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Let's Encrypt service not initialized"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Let's Encrypt service not initialized"})
 		return
 	}
 
@@ -176,7 +176,7 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 	if !request.Force {
 		needsRenewal, daysRemaining, err := h.leService.CheckRenewal(request.Domain)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 				"error":   "Failed to check renewal status",
 				"details": err.Error(),
 			})
@@ -184,7 +184,7 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 		}
 
 		if !needsRenewal {
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"message":       "Certificate does not need renewal yet",
 				"daysRemaining": daysRemaining,
 				"needsRenewal":  false,
@@ -196,14 +196,14 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 	// Renew certificate
 	cert, err := h.leService.RenewCertificate(request.Domain, request.ChallengeType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to renew certificate",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":          true,
 		"message":     "Certificate renewed successfully",
 		"domain":      request.Domain,
@@ -212,10 +212,10 @@ func (h *SSLHandler) RenewCertificate(c *gin.Context) {
 }
 
 // VerifyCertificate verifies the current certificate
-func (h *SSLHandler) VerifyCertificate(c *gin.Context) {
+func (h *SSLHandler) VerifyCertificate(w http.ResponseWriter, r *http.Request) {
 	certInfo, err := h.getCertificateInfo()
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"valid": false,
 			"error": "No certificate found or unable to load",
 		})
@@ -224,7 +224,7 @@ func (h *SSLHandler) VerifyCertificate(c *gin.Context) {
 
 	// Check if certificate is expired
 	if time.Now().After(certInfo.NotAfter) {
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"valid": false,
 			"error": "Certificate has expired",
 		})
@@ -233,14 +233,14 @@ func (h *SSLHandler) VerifyCertificate(c *gin.Context) {
 
 	// Check if certificate is not yet valid
 	if time.Now().Before(certInfo.NotBefore) {
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"valid": false,
 			"error": "Certificate is not yet valid",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"valid":         true,
 		"message":       "Certificate is valid",
 		"subject":       certInfo.Subject,
@@ -251,91 +251,93 @@ func (h *SSLHandler) VerifyCertificate(c *gin.Context) {
 }
 
 // UpdateSettings updates SSL/TLS settings
-func (h *SSLHandler) UpdateSettings(c *gin.Context) {
+func (h *SSLHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	var settings struct {
 		AutoRenewal        bool `json:"autoRenewal"`
 		RenewalDays        int  `json:"renewalDays"`
 		EmailNotifications bool `json:"emailNotifications"`
 	}
 
-	if err := c.ShouldBindJSON(&settings); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Validate renewal days
 	if settings.RenewalDays < 1 || settings.RenewalDays > 60 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Renewal days must be between 1 and 60"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Renewal days must be between 1 and 60"})
 		return
 	}
 
 	// In a real implementation, save these settings to database
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":  "Settings saved successfully",
 		"settings": settings,
 	})
 }
 
 // ExportCertificate exports the current certificate
-func (h *SSLHandler) ExportCertificate(c *gin.Context) {
+func (h *SSLHandler) ExportCertificate(w http.ResponseWriter, r *http.Request) {
 	// In a real implementation, read certificate files
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Certificate export",
 		"note":    "Certificate files can be found in certs directory",
 	})
 }
 
 // ImportCertificate imports an external certificate
-func (h *SSLHandler) ImportCertificate(c *gin.Context) {
+func (h *SSLHandler) ImportCertificate(w http.ResponseWriter, r *http.Request) {
 	// Handle multipart file upload
-	certFile, err := c.FormFile("certificate")
+	certFile, certHeader, err := r.FormFile("certificate")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Certificate file is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Certificate file is required"})
 		return
 	}
+	defer certFile.Close()
 
-	keyFile, err := c.FormFile("privateKey")
+	keyFile, keyHeader, err := r.FormFile("privateKey")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Private key file is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Private key file is required"})
 		return
 	}
+	defer keyFile.Close()
 
 	// In a real implementation, validate and save certificate files
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message":  "Certificate imported successfully",
-		"certFile": certFile.Filename,
-		"keyFile":  keyFile.Filename,
+		"certFile": certHeader.Filename,
+		"keyFile":  keyHeader.Filename,
 	})
 }
 
 // RevokeCertificate revokes the current certificate
-func (h *SSLHandler) RevokeCertificate(c *gin.Context) {
+func (h *SSLHandler) RevokeCertificate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domain string `json:"domain" binding:"required"`
 		Reason string `json:"reason"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Let's Encrypt service not initialized"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Let's Encrypt service not initialized"})
 		return
 	}
 
 	// Revoke certificate
 	if err := h.leService.RevokeCertificate(request.Domain); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error":   "Failed to revoke certificate",
 			"details": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Certificate revoked successfully",
 		"domain":  request.Domain,
@@ -345,27 +347,27 @@ func (h *SSLHandler) RevokeCertificate(c *gin.Context) {
 
 // StartAutoRenewal starts automatic certificate renewal
 // TEMPLATE.md Part 8: Auto-renewal must be available
-func (h *SSLHandler) StartAutoRenewal(c *gin.Context) {
+func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domains       []string `json:"domains" binding:"required"`
 		ChallengeType string   `json:"challengeType" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Let's Encrypt service not initialized"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Let's Encrypt service not initialized"})
 		return
 	}
 
 	// Start auto-renewal in background
 	h.leService.StartAutoRenewal(request.Domains, request.ChallengeType)
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":            true,
 		"message":       "Auto-renewal started",
 		"domains":       request.Domains,
@@ -375,17 +377,17 @@ func (h *SSLHandler) StartAutoRenewal(c *gin.Context) {
 
 // GetDNSRecords returns DNS records needed for DNS-01 challenge
 // TEMPLATE.md Part 8: DNS-01 challenge support
-func (h *SSLHandler) GetDNSRecords(c *gin.Context) {
+func (h *SSLHandler) GetDNSRecords(w http.ResponseWriter, r *http.Request) {
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Let's Encrypt service not initialized"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Let's Encrypt service not initialized"})
 		return
 	}
 
 	records := h.leService.GetHTTP01Provider()
 	// Note: For DNS-01, we'd expose dns01Provider's GetDNSRecords() method
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "DNS records for manual configuration",
 		"note":    "Add these TXT records to your DNS before requesting certificate with DNS-01 challenge",
@@ -394,7 +396,7 @@ func (h *SSLHandler) GetDNSRecords(c *gin.Context) {
 }
 
 // TestSSL tests the SSL/TLS configuration
-func (h *SSLHandler) TestSSL(c *gin.Context) {
+func (h *SSLHandler) TestSSL(w http.ResponseWriter, r *http.Request) {
 	// Test SSL configuration
 	results := map[string]interface{}{
 		"tlsVersion":       "TLS 1.3",
@@ -405,7 +407,7 @@ func (h *SSLHandler) TestSSL(c *gin.Context) {
 		"hsts":             true,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"results": results,
 		"score":   "A+",
 		"message": "SSL configuration test completed",
@@ -413,7 +415,7 @@ func (h *SSLHandler) TestSSL(c *gin.Context) {
 }
 
 // SecurityScan performs a security scan of the SSL configuration
-func (h *SSLHandler) SecurityScan(c *gin.Context) {
+func (h *SSLHandler) SecurityScan(w http.ResponseWriter, r *http.Request) {
 	scan := map[string]interface{}{
 		"vulnerabilities": []string{},
 		"warnings": []string{
@@ -426,7 +428,7 @@ func (h *SSLHandler) SecurityScan(c *gin.Context) {
 		"score": 95,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"scan":    scan,
 		"message": "Security scan completed",
 	})

@@ -5,16 +5,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-func newHealthAdminTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newHealthAdminTestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	return r, w
 }
 
 // readVersion returns the build-time-injected package Version, which defaults
@@ -158,15 +154,15 @@ func TestGetRequestStatsNilDB(t *testing.T) {
 
 // getServerInfo is nil-safe for its sslManager argument (only used to
 // probe an optional httpsChecker interface) and only reads httpPort/
-// httpsPort plus request/host info off the gin.Context.
+// httpsPort plus request/host info off the *http.Request.
 type fakeHTTPSChecker struct{ enabled bool }
 
 func (f fakeHTTPSChecker) IsHTTPSEnabled() bool { return f.enabled }
 
 func TestGetServerInfo(t *testing.T) {
 	t.Run("nil ssl manager reports https disabled", func(t *testing.T) {
-		c, _ := newHealthAdminTestContext("/healthz")
-		got := getServerInfo(c, "8080", 8443, nil)
+		r, _ := newHealthAdminTestContext("/healthz")
+		got := getServerInfo(r, "8080", 8443, nil)
 
 		if got["http_port"] != "8080" {
 			t.Errorf("http_port = %v, want %q", got["http_port"], "8080")
@@ -186,8 +182,8 @@ func TestGetServerInfo(t *testing.T) {
 	})
 
 	t.Run("manager implementing httpsChecker reports its value", func(t *testing.T) {
-		c, _ := newHealthAdminTestContext("/healthz")
-		got := getServerInfo(c, "8080", 8443, fakeHTTPSChecker{enabled: true})
+		r, _ := newHealthAdminTestContext("/healthz")
+		got := getServerInfo(r, "8080", 8443, fakeHTTPSChecker{enabled: true})
 
 		if got["https_enabled"] != true {
 			t.Errorf("https_enabled = %v, want true", got["https_enabled"])
@@ -195,8 +191,8 @@ func TestGetServerInfo(t *testing.T) {
 	})
 
 	t.Run("manager not implementing httpsChecker reports https disabled", func(t *testing.T) {
-		c, _ := newHealthAdminTestContext("/healthz")
-		got := getServerInfo(c, "8080", 8443, "not a checker")
+		r, _ := newHealthAdminTestContext("/healthz")
+		got := getServerInfo(r, "8080", 8443, "not a checker")
 
 		if got["https_enabled"] != false {
 			t.Errorf("https_enabled = %v, want false", got["https_enabled"])

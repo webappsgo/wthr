@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	_ "modernc.org/sqlite"
 )
 
@@ -98,16 +98,13 @@ func TestValidateTokenPrefix(t *testing.T) {
 // TestTokenAuthMiddleware_RejectsMissingAuthHeader verifies a request with
 // no Authorization header is rejected with 401.
 func TestTokenAuthMiddleware_RejectsMissingAuthHeader(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	router := gin.New()
-	router.Use(TokenAuthMiddleware(serverDB, usersDB))
-	router.GET("/api/v1/protected", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401 for missing Authorization header", w.Code)
@@ -117,17 +114,14 @@ func TestTokenAuthMiddleware_RejectsMissingAuthHeader(t *testing.T) {
 // TestTokenAuthMiddleware_RejectsMalformedAuthHeader verifies a non-Bearer
 // Authorization header is rejected.
 func TestTokenAuthMiddleware_RejectsMalformedAuthHeader(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	router := gin.New()
-	router.Use(TokenAuthMiddleware(serverDB, usersDB))
-	router.GET("/api/v1/protected", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401 for non-Bearer Authorization header", w.Code)
@@ -137,17 +131,14 @@ func TestTokenAuthMiddleware_RejectsMalformedAuthHeader(t *testing.T) {
 // TestTokenAuthMiddleware_RejectsUnknownTokenPrefix verifies a bearer token
 // with no recognized prefix is rejected before any DB lookup.
 func TestTokenAuthMiddleware_RejectsUnknownTokenPrefix(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	router := gin.New()
-	router.Use(TokenAuthMiddleware(serverDB, usersDB))
-	router.GET("/api/v1/protected", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer not-a-real-token-prefix")
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401 for unrecognized token prefix", w.Code)
@@ -159,17 +150,14 @@ func TestTokenAuthMiddleware_RejectsUnknownTokenPrefix(t *testing.T) {
 // api_token/api_token_hash is rejected with 401 rather than panicking or
 // succeeding.
 func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
-	router := gin.New()
-	router.Use(TokenAuthMiddleware(serverDB, usersDB))
-	router.GET("/api/v1/protected", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+	handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer adm_doesnotexist000000000000")
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("status = %d, want 401 for unknown admin token", w.Code)
@@ -181,8 +169,6 @@ func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
 // implemented per this project's optional-rules.md) are always rejected
 // rather than accidentally authenticating.
 func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tokens := []string{
 		"adm_agt_00000000000000000000000000000000",
 		"usr_agt_00000000000000000000000000000000",
@@ -193,14 +179,12 @@ func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
 	for _, tok := range tokens {
 		t.Run(tok, func(t *testing.T) {
 			serverDB, usersDB := openTokenAuthTestDBs(t)
-			router := gin.New()
-			router.Use(TokenAuthMiddleware(serverDB, usersDB))
-			router.GET("/api/v1/protected", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+			handler := TokenAuthMiddleware(serverDB, usersDB)(stubOKHandler)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 			req.Header.Set("Authorization", "Bearer "+tok)
-			router.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 
 			if w.Code != http.StatusUnauthorized {
 				t.Errorf("status = %d, want 401 for unimplemented token type %q", w.Code, tok)
@@ -220,7 +204,6 @@ func TestTokenAuthMiddleware_RejectsAgentAndOrgTokens(t *testing.T) {
 // the real UsersSchema, mint a token through the model, and require the
 // middleware to accept it and populate the auth context.
 func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	serverDB, usersDB := openTokenAuthTestDBs(t)
 
 	// The canonical token table must exist in the applied schema - a missing
@@ -245,18 +228,18 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 		t.Fatalf("CreateToken() error = %v", err)
 	}
 
-	var gotAuthType any
-	router := gin.New()
-	router.Use(TokenAuthMiddleware(serverDB, usersDB))
-	router.GET("/api/v1/protected", func(c *gin.Context) {
-		gotAuthType, _ = c.Get("auth_type")
-		c.String(http.StatusOK, "ok")
+	var gotAuthType interface{}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuthType, _ = reqctx.Get(r.Context(), "auth_type")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	})
+	handler := TokenAuthMiddleware(serverDB, usersDB)(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
 	req.Header.Set("Authorization", "Bearer "+created.Token)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 for a valid user token: %s", w.Code, w.Body.String())
@@ -273,11 +256,9 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 // restart). The three cases are the full decision surface: admin passes,
 // authenticated-but-not-admin is refused, unauthenticated is refused.
 func TestRequireAdminToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name     string
-		authType any
+		authType interface{}
 		setAuth  bool
 		want     int
 	}{
@@ -288,18 +269,20 @@ func TestRequireAdminToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := gin.New()
-			router.Use(func(c *gin.Context) {
-				if tt.setAuth {
-					c.Set("auth_type", tt.authType)
-				}
-				c.Next()
-			})
-			router.Use(RequireAdminToken())
-			router.GET("/admin", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+			setAuthType := func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if tt.setAuth {
+						r = r.WithContext(reqctx.Set(r.Context(), "auth_type", tt.authType))
+					}
+					next.ServeHTTP(w, r)
+				})
+			}
+
+			handler := setAuthType(RequireAdminToken()(stubOKHandler))
 
 			w := httptest.NewRecorder()
-			router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/admin", nil))
+			req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+			handler.ServeHTTP(w, req)
 
 			if w.Code != tt.want {
 				t.Errorf("status = %d, want %d", w.Code, tt.want)

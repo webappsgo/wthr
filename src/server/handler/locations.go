@@ -2,16 +2,17 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 type LocationHandler struct {
@@ -31,21 +32,21 @@ type LocationHandler struct {
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations [get]
-func (h *LocationHandler) ListLocations(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) ListLocations(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch locations"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch locations"})
 		return
 	}
 
-	c.JSON(http.StatusOK, locations)
+	writeJSON(w, http.StatusOK, locations)
 }
 
 // GetLocation returns a specific saved location
@@ -62,33 +63,33 @@ func (h *LocationHandler) ListLocations(c *gin.Context) {
 // @Failure 403 {object} map[string]interface{} "Access denied"
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Router /api/v1/users/locations/{id} [get]
-func (h *LocationHandler) GetLocation(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid location ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
 		return
 	}
 
 	// Verify ownership
 	if int64(location.UserID) != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
-	c.JSON(http.StatusOK, location)
+	writeJSON(w, http.StatusOK, location)
 }
 
 // CreateLocation creates a new saved location
@@ -104,10 +105,10 @@ func (h *LocationHandler) GetLocation(c *gin.Context) {
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations [post]
-func (h *LocationHandler) CreateLocation(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
@@ -123,18 +124,18 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 		Timezone  string  `json:"timezone"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	// Validate coordinates
 	if req.Latitude < -90 || req.Latitude > 90 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Latitude must be between -90 and 90"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Latitude must be between -90 and 90"})
 		return
 	}
 	if req.Longitude < -180 || req.Longitude > 180 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Longitude must be between -180 and 180"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Longitude must be between -180 and 180"})
 		return
 	}
 
@@ -143,21 +144,21 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 	// Check location limit per IDEA.md: Save up to 10 locations per user
 	count, err := locationModel.Count(int(user.ID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check location count"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to check location count"})
 		return
 	}
 	if count >= 10 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum of 10 saved locations allowed per user"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Maximum of 10 saved locations allowed per user"})
 		return
 	}
 
 	location, err := locationModel.Create(int(user.ID), req.Name, req.Latitude, req.Longitude, req.Timezone)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create location"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create location"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, location)
+	writeJSON(w, http.StatusCreated, location)
 }
 
 // UpdateLocation updates a saved location
@@ -176,16 +177,16 @@ func (h *LocationHandler) CreateLocation(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations/{id} [put]
-func (h *LocationHandler) UpdateLocation(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid location ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
 		return
 	}
 
@@ -199,17 +200,17 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 		AlertsEnabled bool    `json:"alerts_enabled"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	if req.Latitude < -90 || req.Latitude > 90 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Latitude must be between -90 and 90"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Latitude must be between -90 and 90"})
 		return
 	}
 	if req.Longitude < -180 || req.Longitude > 180 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Longitude must be between -180 and 180"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Longitude must be between -180 and 180"})
 		return
 	}
 
@@ -218,21 +219,21 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
 	// Update location
 	if err := locationModel.Update(id, req.Name, req.Latitude, req.Longitude, req.Timezone, req.AlertsEnabled); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update location"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update location"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Location updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Location updated successfully"})
 }
 
 // DeleteLocation deletes a saved location
@@ -250,16 +251,16 @@ func (h *LocationHandler) UpdateLocation(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "Location not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations/{id} [delete]
-func (h *LocationHandler) DeleteLocation(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) DeleteLocation(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid location ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
 		return
 	}
 
@@ -268,34 +269,34 @@ func (h *LocationHandler) DeleteLocation(c *gin.Context) {
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
 	// Delete location
 	if err := locationModel.Delete(id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete location"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete location"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Location deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Location deleted successfully"})
 }
 
 // ToggleAlerts toggles weather alerts for a location
-func (h *LocationHandler) ToggleAlerts(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) ToggleAlerts(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid location ID"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
 		return
 	}
 
@@ -303,8 +304,8 @@ func (h *LocationHandler) ToggleAlerts(c *gin.Context) {
 		Enabled bool `json:"enabled"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -313,32 +314,32 @@ func (h *LocationHandler) ToggleAlerts(c *gin.Context) {
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Location not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
 		return
 	}
 
 	// Toggle alerts
 	if err := locationModel.ToggleAlerts(id, req.Enabled); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to toggle alerts"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to toggle alerts"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Alerts updated successfully", "enabled": req.Enabled})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Alerts updated successfully", "enabled": req.Enabled})
 }
 
 // ShowAddLocationPage renders the add location page
-func (h *LocationHandler) ShowAddLocationPage(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) ShowAddLocationPage(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
-	c.HTML(http.StatusOK, "page/add_location.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/add_location.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "Add Location - Weather",
 		"user":  user,
 		"page":  "locations",
@@ -346,32 +347,32 @@ func (h *LocationHandler) ShowAddLocationPage(c *gin.Context) {
 }
 
 // ShowEditLocationPage renders the edit location page
-func (h *LocationHandler) ShowEditLocationPage(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *LocationHandler) ShowEditLocationPage(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
-	id, err := strconv.Atoi(c.Param("id"))
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		c.HTML(http.StatusBadRequest, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Invalid location ID"}))
+		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Invalid location ID"}))
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		c.HTML(http.StatusNotFound, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Location not found"}))
+		middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Location not found"}))
 		return
 	}
 
 	if int64(location.UserID) != user.ID {
-		c.HTML(http.StatusForbidden, "page/error.tmpl", util.TemplateData(c, gin.H{"error": "Access denied"}))
+		middleware.RenderHTML(w, r, http.StatusForbidden, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Access denied"}))
 		return
 	}
 
-	c.HTML(http.StatusOK, "page/edit_location.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/edit_location.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":    "Edit Location - Weather",
 		"user":     user,
 		"location": location,
@@ -380,31 +381,31 @@ func (h *LocationHandler) ShowEditLocationPage(c *gin.Context) {
 }
 
 // SearchLocations searches for cities by name
-func (h *LocationHandler) SearchLocations(c *gin.Context) {
-	query := strings.TrimSpace(c.Query("q"))
+func (h *LocationHandler) SearchLocations(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len(query) < 2 {
-		InvalidInput(c, "Query must be at least 2 characters")
+		InvalidInput(w, r, "Query must be at least 2 characters")
 		return
 	}
 
 	// Search in cities database
 	results := h.searchCities(query, 10)
 
-	RespondNegotiatedData(c, http.StatusOK, results)
+	RespondNegotiatedData(w, r, http.StatusOK, results)
 }
 
 // LookupZipCode looks up a location by ZIP/postal code
-func (h *LocationHandler) LookupZipCode(c *gin.Context) {
-	zipCode := strings.TrimSpace(c.Param("code"))
+func (h *LocationHandler) LookupZipCode(w http.ResponseWriter, r *http.Request) {
+	zipCode := strings.TrimSpace(chi.URLParam(r, "code"))
 	if zipCode == "" {
-		InvalidInput(c, "ZIP code is required")
+		InvalidInput(w, r, "ZIP code is required")
 		return
 	}
 
 	// Use weather service to geocode the ZIP code
 	coords, err := h.WeatherService.ParseAndResolveLocation(zipCode, "")
 	if err != nil {
-		NotFound(c, "ZIP code not found")
+		NotFound(w, r, "ZIP code not found")
 		return
 	}
 
@@ -412,7 +413,7 @@ func (h *LocationHandler) LookupZipCode(c *gin.Context) {
 	enhanced := h.LocationEnhancer.EnhanceLocation(coords)
 
 	// Return location data
-	result := gin.H{
+	result := map[string]interface{}{
 		"name":      enhanced.Name,
 		"latitude":  enhanced.Latitude,
 		"longitude": enhanced.Longitude,
@@ -421,40 +422,40 @@ func (h *LocationHandler) LookupZipCode(c *gin.Context) {
 		"admin1":    enhanced.Admin1,
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, result)
+	RespondNegotiatedData(w, r, http.StatusOK, result)
 }
 
 // LookupCoordinates reverse geocodes coordinates to get location info
-func (h *LocationHandler) LookupCoordinates(c *gin.Context) {
-	latStr := c.Query("lat")
-	lonStr := c.Query("lon")
+func (h *LocationHandler) LookupCoordinates(w http.ResponseWriter, r *http.Request) {
+	latStr := r.URL.Query().Get("lat")
+	lonStr := r.URL.Query().Get("lon")
 
 	lat, err := strconv.ParseFloat(latStr, 64)
 	if err != nil {
-		InvalidInput(c, "Invalid latitude")
+		InvalidInput(w, r, "Invalid latitude")
 		return
 	}
 
 	lon, err := strconv.ParseFloat(lonStr, 64)
 	if err != nil {
-		InvalidInput(c, "Invalid longitude")
+		InvalidInput(w, r, "Invalid longitude")
 		return
 	}
 
 	// Validate coordinate ranges
 	if lat < -90 || lat > 90 {
-		InvalidInput(c, "Latitude must be between -90 and 90")
+		InvalidInput(w, r, "Latitude must be between -90 and 90")
 		return
 	}
 	if lon < -180 || lon > 180 {
-		InvalidInput(c, "Longitude must be between -180 and 180")
+		InvalidInput(w, r, "Longitude must be between -180 and 180")
 		return
 	}
 
 	// Use weather service to reverse geocode
 	coords, err := h.WeatherService.ReverseGeocode(lat, lon)
 	if err != nil {
-		NotFound(c, "Location not found")
+		NotFound(w, r, "Location not found")
 		return
 	}
 
@@ -462,7 +463,7 @@ func (h *LocationHandler) LookupCoordinates(c *gin.Context) {
 	enhanced := h.LocationEnhancer.EnhanceLocation(coords)
 
 	// Return location data
-	result := gin.H{
+	result := map[string]interface{}{
 		"name":      enhanced.Name,
 		"latitude":  enhanced.Latitude,
 		"longitude": enhanced.Longitude,
@@ -471,17 +472,17 @@ func (h *LocationHandler) LookupCoordinates(c *gin.Context) {
 		"admin1":    enhanced.Admin1,
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, result)
+	RespondNegotiatedData(w, r, http.StatusOK, result)
 }
 
 // searchCities searches the cities database for matching names
-func (h *LocationHandler) searchCities(query string, limit int) []gin.H {
+func (h *LocationHandler) searchCities(query string, limit int) []map[string]interface{} {
 	if h.LocationEnhancer == nil {
-		return []gin.H{}
+		return []map[string]interface{}{}
 	}
 
 	queryLower := strings.ToLower(query)
-	var results []gin.H
+	var results []map[string]interface{}
 
 	// Search through cities data
 	for _, city := range h.LocationEnhancer.GetCitiesData() {
@@ -507,7 +508,7 @@ func (h *LocationHandler) searchCities(query string, limit int) []gin.H {
 }
 
 // formatCityResult formats a city for the search results
-func (h *LocationHandler) formatCityResult(city service.City) gin.H {
+func (h *LocationHandler) formatCityResult(city service.City) map[string]interface{} {
 	// Format the display name
 	displayParts := []string{city.Name}
 	if city.State != "" {
@@ -517,7 +518,7 @@ func (h *LocationHandler) formatCityResult(city service.City) gin.H {
 		displayParts = append(displayParts, city.Country)
 	}
 
-	return gin.H{
+	return map[string]interface{}{
 		"name":      city.Name,
 		"latitude":  city.Coord.Lat,
 		"longitude": city.Coord.Lon,

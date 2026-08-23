@@ -1,8 +1,12 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
+	"context"
+	"net/http"
+
 	"github.com/google/uuid"
+
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // RequestID middleware generates or extracts a unique request ID for each HTTP request
@@ -38,33 +42,35 @@ const (
 )
 
 // RequestID returns a middleware that manages request IDs
-func RequestID() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var requestID string
+func RequestID() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var requestID string
 
-		// Try to extract existing request ID from headers (check multiple variants)
-		// This allows request IDs to be passed through from proxies, load balancers, or upstream services
-		requestID = extractRequestID(c)
+			// Try to extract existing request ID from headers (check multiple variants)
+			// This allows request IDs to be passed through from proxies, load balancers, or upstream services
+			requestID = extractRequestID(r)
 
-		// If no request ID found, generate a new UUID v4
-		if requestID == "" {
-			requestID = uuid.New().String()
-		}
+			// If no request ID found, generate a new UUID v4
+			if requestID == "" {
+				requestID = uuid.New().String()
+			}
 
-		// Store request ID in context for use in handlers and logging
-		c.Set(RequestIDKey, requestID)
+			// Store request ID in context for use in handlers and logging
+			ctx := reqctx.Set(r.Context(), RequestIDKey, requestID)
 
-		// Add request ID to response headers
-		// Use standard X-Request-ID header for response
-		c.Header(HeaderXRequestID, requestID)
+			// Add request ID to response headers
+			// Use standard X-Request-ID header for response
+			w.Header().Set(HeaderXRequestID, requestID)
 
-		// Continue processing request
-		c.Next()
+			// Continue processing request
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }
 
 // extractRequestID tries to extract request ID from various headers
-func extractRequestID(c *gin.Context) string {
+func extractRequestID(r *http.Request) string {
 	// Check standard request ID headers in priority order
 	headers := []string{
 		HeaderXRequestID,
@@ -80,7 +86,7 @@ func extractRequestID(c *gin.Context) string {
 	}
 
 	for _, header := range headers {
-		if id := c.GetHeader(header); id != "" {
+		if id := r.Header.Get(header); id != "" {
 			return id
 		}
 	}
@@ -90,17 +96,12 @@ func extractRequestID(c *gin.Context) string {
 
 // GetRequestID retrieves the request ID from the context
 // Returns empty string if not found
-func GetRequestID(c *gin.Context) string {
-	if id, exists := c.Get(RequestIDKey); exists {
-		if requestID, ok := id.(string); ok {
-			return requestID
-		}
-	}
-	return ""
+func GetRequestID(ctx context.Context) string {
+	return reqctx.GetString(ctx, RequestIDKey)
 }
 
 // MustGetRequestID retrieves the request ID from the context or panics
 // Use this only in handlers where you're certain the middleware has run
-func MustGetRequestID(c *gin.Context) string {
-	return c.MustGet(RequestIDKey).(string)
+func MustGetRequestID(ctx context.Context) string {
+	return reqctx.MustGet(ctx, RequestIDKey).(string)
 }

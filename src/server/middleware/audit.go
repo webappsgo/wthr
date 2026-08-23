@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -12,84 +13,88 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 
-	"github.com/gin-gonic/gin"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/oklog/ulid/v2"
 )
 
 // AuditLogger logs admin actions to the server_audit_log table
-func AuditLogger(db *sql.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Only log admin routes
-		if !isAdminRoute(c.Request.URL.Path) {
-			c.Next()
-			return
-		}
+func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Only log admin routes
+			if !isAdminRoute(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		// Skip GET requests (only log modifications)
-		if c.Request.Method == "GET" || c.Request.Method == "OPTIONS" {
-			c.Next()
-			return
-		}
+			// Skip GET requests (only log modifications)
+			if r.Method == "GET" || r.Method == "OPTIONS" {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		// Get user info
-		user, exists := GetCurrentUser(c)
-		var userID *int64
-		if exists {
-			userID = &user.ID
-		}
+			// Get user info
+			user, exists := GetCurrentUser(r)
+			var userID *int64
+			if exists {
+				userID = &user.ID
+			}
 
-		// Get client info
-		clientIP := c.ClientIP()
-		userAgent := c.Request.UserAgent()
+			// Get client info
+			clientIP := util.GetClientIP(r)
+			userAgent := r.UserAgent()
 
-		// Capture the response
-		c.Next()
+			// Capture the response
+			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(ww, r)
 
-		// Determine action from method and path
-		action := getActionFromRequest(c.Request.Method, c.Request.URL.Path)
-		resource := getResourceFromPath(c.Request.URL.Path)
+			// Determine action from method and path
+			action := getActionFromRequest(r.Method, r.URL.Path)
+			resource := getResourceFromPath(r.URL.Path)
 
-		// Log the action
-		success := c.Writer.Status() >= 200 && c.Writer.Status() < 400
-		status := "success"
-		if !success {
-			status = "failure"
-		}
+			// Log the action
+			success := ww.Status() >= 200 && ww.Status() < 400
+			status := "success"
+			if !success {
+				status = "failure"
+			}
 
-		actorType := "anonymous"
-		var actorID string
-		if userID != nil {
-			actorType = "user"
-			actorID = strconv.FormatInt(*userID, 10)
-		}
+			actorType := "anonymous"
+			var actorID string
+			if userID != nil {
+				actorType = "user"
+				actorID = strconv.FormatInt(*userID, 10)
+			}
 
-		now := time.Now()
-		id := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
+			now := time.Now()
+			id := ulid.MustNew(ulid.Timestamp(now), rand.Reader).String()
 
-		// server_audit_log.timestamp is also written by src/scheduler/scheduler.go
-		// and src/server/handler/admin_passkey.go as canonical UTC text. Binding a
-		// raw time.Time here would make modernc.org/sqlite store the host-local
-		// time.Time.String() form instead, leaving one column with two layouts that
-		// no SQL-side comparison or ORDER BY can reconcile - format through dbtime
-		// so every producer of this column agrees.
-		_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-			INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, status)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, id, dbtime.FormatSQLTimestamp(now), actorType, actorID, action, resource, "", clientIP, userAgent, status)
+			// server_audit_log.timestamp is also written by src/scheduler/scheduler.go
+			// and src/server/handler/admin_passkey.go as canonical UTC text. Binding a
+			// raw time.Time here would make modernc.org/sqlite store the host-local
+			// time.Time.String() form instead, leaving one column with two layouts that
+			// no SQL-side comparison or ORDER BY can reconcile - format through dbtime
+			// so every producer of this column agrees.
+			_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
+				INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, id, dbtime.FormatSQLTimestamp(now), actorType, actorID, action, resource, "", clientIP, userAgent, status)
 
-		if err != nil {
-			// A failed audit write must never fail the request, but it must
-			// also never be silent: c.Error only attaches the error to the gin
-			// context, and nothing in this project reads c.Errors, so a broken
-			// audit table would drop every admin action on the floor with no
-			// operator-visible signal. PART 11 requires security-relevant
-			// actions to be recorded, so the failure to record one is itself a
-			// security event and belongs in the log at full detail (console and
-			// log files are the audience allowed to see internal errors).
-			log.Printf("audit: failed to record admin action %q on %q by %s %q from %s: %v",
-				action, resource, actorType, actorID, clientIP, err)
-		}
+			if err != nil {
+				// A failed audit write must never fail the request, but it must
+				// also never be silent: there is nothing in this project that reads
+				// a per-request error list, so a broken audit table would drop
+				// every admin action on the floor with no operator-visible signal.
+				// PART 11 requires security-relevant actions to be recorded, so the
+				// failure to record one is itself a security event and belongs in
+				// the log at full detail (console and log files are the audience
+				// allowed to see internal errors).
+				log.Printf("audit: failed to record admin action %q on %q by %s %q from %s: %v",
+					action, resource, actorType, actorID, clientIP, err)
+			}
+		})
 	}
 }
 

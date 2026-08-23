@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // TestNewHurricaneHandler verifies the constructor wires the service field
@@ -54,10 +56,14 @@ func TestHurricaneHandler_ListActiveStorms_NilHandler(t *testing.T) {
 // ever consulted (service is left nil here — a call would panic).
 func TestHurricaneHandler_HandleHurricaneByIDAPI_MissingID(t *testing.T) {
 	h := &HurricaneHandler{}
-	c, w := newAPITestContext("/api/v1/hurricanes/")
-	c.Params = []gin.Param{{Key: "id", Value: ""}}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/hurricanes/", nil)
 
-	h.HandleHurricaneByIDAPI(c)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.HandleHurricaneByIDAPI(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d: %s", w.Code, w.Body.String())

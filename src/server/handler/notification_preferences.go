@@ -9,9 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // NotificationPreferencesHandler handles user notification preferences
@@ -25,8 +27,8 @@ func NewNotificationPreferencesHandler(db *sql.DB) *NotificationPreferencesHandl
 }
 
 // GetUserPreferences returns user's notification preferences
-func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
-	userID := c.GetInt("user_id")
+func (h *NotificationPreferencesHandler) GetUserPreferences(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, channel_type, enabled, priority,
@@ -38,12 +40,12 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: GetUserPreferences: failed to query preferences for user %d: %v", userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch preferences")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch preferences")
 		return
 	}
 	defer rows.Close()
 
-	var preferences []gin.H
+	var preferences []map[string]interface{}
 	for rows.Next() {
 		var id int
 		var channelType string
@@ -56,7 +58,7 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 			continue
 		}
 
-		pref := gin.H{
+		pref := map[string]interface{}{
 			"id":           id,
 			"channel_type": channelType,
 			"enabled":      enabled,
@@ -80,18 +82,18 @@ func (h *NotificationPreferencesHandler) GetUserPreferences(c *gin.Context) {
 		preferences = append(preferences, pref)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"preferences": preferences,
 		"total":       len(preferences),
 	})
 }
 
 // UpdatePreference updates a user's channel preference
-func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	prefID, err := strconv.Atoi(c.Param("id"))
+func (h *NotificationPreferencesHandler) UpdatePreference(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
+	prefID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
 		return
 	}
 
@@ -103,15 +105,15 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 		Config          map[string]interface{} `json:"config"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: UpdatePreference: failed to marshal config: %v", err)
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
@@ -127,27 +129,27 @@ func (h *NotificationPreferencesHandler) UpdatePreference(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: UpdatePreference: failed to update preference %d for user %d: %v", prefID, userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		log.Printf("ERROR: UpdatePreference: failed to read affected rows for preference %d: %v", prefID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to update preference")
 		return
 	}
 	if rowsAffected == 0 {
-		RespondError(c, http.StatusNotFound, ErrNotFound, "Preference not found")
+		RespondError(w, r, http.StatusNotFound, ErrNotFound, "Preference not found")
 		return
 	}
 
-	RespondSuccess(c, "Preference updated successfully")
+	RespondSuccess(w, r, "Preference updated successfully")
 }
 
 // CreatePreference creates a new channel preference for user
-func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
-	userID := c.GetInt("user_id")
+func (h *NotificationPreferencesHandler) CreatePreference(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
 
 	var req struct {
 		ChannelType     string                 `json:"channel_type" binding:"required"`
@@ -158,15 +160,21 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 		Config          map[string]interface{} `json:"config"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+		return
+	}
+
+	// binding:"required" equivalent
+	if req.ChannelType == "" {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: CreatePreference: failed to marshal config: %v", err)
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
@@ -191,7 +199,7 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: CreatePreference: failed to upsert preference for user %d: %v", userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to create preference")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to create preference")
 		return
 	}
 
@@ -199,15 +207,15 @@ func (h *NotificationPreferencesHandler) CreatePreference(c *gin.Context) {
 	if err != nil {
 		log.Printf("WARNING: CreatePreference: failed to read inserted id for user %d: %v", userID, err)
 	}
-	RespondCreated(c, "Preference created successfully", strconv.FormatInt(id, 10))
+	RespondCreated(w, r, "Preference created successfully", strconv.FormatInt(id, 10))
 }
 
 // DeletePreference deletes a user's channel preference
-func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	prefID, err := strconv.Atoi(c.Param("id"))
+func (h *NotificationPreferencesHandler) DeletePreference(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
+	prefID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid preference id")
 		return
 	}
 
@@ -218,27 +226,27 @@ func (h *NotificationPreferencesHandler) DeletePreference(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: DeletePreference: failed to delete preference %d for user %d: %v", prefID, userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		log.Printf("ERROR: DeletePreference: failed to read affected rows for preference %d: %v", prefID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to delete preference")
 		return
 	}
 	if rowsAffected == 0 {
-		RespondError(c, http.StatusNotFound, ErrNotFound, "Preference not found")
+		RespondError(w, r, http.StatusNotFound, ErrNotFound, "Preference not found")
 		return
 	}
 
-	RespondSuccess(c, "Preference deleted successfully")
+	RespondSuccess(w, r, "Preference deleted successfully")
 }
 
 // GetSubscriptions returns user's notification subscriptions
-func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
-	userID := c.GetInt("user_id")
+func (h *NotificationPreferencesHandler) GetSubscriptions(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT id, subscription_type, subscription_category, enabled, config
@@ -249,12 +257,12 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: GetSubscriptions: failed to query subscriptions for user %d: %v", userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch subscriptions")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to fetch subscriptions")
 		return
 	}
 	defer rows.Close()
 
-	var subscriptions []gin.H
+	var subscriptions []map[string]interface{}
 	for rows.Next() {
 		var id int
 		var subType, subCategory string
@@ -266,7 +274,7 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 			continue
 		}
 
-		sub := gin.H{
+		sub := map[string]interface{}{
 			"id":                    id,
 			"subscription_type":     subType,
 			"subscription_category": subCategory,
@@ -284,18 +292,18 @@ func (h *NotificationPreferencesHandler) GetSubscriptions(c *gin.Context) {
 		subscriptions = append(subscriptions, sub)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"subscriptions": subscriptions,
 		"total":         len(subscriptions),
 	})
 }
 
 // UpdateSubscription updates a subscription
-func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	subID, err := strconv.Atoi(c.Param("id"))
+func (h *NotificationPreferencesHandler) UpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
+	subID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid subscription id")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid subscription id")
 		return
 	}
 
@@ -304,15 +312,15 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 		Config  map[string]interface{} `json:"config"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: UpdateSubscription: failed to marshal config: %v", err)
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
@@ -326,27 +334,27 @@ func (h *NotificationPreferencesHandler) UpdateSubscription(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: UpdateSubscription: failed to update subscription %d for user %d: %v", subID, userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		log.Printf("ERROR: UpdateSubscription: failed to read affected rows for subscription %d: %v", subID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to update subscription")
 		return
 	}
 	if rowsAffected == 0 {
-		RespondError(c, http.StatusNotFound, ErrNotFound, "Subscription not found")
+		RespondError(w, r, http.StatusNotFound, ErrNotFound, "Subscription not found")
 		return
 	}
 
-	RespondSuccess(c, "Subscription updated successfully")
+	RespondSuccess(w, r, "Subscription updated successfully")
 }
 
 // CreateSubscription creates a new subscription
-func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
-	userID := c.GetInt("user_id")
+func (h *NotificationPreferencesHandler) CreateSubscription(w http.ResponseWriter, r *http.Request) {
+	userID := reqctx.GetInt(r.Context(), "user_id")
 
 	var req struct {
 		SubscriptionType     string                 `json:"subscription_type" binding:"required"`
@@ -355,15 +363,21 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 		Config               map[string]interface{} `json:"config"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+		return
+	}
+
+	// binding:"required" equivalent
+	if req.SubscriptionType == "" || req.SubscriptionCategory == "" {
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
 		return
 	}
 
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
 		log.Printf("WARNING: CreateSubscription: failed to marshal config: %v", err)
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid config")
 		return
 	}
 
@@ -385,7 +399,7 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 
 	if err != nil {
 		log.Printf("ERROR: CreateSubscription: failed to upsert subscription for user %d: %v", userID, err)
-		RespondError(c, http.StatusInternalServerError, ErrDatabaseError, "Failed to create subscription")
+		RespondError(w, r, http.StatusInternalServerError, ErrDatabaseError, "Failed to create subscription")
 		return
 	}
 
@@ -393,5 +407,5 @@ func (h *NotificationPreferencesHandler) CreateSubscription(c *gin.Context) {
 	if err != nil {
 		log.Printf("WARNING: CreateSubscription: failed to read inserted id for user %d: %v", userID, err)
 	}
-	RespondCreated(c, "Subscription created successfully", strconv.FormatInt(id, 10))
+	RespondCreated(w, r, "Subscription created successfully", strconv.FormatInt(id, 10))
 }

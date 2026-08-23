@@ -3,11 +3,13 @@ package middleware
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // TokenType represents the type of API token per TEMPLATE.md PART 11
@@ -59,91 +61,97 @@ func ValidateTokenPrefix(token string) error {
 	return nil
 }
 
+// writeTokenAuthError writes the non-canonical {"ok":false,"error":"<message>"}
+// body TokenAuthMiddleware has always used, preserved verbatim (this shape
+// predates the canonical {"ok","error":CODE,"message"} response format and is
+// not upgraded here — a mechanical framework conversion must not change it).
+func writeTokenAuthError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": message})
+}
+
 // TokenAuthMiddleware validates API tokens with proper prefixes per TEMPLATE.md PART 11
-func TokenAuthMiddleware(serverDB, usersDB *sql.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Extract token from Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(401, gin.H{"ok": false, "error": "missing authorization header"})
-			c.Abort()
-			return
-		}
-
-		// Parse Bearer token
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(401, gin.H{"ok": false, "error": "invalid authorization format"})
-			c.Abort()
-			return
-		}
-
-		token := parts[1]
-
-		// Validate token prefix
-		if err := ValidateTokenPrefix(token); err != nil {
-			c.JSON(401, gin.H{"ok": false, "error": err.Error()})
-			c.Abort()
-			return
-		}
-
-		// Determine token type and validate
-		tokenType := DetectTokenType(token)
-
-		switch tokenType {
-		case TokenTypeAdmin:
-			// Validate admin token (adm_)
-			adminModel := &model.AdminModel{DB: serverDB}
-			admin, err := adminModel.GetByAPIToken(token)
-			if err != nil {
-				c.JSON(401, gin.H{"ok": false, "error": "invalid admin token"})
-				c.Abort()
-				return
-			}
-			c.Set("admin", admin)
-			c.Set("db", serverDB)
-			c.Set("auth_type", AuthTypeAdminToken)
-
-		case TokenTypeUser:
-			// Validate user token (usr_) using new token model
-			tokenModelV2 := &model.TokenModelV2{DB: usersDB}
-			validatedToken, err := tokenModelV2.ValidateToken(token)
-			if err != nil {
-				c.JSON(401, gin.H{"ok": false, "error": "invalid user token"})
-				c.Abort()
+func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract token from Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				writeTokenAuthError(w, 401, "missing authorization header")
 				return
 			}
 
-			// Get user
-			userModel := &model.UserModel{DB: usersDB}
-			user, err := userModel.GetByID(validatedToken.OwnerID)
-			if err != nil {
-				c.JSON(401, gin.H{"ok": false, "error": "user not found"})
-				c.Abort()
+			// Parse Bearer token
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				writeTokenAuthError(w, 401, "invalid authorization format")
 				return
 			}
 
-			// Update last used timestamp
-			go tokenModelV2.UpdateLastUsed(validatedToken.ID)
+			token := parts[1]
 
-			c.Set(UserContextKey, user)
-			// Handlers read the numeric id via c.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-			c.Set(UserIDContextKey, int(user.ID))
-			c.Set("token", validatedToken)
-			c.Set("auth_type", "user_token")
+			// Validate token prefix
+			if err := ValidateTokenPrefix(token); err != nil {
+				writeTokenAuthError(w, 401, err.Error())
+				return
+			}
 
-		case TokenTypeAdminAgent, TokenTypeUserAgent, TokenTypeOrgAgent, TokenTypeOrg:
-			c.JSON(401, gin.H{"ok": false, "error": "invalid or expired token"})
-			c.Abort()
-			return
+			// Determine token type and validate
+			tokenType := DetectTokenType(token)
 
-		default:
-			c.JSON(401, gin.H{"ok": false, "error": "unknown token type"})
-			c.Abort()
-			return
-		}
+			ctx := r.Context()
 
-		c.Next()
+			switch tokenType {
+			case TokenTypeAdmin:
+				// Validate admin token (adm_)
+				adminModel := &model.AdminModel{DB: serverDB}
+				admin, err := adminModel.GetByAPIToken(token)
+				if err != nil {
+					writeTokenAuthError(w, 401, "invalid admin token")
+					return
+				}
+				ctx = reqctx.Set(ctx, "admin", admin)
+				ctx = reqctx.Set(ctx, "db", serverDB)
+				ctx = reqctx.Set(ctx, "auth_type", AuthTypeAdminToken)
+
+			case TokenTypeUser:
+				// Validate user token (usr_) using new token model
+				tokenModelV2 := &model.TokenModelV2{DB: usersDB}
+				validatedToken, err := tokenModelV2.ValidateToken(token)
+				if err != nil {
+					writeTokenAuthError(w, 401, "invalid user token")
+					return
+				}
+
+				// Get user
+				userModel := &model.UserModel{DB: usersDB}
+				user, err := userModel.GetByID(validatedToken.OwnerID)
+				if err != nil {
+					writeTokenAuthError(w, 401, "user not found")
+					return
+				}
+
+				// Update last used timestamp
+				go tokenModelV2.UpdateLastUsed(validatedToken.ID)
+
+				ctx = reqctx.Set(ctx, UserContextKey, user)
+				// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
+				ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
+				ctx = reqctx.Set(ctx, "token", validatedToken)
+				ctx = reqctx.Set(ctx, "auth_type", "user_token")
+
+			case TokenTypeAdminAgent, TokenTypeUserAgent, TokenTypeOrgAgent, TokenTypeOrg:
+				writeTokenAuthError(w, 401, "invalid or expired token")
+				return
+
+			default:
+				writeTokenAuthError(w, 401, "unknown token type")
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }
 
@@ -157,19 +165,22 @@ const AuthTypeAdminToken = "admin_token"
 // regular user token would reach the admin API. Per AI.md PART 17 the Server
 // Admin is a separate account type from a PART 34 regular user, and PART 11
 // requires least privilege on every admin surface.
-func RequireAdminToken() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		authType, exists := c.Get("auth_type")
-		if !exists || authType != AuthTypeAdminToken {
-			c.JSON(403, gin.H{
-				"ok":      false,
-				"error":   "FORBIDDEN",
-				"message": "Admin access required",
-			})
-			c.Abort()
-			return
-		}
+func RequireAdminToken() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authType, exists := reqctx.Get(r.Context(), "auth_type")
+			if !exists || authType != AuthTypeAdminToken {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(403)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"ok":      false,
+					"error":   "FORBIDDEN",
+					"message": "Admin access required",
+				})
+				return
+			}
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	}
 }

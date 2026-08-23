@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
 	models "github.com/webappsgo/wthr/src/server/model"
@@ -20,8 +19,6 @@ import (
 // (query param > cookie > default), applied to graphql/theme.go's local
 // GetTheme implementation, which is a separate function from swagger's.
 func TestGetTheme(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name        string
 		query       string
@@ -78,9 +75,6 @@ func TestGetTheme(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
 			url := "/graphql"
 			if tt.query != "" {
 				url += "?" + tt.query
@@ -89,9 +83,8 @@ func TestGetTheme(t *testing.T) {
 			if tt.hasCookie {
 				req.AddCookie(&http.Cookie{Name: "theme", Value: tt.cookieValue})
 			}
-			c.Request = req
 
-			got := GetTheme(c)
+			got := GetTheme(req)
 			if got != tt.want {
 				t.Errorf("GetTheme() = %q, want %q", got, tt.want)
 			}

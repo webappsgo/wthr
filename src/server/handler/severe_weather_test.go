@@ -6,17 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
-func newSevereWeatherTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newSevereWeatherTestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	return req, w
 }
 
 // GetSevereWeatherData short-circuits with an error when the handler or its
@@ -60,9 +56,9 @@ func TestSevereWeatherHandler_GetSevereWeatherData_NilWeatherService(t *testing.
 // nil) severeWeatherService.
 func TestSevereWeatherHandler_HandleAlertByIDAPI_MissingID(t *testing.T) {
 	h := NewSevereWeatherHandler(nil, nil, nil)
-	c, w := newSevereWeatherTestContext("/api/v1/severe-weather/")
+	r, w := newSevereWeatherTestContext("/api/v1/severe-weather/")
 
-	h.HandleAlertByIDAPI(c)
+	h.HandleAlertByIDAPI(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())

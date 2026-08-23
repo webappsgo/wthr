@@ -21,7 +21,7 @@ func TestAdminUsersHandler_ShowUserSettings(t *testing.T) {
 			t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
 		}
 	}()
-	h.ShowUserSettings(c)
+	h.ShowUserSettings(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -51,7 +51,7 @@ func TestAdminUsersHandler_UpdateUserSettings_Success(t *testing.T) {
 		"registration_require_email_verification": true,
 	}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
-	h.UpdateUserSettings(c)
+	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -71,7 +71,7 @@ func TestAdminUsersHandler_UpdateUserSettings_InvalidMode(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{"registration_mode": "nonsense"}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
-	h.UpdateUserSettings(c)
+	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -83,7 +83,7 @@ func TestAdminUsersHandler_UpdateUserSettings_InvalidMode(t *testing.T) {
 func TestAdminUsersHandler_UpdateUserSettings_MalformedJSON(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", "not json")
-	h.UpdateUserSettings(c)
+	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -96,7 +96,7 @@ func TestAdminUsersHandler_UpdateUserSettings_MissingConfigFile(t *testing.T) {
 	h := &AdminUsersHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist.yml")}
 	body := map[string]interface{}{"registration_mode": "disabled"}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
-	h.UpdateUserSettings(c)
+	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -117,7 +117,7 @@ func TestAdminUsersHandler_UpdateUserSettings_SpecCorrectModeRejected(t *testing
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{"registration_mode": "open"}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
-	h.UpdateUserSettings(c)
+	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("BUG admin_users.go UpdateUserSettings: status = %d, want 200 for spec-correct registration_mode=\"open\" (handler only accepts legacy public/private/disabled values); body=%s", w.Code, w.Body.String())

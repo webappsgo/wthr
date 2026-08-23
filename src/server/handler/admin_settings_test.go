@@ -38,7 +38,7 @@ func TestAdminSettingsHandler_GetAllSettings(t *testing.T) {
 		seedServerConfigRow(t, db, "smtp.enabled", "true", "boolean")
 
 		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings")
-		h.GetAllSettings(c)
+		h.GetAllSettings(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -50,7 +50,7 @@ func TestAdminSettingsHandler_GetAllSettings(t *testing.T) {
 		db.Close()
 
 		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings")
-		h.GetAllSettings(c)
+		h.GetAllSettings(w, c)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -73,7 +73,7 @@ func TestAdminSettingsHandler_UpdateSettings(t *testing.T) {
 			},
 		}
 		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/admin/config/settings", body)
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -90,7 +90,7 @@ func TestAdminSettingsHandler_UpdateSettings(t *testing.T) {
 	t.Run("malformed JSON", func(t *testing.T) {
 		h, _ := newAdminSettingsTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/admin/config/settings", "not json")
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -105,7 +105,7 @@ func TestAdminSettingsHandler_ResetSettings(t *testing.T) {
 	seedServerConfigRow(t, db, "custom.key", "custom.value", "string")
 
 	c, w := newTestContext(http.MethodPost, "/api/v1/server/admin/config/settings/reset")
-	h.ResetSettings(c)
+	h.ResetSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -127,7 +127,7 @@ func TestAdminSettingsHandler_ExportSettings(t *testing.T) {
 	seedServerConfigRow(t, db, "smtp.host", "smtp.example.com", "string")
 
 	c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings/export")
-	h.ExportSettings(c)
+	h.ExportSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -148,7 +148,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 			"settings": map[string]string{"smtp.host": "imported.example.com"},
 		}
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/settings/import", body)
-		h.ImportSettings(c)
+		h.ImportSettings(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -159,7 +159,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 		h, _ := newAdminSettingsTestHandler(t)
 		body := map[string]interface{}{"settings": map[string]string{}}
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/settings/import", body)
-		h.ImportSettings(c)
+		h.ImportSettings(w, c)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -172,7 +172,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 func TestAdminSettingsHandler_ReloadConfig(t *testing.T) {
 	h, _ := newAdminSettingsTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/api/v1/server/admin/config/settings/reload")
-	h.ReloadConfig(c)
+	h.ReloadConfig(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())

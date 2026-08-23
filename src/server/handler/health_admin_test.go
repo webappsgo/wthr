@@ -18,7 +18,7 @@ func TestAdminServerStatus_Healthy(t *testing.T) {
 	handlerFunc := AdminServerStatus(db, "8090", 8443, nil)
 	c, w := newAPITestContext("/server/admin/config/status")
 
-	handlerFunc(c)
+	handlerFunc(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -30,7 +30,7 @@ func TestAdminServerStatus_Healthy(t *testing.T) {
 }
 
 // TestBuildAdminServerStatusResponse_Healthy verifies the response builder
-// returns 200 and a gin.H payload with the expected top-level keys when the
+// returns 200 and a JSON payload with the expected top-level keys when the
 // wired DB responds normally.
 func TestBuildAdminServerStatusResponse_Healthy(t *testing.T) {
 	db := newTestDatabaseDB(t)

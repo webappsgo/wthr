@@ -1,11 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type LoggingHandler struct {
@@ -29,7 +28,7 @@ type LogFormats struct {
 }
 
 // GetFormats returns the current logging format configuration
-func (h *LoggingHandler) GetFormats(c *gin.Context) {
+func (h *LoggingHandler) GetFormats(w http.ResponseWriter, r *http.Request) {
 	formats := LogFormats{
 		Standard: true,
 		JSON:     false,
@@ -39,30 +38,30 @@ func (h *LoggingHandler) GetFormats(c *gin.Context) {
 		Apache:   false,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"formats": formats,
 		"active":  []string{"standard"},
 	})
 }
 
 // UpdateFormats updates the logging format configuration
-func (h *LoggingHandler) UpdateFormats(c *gin.Context) {
+func (h *LoggingHandler) UpdateFormats(w http.ResponseWriter, r *http.Request) {
 	var formats LogFormats
 
-	if err := c.ShouldBindJSON(&formats); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&formats); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// In a real implementation, this would update the logger configuration
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Logging formats updated successfully",
 		"formats": formats,
 	})
 }
 
 // GetFail2banConfig generates Fail2ban filter configuration
-func (h *LoggingHandler) GetFail2banConfig(c *gin.Context) {
+func (h *LoggingHandler) GetFail2banConfig(w http.ResponseWriter, r *http.Request) {
 	config := `# Fail2ban filter for Weather Application
 # /etc/fail2ban/filter.d/weather.conf
 
@@ -76,13 +75,14 @@ failregex = ^.* \[ERROR\] \[auth\] Failed login attempt from <HOST>
 # Ignore successful logins
 ignoreregex = ^.* \[INFO\] \[auth\] Successful login from <HOST>`
 
-	c.Header("Content-Type", "text/plain")
-	c.Header("Content-Disposition", "attachment; filename=weather.conf")
-	c.String(http.StatusOK, config)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", "attachment; filename=weather.conf")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, config)
 }
 
 // GetSyslogConfig provides syslog configuration
-func (h *LoggingHandler) GetSyslogConfig(c *gin.Context) {
+func (h *LoggingHandler) GetSyslogConfig(w http.ResponseWriter, r *http.Request) {
 	config := map[string]interface{}{
 		"protocol": "UDP",
 		"port":     514,
@@ -97,11 +97,11 @@ func (h *LoggingHandler) GetSyslogConfig(c *gin.Context) {
 		),
 	}
 
-	c.JSON(http.StatusOK, config)
+	writeJSON(w, http.StatusOK, config)
 }
 
 // GetCEFConfig provides CEF (Common Event Format) configuration
-func (h *LoggingHandler) GetCEFConfig(c *gin.Context) {
+func (h *LoggingHandler) GetCEFConfig(w http.ResponseWriter, r *http.Request) {
 	config := map[string]interface{}{
 		"version": "0",
 		"vendor":  "Weather",
@@ -110,29 +110,29 @@ func (h *LoggingHandler) GetCEFConfig(c *gin.Context) {
 		"example": "CEF:0|Weather|Weather API Manager|2.0|100|Failed Login|5|src=192.168.1.100 suser=admin msg=Invalid password",
 	}
 
-	c.JSON(http.StatusOK, config)
+	writeJSON(w, http.StatusOK, config)
 }
 
 // ExportLogs exports logs in specified format
-func (h *LoggingHandler) ExportLogs(c *gin.Context) {
-	format := c.Query("format")
+func (h *LoggingHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
 
 	switch format {
 	case "fail2ban":
-		h.exportFail2ban(c)
+		h.exportFail2ban(w, r)
 	case "syslog":
-		h.exportSyslog(c)
+		h.exportSyslog(w, r)
 	case "cef":
-		h.exportCEF(c)
+		h.exportCEF(w, r)
 	case "json":
-		h.exportJSON(c)
+		h.exportJSON(w, r)
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid format"})
 	}
 }
 
 // Helper: Export in Fail2ban format
-func (h *LoggingHandler) exportFail2ban(c *gin.Context) {
+func (h *LoggingHandler) exportFail2ban(w http.ResponseWriter, r *http.Request) {
 	// Sample Fail2ban formatted logs
 	logs := []string{
 		"2025-12-14 10:30:45 [ERROR] [auth] Failed login attempt from 192.168.1.100",
@@ -145,13 +145,13 @@ func (h *LoggingHandler) exportFail2ban(c *gin.Context) {
 		output += log + "\n"
 	}
 
-	c.Header("Content-Type", "text/plain")
-	c.Header("Content-Disposition", "attachment; filename=weather_fail2ban.log")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", "attachment; filename=weather_fail2ban.log")
+	writeText(w, http.StatusOK, "%s", output)
 }
 
 // Helper: Export in Syslog format (RFC5424)
-func (h *LoggingHandler) exportSyslog(c *gin.Context) {
+func (h *LoggingHandler) exportSyslog(w http.ResponseWriter, r *http.Request) {
 	logs := []string{
 		fmt.Sprintf("<%d>1 %s weather-app - - - - Failed login from 192.168.1.100",
 			16*8+3, time.Now().Format(time.RFC3339)),
@@ -164,13 +164,13 @@ func (h *LoggingHandler) exportSyslog(c *gin.Context) {
 		output += log + "\n"
 	}
 
-	c.Header("Content-Type", "text/plain")
-	c.Header("Content-Disposition", "attachment; filename=weather_syslog.log")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", "attachment; filename=weather_syslog.log")
+	writeText(w, http.StatusOK, "%s", output)
 }
 
 // Helper: Export in CEF format
-func (h *LoggingHandler) exportCEF(c *gin.Context) {
+func (h *LoggingHandler) exportCEF(w http.ResponseWriter, r *http.Request) {
 	logs := []string{
 		"CEF:0|Weather|Weather API|2.0|100|Failed Login|8|src=192.168.1.100 suser=admin msg=Invalid password attempt=3",
 		"CEF:0|Weather|Weather API|2.0|200|API Access|2|src=10.0.0.50 request=/api/v1/weather msg=Successful request",
@@ -182,13 +182,13 @@ func (h *LoggingHandler) exportCEF(c *gin.Context) {
 		output += log + "\n"
 	}
 
-	c.Header("Content-Type", "text/plain")
-	c.Header("Content-Disposition", "attachment; filename=weather_cef.log")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Disposition", "attachment; filename=weather_cef.log")
+	writeText(w, http.StatusOK, "%s", output)
 }
 
 // Helper: Export in JSON format
-func (h *LoggingHandler) exportJSON(c *gin.Context) {
+func (h *LoggingHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
 	logs := []map[string]interface{}{
 		{
 			"timestamp": time.Now().Format(time.RFC3339),
@@ -214,11 +214,11 @@ func (h *LoggingHandler) exportJSON(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, gin.H{"logs": logs})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"logs": logs})
 }
 
 // ConfigureFail2ban configures Fail2ban integration
-func (h *LoggingHandler) ConfigureFail2ban(c *gin.Context) {
+func (h *LoggingHandler) ConfigureFail2ban(w http.ResponseWriter, r *http.Request) {
 	var config struct {
 		Enabled    bool   `json:"enabled"`
 		FilterPath string `json:"filterPath"`
@@ -227,20 +227,20 @@ func (h *LoggingHandler) ConfigureFail2ban(c *gin.Context) {
 		MaxRetry   int    `json:"maxRetry"`
 	}
 
-	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// In a real implementation, this would configure Fail2ban
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Fail2ban configuration saved",
 		"config":  config,
 	})
 }
 
 // ConfigureSyslog configures Syslog integration
-func (h *LoggingHandler) ConfigureSyslog(c *gin.Context) {
+func (h *LoggingHandler) ConfigureSyslog(w http.ResponseWriter, r *http.Request) {
 	var config struct {
 		Enabled  bool   `json:"enabled"`
 		Protocol string `json:"protocol"`
@@ -249,21 +249,21 @@ func (h *LoggingHandler) ConfigureSyslog(c *gin.Context) {
 		Facility string `json:"facility"`
 	}
 
-	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// In a real implementation, this would configure Syslog
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Syslog configuration saved",
 		"config":  config,
 	})
 }
 
 // TestFormat tests a logging format
-func (h *LoggingHandler) TestFormat(c *gin.Context) {
-	format := c.Query("format")
+func (h *LoggingHandler) TestFormat(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
 
 	samples := map[string]string{
 		"standard": "[2025-12-14 10:30:45] [INFO] [server] Server started on port 3000",
@@ -275,11 +275,11 @@ func (h *LoggingHandler) TestFormat(c *gin.Context) {
 
 	sample, ok := samples[format]
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid format"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"format": format,
 		"sample": sample,
 	})

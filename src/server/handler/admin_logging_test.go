@@ -24,7 +24,7 @@ func TestLoggingHandler_GetFormats(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newAPITestContext("/server/admin/config/logging/formats")
 
-	h.GetFormats(c)
+	h.GetFormats(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -53,7 +53,7 @@ func TestLoggingHandler_UpdateFormats_Success(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/formats", LogFormats{JSON: true, Syslog: true})
 
-	h.UpdateFormats(c)
+	h.UpdateFormats(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -75,7 +75,7 @@ func TestLoggingHandler_UpdateFormats_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/formats", "{not valid json")
 
-	h.UpdateFormats(c)
+	h.UpdateFormats(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -88,7 +88,7 @@ func TestLoggingHandler_GetFail2banConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newAPITestContext("/server/admin/config/logging/fail2ban")
 
-	h.GetFail2banConfig(c)
+	h.GetFail2banConfig(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -110,7 +110,7 @@ func TestLoggingHandler_GetSyslogConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newAPITestContext("/server/admin/config/logging/syslog")
 
-	h.GetSyslogConfig(c)
+	h.GetSyslogConfig(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -133,7 +133,7 @@ func TestLoggingHandler_GetCEFConfig(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newAPITestContext("/server/admin/config/logging/cef")
 
-	h.GetCEFConfig(c)
+	h.GetCEFConfig(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -168,7 +168,7 @@ func TestLoggingHandler_ExportLogs(t *testing.T) {
 			h := NewLoggingHandler("/tmp/logs")
 			c, w := newAPITestContext("/server/admin/config/logging/export?format=" + tt.format)
 
-			h.ExportLogs(c)
+			h.ExportLogs(w, c)
 
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d: %s", w.Code, tt.wantStatus, w.Body.String())
@@ -192,7 +192,7 @@ func TestLoggingHandler_ExportJSON_Shape(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newAPITestContext("/server/admin/config/logging/export?format=json")
 
-	h.ExportLogs(c)
+	h.ExportLogs(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -224,7 +224,7 @@ func TestLoggingHandler_ConfigureFail2ban_Success(t *testing.T) {
 	}
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/fail2ban/configure", payload)
 
-	h.ConfigureFail2ban(c)
+	h.ConfigureFail2ban(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -240,7 +240,7 @@ func TestLoggingHandler_ConfigureFail2ban_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/fail2ban/configure", "{not valid")
 
-	h.ConfigureFail2ban(c)
+	h.ConfigureFail2ban(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -260,7 +260,7 @@ func TestLoggingHandler_ConfigureSyslog_Success(t *testing.T) {
 	}
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/syslog/configure", payload)
 
-	h.ConfigureSyslog(c)
+	h.ConfigureSyslog(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -276,7 +276,7 @@ func TestLoggingHandler_ConfigureSyslog_InvalidJSON(t *testing.T) {
 	h := NewLoggingHandler("/tmp/logs")
 	c, w := newTestContextJSON(t, http.MethodPost, "/server/admin/config/logging/syslog/configure", "{not valid")
 
-	h.ConfigureSyslog(c)
+	h.ConfigureSyslog(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -292,7 +292,7 @@ func TestLoggingHandler_TestFormat(t *testing.T) {
 			h := NewLoggingHandler("/tmp/logs")
 			c, w := newAPITestContext("/server/admin/config/logging/test?format=" + format)
 
-			h.TestFormat(c)
+			h.TestFormat(w, c)
 
 			if w.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -317,7 +317,7 @@ func TestLoggingHandler_TestFormat(t *testing.T) {
 		h := NewLoggingHandler("/tmp/logs")
 		c, w := newAPITestContext("/server/admin/config/logging/test?format=bogus")
 
-		h.TestFormat(c)
+		h.TestFormat(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)

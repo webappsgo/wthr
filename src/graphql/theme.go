@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 // Theme represents the UI theme preference
@@ -15,9 +15,9 @@ const (
 
 // GetTheme retrieves the theme preference from cookie, query param, or returns default
 // Per AI.md specification: dark is the default theme
-func GetTheme(c *gin.Context) Theme {
+func GetTheme(r *http.Request) Theme {
 	// Check query parameter first (for theme switching)
-	if theme := c.Query("theme"); theme != "" {
+	if theme := r.URL.Query().Get("theme"); theme != "" {
 		switch theme {
 		case "dark", "light", "auto":
 			return Theme(theme)
@@ -25,10 +25,10 @@ func GetTheme(c *gin.Context) Theme {
 	}
 
 	// Check cookie
-	if theme, err := c.Cookie("theme"); err == nil {
-		switch theme {
+	if cookie, err := r.Cookie("theme"); err == nil {
+		switch cookie.Value {
 		case "dark", "light", "auto":
-			return Theme(theme)
+			return Theme(cookie.Value)
 		}
 	}
 

@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 // ThemeCookieName is the cookie that persists a guest's (or a logged-in
@@ -38,9 +36,9 @@ func IsValidTheme(mode string) bool {
 // mirrored into the cookie by the preference-save handlers) - defaulting to
 // dark when no valid preference is present. It never inspects JavaScript
 // state, so the correct theme class renders on first paint with zero JS.
-func ResolveTheme(c *gin.Context) string {
-	if cookieTheme, err := c.Cookie(ThemeCookieName); err == nil && IsValidTheme(cookieTheme) {
-		return cookieTheme
+func ResolveTheme(r *http.Request) string {
+	if cookie, err := r.Cookie(ThemeCookieName); err == nil && IsValidTheme(cookie.Value) {
+		return cookie.Value
 	}
 	return DefaultTheme
 }
@@ -50,13 +48,20 @@ func ResolveTheme(c *gin.Context) string {
 // JavaScript. Called by the theme-toggle route and by any handler that
 // saves a logged-in user's/admin's theme preference to the database, so
 // the cookie mirror always matches the stored preference.
-func SetThemeCookie(c *gin.Context, mode string) {
+func SetThemeCookie(w http.ResponseWriter, r *http.Request, mode string) {
 	if !IsValidTheme(mode) {
 		mode = DefaultTheme
 	}
-	secure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
-	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie(ThemeCookieName, mode, ThemeCookieMaxAge, "/", "", secure, false)
+	secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	http.SetCookie(w, &http.Cookie{
+		Name:     ThemeCookieName,
+		Value:    mode,
+		Path:     "/",
+		MaxAge:   ThemeCookieMaxAge,
+		Secure:   secure,
+		HttpOnly: false,
+		SameSite: http.SameSiteStrictMode,
+	})
 }
 
 // ThemeClass returns the literal class attribute value to render on <html>
@@ -71,24 +76,26 @@ func ThemeClass(mode string) string {
 // SetThemeHandler is the POST form target for the theme toggle per AI.md
 // PART 16 "Theme Switching" - works without JS, external JS may intercept
 // the form submit and swap the CSS class instantly instead of reloading.
-func SetThemeHandler(c *gin.Context) {
-	mode := c.PostForm("theme")
+func SetThemeHandler(w http.ResponseWriter, r *http.Request) {
+	mode := r.FormValue("theme")
 	if !IsValidTheme(mode) {
-		c.String(http.StatusBadRequest, "invalid theme")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("invalid theme"))
 		return
 	}
-	SetThemeCookie(c, mode)
+	SetThemeCookie(w, r, mode)
 
 	// Only allow same-site, path-only redirects - reject empty, non-rooted,
 	// protocol-relative ("//evil.com") and backslash-based ("/\evil.com")
 	// targets, which browsers can interpret as scheme-qualified URLs and
 	// enable an open redirect.
-	redirectTo := c.PostForm("redirect")
+	redirectTo := r.FormValue("redirect")
 	if redirectTo == "" ||
 		!strings.HasPrefix(redirectTo, "/") ||
 		strings.HasPrefix(redirectTo, "//") ||
 		strings.HasPrefix(redirectTo, "/\\") {
 		redirectTo = "/"
 	}
-	c.Redirect(http.StatusSeeOther, redirectTo)
+	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 }

@@ -2,12 +2,13 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // TestNewMetricsHandler verifies the constructor returns a non-nil,
@@ -19,33 +20,52 @@ func TestNewMetricsHandler(t *testing.T) {
 	}
 }
 
-// newMetricsJSONContext builds a gin test context with an optional JSON
-// body attached to the request, mirroring the pattern used elsewhere in
-// this package for JSON-bound handlers.
-func newMetricsJSONContext(method, target string, body interface{}) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+// newMetricsAPIRequest builds a bare GET request/recorder pair.
+func newMetricsAPIRequest(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
+	r := httptest.NewRequest(http.MethodGet, target, nil)
+	return r, w
+}
 
-	var reqBody *bytes.Buffer
-	if body != nil {
-		raw, _ := json.Marshal(body)
-		reqBody = bytes.NewBuffer(raw)
-	} else {
-		reqBody = bytes.NewBuffer(nil)
+// newMetricsJSONRequest builds a request/recorder pair with a JSON body
+// attached to the request, mirroring the pattern used elsewhere in this
+// package for JSON-bound handlers.
+func newMetricsJSONRequest(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+
+	var raw []byte
+	switch v := body.(type) {
+	case string:
+		raw = []byte(v)
+	case []byte:
+		raw = v
+	default:
+		var err error
+		raw, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
 	}
 
-	c.Request = httptest.NewRequest(method, target, reqBody)
-	c.Request.Header.Set("Content-Type", "application/json")
-	return c, w
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	return r, w
+}
+
+// setMetricNameParam sets the chi :name route param on r.
+func setMetricNameParam(r *http.Request, name string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", name)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
 // TestMetricsHandler_GetConfig verifies the static config payload is
 // returned with the expected enabled flag and default path.
 func TestMetricsHandler_GetConfig(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics")
-	h.GetConfig(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics")
+	h.GetConfig(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -63,11 +83,11 @@ func TestMetricsHandler_GetConfig(t *testing.T) {
 // accepted and echoed back.
 func TestMetricsHandler_UpdateConfig_Success(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics", MetricsConfig{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics", MetricsConfig{
 		Enabled: true,
 		Path:    "/custom-metrics",
 	})
-	h.UpdateConfig(c)
+	h.UpdateConfig(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -81,11 +101,11 @@ func TestMetricsHandler_UpdateConfig_Success(t *testing.T) {
 // path in the request body is normalized to the default "/metrics".
 func TestMetricsHandler_UpdateConfig_EmptyPathDefaults(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics", MetricsConfig{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics", MetricsConfig{
 		Enabled: true,
 		Path:    "",
 	})
-	h.UpdateConfig(c)
+	h.UpdateConfig(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -105,13 +125,9 @@ func TestMetricsHandler_UpdateConfig_EmptyPathDefaults(t *testing.T) {
 // bodies are rejected with 400 rather than silently accepted.
 func TestMetricsHandler_UpdateConfig_InvalidJSON(t *testing.T) {
 	h := NewMetricsHandler()
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/server/admin/config/metrics", bytes.NewBufferString("{not-json"))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics", "{not-json")
 
-	h.UpdateConfig(c)
+	h.UpdateConfig(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -122,8 +138,8 @@ func TestMetricsHandler_UpdateConfig_InvalidJSON(t *testing.T) {
 // expected keys.
 func TestMetricsHandler_GetStats(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/stats")
-	h.GetStats(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/stats")
+	h.GetStats(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -143,8 +159,8 @@ func TestMetricsHandler_GetStats(t *testing.T) {
 // and wrapped under the "metrics" key.
 func TestMetricsHandler_ListMetrics(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/list")
-	h.ListMetrics(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/list")
+	h.ListMetrics(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -164,12 +180,12 @@ func TestMetricsHandler_ListMetrics(t *testing.T) {
 // metric is accepted with 201.
 func TestMetricsHandler_CreateMetric_Success(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
 		Name: "custom_widget_total",
 		Type: "counter",
 		Help: "Total widgets processed",
 	})
-	h.CreateMetric(c)
+	h.CreateMetric(w, r)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", w.Code)
@@ -180,13 +196,9 @@ func TestMetricsHandler_CreateMetric_Success(t *testing.T) {
 // are rejected.
 func TestMetricsHandler_CreateMetric_InvalidJSON(t *testing.T) {
 	h := NewMetricsHandler()
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/server/admin/config/metrics/custom", bytes.NewBufferString("{not-json"))
-	c.Request.Header.Set("Content-Type", "application/json")
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom", "{not-json")
 
-	h.CreateMetric(c)
+	h.CreateMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -197,10 +209,10 @@ func TestMetricsHandler_CreateMetric_InvalidJSON(t *testing.T) {
 // name is rejected with 400.
 func TestMetricsHandler_CreateMetric_MissingName(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
 		Type: "counter",
 	})
-	h.CreateMetric(c)
+	h.CreateMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -211,10 +223,10 @@ func TestMetricsHandler_CreateMetric_MissingName(t *testing.T) {
 // type is rejected with 400.
 func TestMetricsHandler_CreateMetric_MissingType(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
 		Name: "custom_widget_total",
 	})
-	h.CreateMetric(c)
+	h.CreateMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -225,11 +237,11 @@ func TestMetricsHandler_CreateMetric_MissingType(t *testing.T) {
 // outside the allowed set (counter/gauge/histogram/summary) is rejected.
 func TestMetricsHandler_CreateMetric_InvalidType(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom", CustomMetric{
 		Name: "custom_widget_total",
 		Type: "not-a-real-type",
 	})
-	h.CreateMetric(c)
+	h.CreateMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -240,9 +252,9 @@ func TestMetricsHandler_CreateMetric_InvalidType(t *testing.T) {
 // returns 200 and echoes the name.
 func TestMetricsHandler_DeleteMetric_Success(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/custom/custom_widget_total")
-	c.Params = gin.Params{{Key: "name", Value: "custom_widget_total"}}
-	h.DeleteMetric(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/custom/custom_widget_total")
+	r = setMetricNameParam(r, "custom_widget_total")
+	h.DeleteMetric(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -256,9 +268,9 @@ func TestMetricsHandler_DeleteMetric_Success(t *testing.T) {
 // param is rejected with 400.
 func TestMetricsHandler_DeleteMetric_MissingName(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/custom/")
-	c.Params = gin.Params{{Key: "name", Value: ""}}
-	h.DeleteMetric(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/custom/")
+	r = setMetricNameParam(r, "")
+	h.DeleteMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
@@ -269,8 +281,8 @@ func TestMetricsHandler_DeleteMetric_MissingName(t *testing.T) {
 // format query param) export uses Prometheus text format.
 func TestMetricsHandler_ExportMetrics_Prometheus(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/export")
-	h.ExportMetrics(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/export")
+	h.ExportMetrics(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -287,8 +299,8 @@ func TestMetricsHandler_ExportMetrics_Prometheus(t *testing.T) {
 // to the JSON exporter.
 func TestMetricsHandler_ExportMetrics_JSON(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/export?format=json")
-	h.ExportMetrics(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/export?format=json")
+	h.ExportMetrics(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -306,8 +318,8 @@ func TestMetricsHandler_ExportMetrics_JSON(t *testing.T) {
 // format=openmetrics dispatches to the OpenMetrics exporter.
 func TestMetricsHandler_ExportMetrics_OpenMetrics(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newAPITestContext("/server/admin/config/metrics/export?format=openmetrics")
-	h.ExportMetrics(c)
+	r, w := newMetricsAPIRequest("/server/admin/config/metrics/export?format=openmetrics")
+	h.ExportMetrics(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -324,9 +336,9 @@ func TestMetricsHandler_ExportMetrics_OpenMetrics(t *testing.T) {
 // returns 200 and echoes the requested state.
 func TestMetricsHandler_ToggleMetric_Success(t *testing.T) {
 	h := NewMetricsHandler()
-	c, w := newMetricsJSONContext(http.MethodPost, "/server/admin/config/metrics/custom/custom_widget_total/toggle", map[string]bool{"enabled": false})
-	c.Params = gin.Params{{Key: "name", Value: "custom_widget_total"}}
-	h.ToggleMetric(c)
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom/custom_widget_total/toggle", map[string]bool{"enabled": false})
+	r = setMetricNameParam(r, "custom_widget_total")
+	h.ToggleMetric(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -340,14 +352,10 @@ func TestMetricsHandler_ToggleMetric_Success(t *testing.T) {
 // bodies are rejected with 400.
 func TestMetricsHandler_ToggleMetric_InvalidJSON(t *testing.T) {
 	h := NewMetricsHandler()
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/server/admin/config/metrics/custom/x/toggle", bytes.NewBufferString("{not-json"))
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Params = gin.Params{{Key: "name", Value: "x"}}
+	r, w := newMetricsJSONRequest(t, http.MethodPost, "/server/admin/config/metrics/custom/x/toggle", "{not-json")
+	r = setMetricNameParam(r, "x")
 
-	h.ToggleMetric(c)
+	h.ToggleMetric(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)

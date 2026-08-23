@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -11,13 +12,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
-// adminAPIContextWithDB wires a gin context with a real *sql.DB stashed in
-// the "db" context key, mirroring how the production router injects it
-// (see src/main.go db middleware).
-func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}) (*sql.DB, *gin.Context, *httptest.ResponseRecorder) {
+// adminAPIContextWithDB wires a request carrying a real *sql.DB stashed in
+// the "db" request-context key, mirroring how the production router injects
+// it (see src/main.go db middleware).
+func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}) (*sql.DB, *http.Request, *httptest.ResponseRecorder) {
 	t.Helper()
 	db := newTestServerDB(t)
 	// SettingsModel and several admin_api.go helpers read through the
@@ -25,53 +28,87 @@ func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}
 	// struct's injected DB field, so the global dual-DB must be wired for
 	// these tests to hit the same in-memory database the context carries.
 	setGlobalTestDualDB(t, db, db)
-	var c *gin.Context
+	var r *http.Request
 	var w *httptest.ResponseRecorder
 	if body != nil {
-		c, w = newTestContextJSON(t, method, target, body)
+		r, w = newTestRequestJSON(t, method, target, body)
 	} else {
-		c, w = newTestContext(method, target)
+		r, w = newTestRequestPlain(method, target)
 	}
-	c.Set("db", db)
-	return db, c, w
+	r = r.WithContext(reqctx.Set(r.Context(), "db", db))
+	return db, r, w
+}
+
+// newTestRequestJSON builds a request with a JSON-encoded body.
+func newTestRequestJSON(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	var reader *strings.Reader
+	if s, ok := body.(string); ok {
+		reader = strings.NewReader(s)
+	} else {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal body: %v", err)
+		}
+		reader = strings.NewReader(string(payload))
+	}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(method, target, reader)
+	r.Header.Set("Content-Type", "application/json")
+	return r, w
+}
+
+// newTestRequestPlain builds a request with no body.
+func newTestRequestPlain(method, target string) (*http.Request, *httptest.ResponseRecorder) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(method, target, nil)
+	return r, w
+}
+
+// withURLParam attaches a chi URL param to the request context, mirroring
+// how chi's router populates it for the real handler.
+func withURLParam(r *http.Request, key, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add(key, value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
 func TestSaveWebSettings(t *testing.T) {
 	t.Run("saves mixed-type settings", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{
 			"site.title":   "My Weather",
 			"site.port":    float64(8080),
 			"site.enabled": true,
 			"site.extra":   map[string]interface{}{"a": 1},
 		})
-		SaveWebSettings(c)
+		SaveWebSettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("invalid JSON returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/web", "{bad")
-		SaveWebSettings(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/web", "{bad")
+		SaveWebSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
-		SaveWebSettings(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
+		SaveWebSettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("db error returns 500", func(t *testing.T) {
-		db, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/web", map[string]interface{}{"a": "b"})
 		if _, err := db.Exec("DROP TABLE server_config"); err != nil {
 			t.Fatalf("drop table: %v", err)
 		}
-		SaveWebSettings(c)
+		SaveWebSettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -80,26 +117,26 @@ func TestSaveWebSettings(t *testing.T) {
 
 func TestSaveSecuritySettings(t *testing.T) {
 	t.Run("saves settings", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/security", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/security", map[string]interface{}{
 			"security.mfa": true,
 		})
-		SaveSecuritySettings(c)
+		SaveSecuritySettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("invalid JSON returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/security", "{bad")
-		SaveSecuritySettings(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/security", "{bad")
+		SaveSecuritySettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/security", map[string]interface{}{"a": "b"})
-		SaveSecuritySettings(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/security", map[string]interface{}{"a": "b"})
+		SaveSecuritySettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -108,25 +145,25 @@ func TestSaveSecuritySettings(t *testing.T) {
 
 func TestTestDatabaseConnection(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/db/test", nil)
-		TestDatabaseConnection(c)
+		_, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/db/test", nil)
+		TestDatabaseConnection(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/admin/db/test")
-		TestDatabaseConnection(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/db/test")
+		TestDatabaseConnection(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("closed db fails ping", func(t *testing.T) {
-		db, c, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/db/test", nil)
+		db, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/db/test", nil)
 		db.Close()
-		TestDatabaseConnection(c)
+		TestDatabaseConnection(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -135,25 +172,25 @@ func TestTestDatabaseConnection(t *testing.T) {
 
 func TestOptimizeDatabase(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/optimize", nil)
-		OptimizeDatabase(c)
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/optimize", nil)
+		OptimizeDatabase(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContext(http.MethodPost, "/admin/db/optimize")
-		OptimizeDatabase(c)
+		r, w := newTestRequestPlain(http.MethodPost, "/admin/db/optimize")
+		OptimizeDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("closed db returns 500", func(t *testing.T) {
-		db, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/optimize", nil)
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/optimize", nil)
 		db.Close()
-		OptimizeDatabase(c)
+		OptimizeDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -162,25 +199,25 @@ func TestOptimizeDatabase(t *testing.T) {
 
 func TestVacuumDatabase(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
-		VacuumDatabase(c)
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
+		VacuumDatabase(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContext(http.MethodPost, "/admin/db/vacuum")
-		VacuumDatabase(c)
+		r, w := newTestRequestPlain(http.MethodPost, "/admin/db/vacuum")
+		VacuumDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("closed db returns 500", func(t *testing.T) {
-		db, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/db/vacuum", nil)
 		db.Close()
-		VacuumDatabase(c)
+		VacuumDatabase(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -189,32 +226,30 @@ func TestVacuumDatabase(t *testing.T) {
 
 func TestClearCache(t *testing.T) {
 	t.Run("no cache in context still succeeds", func(t *testing.T) {
-		c, w := newTestContext(http.MethodPost, "/admin/cache/clear")
-		ClearCache(c)
+		r, w := newTestRequestPlain(http.MethodPost, "/admin/cache/clear")
+		ClearCache(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("wrong type in context still succeeds (not enabled)", func(t *testing.T) {
-		c, w := newTestContext(http.MethodPost, "/admin/cache/clear")
-		c.Set("cache", "not-a-cache-manager")
-		ClearCache(c)
+		r, w := newTestRequestPlain(http.MethodPost, "/admin/cache/clear")
+		r = r.WithContext(reqctx.Set(r.Context(), "cache", "not-a-cache-manager"))
+		ClearCache(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 }
 
-// newBackupFormContext builds a gin context carrying a form-encoded body, the
+// newBackupFormContext builds a request carrying a form-encoded body, the
 // shape the admin backup page posts to CreateBackup and RestoreBackup.
-func newBackupFormContext(method, target string, fields url.Values) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newBackupFormContext(method, target string, fields url.Values) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(method, target, strings.NewReader(fields.Encode()))
-	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return c, w
+	r := httptest.NewRequest(method, target, strings.NewReader(fields.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return r, w
 }
 
 // writeTestBackup creates a backup directory entry under dataDir/backups and
@@ -239,8 +274,8 @@ func TestCreateBackup(t *testing.T) {
 		t.Setenv("CONFIG_DIR", configDir)
 		t.Setenv("DATA_DIR", dataDir)
 
-		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup", url.Values{})
-		CreateBackup(c)
+		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup", url.Values{})
+		CreateBackup(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -249,8 +284,8 @@ func TestCreateBackup(t *testing.T) {
 
 func TestRestoreBackup(t *testing.T) {
 	t.Run("no file and no filename returns 400", func(t *testing.T) {
-		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{})
-		RestoreBackup(c)
+		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{})
+		RestoreBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -259,10 +294,10 @@ func TestRestoreBackup(t *testing.T) {
 	t.Run("filename outside the backup directory returns 400", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
 			"filename": {"../../etc/passwd.tar.gz"},
 		})
-		RestoreBackup(c)
+		RestoreBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -272,10 +307,10 @@ func TestRestoreBackup(t *testing.T) {
 		t.Setenv("CONFIG_DIR", t.TempDir())
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
 			"filename": {"missing.tar.gz"},
 		})
-		RestoreBackup(c)
+		RestoreBackup(w, r)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
 		}
@@ -286,8 +321,8 @@ func TestListBackups(t *testing.T) {
 	t.Run("missing dir returns empty list", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup")
-		ListBackups(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup")
+		ListBackups(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -307,8 +342,8 @@ func TestListBackups(t *testing.T) {
 		writeTestBackup(t, dataDir, "two.tar.gz.enc")
 		writeTestBackup(t, dataDir, "ignore.txt")
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup")
-		ListBackups(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup")
+		ListBackups(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -336,8 +371,8 @@ func TestBackupStats(t *testing.T) {
 		writeTestBackup(t, dataDir, "one.tar.gz")
 		writeTestBackup(t, dataDir, "two.tar.gz.enc")
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup/stats")
-		BackupStats(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/stats")
+		BackupStats(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -362,9 +397,9 @@ func TestDownloadBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup/missing.tar.gz/download")
-		c.Params = []gin.Param{{Key: "filename", Value: "missing.tar.gz"}}
-		DownloadBackup(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/missing.tar.gz/download")
+		r = withURLParam(r, "filename", "missing.tar.gz")
+		DownloadBackup(w, r)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
 		}
@@ -373,9 +408,9 @@ func TestDownloadBackup(t *testing.T) {
 	t.Run("traversal rejected", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup/traverse/download")
-		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd.tar.gz"}}
-		DownloadBackup(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/traverse/download")
+		r = withURLParam(r, "filename", "../../etc/passwd.tar.gz")
+		DownloadBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -386,9 +421,9 @@ func TestDownloadBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		writeTestBackup(t, dataDir, "server.yml")
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup/server.yml/download")
-		c.Params = []gin.Param{{Key: "filename", Value: "server.yml"}}
-		DownloadBackup(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/server.yml/download")
+		r = withURLParam(r, "filename", "server.yml")
+		DownloadBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -399,9 +434,9 @@ func TestDownloadBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		writeTestBackup(t, dataDir, "one.tar.gz")
 
-		c, w := newTestContext(http.MethodGet, "/admin/config/backup/one.tar.gz/download")
-		c.Params = []gin.Param{{Key: "filename", Value: "one.tar.gz"}}
-		DownloadBackup(c)
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/one.tar.gz/download")
+		r = withURLParam(r, "filename", "one.tar.gz")
+		DownloadBackup(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -412,9 +447,9 @@ func TestDeleteBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/missing.tar.gz")
-		c.Params = []gin.Param{{Key: "filename", Value: "missing.tar.gz"}}
-		DeleteBackup(c)
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/missing.tar.gz")
+		r = withURLParam(r, "filename", "missing.tar.gz")
+		DeleteBackup(w, r)
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
 		}
@@ -423,9 +458,9 @@ func TestDeleteBackup(t *testing.T) {
 	t.Run("traversal rejected", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/traverse")
-		c.Params = []gin.Param{{Key: "filename", Value: "../../etc/passwd.tar.gz"}}
-		DeleteBackup(c)
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/traverse")
+		r = withURLParam(r, "filename", "../../etc/passwd.tar.gz")
+		DeleteBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -436,9 +471,9 @@ func TestDeleteBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		target := writeTestBackup(t, dataDir, "one.tar.gz")
 
-		c, w := newTestContext(http.MethodDelete, "/admin/config/backup/one.tar.gz")
-		c.Params = []gin.Param{{Key: "filename", Value: "one.tar.gz"}}
-		DeleteBackup(c)
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/one.tar.gz")
+		r = withURLParam(r, "filename", "one.tar.gz")
+		DeleteBackup(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -450,8 +485,8 @@ func TestDeleteBackup(t *testing.T) {
 
 func TestBackupSchedule(t *testing.T) {
 	t.Run("returns defaults when nothing is stored", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/config/backup/schedule", nil)
-		GetBackupSchedule(c)
+		_, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/config/backup/schedule", nil)
+		GetBackupSchedule(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -475,7 +510,7 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("saves and reads back", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
 			"enabled":        false,
 			"interval":       12,
 			"max_backups":    5,
@@ -484,14 +519,14 @@ func TestBackupSchedule(t *testing.T) {
 			"keep_yearly":    1,
 			"max_total_size": "20%",
 		})
-		SaveBackupSchedule(c)
+		SaveBackupSchedule(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 
-		readCtx, readRec := newTestContext(http.MethodGet, "/admin/config/backup/schedule")
-		readCtx.Set("db", c.MustGet("db"))
-		GetBackupSchedule(readCtx)
+		readReq, readRec := newTestRequestPlain(http.MethodGet, "/admin/config/backup/schedule")
+		readReq = readReq.WithContext(reqctx.Set(readReq.Context(), "db", db))
+		GetBackupSchedule(readRec, readReq)
 		var schedule struct {
 			Enabled   bool `json:"enabled"`
 			Interval  int  `json:"interval"`
@@ -514,30 +549,30 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("rejects out-of-range interval", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
 			"interval": 0,
 		})
-		SaveBackupSchedule(c)
+		SaveBackupSchedule(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("rejects out-of-range max_backups", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
 			"max_backups": 0,
 		})
-		SaveBackupSchedule(c)
+		SaveBackupSchedule(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("rejects negative keep_weekly", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
 			"keep_weekly": -1,
 		})
-		SaveBackupSchedule(c)
+		SaveBackupSchedule(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -546,73 +581,73 @@ func TestBackupSchedule(t *testing.T) {
 
 func TestSaveDatabaseSettings(t *testing.T) {
 	t.Run("invalid JSON returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/database", "{bad")
-		SaveDatabaseSettings(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/database", "{bad")
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing db context returns 500", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "sqlite",
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("invalid driver returns 400", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "oracle",
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("invalid port returns 400", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "postgres",
 			"database.port":   float64(70000),
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("remote db missing required fields returns 400", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "postgres",
 			"database.port":   float64(5432),
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("sqlite driver saves without remote validation", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "sqlite",
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("valid remote config saves", func(t *testing.T) {
-		_, c, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/settings/database", map[string]interface{}{
 			"database.driver": "postgres",
 			"database.port":   float64(5432),
 			"database.host":   "localhost",
 			"database.name":   "wthr",
 		})
-		SaveDatabaseSettings(c)
+		SaveDatabaseSettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -621,65 +656,65 @@ func TestSaveDatabaseSettings(t *testing.T) {
 
 func TestTestDatabaseConfigConnection(t *testing.T) {
 	t.Run("invalid JSON returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", "{bad")
-		TestDatabaseConfigConnection(c)
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", "{bad")
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("sqlite driver always valid", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
 			"driver": "sqlite",
 		})
-		TestDatabaseConfigConnection(c)
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing host returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
 			"driver": "postgres",
 		})
-		TestDatabaseConfigConnection(c)
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("invalid port returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
 			"driver": "postgres",
 			"host":   "localhost",
 			"port":   99999,
 		})
-		TestDatabaseConfigConnection(c)
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("missing name returns 400", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
 			"driver": "postgres",
 			"host":   "localhost",
 			"port":   5432,
 		})
-		TestDatabaseConfigConnection(c)
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
 	t.Run("valid remote config", func(t *testing.T) {
-		c, w := newTestContextJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
+		r, w := newTestRequestJSON(t, http.MethodPost, "/admin/db/test-config", map[string]interface{}{
 			"driver": "postgres",
 			"host":   "localhost",
 			"port":   5432,
 			"name":   "wthr",
 		})
-		TestDatabaseConfigConnection(c)
+		TestDatabaseConfigConnection(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}

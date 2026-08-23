@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -30,22 +30,22 @@ func NewWebHandler(ws *service.WeatherService, le *service.LocationEnhancer) *We
 }
 
 // ServeWebInterface serves the main web interface
-func (h *WebHandler) ServeWebInterface(c *gin.Context) {
+func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
-	location := c.Query("location")
-	units := c.Query("units")
+	location := r.URL.Query().Get("location")
+	units := r.URL.Query().Get("units")
 	if units == "" {
 		units = "imperial"
 	}
 
 	var weatherData interface{}
 	var errorMsg string
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)
@@ -53,12 +53,12 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 	// 3. IP geolocation (fallback)
 	if location == "" {
 		// Check cookies first
-		if latStr, err := c.Cookie("user_lat"); err == nil {
-			if lonStr, err := c.Cookie("user_lon"); err == nil {
-				if _, err1 := strconv.ParseFloat(latStr, 64); err1 == nil {
-					if _, err2 := strconv.ParseFloat(lonStr, 64); err2 == nil {
-						if locationName, err := c.Cookie("user_location_name"); err == nil {
-							location = locationName
+		if latCookie, err := r.Cookie("user_lat"); err == nil {
+			if lonCookie, err := r.Cookie("user_lon"); err == nil {
+				if _, err1 := strconv.ParseFloat(latCookie.Value, 64); err1 == nil {
+					if _, err2 := strconv.ParseFloat(lonCookie.Value, 64); err2 == nil {
+						if nameCookie, err := r.Cookie("user_location_name"); err == nil {
+							location = nameCookie.Value
 						}
 					}
 				}
@@ -92,7 +92,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 				forecast, _ := h.weatherService.GetForecast(enhanced.Latitude, enhanced.Longitude, 16, units)
 
 				// Enrich current weather with icon and description
-				currentData := gin.H{
+				currentData := map[string]interface{}{
 					"Temperature":   current.Temperature,
 					"FeelsLike":     current.FeelsLike,
 					"Humidity":      current.Humidity,
@@ -106,7 +106,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 				}
 
 				// Format location data
-				locationData := gin.H{
+				locationData := map[string]interface{}{
 					"Name":                enhanced.Name,
 					"ShortName":           enhanced.ShortName,
 					"FullName":            enhanced.FullName,
@@ -119,7 +119,7 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 					"Timezone":            enhanced.Timezone,
 				}
 
-				weatherData = gin.H{
+				weatherData = map[string]interface{}{
 					"Location": locationData,
 					"Current":  currentData,
 					"Forecast": forecast,
@@ -129,12 +129,12 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 		}
 	}
 
-	hostInfo := util.GetHostInfo(c)
+	hostInfo := util.GetHostInfo(r)
 
 	// Format location for URLs (replace spaces with +, keep commas)
 	locationFormatted := strings.ReplaceAll(location, " ", "+")
 
-	NegotiateResponse(c, "page/weather.tmpl", util.TemplateData(c, gin.H{
+	NegotiateResponse(w, r, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":             "Weather",
 		"WeatherData":       weatherData,
 		"HostInfo":          hostInfo,
@@ -147,26 +147,26 @@ func (h *WebHandler) ServeWebInterface(c *gin.Context) {
 }
 
 // ServeMoonInterface serves the moon phase interface
-func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
+func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
 	// Get location from path parameter or query
-	location := c.Param("location")
+	location := chi.URLParam(r, "location")
 	if location == "" {
-		location = c.Query("location")
+		location = r.URL.Query().Get("location")
 	}
 
 	// Get units from query parameter (default to imperial)
-	units := c.Query("units")
+	units := r.URL.Query().Get("units")
 	if units == "" {
 		units = "imperial"
 	}
 
-	clientIP := util.GetClientIP(c)
+	clientIP := util.GetClientIP(r)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)
@@ -174,12 +174,12 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	// 3. IP geolocation (fallback)
 	if location == "" {
 		// Check cookies first
-		if latStr, err := c.Cookie("user_lat"); err == nil {
-			if lonStr, err := c.Cookie("user_lon"); err == nil {
-				if _, err1 := strconv.ParseFloat(latStr, 64); err1 == nil {
-					if _, err2 := strconv.ParseFloat(lonStr, 64); err2 == nil {
-						if locationName, err := c.Cookie("user_location_name"); err == nil {
-							location = locationName
+		if latCookie, err := r.Cookie("user_lat"); err == nil {
+			if lonCookie, err := r.Cookie("user_lon"); err == nil {
+				if _, err1 := strconv.ParseFloat(latCookie.Value, 64); err1 == nil {
+					if _, err2 := strconv.ParseFloat(lonCookie.Value, 64); err2 == nil {
+						if nameCookie, err := r.Cookie("user_location_name"); err == nil {
+							location = nameCookie.Value
 						}
 					}
 				}
@@ -198,9 +198,9 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 
 	// If still no location, show empty moon page
 	if location == "" {
-		NegotiateResponse(c, "page/moon.tmpl", util.TemplateData(c, gin.H{
+		NegotiateResponse(w, r, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Title":      "Moon Phase - Weather",
-			"HostInfo":   util.GetHostInfo(c),
+			"HostInfo":   util.GetHostInfo(r),
 			"Location":   "",
 			"Units":      units,
 			"HideFooter": false,
@@ -214,10 +214,10 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 
 	if err != nil {
-		NegotiateErrorResponse(c, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), util.TemplateData(c, gin.H{
+		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), util.TemplateData(r, map[string]interface{}{
 			"Title":      "Moon Phase - Weather",
 			"Error":      err.Error(),
-			"HostInfo":   util.GetHostInfo(c),
+			"HostInfo":   util.GetHostInfo(r),
 			"Location":   location,
 			"Units":      units,
 			"HideFooter": false,
@@ -229,7 +229,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	enhanced := h.locationEnhancer.EnhanceLocation(coords)
 
 	// Save location to cookies for persistence across navigation
-	middleware.SaveLocationCookies(c, enhanced.Latitude, enhanced.Longitude, enhanced.ShortName)
+	middleware.SaveLocationCookies(w, r, enhanced.Latitude, enhanced.Longitude, enhanced.ShortName)
 
 	// Get moon data from moon service
 	moonService := service.NewMoonService()
@@ -242,8 +242,8 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	nextNewMoon, _ := time.Parse(time.RFC3339, moonDataCalc.NextNewMoon)
 	nextFullMoon, _ := time.Parse(time.RFC3339, moonDataCalc.NextFullMoon)
 
-	moonData := gin.H{
-		"Location": gin.H{
+	moonData := map[string]interface{}{
+		"Location": map[string]interface{}{
 			"Name":                enhanced.Name,
 			"ShortName":           enhanced.ShortName,
 			"FullName":            enhanced.FullName,
@@ -256,7 +256,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 			"Population":          enhanced.Population,
 			"PopulationFormatted": fmt.Sprintf("%d", enhanced.Population),
 		},
-		"Moon": gin.H{
+		"Moon": map[string]interface{}{
 			"Phase":             moonDataCalc.Phase,
 			"Illumination":      fmt.Sprintf("%.1f", moonDataCalc.Illumination),
 			"Icon":              moonDataCalc.Icon,
@@ -282,10 +282,10 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 	// This shows "Albany, NY" instead of just "Albany"
 	displayLocation := enhanced.ShortName
 
-	c.HTML(http.StatusOK, "page/moon.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":             "Moon Phase - " + enhanced.ShortName,
 		"MoonData":          moonData,
-		"HostInfo":          util.GetHostInfo(c),
+		"HostInfo":          util.GetHostInfo(r),
 		"Location":          displayLocation,
 		"LocationFormatted": strings.ReplaceAll(enhanced.ShortName, " ", "+"),
 		"Units":             units,
@@ -294,7 +294,7 @@ func (h *WebHandler) ServeMoonInterface(c *gin.Context) {
 }
 
 // calculateSunTimesForWeb calculates sun times for the web template
-func calculateSunTimesForWeb(lat, lon float64, date time.Time) gin.H {
+func calculateSunTimesForWeb(lat, lon float64, date time.Time) map[string]interface{} {
 	// Calculate day of year
 	dayOfYear := date.YearDay()
 
@@ -323,14 +323,14 @@ func calculateSunTimesForWeb(lat, lon float64, date time.Time) gin.H {
 
 	// Clamp for polar regions
 	if cosHa > 1 {
-		return gin.H{
+		return map[string]interface{}{
 			"SunriseFormatted":   "No sunrise",
 			"SunsetFormatted":    "No sunset",
 			"SolarNoonFormatted": "12:00 PM",
 			"DayLengthFormatted": "0h 0m",
 		}
 	} else if cosHa < -1 {
-		return gin.H{
+		return map[string]interface{}{
 			"SunriseFormatted":   "Midnight sun",
 			"SunsetFormatted":    "Midnight sun",
 			"SolarNoonFormatted": "12:00 PM",
@@ -369,7 +369,7 @@ func calculateSunTimesForWeb(lat, lon float64, date time.Time) gin.H {
 		dayLengthMins = 0
 	}
 
-	return gin.H{
+	return map[string]interface{}{
 		"SunriseFormatted":   formatHourMinToAMPM(sunriseHour, sunriseMin),
 		"SunsetFormatted":    formatHourMinToAMPM(sunsetHour, sunsetMin),
 		"SolarNoonFormatted": formatHourMinToAMPM(noonHour, noonMin),

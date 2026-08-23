@@ -1,17 +1,64 @@
 package handler
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/server/middleware"
+	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
+
+// newUSTestRequest builds a request/recorder pair for the user settings
+// handler tests, kept local to avoid depending on unexported helpers owned
+// by another file beyond handler_helpers_test.go.
+func newUSTestRequest(t *testing.T, method, target string, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+
+	var raw []byte
+	switch v := body.(type) {
+	case nil:
+		raw = nil
+	case string:
+		raw = []byte(v)
+	case []byte:
+		raw = v
+	default:
+		var err error
+		raw, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal request body: %v", err)
+		}
+	}
+
+	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("Content-Type", "application/json")
+	return r, w
+}
+
+// withUSCurrentUser attaches an authenticated user to the request context,
+// the same key middleware.AuthMiddleware sets on a real request.
+func withUSCurrentUser(r *http.Request, id int64) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, &models.User{ID: id}))
+}
+
+// withUSURLParam attaches a chi route param to the request context.
+func withUSURLParam(r *http.Request, key, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add(key, value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
 
 // seedUserAccountRow inserts a minimal row into user_accounts so loadSettings
 // (and anything that joins against it) has a row to find for the given id.
@@ -27,14 +74,12 @@ func seedUserAccountRow(t *testing.T, db *sql.DB, id int64, email, username stri
 }
 
 func TestUserSettingsHandler_GetSettings(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	t.Run("unauthenticated returns 401 with raw error shape", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/settings", "")
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
 
-		h.GetSettings(c)
+		h.GetSettings(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -51,10 +96,10 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 	t.Run("authenticated user with no user_accounts row gets 500, not a panic", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/settings", "")
-		setCurrentUser(c, 999)
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
+		r = withUSCurrentUser(r, 999)
 
-		h.GetSettings(c)
+		h.GetSettings(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -78,10 +123,10 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "a@example.com", "alice")
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/settings", "")
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
+		r = withUSCurrentUser(r, 1)
 
-		h.GetSettings(c)
+		h.GetSettings(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -97,9 +142,9 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 
 		// A second call must reuse the auto-created preferences row rather than
 		// erroring (idempotency of getOrCreatePreferences).
-		c2, w2 := newTestContextJSON(t, http.MethodGet, "/api/v1/users/settings", "")
-		setCurrentUser(c2, 1)
-		h.GetSettings(c2)
+		r2, w2 := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
+		r2 = withUSCurrentUser(r2, 1)
+		h.GetSettings(w2, r2)
 		if w2.Code != http.StatusOK {
 			t.Errorf("second call status = %d, want 200; body=%s", w2.Code, w2.Body.String())
 		}
@@ -107,14 +152,12 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 }
 
 func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/settings", "{}")
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", "{}")
 
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -125,10 +168,10 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "b@example.com", "bob")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/settings", "{not json")
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", "{not json")
+		r = withUSCurrentUser(r, 1)
 
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -145,10 +188,10 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 			longBio[i] = 'x'
 		}
 		req := UpdateSettingsRequest{Account: &AccountSettings{Bio: string(longBio)}}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/settings", req)
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", req)
+		r = withUSCurrentUser(r, 1)
 
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -161,10 +204,10 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 		seedUserAccountRow(t, db, 1, "d@example.com", "dave")
 
 		req := UpdateSettingsRequest{Appearance: &AppearanceSettings{Theme: "rainbow"}}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/settings", req)
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", req)
+		r = withUSCurrentUser(r, 1)
 
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -177,10 +220,10 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 		seedUserAccountRow(t, db, 1, "e@example.com", "erin")
 
 		req := UpdateSettingsRequest{Account: &AccountSettings{Bio: "hello world"}}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/settings", req)
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/settings", req)
+		r = withUSCurrentUser(r, 1)
 
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -189,14 +232,12 @@ func TestUserSettingsHandler_UpdateSettings(t *testing.T) {
 }
 
 func TestUserSettingsHandler_Tokens(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	t.Run("CreateToken unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/tokens", "{}")
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", "{}")
 
-		h.CreateToken(c)
+		h.CreateToken(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -208,10 +249,10 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "f@example.com", "frank")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "my token"})
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "my token"})
+		r = withUSCurrentUser(r, 1)
 
-		h.CreateToken(c)
+		h.CreateToken(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -231,17 +272,17 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 		seedUserAccountRow(t, db, 1, "g@example.com", "gina")
 
 		for i := 0; i < 5; i++ {
-			c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "tok"})
-			setCurrentUser(c, 1)
-			h.CreateToken(c)
+			r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "tok"})
+			r = withUSCurrentUser(r, 1)
+			h.CreateToken(w, r)
 			if w.Code != http.StatusOK {
 				t.Fatalf("seed token %d: status = %d, body=%s", i, w.Code, w.Body.String())
 			}
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "sixth"})
-		setCurrentUser(c, 1)
-		h.CreateToken(c)
+		r, w := newUSTestRequest(t, http.MethodPost, "/api/v1/users/tokens", CreateTokenRequest{Name: "sixth"})
+		r = withUSCurrentUser(r, 1)
+		h.CreateToken(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400 at token limit; body=%s", w.Code, w.Body.String())
@@ -253,11 +294,11 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "h@example.com", "hank")
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/tokens/999", "")
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/tokens/999", "")
+		r = withUSURLParam(r, "id", "999")
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeToken(c)
+		h.RevokeToken(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -269,10 +310,10 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 		h := NewUserSettingsHandler(db)
 		seedUserAccountRow(t, db, 1, "i@example.com", "ivan")
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/tokens", "")
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/tokens", "")
+		r = withUSCurrentUser(r, 1)
 
-		h.ListTokens(c)
+		h.ListTokens(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -281,8 +322,6 @@ func TestUserSettingsHandler_Tokens(t *testing.T) {
 }
 
 func TestUserSettingsHandler_Sessions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	// Session model methods use database.GetUsersDB() internally rather than
 	// an injected field, so these tests must also wire the package-level
 	// global DB via setGlobalTestDualDB in addition to constructing the
@@ -298,9 +337,9 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 	t.Run("ListSessions unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/sessions", "")
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/sessions", "")
 
-		h.ListSessions(c)
+		h.ListSessions(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -311,10 +350,10 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		h, dbLike := newSessionsHandler(t)
 		seedUserAccountRow(t, dbLike, 1, "j@example.com", "jill")
 
-		c, w := newTestContextJSON(t, http.MethodGet, "/api/v1/users/sessions", "")
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/sessions", "")
+		r = withUSCurrentUser(r, 1)
 
-		h.ListSessions(c)
+		h.ListSessions(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -325,11 +364,11 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		h, dbLike := newSessionsHandler(t)
 		seedUserAccountRow(t, dbLike, 1, "k@example.com", "kim")
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions/", "")
-		c.Params = gin.Params{{Key: "id", Value: ""}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions/", "")
+		r = withUSURLParam(r, "id", "")
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeSession(c)
+		h.RevokeSession(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -340,11 +379,11 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		h, dbLike := newSessionsHandler(t)
 		seedUserAccountRow(t, dbLike, 1, "l@example.com", "leo")
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions/abc", "")
-		c.Params = gin.Params{{Key: "id", Value: "abc"}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions/abc", "")
+		r = withUSURLParam(r, "id", "abc")
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeSession(c)
+		h.RevokeSession(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -355,11 +394,11 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		h, dbLike := newSessionsHandler(t)
 		seedUserAccountRow(t, dbLike, 1, "m@example.com", "mia")
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions/12345", "")
-		c.Params = gin.Params{{Key: "id", Value: "12345"}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions/12345", "")
+		r = withUSURLParam(r, "id", "12345")
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeSession(c)
+		h.RevokeSession(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -408,11 +447,11 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 			t.Fatalf("last insert id: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions/1", "")
-		c.Params = gin.Params{{Key: "id", Value: strconv.FormatInt(rowID, 10)}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions/1", "")
+		r = withUSURLParam(r, "id", strconv.FormatInt(rowID, 10))
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeSession(c)
+		h.RevokeSession(w, r)
 
 		if w.Code != http.StatusForbidden {
 			t.Errorf("status = %d, want 403; body=%s", w.Code, w.Body.String())
@@ -435,11 +474,11 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 			t.Fatalf("last insert id: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions/1", "")
-		c.Params = gin.Params{{Key: "id", Value: strconv.FormatInt(rowID, 10)}}
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions/1", "")
+		r = withUSURLParam(r, "id", strconv.FormatInt(rowID, 10))
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeSession(c)
+		h.RevokeSession(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -449,9 +488,9 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 	t.Run("RevokeAllSessions unauthenticated returns 401", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions", "")
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions", "")
 
-		h.RevokeAllSessions(c)
+		h.RevokeAllSessions(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -462,10 +501,10 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 		h, dbLike := newSessionsHandler(t)
 		seedUserAccountRow(t, dbLike, 1, "q@example.com", "quinn")
 
-		c, w := newTestContextJSON(t, http.MethodDelete, "/api/v1/users/sessions", "")
-		setCurrentUser(c, 1)
+		r, w := newUSTestRequest(t, http.MethodDelete, "/api/v1/users/sessions", "")
+		r = withUSCurrentUser(r, 1)
 
-		h.RevokeAllSessions(c)
+		h.RevokeAllSessions(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -474,13 +513,13 @@ func TestUserSettingsHandler_Sessions(t *testing.T) {
 }
 
 // TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated verifies
-// an unauthenticated request (no user in the gin context) is redirected to
-// the login page rather than attempting a template render.
+// an unauthenticated request (no user in the request context) is redirected
+// to the login page rather than attempting a template render.
 func TestUserSettingsHandler_ShowNotificationSettings_Unauthenticated(t *testing.T) {
 	h := &UserSettingsHandler{DB: newTestServerDB(t)}
 
-	c, w := newAPITestContext("/users/settings/notifications")
-	h.ShowNotificationSettings(c)
+	r, w := newUSTestRequest(t, http.MethodGet, "/users/settings/notifications", nil)
+	h.ShowNotificationSettings(w, r)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)

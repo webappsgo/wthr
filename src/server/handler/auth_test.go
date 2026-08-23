@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // newAuthTestHandler wires an AuthHandler against fresh in-memory
@@ -67,9 +66,9 @@ func seedAuthUser(t *testing.T, db *sql.DB, username, email, password string) in
 	return id
 }
 
-func withJSONAccept(c *gin.Context) {
-	c.Request.Header.Set("Accept", "application/json")
-	c.Request.Header.Set("Content-Type", "application/json")
+func withJSONAccept(r *http.Request) {
+	r.Header.Set("Accept", "application/json")
+	r.Header.Set("Content-Type", "application/json")
 }
 
 // TestHandleLogin_Admin covers the admin-credentials-checked-first branch of
@@ -82,12 +81,12 @@ func TestHandleLogin_Admin(t *testing.T) {
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		seedAdmin(t, database.GetServerDB(), "root-admin", "root@example.com", "correct-horse-battery")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "root-admin",
 			"password":   "correct-horse-battery",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -116,12 +115,12 @@ func TestHandleLogin_Admin(t *testing.T) {
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		seedAdmin(t, database.GetServerDB(), "root-admin", "root@example.com", "correct-horse-battery")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "root-admin",
 			"password":   "totally-wrong",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		// Admin password check fails, and there is no matching user account
 		// either, so the handler should fall through to the generic
@@ -141,12 +140,12 @@ func TestHandleLogin_User(t *testing.T) {
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		seedAuthUser(t, database.GetUsersDB(), "alice", "alice@example.com", "hunter2hunter2")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "alice",
 			"password":   "hunter2hunter2",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -167,12 +166,12 @@ func TestHandleLogin_User(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "nobody",
 			"password":   "whatever12345",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -184,12 +183,12 @@ func TestHandleLogin_User(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "alice",
 			"password":   " leading-space",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -201,9 +200,9 @@ func TestHandleLogin_User(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{})
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -219,12 +218,12 @@ func TestHandleLogin_User(t *testing.T) {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier": "bob",
 			"password":   "hunter2hunter2",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -250,13 +249,13 @@ func TestHandleLogin_User(t *testing.T) {
 			t.Fatalf("enable 2fa: %v", err)
 		}
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/login", map[string]string{
 			"identifier":      "carol",
 			"password":        "hunter2hunter2",
 			"two_factor_code": "000000",
 		})
-		withJSONAccept(c)
-		h.HandleLogin(c)
+		withJSONAccept(r)
+		h.HandleLogin(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -272,14 +271,14 @@ func TestHandleRegister(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "invite"}}})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
 			"username":         "newuser",
 			"email":            "new@example.com",
 			"password":         "supersecret1",
 			"confirm_password": "supersecret1",
 		})
-		withJSONAccept(c)
-		h.HandleRegister(c)
+		withJSONAccept(r)
+		h.HandleRegister(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -291,14 +290,14 @@ func TestHandleRegister(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "open"}}})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
 			"username":         "newuser",
 			"email":            "new@example.com",
 			"password":         "supersecret1",
 			"confirm_password": "supersecret1",
 		})
-		withJSONAccept(c)
-		h.HandleRegister(c)
+		withJSONAccept(r)
+		h.HandleRegister(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201; body=%s", w.Code, w.Body.String())
@@ -318,14 +317,14 @@ func TestHandleRegister(t *testing.T) {
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 		seedAuthUser(t, usersDB, "dupeuser", "dupe@example.com", "supersecret1")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
 			"username":         "dupeuser",
 			"email":            "dupe2@example.com",
 			"password":         "supersecret1",
 			"confirm_password": "supersecret1",
 		})
-		withJSONAccept(c)
-		h.HandleRegister(c)
+		withJSONAccept(r)
+		h.HandleRegister(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -337,14 +336,14 @@ func TestHandleRegister(t *testing.T) {
 		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "open"}}})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
 			"username":         "mismatch",
 			"email":            "mismatch@example.com",
 			"password":         "supersecret1",
 			"confirm_password": "different1",
 		})
-		withJSONAccept(c)
-		h.HandleRegister(c)
+		withJSONAccept(r)
+		h.HandleRegister(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -357,9 +356,9 @@ func TestHandleRegister(t *testing.T) {
 func TestHandleLogout(t *testing.T) {
 	t.Run("clears session cookie even with no active session", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
-		c, w := newTestContext(http.MethodPost, "/server/auth/logout")
-		c.Request.Header.Set("Accept", "application/json")
-		h.HandleLogout(c)
+		r, w := newTestContext(http.MethodPost, "/server/auth/logout")
+		r.Header.Set("Accept", "application/json")
+		h.HandleLogout(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -384,10 +383,11 @@ func TestHandleLogout(t *testing.T) {
 			t.Fatalf("create session: %v", err)
 		}
 
-		c, w := newTestContext(http.MethodPost, "/server/auth/logout")
-		c.Request.Header.Set("Accept", "application/json")
-		c.Set(middleware.SessionContextKey, session)
-		h.HandleLogout(c)
+		r, w := newTestContext(http.MethodPost, "/server/auth/logout")
+		r.Header.Set("Accept", "application/json")
+		ctx := reqctx.Set(r.Context(), middleware.SessionContextKey, session)
+		r = r.WithContext(ctx)
+		h.HandleLogout(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -403,8 +403,8 @@ func TestHandleLogout(t *testing.T) {
 func TestGetCurrentUser(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users")
-		h.GetCurrentUser(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users")
+		h.GetCurrentUser(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -415,9 +415,9 @@ func TestGetCurrentUser(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "profileuser", "profile@example.com", "supersecret1")
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/users")
-		setCurrentUser(c, uid)
-		h.GetCurrentUser(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users")
+		r = setCurrentUser(r, uid)
+		h.GetCurrentUser(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -434,8 +434,8 @@ func TestGetCurrentUser(t *testing.T) {
 func TestUpdateProfile(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", map[string]string{"display_name": "x"})
-		h.UpdateProfile(c)
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", map[string]string{"display_name": "x"})
+		h.UpdateProfile(w, r)
 
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
@@ -446,9 +446,9 @@ func TestUpdateProfile(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "malformeduser", "malformed@example.com", "supersecret1")
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", "{not json")
-		setCurrentUser(c, uid)
-		h.UpdateProfile(c)
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", "{not json")
+		r = setCurrentUser(r, uid)
+		h.UpdateProfile(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -459,12 +459,12 @@ func TestUpdateProfile(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "updateuser", "update@example.com", "supersecret1")
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", map[string]string{
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/users", map[string]string{
 			"display_name": "New Name",
 			"phone":        "555-1234",
 		})
-		setCurrentUser(c, uid)
-		h.UpdateProfile(c)
+		r = setCurrentUser(r, uid)
+		h.UpdateProfile(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -499,16 +499,16 @@ func TestLoadCurrentUserProfile_UnknownUser(t *testing.T) {
 // TestShowLoginPage_RedirectsWhenAlreadyAuthenticated covers ShowLoginPage's
 // early-return branch for already-authenticated users, without needing an
 // HTML renderer wired up (the redirect happens before any template
-// rendering, so it is safe to call without a configured gin template set).
+// rendering, so it is safe to call without a configured template renderer).
 func TestShowLoginPage_RedirectsWhenAlreadyAuthenticated(t *testing.T) {
 	h, _, usersDB := newAuthTestHandler(t)
 	config.SetGlobalConfig(&config.AppConfig{})
 	t.Cleanup(func() { config.SetGlobalConfig(nil) })
 	uid := seedAuthUser(t, usersDB, "alreadyin", "alreadyin@example.com", "supersecret1")
 
-	c, w := newTestContext(http.MethodGet, "/server/auth/login")
-	setCurrentUser(c, uid)
-	h.ShowLoginPage(c)
+	r, w := newTestContext(http.MethodGet, "/server/auth/login")
+	r = setCurrentUser(r, uid)
+	h.ShowLoginPage(w, r)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("status = %d, want 302; body=%s", w.Code, w.Body.String())
@@ -520,15 +520,15 @@ func TestShowLoginPage_RedirectsWhenAlreadyAuthenticated(t *testing.T) {
 
 // TestShowRegisterPage_NotFoundWhenRegistrationDisabled covers the 404 gate
 // (routed via the JSON-error branch since we request application/json, so
-// it is safe to call without a template set).
+// it is safe to call without a template renderer configured).
 func TestShowRegisterPage_NotFoundWhenRegistrationDisabled(t *testing.T) {
 	h, _, _ := newAuthTestHandler(t)
 	config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "invite"}}})
 	t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
-	c, w := newTestContext(http.MethodGet, "/server/auth/register")
-	c.Request.Header.Set("Accept", "application/json")
-	h.ShowRegisterPage(c)
+	r, w := newTestContext(http.MethodGet, "/server/auth/register")
+	r.Header.Set("Accept", "application/json")
+	h.ShowRegisterPage(w, r)
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -617,12 +617,12 @@ func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
 				t.Fatalf("seed admin session: %v", err)
 			}
 
-			c, w := newTestContext(http.MethodGet, "/server/auth/login")
+			r, w := newTestContext(http.MethodGet, "/server/auth/login")
 			// A JSON Accept header keeps the non-redirect branch out of the HTML
-			// renderer, which no test in this package has a template set for.
-			c.Request.Header.Set("Accept", "application/json")
-			c.Request.AddCookie(&http.Cookie{Name: "admin_session", Value: tc.sessionID})
-			h.ShowLoginPage(c)
+			// renderer, which no test in this package has a template renderer set for.
+			r.Header.Set("Accept", "application/json")
+			r.AddCookie(&http.Cookie{Name: "admin_session", Value: tc.sessionID})
+			h.ShowLoginPage(w, r)
 
 			redirected := w.Code == http.StatusFound
 			if redirected != tc.wantRedirect {

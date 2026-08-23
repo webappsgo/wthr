@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,15 +27,8 @@ func newWeatherTestConfigFile(t *testing.T) string {
 func TestAdminWeatherHandler_ShowWeatherSettings(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: newWeatherTestConfigFile(t)}
 	c, w := newAPITestContext("/server/admin/config/weather")
-	// c.HTML needs an HTMLRender configured or gin panics; recover so a
-	// missing-template failure doesn't crash the run, since we only assert
-	// the handler didn't error out before reaching HTML().
-	defer func() {
-		if r := recover(); r != nil {
-			t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
-		}
-	}()
-	h.ShowWeatherSettings(c)
+	defer htmlRenderGuard(t)
+	h.ShowWeatherSettings(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -48,14 +40,11 @@ func TestAdminWeatherHandler_ShowWeatherSettings(t *testing.T) {
 func TestAdminWeatherHandler_UpdateWeatherSettings_Success(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: newWeatherTestConfigFile(t)}
 
-	body := []byte(`{"openmeteo_enabled":true,"openmeteo_base_url":"https://api.open-meteo.com","openmeteo_timeout":10,"openmeteo_retry_attempts":3,"usgs_earthquake_enabled":true,"nhc_hurricane_enabled":true,"cache_enabled":true,"cache_ttl":300,"cache_max_size":1000,"forecast_enabled":true,"current_weather_enabled":true,"historical_data_enabled":false,"alerts_enabled":true,"alerts_check_interval":60,"alerts_severity_threshold":"moderate","api_rate_limit":120,"api_max_forecast_days":14,"api_max_historical_days":30}`)
+	body := `{"openmeteo_enabled":true,"openmeteo_base_url":"https://api.open-meteo.com","openmeteo_timeout":10,"openmeteo_retry_attempts":3,"usgs_earthquake_enabled":true,"nhc_hurricane_enabled":true,"cache_enabled":true,"cache_ttl":300,"cache_max_size":1000,"forecast_enabled":true,"current_weather_enabled":true,"historical_data_enabled":false,"alerts_enabled":true,"alerts_check_interval":60,"alerts_severity_threshold":"moderate","api_rate_limit":120,"api_max_forecast_days":14,"api_max_historical_days":30}`
 
-	c, w := newAPITestContext("/admin/config/weather")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", body)
 
-	h.UpdateWeatherSettings(c)
+	h.UpdateWeatherSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -85,12 +74,9 @@ func TestAdminWeatherHandler_UpdateWeatherSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminWeatherHandler{ConfigPath: configPath}
 
-	c, w := newAPITestContext("/admin/config/weather")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte("{not valid json")))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", "{not valid json")
 
-	h.UpdateWeatherSettings(c)
+	h.UpdateWeatherSettings(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -110,12 +96,9 @@ func TestAdminWeatherHandler_UpdateWeatherSettings_InvalidJSON(t *testing.T) {
 func TestAdminWeatherHandler_UpdateWeatherSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newAPITestContext("/admin/config/weather")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte(`{"openmeteo_enabled":true}`)))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", `{"openmeteo_enabled":true}`)
 
-	h.UpdateWeatherSettings(c)
+	h.UpdateWeatherSettings(w, c)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())

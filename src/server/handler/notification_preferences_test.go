@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/database"
 )
 
@@ -94,10 +92,10 @@ func assertPreferencesSuccessShape(t *testing.T, w *httptest.ResponseRecorder, w
 func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 	t.Run("no rows returns empty list", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newAPITestContext("/notifications/preferences")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/preferences", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetUserPreferences(c)
+		h.GetUserPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -118,10 +116,10 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 			t.Fatalf("insert preference: %v", err)
 		}
 
-		c, w := newAPITestContext("/notifications/preferences")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/preferences", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetUserPreferences(c)
+		h.GetUserPreferences(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -143,10 +141,10 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 			t.Fatalf("close db: %v", err)
 		}
 
-		c, w := newAPITestContext("/notifications/preferences")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/preferences", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetUserPreferences(c)
+		h.GetUserPreferences(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
@@ -158,11 +156,11 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 func TestNotificationPreferencesHandlerUpdatePreference(t *testing.T) {
 	t.Run("non-numeric id returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/preferences/x", map[string]interface{}{})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "x"}}
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/preferences/x", map[string]interface{}{})
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "x")
 
-		h.UpdatePreference(c)
+		h.UpdatePreference(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -172,11 +170,11 @@ func TestNotificationPreferencesHandlerUpdatePreference(t *testing.T) {
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/preferences/1", "not json")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/preferences/1", "not json")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "1")
 
-		h.UpdatePreference(c)
+		h.UpdatePreference(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -186,13 +184,13 @@ func TestNotificationPreferencesHandlerUpdatePreference(t *testing.T) {
 
 	t.Run("unknown preference returns 404", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/preferences/999", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/preferences/999", map[string]interface{}{
 			"enabled": true, "priority": 3,
 		})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "999")
 
-		h.UpdatePreference(c)
+		h.UpdatePreference(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -212,13 +210,13 @@ func TestNotificationPreferencesHandlerUpdatePreference(t *testing.T) {
 		}
 		id, _ := res.LastInsertId()
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/preferences/1", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/preferences/1", map[string]interface{}{
 			"enabled": true, "priority": 9,
 		})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "1")
 
-		h.UpdatePreference(c)
+		h.UpdatePreference(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -239,10 +237,10 @@ func TestNotificationPreferencesHandlerUpdatePreference(t *testing.T) {
 func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 	t.Run("missing channel_type returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{})
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{})
+		r = setUserIDContext(r, 1)
 
-		h.CreatePreference(c)
+		h.CreatePreference(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -252,10 +250,10 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/preferences", "not json")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/preferences", "not json")
+		r = setUserIDContext(r, 1)
 
-		h.CreatePreference(c)
+		h.CreatePreference(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -265,12 +263,12 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 
 	t.Run("valid body creates row", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
 			"channel_type": "sms", "enabled": true, "priority": 4,
 		})
-		setUserIDContext(c, 1)
+		r = setUserIDContext(r, 1)
 
-		h.CreatePreference(c)
+		h.CreatePreference(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
@@ -288,17 +286,17 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 
 	t.Run("duplicate channel_type upserts instead of duplicating", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c1, _ := newTestContextJSON(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
+		r1, w1 := newAPIRequest(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
 			"channel_type": "push", "enabled": false, "priority": 1,
 		})
-		setUserIDContext(c1, 2)
-		h.CreatePreference(c1)
+		r1 = setUserIDContext(r1, 2)
+		h.CreatePreference(w1, r1)
 
-		c2, w2 := newTestContextJSON(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
+		r2, w2 := newAPIRequest(t, http.MethodPost, "/notifications/preferences", map[string]interface{}{
 			"channel_type": "push", "enabled": true, "priority": 8,
 		})
-		setUserIDContext(c2, 2)
-		h.CreatePreference(c2)
+		r2 = setUserIDContext(r2, 2)
+		h.CreatePreference(w2, r2)
 
 		if w2.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w2.Code, w2.Body.String())
@@ -324,11 +322,11 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 func TestNotificationPreferencesHandlerDeletePreference(t *testing.T) {
 	t.Run("non-numeric id returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newAPITestContext("/notifications/preferences/x")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "x"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/preferences/x", nil)
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "x")
 
-		h.DeletePreference(c)
+		h.DeletePreference(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -338,11 +336,11 @@ func TestNotificationPreferencesHandlerDeletePreference(t *testing.T) {
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newAPITestContext("/notifications/preferences/999")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/preferences/999", nil)
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "999")
 
-		h.DeletePreference(c)
+		h.DeletePreference(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -362,11 +360,11 @@ func TestNotificationPreferencesHandlerDeletePreference(t *testing.T) {
 		}
 		id, _ := res.LastInsertId()
 
-		c, w := newAPITestContext("/notifications/preferences/1")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/preferences/1", nil)
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "1")
 
-		h.DeletePreference(c)
+		h.DeletePreference(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -386,10 +384,10 @@ func TestNotificationPreferencesHandlerDeletePreference(t *testing.T) {
 func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 	t.Run("no rows returns empty list", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newAPITestContext("/notifications/subscriptions")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/subscriptions", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetSubscriptions(c)
+		h.GetSubscriptions(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -410,10 +408,10 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 			t.Fatalf("insert subscription: %v", err)
 		}
 
-		c, w := newAPITestContext("/notifications/subscriptions")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/subscriptions", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetSubscriptions(c)
+		h.GetSubscriptions(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -433,10 +431,10 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 			t.Fatalf("close db: %v", err)
 		}
 
-		c, w := newAPITestContext("/notifications/subscriptions")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/subscriptions", nil)
+		r = setUserIDContext(r, 1)
 
-		h.GetSubscriptions(c)
+		h.GetSubscriptions(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500: %s", w.Code, w.Body.String())
@@ -448,11 +446,11 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 	t.Run("non-numeric id returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/subscriptions/x", map[string]interface{}{})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "x"}}
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/subscriptions/x", map[string]interface{}{})
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "x")
 
-		h.UpdateSubscription(c)
+		h.UpdateSubscription(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -462,11 +460,11 @@ func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/subscriptions/1", "not json")
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/subscriptions/1", "not json")
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "1")
 
-		h.UpdateSubscription(c)
+		h.UpdateSubscription(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -486,13 +484,13 @@ func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 		}
 		id, _ := res.LastInsertId()
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/subscriptions/1", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/subscriptions/1", map[string]interface{}{
 			"enabled": true,
 		})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "1")
 
-		h.UpdateSubscription(c)
+		h.UpdateSubscription(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -510,13 +508,13 @@ func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/subscriptions/4242", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/subscriptions/4242", map[string]interface{}{
 			"enabled": true,
 		})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: "4242"}}
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", "4242")
 
-		h.UpdateSubscription(c)
+		h.UpdateSubscription(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -536,13 +534,13 @@ func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 		}
 		id, _ := res.LastInsertId()
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/subscriptions/1", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/subscriptions/1", map[string]interface{}{
 			"enabled": true,
 		})
-		setUserIDContext(c, 1)
-		c.Params = gin.Params{{Key: "id", Value: strconv.FormatInt(id, 10)}}
+		r = setUserIDContext(r, 1)
+		r = withURLParam(r, "id", strconv.FormatInt(id, 10))
 
-		h.UpdateSubscription(c)
+		h.UpdateSubscription(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -562,12 +560,12 @@ func TestNotificationPreferencesHandlerUpdateSubscription(t *testing.T) {
 func TestNotificationPreferencesHandlerCreateSubscription(t *testing.T) {
 	t.Run("missing required fields returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/subscriptions", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/subscriptions", map[string]interface{}{
 			"subscription_type": "weather",
 		})
-		setUserIDContext(c, 1)
+		r = setUserIDContext(r, 1)
 
-		h.CreateSubscription(c)
+		h.CreateSubscription(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -577,10 +575,10 @@ func TestNotificationPreferencesHandlerCreateSubscription(t *testing.T) {
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/subscriptions", "not json")
-		setUserIDContext(c, 1)
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/subscriptions", "not json")
+		r = setUserIDContext(r, 1)
 
-		h.CreateSubscription(c)
+		h.CreateSubscription(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -590,14 +588,14 @@ func TestNotificationPreferencesHandlerCreateSubscription(t *testing.T) {
 
 	t.Run("valid body creates row", func(t *testing.T) {
 		h := newNotificationPreferencesTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/subscriptions", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/subscriptions", map[string]interface{}{
 			"subscription_type":     "weather",
 			"subscription_category": "severe",
 			"enabled":               true,
 		})
-		setUserIDContext(c, 1)
+		r = setUserIDContext(r, 1)
 
-		h.CreateSubscription(c)
+		h.CreateSubscription(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())

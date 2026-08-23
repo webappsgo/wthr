@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -20,8 +23,9 @@ func TestNotificationMetricsHandler_GetSummary(t *testing.T) {
 
 	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
 
-	c, w := newAPITestContext("/api/admin/metrics/notifications/summary")
-	h.GetSummary(c)
+	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/summary", nil)
+	w := httptest.NewRecorder()
+	h.GetSummary(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -40,7 +44,7 @@ func TestNotificationMetricsHandler_GetSummary(t *testing.T) {
 }
 
 // TestNotificationMetricsHandler_GetChannelMetrics verifies the per-channel
-// endpoint reads the ":type" path param and returns 200 with channel-scoped
+// endpoint reads the "type" path param and returns 200 with channel-scoped
 // counts.
 func TestNotificationMetricsHandler_GetChannelMetrics(t *testing.T) {
 	db := newTestServerDB(t)
@@ -50,9 +54,12 @@ func TestNotificationMetricsHandler_GetChannelMetrics(t *testing.T) {
 
 	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
 
-	c, w := newAPITestContext("/api/admin/metrics/notifications/channels/sms")
-	c.Params = gin.Params{{Key: "type", Value: "sms"}}
-	h.GetChannelMetrics(c)
+	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/channels/sms", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("type", "sms")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+	h.GetChannelMetrics(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -81,8 +88,9 @@ func TestNotificationMetricsHandler_GetRecentErrors(t *testing.T) {
 
 	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
 
-	c, w := newAPITestContext("/api/admin/metrics/notifications/errors?limit=10")
-	h.GetRecentErrors(c)
+	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/errors?limit=10", nil)
+	w := httptest.NewRecorder()
+	h.GetRecentErrors(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -111,8 +119,9 @@ func TestNotificationMetricsHandler_GetRecentErrors_InvalidLimit(t *testing.T) {
 
 	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
 
-	c, w := newAPITestContext("/api/admin/metrics/notifications/errors?limit=not-a-number")
-	h.GetRecentErrors(c)
+	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/errors?limit=not-a-number", nil)
+	w := httptest.NewRecorder()
+	h.GetRecentErrors(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -126,8 +135,9 @@ func TestNotificationMetricsHandler_GetHealthStatus(t *testing.T) {
 
 	h := NewNotificationMetricsHandler(service.NewNotificationMetrics(db))
 
-	c, w := newAPITestContext("/api/admin/metrics/notifications/health")
-	h.GetHealthStatus(c)
+	r := httptest.NewRequest(http.MethodGet, "/api/admin/metrics/notifications/health", nil)
+	w := httptest.NewRecorder()
+	h.GetHealthStatus(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // setSafeConfigDir points config.LoadConfig() at a pre-existing minimal
@@ -26,11 +26,14 @@ func setSafeConfigDir(t *testing.T) {
 	t.Setenv("CONFIG_DIR", dir)
 }
 
-func newTemplateDataContext() (*gin.Context, *httptest.ResponseRecorder) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "http://example.com/London", nil)
-	return c, w
+func newTemplateDataRequest() *http.Request {
+	return httptest.NewRequest(http.MethodGet, "http://example.com/London", nil)
+}
+
+// withValue returns a copy of r whose context carries key/value, mirroring
+// the gin.Context.Set semantics the tests previously exercised.
+func withValue(r *http.Request, key string, value interface{}) *http.Request {
+	return r.WithContext(reqctx.Set(r.Context(), key, value))
 }
 
 type fakeLangInfoProvider struct {
@@ -42,12 +45,12 @@ func (f fakeLangInfoProvider) GetLanguageInfos() []LanguageInfo {
 }
 
 // TestTemplateData_Defaults verifies the fallback values when no server,
-// user, csrf_token, lang, or i18n keys are set on the gin context.
+// user, csrf_token, lang, or i18n keys are set on the request context.
 func TestTemplateData_Defaults(t *testing.T) {
 	setSafeConfigDir(t)
-	c, _ := newTemplateDataContext()
+	r := newTemplateDataRequest()
 
-	got := TemplateData(c, gin.H{})
+	got := TemplateData(r, map[string]interface{}{})
 
 	server, ok := got["server"].(map[string]string)
 	if !ok {
@@ -85,17 +88,17 @@ func TestTemplateData_Defaults(t *testing.T) {
 }
 
 // TestTemplateData_ContextOverrides verifies server/user/csrf_token/lang
-// values already present on the gin context are used instead of defaults.
+// values already present on the request context are used instead of defaults.
 func TestTemplateData_ContextOverrides(t *testing.T) {
 	setSafeConfigDir(t)
-	c, _ := newTemplateDataContext()
+	r := newTemplateDataRequest()
 
-	c.Set("server", map[string]string{"Title": "custom-title"})
-	c.Set("user", map[string]string{"Email": "a@b.com", "Role": "admin"})
-	c.Set("csrf_token", "tok-123")
-	c.Set("lang", "es")
+	r = withValue(r, "server", map[string]string{"Title": "custom-title"})
+	r = withValue(r, "user", map[string]string{"Email": "a@b.com", "Role": "admin"})
+	r = withValue(r, "csrf_token", "tok-123")
+	r = withValue(r, "lang", "es")
 
-	got := TemplateData(c, gin.H{})
+	got := TemplateData(r, map[string]interface{}{})
 
 	server := got["server"].(map[string]string)
 	if server["Title"] != "custom-title" {
@@ -117,12 +120,12 @@ func TestTemplateData_ContextOverrides(t *testing.T) {
 // type-asserted to langInfoProvider and its GetLanguageInfos() result used.
 func TestTemplateData_AvailableLanguages(t *testing.T) {
 	setSafeConfigDir(t)
-	c, _ := newTemplateDataContext()
+	r := newTemplateDataRequest()
 
 	want := []LanguageInfo{{Code: "en", Name: "English", NativeName: "English", Direction: "ltr"}}
-	c.Set("i18n", fakeLangInfoProvider{infos: want})
+	r = withValue(r, "i18n", fakeLangInfoProvider{infos: want})
 
-	got := TemplateData(c, gin.H{})
+	got := TemplateData(r, map[string]interface{}{})
 	langs, ok := got["available_languages"].([]LanguageInfo)
 	if !ok {
 		t.Fatalf("available_languages = %T, want []LanguageInfo", got["available_languages"])
@@ -136,10 +139,10 @@ func TestTemplateData_AvailableLanguages(t *testing.T) {
 // i18n context value is silently ignored rather than panicking.
 func TestTemplateData_AvailableLanguages_WrongType(t *testing.T) {
 	setSafeConfigDir(t)
-	c, _ := newTemplateDataContext()
-	c.Set("i18n", "not-a-provider")
+	r := newTemplateDataRequest()
+	r = withValue(r, "i18n", "not-a-provider")
 
-	got := TemplateData(c, gin.H{})
+	got := TemplateData(r, map[string]interface{}{})
 	if langs, ok := got["available_languages"].([]LanguageInfo); ok && len(langs) != 0 {
 		t.Errorf("available_languages = %v, want empty for a non-conforming i18n value", langs)
 	}
@@ -149,9 +152,9 @@ func TestTemplateData_AvailableLanguages_WrongType(t *testing.T) {
 // the enriched defaults (e.g. a caller can override "lang").
 func TestTemplateData_MergesUserData(t *testing.T) {
 	setSafeConfigDir(t)
-	c, _ := newTemplateDataContext()
+	r := newTemplateDataRequest()
 
-	got := TemplateData(c, gin.H{"lang": "fr", "extra": "value"})
+	got := TemplateData(r, map[string]interface{}{"lang": "fr", "extra": "value"})
 	if got["lang"] != "fr" {
 		t.Errorf("lang = %v, want fr (caller override)", got["lang"])
 	}
@@ -161,16 +164,13 @@ func TestTemplateData_MergesUserData(t *testing.T) {
 }
 
 // TestTemplateData_HTTPSScheme verifies current_url uses https:// when
-// c.Request.TLS is set.
+// r.TLS is set.
 func TestTemplateData_HTTPSScheme(t *testing.T) {
 	setSafeConfigDir(t)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(http.MethodGet, "https://example.com/path", nil)
 	req.TLS = &tls.ConnectionState{}
-	c.Request = req
 
-	got := TemplateData(c, gin.H{})
+	got := TemplateData(req, map[string]interface{}{})
 	if got["current_url"] != "https://example.com/path" {
 		t.Errorf("current_url = %v, want https://example.com/path", got["current_url"])
 	}

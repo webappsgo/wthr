@@ -7,22 +7,20 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminServerStatus handles admin API server status/health requests with JSON-only output.
-func AdminServerStatus(db *database.DB, httpPort string, httpsPort int, sslManager interface{}) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		httpStatus, response := buildAdminServerStatusResponse(db, c, httpPort, httpsPort, sslManager)
-		c.JSON(httpStatus, response)
+func AdminServerStatus(db *database.DB, httpPort string, httpsPort int, sslManager interface{}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		httpStatus, response := buildAdminServerStatusResponse(db, r, httpPort, httpsPort, sslManager)
+		writeJSON(w, httpStatus, response)
 	}
 }
 
-func buildAdminServerStatusResponse(db *database.DB, c *gin.Context, httpPort string, httpsPort int, sslManager interface{}) (int, gin.H) {
+func buildAdminServerStatusResponse(db *database.DB, r *http.Request, httpPort string, httpsPort int, sslManager interface{}) (int, map[string]interface{}) {
 	status := GetInitStatus()
 	startTime := status.Started
 	version := readVersion()
@@ -78,35 +76,35 @@ func buildAdminServerStatusResponse(db *database.DB, c *gin.Context, httpPort st
 	sslStatus := getSSLStatus(sslManager)
 	schedulerStatus := getSchedulerStatus()
 	requestStats := getRequestStats()
-	serverInfo := getServerInfo(c, httpPort, httpsPort, sslManager)
+	serverInfo := getServerInfo(r, httpPort, httpsPort, sslManager)
 
-	response := gin.H{
+	response := map[string]interface{}{
 		"status":         overallStatus,
 		"timestamp":      time.Now().Format(time.RFC3339),
 		"version":        version,
 		"uptime_seconds": int64(time.Since(startTime).Seconds()),
-		"checks": gin.H{
-			"database": gin.H{
+		"checks": map[string]interface{}{
+			"database": map[string]interface{}{
 				"status":     dbStatus,
 				"type":       "sqlite",
 				"latency_ms": dbLatency,
 			},
-			"initialization": gin.H{
+			"initialization": map[string]interface{}{
 				"countries": status.Countries,
 				"cities":    status.Cities,
 				"weather":   status.Weather,
 				"ready":     IsInitialized(),
 			},
-			"disk": gin.H{
+			"disk": map[string]interface{}{
 				"status": diskStatus,
-				"data_dir": gin.H{
+				"data_dir": map[string]interface{}{
 					"path":         dataDir,
 					"used_bytes":   dataDiskUsage.UsedBytes,
 					"free_bytes":   dataDiskUsage.FreeBytes,
 					"total_bytes":  dataDiskUsage.TotalBytes,
 					"used_percent": dataDiskUsage.UsedPercent,
 				},
-				"log_dir": gin.H{
+				"log_dir": map[string]interface{}{
 					"path":         logDir,
 					"used_bytes":   logDiskUsage.UsedBytes,
 					"free_bytes":   logDiskUsage.FreeBytes,
@@ -114,7 +112,7 @@ func buildAdminServerStatusResponse(db *database.DB, c *gin.Context, httpPort st
 					"used_percent": logDiskUsage.UsedPercent,
 				},
 			},
-			"memory": gin.H{
+			"memory": map[string]interface{}{
 				"status":       memStatus,
 				"used_bytes":   memUsedBytes,
 				"total_bytes":  memTotalBytes,
@@ -124,7 +122,7 @@ func buildAdminServerStatusResponse(db *database.DB, c *gin.Context, httpPort st
 			},
 			"ssl":       sslStatus,
 			"scheduler": schedulerStatus,
-			"sessions": gin.H{
+			"sessions": map[string]interface{}{
 				"active": sessionCount,
 			},
 			"requests": requestStats,
@@ -190,10 +188,10 @@ type DiskUsage struct {
 
 // getDiskUsage is implemented in disk_unix.go and disk_windows.go
 
-func getSSLStatus(sslManager interface{}) gin.H {
+func getSSLStatus(sslManager interface{}) map[string]interface{} {
 	// Check if SSL manager is provided and has GetCertInfo method
 	if sslManager == nil {
-		return gin.H{
+		return map[string]interface{}{
 			"enabled":        false,
 			"status":         "none",
 			"expires_at":     nil,
@@ -208,12 +206,11 @@ func getSSLStatus(sslManager interface{}) gin.H {
 	}
 
 	if manager, ok := sslManager.(certInfoGetter); ok {
-		info := manager.GetCertInfo()
-		return gin.H(info)
+		return manager.GetCertInfo()
 	}
 
 	// Fallback if type assertion fails
-	return gin.H{
+	return map[string]interface{}{
 		"enabled":        false,
 		"status":         "none",
 		"expires_at":     nil,
@@ -222,10 +219,10 @@ func getSSLStatus(sslManager interface{}) gin.H {
 	}
 }
 
-func getSchedulerStatus() gin.H {
+func getSchedulerStatus() map[string]interface{} {
 	db := database.GetServerDB()
 	if db == nil {
-		return gin.H{
+		return map[string]interface{}{
 			"status":        "unknown",
 			"tasks_total":   0,
 			"tasks_enabled": 0,
@@ -269,7 +266,7 @@ func getSchedulerStatus() gin.H {
 		status = "all_disabled"
 	}
 
-	result := gin.H{
+	result := map[string]interface{}{
 		"status":        status,
 		"tasks_total":   totalTasks,
 		"tasks_enabled": enabledTasks,
@@ -283,10 +280,10 @@ func getSchedulerStatus() gin.H {
 	return result
 }
 
-func getRequestStats() gin.H {
+func getRequestStats() map[string]interface{} {
 	db := database.GetServerDB()
 	if db == nil {
-		return gin.H{
+		return map[string]interface{}{
 			"total_today":     0,
 			"rate_per_minute": 0,
 			"errors_today":    0,
@@ -348,7 +345,7 @@ func getRequestStats() gin.H {
 		errorRate = float64(errorsToday) / float64(totalToday) * 100
 	}
 
-	return gin.H{
+	return map[string]interface{}{
 		"total_today":     totalToday,
 		"rate_per_minute": lastMinute,
 		"errors_today":    errorsToday,
@@ -357,8 +354,8 @@ func getRequestStats() gin.H {
 	}
 }
 
-func getServerInfo(c *gin.Context, httpPort string, httpsPort int, sslManager interface{}) gin.H {
-	hostInfo := util.GetHostInfo(c)
+func getServerInfo(r *http.Request, httpPort string, httpsPort int, sslManager interface{}) map[string]interface{} {
+	hostInfo := util.GetHostInfo(r)
 
 	httpsEnabled := false
 	if sslManager != nil {
@@ -370,7 +367,7 @@ func getServerInfo(c *gin.Context, httpPort string, httpsPort int, sslManager in
 		}
 	}
 
-	return gin.H{
+	return map[string]interface{}{
 		"address":       hostInfo.Hostname,
 		"http_port":     httpPort,
 		"https_port":    httpsPort,

@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -13,14 +14,14 @@ type AdminGeoIPHandler struct {
 }
 
 // ShowGeoIPSettings displays GeoIP settings page
-func (h *AdminGeoIPHandler) ShowGeoIPSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_geoip.tmpl", util.TemplateData(c, gin.H{
+func (h *AdminGeoIPHandler) ShowGeoIPSettings(w http.ResponseWriter, r *http.Request) {
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_geoip.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "GeoIP Settings",
 	}))
 }
 
 // UpdateGeoIPSettings updates GeoIP settings
-func (h *AdminGeoIPHandler) UpdateGeoIPSettings(c *gin.Context) {
+func (h *AdminGeoIPHandler) UpdateGeoIPSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Enabled         bool     `json:"enabled"`
 		Dir             string   `json:"dir"`
@@ -31,8 +32,8 @@ func (h *AdminGeoIPHandler) UpdateGeoIPSettings(c *gin.Context) {
 		DatabaseCity    bool     `json:"database_city"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -47,9 +48,9 @@ func (h *AdminGeoIPHandler) UpdateGeoIPSettings(c *gin.Context) {
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

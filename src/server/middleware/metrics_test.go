@@ -1,11 +1,12 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 // TestNormalizeMetricPath covers cardinality-control path normalization -
@@ -40,12 +41,12 @@ func TestNormalizeMetricPath(t *testing.T) {
 // (promauto vars), so invoking MetricsMiddleware() repeatedly across
 // subtests/requests must never panic on duplicate registration.
 func TestMetricsMiddleware_RecordsRequestWithoutError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(MetricsMiddleware())
-	router.GET("/api/v1/weather/:city", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"ok": true})
+	router.Get("/api/v1/weather/{city}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": true})
 	})
 
 	// Multiple requests, including one with content-length, exercise the
@@ -66,12 +67,12 @@ func TestMetricsMiddleware_RecordsRequestWithoutError(t *testing.T) {
 // normally (does not abort/alter the response) for a non-2xx response, since
 // metrics must be recorded for failed requests too.
 func TestMetricsMiddleware_TracksErrorStatus(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
+	router := chi.NewRouter()
 	router.Use(MetricsMiddleware())
-	router.GET("/api/v1/broken", func(c *gin.Context) {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false})
+	router.Get("/api/v1/broken", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false})
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/broken", nil)

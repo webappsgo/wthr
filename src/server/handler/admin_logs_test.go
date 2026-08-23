@@ -2,23 +2,22 @@ package handler
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
-func newLogsTestContext(method, target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+// newLogsTestRequest builds a bare request/recorder pair for handlers that
+// take (http.ResponseWriter, *http.Request) directly.
+func newLogsTestRequest(method, target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(method, target, nil)
-	return c, w
+	r := httptest.NewRequest(method, target, nil)
+	return r, w
 }
 
 func writeLogFile(t *testing.T, dir, name, content string) {
@@ -87,8 +86,8 @@ func TestLogsHandler_GetLogs(t *testing.T) {
 			if tt.tail != "" {
 				target += "?tail=" + tt.tail
 			}
-			c, w := newLogsTestContext("GET", target)
-			h.GetLogs(c)
+			r, w := newLogsTestRequest("GET", target)
+			h.GetLogs(w, r)
 
 			if w.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", w.Code, tt.wantStatus)
@@ -150,8 +149,8 @@ func TestLogsHandler_ParseLine(t *testing.T) {
 func TestLogsHandler_DownloadLogs(t *testing.T) {
 	t.Run("missing file returns 404", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("GET", "/logs/download")
-		h.DownloadLogs(c)
+		r, w := newLogsTestRequest("GET", "/logs/download")
+		h.DownloadLogs(w, r)
 		if w.Code != 404 {
 			t.Fatalf("status = %d, want 404", w.Code)
 		}
@@ -161,8 +160,8 @@ func TestLogsHandler_DownloadLogs(t *testing.T) {
 		dir := t.TempDir()
 		writeLogFile(t, dir, "wthr.log", "hello world\n")
 		h := NewLogsHandler(dir)
-		c, w := newLogsTestContext("GET", "/logs/download")
-		h.DownloadLogs(c)
+		r, w := newLogsTestRequest("GET", "/logs/download")
+		h.DownloadLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -180,8 +179,8 @@ func TestLogsHandler_ClearLogs(t *testing.T) {
 		dir := t.TempDir()
 		writeLogFile(t, dir, "wthr.log", "some content\n")
 		h := NewLogsHandler(dir)
-		c, w := newLogsTestContext("POST", "/logs/clear")
-		h.ClearLogs(c)
+		r, w := newLogsTestRequest("POST", "/logs/clear")
+		h.ClearLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -196,8 +195,8 @@ func TestLogsHandler_ClearLogs(t *testing.T) {
 
 	t.Run("missing file returns 500", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("POST", "/logs/clear")
-		h.ClearLogs(c)
+		r, w := newLogsTestRequest("POST", "/logs/clear")
+		h.ClearLogs(w, r)
 		if w.Code != 500 {
 			t.Fatalf("status = %d, want 500", w.Code)
 		}
@@ -216,8 +215,8 @@ func TestLogsHandler_GetLogStats(t *testing.T) {
 	writeLogFile(t, dir, "wthr.log", content)
 	h := NewLogsHandler(dir)
 
-	c, w := newLogsTestContext("GET", "/logs/stats")
-	h.GetLogStats(c)
+	r, w := newLogsTestRequest("GET", "/logs/stats")
+	h.GetLogStats(w, r)
 	if w.Code != 200 {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -249,8 +248,8 @@ func TestLogsHandler_RotateLogs(t *testing.T) {
 		writeLogFile(t, dir, "wthr.log", "log content\n")
 		h := NewLogsHandler(dir)
 
-		c, w := newLogsTestContext("POST", "/logs/rotate")
-		h.RotateLogs(c)
+		r, w := newLogsTestRequest("POST", "/logs/rotate")
+		h.RotateLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -280,8 +279,8 @@ func TestLogsHandler_RotateLogs(t *testing.T) {
 
 	t.Run("missing source file fails", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("POST", "/logs/rotate")
-		h.RotateLogs(c)
+		r, w := newLogsTestRequest("POST", "/logs/rotate")
+		h.RotateLogs(w, r)
 		if w.Code != 500 {
 			t.Fatalf("status = %d, want 500", w.Code)
 		}
@@ -295,8 +294,8 @@ func TestLogsHandler_ListArchivedLogs(t *testing.T) {
 	writeLogFile(t, dir, "audit.log", "not an archive\n")
 	h := NewLogsHandler(dir)
 
-	c, w := newLogsTestContext("GET", "/logs/archives")
-	h.ListArchivedLogs(c)
+	r, w := newLogsTestRequest("GET", "/logs/archives")
+	h.ListArchivedLogs(w, r)
 	if w.Code != 200 {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -362,8 +361,8 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 
 	t.Run("no audit file returns empty", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("GET", "/audit")
-		h.GetAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit")
+		h.GetAuditLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d", w.Code)
 		}
@@ -389,8 +388,8 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		}
 		h := NewLogsHandler(dir)
 
-		c, w := newLogsTestContext("GET", "/audit?event_type=admin.login&username=alice")
-		h.GetAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit?event_type=admin.login&username=alice")
+		h.GetAuditLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d", w.Code)
 		}
@@ -419,8 +418,8 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		}
 		h := NewLogsHandler(dir)
 
-		c, w := newLogsTestContext("GET", "/audit?limit=1&offset=1")
-		h.GetAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit?limit=1&offset=1")
+		h.GetAuditLogs(w, r)
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
@@ -445,8 +444,8 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 		writeAuditEvent(t, auditPath, sampleAuditEvents(now)[0])
 		h := NewLogsHandler(dir)
 
-		c, w := newLogsTestContext("GET", "/audit")
-		h.GetAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit")
+		h.GetAuditLogs(w, r)
 		var resp struct {
 			Data struct {
 				Total int `json:"total"`
@@ -464,8 +463,8 @@ func TestLogsHandler_GetAuditLogs(t *testing.T) {
 func TestLogsHandler_DownloadAuditLogs(t *testing.T) {
 	t.Run("missing file returns 404", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("GET", "/audit/download")
-		h.DownloadAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit/download")
+		h.DownloadAuditLogs(w, r)
 		if w.Code != 404 {
 			t.Fatalf("status = %d, want 404", w.Code)
 		}
@@ -475,8 +474,8 @@ func TestLogsHandler_DownloadAuditLogs(t *testing.T) {
 		dir := t.TempDir()
 		writeLogFile(t, dir, "audit.log", `{"id":"1"}`+"\n")
 		h := NewLogsHandler(dir)
-		c, w := newLogsTestContext("GET", "/audit/download")
-		h.DownloadAuditLogs(c)
+		r, w := newLogsTestRequest("GET", "/audit/download")
+		h.DownloadAuditLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -486,14 +485,14 @@ func TestLogsHandler_DownloadAuditLogs(t *testing.T) {
 func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 
-	newSearchContext := func(t *testing.T, body interface{}) (*gin.Context, *httptest.ResponseRecorder) {
+	newSearchRequest := func(t *testing.T, body interface{}) (*http.Request, *httptest.ResponseRecorder) {
 		return newTestContextJSON(t, "POST", "/audit/search", body)
 	}
 
 	t.Run("malformed json returns 400", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newSearchContext(t, "{not json")
-		h.SearchAuditLogs(c)
+		r, w := newSearchRequest(t, "{not json")
+		h.SearchAuditLogs(w, r)
 		if w.Code != 400 {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -508,8 +507,8 @@ func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 		h := NewLogsHandler(dir)
 
 		successFalse := false
-		c, w := newSearchContext(t, map[string]interface{}{"success": &successFalse})
-		h.SearchAuditLogs(c)
+		r, w := newSearchRequest(t, map[string]interface{}{"success": &successFalse})
+		h.SearchAuditLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -539,8 +538,8 @@ func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 		}
 		h := NewLogsHandler(dir)
 
-		c, w := newSearchContext(t, map[string]interface{}{"ip": "5.6.7.8"})
-		h.SearchAuditLogs(c)
+		r, w := newSearchRequest(t, map[string]interface{}{"ip": "5.6.7.8"})
+		h.SearchAuditLogs(w, r)
 		var resp struct {
 			Data struct {
 				Events []service.AuditEvent `json:"events"`
@@ -557,8 +556,8 @@ func TestLogsHandler_SearchAuditLogs(t *testing.T) {
 
 	t.Run("no matches returns empty", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newSearchContext(t, map[string]interface{}{"event_type": "nonexistent"})
-		h.SearchAuditLogs(c)
+		r, w := newSearchRequest(t, map[string]interface{}{"event_type": "nonexistent"})
+		h.SearchAuditLogs(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -576,8 +575,8 @@ func TestLogsHandler_GetAuditStats(t *testing.T) {
 		}
 		h := NewLogsHandler(dir)
 
-		c, w := newLogsTestContext("GET", "/audit/stats")
-		h.GetAuditStats(c)
+		r, w := newLogsTestRequest("GET", "/audit/stats")
+		h.GetAuditStats(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}
@@ -601,8 +600,8 @@ func TestLogsHandler_GetAuditStats(t *testing.T) {
 
 	t.Run("no audit file returns zeroed stats", func(t *testing.T) {
 		h := NewLogsHandler(t.TempDir())
-		c, w := newLogsTestContext("GET", "/audit/stats")
-		h.GetAuditStats(c)
+		r, w := newLogsTestRequest("GET", "/audit/stats")
+		h.GetAuditStats(w, r)
 		if w.Code != 200 {
 			t.Fatalf("status = %d, want 200", w.Code)
 		}

@@ -24,9 +24,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/gzip"
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/cors"
 
 	"github.com/webappsgo/wthr/src/cli"
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -43,6 +43,7 @@ import (
 	"github.com/webappsgo/wthr/src/server/metric"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 
@@ -67,31 +68,48 @@ func getDefaultListenAddress() string {
 	return "0.0.0.0"
 }
 
+// writeJSON writes v as a JSON response body with the given status code.
+// Local mirror of the unexported helper in src/server/handler/response.go —
+// main.go can't import an unexported cross-package function.
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeText writes a plain-text response body with the given status code.
+// Local mirror of the unexported helper in src/server/handler/response.go.
+func writeText(w http.ResponseWriter, status int, format string, args ...interface{}) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(status)
+	fmt.Fprintf(w, format, args...)
+}
+
 // registerHealthRoutes mounts the canonical health routes per AI.md PART 13
 // /server/healthz is the canonical content-negotiated route, /api/{api_version}/server/healthz
 // is its API counterpart, /api/healthz is the unversioned alias mounting the SAME handler,
 // and the root /healthz alias is mounted only when server.healthz.root.enabled is true
 // Aliases are always direct handler mappings, never redirects
-func registerHealthRoutes(r *gin.Engine, apiPath string, rootAliasEnabled bool, frontend, api gin.HandlerFunc) {
-	r.GET("/server/healthz", frontend)
-	r.GET(apiPath+"/server/healthz", api)
-	r.GET("/api/healthz", api)
+func registerHealthRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, frontend, api http.HandlerFunc) {
+	r.Get("/server/healthz", frontend)
+	r.Get(apiPath+"/server/healthz", api)
+	r.Get("/api/healthz", api)
 	if rootAliasEnabled {
-		r.GET("/healthz", frontend)
+		r.Get("/healthz", frontend)
 	}
 }
 
 // registerGraphQLRoutes mounts the GraphQL endpoint and its API-path alias per AI.md PART 14
 // The alias mounts the SAME handlers as /graphql — an alias is never a redirect
-func registerGraphQLRoutes(r *gin.Engine, apiPath string, query, playground, assets gin.HandlerFunc) {
-	r.POST("/graphql", query)
-	r.GET("/graphql", playground)
+func registerGraphQLRoutes(r chi.Router, apiPath string, query, playground, assets http.HandlerFunc) {
+	r.Post("/graphql", query)
+	r.Get("/graphql", playground)
 	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
 	// never loaded from a CDN, see src/graphql/playground.go.
-	r.GET("/graphql/assets/*filepath", assets)
+	r.Get("/graphql/assets/*", assets)
 	aliasPath := apiPath + "/graphql"
-	r.POST(aliasPath, query)
-	r.GET(aliasPath, playground)
+	r.Post(aliasPath, query)
+	r.Get(aliasPath, playground)
 }
 
 func main() {
@@ -463,28 +481,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set Gin mode based on MODE variable (development, production, test)
-	// AI.md PART 5: Environment Variables
-	envMode := os.Getenv("MODE")
-	if envMode == "" {
-		// Legacy fallback
-		envMode = os.Getenv("ENVIRONMENT")
-	}
+	// Application mode (development/production/debug) is already resolved by
+	// mode.FromEnv() earlier in main() per AI.md PART 6 --mode/MODE precedence;
+	// this redundant envMode/gin.SetMode switch has been removed.
 
-	switch envMode {
-	case "development", "dev":
-		gin.SetMode(gin.DebugMode)
-	case "test", "testing":
-		gin.SetMode(gin.TestMode)
-	default:
-		gin.SetMode(gin.ReleaseMode)
-	}
+	// Create chi router
+	r := chi.NewRouter()
 
-	// Create Gin router
-	r := gin.New()
-
-	// Trust reverse proxy headers
-	r.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"})
+	// NOTE: gin's r.SetTrustedProxies([]string{...}) has no chi/project
+	// equivalent, so this call is dropped rather than translated. Confirmed
+	// this is not translated elsewhere either: the project's AI.md PART 5/12
+	// trusted-proxies gate (server.trusted_proxies) does not exist anywhere
+	// in this codebase today — src/util/host.go's GetClientIP unconditionally
+	// trusts CF-Connecting-IP/X-Real-IP/X-Forwarded-For/True-Client-IP from
+	// any peer with no config-driven trust check. This predates this
+	// migration (gin's SetTrustedProxies only ever gated gin's own unused
+	// c.ClientIP() helper, never GetClientIP) and is not a regression from
+	// it. Tracked as TODO.AI.md item 171.
 
 	// AI.md PART 5: Middleware order - security first!
 	// 1. URL normalization (FIRST - normalize before anything else)
@@ -500,11 +513,11 @@ func main() {
 	r.Use(middleware.AccessLogger(appLogger))
 
 	// Recovery middleware
-	r.Use(gin.Recovery())
+	r.Use(middleware.Recovery(appLogger))
 
 	// Response compression per AI.md PART 18 lines 15704-15719
 	// Compresses text/html, text/css, application/json, etc.
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	r.Use(chimiddleware.Compress(5, "text/html", "text/css", "text/plain", "application/json", "application/javascript", "application/xml", "image/svg+xml"))
 
 	// Prometheus metrics middleware (AI.md PART 21 - NON-NEGOTIABLE)
 	r.Use(middleware.MetricsMiddleware())
@@ -519,15 +532,15 @@ func main() {
 	r.Use(middleware.CSRFProtection(middleware.DefaultCSRFConfig()))
 
 	// CORS middleware per AI.md PART 17 lines 14220-14222 and 15401-15405
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization", "X-API-Token"},
-		ExposeHeaders:    []string{"Content-Length"},
+	r.Use(cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-API-Token"},
+		ExposedHeaders:   []string{"Content-Length"},
 		AllowCredentials: false,
 		// Per AI.md line 15405: Access-Control-Max-Age = 86400 (24 hours)
-		MaxAge: 24 * time.Hour,
-	}))
+		MaxAge: int((24 * time.Hour).Seconds()),
+	}).Handler)
 
 	// Global rate limiting middleware (100 req/s)
 	r.Use(middleware.GlobalRateLimitMiddleware())
@@ -550,7 +563,8 @@ func main() {
 		log.Printf("Failed to get static subdirectory: %v", err)
 		os.Exit(1)
 	}
-	r.StaticFS("/static", http.FS(staticSubFS))
+	staticFileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS)))
+	r.Handle("/static/*", staticFileServer)
 
 	// Initialize i18n service (TEMPLATE.md PART 29 - NON-NEGOTIABLE)
 	// AI.md PART 31 server chain: --lang > server.yml lang > LC_ALL/LANG > en
@@ -576,35 +590,44 @@ func main() {
 
 	// I18n middleware - per AI.md PART 31 fallback chain:
 	// ?lang= query param (sets 1yr cookie) → lang cookie → Accept-Language → en
-	r.Use(func(c *gin.Context) {
-		lang := ""
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			lang := ""
 
-		// 1. ?lang= query param (highest priority, also sets cookie)
-		if q := c.Query("lang"); q != "" && i18nService.IsSupported(q) {
-			lang = q
-			c.SetCookie("lang", lang, 365*24*60*60, "/", "", c.Request.TLS != nil, true)
-		}
-
-		// 2. lang cookie
-		if lang == "" {
-			if cookie, err := c.Cookie("lang"); err == nil && i18nService.IsSupported(cookie) {
-				lang = cookie
+			// 1. ?lang= query param (highest priority, also sets cookie)
+			if q := r.URL.Query().Get("lang"); q != "" && i18nService.IsSupported(q) {
+				lang = q
+				http.SetCookie(w, &http.Cookie{
+					Name:     "lang",
+					Value:    lang,
+					MaxAge:   365 * 24 * 60 * 60,
+					Path:     "/",
+					Secure:   r.TLS != nil,
+					HttpOnly: true,
+				})
 			}
-		}
 
-		// 3. Accept-Language header
-		if lang == "" {
-			lang = i18nService.ParseAcceptLanguage(c.GetHeader("Accept-Language"))
-		}
+			// 2. lang cookie
+			if lang == "" {
+				if cookie, err := r.Cookie("lang"); err == nil && i18nService.IsSupported(cookie.Value) {
+					lang = cookie.Value
+				}
+			}
 
-		// 4. Default: en
-		if lang == "" {
-			lang = "en"
-		}
+			// 3. Accept-Language header
+			if lang == "" {
+				lang = i18nService.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
+			}
 
-		c.Set("lang", lang)
-		c.Set("i18n", i18nService)
-		c.Next()
+			// 4. Default: en
+			if lang == "" {
+				lang = "en"
+			}
+
+			ctx := reqctx.Set(r.Context(), "lang", lang)
+			ctx = reqctx.Set(ctx, "i18n", i18nService)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	})
 
 	// Load embedded templates with custom functions from server package
@@ -631,7 +654,7 @@ func main() {
 	})
 
 	// Debug: Print loaded templates
-	if gin.Mode() == gin.DebugMode {
+	if mode.IsDebugEnabled() {
 		fmt.Printf("%s Loading %d templates:\n", display.Emoji("📝", "*"), len(templatePaths))
 		for _, path := range templatePaths {
 			fmt.Printf("   - %s\n", path)
@@ -678,35 +701,43 @@ func main() {
 	}
 
 	// Debug: Print registered template names
-	if gin.Mode() == gin.DebugMode {
+	if mode.IsDebugEnabled() {
 		fmt.Printf("%s Registered template names:\n", display.Emoji("📋", "*"))
 		for _, t := range tmpl.Templates() {
 			fmt.Printf("   - %s\n", t.Name())
 		}
 	}
 
-	r.SetHTMLTemplate(tmpl)
+	middleware.SetHTMLTemplates(tmpl)
+	middleware.RenderHTML = func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{}) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(status)
+		_ = tmpl.ExecuteTemplate(w, name, data)
+	}
 
 	// Live reload templates in debug mode (loads from filesystem if available)
-	if gin.Mode() == gin.DebugMode {
+	if mode.IsDebugEnabled() {
 		if _, err := os.Stat("src/server/template"); err == nil {
-			r.Use(func(c *gin.Context) {
-				// Try to reload from filesystem in debug mode
-				t := template.New("").Funcs(templateFuncs)
-				// Load all templates including subdirectories
-				// Note: This loads from filesystem, so paths are relative to src/server/template/
-				patterns := []string{
-					"src/server/template/*.tmpl",
-					"src/server/template/*/*.tmpl",
-					"src/server/template/*/*/*.tmpl",
-				}
-				for _, pattern := range patterns {
-					t, _ = t.ParseGlob(pattern)
-				}
-				// Need to rename templates to remove "src/server/template/" prefix for consistency
-				// This is a bit hacky but necessary for live reload
-				r.SetHTMLTemplate(t)
-				c.Next()
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// Try to reload from filesystem in debug mode
+					t := template.New("").Funcs(templateFuncs)
+					// Load all templates including subdirectories
+					// Note: This loads from filesystem, so paths are relative to src/server/template/
+					patterns := []string{
+						"src/server/template/*.tmpl",
+						"src/server/template/*/*.tmpl",
+						"src/server/template/*/*/*.tmpl",
+					}
+					for _, pattern := range patterns {
+						t, _ = t.ParseGlob(pattern)
+					}
+					// Need to rename templates to remove "src/server/template/" prefix for consistency
+					// This is a bit hacky but necessary for live reload
+					tmpl = t
+					middleware.SetHTMLTemplates(tmpl)
+					next.ServeHTTP(w, r)
+				})
 			})
 			fmt.Printf("%s Live reload enabled for templates (using filesystem)\n", display.Emoji("🔄", "->"))
 		} else {
@@ -1224,44 +1255,44 @@ func main() {
 	// Health check endpoints (AI.md PART 13)
 	registerHealthRoutes(r, cfg.GetAPIPath(), cfg.IsHealthzRootAliasEnabled(),
 		handler.HealthCheck(db, startTime), handler.APIHealthCheck(db, startTime))
-	r.GET("/health", handler.LivenessCheck)
-	r.GET("/health/ready", handler.ReadinessCheck(db, startTime))
-	r.GET("/health/full", handler.FullHealthCheck(db, startTime))
+	r.Get("/health", handler.LivenessCheck)
+	r.Get("/health/ready", handler.ReadinessCheck(db, startTime))
+	r.Get("/health/full", handler.FullHealthCheck(db, startTime))
 
 	// Prometheus metrics endpoint (TEMPLATE.md required - optional auth)
-	r.GET("/metrics", handler.PrometheusMetrics())
+	r.Get("/metrics", handler.PrometheusMetrics())
 
 	// security.txt endpoint (RFC 9116 - TEMPLATE.md PART 25)
-	r.GET("/.well-known/security.txt", adminWebHandler.ServeSecurityTxt)
+	r.Get("/.well-known/security.txt", adminWebHandler.ServeSecurityTxt)
 	// Also serve at root for compatibility
-	r.GET("/security.txt", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/.well-known/security.txt")
+	r.Get("/security.txt", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/.well-known/security.txt", http.StatusMovedPermanently)
 	})
 
 	// /.well-known/change-password redirect (TEMPLATE.md PART 25)
-	r.GET("/.well-known/change-password", func(c *gin.Context) {
-		c.Redirect(http.StatusFound, "/profile?tab=security")
+	r.Get("/.well-known/change-password", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/profile?tab=security", http.StatusFound)
 	})
 
 	// /.well-known/acme-challenge/:token - Let's Encrypt HTTP-01 challenge (TEMPLATE.md Part 8)
-	r.GET("/.well-known/acme-challenge/:token", func(c *gin.Context) {
-		token := c.Param("token")
+	r.Get("/.well-known/acme-challenge/{token}", func(w http.ResponseWriter, r *http.Request) {
+		token := chi.URLParam(r, "token")
 		keyAuth, ok := service.GetGlobalHTTP01Provider().GetKeyAuth(token)
 		if !ok {
-			c.String(http.StatusNotFound, "")
+			writeText(w, http.StatusNotFound, "")
 			return
 		}
-		c.String(http.StatusOK, "%s", keyAuth)
+		writeText(w, http.StatusOK, "%s", keyAuth)
 	})
 
 	// robots.txt endpoint
-	r.GET("/robots.txt", adminWebHandler.ServeRobotsTxt)
+	r.Get("/robots.txt", adminWebHandler.ServeRobotsTxt)
 
 	// sitemap.xml endpoint (AI.md PART 16: dynamically generated)
-	r.GET("/sitemap.xml", adminWebHandler.ServeSitemap)
+	r.Get("/sitemap.xml", adminWebHandler.ServeSitemap)
 
 	// favicon.ico endpoint (AI.md PART 16: embedded default, customizable)
-	r.GET("/favicon.ico", adminWebHandler.ServeFavicon)
+	r.Get("/favicon.ico", adminWebHandler.ServeFavicon)
 
 	// Debug endpoints (only enabled when --debug flag or DEBUG=true)
 	// Per AI.md PART 6: Debug endpoints only available when debug mode enabled
@@ -1269,25 +1300,23 @@ func main() {
 		debugHandlers := handler.NewDebugHandlers(db.DB, r)
 		debugHandlers.RegisterDebugRoutes(r)
 
-		// pprof endpoints per AI.md PART 6
-		debugGroup := r.Group("/debug/pprof")
-		{
-			debugGroup.GET("/", gin.WrapF(pprof.Index))
-			debugGroup.GET("/cmdline", gin.WrapF(pprof.Cmdline))
-			debugGroup.GET("/profile", gin.WrapF(pprof.Profile))
-			debugGroup.POST("/symbol", gin.WrapF(pprof.Symbol))
-			debugGroup.GET("/symbol", gin.WrapF(pprof.Symbol))
-			debugGroup.GET("/trace", gin.WrapF(pprof.Trace))
-			debugGroup.GET("/allocs", gin.WrapH(pprof.Handler("allocs")))
-			debugGroup.GET("/block", gin.WrapH(pprof.Handler("block")))
-			debugGroup.GET("/goroutine", gin.WrapH(pprof.Handler("goroutine")))
-			debugGroup.GET("/heap", gin.WrapH(pprof.Handler("heap")))
-			debugGroup.GET("/mutex", gin.WrapH(pprof.Handler("mutex")))
-			debugGroup.GET("/threadcreate", gin.WrapH(pprof.Handler("threadcreate")))
-		}
+		// pprof + expvar endpoints per AI.md PART 6's canonical chi debug pattern
+		r.Route("/debug/pprof", func(r chi.Router) {
+			r.HandleFunc("/", pprof.Index)
+			r.HandleFunc("/cmdline", pprof.Cmdline)
+			r.HandleFunc("/profile", pprof.Profile)
+			r.HandleFunc("/symbol", pprof.Symbol)
+			r.Handle("/trace", http.HandlerFunc(pprof.Trace))
+			r.Handle("/allocs", pprof.Handler("allocs"))
+			r.Handle("/block", pprof.Handler("block"))
+			r.Handle("/goroutine", pprof.Handler("goroutine"))
+			r.Handle("/heap", pprof.Handler("heap"))
+			r.Handle("/mutex", pprof.Handler("mutex"))
+			r.Handle("/threadcreate", pprof.Handler("threadcreate"))
+		})
 
 		// expvar endpoint per AI.md PART 6
-		r.GET("/debug/vars", gin.WrapH(http.DefaultServeMux))
+		r.Handle("/debug/vars", http.DefaultServeMux)
 
 		log.Println("INFO: Debug endpoints enabled:")
 		log.Println("   GET  /debug/routes  - List all routes")
@@ -1303,17 +1332,17 @@ func main() {
 	}
 
 	// IP detection endpoint (always available for My Location feature)
-	r.GET("/debug/ip", func(c *gin.Context) {
+	r.Get("/debug/ip", func(w http.ResponseWriter, r *http.Request) {
 		// IP detection for My Location button
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 
 		// Try to get location from IP
 		coords, err := weatherService.GetCoordinatesFromIP(clientIP)
 		if err != nil {
 			// Empty means fallback to manual entry
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"clientIP": clientIP,
-				"location": gin.H{
+				"location": map[string]interface{}{
 					"value": "",
 				},
 				"error": err.Error(),
@@ -1325,12 +1354,12 @@ func main() {
 		enhanced := locationEnhancer.EnhanceLocation(coords)
 
 		// e.g., "Albany, NY"
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"clientIP": clientIP,
-			"location": gin.H{
+			"location": map[string]interface{}{
 				"value": enhanced.ShortName,
 			},
-			"coordinates": gin.H{
+			"coordinates": map[string]interface{}{
 				"latitude":  coords.Latitude,
 				"longitude": coords.Longitude,
 			},
@@ -1341,56 +1370,57 @@ func main() {
 	// AI.md: Setup flow is at /server/{admin_path}/config/setup, creates Primary Admin
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
 	// AI.md: Step 4: Redirect to /server/{admin_path}/config/setup (setup wizard) after token verified
-	adminSetupRoutes := r.Group("/server/" + cfg.GetAdminPath() + "/config/setup")
+	adminSetupRoutes := chi.NewRouter()
+	r.Mount("/server/"+cfg.GetAdminPath()+"/config/setup", adminSetupRoutes)
 	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
 	{
 		// Setup wizard pages - user has already verified token at /admin
 		// AI.md: 6 steps: Admin Account → API Token → Server Config → Security → Services → Complete
-		adminSetupRoutes.GET("", setupHandler.ShowAdminSetup)
-		adminSetupRoutes.POST("", setupHandler.CreateAdmin)
-		adminSetupRoutes.GET("/api-token", setupHandler.ShowAPIToken)
-		adminSetupRoutes.POST("/api-token", setupHandler.ProcessAPIToken)
-		adminSetupRoutes.GET("/config", setupHandler.ShowServerConfig)
-		adminSetupRoutes.POST("/config", setupHandler.ProcessServerConfig)
-		adminSetupRoutes.GET("/security", setupHandler.ShowSecurity)
-		adminSetupRoutes.POST("/security", setupHandler.ProcessSecurity)
-		adminSetupRoutes.GET("/services", setupHandler.ShowServices)
-		adminSetupRoutes.POST("/services", setupHandler.ProcessServices)
-		adminSetupRoutes.GET("/complete", setupHandler.CompleteSetup)
+		adminSetupRoutes.Get("/", setupHandler.ShowAdminSetup)
+		adminSetupRoutes.Post("/", setupHandler.CreateAdmin)
+		adminSetupRoutes.Get("/api-token", setupHandler.ShowAPIToken)
+		adminSetupRoutes.Post("/api-token", setupHandler.ProcessAPIToken)
+		adminSetupRoutes.Get("/config", setupHandler.ShowServerConfig)
+		adminSetupRoutes.Post("/config", setupHandler.ProcessServerConfig)
+		adminSetupRoutes.Get("/security", setupHandler.ShowSecurity)
+		adminSetupRoutes.Post("/security", setupHandler.ProcessSecurity)
+		adminSetupRoutes.Get("/services", setupHandler.ShowServices)
+		adminSetupRoutes.Post("/services", setupHandler.ProcessServices)
+		adminSetupRoutes.Get("/complete", setupHandler.CompleteSetup)
 	}
 
 	// Authentication routes (public) - TEMPLATE.md lines 4441-4534
-	r.GET("/server/auth/login", authHandler.ShowLoginPage)
-	r.POST("/server/auth/login", middleware.LoginRateLimitMiddleware(), authHandler.HandleLogin)
-	r.GET("/server/auth/register", authHandler.ShowRegisterPage)
-	r.POST("/server/auth/register", authHandler.HandleRegister)
-	r.GET("/server/auth/logout", authHandler.HandleLogout)
+	r.Get("/server/auth/login", authHandler.ShowLoginPage)
+	r.With(middleware.LoginRateLimitMiddleware()).Post("/server/auth/login", authHandler.HandleLogin)
+	r.Get("/server/auth/register", authHandler.ShowRegisterPage)
+	r.Post("/server/auth/register", authHandler.HandleRegister)
+	r.Get("/server/auth/logout", authHandler.HandleLogout)
 
 	// Password reset routes (public)
-	r.GET("/server/auth/password/forgot", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/forgot_password.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/password/forgot", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/forgot_password.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Forgot Password",
 		}))
 	})
-	r.POST("/server/auth/password/forgot", middleware.PasswordResetRateLimitMiddleware(), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "If an account with that email exists, a reset link has been sent"})
+	r.With(middleware.PasswordResetRateLimitMiddleware()).Post("/server/auth/password/forgot", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "If an account with that email exists, a reset link has been sent"})
 	})
-	r.GET("/server/auth/password/reset", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/reset_password.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/password/reset", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/reset_password.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Reset Password",
-			"token": c.Query("token"),
+			"token": r.URL.Query().Get("token"),
 		}))
 	})
-	r.POST("/server/auth/password/reset", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Password has been reset successfully"})
+	r.Post("/server/auth/password/reset", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password has been reset successfully"})
 	})
 
 	// Email verification route (public) - per spec: GET /auth/verify/{code} verifies inline
-	r.GET("/server/auth/verify/:code", func(c *gin.Context) {
-		code := c.Param("code")
+	r.Get("/server/auth/verify/{code}", func(w http.ResponseWriter, r *http.Request) {
+		code := chi.URLParam(r, "code")
 		if code == "" {
-			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title": "Verify Email",
 				"error": "Missing verification code",
 			}))
@@ -1399,7 +1429,7 @@ func main() {
 
 		verificationID, userID, valid := lookupEmailVerification(db.DB, code, time.Now())
 		if !valid {
-			c.HTML(http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, http.StatusBadRequest, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title": "Verify Email",
 				"error": "Invalid or expired verification link. Please request a new one.",
 			}))
@@ -1416,7 +1446,7 @@ func main() {
 			WHERE id = ?
 		`, dbtime.FormatSQLTimestamp(time.Now()), userID)
 		if err != nil {
-			c.HTML(http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/verify_email.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title": "Verify Email",
 				"error": "Failed to verify email. Please try again.",
 			}))
@@ -1428,88 +1458,88 @@ func main() {
 			log.Printf("WARNING: verify-email: failed to delete used verification token %d: %v", verificationID, err)
 		}
 
-		c.Redirect(http.StatusFound, "/server/auth/login?verified=1")
+		http.Redirect(w, r, "/server/auth/login?verified=1", http.StatusFound)
 	})
 
 	// Two-factor authentication routes (public)
-	r.GET("/server/auth/2fa", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/two_factor.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/2fa", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/two_factor.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Two-Factor Authentication",
 		}))
 	})
-	r.POST("/server/auth/2fa", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Two-factor authentication verified"})
+	r.Post("/server/auth/2fa", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Two-factor authentication verified"})
 	})
 
 	// Passkey authentication routes (public)
-	r.GET("/server/auth/passkey", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/passkey.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/passkey", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/passkey.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Passkey Authentication",
 		}))
 	})
 
 	// Username recovery routes (public)
-	r.GET("/server/auth/username/forgot", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/forgot_username.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/username/forgot", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/forgot_username.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Forgot Username",
 		}))
 	})
-	r.POST("/server/auth/username/forgot", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "If an account with that email exists, the username has been sent"})
+	r.Post("/server/auth/username/forgot", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "If an account with that email exists, the username has been sent"})
 	})
 
 	// Recovery key usage route (public)
-	r.GET("/server/auth/recovery/use", func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/recovery_key.tmpl", util.TemplateData(c, gin.H{
+	r.Get("/server/auth/recovery/use", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/recovery_key.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Use Recovery Key",
 		}))
 	})
-	r.POST("/server/auth/recovery/use", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "Recovery key accepted"})
+	r.Post("/server/auth/recovery/use", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Recovery key accepted"})
 	})
 
-	renderServerInvitePage := func(c *gin.Context, status int, data gin.H) {
-		payload := gin.H{
+	renderServerInvitePage := func(w http.ResponseWriter, r *http.Request, status int, data map[string]interface{}) {
+		payload := map[string]interface{}{
 			"title": "Server Admin Invite",
 		}
 		for key, value := range data {
 			payload[key] = value
 		}
-		c.HTML(status, "page/server_invite.tmpl", util.TemplateData(c, payload))
+		middleware.RenderHTML(w, r, status, "page/server_invite.tmpl", util.TemplateData(r, payload))
 	}
 
-	renderUserInvitePage := func(c *gin.Context, status int, data gin.H) {
-		payload := gin.H{
+	renderUserInvitePage := func(w http.ResponseWriter, r *http.Request, status int, data map[string]interface{}) {
+		payload := map[string]interface{}{
 			"title": "User Invite",
 		}
 		for key, value := range data {
 			payload[key] = value
 		}
-		c.HTML(status, "page/user_invite.tmpl", util.TemplateData(c, payload))
+		middleware.RenderHTML(w, r, status, "page/user_invite.tmpl", util.TemplateData(r, payload))
 	}
 
 	// Invite routes (public - token validates)
-	r.GET("/server/server/auth/invite/server/:code", func(c *gin.Context) {
-		invite, err := adminInviteService.VerifyInvite(c.Param("code"))
+	r.Get("/server/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
+		invite, err := adminInviteService.VerifyInvite(chi.URLParam(r, "code"))
 		if err != nil {
-			renderServerInvitePage(c, http.StatusGone, gin.H{
+			renderServerInvitePage(w, r, http.StatusGone, map[string]interface{}{
 				"error": err.Error(),
-				"code":  c.Param("code"),
+				"code":  chi.URLParam(r, "code"),
 			})
 			return
 		}
 
-		renderServerInvitePage(c, http.StatusOK, gin.H{
+		renderServerInvitePage(w, r, http.StatusOK, map[string]interface{}{
 			"code":       invite.Token,
 			"email":      invite.InvitedEmail,
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.POST("/server/server/auth/invite/server/:code", func(c *gin.Context) {
-		token := c.Param("code")
+	r.Post("/server/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
+		token := chi.URLParam(r, "code")
 		invite, err := adminInviteService.VerifyInvite(token)
 		if err != nil {
-			renderServerInvitePage(c, http.StatusGone, gin.H{
+			renderServerInvitePage(w, r, http.StatusGone, map[string]interface{}{
 				"error": err.Error(),
 				"code":  token,
 			})
@@ -1517,12 +1547,24 @@ func main() {
 		}
 
 		var req struct {
-			Username        string `form:"username" binding:"required,min=3"`
-			Password        string `form:"password" binding:"required,min=8"`
-			ConfirmPassword string `form:"confirm_password" binding:"required"`
+			Username        string
+			Password        string
+			ConfirmPassword string
 		}
-		if err := c.ShouldBind(&req); err != nil {
-			renderServerInvitePage(c, http.StatusBadRequest, gin.H{
+		if parseErr := r.ParseForm(); parseErr != nil {
+			renderServerInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
+				"code":       token,
+				"email":      invite.InvitedEmail,
+				"expires_at": invite.ExpiresAt,
+				"error":      "Invalid form submission",
+			})
+			return
+		}
+		req.Username = strings.TrimSpace(r.FormValue("username"))
+		req.Password = r.FormValue("password")
+		req.ConfirmPassword = r.FormValue("confirm_password")
+		if len(req.Username) < 3 || len(req.Password) < 8 || req.ConfirmPassword == "" {
+			renderServerInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"email":      invite.InvitedEmail,
 				"expires_at": invite.ExpiresAt,
@@ -1533,7 +1575,7 @@ func main() {
 		}
 
 		if req.Password != req.ConfirmPassword {
-			renderServerInvitePage(c, http.StatusBadRequest, gin.H{
+			renderServerInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"email":      invite.InvitedEmail,
 				"expires_at": invite.ExpiresAt,
@@ -1544,7 +1586,7 @@ func main() {
 		}
 
 		if _, err := adminInviteService.AcceptInvite(token, req.Username, req.Password); err != nil {
-			renderServerInvitePage(c, http.StatusBadRequest, gin.H{
+			renderServerInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"email":      invite.InvitedEmail,
 				"expires_at": invite.ExpiresAt,
@@ -1554,19 +1596,19 @@ func main() {
 			return
 		}
 
-		c.Redirect(http.StatusSeeOther, "/server/auth/login?invite=accepted")
+		http.Redirect(w, r, "/server/auth/login?invite=accepted", http.StatusSeeOther)
 	})
-	r.GET("/server/server/auth/invite/user/:code", func(c *gin.Context) {
-		invite, err := userInviteModel.VerifyInvite(c.Param("code"))
+	r.Get("/server/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
+		invite, err := userInviteModel.VerifyInvite(chi.URLParam(r, "code"))
 		if err != nil {
-			renderUserInvitePage(c, http.StatusGone, gin.H{
+			renderUserInvitePage(w, r, http.StatusGone, map[string]interface{}{
 				"error": err.Error(),
-				"code":  c.Param("code"),
+				"code":  chi.URLParam(r, "code"),
 			})
 			return
 		}
 
-		renderUserInvitePage(c, http.StatusOK, gin.H{
+		renderUserInvitePage(w, r, http.StatusOK, map[string]interface{}{
 			"code":       invite.Token,
 			"username":   invite.Username,
 			"email":      invite.Email,
@@ -1574,11 +1616,11 @@ func main() {
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.POST("/server/server/auth/invite/user/:code", func(c *gin.Context) {
-		token := c.Param("code")
+	r.Post("/server/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
+		token := chi.URLParam(r, "code")
 		invite, err := userInviteModel.VerifyInvite(token)
 		if err != nil {
-			renderUserInvitePage(c, http.StatusGone, gin.H{
+			renderUserInvitePage(w, r, http.StatusGone, map[string]interface{}{
 				"error": err.Error(),
 				"code":  token,
 			})
@@ -1586,12 +1628,25 @@ func main() {
 		}
 
 		var req struct {
-			Username        string `form:"username" binding:"required,min=3"`
-			Password        string `form:"password" binding:"required,min=8"`
-			ConfirmPassword string `form:"confirm_password" binding:"required"`
+			Username        string
+			Password        string
+			ConfirmPassword string
 		}
-		if err := c.ShouldBind(&req); err != nil {
-			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
+		if parseErr := r.ParseForm(); parseErr != nil {
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
+				"code":       token,
+				"email":      invite.Email,
+				"role":       invite.Role,
+				"expires_at": invite.ExpiresAt,
+				"error":      "Invalid form submission",
+			})
+			return
+		}
+		req.Username = strings.TrimSpace(r.FormValue("username"))
+		req.Password = r.FormValue("password")
+		req.ConfirmPassword = r.FormValue("confirm_password")
+		if len(req.Username) < 3 || len(req.Password) < 8 || req.ConfirmPassword == "" {
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1603,7 +1658,7 @@ func main() {
 		}
 
 		if req.Password != req.ConfirmPassword {
-			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1616,7 +1671,7 @@ func main() {
 
 		username := util.NormalizeUsername(req.Username)
 		if err := util.ValidateUsername(username); err != nil {
-			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1628,7 +1683,7 @@ func main() {
 		}
 
 		if invite.Username != "" && username != util.NormalizeUsername(invite.Username) {
-			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"username":   invite.Username,
 				"email":      invite.Email,
@@ -1642,7 +1697,7 @@ func main() {
 		userModel := &model.UserModel{DB: db.DB}
 		user, err := userModel.Create(username, invite.Email, req.Password, invite.Role)
 		if err != nil {
-			renderUserInvitePage(c, http.StatusBadRequest, gin.H{
+			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1656,7 +1711,7 @@ func main() {
 		// updated_at is bound as canonical UTC text so every driver stores the same
 		// layout the rest of the project reads back.
 		if _, err := database.ExecContext(context.Background(), database.GetUsersDB(), database.TimeoutWrite, `UPDATE user_accounts SET email_verified = 1, updated_at = ? WHERE id = ?`, dbtime.FormatSQLTimestamp(time.Now()), user.ID); err != nil {
-			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
+			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1668,7 +1723,7 @@ func main() {
 		}
 
 		if err := userInviteModel.MarkUsed(token, user.ID); err != nil {
-			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
+			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1682,7 +1737,7 @@ func main() {
 		sessionModel := &model.SessionModel{DB: db.DB}
 		session, err := sessionModel.Create(user.ID, 2592000)
 		if err != nil {
-			renderUserInvitePage(c, http.StatusInternalServerError, gin.H{
+			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
 				"username":   req.Username,
 				"email":      invite.Email,
@@ -1693,51 +1748,52 @@ func main() {
 			return
 		}
 
-		http.SetCookie(c.Writer, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{
 			Name:     middleware.SessionCookieName,
 			Value:    session.ID,
 			Path:     "/",
 			MaxAge:   2592000,
 			HttpOnly: true,
-			Secure:   c.Request.TLS != nil,
+			Secure:   r.TLS != nil,
 			SameSite: http.SameSiteLaxMode,
 		})
 
-		c.Redirect(http.StatusSeeOther, "/users/dashboard")
+		http.Redirect(w, r, "/users/dashboard", http.StatusSeeOther)
 	})
 
 	// OIDC authentication routes (public) — per AI.md PART 34
-	r.GET("/server/auth/oidc/:provider", oidcAuthHandler.StartLogin)
-	r.GET("/server/auth/oidc/:provider/callback", oidcAuthHandler.Callback)
+	r.Get("/server/auth/oidc/{provider}", oidcAuthHandler.StartLogin)
+	r.Get("/server/auth/oidc/{provider}/callback", oidcAuthHandler.Callback)
 
 	// LDAP authentication route (public)
-	r.POST("/server/auth/ldap", ldapAuthHandler.Login)
+	r.Post("/server/auth/ldap", ldapAuthHandler.Login)
 
 	// User routes (require authentication) - per AI.md PART 14: /users/ is plural
-	usersRoutes := r.Group("/users")
+	usersRoutes := chi.NewRouter()
+	r.Mount("/users", usersRoutes)
 	usersRoutes.Use(middleware.RequireAuth(db.DB))
 	usersRoutes.Use(middleware.BlockAdminFromUserRoutes())
 	{
 		// /users -> user dashboard (current user)
-		usersRoutes.GET("", dashboardHandler.ShowDashboard)
+		usersRoutes.Get("/", dashboardHandler.ShowDashboard)
 		// /users/dashboard -> user dashboard
-		usersRoutes.GET("/dashboard", dashboardHandler.ShowDashboard)
+		usersRoutes.Get("/dashboard", dashboardHandler.ShowDashboard)
 
 		// User settings pages per AI.md PART 34
-		usersRoutes.GET("/settings", userSettingsHandler.ShowAccountSettings)
-		usersRoutes.GET("/settings/privacy", userSettingsHandler.ShowPrivacySettings)
-		usersRoutes.GET("/settings/notifications", userSettingsHandler.ShowNotificationSettings)
-		usersRoutes.GET("/settings/appearance", userSettingsHandler.ShowAppearanceSettings)
+		usersRoutes.Get("/settings", userSettingsHandler.ShowAccountSettings)
+		usersRoutes.Get("/settings/privacy", userSettingsHandler.ShowPrivacySettings)
+		usersRoutes.Get("/settings/notifications", userSettingsHandler.ShowNotificationSettings)
+		usersRoutes.Get("/settings/appearance", userSettingsHandler.ShowAppearanceSettings)
 		// /users/tokens per AI.md PART 34 spec (separate from settings)
-		usersRoutes.GET("/tokens", userSettingsHandler.ShowTokensSettings)
+		usersRoutes.Get("/tokens", userSettingsHandler.ShowTokensSettings)
 
 		// /users/notifications - per AI.md PART 25: notifications page
-		usersRoutes.GET("/notifications", notificationHandler.ShowNotificationsPage)
+		usersRoutes.Get("/notifications", notificationHandler.ShowNotificationsPage)
 	}
 
 	// Admin setup token verification route (public - before auth check)
 	// AI.md: Step 2: User navigates to /server/admin → Step 3: User enters setup token
-	r.POST("/server/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
+	r.Post("/server/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
 
 	// Admin passkey login page (public — shown during the post-password / pre-passkey
 	// window; admin session is not yet established so this MUST be outside adminRoutes).
@@ -1745,18 +1801,21 @@ func main() {
 	// has registered passkeys.  The page reads the cookie server-side (HttpOnly) and
 	// embeds the pending-session token so the in-page JS can call the challenge/verify
 	// API endpoints without ever exposing the raw cookie value to JS directly.
-	r.GET("/server/"+cfg.GetAdminPath()+"/passkey", func(c *gin.Context) {
-		pendingToken, cookieErr := c.Cookie("admin_passkey_pending")
-		if cookieErr != nil || strings.TrimSpace(pendingToken) == "" {
+	r.Get("/server/"+cfg.GetAdminPath()+"/passkey", func(w http.ResponseWriter, r *http.Request) {
+		pendingToken := ""
+		if cookie, cookieErr := r.Cookie("admin_passkey_pending"); cookieErr == nil {
+			pendingToken = cookie.Value
+		}
+		if strings.TrimSpace(pendingToken) == "" {
 			// Cookie missing or expired — bail back to login with a clear message.
-			c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(c, gin.H{
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title":      "Admin Passkey Verification",
 				"admin_path": cfg.GetAdminPath(),
 				"error":      "Session expired or invalid. Please log in again.",
 			}))
 			return
 		}
-		c.HTML(http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_passkey_login.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":                 "Admin Passkey Verification",
 			"admin_path":            cfg.GetAdminPath(),
 			"pending_session_token": pendingToken,
@@ -1765,7 +1824,8 @@ func main() {
 
 	// Admin routes (require admin role + stricter rate limiting)
 	// AI.md: Admin panel at /server/{admin_path} (configurable, default: "admin")
-	adminRoutes := r.Group("/server/" + cfg.GetAdminPath())
+	adminRoutes := chi.NewRouter()
+	r.Mount("/server/"+cfg.GetAdminPath(), adminRoutes)
 	// AI.md: Show setup token entry at /admin when no admin exists
 	adminRoutes.Use(middleware.SetupTokenRequired(cfg))
 	adminRoutes.Use(middleware.RequireAdminAuth())
@@ -1774,159 +1834,170 @@ func main() {
 	adminRoutes.Use(middleware.AuditLogger(db.DB))
 	{
 		// /{admin_path} -> admin dashboard (root level)
-		adminRoutes.GET("", dashboardHandler.ShowAdminPanel)
+		adminRoutes.Get("/", dashboardHandler.ShowAdminPanel)
 		// /{admin_path}/dashboard -> alias for root
-		adminRoutes.GET("/dashboard", dashboardHandler.ShowAdminPanel)
+		adminRoutes.Get("/dashboard", dashboardHandler.ShowAdminPanel)
 
 		// /{admin_path}/logout -> clear admin session and redirect to login
-		adminRoutes.GET("/logout", func(c *gin.Context) {
+		adminRoutes.Get("/logout", func(w http.ResponseWriter, r *http.Request) {
 			// Delete admin session from database
-			adminSessionID, err := c.Cookie("admin_session")
-			if err == nil && adminSessionID != "" {
+			adminSessionID := ""
+			if cookie, err := r.Cookie("admin_session"); err == nil {
+				adminSessionID = cookie.Value
+			}
+			if adminSessionID != "" {
 				if _, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID); err != nil {
 					log.Printf("WARNING: admin-logout: failed to delete admin session %s: %v", adminSessionID, err)
 				}
 			}
 			// Clear admin_session cookie
-			c.SetCookie("admin_session", "", -1, "/", "", false, true)
-			c.Redirect(http.StatusFound, "/server/auth/login")
+			http.SetCookie(w, &http.Cookie{
+				Name:     "admin_session",
+				Value:    "",
+				MaxAge:   -1,
+				Path:     "/",
+				Secure:   false,
+				HttpOnly: true,
+			})
+			http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		})
 
 		// AI.md PART 17: every server-management page lives under /{admin_path}/config/
 		// and the admin's own account lives under /{admin_path}/{admin_username}/
-		adminSelfRoutes := adminRoutes.Group("/:admin_username")
+		adminSelfRoutes := chi.NewRouter()
+		adminRoutes.Mount("/{admin_username}", adminSelfRoutes)
 		adminSelfRoutes.Use(handler.RequireAdminSelf())
 
 		// AI.md PART 17 header spec: global search over settings, logs and the
 		// other data the admin panel manages
-		adminRoutes.GET("/config/search", handler.AdminSearchPage)
+		adminRoutes.Get("/config/search", handler.AdminSearchPage)
 
-		adminRoutes.GET("/config/settings", adminHandler.ShowSettingsPage)
+		adminRoutes.Get("/config/settings", adminHandler.ShowSettingsPage)
 
-		adminRoutes.GET("/config/web", adminWebHandler.ShowWebSettings)
+		adminRoutes.Get("/config/web", adminWebHandler.ShowWebSettings)
 
-		adminRoutes.GET("/config/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/users", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "User Management - Admin",
 				"page":       "users",
 				"breadcrumb": "Users",
 			}))
 		})
 
-		adminRoutes.GET("/config/email", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/email", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_email.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Email Settings - Admin",
 				"page":       "email",
 				"breadcrumb": "Email",
 			}))
 		})
 
-		adminRoutes.GET("/config/database", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_database.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/database", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_database.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Database & Cache - Admin",
 				"page":       "database",
 				"breadcrumb": "Database",
 			}))
 		})
 
-		adminRoutes.GET("/config/info", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_system.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/info", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_system.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Server Information - Admin",
 				"page":       "info",
 				"breadcrumb": "Server Info",
 			}))
 		})
 
-		adminRoutes.GET("/config/security", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_security.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/security", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_security.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Security Settings - Admin",
 				"page":       "security",
 				"breadcrumb": "Security",
 			}))
 		})
 
-		adminRoutes.GET("/config/security/tokens", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/security/tokens", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "API Tokens - Admin",
 				"page":       "tokens",
 				"breadcrumb": "API Tokens",
 			}))
 		})
 
-		adminRoutes.GET("/config/logs", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_logs.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/logs", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "System Logs - Admin",
 				"page":       "logs",
 				"breadcrumb": "System Logs",
 			}))
 		})
 
-		adminRoutes.GET("/config/logs/audit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/logs.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/logs/audit", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Audit Logs - Admin",
 				"page":       "audit",
 				"breadcrumb": "Audit Logs",
 			}))
 		})
 
-		adminRoutes.GET("/config/scheduler", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tasks_enhanced.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/scheduler", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tasks_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Scheduled Tasks - Admin",
 				"page":       "scheduler",
 				"breadcrumb": "Scheduled Tasks",
 			}))
 		})
 
-		adminRoutes.GET("/config/ssl", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/ssl", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "SSL/TLS Management - Admin",
 				"page":       "ssl",
 				"breadcrumb": "SSL/TLS",
 			}))
 		})
 
-		adminRoutes.GET("/config/backup", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/backup", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Backup Management - Admin",
 				"page":       "backup",
 				"breadcrumb": "Backup",
 			}))
 		})
 
-		adminRoutes.GET("/config/metrics", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_metrics.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/metrics", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_metrics.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Metrics Configuration - Admin",
 				"page":       "metrics",
 				"breadcrumb": "Metrics",
 			}))
 		})
 
-		adminRoutes.GET("/config/network/tor", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_tor.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/network/tor", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Tor Hidden Service - Admin",
 				"page":       "tor",
 				"breadcrumb": "Tor Hidden Service",
 			}))
 		})
 
-		adminRoutes.GET("/config/channels", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin_channels.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/channels", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin_channels.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Notification Channels - Admin",
 				"page":       "channels",
 				"breadcrumb": "Channels",
 			}))
 		})
 
-		adminRoutes.GET("/config/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "template_editor.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/templates", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "template_editor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Template Editor - Admin",
 				"page":       "templates",
 				"breadcrumb": "Templates",
 			}))
 		})
 
-		adminRoutes.GET("/config/email/templates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_email_editor.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/email/templates", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_email_editor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Email Template Editor - Admin",
 				"page":       "email-templates",
 				"breadcrumb": "Email Templates",
@@ -1934,31 +2005,31 @@ func main() {
 		})
 
 		// Admin settings sub-panels (already under /server/)
-		adminRoutes.GET("/config/users/settings", adminUsersHandler.ShowUserSettings)
-		adminRoutes.GET("/config/weather", adminWeatherHandler.ShowWeatherSettings)
-		adminRoutes.GET("/config/notifications", adminNotificationsHandler.ShowNotificationSettings)
-		adminRoutes.GET("/config/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
+		adminRoutes.Get("/config/users/settings", adminUsersHandler.ShowUserSettings)
+		adminRoutes.Get("/config/weather", adminWeatherHandler.ShowWeatherSettings)
+		adminRoutes.Get("/config/notifications", adminNotificationsHandler.ShowNotificationSettings)
+		adminRoutes.Get("/config/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
 
 		// AI.md PART 17: the admin's own account pages
 		// /{admin_path}/{admin_username}/profile - Admin's own profile
-		adminSelfRoutes.GET("/profile", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_profile.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminSelfRoutes.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_profile.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Admin Profile",
 				"page":  "profile",
 			}))
 		})
 
 		// /{admin_path}/{admin_username}/preferences - Admin preferences
-		adminSelfRoutes.GET("/preferences", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_preferences.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminSelfRoutes.Get("/preferences", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_preferences.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Admin Preferences",
 				"page":  "preferences",
 			}))
 		})
 
 		// /{admin_path}/{admin_username}/notifications - Admin notifications page
-		adminSelfRoutes.GET("/notifications", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_notifications.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminSelfRoutes.Get("/notifications", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_notifications.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Notifications",
 				"page":  "notifications",
 			}))
@@ -1966,77 +2037,77 @@ func main() {
 
 		// Additional management pages per spec
 		// /{admin_path}/config/branding - Branding & SEO
-		adminRoutes.GET("/config/branding", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_branding.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/branding", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_branding.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Branding & SEO - Admin",
 				"page":  "server-branding",
 			}))
 		})
 
 		// /{admin_path}/config/pages - Standard pages (about, privacy, contact)
-		adminRoutes.GET("/config/pages", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_pages.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/pages", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_pages.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Standard Pages - Admin",
 				"page":  "server-pages",
 			}))
 		})
 
 		// /{admin_path}/config/roles - Role definitions
-		adminRoutes.GET("/config/roles", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_roles.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/roles", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_roles.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Role Definitions - Admin",
 				"page":  "server-roles",
 			}))
 		})
 
 		// /{admin_path}/config/security/auth - Authentication config
-		adminRoutes.GET("/config/security/auth", adminAuthHandler.ShowAuthSettings)
+		adminRoutes.Get("/config/security/auth", adminAuthHandler.ShowAuthSettings)
 
 		// /{admin_path}/config/admins - Server admin accounts list
-		adminRoutes.GET("/config/admins", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_admins.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/admins", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_admins.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Server Admins - Admin",
 				"page":  "server-admins",
 			}))
 		})
 
 		// /{admin_path}/config/admins/invite - Invite new admin
-		adminRoutes.GET("/config/admins/invite", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_invite.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_invite.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Invite Admin - Admin",
 				"page":  "server-admins-invite",
 			}))
 		})
 
 		// /{admin_path}/config/admins/:id - Admin detail
-		adminRoutes.GET("/config/admins/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_detail.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":   "Admin Detail - Admin",
 				"page":    "server-admins",
-				"adminID": c.Param("id"),
+				"adminID": chi.URLParam(r, "id"),
 			}))
 		})
 
-		renderAdminUserInvitesPage := func(c *gin.Context, status int, data gin.H) {
+		renderAdminUserInvitesPage := func(w http.ResponseWriter, r *http.Request, status int, data map[string]interface{}) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
-				c.HTML(http.StatusInternalServerError, "page/error.tmpl", handler.AdminTemplateData(c, gin.H{
+				middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 					"title":   "User Invites",
 					"message": "Failed to load user invites",
 				}))
 				return
 			}
 
-			scheme := c.GetHeader("X-Forwarded-Proto")
+			scheme := r.Header.Get("X-Forwarded-Proto")
 			if scheme == "" {
-				if c.Request.TLS != nil {
+				if r.TLS != nil {
 					scheme = "https"
 				} else {
 					scheme = "http"
 				}
 			}
 
-			inviteRows := make([]gin.H, 0, len(invites))
+			inviteRows := make([]map[string]interface{}, 0, len(invites))
 			for _, invite := range invites {
 				statusLabel := "pending"
 				if invite.UsedAt != nil || (invite.MaxUses > 0 && invite.UseCount >= invite.MaxUses) {
@@ -2045,7 +2116,7 @@ func main() {
 					statusLabel = "expired"
 				}
 
-				inviteRows = append(inviteRows, gin.H{
+				inviteRows = append(inviteRows, map[string]interface{}{
 					"id":         invite.ID,
 					"token":      invite.Token,
 					"username":   invite.Username,
@@ -2054,11 +2125,11 @@ func main() {
 					"expires_at": invite.ExpiresAt,
 					"used_at":    invite.UsedAt,
 					"status":     statusLabel,
-					"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
+					"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, r.Host, invite.Token),
 				})
 			}
 
-			payload := gin.H{
+			payload := map[string]interface{}{
 				"title":                  "User Invites - Admin",
 				"page":                   "users-invites",
 				"invites":                inviteRows,
@@ -2068,22 +2139,37 @@ func main() {
 				payload[key] = value
 			}
 
-			c.HTML(status, "admin/admin_user_invites.tmpl", handler.AdminTemplateData(c, payload))
+			middleware.RenderHTML(w, r, status, "admin/admin_user_invites.tmpl", handler.AdminTemplateData(r, payload))
 		}
 
 		// /{admin_path}/config/users/invites - User invites
-		adminRoutes.GET("/config/users/invites", func(c *gin.Context) {
-			renderAdminUserInvitesPage(c, http.StatusOK, gin.H{})
+		adminRoutes.Get("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+			renderAdminUserInvitesPage(w, r, http.StatusOK, map[string]interface{}{})
 		})
-		adminRoutes.POST("/config/users/invites", func(c *gin.Context) {
+		adminRoutes.Post("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			var req struct {
-				Username      string `form:"username" binding:"required,min=3"`
-				Email         string `form:"email" binding:"required,email"`
-				Role          string `form:"role"`
-				ExpiresInDays int    `form:"expires_in_days"`
+				Username      string
+				Email         string
+				Role          string
+				ExpiresInDays int
 			}
-			if err := c.ShouldBind(&req); err != nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+			if parseErr := r.ParseForm(); parseErr != nil {
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
+					"error": "Invalid form submission",
+					"form":  req,
+				})
+				return
+			}
+			req.Username = strings.TrimSpace(r.FormValue("username"))
+			req.Email = strings.TrimSpace(r.FormValue("email"))
+			req.Role = r.FormValue("role")
+			if expiresStr := r.FormValue("expires_in_days"); expiresStr != "" {
+				if parsed, parseErr := strconv.Atoi(expiresStr); parseErr == nil {
+					req.ExpiresInDays = parsed
+				}
+			}
+			if req.Username == "" || len(req.Username) < 3 || req.Email == "" || !strings.Contains(req.Email, "@") {
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": "Invalid form submission",
 					"form":  req,
 				})
@@ -2092,7 +2178,7 @@ func main() {
 
 			username := util.NormalizeUsername(req.Username)
 			if err := util.ValidateUsername(username); err != nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": err.Error(),
 					"form":  req,
 				})
@@ -2101,7 +2187,7 @@ func main() {
 
 			email := util.NormalizeEmail(req.Email)
 			if err := util.ValidateEmail(email); err != nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": err.Error(),
 					"form":  req,
 				})
@@ -2110,14 +2196,14 @@ func main() {
 
 			userModel := &model.UserModel{DB: db.DB}
 			if _, err := userModel.GetByUsername(username); err == nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": "Username is already in use",
 					"form":  req,
 				})
 				return
 			}
 			if _, err := userModel.GetByEmail(email); err == nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": "Email is already in use",
 					"form":  req,
 				})
@@ -2136,80 +2222,80 @@ func main() {
 
 			invite, err := userInviteModel.CreateInvite(username, email, role, expiresInDays)
 			if err != nil {
-				renderAdminUserInvitesPage(c, http.StatusBadRequest, gin.H{
+				renderAdminUserInvitesPage(w, r, http.StatusBadRequest, map[string]interface{}{
 					"error": err.Error(),
 					"form":  req,
 				})
 				return
 			}
 
-			scheme := c.GetHeader("X-Forwarded-Proto")
+			scheme := r.Header.Get("X-Forwarded-Proto")
 			if scheme == "" {
-				if c.Request.TLS != nil {
+				if r.TLS != nil {
 					scheme = "https"
 				} else {
 					scheme = "http"
 				}
 			}
 
-			renderAdminUserInvitesPage(c, http.StatusOK, gin.H{
+			renderAdminUserInvitesPage(w, r, http.StatusOK, map[string]interface{}{
 				"message":    "User invite created",
-				"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, invite.Token),
+				"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, r.Host, invite.Token),
 			})
 		})
 
 		// /{admin_path}/config/moderation/users - User moderation
-		adminRoutes.GET("/config/moderation/users", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_moderation.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/moderation/users", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_moderation.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "User Moderation - Admin",
 				"page":  "moderation-users",
 			}))
 		})
 
 		// /{admin_path}/config/moderation/users/:id - User detail
-		adminRoutes.GET("/config/moderation/users/:id", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_user_detail.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/moderation/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_user_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":  "User Detail - Admin",
 				"page":   "moderation-users",
-				"userID": c.Param("id"),
+				"userID": chi.URLParam(r, "id"),
 			}))
 		})
 
 		// /{admin_path}/config/security/ratelimit - Rate limiting config
-		adminRoutes.GET("/config/security/ratelimit", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_ratelimit.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/security/ratelimit", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ratelimit.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Rate Limiting - Admin",
 				"page":  "security-ratelimit",
 			}))
 		})
 
 		// /{admin_path}/config/security/firewall - IP allow/block lists
-		adminRoutes.GET("/config/security/firewall", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_firewall.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/security/firewall", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_firewall.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Firewall - Admin",
 				"page":  "security-firewall",
 			}))
 		})
 
 		// /{admin_path}/config/network/blocklists - IP/domain blocklists
-		adminRoutes.GET("/config/network/blocklists", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_blocklists.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/network/blocklists", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_blocklists.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Blocklists - Admin",
 				"page":  "network-blocklists",
 			}))
 		})
 
 		// /{admin_path}/config/maintenance - Maintenance mode
-		adminRoutes.GET("/config/maintenance", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_maintenance.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/maintenance", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_maintenance.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Maintenance Mode - Admin",
 				"page":  "server-maintenance",
 			}))
 		})
 
 		// /{admin_path}/config/updates - Software updates
-		adminRoutes.GET("/config/updates", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_updates.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/updates", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_updates.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":   "Updates - Admin",
 				"page":    "server-updates",
 				"version": handler.Version,
@@ -2217,46 +2303,46 @@ func main() {
 		})
 
 		// /{admin_path}/config/cluster/nodes - Cluster node management
-		adminRoutes.GET("/config/cluster/nodes", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_nodes.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/cluster/nodes", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_cluster_nodes.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Cluster Nodes - Admin",
 				"page":  "server-cluster-nodes",
 			}))
 		})
 
 		// /{admin_path}/config/cluster/add - Add cluster node
-		adminRoutes.GET("/config/cluster/add", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_cluster_add.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/config/cluster/add", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_cluster_add.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Add Cluster Node - Admin",
 				"page":  "server-cluster-add",
 			}))
 		})
 
 		// /{admin_path}/help - Admin help & documentation
-		adminRoutes.GET("/help", func(c *gin.Context) {
-			c.HTML(http.StatusOK, "admin/admin_help.tmpl", handler.AdminTemplateData(c, gin.H{
+		adminRoutes.Get("/help", func(w http.ResponseWriter, r *http.Request) {
+			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_help.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Help - Admin",
 				"page":  "help",
 			}))
 		})
 	}
-	r.GET("/notifications", middleware.RequireAuth(db.DB), notificationHandler.ShowNotificationsPage)
+	r.With(middleware.RequireAuth(db.DB)).Get("/notifications", notificationHandler.ShowNotificationsPage)
 
 	// User profile page (per AI.md PART 14: /users/ is plural)
-	r.GET("/users/profile", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), func(c *gin.Context) {
-		handler.NegotiateResponse(c, "page/user/profile.tmpl", util.TemplateData(c, gin.H{
+	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/profile", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "page/user/profile.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Profile",
 			"page":  "profile",
 		}))
 	})
 
 	// User security settings page (per AI.md PART 14: /users/ is plural)
-	r.GET("/users/security", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), twoFAHandler.ShowSecurityPage)
-	r.GET("/users/security/passkeys", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security", twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/passkeys", twoFAHandler.ShowSecurityPage)
 
 	// User notification preferences page (per AI.md PART 14: /users/ is plural)
-	r.GET("/users/preferences", middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes(), func(c *gin.Context) {
-		handler.NegotiateResponse(c, "user_preferences.tmpl", util.TemplateData(c, gin.H{
+	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/preferences", func(w http.ResponseWriter, r *http.Request) {
+		handler.NegotiateResponse(w, r, "user_preferences.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title": "Preferences",
 			"page":  "preferences",
 		}))
@@ -2265,55 +2351,57 @@ func main() {
 	// Removed - moved to adminRoutes group above
 
 	// Location management pages
-	r.GET("/users/locations/new", middleware.RequireAuth(db.DB), locationHandler.ShowAddLocationPage)
-	r.GET("/users/locations/:id/edit", middleware.RequireAuth(db.DB), locationHandler.ShowEditLocationPage)
+	r.With(middleware.RequireAuth(db.DB)).Get("/users/locations/new", locationHandler.ShowAddLocationPage)
+	r.With(middleware.RequireAuth(db.DB)).Get("/users/locations/{id}/edit", locationHandler.ShowEditLocationPage)
 
 	// API routes - all API endpoints under /api/{api_version}
 	// AI.md: API version prefix is configurable (default: "v1")
-	apiV1 := r.Group(cfg.GetAPIPath())
+	apiV1 := chi.NewRouter()
+	r.Mount(cfg.GetAPIPath(), apiV1)
 
 	// Weather API routes (optional auth + API rate limiting)
-	weatherAPI := apiV1.Group("")
+	weatherAPI := chi.NewRouter()
+	apiV1.Mount("/", weatherAPI)
 	weatherAPI.Use(middleware.OptionalAuth(db.DB))
 	weatherAPI.Use(middleware.APIRateLimitMiddleware())
 	{
 		// Weather endpoints per AI.md PART 36
-		weatherAPI.GET("/weather", apiHandler.GetWeather)
-		weatherAPI.GET("/weather/:location", apiHandler.GetWeatherByLocation)
-		weatherAPI.GET("/weather/forecast", apiHandler.GetForecast)
-		weatherAPI.GET("/weather/locations", apiHandler.GetLocation)
+		weatherAPI.Get("/weather", apiHandler.GetWeather)
+		weatherAPI.Get("/weather/{location}", apiHandler.GetWeatherByLocation)
+		weatherAPI.Get("/weather/forecast", apiHandler.GetForecast)
+		weatherAPI.Get("/weather/locations", apiHandler.GetLocation)
 
 		// Backwards compatibility - old paths (deprecated)
-		weatherAPI.GET("/forecasts", apiHandler.GetForecast)
-		weatherAPI.GET("/forecasts/:location", apiHandler.GetForecastByLocation)
+		weatherAPI.Get("/forecasts", apiHandler.GetForecast)
+		weatherAPI.Get("/forecasts/{location}", apiHandler.GetForecastByLocation)
 
 		// Additional endpoints
-		weatherAPI.GET("/ip", apiHandler.GetIP)
-		weatherAPI.GET("/docs", apiHandler.GetDocsJSON)
-		weatherAPI.GET("/earthquakes", earthquakeHandler.HandleEarthquakeAPI)
-		weatherAPI.GET("/earthquakes/:id", earthquakeHandler.HandleEarthquakeByIDAPI)
+		weatherAPI.Get("/ip", apiHandler.GetIP)
+		weatherAPI.Get("/docs", apiHandler.GetDocsJSON)
+		weatherAPI.Get("/earthquakes", earthquakeHandler.HandleEarthquakeAPI)
+		weatherAPI.Get("/earthquakes/{id}", earthquakeHandler.HandleEarthquakeByIDAPI)
 		// Backwards compat
-		weatherAPI.GET("/hurricanes", hurricaneHandler.HandleHurricaneAPI)
-		weatherAPI.GET("/hurricanes/:id", hurricaneHandler.HandleHurricaneByIDAPI)
-		weatherAPI.GET("/severe-weather", severeWeatherHandler.HandleSevereWeatherAPI)
-		weatherAPI.GET("/severe-weather/:id", severeWeatherHandler.HandleAlertByIDAPI)
-		weatherAPI.GET("/moon", moonHandler.HandleMoonAPI)
-		weatherAPI.GET("/moon/calendar", moonHandler.HandleMoonCalendarAPI)
-		weatherAPI.GET("/sun", moonHandler.HandleSunAPI)
-		weatherAPI.GET("/history", apiHandler.GetHistoricalWeather)
+		weatherAPI.Get("/hurricanes", hurricaneHandler.HandleHurricaneAPI)
+		weatherAPI.Get("/hurricanes/{id}", hurricaneHandler.HandleHurricaneByIDAPI)
+		weatherAPI.Get("/severe-weather", severeWeatherHandler.HandleSevereWeatherAPI)
+		weatherAPI.Get("/severe-weather/{id}", severeWeatherHandler.HandleAlertByIDAPI)
+		weatherAPI.Get("/moon", moonHandler.HandleMoonAPI)
+		weatherAPI.Get("/moon/calendar", moonHandler.HandleMoonCalendarAPI)
+		weatherAPI.Get("/sun", moonHandler.HandleSunAPI)
+		weatherAPI.Get("/history", apiHandler.GetHistoricalWeather)
 
 		// CLI client compatibility aliases (IDEA.md endpoints)
-		weatherAPI.GET("/weather/alerts", severeWeatherHandler.HandleSevereWeatherAPI)
-		weatherAPI.GET("/weather/moon", moonHandler.HandleMoonAPI)
-		weatherAPI.GET("/weather/history", apiHandler.GetHistoricalWeather)
+		weatherAPI.Get("/weather/alerts", severeWeatherHandler.HandleSevereWeatherAPI)
+		weatherAPI.Get("/weather/moon", moonHandler.HandleMoonAPI)
+		weatherAPI.Get("/weather/history", apiHandler.GetHistoricalWeather)
 
 		// Root /api/{api_version} endpoint - return all endpoints
 		// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
-		weatherAPI.GET("", func(c *gin.Context) {
-			hostInfo := util.GetHostInfo(c)
+		weatherAPI.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			hostInfo := util.GetHostInfo(r)
 			apiBase := hostInfo.FullHost + cfg.GetAPIPath()
 			adminBase := hostInfo.FullHost + cfg.GetAdminAPIPath()
-			handler.RespondNegotiatedData(c, http.StatusOK, gin.H{
+			handler.RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 				"version": cfg.GetAPIVersion(),
 				"endpoints": []string{
 					apiBase + "/users",
@@ -2321,9 +2409,9 @@ func main() {
 					apiBase + "/users/notifications",
 					adminBase,
 					apiBase + "/weather",
-					apiBase + "/weather/:location",
+					apiBase + "/weather/{location}",
 					apiBase + "/forecasts",
-					apiBase + "/forecasts/:location",
+					apiBase + "/forecasts/{location}",
 					apiBase + "/ip",
 					apiBase + "/locations",
 					apiBase + "/docs",
@@ -2339,8 +2427,8 @@ func main() {
 	}
 
 	// Public blocklist endpoint (no auth required)
-	apiV1.GET("/blocklist", func(c *gin.Context) {
-		handler.RespondNegotiatedData(c, http.StatusOK, gin.H{
+	apiV1.Get("/blocklist", func(w http.ResponseWriter, r *http.Request) {
+		handler.RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 			"blocklist": util.UsernameBlocklist,
 			"count":     util.GetBlocklistSize(),
 			"public":    util.IsBlocklistPublic(),
@@ -2349,86 +2437,88 @@ func main() {
 	})
 
 	// Public server API endpoints (AI.md PART 14: every web page has corresponding API)
-	apiV1.GET("/server/about", handler.GetAboutAPI(db, cfg))
-	apiV1.GET("/server/privacy", handler.GetPrivacyAPI(db, cfg))
-	apiV1.GET("/server/help", handler.GetHelpAPI(db, cfg))
-	apiV1.GET("/server/terms", handler.GetTermsAPI(db, cfg))
-	apiV1.POST("/server/contact", handler.HandleContactFormSubmission(db, cfg))
+	apiV1.Get("/server/about", handler.GetAboutAPI(db, cfg))
+	apiV1.Get("/server/privacy", handler.GetPrivacyAPI(db, cfg))
+	apiV1.Get("/server/help", handler.GetHelpAPI(db, cfg))
+	apiV1.Get("/server/terms", handler.GetTermsAPI(db, cfg))
+	apiV1.Post("/server/contact", handler.HandleContactFormSubmission(db, cfg))
 
 	// Auth API routes per AI.md PART 33
-	authAPI := apiV1.Group("/server/auth")
+	authAPI := chi.NewRouter()
+	apiV1.Mount("/server/auth", authAPI)
 	{
 		// Public auth endpoints (no auth required)
-		authAPI.POST("/register", authAPIHandler.HandleAPIRegister)
-		authAPI.POST("/login", authAPIHandler.HandleAPILogin)
-		authAPI.POST("/2fa", authAPIHandler.HandleAPI2FA)
-		authAPI.POST("/passkey/challenge", passkeyHandler.BeginPasskeyChallenge)
-		authAPI.POST("/passkey/verify", passkeyHandler.VerifyPasskey)
+		authAPI.Post("/register", authAPIHandler.HandleAPIRegister)
+		authAPI.Post("/login", authAPIHandler.HandleAPILogin)
+		authAPI.Post("/2fa", authAPIHandler.HandleAPI2FA)
+		authAPI.Post("/passkey/challenge", passkeyHandler.BeginPasskeyChallenge)
+		authAPI.Post("/passkey/verify", passkeyHandler.VerifyPasskey)
 		// Admin passkey login challenge/verify per AI.md PART 17 line
 		// 28679 ("passkey can be used as primary login or as 2FA"). The
 		// pending session token is issued by HandleLogin (`/server/auth/login`)
 		// after admin password verify when the admin has at least one
 		// passkey registered.
-		authAPI.POST("/admin/passkey/challenge", adminPasskeyHandler.BeginPasskeyChallenge)
-		authAPI.POST("/admin/passkey/verify", adminPasskeyHandler.VerifyPasskey)
-		authAPI.POST("/recovery/use", authAPIHandler.HandleAPIRecoveryUse)
-		authAPI.POST("/password/forgot", authAPIHandler.HandleAPIPasswordForgot)
-		authAPI.POST("/password/reset", authAPIHandler.HandleAPIPasswordReset)
-		authAPI.POST("/verify", authAPIHandler.HandleAPIVerifyEmail)
+		authAPI.Post("/admin/passkey/challenge", adminPasskeyHandler.BeginPasskeyChallenge)
+		authAPI.Post("/admin/passkey/verify", adminPasskeyHandler.VerifyPasskey)
+		authAPI.Post("/recovery/use", authAPIHandler.HandleAPIRecoveryUse)
+		authAPI.Post("/password/forgot", authAPIHandler.HandleAPIPasswordForgot)
+		authAPI.Post("/password/reset", authAPIHandler.HandleAPIPasswordReset)
+		authAPI.Post("/verify", authAPIHandler.HandleAPIVerifyEmail)
 
 		// User invite endpoints (no auth required - token validates)
-		authAPI.GET("/invite/user/:token", authAPIHandler.HandleAPIUserInviteValidate)
-		authAPI.POST("/invite/user/:token", authAPIHandler.HandleAPIUserInviteComplete)
-		authAPI.GET("/invite/server/:token", authAPIHandler.HandleAPIServerInviteValidate)
-		authAPI.POST("/invite/server/:token", authAPIHandler.HandleAPIServerInviteComplete)
+		authAPI.Get("/invite/user/{token}", authAPIHandler.HandleAPIUserInviteValidate)
+		authAPI.Post("/invite/user/{token}", authAPIHandler.HandleAPIUserInviteComplete)
+		authAPI.Get("/invite/server/{token}", authAPIHandler.HandleAPIServerInviteValidate)
+		authAPI.Post("/invite/server/{token}", authAPIHandler.HandleAPIServerInviteComplete)
 
 		// Protected auth endpoints (require auth)
-		authAPI.POST("/logout", middleware.RequireAuth(db.DB), authAPIHandler.HandleAPILogout)
-		authAPI.POST("/refresh", middleware.RequireAuth(db.DB), authAPIHandler.HandleAPIRefresh)
+		authAPI.With(middleware.RequireAuth(db.DB)).Post("/logout", authAPIHandler.HandleAPILogout)
+		authAPI.With(middleware.RequireAuth(db.DB)).Post("/refresh", authAPIHandler.HandleAPIRefresh)
 	}
 
 	// Users API routes per AI.md PART 33 (spec uses /api/v1/users not /api/v1/user)
-	usersAPI := apiV1.Group("/users")
+	usersAPI := chi.NewRouter()
+	apiV1.Mount("/users", usersAPI)
 	usersAPI.Use(middleware.RequireAuth(db.DB))
 	usersAPI.Use(middleware.BlockAdminFromUserRoutes())
 	{
-		usersAPI.GET("", authHandler.GetCurrentUser)
-		usersAPI.PATCH("", authHandler.UpdateProfile)
+		usersAPI.Get("/", authHandler.GetCurrentUser)
+		usersAPI.Patch("/", authHandler.UpdateProfile)
 
 		// User settings API per AI.md PART 34
-		usersAPI.GET("/settings", userSettingsHandler.GetSettings)
-		usersAPI.PATCH("/settings", userSettingsHandler.UpdateSettings)
+		usersAPI.Get("/settings", userSettingsHandler.GetSettings)
+		usersAPI.Patch("/settings", userSettingsHandler.UpdateSettings)
 
 		// User tokens API per AI.md PART 34
-		usersAPI.GET("/tokens", userSettingsHandler.ListTokens)
-		usersAPI.POST("/tokens", userSettingsHandler.CreateToken)
-		usersAPI.DELETE("/tokens/:id", userSettingsHandler.RevokeToken)
+		usersAPI.Get("/tokens", userSettingsHandler.ListTokens)
+		usersAPI.Post("/tokens", userSettingsHandler.CreateToken)
+		usersAPI.Delete("/tokens/{id}", userSettingsHandler.RevokeToken)
 
 		// Avatar API per AI.md PART 34
-		usersAPI.GET("/avatar", userPublicHandler.GetCurrentUserAvatar)
-		usersAPI.POST("/avatar", userPublicHandler.UploadAvatar)
-		usersAPI.PATCH("/avatar", userPublicHandler.UpdateAvatarSettings)
-		usersAPI.DELETE("/avatar", userPublicHandler.ResetAvatar)
+		usersAPI.Get("/avatar", userPublicHandler.GetCurrentUserAvatar)
+		usersAPI.Post("/avatar", userPublicHandler.UploadAvatar)
+		usersAPI.Patch("/avatar", userPublicHandler.UpdateAvatarSettings)
+		usersAPI.Delete("/avatar", userPublicHandler.ResetAvatar)
 
 		// Security endpoints
-		usersAPI.GET("/security/2fa", twoFAHandler.GetTwoFactorStatus)
-		usersAPI.GET("/security/2fa/setup", twoFAHandler.SetupTwoFactor)
-		usersAPI.POST("/security/2fa/enable", twoFAHandler.EnableTwoFactor)
-		usersAPI.POST("/security/2fa/disable", twoFAHandler.DisableTwoFactor)
-		usersAPI.POST("/security/2fa/verify", twoFAHandler.VerifyTwoFactorCode)
-		usersAPI.POST("/security/recovery/regenerate", twoFAHandler.RegenerateRecoveryKeys)
-		usersAPI.GET("/security/passkeys", passkeyHandler.ListPasskeys)
-		usersAPI.POST("/security/passkeys", passkeyHandler.RegisterPasskey)
-		usersAPI.DELETE("/security/passkeys/:passkey_id", passkeyHandler.DeletePasskey)
+		usersAPI.Get("/security/2fa", twoFAHandler.GetTwoFactorStatus)
+		usersAPI.Get("/security/2fa/setup", twoFAHandler.SetupTwoFactor)
+		usersAPI.Post("/security/2fa/enable", twoFAHandler.EnableTwoFactor)
+		usersAPI.Post("/security/2fa/disable", twoFAHandler.DisableTwoFactor)
+		usersAPI.Post("/security/2fa/verify", twoFAHandler.VerifyTwoFactorCode)
+		usersAPI.Post("/security/recovery/regenerate", twoFAHandler.RegenerateRecoveryKeys)
+		usersAPI.Get("/security/passkeys", passkeyHandler.ListPasskeys)
+		usersAPI.Post("/security/passkeys", passkeyHandler.RegisterPasskey)
+		usersAPI.Delete("/security/passkeys/{passkey_id}", passkeyHandler.DeletePasskey)
 
 		// Password change per AI.md PART 34
-		usersAPI.POST("/security/password", userPublicHandler.ChangePassword)
-		usersAPI.POST("/security/email", userPublicHandler.ChangeEmail)
-		usersAPI.DELETE("/account", userPublicHandler.DeleteAccount)
+		usersAPI.Post("/security/password", userPublicHandler.ChangePassword)
+		usersAPI.Post("/security/email", userPublicHandler.ChangeEmail)
+		usersAPI.Delete("/account", userPublicHandler.DeleteAccount)
 
-		usersAPI.GET("/sessions", userSettingsHandler.ListSessions)
-		usersAPI.DELETE("/sessions", userSettingsHandler.RevokeAllSessions)
-		usersAPI.DELETE("/sessions/:id", userSettingsHandler.RevokeSession)
+		usersAPI.Get("/sessions", userSettingsHandler.ListSessions)
+		usersAPI.Delete("/sessions", userSettingsHandler.RevokeAllSessions)
+		usersAPI.Delete("/sessions/{id}", userSettingsHandler.RevokeSession)
 	}
 
 	// Note: 2FA routes already registered under usersAPI (/users/security/2fa/*)
@@ -2436,47 +2526,50 @@ func main() {
 	// Public user profile endpoint per AI.md PART 34
 	// Uses OptionalAuth to support both authenticated and anonymous requests
 	// Private profiles return 404 to prevent existence leakage
-	apiV1.GET("/public/users/:username", middleware.OptionalAuth(db.DB), userPublicHandler.GetPublicProfile)
+	apiV1.With(middleware.OptionalAuth(db.DB)).Get("/public/users/{username}", userPublicHandler.GetPublicProfile)
 
 	// Location API routes (require auth)
 	// Public location endpoints (no auth required)
-	apiV1.GET("/locations/search", locationHandler.SearchLocations)
-	apiV1.GET("/locations/lookup/zip/:code", locationHandler.LookupZipCode)
-	apiV1.GET("/locations/lookup/coords", locationHandler.LookupCoordinates)
+	apiV1.Get("/locations/search", locationHandler.SearchLocations)
+	apiV1.Get("/locations/lookup/zip/{code}", locationHandler.LookupZipCode)
+	apiV1.Get("/locations/lookup/coords", locationHandler.LookupCoordinates)
 
 	// Protected location endpoints (require auth)
-	locationAPI := apiV1.Group("/users/locations")
+	locationAPI := chi.NewRouter()
+	apiV1.Mount("/users/locations", locationAPI)
 	locationAPI.Use(middleware.RequireAuth(db.DB))
 	locationAPI.Use(middleware.BlockAdminFromUserRoutes())
 	{
-		locationAPI.GET("", locationHandler.ListLocations)
-		locationAPI.GET("/:id", locationHandler.GetLocation)
-		locationAPI.POST("", locationHandler.CreateLocation)
-		locationAPI.PUT("/:id", locationHandler.UpdateLocation)
-		locationAPI.DELETE("/:id", locationHandler.DeleteLocation)
-		locationAPI.PUT("/:id/alerts", locationHandler.ToggleAlerts)
+		locationAPI.Get("/", locationHandler.ListLocations)
+		locationAPI.Get("/{id}", locationHandler.GetLocation)
+		locationAPI.Post("/", locationHandler.CreateLocation)
+		locationAPI.Put("/{id}", locationHandler.UpdateLocation)
+		locationAPI.Delete("/{id}", locationHandler.DeleteLocation)
+		locationAPI.Put("/{id}/alerts", locationHandler.ToggleAlerts)
 	}
 
 	// WebUI Notification API routes - User (per AI.md PART 14: /users/ is plural)
-	usersNotificationAPI := apiV1.Group("/users/notifications")
+	usersNotificationAPI := chi.NewRouter()
+	apiV1.Mount("/users/notifications", usersNotificationAPI)
 	usersNotificationAPI.Use(middleware.RequireAuth(db.DB))
 	usersNotificationAPI.Use(middleware.BlockAdminFromUserRoutes())
 	{
-		usersNotificationAPI.GET("", notificationAPIHandler.GetUserNotifications)
-		usersNotificationAPI.GET("/unread", notificationAPIHandler.GetUserUnreadNotifications)
-		usersNotificationAPI.GET("/count", notificationAPIHandler.GetUserUnreadCount)
-		usersNotificationAPI.GET("/stats", notificationAPIHandler.GetUserStats)
-		usersNotificationAPI.PATCH("/:id/read", notificationAPIHandler.MarkUserNotificationRead)
-		usersNotificationAPI.PATCH("/read", notificationAPIHandler.MarkAllUserNotificationsRead)
-		usersNotificationAPI.PATCH("/:id/dismiss", notificationAPIHandler.DismissUserNotification)
-		usersNotificationAPI.DELETE("/:id", notificationAPIHandler.DeleteUserNotification)
-		usersNotificationAPI.GET("/preferences", notificationAPIHandler.GetUserPreferences)
-		usersNotificationAPI.PATCH("/preferences", notificationAPIHandler.UpdateUserPreferences)
+		usersNotificationAPI.Get("/", notificationAPIHandler.GetUserNotifications)
+		usersNotificationAPI.Get("/unread", notificationAPIHandler.GetUserUnreadNotifications)
+		usersNotificationAPI.Get("/count", notificationAPIHandler.GetUserUnreadCount)
+		usersNotificationAPI.Get("/stats", notificationAPIHandler.GetUserStats)
+		usersNotificationAPI.Patch("/{id}/read", notificationAPIHandler.MarkUserNotificationRead)
+		usersNotificationAPI.Patch("/read", notificationAPIHandler.MarkAllUserNotificationsRead)
+		usersNotificationAPI.Patch("/{id}/dismiss", notificationAPIHandler.DismissUserNotification)
+		usersNotificationAPI.Delete("/{id}", notificationAPIHandler.DeleteUserNotification)
+		usersNotificationAPI.Get("/preferences", notificationAPIHandler.GetUserPreferences)
+		usersNotificationAPI.Patch("/preferences", notificationAPIHandler.UpdateUserPreferences)
 	}
 
 	// Admin API routes (require admin role + stricter rate limiting)
 	// AI.md: Admin API at /api/{api_version}/server/{admin_path}/
-	adminAPI := apiV1.Group("/server/" + cfg.GetAdminPath())
+	adminAPI := chi.NewRouter()
+	apiV1.Mount("/server/"+cfg.GetAdminPath(), adminAPI)
 	adminAPI.Use(middleware.TokenAuthMiddleware(database.GetServerDB(), db.DB))
 	// TokenAuthMiddleware accepts admin and regular-user tokens alike, so the
 	// admin group must additionally require an admin token or a usr_ token
@@ -2490,19 +2583,20 @@ func main() {
 
 		// AI.md PART 17: the admin's own account API lives under
 		// /api/{api_version}/server/{admin_path}/{admin_username}/
-		adminSelfAPI := adminAPI.Group("/:admin_username")
+		adminSelfAPI := chi.NewRouter()
+		adminAPI.Mount("/{admin_username}", adminSelfAPI)
 		adminSelfAPI.Use(handler.RequireAdminSelfAPI())
 
-		getCurrentAdmin := func(c *gin.Context) (*model.Admin, bool) {
-			adminValue, exists := c.Get("admin")
+		getCurrentAdmin := func(w http.ResponseWriter, req *http.Request) (*model.Admin, bool) {
+			adminValue, exists := reqctx.Get(req.Context(), "admin")
 			if !exists {
-				c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 				return nil, false
 			}
 
 			admin, ok := adminValue.(*model.Admin)
 			if !ok || admin == nil {
-				c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Invalid admin context"})
+				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid admin context"})
 				return nil, false
 			}
 
@@ -2580,30 +2674,30 @@ func main() {
 			return prefix + "****"
 		}
 
-		buildInviteURL := func(c *gin.Context, token string) string {
-			scheme := c.GetHeader("X-Forwarded-Proto")
+		buildInviteURL := func(req *http.Request, token string) string {
+			scheme := req.Header.Get("X-Forwarded-Proto")
 			if scheme == "" {
-				if c.Request.TLS != nil {
+				if req.TLS != nil {
 					scheme = "https"
 				} else {
 					scheme = "http"
 				}
 			}
 
-			return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, c.Request.Host, token)
+			return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, req.Host, token)
 		}
 
-		buildUserInviteURL := func(c *gin.Context, token string) string {
-			scheme := c.GetHeader("X-Forwarded-Proto")
+		buildUserInviteURL := func(req *http.Request, token string) string {
+			scheme := req.Header.Get("X-Forwarded-Proto")
 			if scheme == "" {
-				if c.Request.TLS != nil {
+				if req.TLS != nil {
 					scheme = "https"
 				} else {
 					scheme = "http"
 				}
 			}
 
-			return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, c.Request.Host, token)
+			return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, req.Host, token)
 		}
 
 		userInviteStatus := func(invite model.UserInvite) string {
@@ -2617,44 +2711,44 @@ func main() {
 		}
 
 		// Setup API per spec: /api/{api_version}/{admin_path}/config/setup/
-		adminAPI.GET("/config/setup", setupHandler.GetSetupStatus)
-		adminAPI.POST("/config/setup/verify", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "verified": true})
+		adminAPI.Get("/config/setup", setupHandler.GetSetupStatus)
+		adminAPI.Post("/config/setup/verify", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "verified": true})
 		})
-		adminAPI.POST("/config/setup/account", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin account created"})
+		adminAPI.Post("/config/setup/account", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin account created"})
 		})
-		adminAPI.POST("/config/setup/token", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "token": ""})
+		adminAPI.Post("/config/setup/token", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "token": ""})
 		})
-		adminAPI.POST("/config/setup/config", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Server config saved"})
+		adminAPI.Post("/config/setup/config", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Server config saved"})
 		})
-		adminAPI.POST("/config/setup/security", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Security settings saved"})
+		adminAPI.Post("/config/setup/security", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Security settings saved"})
 		})
-		adminAPI.POST("/config/setup/services", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Services configured"})
+		adminAPI.Post("/config/setup/services", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Services configured"})
 		})
-		adminAPI.POST("/config/setup/complete", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Setup complete"})
+		adminAPI.Post("/config/setup/complete", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Setup complete"})
 		})
 
 		// Server management API - all under /server/ per spec
 		// User management
-		adminAPI.GET("/config/users", adminHandler.ListUsers)
-		adminAPI.PUT("/config/users/:id", adminHandler.UpdateUser)
-		adminAPI.DELETE("/config/users/:id", adminHandler.DeleteUser)
-		adminAPI.GET("/config/users/invites", func(c *gin.Context) {
+		adminAPI.Get("/config/users", adminHandler.ListUsers)
+		adminAPI.Put("/config/users/{id}", adminHandler.UpdateUser)
+		adminAPI.Delete("/config/users/{id}", adminHandler.DeleteUser)
+		adminAPI.Get("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load user invites"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load user invites"})
 				return
 			}
 
-			responseInvites := make([]gin.H, 0, len(invites))
+			responseInvites := make([]map[string]interface{}, 0, len(invites))
 			for _, invite := range invites {
-				responseInvites = append(responseInvites, gin.H{
+				responseInvites = append(responseInvites, map[string]interface{}{
 					"id":         invite.ID,
 					"token":      invite.Token,
 					"username":   invite.Username,
@@ -2666,10 +2760,10 @@ func main() {
 				})
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "invites": responseInvites})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "invites": responseInvites})
 		})
-		adminAPI.POST("/config/users/invites", func(c *gin.Context) {
-			if _, ok := getCurrentAdmin(c); !ok {
+		adminAPI.Post("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
 
@@ -2679,30 +2773,30 @@ func main() {
 				Role          string `json:"role"`
 				ExpiresInDays int    `json:"expires_in_days"`
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 
 			username := util.NormalizeUsername(req.Username)
 			if err := util.ValidateUsername(username); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
 
 			email := util.NormalizeEmail(req.Email)
 			if err := util.ValidateEmail(email); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
 
 			if _, err := (&model.UserModel{DB: db.DB}).GetByUsername(username); err == nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Username is already in use"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Username is already in use"})
 				return
 			}
 
 			if _, err := (&model.UserModel{DB: db.DB}).GetByEmail(email); err == nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Email is already in use"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Email is already in use"})
 				return
 			}
 
@@ -2718,102 +2812,102 @@ func main() {
 
 			invite, err := userInviteModel.CreateInvite(username, email, role, expiresInDays)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":              true,
 				"message":         "User invite created",
 				"invite":          invite,
-				"invite_url":      buildUserInviteURL(c, invite.Token),
+				"invite_url":      buildUserInviteURL(r, invite.Token),
 				"expires_in_days": expiresInDays,
 			})
 		})
-		adminAPI.GET("/config/users/invites/:id", func(c *gin.Context) {
-			if _, ok := getCurrentAdmin(c); !ok {
+		adminAPI.Get("/config/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
 
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invite ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid invite ID"})
 				return
 			}
 
 			invite, err := userInviteModel.GetByID(id)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load invite"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load invite"})
 				return
 			}
 			if invite == nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Invite not found"})
+				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Invite not found"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":     true,
 				"invite": invite,
 				"status": userInviteStatus(*invite),
 			})
 		})
-		adminAPI.DELETE("/config/users/invites/:id", func(c *gin.Context) {
-			if _, ok := getCurrentAdmin(c); !ok {
+		adminAPI.Delete("/config/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
 
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid invite ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid invite ID"})
 				return
 			}
 
 			if err := userInviteModel.DeleteInvite(id); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke invite"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke invite"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Invite revoked"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Invite revoked"})
 		})
 
 		// AI.md PART 17 header spec: JSON counterpart of the admin global search
-		adminAPI.GET("/config/search", handler.AdminSearchAPI)
+		adminAPI.Get("/config/search", handler.AdminSearchAPI)
 
 		// Settings management
-		adminAPI.GET("/config/settings", adminHandler.ListSettings)
-		adminAPI.PATCH("/config/settings", adminSettingsHandler.UpdateSettings)
-		adminAPI.GET("/config/settings/:key", adminHandler.GetSetting)
-		adminAPI.PUT("/config/settings/:key", adminHandler.UpdateSetting)
-		adminAPI.GET("/config/settings/all", adminSettingsHandler.GetAllSettings)
-		adminAPI.PUT("/config/settings/bulk", adminSettingsHandler.UpdateSettings)
-		adminAPI.POST("/config/settings/reset", adminSettingsHandler.ResetSettings)
-		adminAPI.GET("/config/settings/export", adminSettingsHandler.ExportSettings)
-		adminAPI.POST("/config/settings/import", adminSettingsHandler.ImportSettings)
-		adminAPI.POST("/config/reload", adminSettingsHandler.ReloadConfig)
+		adminAPI.Get("/config/settings", adminHandler.ListSettings)
+		adminAPI.Patch("/config/settings", adminSettingsHandler.UpdateSettings)
+		adminAPI.Get("/config/settings/{key}", adminHandler.GetSetting)
+		adminAPI.Put("/config/settings/{key}", adminHandler.UpdateSetting)
+		adminAPI.Get("/config/settings/all", adminSettingsHandler.GetAllSettings)
+		adminAPI.Put("/config/settings/bulk", adminSettingsHandler.UpdateSettings)
+		adminAPI.Post("/config/settings/reset", adminSettingsHandler.ResetSettings)
+		adminAPI.Get("/config/settings/export", adminSettingsHandler.ExportSettings)
+		adminAPI.Post("/config/settings/import", adminSettingsHandler.ImportSettings)
+		adminAPI.Post("/config/reload", adminSettingsHandler.ReloadConfig)
 
 		// Admin settings sub-endpoints
-		adminAPI.POST("/config/users/settings", adminUsersHandler.UpdateUserSettings)
-		adminAPI.POST("/config/security/auth", adminAuthHandler.UpdateAuthSettings)
-		adminAPI.POST("/config/weather", adminWeatherHandler.UpdateWeatherSettings)
-		adminAPI.POST("/config/notifications", adminNotificationsHandler.UpdateNotificationSettings)
-		adminAPI.POST("/config/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
+		adminAPI.Post("/config/users/settings", adminUsersHandler.UpdateUserSettings)
+		adminAPI.Post("/config/security/auth", adminAuthHandler.UpdateAuthSettings)
+		adminAPI.Post("/config/weather", adminWeatherHandler.UpdateWeatherSettings)
+		adminAPI.Post("/config/notifications", adminNotificationsHandler.UpdateNotificationSettings)
+		adminAPI.Post("/config/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
 
 		// API token management under /server/security/
-		adminAPI.GET("/config/security/tokens", adminHandler.ListTokens)
-		adminAPI.POST("/config/security/tokens", adminHandler.GenerateToken)
-		adminAPI.DELETE("/config/security/tokens/:id", adminHandler.RevokeToken)
+		adminAPI.Get("/config/security/tokens", adminHandler.ListTokens)
+		adminAPI.Post("/config/security/tokens", adminHandler.GenerateToken)
+		adminAPI.Delete("/config/security/tokens/{id}", adminHandler.RevokeToken)
 
 		// Audit logs under /server/logs/
-		adminAPI.GET("/config/logs/audit-logs", adminHandler.ListAuditLogs)
-		adminAPI.DELETE("/config/logs/audit-logs", adminHandler.ClearAuditLogs)
+		adminAPI.Get("/config/logs/audit-logs", adminHandler.ListAuditLogs)
+		adminAPI.Delete("/config/logs/audit-logs", adminHandler.ClearAuditLogs)
 
 		// System stats
-		adminAPI.GET("/config/stats", adminHandler.GetSystemStats)
+		adminAPI.Get("/config/stats", adminHandler.GetSystemStats)
 
 		// Email settings per spec: /api/{api_version}/{admin_path}/config/email/
-		adminAPI.GET("/config/email", func(c *gin.Context) {
+		adminAPI.Get("/config/email", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
 				"provider": settingsModel.GetString("email.provider", ""),
 				"host":     settingsModel.GetString("email.host", ""),
@@ -2821,32 +2915,32 @@ func main() {
 				"from":     settingsModel.GetString("email.from", ""),
 			})
 		})
-		adminAPI.PATCH("/config/email", func(c *gin.Context) {
+		adminAPI.Patch("/config/email", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
-			if err := c.ShouldBindJSON(&settings); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Email settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Email settings updated"})
 		})
-		adminAPI.POST("/config/email/test", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
+		adminAPI.Post("/config/email/test", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": "Test email functionality available when SMTP is configured",
 			})
 		})
 
 		// Branding per spec: /api/{api_version}/{admin_path}/config/branding/
-		adminAPI.GET("/config/branding", func(c *gin.Context) {
+		adminAPI.Get("/config/branding", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
 				"description": settingsModel.GetString("branding.description", cfg.Server.Branding.Description),
 				"logo_url":    settingsModel.GetString("branding.logo_url", ""),
@@ -2854,91 +2948,91 @@ func main() {
 				"theme_color": settingsModel.GetString("branding.theme_color", ""),
 			})
 		})
-		adminAPI.PATCH("/config/branding", func(c *gin.Context) {
+		adminAPI.Patch("/config/branding", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
-			if err := c.ShouldBindJSON(&settings); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Branding settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Branding settings updated"})
 		})
 
 		// Pages per spec: /api/{api_version}/{admin_path}/config/pages/
-		adminAPI.GET("/config/pages", func(c *gin.Context) {
+		adminAPI.Get("/config/pages", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			c.JSON(http.StatusOK, gin.H{
-				"about":   gin.H{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
-				"privacy": gin.H{"enabled": settingsModel.GetBool("pages.privacy.enabled", true)},
-				"contact": gin.H{"enabled": settingsModel.GetBool("pages.contact.enabled", true)},
-				"help":    gin.H{"enabled": settingsModel.GetBool("pages.help.enabled", true)},
-				"terms":   gin.H{"enabled": settingsModel.GetBool("pages.terms.enabled", true)},
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"about":   map[string]interface{}{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
+				"privacy": map[string]interface{}{"enabled": settingsModel.GetBool("pages.privacy.enabled", true)},
+				"contact": map[string]interface{}{"enabled": settingsModel.GetBool("pages.contact.enabled", true)},
+				"help":    map[string]interface{}{"enabled": settingsModel.GetBool("pages.help.enabled", true)},
+				"terms":   map[string]interface{}{"enabled": settingsModel.GetBool("pages.terms.enabled", true)},
 			})
 		})
-		adminAPI.GET("/config/pages/:name", func(c *gin.Context) {
-			name := c.Param("name")
+		adminAPI.Get("/config/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
+			name := chi.URLParam(r, "name")
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"name":    name,
 				"enabled": settingsModel.GetBool("pages."+name+".enabled", true),
 				"content": settingsModel.GetString("pages."+name+".content", ""),
 			})
 		})
-		adminAPI.PATCH("/config/pages/:name", func(c *gin.Context) {
-			name := c.Param("name")
+		adminAPI.Patch("/config/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
+			name := chi.URLParam(r, "name")
 			var settings map[string]interface{}
-			if err := c.ShouldBindJSON(&settings); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": fmt.Sprintf("%s page updated", name)})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": fmt.Sprintf("%s page updated", name)})
 		})
 
 		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
-		adminAPI.GET("/config/web", func(c *gin.Context) {
+		adminAPI.Get("/config/web", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
 			})
 		})
-		adminAPI.PATCH("/config/web", func(c *gin.Context) {
+		adminAPI.Patch("/config/web", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
-			if err := c.ShouldBindJSON(&settings); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.Set("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
 			}
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Web settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Web settings updated"})
 		})
 
 		// Admin status and health endpoints
 		adminServerStatusHandler := handler.AdminServerStatus(db, port, httpsPort, sslManager)
-		adminAPI.GET("/config/status", adminServerStatusHandler)
-		adminAPI.GET("/config/health", adminServerStatusHandler)
+		adminAPI.Get("/config/status", adminServerStatusHandler)
+		adminAPI.Get("/config/health", adminServerStatusHandler)
 
 		// Server restart per spec: POST /server/restart
-		adminAPI.POST("/config/restart", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{
+		adminAPI.Post("/config/restart", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": "Server restart initiated",
 			})
@@ -2949,29 +3043,29 @@ func main() {
 		})
 
 		// Scheduler per spec: /api/{api_version}/{admin_path}/config/scheduler/
-		adminAPI.GET("/config/scheduler", schedulerHandler.GetAllTasks)
-		adminAPI.GET("/config/scheduler/:name", schedulerHandler.GetTaskHistory)
-		adminAPI.PATCH("/config/scheduler/:name", schedulerHandler.UpdateTask)
-		adminAPI.POST("/config/scheduler/:name/run", schedulerHandler.TriggerTask)
-		adminAPI.POST("/config/scheduler/:name/enable", schedulerHandler.EnableTask)
-		adminAPI.POST("/config/scheduler/:name/disable", schedulerHandler.DisableTask)
+		adminAPI.Get("/config/scheduler", schedulerHandler.GetAllTasks)
+		adminAPI.Get("/config/scheduler/{name}", schedulerHandler.GetTaskHistory)
+		adminAPI.Patch("/config/scheduler/{name}", schedulerHandler.UpdateTask)
+		adminAPI.Post("/config/scheduler/{name}/run", schedulerHandler.TriggerTask)
+		adminAPI.Post("/config/scheduler/{name}/enable", schedulerHandler.EnableTask)
+		adminAPI.Post("/config/scheduler/{name}/disable", schedulerHandler.DisableTask)
 
 		// Notification channel management under /server/{admin_path}/config/channels/
-		adminAPI.GET("/config/channels", channelHandler.ListChannels)
-		adminAPI.GET("/config/channels/definitions", channelHandler.GetChannelDefinitions)
-		adminAPI.GET("/config/channels/queue/stats", channelHandler.GetQueueStats)
-		adminAPI.GET("/config/channels/history", channelHandler.GetNotificationHistory)
-		adminAPI.POST("/config/channels/initialize", channelHandler.InitializeChannels)
-		adminAPI.GET("/config/channels/:type", channelHandler.GetChannel)
-		adminAPI.PUT("/config/channels/:type", channelHandler.UpdateChannel)
-		adminAPI.POST("/config/channels/:type/enable", channelHandler.EnableChannel)
-		adminAPI.POST("/config/channels/:type/disable", channelHandler.DisableChannel)
-		adminAPI.POST("/config/channels/:type/test", channelHandler.TestChannel)
-		adminAPI.GET("/config/channels/:type/stats", channelHandler.GetChannelStats)
+		adminAPI.Get("/config/channels", channelHandler.ListChannels)
+		adminAPI.Get("/config/channels/definitions", channelHandler.GetChannelDefinitions)
+		adminAPI.Get("/config/channels/queue/stats", channelHandler.GetQueueStats)
+		adminAPI.Get("/config/channels/history", channelHandler.GetNotificationHistory)
+		adminAPI.Post("/config/channels/initialize", channelHandler.InitializeChannels)
+		adminAPI.Get("/config/channels/{type}", channelHandler.GetChannel)
+		adminAPI.Put("/config/channels/{type}", channelHandler.UpdateChannel)
+		adminAPI.Post("/config/channels/{type}/enable", channelHandler.EnableChannel)
+		adminAPI.Post("/config/channels/{type}/disable", channelHandler.DisableChannel)
+		adminAPI.Post("/config/channels/{type}/test", channelHandler.TestChannel)
+		adminAPI.Get("/config/channels/{type}/stats", channelHandler.GetChannelStats)
 
 		// Admin profile per spec: /api/{api_version}/{admin_path}/profile/
-		adminSelfAPI.GET("/profile", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
@@ -2980,10 +3074,10 @@ func main() {
 			profile.PasswordHash = ""
 			profile.APITokenPrefix = ""
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "profile": profile})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "profile": profile})
 		})
-		adminSelfAPI.PATCH("/profile", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Patch("/profile", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
@@ -2992,8 +3086,8 @@ func main() {
 				Username *string `json:"username"`
 				Email    *string `json:"email"`
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 
@@ -3003,7 +3097,7 @@ func main() {
 			if req.Username != nil {
 				username = util.NormalizeUsername(*req.Username)
 				if err := util.ValidateUsername(username); err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 					return
 				}
 			}
@@ -3011,38 +3105,38 @@ func main() {
 			if req.Email != nil {
 				email = util.NormalizeEmail(*req.Email)
 				if err := util.ValidateEmail(email); err != nil {
-					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 					return
 				}
 			}
 
 			if req.Username == nil && req.Email == nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "No profile fields provided"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "No profile fields provided"})
 				return
 			}
 
 			if err := adminModel.Update(admin.ID, username, email); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update profile"})
 				return
 			}
 
 			updatedAdmin, err := adminModel.GetByID(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load updated profile"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load updated profile"})
 				return
 			}
 
 			updatedAdmin.PasswordHash = ""
 			updatedAdmin.APITokenPrefix = ""
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": "Profile updated",
 				"profile": updatedAdmin,
 			})
 		})
-		adminSelfAPI.POST("/profile/password", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Post("/profile/password", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
@@ -3052,71 +3146,71 @@ func main() {
 				NewPassword     string `json:"new_password" binding:"required"`
 				ConfirmPassword string `json:"confirm_password" binding:"required"`
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 
 			if req.NewPassword != req.ConfirmPassword {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Passwords do not match"})
 				return
 			}
 
 			if len(req.NewPassword) < 8 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Password must be at least 8 characters long"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Password must be at least 8 characters long"})
 				return
 			}
 
 			fullAdmin, err := adminModel.GetByID(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify current password"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify current password"})
 				return
 			}
 
 			valid, err := model.VerifyPassword(req.CurrentPassword, fullAdmin.PasswordHash)
 			if err != nil || !valid {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
 				return
 			}
 
 			if err := adminModel.UpdatePassword(admin.ID, req.NewPassword); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update password"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Password changed successfully"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Password changed successfully"})
 		})
-		adminSelfAPI.GET("/profile/token", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Get("/profile/token", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":    true,
 				"token": maskAdminToken(admin.APITokenPrefix),
 			})
 		})
-		adminSelfAPI.POST("/profile/token", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Post("/profile/token", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
 			newToken, err := adminModel.RegenerateAPIToken(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to regenerate API token"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to regenerate API token"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": "API token regenerated successfully",
 				"token":   newToken,
 			})
 		})
-		adminSelfAPI.GET("/profile/sessions", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Get("/profile/sessions", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
@@ -3124,51 +3218,58 @@ func main() {
 			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			sessions, err := sessionModel.GetActiveSessions(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load sessions"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load sessions"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "sessions": sessions})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "sessions": sessions})
 		})
-		adminSelfAPI.POST("/profile/sessions/logout-all", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Post("/profile/sessions/logout-all", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
 			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			if err := sessionModel.DeleteAllSessionsForAdmin(admin.ID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to log out of all sessions"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to log out of all sessions"})
 				return
 			}
 
-			c.SetCookie("admin_session", "", -1, "/", "", c.Request.TLS != nil, true)
+			http.SetCookie(w, &http.Cookie{
+				Name:     "admin_session",
+				Value:    "",
+				MaxAge:   -1,
+				Path:     "/",
+				Secure:   r.TLS != nil,
+				HttpOnly: true,
+			})
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Logged out of all sessions"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Logged out of all sessions"})
 		})
-		adminSelfAPI.GET("/preferences", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Get("/preferences", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
 			prefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load preferences"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load preferences"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "preferences": prefs})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "preferences": prefs})
 		})
-		adminSelfAPI.PATCH("/preferences", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminSelfAPI.Patch("/preferences", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
 			currentPrefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load current preferences"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load current preferences"})
 				return
 			}
 
@@ -3179,8 +3280,8 @@ func main() {
 				NotificationsEnabled *bool   `json:"notifications_enabled"`
 				EmailNotifications   *bool   `json:"email_notifications"`
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 
@@ -3195,7 +3296,7 @@ func main() {
 				case "auto", "light", "dark":
 					theme = *req.Theme
 				default:
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid theme"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid theme"})
 					return
 				}
 			}
@@ -3203,7 +3304,7 @@ func main() {
 			if req.Language != nil {
 				language = strings.TrimSpace(*req.Language)
 				if language == "" {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Language cannot be empty"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Language cannot be empty"})
 					return
 				}
 			}
@@ -3211,7 +3312,7 @@ func main() {
 			if req.Timezone != nil {
 				timezone = strings.TrimSpace(*req.Timezone)
 				if timezone == "" {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Timezone cannot be empty"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Timezone cannot be empty"})
 					return
 				}
 			}
@@ -3233,7 +3334,7 @@ func main() {
 				EmailNotifications:   emailNotifications,
 			})
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode preferences"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to encode preferences"})
 				return
 			}
 
@@ -3244,17 +3345,17 @@ func main() {
 				SET preferences = ?, updated_at = ?
 				WHERE admin_id = ?
 			`, string(updatedJSON), dbtime.FormatSQLTimestamp(time.Now()), admin.ID); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update preferences"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update preferences"})
 				return
 			}
 
 			updatedPrefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load updated preferences"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load updated preferences"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":          true,
 				"message":     "Preferences updated",
 				"preferences": updatedPrefs,
@@ -3263,26 +3364,26 @@ func main() {
 
 		// Admin passkeys per AI.md PART 17 line 28674-28683
 		// /api/{api_version}/{admin_path}/profile/security/passkeys
-		adminSelfAPI.GET("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
-		adminSelfAPI.POST("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
-		adminSelfAPI.DELETE("/profile/security/passkeys/:passkey_id", adminPasskeyHandler.DeletePasskey)
+		adminSelfAPI.Get("/profile/security/passkeys", adminPasskeyHandler.ListPasskeys)
+		adminSelfAPI.Post("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
+		adminSelfAPI.Delete("/profile/security/passkeys/{passkey_id}", adminPasskeyHandler.DeletePasskey)
 
 		// Server admins per spec: /api/{api_version}/{admin_path}/config/admins/
-		adminAPI.GET("/config/admins", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminAPI.Get("/config/admins", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
 			count, err := adminModel.GetCount()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count admins"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to count admins"})
 				return
 			}
 
 			onlineAdmins, err := getOnlineAdminUsernames()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load online admins"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load online admins"})
 				return
 			}
 
@@ -3290,7 +3391,7 @@ func main() {
 			currentAdmin.PasswordHash = ""
 			currentAdmin.APITokenPrefix = ""
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":             true,
 				"count":          count,
 				"current_admin":  currentAdmin,
@@ -3298,20 +3399,20 @@ func main() {
 				"privacy_notice": "Other admin account details are not exposed",
 			})
 		})
-		adminAPI.GET("/config/admins/:id", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminAPI.Get("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid admin ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
 				return
 			}
 
 			if id != admin.ID {
-				c.JSON(http.StatusForbidden, gin.H{"error": "Other admin account details are private"})
+				writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Other admin account details are private"})
 				return
 			}
 
@@ -3319,106 +3420,106 @@ func main() {
 			profile.PasswordHash = ""
 			profile.APITokenPrefix = ""
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "admin": profile})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "admin": profile})
 		})
-		adminAPI.DELETE("/config/admins/:id", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminAPI.Delete("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid admin ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
 				return
 			}
 
 			if id == admin.ID {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot delete your own account"})
 				return
 			}
 
 			if id == 1 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Primary admin cannot be deleted"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Primary admin cannot be deleted"})
 				return
 			}
 
 			if err := adminModel.Delete(id); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin deleted"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin deleted"})
 		})
-		adminAPI.POST("/config/admins/:id/disable", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminAPI.Post("/config/admins/{id}/disable", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
 
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid admin ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
 				return
 			}
 
 			if id == admin.ID {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable your own account"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot disable your own account"})
 				return
 			}
 
 			if id == 1 {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Primary admin cannot be disabled"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Primary admin cannot be disabled"})
 				return
 			}
 
 			targetAdmin, err := adminModel.GetByID(id)
 			if err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Admin not found"})
+				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Admin not found"})
 				return
 			}
 
 			if targetAdmin.IsSuperAdmin {
 				otherSuperAdmins, err := countOtherActiveSuperAdmins(id)
 				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate admin hierarchy"})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to validate admin hierarchy"})
 					return
 				}
 				if otherSuperAdmins == 0 {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot disable the last active super admin"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot disable the last active super admin"})
 					return
 				}
 			}
 
 			if err := adminModel.Update(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, false); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to disable admin"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to disable admin"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin disabled"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin disabled"})
 		})
-		adminAPI.POST("/config/admins/:id/enable", func(c *gin.Context) {
-			id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+		adminAPI.Post("/config/admins/{id}/enable", func(w http.ResponseWriter, r *http.Request) {
+			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid admin ID"})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
 				return
 			}
 
 			targetAdmin, err := adminModel.GetByID(id)
 			if err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Admin not found"})
+				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Admin not found"})
 				return
 			}
 
 			if err := adminModel.Update(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, true); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enable admin"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to enable admin"})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{"ok": true, "message": "Admin enabled"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin enabled"})
 		})
-		adminAPI.POST("/config/admins/invite", func(c *gin.Context) {
-			admin, ok := getCurrentAdmin(c)
+		adminAPI.Post("/config/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
 			}
@@ -3427,249 +3528,257 @@ func main() {
 				Email     string `json:"email" binding:"required,email"`
 				ExpiresIn string `json:"expires_in"`
 			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 				return
 			}
 
 			invite, expiresIn, err := adminInviteService.CreateInvite(req.Email, int(admin.ID), req.ExpiresIn)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
 
-			c.JSON(http.StatusOK, gin.H{
+			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":         true,
 				"message":    "Admin invite created",
 				"token":      invite.Token,
 				"email":      invite.InvitedEmail,
 				"expires_at": invite.ExpiresAt,
 				"expires_in": expiresIn,
-				"invite_url": buildInviteURL(c, invite.Token),
+				"invite_url": buildInviteURL(r, invite.Token),
 			})
 		})
 
 		// WebUI Notification API routes - Admin (root-level since notifications is a root admin path)
-		adminSelfAPI.GET("/notifications", notificationAPIHandler.GetAdminNotifications)
-		adminSelfAPI.GET("/notifications/unread", notificationAPIHandler.GetAdminUnreadNotifications)
-		adminSelfAPI.GET("/notifications/count", notificationAPIHandler.GetAdminUnreadCount)
-		adminSelfAPI.GET("/notifications/stats", notificationAPIHandler.GetAdminStats)
-		adminSelfAPI.PATCH("/notifications/:id/read", notificationAPIHandler.MarkAdminNotificationRead)
-		adminSelfAPI.PATCH("/notifications/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
-		adminSelfAPI.PATCH("/notifications/:id/dismiss", notificationAPIHandler.DismissAdminNotification)
-		adminSelfAPI.DELETE("/notifications/:id", notificationAPIHandler.DeleteAdminNotification)
-		adminSelfAPI.GET("/notifications/preferences", notificationAPIHandler.GetAdminPreferences)
-		adminSelfAPI.PATCH("/notifications/preferences", notificationAPIHandler.UpdateAdminPreferences)
-		adminSelfAPI.POST("/notifications/send", notificationAPIHandler.SendTestNotification)
+		adminSelfAPI.Get("/notifications", notificationAPIHandler.GetAdminNotifications)
+		adminSelfAPI.Get("/notifications/unread", notificationAPIHandler.GetAdminUnreadNotifications)
+		adminSelfAPI.Get("/notifications/count", notificationAPIHandler.GetAdminUnreadCount)
+		adminSelfAPI.Get("/notifications/stats", notificationAPIHandler.GetAdminStats)
+		adminSelfAPI.Patch("/notifications/{id}/read", notificationAPIHandler.MarkAdminNotificationRead)
+		adminSelfAPI.Patch("/notifications/read", notificationAPIHandler.MarkAllAdminNotificationsRead)
+		adminSelfAPI.Patch("/notifications/{id}/dismiss", notificationAPIHandler.DismissAdminNotification)
+		adminSelfAPI.Delete("/notifications/{id}", notificationAPIHandler.DeleteAdminNotification)
+		adminSelfAPI.Get("/notifications/preferences", notificationAPIHandler.GetAdminPreferences)
+		adminSelfAPI.Patch("/notifications/preferences", notificationAPIHandler.UpdateAdminPreferences)
+		adminSelfAPI.Post("/notifications/send", notificationAPIHandler.SendTestNotification)
 
 		// SMTP provider management under /server/
-		adminAPI.GET("/config/smtp/providers", channelHandler.ListSMTPProviders)
-		adminAPI.POST("/config/smtp/autodetect", channelHandler.AutoDetectSMTP)
+		adminAPI.Get("/config/smtp/providers", channelHandler.ListSMTPProviders)
+		adminAPI.Post("/config/smtp/autodetect", channelHandler.AutoDetectSMTP)
 
 		// Admin panel settings endpoints under /server/
-		adminAPI.PUT("/config/settings/web", handler.SaveWebSettings)
-		adminAPI.PUT("/config/settings/security", handler.SaveSecuritySettings)
-		adminAPI.PUT("/config/settings/database", handler.SaveDatabaseSettings)
+		adminAPI.Put("/config/settings/web", handler.SaveWebSettings)
+		adminAPI.Put("/config/settings/security", handler.SaveSecuritySettings)
+		adminAPI.Put("/config/settings/database", handler.SaveDatabaseSettings)
 
 		// Database management endpoints under /server/
-		adminAPI.POST("/config/database/test", handler.TestDatabaseConnection)
-		adminAPI.POST("/config/database/test-config", handler.TestDatabaseConfigConnection)
-		adminAPI.POST("/config/database/optimize", handler.OptimizeDatabase)
-		adminAPI.POST("/config/database/vacuum", handler.VacuumDatabase)
-		adminAPI.POST("/config/cache/clear", handler.ClearCache)
+		adminAPI.Post("/config/database/test", handler.TestDatabaseConnection)
+		adminAPI.Post("/config/database/test-config", handler.TestDatabaseConfigConnection)
+		adminAPI.Post("/config/database/optimize", handler.OptimizeDatabase)
+		adminAPI.Post("/config/database/vacuum", handler.VacuumDatabase)
+		adminAPI.Post("/config/cache/clear", handler.ClearCache)
 
 		// Backup management per spec: /api/{api_version}/{admin_path}/config/backup/
-		adminAPI.GET("/config/backup", handler.ListBackups)
-		adminAPI.POST("/config/backup", handler.CreateBackup)
-		adminAPI.GET("/config/backup/stats", handler.BackupStats)
-		adminAPI.GET("/config/backup/schedule", handler.GetBackupSchedule)
-		adminAPI.POST("/config/backup/schedule", handler.SaveBackupSchedule)
-		adminAPI.POST("/config/backup/restore", handler.RestoreBackup)
+		adminAPI.Get("/config/backup", handler.ListBackups)
+		adminAPI.Post("/config/backup", handler.CreateBackup)
+		adminAPI.Get("/config/backup/stats", handler.BackupStats)
+		adminAPI.Get("/config/backup/schedule", handler.GetBackupSchedule)
+		adminAPI.Post("/config/backup/schedule", handler.SaveBackupSchedule)
+		adminAPI.Post("/config/backup/restore", handler.RestoreBackup)
 		// The param is named :filename because that is the value the handlers
 		// validate and resolve against the backup directory - a backup has no
 		// identifier other than its file name.
-		adminAPI.GET("/config/backup/:filename", handler.DownloadBackup)
-		adminAPI.DELETE("/config/backup/:filename", handler.DeleteBackup)
-		adminAPI.GET("/config/backup/:filename/download", handler.DownloadBackup)
+		adminAPI.Get("/config/backup/{filename}", handler.DownloadBackup)
+		adminAPI.Delete("/config/backup/{filename}", handler.DeleteBackup)
+		adminAPI.Get("/config/backup/{filename}/download", handler.DownloadBackup)
 
 		// Template management under /server/
-		adminAPI.GET("/config/templates", templateHandler.ListTemplates)
-		adminAPI.GET("/config/templates/variables", templateHandler.GetTemplateVariables)
-		adminAPI.POST("/config/templates/preview", templateHandler.PreviewTemplate)
-		adminAPI.POST("/config/templates/initialize", templateHandler.InitializeDefaults)
-		adminAPI.GET("/config/templates/:id", templateHandler.GetTemplate)
-		adminAPI.POST("/config/templates", templateHandler.CreateTemplate)
-		adminAPI.PUT("/config/templates/:id", templateHandler.UpdateTemplate)
-		adminAPI.DELETE("/config/templates/:id", templateHandler.DeleteTemplate)
-		adminAPI.POST("/config/templates/:id/clone", templateHandler.CloneTemplate)
+		adminAPI.Get("/config/templates", templateHandler.ListTemplates)
+		adminAPI.Get("/config/templates/variables", templateHandler.GetTemplateVariables)
+		adminAPI.Post("/config/templates/preview", templateHandler.PreviewTemplate)
+		adminAPI.Post("/config/templates/initialize", templateHandler.InitializeDefaults)
+		adminAPI.Get("/config/templates/{id}", templateHandler.GetTemplate)
+		adminAPI.Post("/config/templates", templateHandler.CreateTemplate)
+		adminAPI.Put("/config/templates/{id}", templateHandler.UpdateTemplate)
+		adminAPI.Delete("/config/templates/{id}", templateHandler.DeleteTemplate)
+		adminAPI.Post("/config/templates/{id}/clone", templateHandler.CloneTemplate)
 
 		// Notification metrics management under /server/
-		adminAPI.GET("/config/metrics/notifications/summary", metricsHandler.GetSummary)
-		adminAPI.GET("/config/metrics/notifications/channels/:type", metricsHandler.GetChannelMetrics)
-		adminAPI.GET("/config/metrics/notifications/errors", metricsHandler.GetRecentErrors)
-		adminAPI.GET("/config/metrics/notifications/health", metricsHandler.GetHealthStatus)
+		adminAPI.Get("/config/metrics/notifications/summary", metricsHandler.GetSummary)
+		adminAPI.Get("/config/metrics/notifications/channels/{type}", metricsHandler.GetChannelMetrics)
+		adminAPI.Get("/config/metrics/notifications/errors", metricsHandler.GetRecentErrors)
+		adminAPI.Get("/config/metrics/notifications/health", metricsHandler.GetHealthStatus)
 
 		// Tor hidden service management (AI.md PART 32)
 		// API per spec: /api/{api_version}/{admin_path}/config/tor/
-		torAPI := adminAPI.Group("/config/tor")
+		torAPI := chi.NewRouter()
+		adminAPI.Mount("/config/tor", torAPI)
 		{
-			torAPI.GET("", torAdminHandler.GetStatus)
-			torAPI.PATCH("", torAdminHandler.UpdateSettings)
-			torAPI.POST("/regenerate", torAdminHandler.Regenerate)
-			torAPI.GET("/vanity", torAdminHandler.GetVanityStatus)
-			torAPI.POST("/vanity", torAdminHandler.GenerateVanity)
-			torAPI.DELETE("/vanity", torAdminHandler.CancelVanity)
-			torAPI.POST("/vanity/apply", torAdminHandler.ApplyVanity)
-			torAPI.POST("/import", torAdminHandler.ImportKeys)
+			torAPI.Get("/", torAdminHandler.GetStatus)
+			torAPI.Patch("/", torAdminHandler.UpdateSettings)
+			torAPI.Post("/regenerate", torAdminHandler.Regenerate)
+			torAPI.Get("/vanity", torAdminHandler.GetVanityStatus)
+			torAPI.Post("/vanity", torAdminHandler.GenerateVanity)
+			torAPI.Delete("/vanity", torAdminHandler.CancelVanity)
+			torAPI.Post("/vanity/apply", torAdminHandler.ApplyVanity)
+			torAPI.Post("/import", torAdminHandler.ImportKeys)
 		}
 
 		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
-		webAPI := adminAPI.Group("/config/web")
+		webAPI := chi.NewRouter()
+		adminAPI.Mount("/config/web", webAPI)
 		{
-			webAPI.GET("/robots", adminWebHandler.GetRobotsTxt)
-			webAPI.PATCH("/robots", adminWebHandler.UpdateRobotsTxt)
-			webAPI.GET("/robots/preview", adminWebHandler.GetRobotsTxt)
-			webAPI.GET("/security", adminWebHandler.GetSecurityTxt)
-			webAPI.PATCH("/security", adminWebHandler.UpdateSecurityTxt)
-			webAPI.GET("/security/preview", adminWebHandler.GetSecurityTxt)
+			webAPI.Get("/robots", adminWebHandler.GetRobotsTxt)
+			webAPI.Patch("/robots", adminWebHandler.UpdateRobotsTxt)
+			webAPI.Get("/robots/preview", adminWebHandler.GetRobotsTxt)
+			webAPI.Get("/security", adminWebHandler.GetSecurityTxt)
+			webAPI.Patch("/security", adminWebHandler.UpdateSecurityTxt)
+			webAPI.Get("/security/preview", adminWebHandler.GetSecurityTxt)
 		}
 
 		// Email templates per spec: /api/{api_version}/{admin_path}/config/email/templates/
-		emailTemplateAPI := adminAPI.Group("/config/email/templates")
+		emailTemplateAPI := chi.NewRouter()
+		adminAPI.Mount("/config/email/templates", emailTemplateAPI)
 		{
-			emailTemplateAPI.GET("", emailTemplateHandler.ListTemplates)
-			emailTemplateAPI.GET("/:name", emailTemplateHandler.GetTemplate)
-			emailTemplateAPI.PUT("/:name", emailTemplateHandler.UpdateTemplate)
-			emailTemplateAPI.POST("/:name/reset", emailTemplateHandler.ImportTemplate)
-			emailTemplateAPI.POST("/:name/preview", emailTemplateHandler.TestTemplate)
+			emailTemplateAPI.Get("/", emailTemplateHandler.ListTemplates)
+			emailTemplateAPI.Get("/{name}", emailTemplateHandler.GetTemplate)
+			emailTemplateAPI.Put("/{name}", emailTemplateHandler.UpdateTemplate)
+			emailTemplateAPI.Post("/{name}/reset", emailTemplateHandler.ImportTemplate)
+			emailTemplateAPI.Post("/{name}/preview", emailTemplateHandler.TestTemplate)
 		}
 
 		// System logs management (already under /server/logs)
-		logsAPI := adminAPI.Group("/config/logs")
+		logsAPI := chi.NewRouter()
+		adminAPI.Mount("/config/logs", logsAPI)
 		{
-			logsAPI.GET("", logsHandler.GetLogs)
-			logsAPI.GET("/:type", logsHandler.GetLogs)
-			logsAPI.GET("/:type/download", logsHandler.DownloadLogs)
-			logsAPI.GET("/audit", logsHandler.GetAuditLogs)
-			logsAPI.GET("/audit/download", logsHandler.DownloadAuditLogs)
-			logsAPI.POST("/audit/search", logsHandler.SearchAuditLogs)
-			logsAPI.GET("/audit/stats", logsHandler.GetAuditStats)
-			logsAPI.GET("/stats", logsHandler.GetLogStats)
-			logsAPI.GET("/archives", logsHandler.ListArchivedLogs)
-			logsAPI.GET("/stream", logsHandler.StreamLogs)
-			logsAPI.POST("/rotate", logsHandler.RotateLogs)
-			logsAPI.DELETE("", logsHandler.ClearLogs)
+			logsAPI.Get("/", logsHandler.GetLogs)
+			logsAPI.Get("/{type}", logsHandler.GetLogs)
+			logsAPI.Get("/{type}/download", logsHandler.DownloadLogs)
+			logsAPI.Get("/audit", logsHandler.GetAuditLogs)
+			logsAPI.Get("/audit/download", logsHandler.DownloadAuditLogs)
+			logsAPI.Post("/audit/search", logsHandler.SearchAuditLogs)
+			logsAPI.Get("/audit/stats", logsHandler.GetAuditStats)
+			logsAPI.Get("/stats", logsHandler.GetLogStats)
+			logsAPI.Get("/archives", logsHandler.ListArchivedLogs)
+			logsAPI.Get("/stream", logsHandler.StreamLogs)
+			logsAPI.Post("/rotate", logsHandler.RotateLogs)
+			logsAPI.Delete("/", logsHandler.ClearLogs)
 		}
 
 		// SSL/TLS per spec: /api/{api_version}/{admin_path}/config/ssl/
-		sslAPI := adminAPI.Group("/config/ssl")
+		sslAPI := chi.NewRouter()
+		adminAPI.Mount("/config/ssl", sslAPI)
 		{
-			sslAPI.GET("", sslHandler.GetStatus)
-			sslAPI.PATCH("", sslHandler.UpdateSettings)
-			sslAPI.POST("/renew", sslHandler.RenewCertificate)
-			sslAPI.POST("/obtain", sslHandler.ObtainCertificate)
-			sslAPI.POST("/auto-renew", sslHandler.StartAutoRenewal)
-			sslAPI.GET("/dns-records", sslHandler.GetDNSRecords)
-			sslAPI.POST("/verify", sslHandler.VerifyCertificate)
-			sslAPI.GET("/export", sslHandler.ExportCertificate)
-			sslAPI.POST("/import", sslHandler.ImportCertificate)
-			sslAPI.POST("/revoke", sslHandler.RevokeCertificate)
-			sslAPI.POST("/test", sslHandler.TestSSL)
-			sslAPI.POST("/scan", sslHandler.SecurityScan)
+			sslAPI.Get("/", sslHandler.GetStatus)
+			sslAPI.Patch("/", sslHandler.UpdateSettings)
+			sslAPI.Post("/renew", sslHandler.RenewCertificate)
+			sslAPI.Post("/obtain", sslHandler.ObtainCertificate)
+			sslAPI.Post("/auto-renew", sslHandler.StartAutoRenewal)
+			sslAPI.Get("/dns-records", sslHandler.GetDNSRecords)
+			sslAPI.Post("/verify", sslHandler.VerifyCertificate)
+			sslAPI.Get("/export", sslHandler.ExportCertificate)
+			sslAPI.Post("/import", sslHandler.ImportCertificate)
+			sslAPI.Post("/revoke", sslHandler.RevokeCertificate)
+			sslAPI.Post("/test", sslHandler.TestSSL)
+			sslAPI.Post("/scan", sslHandler.SecurityScan)
 		}
 
 		// Metrics configuration under /server/
-		metricsAPI := adminAPI.Group("/config/metrics")
+		metricsAPI := chi.NewRouter()
+		adminAPI.Mount("/config/metrics", metricsAPI)
 		{
-			metricsAPI.GET("/config", metricsConfigHandler.GetConfig)
-			metricsAPI.PUT("/config", metricsConfigHandler.UpdateConfig)
-			metricsAPI.GET("/stats", metricsConfigHandler.GetStats)
-			metricsAPI.GET("/list", metricsConfigHandler.ListMetrics)
-			metricsAPI.POST("/custom", metricsConfigHandler.CreateMetric)
-			metricsAPI.DELETE("/custom/:name", metricsConfigHandler.DeleteMetric)
-			metricsAPI.GET("/export", metricsConfigHandler.ExportMetrics)
-			metricsAPI.PUT("/toggle/:name", metricsConfigHandler.ToggleMetric)
+			metricsAPI.Get("/config", metricsConfigHandler.GetConfig)
+			metricsAPI.Put("/config", metricsConfigHandler.UpdateConfig)
+			metricsAPI.Get("/stats", metricsConfigHandler.GetStats)
+			metricsAPI.Get("/list", metricsConfigHandler.ListMetrics)
+			metricsAPI.Post("/custom", metricsConfigHandler.CreateMetric)
+			metricsAPI.Delete("/custom/{name}", metricsConfigHandler.DeleteMetric)
+			metricsAPI.Get("/export", metricsConfigHandler.ExportMetrics)
+			metricsAPI.Put("/toggle/{name}", metricsConfigHandler.ToggleMetric)
 		}
 
 		// Advanced logging formats under /server/
-		loggingAPI := adminAPI.Group("/config/logging")
+		loggingAPI := chi.NewRouter()
+		adminAPI.Mount("/config/logging", loggingAPI)
 		{
-			loggingAPI.GET("/formats", loggingHandler.GetFormats)
-			loggingAPI.PUT("/formats", loggingHandler.UpdateFormats)
-			loggingAPI.GET("/fail2ban/config", loggingHandler.GetFail2banConfig)
-			loggingAPI.GET("/syslog/config", loggingHandler.GetSyslogConfig)
-			loggingAPI.GET("/cef/config", loggingHandler.GetCEFConfig)
-			loggingAPI.GET("/export", loggingHandler.ExportLogs)
-			loggingAPI.POST("/fail2ban/configure", loggingHandler.ConfigureFail2ban)
-			loggingAPI.POST("/syslog/configure", loggingHandler.ConfigureSyslog)
-			loggingAPI.GET("/test", loggingHandler.TestFormat)
+			loggingAPI.Get("/formats", loggingHandler.GetFormats)
+			loggingAPI.Put("/formats", loggingHandler.UpdateFormats)
+			loggingAPI.Get("/fail2ban/config", loggingHandler.GetFail2banConfig)
+			loggingAPI.Get("/syslog/config", loggingHandler.GetSyslogConfig)
+			loggingAPI.Get("/cef/config", loggingHandler.GetCEFConfig)
+			loggingAPI.Get("/export", loggingHandler.ExportLogs)
+			loggingAPI.Post("/fail2ban/configure", loggingHandler.ConfigureFail2ban)
+			loggingAPI.Post("/syslog/configure", loggingHandler.ConfigureSyslog)
+			loggingAPI.Get("/test", loggingHandler.TestFormat)
 		}
 	}
 
 	// User notification preferences API (authenticated users)
 	// AI.md PART 14: Use versioned API + plural nouns
-	userPrefAPI := apiV1.Group("/users")
+	userPrefAPI := chi.NewRouter()
+	apiV1.Mount("/users", userPrefAPI)
 	userPrefAPI.Use(middleware.RequireAuth(db.DB))
 	{
 		// Channel preferences
-		userPrefAPI.GET("/preferences", preferencesHandler.GetUserPreferences)
-		userPrefAPI.PUT("/preferences/:id", preferencesHandler.UpdatePreference)
-		userPrefAPI.POST("/preferences", preferencesHandler.CreatePreference)
-		userPrefAPI.DELETE("/preferences/:id", preferencesHandler.DeletePreference)
+		userPrefAPI.Get("/preferences", preferencesHandler.GetUserPreferences)
+		userPrefAPI.Put("/preferences/{id}", preferencesHandler.UpdatePreference)
+		userPrefAPI.Post("/preferences", preferencesHandler.CreatePreference)
+		userPrefAPI.Delete("/preferences/{id}", preferencesHandler.DeletePreference)
 
 		// Subscriptions
-		userPrefAPI.GET("/subscriptions", preferencesHandler.GetSubscriptions)
-		userPrefAPI.PUT("/subscriptions/:id", preferencesHandler.UpdateSubscription)
-		userPrefAPI.POST("/subscriptions", preferencesHandler.CreateSubscription)
+		userPrefAPI.Get("/subscriptions", preferencesHandler.GetSubscriptions)
+		userPrefAPI.Put("/subscriptions/{id}", preferencesHandler.UpdateSubscription)
+		userPrefAPI.Post("/subscriptions", preferencesHandler.CreateSubscription)
 	}
 
 	// API routes are now consolidated under /api/v1 above
 
 	// Main /api endpoint - API version information
 	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIVersion()
-	r.GET("/api", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
+	r.Get("/api", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"service": "Weather API",
 			"version": "2.0.0",
 			"api_versions": []string{
 				cfg.GetAPIVersion(),
 			},
 			"current_version": cfg.GetAPIVersion(),
-			"documentation":   "http://" + c.Request.Host + "/docs",
-			"openapi":         "http://" + c.Request.Host + "/openapi.json",
-			"swagger":         "http://" + c.Request.Host + "/openapi",
-			"graphql":         "http://" + c.Request.Host + "/graphql",
+			"documentation":   "http://" + r.Host + "/docs",
+			"openapi":         "http://" + r.Host + "/openapi.json",
+			"swagger":         "http://" + r.Host + "/openapi",
+			"graphql":         "http://" + r.Host + "/graphql",
 		})
 	})
 
 	// /api/autodiscover - Client/Agent auto-configuration endpoint
 	// AI.md PART 33/34: Non-versioned endpoint for CLI/agent self-configuration
 	// SECURITY: NEVER include admin_path, secrets, or internal IPs
-	r.GET("/api/autodiscover", func(c *gin.Context) {
+	r.Get("/api/autodiscover", func(w http.ResponseWriter, r *http.Request) {
 		// Build public URL from request
 		scheme := "http"
-		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 			scheme = "https"
 		}
-		publicURL := scheme + "://" + c.Request.Host
+		publicURL := scheme + "://" + r.Host
 
 		// Get cluster nodes (empty array if single-node)
 		clusterNodes := []string{publicURL}
 
 		// Cache for 1 hour per AI.md
-		c.Header("Cache-Control", "public, max-age=3600")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
 
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"primary":     publicURL,
 			"cluster":     clusterNodes,
 			"api_version": cfg.GetAPIVersion(),
 			"timeout":     30,
 			"retry":       3,
 			"retry_delay": 1,
-			"config": gin.H{
-				"database": gin.H{
+			"config": map[string]interface{}{
+				"database": map[string]interface{}{
 					"drivers": []string{"file", "sqlite", "libsql", "postgres", "mysql", "mssql", "mongodb"},
-					"aliases": gin.H{
+					"aliases": map[string]interface{}{
 						"sqlite2":    "sqlite",
 						"sqlite3":    "sqlite",
 						"turso":      "libsql",
@@ -3680,20 +3789,20 @@ func main() {
 					},
 					"ssl_modes": []string{"disable", "require", "verify-full"},
 				},
-				"cache": gin.H{
+				"cache": map[string]interface{}{
 					"types": []string{"none", "memory", "valkey", "redis"},
 				},
-				"formats": gin.H{
+				"formats": map[string]interface{}{
 					"duration": []string{"s", "m", "h", "d"},
 					"size":     []string{"KB", "MB", "GB"},
 				},
-				"logging": gin.H{
+				"logging": map[string]interface{}{
 					"levels": []string{"debug", "info", "warn", "error"},
 				},
-				"smtp": gin.H{
+				"smtp": map[string]interface{}{
 					"tls_modes": []string{"auto", "starttls", "tls", "none"},
 				},
-				"features": gin.H{
+				"features": map[string]interface{}{
 					"clustering": false,
 					"tor":        cfg.Server.Tor.Enabled,
 					"webauthn":   true,
@@ -3705,13 +3814,13 @@ func main() {
 
 	// OpenAPI/Swagger documentation (AI.md PART 14)
 	// Root-level endpoints per AI.md specification
-	r.GET("/openapi", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/openapi/index.html")
+	r.Get("/openapi", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/openapi/index.html", http.StatusMovedPermanently)
 	})
 	// Swagger UI + JSON spec (auto-generated)
-	r.GET("/openapi/*any", handler.GetSwaggerUIAuto())
-	r.GET("/openapi.json", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/openapi/doc.json")
+	r.Get("/openapi/*any", handler.GetSwaggerUIAuto())
+	r.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/openapi/doc.json", http.StatusMovedPermanently)
 	})
 
 	// GraphQL API (AI.md PART 14)
@@ -3745,26 +3854,26 @@ func main() {
 	fmt.Printf("%s GraphQL API enabled at /graphql\n", display.Emoji("✅", "[OK]"))
 
 	// HTML documentation page at /docs
-	r.GET("/docs", apiHandler.GetDocsHTML)
+	r.Get("/docs", apiHandler.GetDocsHTML)
 
 	// WebSocket endpoint for real-time notifications (TEMPLATE.md Part 25)
 	// Requires authentication for both users and admins
-	r.GET("/ws/notifications", middleware.OptionalAuth(db.DB), notificationAPIHandler.HandleWebSocketConnection)
+	r.With(middleware.OptionalAuth(db.DB)).Get("/ws/notifications", notificationAPIHandler.HandleWebSocketConnection)
 
 	// Public /server/ pages (AI.md PART 14: /server/* are public, no auth required)
-	r.GET("/server", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/server/about")
+	r.Get("/server", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/server/about", http.StatusMovedPermanently)
 	})
-	r.GET("/server/about", handler.ShowAboutPage(db, cfg))
-	r.GET("/server/privacy", handler.ShowPrivacyPage(db, cfg))
-	r.GET("/server/contact", handler.ShowContactPage(db, cfg))
-	r.GET("/server/help", handler.ShowHelpPage(db, cfg))
-	r.GET("/server/terms", handler.ShowTermsPage(db, cfg))
+	r.Get("/server/about", handler.ShowAboutPage(db, cfg))
+	r.Get("/server/privacy", handler.ShowPrivacyPage(db, cfg))
+	r.Get("/server/contact", handler.ShowContactPage(db, cfg))
+	r.Get("/server/help", handler.ShowHelpPage(db, cfg))
+	r.Get("/server/terms", handler.ShowTermsPage(db, cfg))
 
 	// Examples endpoint
 	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
-	r.GET("/examples", func(c *gin.Context) {
-		hostInfo := util.GetHostInfo(c)
+	r.Get("/examples", func(w http.ResponseWriter, r *http.Request) {
+		hostInfo := util.GetHostInfo(r)
 		apiPath := cfg.GetAPIPath()
 		examples := fmt.Sprintf(`Weather API Examples
 
@@ -3783,81 +3892,82 @@ JSON API:
 			hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost,
 			hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath)
 
-		c.String(http.StatusOK, examples)
+		writeText(w, http.StatusOK, "%s", examples)
 	})
 
 	// Web interface routes
-	r.GET("/web", webHandler.ServeWebInterface)
-	r.GET("/web/:location", webHandler.ServeWebInterface)
+	r.Get("/web", webHandler.ServeWebInterface)
+	r.Get("/web/{location}", webHandler.ServeWebInterface)
 
 	// Moon interface routes
-	r.GET("/moon", webHandler.ServeMoonInterface)
-	r.GET("/moon/:location", webHandler.ServeMoonInterface)
+	r.Get("/moon", webHandler.ServeMoonInterface)
+	r.Get("/moon/{location}", webHandler.ServeMoonInterface)
 
 	// Historical weather page
-	r.GET("/history", historyHandler.ShowHistory)
+	r.Get("/history", historyHandler.ShowHistory)
 
 	// Earthquake routes (plural per AI.md PART 14)
-	r.GET("/earthquakes", earthquakeHandler.HandleEarthquakeRequest)
-	r.GET("/earthquakes/:location", earthquakeHandler.HandleEarthquakeRequest)
+	r.Get("/earthquakes", earthquakeHandler.HandleEarthquakeRequest)
+	r.Get("/earthquakes/{location}", earthquakeHandler.HandleEarthquakeRequest)
 
 	// Backwards compatibility: singular -> plural redirect
-	r.GET("/earthquake", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/earthquakes")
+	r.Get("/earthquake", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/earthquakes", http.StatusMovedPermanently)
 	})
 
 	// Hurricane routes redirect to severe-weather (plural per AI.md PART 14)
-	r.GET("/hurricanes", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/severe-weather")
+	r.Get("/hurricanes", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/severe-weather", http.StatusMovedPermanently)
 	})
-	r.GET("/hurricane", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/severe-weather")
+	r.Get("/hurricane", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/severe-weather", http.StatusMovedPermanently)
 	})
 
 	// Severe Weather routes (new comprehensive severe weather page)
-	r.GET("/severe-weather", severeWeatherHandler.HandleSevereWeatherRequest)
-	r.GET("/severe-weather/:location", severeWeatherHandler.HandleSevereWeatherRequest)
+	r.Get("/severe-weather", severeWeatherHandler.HandleSevereWeatherRequest)
+	r.Get("/severe-weather/{location}", severeWeatherHandler.HandleSevereWeatherRequest)
 
 	// Type-filtered severe weather routes
-	r.GET("/severe/:type", severeWeatherHandler.HandleSevereWeatherByType)
-	r.GET("/severe/:type/:location", severeWeatherHandler.HandleSevereWeatherByType)
+	r.Get("/severe/{type}", severeWeatherHandler.HandleSevereWeatherByType)
+	r.Get("/severe/{type}/{location}", severeWeatherHandler.HandleSevereWeatherByType)
 
 	// AI.md PART 14: Legacy endpoints are technical debt - DELETED
 	// OLD: /api/earthquakes and /api/hurricanes redirects removed
 	// Use versioned endpoints: /api/{api_version}/earthquakes and /api/{api_version}/hurricanes
 
 	// Initialization check middleware - show loading page if not ready
-	r.Use(func(c *gin.Context) {
-		// Skip for health checks, API routes, and static files
-		if strings.HasPrefix(c.Request.URL.Path, "/health") ||
-			strings.HasPrefix(c.Request.URL.Path, "/server/healthz") ||
-			strings.HasPrefix(c.Request.URL.Path, "/api") ||
-			strings.HasPrefix(c.Request.URL.Path, "/debug") ||
-			strings.Contains(c.Request.URL.Path, ".") {
-			c.Next()
-			return
-		}
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip for health checks, API routes, and static files
+			if strings.HasPrefix(r.URL.Path, "/health") ||
+				strings.HasPrefix(r.URL.Path, "/server/healthz") ||
+				strings.HasPrefix(r.URL.Path, "/api") ||
+				strings.HasPrefix(r.URL.Path, "/debug") ||
+				strings.Contains(r.URL.Path, ".") {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-		// Show loading page if not initialized
-		if !handler.IsInitialized() {
-			handler.ServeLoadingPage(c)
-			c.Abort()
-			return
-		}
+			// Show loading page if not initialized
+			if !handler.IsInitialized() {
+				handler.ServeLoadingPage(w, r)
+				return
+			}
 
-		c.Next()
+			next.ServeHTTP(w, r)
+		})
 	})
 
 	// Theme toggle (AI.md PART 16 Theme Switching) - POST form, works without JS
-	r.POST("/theme", server.SetThemeHandler)
+	r.Post("/theme", server.SetThemeHandler)
 
 	// Main weather routes
 	// Uses IP/cookie lookup
-	r.GET("/", weatherHandler.HandleRoot)
+	r.Get("/", weatherHandler.HandleRoot)
 	// Explicit location
-	r.GET("/weather/:location", weatherHandler.HandleLocation)
+	r.Get("/weather/{location}", weatherHandler.HandleLocation)
 	// Backwards compatibility catch-all
-	r.GET("/:location", weatherHandler.HandleLocation)
+	r.Get("/{location}", weatherHandler.HandleLocation)
 
 	// Build final URL for documentation
 	// Per AI.md PART 5 - DOMAIN env var (no project prefix)

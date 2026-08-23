@@ -8,8 +8,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/mode"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -26,11 +26,11 @@ func handlePlatformSignal(sig os.Signal, db *database.DB, appLogger *util.Logger
 
 	case syscall.SIGUSR2:
 		log.Println("INFO: Received SIGUSR2, toggling debug mode...")
-		if gin.Mode() == gin.DebugMode {
-			gin.SetMode(gin.ReleaseMode)
+		if mode.IsDebugEnabled() {
+			mode.SetDebugEnabled(false)
 			log.Println("OK: Debug mode: OFF (release mode)")
 		} else {
-			gin.SetMode(gin.DebugMode)
+			mode.SetDebugEnabled(true)
 			log.Println("OK: Debug mode: ON (debug mode)")
 		}
 		return false

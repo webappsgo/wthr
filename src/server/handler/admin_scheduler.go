@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -66,10 +65,10 @@ type TaskConfigTorHealth struct {
 }
 
 // ShowSchedulerConfig displays the scheduler configuration page
-func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
-	user, ok := middleware.GetCurrentUser(c)
+func (h *AdminHandler) ShowSchedulerConfig(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		c.Redirect(http.StatusFound, "/server/auth/login")
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 		return
 	}
 
@@ -128,9 +127,9 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 		},
 	}
 
-	themeServerCtx, _ := middleware.GetServerContext(c)
+	themeServerCtx, _ := middleware.GetServerContext(r.Context())
 
-	c.HTML(http.StatusOK, "admin/admin_scheduler.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_scheduler.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":  "Scheduler Configuration",
 		"user":   user,
 		"config": config,
@@ -139,10 +138,10 @@ func (h *AdminHandler) ShowSchedulerConfig(c *gin.Context) {
 }
 
 // SaveSchedulerConfig saves the scheduler configuration
-func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
+func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 	var config map[string]interface{}
-	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body: " + err.Error()})
 		return
 	}
 
@@ -151,22 +150,22 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 	// Validate and save global settings
 	if timezone, ok := config["timezone"].(string); ok {
 		if !isValidTimezone(timezone) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid timezone"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid timezone"})
 			return
 		}
 		if err := settingsModel.SetString("scheduler.timezone", timezone); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save timezone"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save timezone"})
 			return
 		}
 	}
 
 	if catchUpWindow, ok := config["catch_up_window"].(string); ok {
 		if !isValidDuration(catchUpWindow) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid catch-up window format. Use format like: 1h, 30m, 2h30m"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid catch-up window format. Use format like: 1h, 30m, 2h30m"})
 			return
 		}
 		if err := settingsModel.SetString("scheduler.catch_up_window", catchUpWindow); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save catch-up window"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save catch-up window"})
 			return
 		}
 	}
@@ -197,13 +196,13 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		// Validate and save schedule
 		if schedule, ok := task.config["schedule"].(string); ok {
 			if !isValidCronOrSpecial(schedule) {
-				c.JSON(http.StatusBadRequest, gin.H{
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 					"error": fmt.Sprintf("Invalid schedule for %s: %s", task.name, schedule),
 				})
 				return
 			}
 			if err := settingsModel.SetString(prefix+".schedule", schedule); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 					"error": fmt.Sprintf("Failed to save schedule for %s", task.name),
 				})
 				return
@@ -214,7 +213,7 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		if task.name != "ssl_renewal" {
 			if enabled, ok := task.config["enabled"].(bool); ok {
 				if err := settingsModel.SetBool(prefix+".enabled", enabled); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 						"error": fmt.Sprintf("Failed to save enabled state for %s", task.name),
 					})
 					return
@@ -230,7 +229,7 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 			}
 			if retryDelay, ok := task.config["retry_delay"].(string); ok {
 				if !isValidDuration(retryDelay) {
-					c.JSON(http.StatusBadRequest, gin.H{
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 						"error": fmt.Sprintf("Invalid retry_delay for %s", task.name),
 					})
 					return
@@ -241,14 +240,14 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		case "log_rotation":
 			if maxAge, ok := task.config["max_age"].(string); ok {
 				if !isValidDuration(maxAge) {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid max_age format"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid max_age format"})
 					return
 				}
 				settingsModel.SetString(prefix+".max_age", maxAge)
 			}
 			if maxSize, ok := task.config["max_size"].(string); ok {
 				if !isValidSize(maxSize) {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid max_size format"})
+					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid max_size format"})
 					return
 				}
 				settingsModel.SetString(prefix+".max_size", maxSize)
@@ -264,7 +263,7 @@ func (h *AdminHandler) SaveSchedulerConfig(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Scheduler configuration saved successfully",
 	})
 }
@@ -383,7 +382,7 @@ func isValidCronField(field string) bool {
 }
 
 // GetSchedulerConfigJSON returns scheduler configuration as JSON for API access
-func (h *AdminHandler) GetSchedulerConfigJSON(c *gin.Context) {
+func (h *AdminHandler) GetSchedulerConfigJSON(w http.ResponseWriter, r *http.Request) {
 	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	config := SchedulerConfig{
@@ -440,10 +439,11 @@ func (h *AdminHandler) GetSchedulerConfigJSON(c *gin.Context) {
 	// Convert to JSON for pretty output
 	jsonData, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize configuration"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to serialize configuration"})
 		return
 	}
 
-	c.Header("Content-Type", "application/json")
-	c.String(http.StatusOK, string(jsonData))
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(jsonData)
 }

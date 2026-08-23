@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 )
 
 type EmailTemplateHandler struct {
@@ -27,12 +27,12 @@ type EmailTemplate struct {
 }
 
 // GetTemplate retrieves a specific email template
-func (h *EmailTemplateHandler) GetTemplate(c *gin.Context) {
-	templateName := c.Param("name")
+func (h *EmailTemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
+	templateName := chi.URLParam(r, "name")
 
 	// Validate template name
 	if !isValidTemplateName(templateName) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template name"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
 		return
 	}
 
@@ -41,35 +41,35 @@ func (h *EmailTemplateHandler) GetTemplate(c *gin.Context) {
 	// Read template file
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Template not found"})
 		return
 	}
 
 	// Parse template (format: Subject: ...\n---\nBody...)
 	template := parseTemplate(string(content))
 
-	c.JSON(http.StatusOK, template)
+	writeJSON(w, http.StatusOK, template)
 }
 
 // UpdateTemplate updates a specific email template
-func (h *EmailTemplateHandler) UpdateTemplate(c *gin.Context) {
-	templateName := c.Param("name")
+func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
+	templateName := chi.URLParam(r, "name")
 
 	// Validate template name
 	if !isValidTemplateName(templateName) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template name"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
 		return
 	}
 
 	var template EmailTemplate
-	if err := c.ShouldBindJSON(&template); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Validate template
 	if template.Subject == "" || template.Body == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Subject and body are required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Subject and body are required"})
 		return
 	}
 
@@ -79,20 +79,20 @@ func (h *EmailTemplateHandler) UpdateTemplate(c *gin.Context) {
 	// Write template file
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save template"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save template"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Template updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Template updated successfully"})
 }
 
 // ListTemplates returns all available email templates
-func (h *EmailTemplateHandler) ListTemplates(c *gin.Context) {
+func (h *EmailTemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) {
 	emailDir := filepath.Join(h.templatesDir, "email")
 
 	files, err := os.ReadDir(emailDir)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read templates directory"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read templates directory"})
 		return
 	}
 
@@ -109,29 +109,29 @@ func (h *EmailTemplateHandler) ListTemplates(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"templates": templates})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"templates": templates})
 }
 
 // TestTemplate sends a test email using the specified template
-func (h *EmailTemplateHandler) TestTemplate(c *gin.Context) {
+func (h *EmailTemplateHandler) TestTemplate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Template string `json:"template"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
 		return
 	}
 
 	// Validate template name
 	if !isValidTemplateName(request.Template) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template name"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
 		return
 	}
 
 	// In a real implementation, this would use the email service
 	// For now, we'll just return success
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": fmt.Sprintf("Test email sent using template: %s", request.Template),
 	})
 }
@@ -183,11 +183,11 @@ func isValidTemplateName(name string) bool {
 }
 
 // ExportTemplate exports a template as JSON
-func (h *EmailTemplateHandler) ExportTemplate(c *gin.Context) {
-	templateName := c.Param("name")
+func (h *EmailTemplateHandler) ExportTemplate(w http.ResponseWriter, r *http.Request) {
+	templateName := chi.URLParam(r, "name")
 
 	if !isValidTemplateName(templateName) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template name"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
 		return
 	}
 
@@ -195,36 +195,36 @@ func (h *EmailTemplateHandler) ExportTemplate(c *gin.Context) {
 
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Template not found"})
 		return
 	}
 
 	template := parseTemplate(string(content))
 
 	// Set headers for download
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s.json", templateName))
-	c.Header("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.json", templateName))
+	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(c.Writer).Encode(template)
+	json.NewEncoder(w).Encode(template)
 }
 
 // ImportTemplate imports a template from JSON
-func (h *EmailTemplateHandler) ImportTemplate(c *gin.Context) {
-	templateName := c.Param("name")
+func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Request) {
+	templateName := chi.URLParam(r, "name")
 
 	if !isValidTemplateName(templateName) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template name"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
 		return
 	}
 
 	var template EmailTemplate
-	if err := c.ShouldBindJSON(&template); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
+	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid JSON format"})
 		return
 	}
 
 	if template.Subject == "" || template.Body == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Subject and body are required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Subject and body are required"})
 		return
 	}
 
@@ -232,9 +232,9 @@ func (h *EmailTemplateHandler) ImportTemplate(c *gin.Context) {
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import template"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to import template"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Template imported successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Template imported successfully"})
 }

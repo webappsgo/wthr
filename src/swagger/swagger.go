@@ -1,21 +1,21 @@
 package swagger
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/go-chi/chi/v5"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 // RegisterRoutes registers all Swagger/OpenAPI routes
 // Per AI.md specification: /openapi for UI, /openapi.json for spec
-func RegisterRoutes(router *gin.Engine) {
+func RegisterRoutes(router chi.Router) {
 	// Swagger UI at /openapi
-	router.GET("/openapi", GetSwaggerUI())
-	router.GET("/openapi/*any", GetSwaggerUI())
+	router.Get("/openapi", GetSwaggerUI())
+	router.Get("/openapi/*", GetSwaggerUI())
 }
 
 // indexData is the set of fields the themed index page template needs.
@@ -34,12 +34,12 @@ type indexData struct {
 	ThemeCSS                 template.CSS
 }
 
-// themedIndexTpl is our own Swagger UI index page. ginSwagger.Config exposes
+// themedIndexTpl is our own Swagger UI index page. httpSwagger.Config exposes
 // no CSS-injection hook (confirmed against the vendored library source), so
 // this reimplements the same bootstrap markup as the library's internal
 // template, reusing the identical relative asset URLs (swagger-ui.css,
 // swagger-ui-bundle.js, swagger-ui-standalone-preset.js, doc.json) so
-// ginSwagger.CustomWrapHandler continues serving those unchanged - only
+// httpSwagger.Handler continues serving those unchanged - only
 // index.html/the bare /openapi route is served by this handler.
 var themedIndexTpl = template.Must(template.New("swagger_index").Parse(`<!DOCTYPE html>
 <html lang="en">
@@ -96,7 +96,7 @@ var themedIndexTpl = template.Must(template.New("swagger_index").Parse(`<!DOCTYP
 // isSwaggerIndexRequest reports whether the request targets the Swagger UI
 // index page (bare /openapi, /openapi/, or /openapi/index.html) rather than
 // a static asset (doc.json, swagger-ui.js, favicons, oauth2-redirect.html)
-// that must keep being served unchanged by ginSwagger.CustomWrapHandler.
+// that must keep being served unchanged by httpSwagger.Handler.
 func isSwaggerIndexRequest(path string) bool {
 	trimmed := strings.TrimSuffix(path, "/")
 	return trimmed == "/openapi" || strings.HasSuffix(trimmed, "/index.html")
@@ -106,23 +106,28 @@ func isSwaggerIndexRequest(path string) bool {
 // Serves auto-generated Swagger UI from swag annotations, injecting the
 // resolved dark/light theme CSS (AI.md PART 16) into the index page while
 // delegating every other asset path to the upstream library unchanged.
-func GetSwaggerUI() gin.HandlerFunc {
-	config := ginSwagger.Config{
-		URL:                      "doc.json",
-		DocExpansion:             "list",
-		DeepLinking:              true,
-		PersistAuthorization:     true,
-		DefaultModelsExpandDepth: 1,
-	}
-	assetHandler := ginSwagger.CustomWrapHandler(&config, swaggerFiles.Handler)
+func GetSwaggerUI() http.HandlerFunc {
+	docExpansion := "list"
+	deepLinking := true
+	persistAuthorization := true
+	defaultModelsExpandDepth := 1
+	docURL := "doc.json"
 
-	return func(c *gin.Context) {
-		if !isSwaggerIndexRequest(c.Request.URL.Path) {
-			assetHandler(c)
+	assetHandler := httpSwagger.Handler(
+		httpSwagger.URL(docURL),
+		httpSwagger.DocExpansion(docExpansion),
+		httpSwagger.DeepLinking(deepLinking),
+		httpSwagger.PersistAuthorization(persistAuthorization),
+		httpSwagger.DefaultModelsExpandDepth(httpSwagger.ShowModel),
+	)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !isSwaggerIndexRequest(r.URL.Path) {
+			assetHandler.ServeHTTP(w, r)
 			return
 		}
 
-		theme := GetTheme(c)
+		theme := GetTheme(r)
 		themeCSS := GetDarkThemeCSS()
 		if theme == ThemeLight {
 			themeCSS = GetLightThemeCSS()
@@ -130,36 +135,39 @@ func GetSwaggerUI() gin.HandlerFunc {
 
 		data := indexData{
 			Title:                    "wthr API Documentation",
-			URL:                      config.URL,
-			DocExpansion:             config.DocExpansion,
-			DeepLinking:              config.DeepLinking,
-			PersistAuthorization:     config.PersistAuthorization,
-			DefaultModelsExpandDepth: config.DefaultModelsExpandDepth,
-			Oauth2DefaultClientID:    config.Oauth2DefaultClientID,
+			URL:                      docURL,
+			DocExpansion:             docExpansion,
+			DeepLinking:              deepLinking,
+			PersistAuthorization:     persistAuthorization,
+			DefaultModelsExpandDepth: defaultModelsExpandDepth,
+			Oauth2DefaultClientID:    "",
 			Oauth2RedirectURL:        template.JS("`${window.location.protocol}//${window.location.host}${window.location.pathname.split('/').slice(0, window.location.pathname.split('/').length - 1).join('/')}/oauth2-redirect.html`"),
 			ThemeCSS:                 themeCSS,
 		}
 
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		if err := themedIndexTpl.Execute(c.Writer, data); err != nil {
-			c.String(http.StatusInternalServerError, "failed to render swagger ui")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := themedIndexTpl.Execute(w, data); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("failed to render swagger ui"))
 		}
 	}
 }
 
 // GetOpenAPIJSON returns the OpenAPI JSON specification
 // Auto-generated from swag annotations
-func GetOpenAPIJSON() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Content-Type", "application/json")
-		c.File("./docs/swagger.json")
+func GetOpenAPIJSON() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		http.ServeFile(w, r, "./docs/swagger.json")
 	}
 }
 
 // HealthCheck for /openapi/health (separate from main health endpoint)
-func HealthCheck() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
+func HealthCheck() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":  "ok",
 			"service": "swagger-ui",
 		})

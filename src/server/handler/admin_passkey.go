@@ -14,8 +14,10 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -58,7 +60,7 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 // the passkey-login finalize path issues the same cookie shape.
 const adminSessionCookieName = "admin_session"
 
-// AdminPasskeyHandler hosts the gin REST routes for admin-side WebAuthn
+// AdminPasskeyHandler hosts the chi REST routes for admin-side WebAuthn
 // passkey management (registration, listing, and deletion).
 type AdminPasskeyHandler struct {
 	DB *sql.DB
@@ -68,8 +70,8 @@ func NewAdminPasskeyHandler(db *sql.DB) *AdminPasskeyHandler {
 	return &AdminPasskeyHandler{DB: db}
 }
 
-func (h *AdminPasskeyHandler) loadAdminFromContext(c *gin.Context) (*models.Admin, bool) {
-	value, exists := c.Get("admin_id")
+func (h *AdminPasskeyHandler) loadAdminFromContext(r *http.Request) (*models.Admin, bool) {
+	value, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
 		return nil, false
 	}
@@ -98,28 +100,28 @@ func (h *AdminPasskeyHandler) loadAdminFromContext(c *gin.Context) (*models.Admi
 	return admin, true
 }
 
-func adminPasskeyEnvelope(c *gin.Context) PasskeyEnvelope {
+func adminPasskeyEnvelope(r *http.Request) PasskeyEnvelope {
 	return PasskeyEnvelope{
-		Host:  c.Request.Host,
-		HTTPS: requestUsesHTTPS(c),
+		Host:  r.Host,
+		HTTPS: requestUsesHTTPS(r),
 	}
 }
 
 // ListPasskeys handles GET /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys.
-func (h *AdminPasskeyHandler) ListPasskeys(c *gin.Context) {
-	admin, ok := h.loadAdminFromContext(c)
+func (h *AdminPasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
+	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
 	summaries, err := ListAdminPasskeys(h.DB, admin.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
 		"passkeys": summaries,
 	})
@@ -136,22 +138,22 @@ type adminPasskeyRegistrationStartRequest struct {
 // RegisterPasskey handles POST /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys.
 // Two-phase: a request body without `response` starts the ceremony and
 // returns the WebAuthn options; a request body with `response` finishes it.
-func (h *AdminPasskeyHandler) RegisterPasskey(c *gin.Context) {
-	admin, ok := h.loadAdminFromContext(c)
+func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request) {
+	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
@@ -161,25 +163,25 @@ func (h *AdminPasskeyHandler) RegisterPasskey(c *gin.Context) {
 			CeremonyToken string `json:"ceremony_token"`
 		}
 		if err := json.Unmarshal(body, &finish); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 			return
 		}
 		if strings.TrimSpace(finish.CeremonyToken) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "ceremony_token is required"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "ceremony_token is required"})
 			return
 		}
 
-		result, err := FinishAdminPasskeyRegistrationToken(h.DB, admin, adminPasskeyEnvelope(c), finish.CeremonyToken, body)
+		result, err := FinishAdminPasskeyRegistrationToken(h.DB, admin, adminPasskeyEnvelope(r), finish.CeremonyToken, body)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
 
 		// Audit: admin.passkey_added per AI.md PART 11 shape.
 		logAdminPasskeyAudit(h.DB, "admin.passkey_added", admin.ID, result.Passkey.ID,
-			result.Passkey.Name, c.ClientIP(), c.Request.UserAgent())
+			result.Passkey.Name, util.GetClientIP(r), r.UserAgent())
 
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
 			"message": "Passkey registered successfully",
 			"passkey": result.Passkey,
@@ -190,22 +192,22 @@ func (h *AdminPasskeyHandler) RegisterPasskey(c *gin.Context) {
 	// Begin: parse start request, verify password, return options + token.
 	var req adminPasskeyRegistrationStartRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
-	result, err := BeginAdminPasskeyRegistrationToken(h.DB, admin, adminPasskeyEnvelope(c), req.Name, req.Password)
+	result, err := BeginAdminPasskeyRegistrationToken(h.DB, admin, adminPasskeyEnvelope(r), req.Name, req.Password)
 	if err != nil {
 		// Map password-related errors to 401 to match the user-side handler.
 		status := http.StatusBadRequest
 		if strings.Contains(strings.ToLower(err.Error()), "invalid password") {
 			status = http.StatusUnauthorized
 		}
-		c.JSON(status, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":             true,
 		"ceremony_token": result.CeremonyToken,
 		"options":        result.Options,
@@ -222,24 +224,24 @@ type adminPasskeyChallengeRequest struct {
 // POST /api/{api_version}/auth/admin/passkey/challenge. Public route — the
 // pending-session token (issued by HandleLogin when an admin with passkeys
 // has just verified their password) authenticates the request.
-func (h *AdminPasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
+func (h *AdminPasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	var req adminPasskeyChallengeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 	if strings.TrimSpace(req.SessionToken) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "session_token is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "session_token is required"})
 		return
 	}
 
-	result, err := BeginAdminPasskeyLoginToken(h.DB, adminPasskeyEnvelope(c), req.SessionToken)
+	result, err := BeginAdminPasskeyLoginToken(h.DB, adminPasskeyEnvelope(r), req.SessionToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":             true,
 		"ceremony_token": result.CeremonyToken,
 		"options":        result.Options,
@@ -250,10 +252,10 @@ func (h *AdminPasskeyHandler) BeginPasskeyChallenge(c *gin.Context) {
 // POST /api/{api_version}/auth/admin/passkey/verify. Public route — the
 // ceremony token (issued by BeginPasskeyChallenge above) authenticates the
 // request. Sets the admin_session cookie on success.
-func (h *AdminPasskeyHandler) VerifyPasskey(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 
@@ -261,11 +263,11 @@ func (h *AdminPasskeyHandler) VerifyPasskey(c *gin.Context) {
 		CeremonyToken string `json:"ceremony_token"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
 		return
 	}
 	if strings.TrimSpace(envelope.CeremonyToken) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "ceremony_token is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "ceremony_token is required"})
 		return
 	}
 
@@ -274,29 +276,36 @@ func (h *AdminPasskeyHandler) VerifyPasskey(c *gin.Context) {
 
 	result, err := FinishAdminPasskeyLoginToken(
 		h.DB,
-		adminPasskeyEnvelope(c),
+		adminPasskeyEnvelope(r),
 		envelope.CeremonyToken,
 		body,
-		c.ClientIP(),
-		c.Request.UserAgent(),
+		util.GetClientIP(r),
+		r.UserAgent(),
 		adminSessionDuration,
 	)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
-	isHTTPS := requestUsesHTTPS(c)
+	isHTTPS := requestUsesHTTPS(r)
 	maxAge := int(time.Until(result.ExpiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
-	c.SetCookie(adminSessionCookieName, result.SessionID, maxAge, "/", "", isHTTPS, true)
+	http.SetCookie(w, &http.Cookie{
+		Name:     adminSessionCookieName,
+		Value:    result.SessionID,
+		Path:     "/",
+		MaxAge:   maxAge,
+		Secure:   isHTTPS,
+		HttpOnly: true,
+	})
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Passkey authentication successful",
-		"admin": gin.H{
+		"admin": map[string]interface{}{
 			"id":       result.Admin.ID,
 			"username": result.Admin.Username,
 			"email":    result.Admin.Email,
@@ -306,16 +315,16 @@ func (h *AdminPasskeyHandler) VerifyPasskey(c *gin.Context) {
 }
 
 // DeletePasskey handles DELETE /api/{api_version}/server/{admin_path}/{admin_username}/profile/security/passkeys/:passkey_id.
-func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
-	admin, ok := h.loadAdminFromContext(c)
+func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
+	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 		return
 	}
 
-	passkeyID, err := strconv.ParseInt(strings.TrimSpace(c.Param("passkey_id")), 10, 64)
+	passkeyID, err := strconv.ParseInt(strings.TrimSpace(chi.URLParam(r, "passkey_id")), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "Invalid passkey id"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey id"})
 		return
 	}
 
@@ -331,15 +340,15 @@ func (h *AdminPasskeyHandler) DeletePasskey(c *gin.Context) {
 		if err.Error() == "passkey not found" {
 			status = http.StatusNotFound
 		}
-		c.JSON(status, gin.H{"ok": false, "error": err.Error()})
+		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
 	}
 
 	// Audit: admin.passkey_removed per AI.md PART 11 shape.
 	logAdminPasskeyAudit(h.DB, "admin.passkey_removed", admin.ID, passkeyID,
-		passkeyName, c.ClientIP(), c.Request.UserAgent())
+		passkeyName, util.GetClientIP(r), r.UserAgent())
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Passkey deleted successfully",
 	})

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"mime/multipart"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	models "github.com/webappsgo/wthr/src/server/model"
 	utils "github.com/webappsgo/wthr/src/util"
@@ -38,6 +39,15 @@ func seedPublicUser(t *testing.T, usersDB *sql.DB, username, email, password str
 		t.Fatalf("seed user: %v", err)
 	}
 	return u
+}
+
+// withChiParam attaches a chi route context carrying a single URL param to
+// r, mirroring how the chi router populates chi.URLParam during a real
+// request; used in place of the legacy Params-slice assignment pattern.
+func withChiParam(r *http.Request, key, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add(key, value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
 func TestNewUserPublicHandler(t *testing.T) {
@@ -157,9 +167,9 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		seedPublicUser(t, usersDB, "getpub", "getpub@example.com", "password123")
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/public/users/getpub")
-		c.Params = gin.Params{{Key: "username", Value: "getpub"}}
-		h.GetPublicProfile(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/getpub")
+		r = withChiParam(r, "username", "getpub")
+		h.GetPublicProfile(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -168,9 +178,9 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 
 	t.Run("not found returns 404", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/public/users/ghost")
-		c.Params = gin.Params{{Key: "username", Value: "ghost"}}
-		h.GetPublicProfile(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/ghost")
+		r = withChiParam(r, "username", "ghost")
+		h.GetPublicProfile(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
@@ -182,9 +192,9 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 		if _, err := usersDB.Exec(`DROP TABLE user_accounts`); err != nil {
 			t.Fatalf("drop table: %v", err)
 		}
-		c, w := newTestContext(http.MethodGet, "/api/v1/public/users/whoever")
-		c.Params = gin.Params{{Key: "username", Value: "whoever"}}
-		h.GetPublicProfile(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/whoever")
+		r = withChiParam(r, "username", "whoever")
+		h.GetPublicProfile(w, r)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -197,10 +207,10 @@ func TestUserPublicHandler_GetPublicProfile(t *testing.T) {
 		if _, err := usersDB.Exec(`UPDATE user_accounts SET visibility = 'private' WHERE id = ?`, u.ID); err != nil {
 			t.Fatalf("set private: %v", err)
 		}
-		c, w := newTestContext(http.MethodGet, "/api/v1/public/users/ctxowner")
-		c.Params = gin.Params{{Key: "username", Value: "ctxowner"}}
-		setAdminCurrentUser(c, u.ID)
-		h.GetPublicProfile(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/public/users/ctxowner")
+		r = withChiParam(r, "username", "ctxowner")
+		r = setAdminCurrentUser(r, u.ID)
+		h.GetPublicProfile(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -449,8 +459,8 @@ func TestGetExtension(t *testing.T) {
 func TestUserPublicHandler_GetCurrentUserAvatar(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
-		h.GetCurrentUserAvatar(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
+		h.GetCurrentUserAvatar(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -459,9 +469,9 @@ func TestUserPublicHandler_GetCurrentUserAvatar(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "curavatar", "curavatar@example.com", "password123")
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
-		setAdminCurrentUser(c, u.ID)
-		h.GetCurrentUserAvatar(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
+		r = setAdminCurrentUser(r, u.ID)
+		h.GetCurrentUserAvatar(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -469,9 +479,9 @@ func TestUserPublicHandler_GetCurrentUserAvatar(t *testing.T) {
 
 	t.Run("db error returns 500", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
-		setAdminCurrentUser(c, 999999)
-		h.GetCurrentUserAvatar(c)
+		r, w := newTestContext(http.MethodGet, "/api/v1/users/avatar")
+		r = setAdminCurrentUser(r, 999999)
+		h.GetCurrentUserAvatar(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -481,8 +491,8 @@ func TestUserPublicHandler_GetCurrentUserAvatar(t *testing.T) {
 func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "gravatar"})
-		h.UpdateAvatarSettings(c)
+		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "gravatar"})
+		h.UpdateAvatarSettings(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -491,9 +501,9 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 	t.Run("bad json returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "updavatar1", "updavatar1@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", "{not json")
-		setAdminCurrentUser(c, u.ID)
-		h.UpdateAvatarSettings(c)
+		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", "{not json")
+		r = setAdminCurrentUser(r, u.ID)
+		h.UpdateAvatarSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -502,9 +512,9 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 	t.Run("invalid oneof type returns 400 from binding", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "updavatar2", "updavatar2@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "bogus"})
-		setAdminCurrentUser(c, u.ID)
-		h.UpdateAvatarSettings(c)
+		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "bogus"})
+		r = setAdminCurrentUser(r, u.ID)
+		h.UpdateAvatarSettings(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -522,9 +532,9 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 	t.Run("url type without https falls through to 500 (case-mismatch bug)", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "updavatar3", "updavatar3@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "url", "url": "http://insecure.example.com/a.png"})
-		setAdminCurrentUser(c, u.ID)
-		h.UpdateAvatarSettings(c)
+		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "url", "url": "http://insecure.example.com/a.png"})
+		r = setAdminCurrentUser(r, u.ID)
+		h.UpdateAvatarSettings(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500 (documents case-mismatch bug in UpdateAvatarSettings error switch); body=%s", w.Code, w.Body.String())
 		}
@@ -533,9 +543,9 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "updavatar4", "updavatar4@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "url", "url": "https://cdn.example.com/z.png"})
-		setAdminCurrentUser(c, u.ID)
-		h.UpdateAvatarSettings(c)
+		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "url", "url": "https://cdn.example.com/z.png"})
+		r = setAdminCurrentUser(r, u.ID)
+		h.UpdateAvatarSettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -545,8 +555,8 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 func TestUserPublicHandler_ResetAvatar(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContext(http.MethodDelete, "/api/v1/users/avatar")
-		h.ResetAvatar(c)
+		r, w := newTestContext(http.MethodDelete, "/api/v1/users/avatar")
+		h.ResetAvatar(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -555,26 +565,24 @@ func TestUserPublicHandler_ResetAvatar(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "resetavatar", "resetavatar@example.com", "password123")
-		c, w := newTestContext(http.MethodDelete, "/api/v1/users/avatar")
-		setAdminCurrentUser(c, u.ID)
-		h.ResetAvatar(c)
+		r, w := newTestContext(http.MethodDelete, "/api/v1/users/avatar")
+		r = setAdminCurrentUser(r, u.ID)
+		h.ResetAvatar(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 	})
 }
 
-// newMultipartAvatarContext builds a gin test context with a multipart form
-// containing a "file" field, for exercising UploadAvatar's c.FormFile path.
+// newMultipartAvatarContext builds an httptest request with a multipart form
+// containing a "file" field, for exercising UploadAvatar's r.FormFile path.
 // Unlike multipart.Writer.CreateFormFile (which hardcodes the part's
 // Content-Type to "application/octet-stream"), this uses CreatePart with an
 // explicit Content-Type header so tests can control the content type that
 // reaches uploadCurrentUserAvatar's validation.
-func newMultipartAvatarContext(t *testing.T, filename, contentType string, data []byte) (*gin.Context, *httptest.ResponseRecorder) {
+func newMultipartAvatarContext(t *testing.T, filename, contentType string, data []byte) (*http.Request, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -592,16 +600,16 @@ func newMultipartAvatarContext(t *testing.T, filename, contentType string, data 
 		t.Fatalf("close multipart writer: %v", err)
 	}
 
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/users/avatar", &buf)
-	c.Request.Header.Set("Content-Type", mw.FormDataContentType())
-	return c, w
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/users/avatar", &buf)
+	r.Header.Set("Content-Type", mw.FormDataContentType())
+	return r, w
 }
 
 func TestUserPublicHandler_UploadAvatar(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContext(http.MethodPost, "/api/v1/users/avatar")
-		h.UploadAvatar(c)
+		r, w := newTestContext(http.MethodPost, "/api/v1/users/avatar")
+		h.UploadAvatar(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -610,9 +618,9 @@ func TestUserPublicHandler_UploadAvatar(t *testing.T) {
 	t.Run("no file uploaded returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "uploadnoFile", "uploadnofile@example.com", "password123")
-		c, w := newTestContext(http.MethodPost, "/api/v1/users/avatar")
-		setAdminCurrentUser(c, u.ID)
-		h.UploadAvatar(c)
+		r, w := newTestContext(http.MethodPost, "/api/v1/users/avatar")
+		r = setAdminCurrentUser(r, u.ID)
+		h.UploadAvatar(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -621,9 +629,9 @@ func TestUserPublicHandler_UploadAvatar(t *testing.T) {
 	t.Run("success with real multipart file", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "uploadok", "uploadok@example.com", "password123")
-		c, w := newMultipartAvatarContext(t, "avatar.png", "image/png", []byte("fake-png-bytes"))
-		setAdminCurrentUser(c, u.ID)
-		h.UploadAvatar(c)
+		r, w := newMultipartAvatarContext(t, "avatar.png", "image/png", []byte("fake-png-bytes"))
+		r = setAdminCurrentUser(r, u.ID)
+		h.UploadAvatar(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -642,9 +650,9 @@ func TestUserPublicHandler_UploadAvatar(t *testing.T) {
 	t.Run("invalid content type falls through to 500 (case-mismatch bug)", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "uploadbadtype", "uploadbadtype@example.com", "password123")
-		c, w := newMultipartAvatarContext(t, "avatar.txt", "text/plain", []byte("not an image"))
-		setAdminCurrentUser(c, u.ID)
-		h.UploadAvatar(c)
+		r, w := newMultipartAvatarContext(t, "avatar.txt", "text/plain", []byte("not an image"))
+		r = setAdminCurrentUser(r, u.ID)
+		h.UploadAvatar(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500 (documents case-mismatch bug in UploadAvatar error switch); body=%s", w.Code, w.Body.String())
 		}
@@ -705,8 +713,8 @@ func TestUserPublicHandler_ChangeCurrentUserPassword(t *testing.T) {
 func TestUserPublicHandler_ChangePassword(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{})
-		h.ChangePassword(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{})
+		h.ChangePassword(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -715,9 +723,9 @@ func TestUserPublicHandler_ChangePassword(t *testing.T) {
 	t.Run("bad json returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "cp1", "cp1@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", "{not json")
-		setAdminCurrentUser(c, u.ID)
-		h.ChangePassword(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", "{not json")
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangePassword(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -726,9 +734,9 @@ func TestUserPublicHandler_ChangePassword(t *testing.T) {
 	t.Run("missing required fields returns 400 from binding", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "cp2", "cp2@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangePassword(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{})
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangePassword(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -737,12 +745,12 @@ func TestUserPublicHandler_ChangePassword(t *testing.T) {
 	t.Run("wrong current password returns 401", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "cp3", "cp3@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{
 			"current_password": "wrongpass",
 			"new_password":     "newpassword999",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangePassword(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangePassword(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -751,12 +759,12 @@ func TestUserPublicHandler_ChangePassword(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "cp4", "cp4@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/password", map[string]interface{}{
 			"current_password": "password123",
 			"new_password":     "newpassword999",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangePassword(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangePassword(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -766,8 +774,8 @@ func TestUserPublicHandler_ChangePassword(t *testing.T) {
 func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{})
-		h.ChangeEmail(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{})
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -776,9 +784,9 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("bad json returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ce1", "ce1@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", "{not json")
-		setAdminCurrentUser(c, u.ID)
-		h.ChangeEmail(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", "{not json")
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -787,11 +795,11 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("missing/invalid fields returns 400 from binding", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ce2", "ce2@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
 			"new_email": "not-an-email",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangeEmail(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -800,12 +808,12 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("wrong current password returns 401", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ce3", "ce3@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
 			"new_email":        "new-ce3@example.com",
 			"current_password": "wrongpass",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangeEmail(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -815,12 +823,12 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		seedPublicUser(t, usersDB, "ce4other", "taken-ce4@example.com", "password123")
 		u := seedPublicUser(t, usersDB, "ce4", "ce4@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
 			"new_email":        "taken-ce4@example.com",
 			"current_password": "password123",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangeEmail(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusConflict {
 			t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
 		}
@@ -829,12 +837,12 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 	t.Run("success marks email unverified", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "ce5", "ce5@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
 			"new_email":        "ce5-new@example.com",
 			"current_password": "password123",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.ChangeEmail(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -856,8 +864,8 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 	t.Run("unauthenticated returns 401", func(t *testing.T) {
 		h, _ := newUserPublicTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{})
-		h.DeleteAccount(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{})
+		h.DeleteAccount(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401", w.Code)
 		}
@@ -866,9 +874,9 @@ func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 	t.Run("bad json returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "da1", "da1@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", "{not json")
-		setAdminCurrentUser(c, u.ID)
-		h.DeleteAccount(c)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", "{not json")
+		r = setAdminCurrentUser(r, u.ID)
+		h.DeleteAccount(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400", w.Code)
 		}
@@ -877,12 +885,12 @@ func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 	t.Run("wrong confirmation string returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "da2", "da2@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
 			"current_password": "password123",
 			"confirm":          "delete", // wrong case
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.DeleteAccount(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.DeleteAccount(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -891,12 +899,12 @@ func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 	t.Run("wrong password returns 401", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "da3", "da3@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
 			"current_password": "wrongpass",
 			"confirm":          "DELETE",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.DeleteAccount(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.DeleteAccount(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
@@ -905,12 +913,12 @@ func TestUserPublicHandler_DeleteAccount(t *testing.T) {
 	t.Run("success deletes the user", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "da4", "da4@example.com", "password123")
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/delete", map[string]interface{}{
 			"current_password": "password123",
 			"confirm":          "DELETE",
 		})
-		setAdminCurrentUser(c, u.ID)
-		h.DeleteAccount(c)
+		r = setAdminCurrentUser(r, u.ID)
+		h.DeleteAccount(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}

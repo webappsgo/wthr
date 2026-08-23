@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 //go:embed static/vendor/react.production.min.js
@@ -35,7 +33,7 @@ var playgroundAssetContentType = map[string]string{
 
 // PlaygroundAssetHandler serves the embedded GraphiQL/React/init-script/theme
 // assets that back the local (non-CDN) playground page.
-func PlaygroundAssetHandler() gin.HandlerFunc {
+func PlaygroundAssetHandler() http.HandlerFunc {
 	sub, err := fs.Sub(playgroundAssets, "static")
 	if err != nil {
 		panic(fmt.Sprintf("graphql: invalid embedded playground assets: %v", err))
@@ -43,12 +41,12 @@ func PlaygroundAssetHandler() gin.HandlerFunc {
 
 	fileServer := http.StripPrefix(playgroundAssetPrefix, http.FileServer(http.FS(sub)))
 
-	return func(c *gin.Context) {
-		if contentType, ok := playgroundAssetContentType[path.Ext(c.Request.URL.Path)]; ok {
-			c.Header("Content-Type", contentType)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if contentType, ok := playgroundAssetContentType[path.Ext(r.URL.Path)]; ok {
+			w.Header().Set("Content-Type", contentType)
 		}
-		c.Header("Cache-Control", "public, max-age=31536000, immutable")
-		fileServer.ServeHTTP(c.Writer, c.Request)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		fileServer.ServeHTTP(w, r)
 	}
 }
 

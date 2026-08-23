@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/server/service"
 )
@@ -44,9 +42,9 @@ func insertTestTemplate(t *testing.T, h *NotificationTemplateHandler, channelTyp
 func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 	t.Run("empty table returns empty list", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newAPITestContext("/notifications/templates")
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates", nil)
 
-		h.ListTemplates(c)
+		h.ListTemplates(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -61,9 +59,9 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 		insertTestTemplate(t, h, "email", "welcome", "general", "Hi {{.Name}}", "Body")
 		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!")
 
-		c, w := newAPITestContext("/notifications/templates")
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates", nil)
 
-		h.ListTemplates(c)
+		h.ListTemplates(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -82,9 +80,9 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 		insertTestTemplate(t, h, "sms", "alert", "alert", "", "Alert!")
 
-		c, w := newAPITestContext("/notifications/templates?channel_type=sms")
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates?channel_type=sms", nil)
 
-		h.ListTemplates(c)
+		h.ListTemplates(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -102,10 +100,10 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 func TestNotificationTemplateHandlerGetTemplate(t *testing.T) {
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newAPITestContext("/notifications/templates/999")
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates/999", nil)
+		r = withURLParam(r, "id", "999")
 
-		h.GetTemplate(c)
+		h.GetTemplate(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -116,10 +114,10 @@ func TestNotificationTemplateHandlerGetTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		id := insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 
-		c, w := newAPITestContext("/notifications/templates/1")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates/1", nil)
+		r = withURLParam(r, "id", "1")
 
-		h.GetTemplate(c)
+		h.GetTemplate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -135,9 +133,9 @@ func TestNotificationTemplateHandlerGetTemplate(t *testing.T) {
 func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", "not json")
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates", "not json")
 
-		h.CreateTemplate(c)
+		h.CreateTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -146,11 +144,11 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 
 	t.Run("missing required fields returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
 			"channel_type": "email",
 		})
 
-		h.CreateTemplate(c)
+		h.CreateTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -159,14 +157,14 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 
 	t.Run("invalid body template syntax returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
 			"channel_type":  "email",
 			"template_name": "broken",
 			"template_type": "general",
 			"body_template": "{{.Unclosed",
 		})
 
-		h.CreateTemplate(c)
+		h.CreateTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -175,7 +173,7 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 
 	t.Run("valid template is created", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
 			"channel_type":     "email",
 			"template_name":    "welcome",
 			"template_type":    "general",
@@ -183,7 +181,7 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 			"body_template":    "Welcome, {{.Name}}!",
 		})
 
-		h.CreateTemplate(c)
+		h.CreateTemplate(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
@@ -202,23 +200,23 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 	// stored, so a template created under that name reads back as the default.
 	t.Run("template created under the reserved name reads back as default", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates", map[string]interface{}{
 			"channel_type":  "email",
 			"template_name": service.DefaultTemplateName,
 			"template_type": "general",
 			"body_template": "Body",
 		})
 
-		h.CreateTemplate(c)
+		h.CreateTemplate(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
 		}
 
-		c, w = newAPITestContext("/notifications/templates/1")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w = newAPIRequest(t, http.MethodGet, "/notifications/templates/1", nil)
+		r = withURLParam(r, "id", "1")
 
-		h.GetTemplate(c)
+		h.GetTemplate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -232,10 +230,10 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/1", "not json")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/templates/1", "not json")
+		r = withURLParam(r, "id", "1")
 
-		h.UpdateTemplate(c)
+		h.UpdateTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -244,12 +242,12 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/999", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/templates/999", map[string]interface{}{
 			"template_name": "x",
 		})
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r = withURLParam(r, "id", "999")
 
-		h.UpdateTemplate(c)
+		h.UpdateTemplate(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -260,12 +258,12 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body")
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
 			"body_template": "{{.Unclosed",
 		})
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = withURLParam(r, "id", "1")
 
-		h.UpdateTemplate(c)
+		h.UpdateTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -276,14 +274,14 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", "welcome", "general", "", "Old body")
 
-		c, w := newTestContextJSON(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/notifications/templates/1", map[string]interface{}{
 			"template_name": "welcome-v2",
 			"template_type": "general",
 			"body_template": "New body",
 		})
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = withURLParam(r, "id", "1")
 
-		h.UpdateTemplate(c)
+		h.UpdateTemplate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -302,10 +300,10 @@ func TestNotificationTemplateHandlerUpdateTemplate(t *testing.T) {
 func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 	t.Run("unknown id returns 404", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newAPITestContext("/notifications/templates/999")
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/templates/999", nil)
+		r = withURLParam(r, "id", "999")
 
-		h.DeleteTemplate(c)
+		h.DeleteTemplate(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -316,10 +314,10 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", service.DefaultTemplateName, "general", "", "Body")
 
-		c, w := newAPITestContext("/notifications/templates/1")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/templates/1", nil)
+		r = withURLParam(r, "id", "1")
 
-		h.DeleteTemplate(c)
+		h.DeleteTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -330,10 +328,10 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", "welcome", "general", "", "Body")
 
-		c, w := newAPITestContext("/notifications/templates/1")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodDelete, "/notifications/templates/1", nil)
+		r = withURLParam(r, "id", "1")
 
-		h.DeleteTemplate(c)
+		h.DeleteTemplate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -352,9 +350,9 @@ func TestNotificationTemplateHandlerDeleteTemplate(t *testing.T) {
 func TestNotificationTemplateHandlerPreviewTemplate(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/preview", "not json")
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/preview", "not json")
 
-		h.PreviewTemplate(c)
+		h.PreviewTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -363,9 +361,9 @@ func TestNotificationTemplateHandlerPreviewTemplate(t *testing.T) {
 
 	t.Run("missing body_template returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{})
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{})
 
-		h.PreviewTemplate(c)
+		h.PreviewTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -374,12 +372,12 @@ func TestNotificationTemplateHandlerPreviewTemplate(t *testing.T) {
 
 	t.Run("unresolvable subject template returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{
 			"subject_template": "{{.Unclosed",
 			"body_template":    "Hello",
 		})
 
-		h.PreviewTemplate(c)
+		h.PreviewTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -388,13 +386,13 @@ func TestNotificationTemplateHandlerPreviewTemplate(t *testing.T) {
 
 	t.Run("renders subject and body with variables", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/preview", map[string]interface{}{
 			"subject_template": "Hi {{.Name}}",
 			"body_template":    "Welcome, {{.Name}}!",
 			"variables":        map[string]interface{}{"Name": "Ada"},
 		})
 
-		h.PreviewTemplate(c)
+		h.PreviewTemplate(w, r)
 
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -409,10 +407,10 @@ func TestNotificationTemplateHandlerPreviewTemplate(t *testing.T) {
 func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", "not json")
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/1/clone", "not json")
+		r = withURLParam(r, "id", "1")
 
-		h.CloneTemplate(c)
+		h.CloneTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -421,10 +419,10 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 
 	t.Run("missing new_name returns 400", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{})
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{})
+		r = withURLParam(r, "id", "1")
 
-		h.CloneTemplate(c)
+		h.CloneTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -433,12 +431,12 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 
 	t.Run("unknown source id returns 404", func(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/999/clone", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/999/clone", map[string]interface{}{
 			"new_name": "copy",
 		})
-		c.Params = gin.Params{{Key: "id", Value: "999"}}
+		r = withURLParam(r, "id", "999")
 
-		h.CloneTemplate(c)
+		h.CloneTemplate(w, r)
 
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404: %s", w.Code, w.Body.String())
@@ -449,12 +447,12 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
 			"new_name": "welcome-copy",
 		})
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = withURLParam(r, "id", "1")
 
-		h.CloneTemplate(c)
+		h.CloneTemplate(w, r)
 
 		if w.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want 201: %s", w.Code, w.Body.String())
@@ -473,12 +471,12 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 		h := newNotificationTemplateTestHandler(t)
 		insertTestTemplate(t, h, "email", "welcome", "general", "Hi", "Body")
 
-		c, w := newTestContextJSON(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/1/clone", map[string]interface{}{
 			"new_name": service.DefaultTemplateName,
 		})
-		c.Params = gin.Params{{Key: "id", Value: "1"}}
+		r = withURLParam(r, "id", "1")
 
-		h.CloneTemplate(c)
+		h.CloneTemplate(w, r)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
@@ -488,9 +486,9 @@ func TestNotificationTemplateHandlerCloneTemplate(t *testing.T) {
 
 func TestNotificationTemplateHandlerInitializeDefaults(t *testing.T) {
 	h := newNotificationTemplateTestHandler(t)
-	c, w := newAPITestContext("/notifications/templates/init")
+	r, w := newAPIRequest(t, http.MethodPost, "/notifications/templates/init", nil)
 
-	h.InitializeDefaults(c)
+	h.InitializeDefaults(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
@@ -507,9 +505,9 @@ func TestNotificationTemplateHandlerInitializeDefaults(t *testing.T) {
 
 func TestNotificationTemplateHandlerGetTemplateVariables(t *testing.T) {
 	h := newNotificationTemplateTestHandler(t)
-	c, w := newAPITestContext("/notifications/templates/variables")
+	r, w := newAPIRequest(t, http.MethodGet, "/notifications/templates/variables", nil)
 
-	h.GetTemplateVariables(c)
+	h.GetTemplateVariables(w, r)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())

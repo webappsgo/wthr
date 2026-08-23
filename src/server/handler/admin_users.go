@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -13,22 +14,22 @@ type AdminUsersHandler struct {
 }
 
 // ShowUserSettings displays user management settings page
-func (h *AdminUsersHandler) ShowUserSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_users.tmpl", util.TemplateData(c, gin.H{
+func (h *AdminUsersHandler) ShowUserSettings(w http.ResponseWriter, r *http.Request) {
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "User Management Settings",
 	}))
 }
 
 // UpdateUserSettings updates user management settings in server.yml
-func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
+func (h *AdminUsersHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Enabled                              bool   `json:"enabled"`
 		RegistrationMode                     string `json:"registration_mode"`
 		RegistrationRequireEmailVerification bool   `json:"registration_require_email_verification"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -43,7 +44,7 @@ func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 		req.RegistrationMode = "invite"
 	case "open", "invite", "admin_only", "disabled":
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid registration mode"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid registration mode"})
 		return
 	}
 
@@ -55,9 +56,9 @@ func (h *AdminUsersHandler) UpdateUserSettings(c *gin.Context) {
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

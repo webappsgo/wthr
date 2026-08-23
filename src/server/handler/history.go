@@ -2,11 +2,11 @@ package handler
 
 import (
 	"fmt"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -27,9 +27,9 @@ func NewHistoryHandler(weatherService *service.WeatherService, settingsModel *mo
 }
 
 // ShowHistory displays the historical weather page
-func (h *HistoryHandler) ShowHistory(c *gin.Context) {
+func (h *HistoryHandler) ShowHistory(w http.ResponseWriter, r *http.Request) {
 	if !h.settingsModel.GetBool("history.enabled", true) {
-		c.HTML(http.StatusServiceUnavailable, "page/error.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusServiceUnavailable, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":   "Feature Disabled",
 			"code":    503,
 			"message": "Historical weather feature is disabled",
@@ -41,11 +41,11 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	minYears := h.settingsModel.GetInt("history.min_years", 5)
 	maxYears := h.settingsModel.GetInt("history.max_years", 50)
 
-	location := c.Query("location")
-	dateStr := c.Query("date")
-	yearsStr := c.Query("years")
+	location := r.URL.Query().Get("location")
+	dateStr := r.URL.Query().Get("date")
+	yearsStr := r.URL.Query().Get("years")
 
-	data := gin.H{
+	data := map[string]interface{}{
 		"title":        "Historical Weather",
 		"page":         "history",
 		"defaultYears": defaultYears,
@@ -54,14 +54,14 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	}
 
 	if location == "" && dateStr == "" {
-		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
+		NegotiateResponse(w, r, "page/history.tmpl", util.TemplateData(r, data))
 		return
 	}
 
 	month, day, startYear, err := parseHistoricalDate(dateStr)
 	if err != nil {
 		data["error"] = fmt.Sprintf("Invalid date format: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
+		NegotiateResponse(w, r, "page/history.tmpl", util.TemplateData(r, data))
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	coords, err := h.weatherService.GetCoordinates(location, "")
 	if err != nil {
 		data["error"] = fmt.Sprintf("Could not find location: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
+		NegotiateResponse(w, r, "page/history.tmpl", util.TemplateData(r, data))
 		return
 	}
 
@@ -89,7 +89,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	)
 	if err != nil {
 		data["error"] = fmt.Sprintf("Error fetching historical weather: %v", err)
-		NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
+		NegotiateResponse(w, r, "page/history.tmpl", util.TemplateData(r, data))
 		return
 	}
 
@@ -98,7 +98,7 @@ func (h *HistoryHandler) ShowHistory(c *gin.Context) {
 	data["startYear"] = startYear
 	data["historical"] = historical
 
-	NegotiateResponse(c, "page/history.tmpl", util.TemplateData(c, data))
+	NegotiateResponse(w, r, "page/history.tmpl", util.TemplateData(r, data))
 }
 
 // parseHistoricalDate parses a date string with smart year detection.

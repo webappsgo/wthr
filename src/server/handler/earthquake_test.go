@@ -8,17 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
-func newEarthquakeTestContext(target string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+func newEarthquakeTestContext(target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
-	return c, w
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	return req, w
 }
 
 // ListEarthquakes short-circuits with an error when the handler or its
@@ -49,9 +45,9 @@ func TestEarthquakeHandler_ListEarthquakes_NilHandler(t *testing.T) {
 // (here nil) earthquakeService.
 func TestEarthquakeHandler_HandleEarthquakeByIDAPI_MissingID(t *testing.T) {
 	h := NewEarthquakeHandler(nil, nil, nil)
-	c, w := newEarthquakeTestContext("/api/v1/earthquakes/")
+	r, w := newEarthquakeTestContext("/api/v1/earthquakes/")
 
-	h.HandleEarthquakeByIDAPI(c)
+	h.HandleEarthquakeByIDAPI(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())
@@ -62,9 +58,9 @@ func TestEarthquakeHandler_HandleEarthquakeByIDAPI_MissingID(t *testing.T) {
 // (here nil) earthquakeService.
 func TestEarthquakeHandler_HandleEarthquakeDetail_MissingID(t *testing.T) {
 	h := NewEarthquakeHandler(nil, nil, nil)
-	c, w := newEarthquakeTestContext("/earthquake/detail/")
+	r, w := newEarthquakeTestContext("/earthquake/detail/")
 
-	h.HandleEarthquakeDetail(c)
+	h.HandleEarthquakeDetail(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusBadRequest, w.Body.String())

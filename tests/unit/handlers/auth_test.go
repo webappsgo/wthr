@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
@@ -71,12 +71,10 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 	return dualDB, cleanup
 }
 
-func setupTestRouter(t *testing.T) (*gin.Engine, *database.DualDB, func()) {
-	gin.SetMode(gin.TestMode)
-
+func setupTestRouter(t *testing.T) (chi.Router, *database.DualDB, func()) {
 	dualDB, cleanup := initTestDualDB(t)
 
-	r := gin.New()
+	r := chi.NewRouter()
 	return r, dualDB, cleanup
 }
 
@@ -86,7 +84,7 @@ func TestAuthHandler_Register(t *testing.T) {
 
 	authHandler := &handler.AuthHandler{DB: dualDB.Users}
 
-	r.POST("/register", authHandler.HandleRegister)
+	r.Post("/register", authHandler.HandleRegister)
 
 	tests := []struct {
 		name       string
@@ -162,8 +160,8 @@ func TestAuthHandler_Login(t *testing.T) {
 	authHandler := &handler.AuthHandler{DB: dualDB.Users}
 
 	// Setup routes
-	r.POST("/register", authHandler.HandleRegister)
-	r.POST("/login", authHandler.HandleLogin)
+	r.Post("/register", authHandler.HandleRegister)
+	r.Post("/login", authHandler.HandleLogin)
 
 	// First, create a user
 	registerPayload := map[string]string{

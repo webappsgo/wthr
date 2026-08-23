@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -55,16 +55,16 @@ func (h *SevereWeatherHandler) GetSevereWeatherData(location string) (*service.S
 }
 
 // HandleSevereWeatherRequest handles severe weather page requests
-func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
+func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter, r *http.Request) {
 	// Get location from path parameter or query
 	// AI.md: Strip leading/trailing whitespace from all user inputs
-	locationParam := strings.TrimSpace(c.Param("location"))
+	locationParam := strings.TrimSpace(chi.URLParam(r, "location"))
 	if locationParam == "" {
-		locationParam = strings.TrimSpace(c.Query("location"))
+		locationParam = strings.TrimSpace(r.URL.Query().Get("location"))
 	}
 
 	// Get distance filter from query parameter (default 50 miles)
-	distanceParam := strings.TrimSpace(c.Query("distance"))
+	distanceParam := strings.TrimSpace(r.URL.Query().Get("distance"))
 	// default
 	distance := 50.0
 	if distanceParam != "" {
@@ -87,7 +87,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := util.GetClientIP(c)
+			clientIP := util.GetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -101,20 +101,20 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 		}
 	} else if latitude == 0 && longitude == 0 {
 		// Only check cookies if NO location was explicitly provided in URL
-		if latStr, err := c.Cookie("user_lat"); err == nil {
-			if lat, err := strconv.ParseFloat(latStr, 64); err == nil {
+		if latCookie, err := r.Cookie("user_lat"); err == nil {
+			if lat, err := strconv.ParseFloat(latCookie.Value, 64); err == nil {
 				latitude = lat
 			}
 		}
-		if lonStr, err := c.Cookie("user_lon"); err == nil {
-			if lon, err := strconv.ParseFloat(lonStr, 64); err == nil {
+		if lonCookie, err := r.Cookie("user_lon"); err == nil {
+			if lon, err := strconv.ParseFloat(lonCookie.Value, 64); err == nil {
 				longitude = lon
 			}
 		}
-		if locName, err := c.Cookie("user_location_name"); err == nil {
-			locationName = locName
+		if nameCookie, err := r.Cookie("user_location_name"); err == nil {
+			locationName = nameCookie.Value
 			// Re-resolve the location to get full data
-			clientIP := util.GetClientIP(c)
+			clientIP := util.GetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -124,7 +124,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 
 	// If still no location, use IP-based geolocation as fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -142,20 +142,20 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 	data, err := h.severeWeatherService.GetSevereWeatherWithDistance(latitude, longitude, distance)
 	if err != nil {
 		// Check if user wants JSON
-		accept := c.GetHeader("Accept")
+		accept := r.Header.Get("Accept")
 		wantsJSON := strings.Contains(accept, "application/json")
 
 		if wantsJSON {
-			RespondError(c, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
+			RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
 		} else {
-			c.String(http.StatusInternalServerError, "Failed to fetch severe weather data: %v", err)
+			writeText(w, http.StatusInternalServerError, "Failed to fetch severe weather data: %v", err)
 		}
 		return
 	}
 
 	// Save location to cookies for persistence across navigation
 	if latitude != 0 && longitude != 0 && locationName != "" {
-		middleware.SaveLocationCookies(c, latitude, longitude, locationName)
+		middleware.SaveLocationCookies(w, r, latitude, longitude, locationName)
 	}
 
 	// Calculate totals
@@ -163,20 +163,20 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 	totalStorms := len(data.Hurricanes)
 
 	// Check if user wants JSON
-	accept := c.GetHeader("Accept")
+	accept := r.Header.Get("Accept")
 	wantsJSON := strings.Contains(accept, "application/json")
 
 	if wantsJSON {
-		RespondNegotiatedData(c, http.StatusOK, data)
+		RespondNegotiatedData(w, r, http.StatusOK, data)
 		return
 	}
 
 	// Check user agent to determine if browser or console
-	isBrowser := util.IsBrowser(c)
+	isBrowser := util.IsBrowser(r)
 
 	if isBrowser {
 		// Render HTML template
-		hostInfo := util.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(r)
 
 		// Create Location object for uniform display
 		var locationData interface{}
@@ -202,8 +202,8 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 				popFormatted = formatPopulation(enhanced.Population)
 			}
 
-			locationData = gin.H{
-				"Location": gin.H{
+			locationData = map[string]interface{}{
+				"Location": map[string]interface{}{
 					"Name":                enhanced.FullName,
 					"ShortName":           enhanced.ShortName,
 					"NameEncoded":         strings.ReplaceAll(enhanced.ShortName, " ", "+"),
@@ -219,7 +219,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 		}
 
 		// Get type and distance filters from query params
-		typeFilter := c.Query("type")
+		typeFilter := r.URL.Query().Get("type")
 		if typeFilter == "" {
 			typeFilter = "all"
 		}
@@ -228,7 +228,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 		// Always use full detected location for clarity
 		displayLocation := locationName
 
-		c.HTML(http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Title":          "Severe Weather Alerts",
 			"page":           "severe-weather",
 			"Data":           data,
@@ -247,17 +247,19 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(c *gin.Context) {
 	} else {
 		// Render console output
 		output := h.renderConsoleOutput(data, locationName)
-		c.String(http.StatusOK, output)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, output)
 	}
 }
 
 // HandleSevereWeatherByType handles severe weather requests filtered by type
-func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
-	alertType := c.Param("type")
-	locationParam := c.Param("location")
+func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, r *http.Request) {
+	alertType := chi.URLParam(r, "type")
+	locationParam := chi.URLParam(r, "location")
 
 	// Get distance filter from query parameter (default 50 miles)
-	distanceParam := c.Query("distance")
+	distanceParam := r.URL.Query().Get("distance")
 	distance := 50.0
 	if distanceParam != "" {
 		if d, err := strconv.ParseFloat(distanceParam, 64); err == nil {
@@ -279,7 +281,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := util.GetClientIP(c)
+			clientIP := util.GetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -293,20 +295,20 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 		}
 	} else if latitude == 0 && longitude == 0 {
 		// Only check cookies if NO location was explicitly provided in URL
-		if latStr, err := c.Cookie("user_lat"); err == nil {
-			if lat, err := strconv.ParseFloat(latStr, 64); err == nil {
+		if latCookie, err := r.Cookie("user_lat"); err == nil {
+			if lat, err := strconv.ParseFloat(latCookie.Value, 64); err == nil {
 				latitude = lat
 			}
 		}
-		if lonStr, err := c.Cookie("user_lon"); err == nil {
-			if lon, err := strconv.ParseFloat(lonStr, 64); err == nil {
+		if lonCookie, err := r.Cookie("user_lon"); err == nil {
+			if lon, err := strconv.ParseFloat(lonCookie.Value, 64); err == nil {
 				longitude = lon
 			}
 		}
-		if locName, err := c.Cookie("user_location_name"); err == nil {
-			locationName = locName
+		if nameCookie, err := r.Cookie("user_location_name"); err == nil {
+			locationName = nameCookie.Value
 			// Re-resolve the location to get full data
-			clientIP := util.GetClientIP(c)
+			clientIP := util.GetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -316,7 +318,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 
 	// If still no location, use IP-based fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := util.GetClientIP(c)
+		clientIP := util.GetClientIP(r)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -333,19 +335,19 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 	// Fetch severe weather data with distance filter
 	data, err := h.severeWeatherService.GetSevereWeatherWithDistance(latitude, longitude, distance)
 	if err != nil {
-		accept := c.GetHeader("Accept")
+		accept := r.Header.Get("Accept")
 		wantsJSON := strings.Contains(accept, "application/json")
 		if wantsJSON {
-			RespondError(c, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
+			RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
 		} else {
-			c.String(http.StatusInternalServerError, "Failed to fetch severe weather data: %v", err)
+			writeText(w, http.StatusInternalServerError, "Failed to fetch severe weather data: %v", err)
 		}
 		return
 	}
 
 	// Save location to cookies for persistence across navigation
 	if latitude != 0 && longitude != 0 && locationName != "" {
-		middleware.SaveLocationCookies(c, latitude, longitude, locationName)
+		middleware.SaveLocationCookies(w, r, latitude, longitude, locationName)
 	}
 
 	// Filter data by type
@@ -365,7 +367,9 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 	case "storms":
 		filteredData.SevereStorms = data.SevereStorms
 	default:
-		c.String(http.StatusBadRequest, "Invalid alert type. Use: hurricanes, tornadoes, floods, winter, or storms")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprint(w, "Invalid alert type. Use: hurricanes, tornadoes, floods, winter, or storms")
 		return
 	}
 
@@ -375,20 +379,20 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 	totalStorms := len(filteredData.Hurricanes)
 
 	// Check if user wants JSON
-	accept := c.GetHeader("Accept")
+	accept := r.Header.Get("Accept")
 	wantsJSON := strings.Contains(accept, "application/json")
 
 	if wantsJSON {
-		RespondNegotiatedData(c, http.StatusOK, filteredData)
+		RespondNegotiatedData(w, r, http.StatusOK, filteredData)
 		return
 	}
 
 	// Check user agent to determine if browser or console
-	isBrowser := util.IsBrowser(c)
+	isBrowser := util.IsBrowser(r)
 
 	if isBrowser {
 		// Render HTML template
-		hostInfo := util.GetHostInfo(c)
+		hostInfo := util.GetHostInfo(r)
 
 		// Create Location object for uniform display
 		var locationData interface{}
@@ -414,8 +418,8 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 				popFormatted = formatPopulation(enhanced.Population)
 			}
 
-			locationData = gin.H{
-				"Location": gin.H{
+			locationData = map[string]interface{}{
+				"Location": map[string]interface{}{
 					"Name":                enhanced.FullName,
 					"ShortName":           enhanced.ShortName,
 					"NameEncoded":         strings.ReplaceAll(enhanced.ShortName, " ", "+"),
@@ -436,7 +440,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 		// Always use full detected location for clarity
 		displayLocation := locationName
 
-		c.HTML(http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Title":          fmt.Sprintf("%s - Severe Weather Alerts", cases.Title(language.English).String(alertType)),
 			"page":           "severe-weather",
 			"Data":           filteredData,
@@ -455,7 +459,9 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 	} else {
 		// Render console output
 		output := h.renderConsoleOutput(filteredData, locationName)
-		c.String(http.StatusOK, output)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, output)
 	}
 }
 
@@ -469,8 +475,8 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Severe weather data with categorized alerts"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/severe-weather [get]
-func (h *SevereWeatherHandler) HandleSevereWeatherAPI(c *gin.Context) {
-	locationParam := c.Query("location")
+func (h *SevereWeatherHandler) HandleSevereWeatherAPI(w http.ResponseWriter, r *http.Request) {
+	locationParam := r.URL.Query().Get("location")
 
 	var latitude, longitude float64
 
@@ -482,7 +488,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherAPI(c *gin.Context) {
 			longitude = lon
 		} else {
 			// Geocode using proper resolution
-			clientIP := util.GetClientIP(c)
+			clientIP := util.GetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				latitude = coords.Latitude
@@ -493,11 +499,11 @@ func (h *SevereWeatherHandler) HandleSevereWeatherAPI(c *gin.Context) {
 
 	data, err := h.severeWeatherService.GetSevereWeather(latitude, longitude)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, data)
+	RespondNegotiatedData(w, r, http.StatusOK, data)
 }
 
 // HandleAlertByIDAPI handles JSON API requests for a specific alert by ID
@@ -512,17 +518,17 @@ func (h *SevereWeatherHandler) HandleSevereWeatherAPI(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "Alert not found"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/severe-weather/{id} [get]
-func (h *SevereWeatherHandler) HandleAlertByIDAPI(c *gin.Context) {
-	alertID := c.Param("id")
+func (h *SevereWeatherHandler) HandleAlertByIDAPI(w http.ResponseWriter, r *http.Request) {
+	alertID := chi.URLParam(r, "id")
 	if alertID == "" {
-		RespondError(c, http.StatusBadRequest, ErrInvalidInput, "Alert ID required")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Alert ID required")
 		return
 	}
 
 	// Get all severe weather data
 	data, err := h.severeWeatherService.GetSevereWeather(0, 0)
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
 		return
 	}
 
@@ -578,11 +584,11 @@ func (h *SevereWeatherHandler) HandleAlertByIDAPI(c *gin.Context) {
 	}
 
 	if foundAlert == nil {
-		NotFound(c, "Alert not found")
+		NotFound(w, r, "Alert not found")
 		return
 	}
 
-	RespondNegotiatedData(c, http.StatusOK, gin.H{
+	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ok":    true,
 		"alert": foundAlert,
 	})

@@ -4,10 +4,13 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
@@ -16,8 +19,6 @@ import (
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
-
-	"github.com/gin-gonic/gin"
 )
 
 // AuthAPIHandler handles auth API endpoints per AI.md PART 33
@@ -167,23 +168,23 @@ func createFullAuthSession(db *sql.DB, user *models.User) (*AuthLoginResponse, e
 	}, nil
 }
 
-func requestUsesHTTPS(c *gin.Context) bool {
-	return c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https")
+func requestUsesHTTPS(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
-func setUserSessionCookie(c *gin.Context, token string, expiresAt time.Time) {
+func setUserSessionCookie(w http.ResponseWriter, r *http.Request, token string, expiresAt time.Time) {
 	maxAge := int(time.Until(expiresAt).Seconds())
 	if maxAge < 0 {
 		maxAge = 0
 	}
 
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     middleware.SessionCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   requestUsesHTTPS(c),
+		Secure:   requestUsesHTTPS(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -809,17 +810,17 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 // @Failure 401 {object} map[string]interface{} "Invalid credentials"
 // @Failure 403 {object} map[string]interface{} "Account disabled or suspended"
 // @Router /api/v1/server/auth/login [post]
-func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPILogin(w http.ResponseWriter, r *http.Request) {
 	var req APILoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	response, err := LoginAPIUser(h.DB, &req, c.ClientIP())
+	response, err := LoginAPIUser(h.DB, &req, util.GetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		switch err.Error() {
@@ -835,14 +836,14 @@ func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
 			status = http.StatusInternalServerError
 		}
 
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -860,10 +861,10 @@ func (h *AuthAPIHandler) HandleAPILogin(c *gin.Context) {
 // @Failure 404 {object} map[string]interface{} "Registration disabled"
 // @Failure 409 {object} map[string]interface{} "Username or email already exists"
 // @Router /api/v1/server/auth/register [post]
-func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIRegister(w http.ResponseWriter, r *http.Request) {
 	var req APIRegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
@@ -886,14 +887,14 @@ func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
 			}
 		}
 
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -908,10 +909,10 @@ func (h *AuthAPIHandler) HandleAPIRegister(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Logged out"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/server/auth/logout [post]
-func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
-	session, ok := middleware.GetCurrentSession(c)
+func (h *AuthAPIHandler) HandleAPILogout(w http.ResponseWriter, r *http.Request) {
+	session, ok := middleware.GetCurrentSession(r)
 	if !ok || session == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
 			"ok":    false,
 			"error": "session authentication required",
 		})
@@ -919,14 +920,14 @@ func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
 	}
 
 	if err := LogoutCurrentUserSession(h.DB, session); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Logged out successfully",
 	})
@@ -943,18 +944,18 @@ func (h *AuthAPIHandler) HandleAPILogout(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 401 {object} map[string]interface{} "Invalid code or expired session"
 // @Router /api/v1/server/auth/2fa [post]
-func (h *AuthAPIHandler) HandleAPI2FA(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPI2FA(w http.ResponseWriter, r *http.Request) {
 	var req API2FARequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	response, err := CompleteAPIUserTwoFactor(h.DB, &req, c.ClientIP())
+	response, err := CompleteAPIUserTwoFactor(h.DB, &req, util.GetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		if err.Error() == "Invalid request format" {
@@ -963,14 +964,14 @@ func (h *AuthAPIHandler) HandleAPI2FA(c *gin.Context) {
 			status = http.StatusInternalServerError
 		}
 
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -987,32 +988,32 @@ func (h *AuthAPIHandler) HandleAPI2FA(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 401 {object} map[string]interface{} "Invalid key or expired session"
 // @Router /api/v1/server/auth/recovery/use [post]
-func (h *AuthAPIHandler) HandleAPIRecoveryUse(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIRecoveryUse(w http.ResponseWriter, r *http.Request) {
 	var req APIRecoveryUseRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	response, err := UseAPIUserRecoveryKey(h.DB, &req, c.ClientIP())
+	response, err := UseAPIUserRecoveryKey(h.DB, &req, util.GetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		if strings.Contains(err.Error(), "failed to create session") || strings.Contains(err.Error(), "failed to load remaining recovery keys") {
 			status = http.StatusInternalServerError
 		}
 
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -1027,19 +1028,19 @@ func (h *AuthAPIHandler) HandleAPIRecoveryUse(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Refreshed session token"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/server/auth/refresh [post]
-func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
-	session, ok := middleware.GetCurrentSession(c)
+func (h *AuthAPIHandler) HandleAPIRefresh(w http.ResponseWriter, r *http.Request) {
+	session, ok := middleware.GetCurrentSession(r)
 	if !ok || session == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
 			"ok":    false,
 			"error": "session authentication required",
 		})
 		return
 	}
 
-	user, ok := middleware.GetCurrentUser(c)
+	user, ok := middleware.GetCurrentUser(r)
 	if !ok || user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
 			"ok":    false,
 			"error": "Not authenticated",
 		})
@@ -1048,14 +1049,14 @@ func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
 
 	response, err := RefreshCurrentUserSession(h.DB, session, user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -1071,11 +1072,11 @@ func (h *AuthAPIHandler) HandleAPIRefresh(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Email verified"
 // @Failure 400 {object} map[string]interface{} "Bad request or invalid code"
 // @Router /api/v1/server/auth/verify [post]
-func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req APIVerifyEmailRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
@@ -1087,14 +1088,14 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
 		if err.Error() == "failed to verify email" {
 			status = http.StatusInternalServerError
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Email verified successfully",
 	})
@@ -1110,11 +1111,11 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Reset email sent (or silently skipped)"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Router /api/v1/server/auth/password/forgot [post]
-func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIPasswordForgot(w http.ResponseWriter, r *http.Request) {
 	var req APIPasswordForgotRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid email format",
 		})
@@ -1122,10 +1123,10 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 	}
 
 	if err := RequestAPIUserPasswordReset(h.DB, &req, &APIPasswordResetContext{
-		ClientIP: c.ClientIP(),
-		FullHost: util.GetHostInfo(c).FullHost,
+		ClientIP: util.GetClientIP(r),
+		FullHost: util.GetHostInfo(r).FullHost,
 	}); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
@@ -1134,7 +1135,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 
 	// Always return success to prevent email enumeration
 	// Per AI.md security requirements
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "If an account exists with that email, a password reset link will be sent",
 	})
@@ -1150,11 +1151,11 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Password reset successful"
 // @Failure 400 {object} map[string]interface{} "Bad request or expired token"
 // @Router /api/v1/server/auth/password/reset [post]
-func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIPasswordReset(w http.ResponseWriter, r *http.Request) {
 	var req APIPasswordResetRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
@@ -1166,14 +1167,14 @@ func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
 		if err.Error() == "failed to process password" || err.Error() == "failed to reset password" {
 			status = http.StatusInternalServerError
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"message": "Password reset successfully. Please log in with your new password.",
 	})
@@ -1189,21 +1190,21 @@ func (h *AuthAPIHandler) HandleAPIPasswordReset(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Token required"
 // @Failure 410 {object} map[string]interface{} "Token expired or invalid"
 // @Router /api/v1/server/auth/invite/user/{token} [get]
-func (h *AuthAPIHandler) HandleAPIUserInviteValidate(c *gin.Context) {
-	response, err := ValidateAPIUserInvite(h.DB, c.Param("token"))
+func (h *AuthAPIHandler) HandleAPIUserInviteValidate(w http.ResponseWriter, r *http.Request) {
+	response, err := ValidateAPIUserInvite(h.DB, chi.URLParam(r, "token"))
 	if err != nil {
 		status := http.StatusGone
 		if err.Error() == "Token required" {
 			status = http.StatusBadRequest
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -1221,21 +1222,21 @@ func (h *AuthAPIHandler) HandleAPIUserInviteValidate(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Validation error"
 // @Failure 410 {object} map[string]interface{} "Token expired or invalid"
 // @Router /api/v1/server/auth/invite/user/{token} [post]
-func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIUserInviteComplete(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username" binding:"required,min=3"`
 		Password string `json:"password" binding:"required,min=8"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	response, err := CompleteAPIUserInvite(h.DB, c.Param("token"), req.Username, req.Password)
+	response, err := CompleteAPIUserInvite(h.DB, chi.URLParam(r, "token"), req.Username, req.Password)
 	if err != nil {
 		status := http.StatusBadRequest
 		switch err.Error() {
@@ -1248,7 +1249,7 @@ func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
 				status = http.StatusGone
 			}
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
@@ -1256,14 +1257,14 @@ func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
 	}
 
 	if strings.TrimSpace(response.Message) != "" && response.Token == "" && response.User == nil {
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
 			"message": response.Message,
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -1279,21 +1280,21 @@ func (h *AuthAPIHandler) HandleAPIUserInviteComplete(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Token required"
 // @Failure 410 {object} map[string]interface{} "Token expired or invalid"
 // @Router /api/v1/server/auth/invite/server/{token} [get]
-func (h *AuthAPIHandler) HandleAPIServerInviteValidate(c *gin.Context) {
-	response, err := ValidateAPIServerInvite(c.Param("token"))
+func (h *AuthAPIHandler) HandleAPIServerInviteValidate(w http.ResponseWriter, r *http.Request) {
+	response, err := ValidateAPIServerInvite(chi.URLParam(r, "token"))
 	if err != nil {
 		status := http.StatusGone
 		if err.Error() == "Token required" {
 			status = http.StatusBadRequest
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":   true,
 		"data": response,
 	})
@@ -1311,37 +1312,37 @@ func (h *AuthAPIHandler) HandleAPIServerInviteValidate(c *gin.Context) {
 // @Failure 400 {object} map[string]interface{} "Validation error"
 // @Failure 410 {object} map[string]interface{} "Token expired or invalid"
 // @Router /api/v1/server/auth/invite/server/{token} [post]
-func (h *AuthAPIHandler) HandleAPIServerInviteComplete(c *gin.Context) {
+func (h *AuthAPIHandler) HandleAPIServerInviteComplete(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username" binding:"required,min=3"`
 		Password string `json:"password" binding:"required,min=8"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"ok":    false,
 			"error": "Invalid request format",
 		})
 		return
 	}
 
-	response, err := CompleteAPIServerInvite(c.Param("token"), req.Username, req.Password)
+	response, err := CompleteAPIServerInvite(chi.URLParam(r, "token"), req.Username, req.Password)
 	if err != nil {
 		status := http.StatusBadRequest
 		if err.Error() == "Token required" {
 			status = http.StatusBadRequest
 		}
-		c.JSON(status, gin.H{
+		writeJSON(w, status, map[string]interface{}{
 			"ok":    false,
 			"error": err.Error(),
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"ok":      true,
 		"message": response.Message,
-		"data": gin.H{
+		"data": map[string]interface{}{
 			"admin": response.Admin,
 		},
 	})

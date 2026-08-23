@@ -2,23 +2,25 @@ package handler
 
 import (
 	"context"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 )
 
-// adminUsernameKey is the gin context key holding the resolved admin username.
+// adminUsernameKey is the reqctx key holding the resolved admin username.
 const adminUsernameKey = "admin_username"
 
 // AdminLang returns the active request language, defaulting to English when the
 // i18n middleware has not resolved one (AI.md PART 31 fallback chain).
-func AdminLang(c *gin.Context) string {
-	if value, ok := c.Get("lang"); ok {
+func AdminLang(r *http.Request) string {
+	if value, ok := reqctx.Get(r.Context(), "lang"); ok {
 		if lang, ok := value.(string); ok && lang != "" {
 			return lang
 		}
@@ -29,9 +31,9 @@ func AdminLang(c *gin.Context) string {
 // AdminTranslate resolves a translation key for the active request language.
 // A missing global i18n instance falls back to the key itself so a page never
 // fails to render because translations are unavailable.
-func AdminTranslate(c *gin.Context, key string) string {
+func AdminTranslate(r *http.Request, key string) string {
 	if instance := i18n.GetGlobalI18n(); instance != nil {
-		return instance.T(AdminLang(c), key)
+		return instance.T(AdminLang(r), key)
 	}
 	return key
 }
@@ -39,22 +41,22 @@ func AdminTranslate(c *gin.Context, key string) string {
 // AdminUsername returns the username of the currently authenticated Server
 // Admin. The API group carries the full admin record on the context; the HTML
 // session group only carries the admin id, so that case is resolved from the
-// server database and memoized on the context for the rest of the request.
-func AdminUsername(c *gin.Context) string {
-	if value, ok := c.Get(adminUsernameKey); ok {
+// server database on every call (net/http's immutable *http.Request context
+// cannot be memoized the way gin.Context.Set could).
+func AdminUsername(r *http.Request) string {
+	if value, ok := reqctx.Get(r.Context(), adminUsernameKey); ok {
 		if username, ok := value.(string); ok && username != "" {
 			return username
 		}
 	}
 
-	if value, ok := c.Get("admin"); ok {
+	if value, ok := reqctx.Get(r.Context(), "admin"); ok {
 		if admin, ok := value.(*model.Admin); ok && admin != nil && admin.Username != "" {
-			c.Set(adminUsernameKey, admin.Username)
 			return admin.Username
 		}
 	}
 
-	adminID, ok := c.Get("admin_id")
+	adminID, ok := reqctx.Get(r.Context(), "admin_id")
 	if !ok {
 		return ""
 	}
@@ -78,7 +80,6 @@ func AdminUsername(c *gin.Context) string {
 	if err != nil || username == "" {
 		return ""
 	}
-	c.Set(adminUsernameKey, username)
 	return username
 }
 
@@ -86,9 +87,9 @@ func AdminUsername(c *gin.Context) string {
 // account paths. AI.md PART 17 puts the admin's profile, preferences and
 // notifications under /{admin_path}/{admin_username}/, so admin chrome needs
 // the resolved username to build those links.
-func AdminTemplateData(c *gin.Context, data gin.H) gin.H {
-	enriched := util.TemplateData(c, data)
-	username := AdminUsername(c)
+func AdminTemplateData(r *http.Request, data map[string]interface{}) map[string]interface{} {
+	enriched := util.TemplateData(r, data)
+	username := AdminUsername(r)
 	enriched[adminUsernameKey] = username
 
 	selfPath := ""
@@ -114,44 +115,42 @@ func AdminTemplateData(c *gin.Context, data gin.H) gin.H {
 // not belong to the authenticated admin. AI.md PART 17 scopes that subtree to
 // the admin's OWN account, and a mismatch must not disclose whether another
 // admin exists, so it answers 404 rather than 403.
-func RequireAdminSelf() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if adminSelfMatches(c) {
-			c.Next()
-			return
-		}
-		c.HTML(http.StatusNotFound, "page/error.tmpl", util.TemplateData(c, gin.H{
-			"title": AdminTranslate(c, "error.not_found"),
-			"error": AdminTranslate(c, "error.not_found"),
-		}))
-		c.Abort()
+func RequireAdminSelf() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if adminSelfMatches(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
+				"title": AdminTranslate(r, "error.not_found"),
+				"error": AdminTranslate(r, "error.not_found"),
+			}))
+		})
 	}
 }
 
 // RequireAdminSelfAPI is the JSON counterpart of RequireAdminSelf, returning
 // the canonical error shape from AI.md PART 14.
-func RequireAdminSelfAPI() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if adminSelfMatches(c) {
-			c.Next()
-			return
-		}
-		c.JSON(http.StatusNotFound, gin.H{
-			"ok":      false,
-			"error":   "NOT_FOUND",
-			"message": AdminTranslate(c, "error.not_found"),
+func RequireAdminSelfAPI() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if adminSelfMatches(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			NotFound(w, r, AdminTranslate(r, "error.not_found"))
 		})
-		c.Abort()
 	}
 }
 
 // adminSelfMatches reports whether the {admin_username} path segment matches
 // the authenticated admin.
-func adminSelfMatches(c *gin.Context) bool {
-	requested := c.Param("admin_username")
+func adminSelfMatches(r *http.Request) bool {
+	requested := chi.URLParam(r, "admin_username")
 	if requested == "" {
 		return false
 	}
-	current := AdminUsername(c)
+	current := AdminUsername(r)
 	return current != "" && requested == current
 }

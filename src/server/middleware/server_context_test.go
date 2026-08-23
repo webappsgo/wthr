@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	_ "modernc.org/sqlite"
 )
 
@@ -44,13 +44,10 @@ func openServerContextTestDB(t *testing.T) *sql.DB {
 // defaults (title, tagline, description) and defaults Lang to "en" when no
 // upstream "lang" key exists in context.
 func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	db := openServerContextTestDB(t)
 
-	router := gin.New()
-	router.Use(InjectServerContext(db, "1.2.3"))
-	router.GET("/", func(c *gin.Context) {
-		ctx, exists := GetServerContext(c)
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, exists := GetServerContext(r.Context())
 		if !exists {
 			t.Fatal("server context not set by InjectServerContext")
 		}
@@ -66,12 +63,13 @@ func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 		if ctx.Lang != "en" {
 			t.Errorf("Lang = %q, want default %q when no lang was set upstream", ctx.Lang, "en")
 		}
-		c.String(http.StatusOK, "ok")
+		w.WriteHeader(http.StatusOK)
 	})
+	handler := InjectServerContext(db, "1.2.3")(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -84,7 +82,6 @@ func TestInjectServerContext_DefaultsWhenNoSettingsStored(t *testing.T) {
 // context value (set by an earlier i18n middleware) is honored instead of
 // the "en" fallback.
 func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	db := openServerContextTestDB(t)
 
 	seed := []struct{ key, value string }{
@@ -101,14 +98,15 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 		}
 	}
 
-	router := gin.New()
-	router.Use(func(c *gin.Context) {
-		c.Set("lang", "fr")
-		c.Next()
-	})
-	router.Use(InjectServerContext(db, "1.2.3"))
-	router.GET("/", func(c *gin.Context) {
-		ctx, exists := GetServerContext(c)
+	setLang := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := reqctx.Set(r.Context(), "lang", "fr")
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, exists := GetServerContext(r.Context())
 		if !exists {
 			t.Fatal("server context not set by InjectServerContext")
 		}
@@ -124,12 +122,13 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 		if ctx.Lang != "fr" {
 			t.Errorf("Lang = %q, want the upstream context value %q", ctx.Lang, "fr")
 		}
-		c.String(http.StatusOK, "ok")
+		w.WriteHeader(http.StatusOK)
 	})
+	handler := setLang(InjectServerContext(db, "1.2.3")(next))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -140,11 +139,9 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 // on a context where InjectServerContext never ran returns a safe zero-value
 // fallback (exists=false) rather than panicking on a failed type assertion.
 func TestGetServerContext_MissingReturnsSafeDefaults(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
-	ctx, exists := GetServerContext(c)
+	ctx, exists := GetServerContext(req.Context())
 	if exists {
 		t.Error("exists = true, want false when InjectServerContext never ran")
 	}

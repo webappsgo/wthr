@@ -4,16 +4,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
 // TestPathSecurityMiddleware_BlocksTraversal verifies the HTTP-level
 // middleware rejects raw and percent-encoded traversal sequences with 400,
 // and lets legitimate paths through.
 func TestPathSecurityMiddleware_BlocksTraversal(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
 		name       string
 		rawPath    string
@@ -29,13 +25,11 @@ func TestPathSecurityMiddleware_BlocksTraversal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := gin.New()
-			router.Use(PathSecurityMiddleware())
-			router.Any("/*path", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
+			handler := PathSecurityMiddleware()(stubOKHandler)
 
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, tt.rawPath, nil)
-			router.ServeHTTP(w, req)
+			handler.ServeHTTP(w, req)
 
 			if w.Code != tt.wantStatus {
 				t.Errorf("path %q: status = %d, want %d (body=%s)", tt.rawPath, w.Code, tt.wantStatus, w.Body.String())
@@ -48,19 +42,16 @@ func TestPathSecurityMiddleware_BlocksTraversal(t *testing.T) {
 // slashes are collapsed in place (no redirect) before the handler sees the
 // path.
 func TestURLNormalizeMiddleware_CollapsesDoubleSlashes(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	var seenPath string
-	router := gin.New()
-	router.Use(URLNormalizeMiddleware())
-	router.Any("/*path", func(c *gin.Context) {
-		seenPath = c.Request.URL.Path
-		c.String(http.StatusOK, "ok")
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
 	})
+	handler := URLNormalizeMiddleware()(next)
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api//v1///weather", nil)
-	router.ServeHTTP(w, req)
+	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (body=%s)", w.Code, w.Body.String())

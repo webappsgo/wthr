@@ -4,16 +4,16 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"time"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // LDAPAuthHandler handles LDAP-based user authentication.
@@ -40,26 +40,31 @@ type LDAPLoginRequest struct {
 // @Failure 401 {object} map[string]string
 // @Failure 503 {object} map[string]string
 // @Router /auth/ldap [post]
-func (h *LDAPAuthHandler) Login(c *gin.Context) {
+func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LDAPLoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "username and password are required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "username and password are required"})
+		return
+	}
+
+	if req.Username == "" || req.Password == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "username and password are required"})
 		return
 	}
 
 	ldapCfg := h.LDAPService.Config()
 	if !ldapCfg.Enabled {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "LDAP authentication is not enabled"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"error": "LDAP authentication is not enabled"})
 		return
 	}
 
 	email, displayName, err := h.LDAPService.Authenticate(req.Username, req.Password)
 	if err != nil {
 		if err.Error() == "invalid credentials" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid credentials"})
 			return
 		}
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "LDAP service unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"error": "LDAP service unavailable"})
 		return
 	}
 
@@ -80,12 +85,12 @@ func (h *LDAPAuthHandler) Login(c *gin.Context) {
 		}
 		randToken, tokenErr := models.GenerateSecureToken(32)
 		if tokenErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
 			return
 		}
 		pwHash, hashErr := models.HashPassword(randToken)
 		if hashErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
 			return
 		}
 		// created_at/updated_at are bound as canonical UTC text rather than
@@ -97,22 +102,29 @@ func (h *LDAPAuthHandler) Login(c *gin.Context) {
 			VALUES (?, ?, ?, ?, 'user', 1, 1, ?, ?)
 		`, req.Username, email, displayName, pwHash, now, now)
 		if insertErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
 			return
 		}
 		userID, _ = result.LastInsertId()
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "database error"})
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: usersDB}
-	session, sessionErr := sessionModel.CreateSession(userID, c.ClientIP(), c.Request.UserAgent(), 24*time.Hour)
+	session, sessionErr := sessionModel.CreateSession(userID, util.GetClientIP(r), r.UserAgent(), 24*time.Hour)
 	if sessionErr != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create session"})
 		return
 	}
 
-	c.SetCookie(middleware.SessionCookieName, session.SessionID, 86400, "/", "", c.Request.TLS != nil, true)
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	http.SetCookie(w, &http.Cookie{
+		Name:     middleware.SessionCookieName,
+		Value:    session.SessionID,
+		MaxAge:   86400,
+		Path:     "/",
+		Secure:   r.TLS != nil,
+		HttpOnly: true,
+	})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

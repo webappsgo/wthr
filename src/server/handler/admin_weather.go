@@ -1,9 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -13,14 +14,14 @@ type AdminWeatherHandler struct {
 }
 
 // ShowWeatherSettings displays weather settings page
-func (h *AdminWeatherHandler) ShowWeatherSettings(c *gin.Context) {
-	c.HTML(http.StatusOK, "admin/admin_weather.tmpl", util.TemplateData(c, gin.H{
+func (h *AdminWeatherHandler) ShowWeatherSettings(w http.ResponseWriter, r *http.Request) {
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_weather.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title": "Weather Settings",
 	}))
 }
 
 // UpdateWeatherSettings updates weather settings in server.yml
-func (h *AdminWeatherHandler) UpdateWeatherSettings(c *gin.Context) {
+func (h *AdminWeatherHandler) UpdateWeatherSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		// Sources
 		OpenMeteoEnabled       bool   `json:"openmeteo_enabled"`
@@ -47,8 +48,8 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(c *gin.Context) {
 		APIMaxHistoricalDays int `json:"api_max_historical_days"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -74,9 +75,9 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(c *gin.Context) {
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
 }

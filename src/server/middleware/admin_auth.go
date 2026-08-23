@@ -8,99 +8,107 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 )
+
+// RenderHTML renders a named template to w for the given request. It is
+// wired up by main.go during startup (dependency injection), since the
+// template registry gin's LoadHTMLGlob populated is owned by main.go and
+// middleware cannot import the handler package (handler already imports
+// middleware, so importing it back here would create an import cycle).
+var RenderHTML func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{})
 
 // RequireAdminAuth checks if user is authenticated as admin
 // Shows admin login page if not authenticated per AI.md PART 18
-func RequireAdminAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Load config for branding
-		cfg, err := config.LoadConfig()
-		var title string
-		if err == nil && cfg.Server.Branding.Title != "" {
-			title = cfg.Server.Branding.Title
-		} else {
-			title = "Weather"
-		}
+func RequireAdminAuth() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Load config for branding
+			cfg, err := config.LoadConfig()
+			var title string
+			if err == nil && cfg.Server.Branding.Title != "" {
+				title = cfg.Server.Branding.Title
+			} else {
+				title = "Weather"
+			}
 
-		// Get version from main package
-		version := GetVersion()
+			// Get version from main package
+			version := GetVersion()
 
-		// Check for admin session
-		session, err := c.Cookie("admin_session")
-		if err != nil || session == "" {
-			// No session - show login page per AI.md PART 18
-			c.HTML(http.StatusOK, "admin/login.tmpl", gin.H{
-				"branding": gin.H{
-					"Title": title,
-				},
-				"version": version,
-			})
-			c.Abort()
-			return
-		}
+			// Check for admin session
+			sessionCookie, err := r.Cookie("admin_session")
+			if err != nil || sessionCookie.Value == "" {
+				// No session - show login page per AI.md PART 18
+				RenderHTML(w, r, http.StatusOK, "admin/login.tmpl", map[string]interface{}{
+					"branding": map[string]interface{}{
+						"Title": title,
+					},
+					"version": version,
+				})
+				return
+			}
+			session := sessionCookie.Value
 
-		// Validate session against database (AI.md PART 18 requirement)
-		// Check if session exists in server_admin_sessions table and is not expired
-		db := GetDB(c)
-		if db == nil {
-			// Database not available - reject
-			c.HTML(http.StatusServiceUnavailable, "admin/login.tmpl", gin.H{
-				"error": "Service temporarily unavailable",
-				"branding": gin.H{
-					"Title": title,
-				},
-				"version": version,
-			})
-			c.Abort()
-			return
-		}
+			// Validate session against database (AI.md PART 18 requirement)
+			// Check if session exists in server_admin_sessions table and is not expired
+			db := GetDB(r)
+			if db == nil {
+				// Database not available - reject
+				RenderHTML(w, r, http.StatusServiceUnavailable, "admin/login.tmpl", map[string]interface{}{
+					"error": "Service temporarily unavailable",
+					"branding": map[string]interface{}{
+						"Title": title,
+					},
+					"version": version,
+				})
+				return
+			}
 
-		// Query server_admin_sessions table for the session row.
-		//
-		// expires_at is judged in Go, never by SQL. "expires_at >
-		// CURRENT_TIMESTAMP" is a raw lexicographic TEXT comparison, and this
-		// column can hold either canonical UTC text or the local-zone
-		// time.Time.String() form an older build bound directly. A row written
-		// in a zone behind UTC therefore compared as still valid for hours
-		// after it had really expired (authentication bypass), and one written
-		// ahead of UTC compared as expired while still live (denial of
-		// service); wrapping the column in datetime() instead yields NULL for
-		// the local-zone layout, so the predicate matches nothing at all.
-		// dbtime.IsAfter resolves both layouts to the same absolute instant and
-		// reports false for a NULL or unparseable value, so a session this
-		// project cannot interpret is rejected rather than trusted.
-		var adminID int
-		var storedExpiresAt interface{}
-		err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-			SELECT admin_id, expires_at
-			FROM server_admin_sessions
-			WHERE id = ?
-		`, session).Scan(&adminID, &storedExpiresAt)
+			// Query server_admin_sessions table for the session row.
+			//
+			// expires_at is judged in Go, never by SQL. "expires_at >
+			// CURRENT_TIMESTAMP" is a raw lexicographic TEXT comparison, and this
+			// column can hold either canonical UTC text or the local-zone
+			// time.Time.String() form an older build bound directly. A row written
+			// in a zone behind UTC therefore compared as still valid for hours
+			// after it had really expired (authentication bypass), and one written
+			// ahead of UTC compared as expired while still live (denial of
+			// service); wrapping the column in datetime() instead yields NULL for
+			// the local-zone layout, so the predicate matches nothing at all.
+			// dbtime.IsAfter resolves both layouts to the same absolute instant and
+			// reports false for a NULL or unparseable value, so a session this
+			// project cannot interpret is rejected rather than trusted.
+			var adminID int
+			var storedExpiresAt interface{}
+			err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
+				SELECT admin_id, expires_at
+				FROM server_admin_sessions
+				WHERE id = ?
+			`, session).Scan(&adminID, &storedExpiresAt)
 
-		if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
-			// Invalid or expired session - show login
-			c.HTML(http.StatusOK, "admin/login.tmpl", gin.H{
-				"branding": gin.H{
-					"Title": title,
-				},
-				"version": version,
-			})
-			c.Abort()
-			return
-		}
+			if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
+				// Invalid or expired session - show login
+				RenderHTML(w, r, http.StatusOK, "admin/login.tmpl", map[string]interface{}{
+					"branding": map[string]interface{}{
+						"Title": title,
+					},
+					"version": version,
+				})
+				return
+			}
 
-		// Valid session - store admin_id in context for handlers
-		c.Set("admin_id", adminID)
+			// Valid session - store admin_id in context for handlers
+			ctx := reqctx.Set(r.Context(), "admin_id", adminID)
+			r = r.WithContext(ctx)
 
-		// Session valid - continue to admin panel
-		c.Next()
+			// Session valid - continue to admin panel
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
@@ -112,8 +120,8 @@ func GetVersion() string {
 }
 
 // GetDB returns the database connection from context (helper for middleware)
-func GetDB(c *gin.Context) *sql.DB {
-	if db, exists := c.Get("db"); exists {
+func GetDB(r *http.Request) *sql.DB {
+	if db, exists := reqctx.Get(r.Context(), "db"); exists {
 		if sqlDB, ok := db.(*sql.DB); ok {
 			return sqlDB
 		}
@@ -122,8 +130,8 @@ func GetDB(c *gin.Context) *sql.DB {
 }
 
 // AdminLoginHandler handles admin login per AI.md PART 18
-func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		// Load config for branding and HTTPS detection
 		cfg, _ := config.LoadConfig()
 		title := "Weather"
@@ -132,15 +140,15 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		}
 		version := GetVersion()
 
-		username := c.PostForm("username")
-		password := c.PostForm("password")
-		remember := c.PostForm("remember") == "1"
+		username := r.PostFormValue("username")
+		password := r.PostFormValue("password")
+		remember := r.PostFormValue("remember") == "1"
 
 		// Input validation
 		if username == "" || password == "" {
-			c.HTML(http.StatusUnauthorized, "admin/login.tmpl", gin.H{
+			RenderHTML(w, r, http.StatusUnauthorized, "admin/login.tmpl", map[string]interface{}{
 				"error": "Invalid username or password",
-				"branding": gin.H{
+				"branding": map[string]interface{}{
 					"Title": title,
 				},
 				"version": version,
@@ -159,9 +167,9 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 
 		if err == sql.ErrNoRows {
 			// Admin not found - generic error to prevent enumeration
-			c.HTML(http.StatusUnauthorized, "admin/login.tmpl", gin.H{
+			RenderHTML(w, r, http.StatusUnauthorized, "admin/login.tmpl", map[string]interface{}{
 				"error": "Invalid credentials",
-				"branding": gin.H{
+				"branding": map[string]interface{}{
 					"Title": title,
 				},
 				"version": version,
@@ -171,9 +179,9 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 
 		if err != nil {
 			// Database error
-			c.HTML(http.StatusInternalServerError, "admin/login.tmpl", gin.H{
+			RenderHTML(w, r, http.StatusInternalServerError, "admin/login.tmpl", map[string]interface{}{
 				"error": "An error occurred. Please try again.",
-				"branding": gin.H{
+				"branding": map[string]interface{}{
 					"Title": title,
 				},
 				"version": version,
@@ -185,9 +193,9 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		// Password verification handled by admin model
 		if !verifyPasswordHash(password, passwordHash) {
 			// Invalid password - generic error
-			c.HTML(http.StatusUnauthorized, "admin/login.tmpl", gin.H{
+			RenderHTML(w, r, http.StatusUnauthorized, "admin/login.tmpl", map[string]interface{}{
 				"error": "Invalid credentials",
-				"branding": gin.H{
+				"branding": map[string]interface{}{
 					"Title": title,
 				},
 				"version": version,
@@ -218,12 +226,12 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
 			VALUES (?, ?, ?, ?, ?, ?)
-		`, sessionToken, adminID, c.ClientIP(), c.Request.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
+		`, sessionToken, adminID, util.GetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
 
 		if err != nil {
-			c.HTML(http.StatusInternalServerError, "admin/login.tmpl", gin.H{
+			RenderHTML(w, r, http.StatusInternalServerError, "admin/login.tmpl", map[string]interface{}{
 				"error": "Failed to create session. Please try again.",
-				"branding": gin.H{
+				"branding": map[string]interface{}{
 					"Title": title,
 				},
 				"version": version,
@@ -232,7 +240,7 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// Detect if HTTPS is being used
-		isHTTPS := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+		isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 
 		// Get admin path from config (AI.md: use configurable admin_path)
 		adminPath := "/server/admin"
@@ -241,17 +249,17 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// Set admin_session cookie with proper security (AI.md PART 18)
-		c.SetCookie(
-			"admin_session",
-			sessionToken,
-			maxAge,
-			adminPath,
-			"",
+		http.SetCookie(w, &http.Cookie{
+			Name:   "admin_session",
+			Value:  sessionToken,
+			MaxAge: maxAge,
+			Path:   adminPath,
+			Domain: "",
 			// Secure flag - true if HTTPS
-			isHTTPS,
+			Secure: isHTTPS,
 			// HttpOnly - prevent JavaScript access
-			true,
-		)
+			HttpOnly: true,
+		})
 
 		// Update last_login timestamp, bound as canonical UTC text so the value
 		// is identical on every driver rather than whatever CURRENT_TIMESTAMP
@@ -259,13 +267,13 @@ func AdminLoginHandler(db *sql.DB) gin.HandlerFunc {
 		database.ExecContext(context.Background(), db, database.TimeoutWrite, "UPDATE server_admin_credentials SET last_login_at = ? WHERE id = ?", dbtime.FormatSQLTimestamp(now), adminID)
 
 		// Redirect to admin dashboard
-		c.Redirect(http.StatusFound, adminPath+"/dashboard")
+		http.Redirect(w, r, adminPath+"/dashboard", http.StatusFound)
 	}
 }
 
 // AdminLogoutHandler handles admin logout per AI.md PART 18
-func AdminLogoutHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func AdminLogoutHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		// Get admin path from config (AI.md: use configurable admin_path)
 		cfg, _ := config.LoadConfig()
 		adminPath := "/server/admin"
@@ -274,18 +282,18 @@ func AdminLogoutHandler() gin.HandlerFunc {
 		}
 
 		// Clear admin session cookie
-		c.SetCookie(
-			"admin_session",
-			"",
-			-1,
-			adminPath,
-			"",
-			false,
-			true,
-		)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "admin_session",
+			Value:    "",
+			MaxAge:   -1,
+			Path:     adminPath,
+			Domain:   "",
+			Secure:   false,
+			HttpOnly: true,
+		})
 
 		// Redirect to admin login
-		c.Redirect(http.StatusFound, adminPath)
+		http.Redirect(w, r, adminPath, http.StatusFound)
 	}
 }
 

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"bytes"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,15 +27,8 @@ func newNotificationsTestConfigFile(t *testing.T) string {
 func TestAdminNotificationsHandler_ShowNotificationSettings(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: newNotificationsTestConfigFile(t)}
 	c, w := newAPITestContext("/server/admin/config/notifications")
-	// c.HTML needs an HTMLRender configured or gin panics; recover so a
-	// missing-template failure doesn't crash the run, since we only assert
-	// the handler didn't error out before reaching HTML().
-	defer func() {
-		if r := recover(); r != nil {
-			t.Skipf("gin HTMLRender not configured in unit test context: %v", r)
-		}
-	}()
-	h.ShowNotificationSettings(c)
+	defer htmlRenderGuard(t)
+	h.ShowNotificationSettings(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
@@ -48,14 +40,11 @@ func TestAdminNotificationsHandler_ShowNotificationSettings(t *testing.T) {
 func TestAdminNotificationsHandler_UpdateNotificationSettings_Success(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: newNotificationsTestConfigFile(t)}
 
-	body := []byte(`{"email_startup":true,"email_shutdown":true,"email_backup_complete":true,"email_backup_failed":true,"email_cert_renewal":true,"webhook_enabled":true,"webhook_url":"https://hooks.example.com/x","webhook_events":["backup_failed"],"webui_position":"top-right","webui_duration":5000,"webui_max_stored":100,"webui_retention_days":30}`)
+	body := `{"email_startup":true,"email_shutdown":true,"email_backup_complete":true,"email_backup_failed":true,"email_cert_renewal":true,"webhook_enabled":true,"webhook_url":"https://hooks.example.com/x","webhook_events":["backup_failed"],"webui_position":"top-right","webui_duration":5000,"webui_max_stored":100,"webui_retention_days":30}`
 
-	c, w := newAPITestContext("/admin/config/notifications")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", body)
 
-	h.UpdateNotificationSettings(c)
+	h.UpdateNotificationSettings(w, c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -85,12 +74,9 @@ func TestAdminNotificationsHandler_UpdateNotificationSettings_InvalidJSON(t *tes
 
 	h := &AdminNotificationsHandler{ConfigPath: configPath}
 
-	c, w := newAPITestContext("/admin/config/notifications")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte("{not valid json")))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", "{not valid json")
 
-	h.UpdateNotificationSettings(c)
+	h.UpdateNotificationSettings(w, c)
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", w.Code)
@@ -110,12 +96,9 @@ func TestAdminNotificationsHandler_UpdateNotificationSettings_InvalidJSON(t *tes
 func TestAdminNotificationsHandler_UpdateNotificationSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newAPITestContext("/admin/config/notifications")
-	c.Request.Method = http.MethodPost
-	c.Request.Body = io.NopCloser(bytes.NewReader([]byte(`{"email_startup":true}`)))
-	c.Request.Header.Set("Content-Type", "application/json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", `{"email_startup":true}`)
 
-	h.UpdateNotificationSettings(c)
+	h.UpdateNotificationSettings(w, c)
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())

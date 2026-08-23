@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/webappsgo/wthr/src/renderer"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -34,22 +32,22 @@ func NewWeatherHandler(ws *service.WeatherService, le *service.LocationEnhancer)
 }
 
 // HandleRoot serves the root endpoint (uses saved location, then IP detection)
-func (h *WeatherHandler) HandleRoot(c *gin.Context) {
+func (h *WeatherHandler) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
-	clientIP := util.GetClientIP(c)
-	isBrowser := util.IsBrowser(c)
-	params := util.ParseQueryParams(c)
+	clientIP := util.GetClientIP(r)
+	isBrowser := util.IsBrowser(r)
+	params := util.ParseQueryParams(r)
 
 	// Check for location query parameter
-	locationQuery := c.Query("location")
+	locationQuery := r.URL.Query().Get("location")
 	if locationQuery != "" {
 		// If location param provided, redirect to path-based route
-		c.Redirect(http.StatusMovedPermanently, "/"+strings.ReplaceAll(locationQuery, " ", "+"))
+		http.Redirect(w, r, "/"+strings.ReplaceAll(locationQuery, " ", "+"), http.StatusMovedPermanently)
 		return
 	}
 
@@ -57,12 +55,15 @@ func (h *WeatherHandler) HandleRoot(c *gin.Context) {
 	var err error
 
 	// Priority 1: Check for saved location in cookies
-	if latStr, latErr := c.Cookie("user_lat"); latErr == nil {
-		if lonStr, lonErr := c.Cookie("user_lon"); lonErr == nil {
-			if lat, err1 := strconv.ParseFloat(latStr, 64); err1 == nil {
-				if lon, err2 := strconv.ParseFloat(lonStr, 64); err2 == nil {
+	if latCookie, latErr := r.Cookie("user_lat"); latErr == nil {
+		if lonCookie, lonErr := r.Cookie("user_lon"); lonErr == nil {
+			if lat, err1 := strconv.ParseFloat(latCookie.Value, 64); err1 == nil {
+				if lon, err2 := strconv.ParseFloat(lonCookie.Value, 64); err2 == nil {
 					// Get location name from cookie or reverse geocode
-					locationName, _ := c.Cookie("user_location_name")
+					locationName := ""
+					if nameCookie, nameErr := r.Cookie("user_location_name"); nameErr == nil {
+						locationName = nameCookie.Value
+					}
 					if locationName == "" {
 						locationName = fmt.Sprintf("%.4f,%.4f", lat, lon)
 					}
@@ -83,7 +84,7 @@ func (h *WeatherHandler) HandleRoot(c *gin.Context) {
 	if coords == nil {
 		coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err != nil {
-			h.handleError(c, err, "", isBrowser)
+			h.handleError(w, r, err, "", isBrowser)
 			return
 		}
 	}
@@ -118,23 +119,23 @@ func (h *WeatherHandler) HandleRoot(c *gin.Context) {
 
 	// If browser and no explicit format requested, serve HTML
 	if isBrowser && params.Format == 0 && !params.ForceANSI {
-		h.serveHTMLWeather(c, enhanced, units, enhanced.ShortName)
+		h.serveHTMLWeather(w, r, enhanced, units, enhanced.ShortName)
 		return
 	}
 
 	// Console clients get ASCII output
-	h.serveASCIIWeather(c, enhanced, units, params, "")
+	h.serveASCIIWeather(w, r, enhanced, units, params, "")
 }
 
 // HandleLocation serves weather for a specific location
-func (h *WeatherHandler) HandleLocation(c *gin.Context) {
+func (h *WeatherHandler) HandleLocation(w http.ResponseWriter, r *http.Request) {
 	// Check if services are initialized
 	if !IsInitialized() {
-		ServeLoadingPage(c)
+		ServeLoadingPage(w, r)
 		return
 	}
 
-	locationInput := strings.TrimPrefix(c.Request.URL.Path, "/")
+	locationInput := strings.TrimPrefix(r.URL.Path, "/")
 	// URL decode: convert + to space (standard URL encoding)
 	locationInput = strings.ReplaceAll(locationInput, "+", " ")
 
@@ -149,13 +150,13 @@ func (h *WeatherHandler) HandleLocation(c *gin.Context) {
 	}
 
 	// Handle special endpoints
-	if h.handleSpecialEndpoints(c, locationInput) {
+	if h.handleSpecialEndpoints(w, r, locationInput) {
 		return
 	}
 
 	// Handle moon requests
 	if strings.HasPrefix(strings.ToLower(locationInput), "moon") {
-		h.handleMoonRequest(c, locationInput)
+		h.handleMoonRequest(w, r, locationInput)
 		return
 	}
 
@@ -164,18 +165,19 @@ func (h *WeatherHandler) HandleLocation(c *gin.Context) {
 
 	// Filter invalid paths (but not GPS coordinates)
 	if !isGPS && h.isInvalidPath(locationInput) {
-		c.String(http.StatusNotFound, "404 Not Found\n")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "404 Not Found\n")
 		return
 	}
 
-	clientIP := util.GetClientIP(c)
-	isBrowser := util.IsBrowser(c)
-	params := util.ParseQueryParams(c)
+	clientIP := util.GetClientIP(r)
+	isBrowser := util.IsBrowser(r)
+	params := util.ParseQueryParams(r)
 
 	// Parse location
 	coords, err := h.weatherService.ParseAndResolveLocation(locationInput, clientIP)
 	if err != nil {
-		h.handleError(c, err, locationInput, isBrowser)
+		h.handleError(w, r, err, locationInput, isBrowser)
 		return
 	}
 
@@ -215,12 +217,12 @@ func (h *WeatherHandler) HandleLocation(c *gin.Context) {
 
 	// If browser and no explicit format requested, serve HTML
 	if isBrowser && params.Format == 0 && !params.ForceANSI {
-		h.serveHTMLWeather(c, enhanced, units, locationInput)
+		h.serveHTMLWeather(w, r, enhanced, units, locationInput)
 		return
 	}
 
 	// Console clients get ASCII output
-	h.serveASCIIWeather(c, enhanced, units, params, locationInput)
+	h.serveASCIIWeather(w, r, enhanced, units, params, locationInput)
 }
 
 // isGPSCoordinates checks if a location string is GPS coordinates
@@ -239,13 +241,13 @@ func (h *WeatherHandler) isGPSCoordinates(location string) bool {
 }
 
 // serveHTMLWeather renders HTML weather page for browsers
-func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coordinates, units string, locationInput string) {
+func (h *WeatherHandler) serveHTMLWeather(w http.ResponseWriter, r *http.Request, location *service.Coordinates, units string, locationInput string) {
 	// Get current weather and forecast
 	current, err := h.weatherService.GetCurrentWeather(location.Latitude, location.Longitude, units)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "page/weather.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Error":    err.Error(),
-			"HostInfo": util.GetHostInfo(c),
+			"HostInfo": util.GetHostInfo(r),
 			"page":     "weather",
 		}))
 		return
@@ -258,7 +260,7 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 	}
 
 	// Enrich current weather with icon and description
-	currentData := gin.H{
+	currentData := map[string]interface{}{
 		"Temperature":   current.Temperature,
 		"FeelsLike":     current.FeelsLike,
 		"Humidity":      current.Humidity,
@@ -272,7 +274,7 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 	}
 
 	// Format location with population
-	locationData := gin.H{
+	locationData := map[string]interface{}{
 		"Name":                location.Name,
 		"ShortName":           location.ShortName,
 		"FullName":            location.FullName,
@@ -286,7 +288,7 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 	}
 
 	// Enrich forecast days with icon and formatted date
-	enrichedDays := make([]gin.H, len(forecast.Days))
+	enrichedDays := make([]map[string]interface{}, len(forecast.Days))
 	for i, day := range forecast.Days {
 		// Parse date for formatting (format as "Mon 2 Jan")
 		dateFormatted := day.Date
@@ -294,7 +296,7 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 			dateFormatted = t.Format("Mon 2 Jan")
 		}
 
-		enrichedDays[i] = gin.H{
+		enrichedDays[i] = map[string]interface{}{
 			"Date":          day.Date,
 			"DateFormatted": dateFormatted,
 			"WeatherCode":   day.WeatherCode,
@@ -317,13 +319,13 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 	}
 
 	// Create enriched forecast
-	enrichedForecast := gin.H{
+	enrichedForecast := map[string]interface{}{
 		"Days":     enrichedDays,
 		"Timezone": forecast.Timezone,
 	}
 
 	// Save location to cookies for persistence across navigation
-	middleware.SaveLocationCookies(c, location.Latitude, location.Longitude, location.ShortName)
+	middleware.SaveLocationCookies(w, r, location.Latitude, location.Longitude, location.ShortName)
 
 	// Format location for URLs (replace spaces with +, use ShortName for clean format)
 	locationFormatted := strings.ReplaceAll(location.ShortName, " ", "+")
@@ -332,15 +334,15 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 	// This shows "Albany, NY" instead of just "Albany"
 	displayLocation := location.ShortName
 
-	c.HTML(http.StatusOK, "page/weather.tmpl", util.TemplateData(c, gin.H{
+	middleware.RenderHTML(w, r, http.StatusOK, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title": location.ShortName + " Weather",
-		"WeatherData": gin.H{
+		"WeatherData": map[string]interface{}{
 			"Location": locationData,
 			"Current":  currentData,
 			"Forecast": enrichedForecast,
 			"Units":    units,
 		},
-		"HostInfo":          util.GetHostInfo(c),
+		"HostInfo":          util.GetHostInfo(r),
 		"Location":          displayLocation,
 		"LocationFormatted": locationFormatted,
 		"Units":             units,
@@ -350,7 +352,7 @@ func (h *WeatherHandler) serveHTMLWeather(c *gin.Context, location *service.Coor
 }
 
 // serveASCIIWeather renders ASCII weather for console clients
-func (h *WeatherHandler) serveASCIIWeather(c *gin.Context, location *service.Coordinates, units string, params *util.RenderParams, locationInput string) {
+func (h *WeatherHandler) serveASCIIWeather(w http.ResponseWriter, r *http.Request, location *service.Coordinates, units string, params *util.RenderParams, locationInput string) {
 	// Check if we need forecast (formats 1-4 don't need forecast)
 	needsForecast := params.Format == 0
 
@@ -385,7 +387,7 @@ func (h *WeatherHandler) serveASCIIWeather(c *gin.Context, location *service.Coo
 		// Wait for results
 		select {
 		case err = <-errChan:
-			h.handleError(c, err, locationInput, false)
+			h.handleError(w, r, err, locationInput, false)
 			return
 		case current = <-currentChan:
 			forecast = <-forecastChan
@@ -394,7 +396,7 @@ func (h *WeatherHandler) serveASCIIWeather(c *gin.Context, location *service.Coo
 		// Only fetch current weather
 		current, err = h.weatherService.GetCurrentWeather(location.Latitude, location.Longitude, units)
 		if err != nil {
-			h.handleError(c, err, locationInput, false)
+			h.handleError(w, r, err, locationInput, false)
 			return
 		}
 	}
@@ -461,19 +463,20 @@ func (h *WeatherHandler) serveASCIIWeather(c *gin.Context, location *service.Coo
 		output = h.asciiRenderer.RenderFull(weatherData, *params)
 	}
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, output)
 }
 
 // handleSpecialEndpoints handles :help and :bash.function endpoints
-func (h *WeatherHandler) handleSpecialEndpoints(c *gin.Context, path string) bool {
+func (h *WeatherHandler) handleSpecialEndpoints(w http.ResponseWriter, r *http.Request, path string) bool {
 	if path == ":help" {
-		h.handleHelp(c)
+		h.handleHelp(w, r)
 		return true
 	}
 
 	if path == ":bash.function" {
-		h.handleBashFunction(c)
+		h.handleBashFunction(w, r)
 		return true
 	}
 
@@ -481,8 +484,8 @@ func (h *WeatherHandler) handleSpecialEndpoints(c *gin.Context, path string) boo
 }
 
 // handleHelp renders the help page
-func (h *WeatherHandler) handleHelp(c *gin.Context) {
-	hostInfo := util.GetHostInfo(c)
+func (h *WeatherHandler) handleHelp(w http.ResponseWriter, r *http.Request) {
+	hostInfo := util.GetHostInfo(r)
 	baseURL := hostInfo.FullHost
 
 	helpText := fmt.Sprintf(`Weather
@@ -529,13 +532,14 @@ WEB INTERFACE:
 More info: %s/api/v1/docs
 `, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL, baseURL)
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
-	c.String(http.StatusOK, helpText)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, helpText)
 }
 
 // handleBashFunction serves the bash integration function
-func (h *WeatherHandler) handleBashFunction(c *gin.Context) {
-	hostInfo := util.GetHostInfo(c)
+func (h *WeatherHandler) handleBashFunction(w http.ResponseWriter, r *http.Request) {
+	hostInfo := util.GetHostInfo(r)
 	hostname := strings.TrimPrefix(strings.TrimPrefix(hostInfo.FullHost, "http://"), "https://")
 
 	bashFunction := fmt.Sprintf(`wttr()
@@ -584,14 +588,15 @@ w() { wttr "$@"; }
 # 3. Reload your shell: source ~/.bashrc
 `, hostname, hostname, hostname, hostInfo.FullHost)
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
-	c.String(http.StatusOK, bashFunction)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, bashFunction)
 }
 
 // handleMoonRequest handles moon phase requests
-func (h *WeatherHandler) handleMoonRequest(c *gin.Context, locationInput string) {
-	hostInfo := util.GetHostInfo(c)
-	isBrowser := util.IsBrowser(c)
+func (h *WeatherHandler) handleMoonRequest(w http.ResponseWriter, r *http.Request, locationInput string) {
+	hostInfo := util.GetHostInfo(r)
+	isBrowser := util.IsBrowser(r)
 
 	// Extract location from moon/location or just moon
 	location := strings.TrimPrefix(strings.ToLower(locationInput), "moon")
@@ -599,7 +604,10 @@ func (h *WeatherHandler) handleMoonRequest(c *gin.Context, locationInput string)
 
 	if isBrowser {
 		// Get units from query parameter
-		units := c.DefaultQuery("units", "imperial")
+		units := r.URL.Query().Get("units")
+		if units == "" {
+			units = "imperial"
+		}
 
 		// Use default coordinates (can be enhanced to parse location)
 		// Default to New York
@@ -609,7 +617,7 @@ func (h *WeatherHandler) handleMoonRequest(c *gin.Context, locationInput string)
 		moonData := moonService.Calculate(lat, lon, time.Now())
 
 		// Serve moon HTML page
-		c.HTML(http.StatusOK, "page/moon.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusOK, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
 			"Title":    "Moon Phase",
 			"Location": location,
 			"Units":    units,
@@ -639,8 +647,9 @@ For location-specific moon phases:
 Visit %s%s/moon%s for the full moon phase interface.
 `, yellow, reset, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost, purple, reset, cyan, hostInfo.FullHost, reset)
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
-	c.String(http.StatusOK, output)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, output)
 }
 
 // isInvalidPath filters out invalid paths that should return 404
@@ -681,12 +690,12 @@ func (h *WeatherHandler) isInvalidPath(path string) bool {
 }
 
 // handleError renders appropriate error messages
-func (h *WeatherHandler) handleError(c *gin.Context, err error, location string, isBrowser bool) {
-	hostInfo := util.GetHostInfo(c)
+func (h *WeatherHandler) handleError(w http.ResponseWriter, r *http.Request, err error, location string, isBrowser bool) {
+	hostInfo := util.GetHostInfo(r)
 	errMsg := err.Error()
 
 	if isBrowser {
-		c.HTML(http.StatusInternalServerError, "page/weather.tmpl", util.TemplateData(c, gin.H{
+		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
 			"error":    errMsg,
 			"hostInfo": hostInfo,
 			"page":     "weather",
@@ -732,8 +741,9 @@ Try these options:
 `, errMsg, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost)
 	}
 
-	c.Header("Content-Type", "text/plain; charset=utf-8")
-	c.String(statusCode, errorMessage+"\n")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(statusCode)
+	fmt.Fprint(w, errorMessage+"\n")
 }
 
 // formatPopulation formats population with thousands separators

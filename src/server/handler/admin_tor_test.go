@@ -32,7 +32,7 @@ func newTorTestHandler(t *testing.T) *TorAdminHandler {
 func TestTorAdminHandler_GetStatus(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodGet, "/admin/tor/status")
-	h.GetStatus(c)
+	h.GetStatus(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
@@ -48,7 +48,7 @@ func TestTorAdminHandler_GetStatus(t *testing.T) {
 func TestTorAdminHandler_GetHealth(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodGet, "/admin/tor/health")
-	h.GetHealth(c)
+	h.GetHealth(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
@@ -67,7 +67,7 @@ func TestTorAdminHandler_GetHealth(t *testing.T) {
 func TestTorAdminHandler_Enable(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/admin/tor/enable")
-	h.Enable(c)
+	h.Enable(w, c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500 (no tor binary in test env); body=%s", w.Code, w.Body.String())
 	}
@@ -88,7 +88,7 @@ func TestTorAdminHandler_Enable_SettingsFailure(t *testing.T) {
 		t.Fatalf("drop table: %v", err)
 	}
 	c, w := newTestContext(http.MethodPost, "/admin/tor/enable")
-	h.Enable(c)
+	h.Enable(w, c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 	}
@@ -105,7 +105,7 @@ func TestTorAdminHandler_Enable_SettingsFailure(t *testing.T) {
 func TestTorAdminHandler_Disable(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/admin/tor/disable")
-	h.Disable(c)
+	h.Disable(w, c)
 	// Stop() is a no-op success when the service was never started.
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -118,7 +118,7 @@ func TestTorAdminHandler_Disable_SettingsFailure(t *testing.T) {
 		t.Fatalf("drop table: %v", err)
 	}
 	c, w := newTestContext(http.MethodPost, "/admin/tor/disable")
-	h.Disable(c)
+	h.Disable(w, c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 	}
@@ -128,7 +128,7 @@ func TestTorAdminHandler_UpdateSettings(t *testing.T) {
 	t.Run("invalid body returns 400", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPatch, "/admin/tor", "{bad")
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -137,7 +137,7 @@ func TestTorAdminHandler_UpdateSettings(t *testing.T) {
 	t.Run("no enabled field returns 400", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPatch, "/admin/tor", map[string]interface{}{})
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -146,7 +146,7 @@ func TestTorAdminHandler_UpdateSettings(t *testing.T) {
 	t.Run("enabled true delegates to Enable (fails without tor binary)", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPatch, "/admin/tor", map[string]interface{}{"enabled": true})
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
@@ -155,7 +155,7 @@ func TestTorAdminHandler_UpdateSettings(t *testing.T) {
 	t.Run("enabled false delegates to Disable", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPatch, "/admin/tor", map[string]interface{}{"enabled": false})
-		h.UpdateSettings(c)
+		h.UpdateSettings(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -165,7 +165,7 @@ func TestTorAdminHandler_UpdateSettings(t *testing.T) {
 func TestTorAdminHandler_Regenerate(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/admin/tor/regenerate")
-	h.Regenerate(c)
+	h.Regenerate(w, c)
 	// Stop() succeeds (never started), then Start() fails (no tor binary).
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -176,7 +176,7 @@ func TestTorAdminHandler_GenerateVanity(t *testing.T) {
 	t.Run("missing prefix returns 400", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPost, "/admin/tor/vanity/generate", map[string]interface{}{})
-		h.GenerateVanity(c)
+		h.GenerateVanity(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -185,7 +185,7 @@ func TestTorAdminHandler_GenerateVanity(t *testing.T) {
 	t.Run("invalid prefix chars returns 400", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPost, "/admin/tor/vanity/generate", map[string]interface{}{"prefix": "AB!"})
-		h.GenerateVanity(c)
+		h.GenerateVanity(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -194,7 +194,7 @@ func TestTorAdminHandler_GenerateVanity(t *testing.T) {
 	t.Run("valid prefix starts generation", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContextJSON(t, http.MethodPost, "/admin/tor/vanity/generate", map[string]interface{}{"prefix": "ab"})
-		h.GenerateVanity(c)
+		h.GenerateVanity(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -207,7 +207,7 @@ func TestTorAdminHandler_GetVanityStatus(t *testing.T) {
 	t.Run("not started returns running=false", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContext(http.MethodGet, "/admin/tor/vanity/status")
-		h.GetVanityStatus(c)
+		h.GetVanityStatus(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -228,7 +228,7 @@ func TestTorAdminHandler_GetVanityStatus(t *testing.T) {
 		defer h.vanityGenerator.Cancel()
 
 		c, w := newTestContext(http.MethodGet, "/admin/tor/vanity/status")
-		h.GetVanityStatus(c)
+		h.GetVanityStatus(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -246,7 +246,7 @@ func TestTorAdminHandler_CancelVanity(t *testing.T) {
 	t.Run("nothing running returns 400", func(t *testing.T) {
 		h := newTorTestHandler(t)
 		c, w := newTestContext(http.MethodPost, "/admin/tor/vanity/cancel")
-		h.CancelVanity(c)
+		h.CancelVanity(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
@@ -258,7 +258,7 @@ func TestTorAdminHandler_CancelVanity(t *testing.T) {
 			t.Fatalf("start: %v", err)
 		}
 		c, w := newTestContext(http.MethodPost, "/admin/tor/vanity/cancel")
-		h.CancelVanity(c)
+		h.CancelVanity(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
@@ -268,7 +268,7 @@ func TestTorAdminHandler_CancelVanity(t *testing.T) {
 func TestTorAdminHandler_ApplyVanity(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/admin/tor/vanity/apply")
-	h.ApplyVanity(c)
+	h.ApplyVanity(w, c)
 	// No keys have ever been generated, so GetKeys() fails -> NO_KEYS.
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -286,7 +286,7 @@ func TestTorAdminHandler_ApplyVanity(t *testing.T) {
 func TestTorAdminHandler_ImportKeys(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodPost, "/admin/tor/keys/import")
-	h.ImportKeys(c)
+	h.ImportKeys(w, c)
 	// No multipart file attached.
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -304,7 +304,7 @@ func TestTorAdminHandler_ImportKeys(t *testing.T) {
 func TestTorAdminHandler_ExportKeys(t *testing.T) {
 	h := newTorTestHandler(t)
 	c, w := newTestContext(http.MethodGet, "/admin/tor/keys/export")
-	h.ExportKeys(c)
+	h.ExportKeys(w, c)
 	// No key files on disk yet.
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())

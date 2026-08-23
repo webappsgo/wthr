@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
@@ -35,7 +35,7 @@ func NewNotificationChannelHandler(db *sql.DB) *NotificationChannelHandler {
 }
 
 // ListChannels returns all notification channels
-func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
+func (h *NotificationChannelHandler) ListChannels(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
 		SELECT channel_type, channel_name, enabled, state,
 		       last_test_at, last_success_at, last_error, failure_count,
@@ -44,12 +44,12 @@ func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
 		ORDER BY channel_name ASC
 	`)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch channels"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch channels"})
 		return
 	}
 	defer rows.Close()
 
-	var channels []gin.H
+	var channels []map[string]interface{}
 	for rows.Next() {
 		var channelType, channelName, state string
 		var enabled bool
@@ -64,7 +64,7 @@ func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
 			continue
 		}
 
-		channel := gin.H{
+		channel := map[string]interface{}{
 			"channel_type":    channelType,
 			"channel_name":    channelName,
 			"enabled":         enabled,
@@ -96,15 +96,15 @@ func (h *NotificationChannelHandler) ListChannels(c *gin.Context) {
 		channels = append(channels, channel)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"channels": channels,
 		"total":    len(channels),
 	})
 }
 
 // GetChannel returns a specific channel
-func (h *NotificationChannelHandler) GetChannel(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) GetChannel(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	var channelName, state, config string
 	var enabled bool
@@ -121,11 +121,11 @@ func (h *NotificationChannelHandler) GetChannel(c *gin.Context) {
 		&lastTestAt, &lastSuccessAt, &lastError, &failureCount)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Channel not found"})
 		return
 	}
 
-	channel := gin.H{
+	channel := map[string]interface{}{
 		"channel_type":    channelType,
 		"channel_name":    channelName,
 		"enabled":         enabled,
@@ -147,20 +147,20 @@ func (h *NotificationChannelHandler) GetChannel(c *gin.Context) {
 		channel["last_error"] = lastError.String
 	}
 
-	c.JSON(http.StatusOK, channel)
+	writeJSON(w, http.StatusOK, channel)
 }
 
 // UpdateChannel updates channel configuration
-func (h *NotificationChannelHandler) UpdateChannel(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	var req struct {
 		Enabled bool                   `json:"enabled"`
 		Config  map[string]interface{} `json:"config"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
 		return
 	}
 
@@ -179,49 +179,54 @@ func (h *NotificationChannelHandler) UpdateChannel(c *gin.Context) {
 	`, req.Enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), channelType)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update channel"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update channel"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Channel updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel updated successfully"})
 }
 
 // EnableChannel enables a channel
-func (h *NotificationChannelHandler) EnableChannel(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) EnableChannel(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	err := h.ChannelManager.EnableChannel(channelType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enable channel"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to enable channel"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Channel enabled successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel enabled successfully"})
 }
 
 // DisableChannel disables a channel
-func (h *NotificationChannelHandler) DisableChannel(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) DisableChannel(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	err := h.ChannelManager.DisableChannel(channelType)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to disable channel"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to disable channel"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Channel disabled successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel disabled successfully"})
 }
 
 // TestChannel tests a channel configuration
-func (h *NotificationChannelHandler) TestChannel(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) TestChannel(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	var req struct {
 		Recipient string `json:"recipient" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Recipient required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Recipient required"})
+		return
+	}
+
+	if req.Recipient == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Recipient required"})
 		return
 	}
 
@@ -229,48 +234,48 @@ func (h *NotificationChannelHandler) TestChannel(c *gin.Context) {
 	if channelType == "email" {
 		// Load config and send test
 		if err := h.SMTP.LoadConfig(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load SMTP config"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load SMTP config"})
 			return
 		}
 
 		if err := h.SMTP.SendTestEmail(req.Recipient); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 			return
 		}
 
 		// Auto-enable if configured
 		h.SMTP.EnableChannel()
 
-		c.JSON(http.StatusOK, gin.H{"message": "Test email sent successfully"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Test email sent successfully"})
 		return
 	}
 
 	// Generic channel test
 	err := h.ChannelManager.TestChannel(channelType, req.Recipient)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Test notification sent successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Test notification sent successfully"})
 }
 
 // GetChannelStats returns statistics for a channel
-func (h *NotificationChannelHandler) GetChannelStats(c *gin.Context) {
-	channelType := c.Param("type")
+func (h *NotificationChannelHandler) GetChannelStats(w http.ResponseWriter, r *http.Request) {
+	channelType := chi.URLParam(r, "type")
 
 	stats, err := h.ChannelManager.GetChannelStats(channelType)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Channel not found"})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Channel not found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // ListSMTPProviders returns available SMTP provider presets
-func (h *NotificationChannelHandler) ListSMTPProviders(c *gin.Context) {
-	category := c.Query("category")
+func (h *NotificationChannelHandler) ListSMTPProviders(w http.ResponseWriter, r *http.Request) {
+	category := r.URL.Query().Get("category")
 
 	var providers []service.SMTPProviderPreset
 	if category != "" {
@@ -285,7 +290,7 @@ func (h *NotificationChannelHandler) ListSMTPProviders(c *gin.Context) {
 		grouped[p.Category] = append(grouped[p.Category], p)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"providers": providers,
 		"grouped":   grouped,
 		"total":     len(providers),
@@ -293,10 +298,10 @@ func (h *NotificationChannelHandler) ListSMTPProviders(c *gin.Context) {
 }
 
 // AutoDetectSMTP attempts to auto-detect SMTP server
-func (h *NotificationChannelHandler) AutoDetectSMTP(c *gin.Context) {
+func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *http.Request) {
 	found, err := h.SMTP.AutoDetect()
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -304,7 +309,7 @@ func (h *NotificationChannelHandler) AutoDetectSMTP(c *gin.Context) {
 		// Load the detected config
 		h.SMTP.LoadConfig()
 		config := h.SMTP.GetConfig()
-		c.JSON(http.StatusOK, gin.H{
+		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"message": "SMTP server detected",
 			"host":    config.Host,
 			"port":    config.Port,
@@ -312,26 +317,26 @@ func (h *NotificationChannelHandler) AutoDetectSMTP(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "No SMTP server detected"})
+	writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "No SMTP server detected"})
 }
 
 // InitializeChannels initializes all channels in database
-func (h *NotificationChannelHandler) InitializeChannels(c *gin.Context) {
+func (h *NotificationChannelHandler) InitializeChannels(w http.ResponseWriter, r *http.Request) {
 	err := h.ChannelManager.InitializeChannels()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Channels initialized successfully",
 		"total":   len(service.ChannelRegistry),
 	})
 }
 
 // GetChannelDefinitions returns channel definitions from registry
-func (h *NotificationChannelHandler) GetChannelDefinitions(c *gin.Context) {
-	category := c.Query("category")
+func (h *NotificationChannelHandler) GetChannelDefinitions(w http.ResponseWriter, r *http.Request) {
+	category := r.URL.Query().Get("category")
 
 	var definitions []service.ChannelDefinition
 	for _, def := range service.ChannelRegistry {
@@ -346,7 +351,7 @@ func (h *NotificationChannelHandler) GetChannelDefinitions(c *gin.Context) {
 		grouped[def.Category] = append(grouped[def.Category], def)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"definitions": definitions,
 		"grouped":     grouped,
 		"total":       len(definitions),
@@ -354,7 +359,7 @@ func (h *NotificationChannelHandler) GetChannelDefinitions(c *gin.Context) {
 }
 
 // GetQueueStats returns notification queue statistics
-func (h *NotificationChannelHandler) GetQueueStats(c *gin.Context) {
+func (h *NotificationChannelHandler) GetQueueStats(w http.ResponseWriter, r *http.Request) {
 	var stats struct {
 		Total       int            `json:"total"`
 		Pending     int            `json:"pending"`
@@ -388,20 +393,20 @@ func (h *NotificationChannelHandler) GetQueueStats(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, stats)
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // GetNotificationHistory returns notification history
-func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
+func (h *NotificationChannelHandler) GetNotificationHistory(w http.ResponseWriter, r *http.Request) {
 	limit := 50
-	if l := c.Query("limit"); l != "" {
+	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil {
 			limit = parsed
 		}
 	}
 
-	channelType := c.Query("channel")
-	status := c.Query("status")
+	channelType := r.URL.Query().Get("channel")
+	status := r.URL.Query().Get("status")
 
 	query := `
 		SELECT id, queue_id, user_id, channel_type, status, subject,
@@ -425,12 +430,12 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch history"})
 		return
 	}
 	defer rows.Close()
 
-	var history []gin.H
+	var history []map[string]interface{}
 	for rows.Next() {
 		var id, queueID sql.NullInt64
 		var userID sql.NullInt64
@@ -442,7 +447,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 		rows.Scan(&id, &queueID, &userID, &channelType, &status, &subject,
 			&createdAt, &deliveredAt, &errorMessage)
 
-		item := gin.H{
+		item := map[string]interface{}{
 			"id":           id.Int64,
 			"channel_type": channelType,
 			"status":       status,
@@ -468,7 +473,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(c *gin.Context) {
 		history = append(history, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"history": history,
 		"total":   len(history),
 	})
