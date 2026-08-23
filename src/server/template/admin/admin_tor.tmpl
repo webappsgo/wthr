@@ -24,7 +24,7 @@
                 <code id="onion-address">{{.TorStatus.onion_address}}</code>
             </div>
             <button class="btn btn-secondary"
-                    onclick="copyAddress()"
+                    data-action="admin-tor-copy-address"
                     aria-label="{{t $lang "admin.tor.copy_address_aria"}}">
                 📋 {{t $lang "admin.tor.copy_action"}}
             </button>
@@ -34,18 +34,18 @@
         <div class="action-row">
             {{if .TorStatus.enabled}}
             <button class="btn btn-danger mr-md"
-                    onclick="disableTor()"
+                    data-action="admin-tor-disable"
                     aria-label="{{t $lang "admin.tor.disable_aria"}}">
                 {{t $lang "admin.tor.disable_action"}}
             </button>
             <button class="btn btn-secondary"
-                    onclick="showRegenerateModal()"
+                    data-action="admin-tor-show-regenerate-modal"
                     aria-label="{{t $lang "admin.tor.regenerate_aria"}}">
                 🔄 {{t $lang "admin.tor.regenerate_action"}}
             </button>
             {{else}}
             <button class="btn btn-primary"
-                    onclick="enableTor()"
+                    data-action="admin-tor-enable"
                     aria-label="{{t $lang "admin.tor.enable_aria"}}">
                 {{t $lang "admin.tor.enable_action"}}
             </button>
@@ -87,7 +87,7 @@
 
         <button class="btn btn-primary"
                 id="generate-vanity-btn"
-                onclick="generateVanity()"
+                data-action="admin-tor-generate-vanity"
                 aria-label="{{t $lang "admin.tor.vanity_generate_aria"}}">
             🎲 {{t $lang "admin.tor.vanity_generate_action"}}
         </button>
@@ -113,7 +113,7 @@
 
             <div class="mt-3">
                 <button class="btn btn-danger"
-                        onclick="cancelVanity()"
+                        data-action="admin-tor-cancel-vanity"
                         aria-label="{{t $lang "admin.tor.vanity_cancel_aria"}}">
                     ⏹️ {{t $lang "action.cancel"}}
                 </button>
@@ -126,7 +126,7 @@
                     <code id="vanity-address-result"></code>
                 </div>
                 <button class="btn btn-primary mt-3"
-                        onclick="applyVanity()"
+                        data-action="admin-tor-apply-vanity"
                         aria-label="{{t $lang "admin.tor.vanity_apply_aria"}}">
                     {{t $lang "admin.tor.vanity_apply_action"}}
                 </button>
@@ -139,7 +139,7 @@
         <h2 id="import-heading">{{t $lang "admin.tor.import_heading"}}</h2>
         <p>{{t $lang "admin.tor.import_intro"}}</p>
 
-        <form id="import-form" onsubmit="importKeys(event)" enctype="multipart/form-data">
+        <form id="import-form" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="key-file" class="form-label text-purple">
@@ -222,7 +222,7 @@ cd mkp224o && ./autogen.sh && ./configure && make
         <p>{{t $lang "admin.tor.export_intro"}}</p>
 
         <button class="btn btn-secondary"
-                onclick="exportKeys()"
+                data-action="admin-tor-export-keys"
                 aria-label="{{t $lang "admin.tor.export_action"}}">
             📤 {{t $lang "admin.tor.export_action"}}
         </button>
@@ -242,12 +242,12 @@ cd mkp224o && ./autogen.sh && ./configure && make
 
         <div class="modal-actions">
             <button class="btn btn-danger mr-md"
-                    onclick="confirmRegenerate()"
+                    data-action="admin-tor-confirm-regenerate"
                     aria-label="{{t $lang "admin.tor.regenerate_confirm_aria"}}">
                 {{t $lang "admin.tor.regenerate_confirm_action"}}
             </button>
             <button class="btn btn-secondary"
-                    onclick="closeRegenerateModal()"
+                    data-action="admin-tor-close-regenerate-modal"
                     aria-label="{{t $lang "admin.tor.regenerate_cancel_aria"}}">
                 {{t $lang "action.cancel"}}
             </button>
@@ -255,205 +255,8 @@ cd mkp224o && ./autogen.sh && ./configure && make
     </div>
 </div>
 
-<script>
-    // Path variables - SPEC compliant (AI.md PART 13)
-    const API_PATH = '{{.api_path}}';
-    const ADMIN_API_PATH = '{{.admin_api_path}}';
-
-    // API calls
-    async function enableTor() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/enable', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (response.ok) {
-                Toast.show('Tor enabled successfully!', 'success');
-                location.reload();
-            } else {
-                Toast.show('Failed to enable Tor: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    async function disableTor() {
-        if (!await showConfirm('Are you sure you want to disable Tor?', 'Disable Tor')) return;
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/disable', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (response.ok) {
-                Toast.show('Tor disabled successfully!', 'success');
-                location.reload();
-            } else {
-                Toast.show('Failed to disable Tor: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    function showRegenerateModal() {
-        document.getElementById('regenerate-modal').classList.add('active');
-    }
-
-    function closeRegenerateModal() {
-        document.getElementById('regenerate-modal').classList.remove('active');
-    }
-
-    async function confirmRegenerate() {
-        closeRegenerateModal();
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/regenerate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (response.ok) {
-                Toast.show('Address regenerated successfully!', 'success');
-                location.reload();
-            } else {
-                Toast.show('Failed to regenerate: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    async function generateVanity() {
-        const prefix = document.getElementById('vanity-prefix').value.toLowerCase();
-        if (!prefix || prefix.length < 1 || prefix.length > 6) {
-            Toast.show('Please enter a prefix between 1-6 characters', 'warning');
-            return;
-        }
-
-        if (!/^[a-z2-7]+$/.test(prefix)) {
-            Toast.show('Please use only lowercase letters (a-z) and numbers (2-7)', 'warning');
-            return;
-        }
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/vanity/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prefix })
-            });
-            const data = await response.json();
-
-            if (response.ok) {
-                document.getElementById('vanity-prefix-display').textContent = prefix;
-                document.getElementById('vanity-progress').classList.remove('d-none');
-                document.getElementById('generate-vanity-btn').disabled = true;
-                startVanityPolling();
-            } else {
-                Toast.show('Failed to start generation: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    let vanityPolling;
-    function startVanityPolling() {
-        vanityPolling = setInterval(updateVanityStatus, 1000);
-    }
-
-    async function updateVanityStatus() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/vanity/status');
-            const data = await response.json();
-
-            if (data.running) {
-                document.getElementById('attempts-count').textContent = data.attempts.toLocaleString();
-                const elapsed = Math.floor((Date.now() - new Date(data.start_time)) / 1000);
-                document.getElementById('elapsed-time').textContent = formatDuration(elapsed);
-                document.getElementById('estimated-time').textContent = data.estimated_time || 'Calculating...';
-            } else if (data.address) {
-                clearInterval(vanityPolling);
-                document.getElementById('vanity-success').classList.remove('d-none');
-                document.getElementById('vanity-address-result').textContent = data.address;
-            }
-        } catch (error) {
-            console.error('Error polling status:', error);
-        }
-    }
-
-    function formatDuration(seconds) {
-        if (seconds < 60) return seconds + 's';
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return minutes + 'm ' + (seconds % 60) + 's';
-        const hours = Math.floor(minutes / 60);
-        return hours + 'h ' + (minutes % 60) + 'm';
-    }
-
-    async function cancelVanity() {
-        try {
-            await fetch(ADMIN_API_PATH + '/server/tor/vanity/cancel', { method: 'POST' });
-            clearInterval(vanityPolling);
-            document.getElementById('vanity-progress').classList.add('d-none');
-            document.getElementById('generate-vanity-btn').disabled = false;
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    async function applyVanity() {
-        if (!await showConfirm('Apply this vanity address? Your current address will be replaced.', 'Apply Vanity Address')) return;
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/vanity/apply', { method: 'POST' });
-            const data = await response.json();
-            if (response.ok) {
-                Toast.show('Vanity address applied successfully!', 'success');
-                location.reload();
-            } else {
-                Toast.show('Failed to apply: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    async function importKeys(event) {
-        event.preventDefault();
-
-        const formData = new FormData(event.target);
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/tor/keys/import', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await response.json();
-
-            if (response.ok) {
-                Toast.show('Keys imported successfully!', 'success');
-                location.reload();
-            } else {
-                Toast.show('Failed to import: ' + (data.error?.message || 'Unknown error'), 'error');
-            }
-        } catch (error) {
-            Toast.show('Error: ' + error.message, 'error');
-        }
-    }
-
-    function exportKeys() {
-        window.location.href = ADMIN_API_PATH + '/server/tor/keys/export';
-    }
-
-    function copyAddress() {
-        const address = document.getElementById('onion-address').textContent;
-        navigator.clipboard.writeText(address).then(() => {
-            Toast.show('Address copied to clipboard!', 'success');
-        });
-    }
+<script type="application/json" id="admin-tor-data">
+{"apiPath": "{{.api_path}}", "adminApiPath": "{{.admin_api_path}}"}
 </script>
 
 {{template "admin_footer" .}}

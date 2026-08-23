@@ -14,28 +14,31 @@
 
                 <!-- GPS Button -->
                 <button class="btn btn-secondary gps-button"
-                        onclick="useCurrentLocation()"
+                        data-action="add-location-use-current"
                         aria-label="Use my current location"
                         title="Use your device's GPS to automatically detect your current location">
                     📍 Use My Current Location
                 </button>
 
                 <!-- Tabs -->
-                <div class="tabs" role="tablist" aria-label="Location lookup methods">
+                <div class="tabs" id="add-location-tabs" role="tablist" aria-label="Location lookup methods">
                     <button class="tab active"
-                            onclick="switchTab('search')"
+                            data-action="add-location-switch-tab"
+                            data-tab="search"
                             role="tab"
                             aria-label="Search by city name"
                             aria-selected="true"
                             title="Search for a location by city name">🔍 Search</button>
                     <button class="tab"
-                            onclick="switchTab('zip')"
+                            data-action="add-location-switch-tab"
+                            data-tab="zip"
                             role="tab"
                             aria-label="Search by ZIP or postal code"
                             aria-selected="false"
                             title="Look up a location using ZIP or postal code">📮 ZIP Code</button>
                     <button class="tab"
-                            onclick="switchTab('coords')"
+                            data-action="add-location-switch-tab"
+                            data-tab="coords"
                             role="tab"
                             aria-label="Search by coordinates"
                             aria-selected="false"
@@ -50,7 +53,6 @@
                                id="citySearch"
                                class="form-input"
                                placeholder="e.g., New York, London, Tokyo..."
-                               oninput="searchCities(this.value)"
                                aria-label="Search for a city"
                                aria-describedby="citySearch-help"
                                aria-autocomplete="list"
@@ -78,7 +80,7 @@
                         <p class="form-help" id="zipCode-help">Enter a US ZIP code or international postal code</p>
                     </div>
                     <button class="btn btn-primary"
-                            onclick="lookupZipCode()"
+                            data-action="add-location-lookup-zip"
                             aria-label="Look up location by ZIP code"
                             title="Search for the location using the ZIP or postal code entered">Look Up Location</button>
                 </div>
@@ -115,7 +117,7 @@
                         <p class="form-help" id="manualLon-help">Between -180 and 180</p>
                     </div>
                     <button class="btn btn-primary"
-                            onclick="lookupCoordinates()"
+                            data-action="add-location-lookup-coords"
                             aria-label="Look up location by coordinates"
                             title="Search for the location using the coordinates entered">Look Up Location</button>
                 </div>
@@ -172,12 +174,13 @@
                                 title="Save this location to your dashboard">💾 Save Location</button>
                         <button type="button"
                                 class="btn btn-secondary"
-                                onclick="resetForm()"
+                                data-action="add-location-reset"
                                 aria-label="Start over"
                                 title="Clear the form and search for a different location">🔄 Start Over</button>
                         <button type="button"
                                 class="btn btn-ghost"
-                                onclick="window.location.href='/users/dashboard'"
+                                data-action="navigate"
+                                data-href="/users/dashboard"
                                 aria-label="Cancel"
                                 title="Cancel and return to dashboard without saving">Cancel</button>
                     </div>
@@ -186,231 +189,8 @@
         </div>
     </div>
 
-    <script>
-        // Path variables - SPEC compliant (AI.md PART 13)
-        const API_PATH = '{{.api_path}}';
-
-        let searchTimeout;
-        let selectedLocation = null;
-
-        function switchTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-
-            // Show selected tab
-            document.getElementById(tabName + '-tab').classList.add('active');
-            event.target.classList.add('active');
-
-            // Reset form
-            resetForm();
-        }
-
-        function searchCities(query) {
-            clearTimeout(searchTimeout);
-
-            if (query.length < 2) {
-                document.getElementById('searchResults').classList.remove('active');
-                return;
-            }
-
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const response = await fetch(`${API_PATH}/locations/search?q=${encodeURIComponent(query)}`);
-                    const results = await response.json();
-
-                    displaySearchResults(results);
-                } catch (error) {
-                    console.error('Search failed:', error);
-                }
-            }, 300);
-        }
-
-        function displaySearchResults(results) {
-            const container = document.getElementById('searchResults');
-
-            if (!results || results.length === 0) {
-                container.innerHTML = '<div class="result-item">No results found</div>';
-                container.classList.add('active');
-                return;
-            }
-
-            container.innerHTML = results.map(result => `
-                <div class="result-item" onclick='selectLocation(${JSON.stringify(result)})'>
-                    <div class="result-city">${result.name}</div>
-                    <div class="result-details">
-                        ${result.admin1 ? result.admin1 + ', ' : ''}${result.country}
-                        <span class="add-location-result-opacity">• ${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}</span>
-                    </div>
-                </div>
-            `).join('');
-
-            container.classList.add('active');
-        }
-
-        function selectLocation(location) {
-            selectedLocation = location;
-            document.getElementById('searchResults').classList.remove('active');
-
-            // Fill in the form
-            document.getElementById('name').value = location.name;
-            document.getElementById('displayCity').value = `${location.name}, ${location.admin1 ? location.admin1 + ', ' : ''}${location.country}`;
-            document.getElementById('displayCoords').value = `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
-            document.getElementById('latitude').value = location.latitude;
-            document.getElementById('longitude').value = location.longitude;
-            document.getElementById('timezone').value = location.timezone || '';
-
-            // Show the form
-            document.getElementById('locationForm').classList.add('location-form-visible');
-            showMessage('Location selected! Adjust the name if needed and click Save.', 'success');
-        }
-
-        async function lookupZipCode() {
-            const zipCode = document.getElementById('zipCode').value.trim();
-
-            if (!zipCode) {
-                showMessage('Please enter a ZIP or postal code', 'error');
-                return;
-            }
-
-            Loading.show('#zip-tab');
-
-            try {
-                const response = await fetch(`${API_PATH}/locations/lookup/zip/${encodeURIComponent(zipCode)}`);
-                const location = await response.json();
-
-                if (response.ok) {
-                    selectLocation(location);
-                } else {
-                    showMessage(location.error || 'ZIP code not found', 'error');
-                }
-            } catch (error) {
-                showMessage('Failed to look up ZIP code', 'error');
-            } finally {
-                Loading.hide('#zip-tab');
-            }
-        }
-
-        async function lookupCoordinates() {
-            const lat = parseFloat(document.getElementById('manualLat').value);
-            const lon = parseFloat(document.getElementById('manualLon').value);
-
-            if (isNaN(lat) || isNaN(lon)) {
-                showMessage('Please enter valid coordinates', 'error');
-                return;
-            }
-
-            Loading.show('#coords-tab');
-
-            try {
-                const response = await fetch(`${API_PATH}/locations/lookup/coords?lat=${lat}&lon=${lon}`);
-                const location = await response.json();
-
-                if (response.ok) {
-                    selectLocation(location);
-                } else {
-                    showMessage(location.error || 'Location not found', 'error');
-                }
-            } catch (error) {
-                showMessage('Failed to look up coordinates', 'error');
-            } finally {
-                Loading.hide('#coords-tab');
-            }
-        }
-
-        function useCurrentLocation() {
-            if (!navigator.geolocation) {
-                showMessage('Geolocation is not supported by your browser', 'error');
-                return;
-            }
-
-            showMessage('Getting your location...', 'info');
-
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-
-                    try {
-                        const response = await fetch(`${API_PATH}/locations/lookup/coords?lat=${lat}&lon=${lon}`);
-                        const location = await response.json();
-
-                        if (response.ok) {
-                            selectLocation(location);
-                        } else {
-                            showMessage('Could not identify your location', 'error');
-                        }
-                    } catch (error) {
-                        showMessage('Failed to look up your location', 'error');
-                    }
-                },
-                (error) => {
-                    showMessage('Unable to get your location: ' + error.message, 'error');
-                }
-            );
-        }
-
-        function resetForm() {
-            document.getElementById('locationForm').classList.remove('location-form-visible');
-            document.getElementById('searchResults').classList.remove('active');
-            document.getElementById('citySearch').value = '';
-            document.getElementById('zipCode').value = '';
-            document.getElementById('manualLat').value = '';
-            document.getElementById('manualLon').value = '';
-            selectedLocation = null;
-            clearMessage();
-        }
-
-        document.getElementById('locationForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const data = {
-                name: document.getElementById('name').value,
-                latitude: parseFloat(document.getElementById('latitude').value),
-                longitude: parseFloat(document.getElementById('longitude').value),
-                timezone: document.getElementById('timezone').value || ''
-            };
-
-            try {
-                const response = await fetch(API_PATH + '/users/locations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    Toast.success('Location saved successfully!');
-                    setTimeout(() => {
-                        window.location.href = '/users/dashboard';
-                    }, 1500);
-                } else {
-                    const error = await response.json();
-                    showMessage(error.error || 'Failed to save location', 'error');
-                }
-            } catch (error) {
-                showMessage('Error saving location', 'error');
-            }
-        });
-
-        function showMessage(message, type) {
-            clearMessage(); // Clear previous messages first
-            Alert.create(message, {
-                type: type,
-                container: '#message'
-            });
-        }
-
-        function clearMessage() {
-            const msgEl = document.getElementById('message');
-            if (msgEl) {
-                msgEl.innerHTML = '';
-            }
-        }
-
-        // Initialize notification polling
-        if (typeof Notifications !== 'undefined') {
-            Notifications.startPolling(30000);
-        }
+    <script type="application/json" id="add-location-data">
+    {"apiPath": "{{.api_path}}"}
     </script>
 
 {{template "footer" .}}

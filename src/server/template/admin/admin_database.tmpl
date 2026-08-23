@@ -37,7 +37,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" onclick="refreshStats()" aria-label="{{t $lang "admin.database.refresh_stats_label"}}">
+                    <button class="btn btn-secondary" data-action="db-refresh-stats" aria-label="{{t $lang "admin.database.refresh_stats_label"}}">
                         🔄 {{t $lang "admin.database.refresh_stats"}}
                     </button>
                 </div>
@@ -65,7 +65,7 @@
                                     <li>{{t $lang "admin.database.optimize_benefit_stats"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="optimize-btn" onclick="optimizeDatabase()" aria-label="{{t $lang "admin.database.optimize_button_label"}}">
+                            <button class="btn btn-primary" id="optimize-btn" data-action="db-optimize" aria-label="{{t $lang "admin.database.optimize_button_label"}}">
                                 ⚡ {{t $lang "admin.database.optimize_button"}}
                             </button>
                         </div>
@@ -80,7 +80,7 @@
                                     <li>{{t $lang "admin.database.vacuum_benefit_clean"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-primary" id="vacuum-btn" onclick="vacuumDatabase()" aria-label="{{t $lang "admin.database.vacuum_button_label"}}">
+                            <button class="btn btn-primary" id="vacuum-btn" data-action="db-vacuum" aria-label="{{t $lang "admin.database.vacuum_button_label"}}">
                                 🧹 {{t $lang "admin.database.vacuum_button"}}
                             </button>
                         </div>
@@ -95,7 +95,7 @@
                                     <li>{{t $lang "admin.database.test_benefit_config"}}</li>
                                 </ul>
                             </div>
-                            <button class="btn btn-secondary" id="test-btn" onclick="testConnection()" aria-label="{{t $lang "admin.database.test_button_label"}}">
+                            <button class="btn btn-secondary" id="test-btn" data-action="db-test-connection" aria-label="{{t $lang "admin.database.test_button_label"}}">
                                 🔍 {{t $lang "admin.database.test_button"}}
                             </button>
                         </div>
@@ -135,10 +135,10 @@
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-warning" id="clear-cache-btn" onclick="clearCache()" aria-label="{{t $lang "admin.database.clear_cache_label"}}">
+                        <button class="btn btn-warning" id="clear-cache-btn" data-action="db-clear-cache" aria-label="{{t $lang "admin.database.clear_cache_label"}}">
                             🗑️ {{t $lang "admin.database.clear_cache_button"}}
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshCacheStats()" aria-label="{{t $lang "admin.database.refresh_cache_label"}}">
+                        <button class="btn btn-secondary" data-action="db-refresh-cache-stats" aria-label="{{t $lang "admin.database.refresh_cache_label"}}">
                             🔄 {{t $lang "admin.database.refresh_cache_button"}}
                         </button>
                     </div>
@@ -255,7 +255,7 @@
                                         type="button"
                                         id="toggle-password"
                                         class="btn-toggle-password"
-                                        onclick="togglePasswordVisibility()"
+                                        data-action="db-toggle-password"
                                         aria-label="{{t $lang "admin.database.toggle_password_label"}}"
                                     >
                                         👁️
@@ -288,7 +288,7 @@
                         </div>
 
                         <div class="button-group mt-3">
-                            <button type="button" class="btn btn-secondary" id="test-db-connection-btn" onclick="testDatabaseConnectionConfig()">
+                            <button type="button" class="btn btn-secondary" id="test-db-connection-btn" data-action="db-test-connection-config">
                                 🔍 {{t $lang "admin.database.test_button"}}
                             </button>
                         </div>
@@ -300,7 +300,7 @@
                         <div id="db-config-result" class="alert alert-result hidden" role="status" aria-live="polite"></div>
 
                         <div class="button-group">
-                            <button type="button" class="btn btn-secondary" onclick="cancelDatabaseConfig()">
+                            <button type="button" class="btn btn-secondary" data-action="db-cancel-config">
                                 {{t $lang "action.cancel"}}
                             </button>
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.database.save_config_label"}}">
@@ -378,460 +378,8 @@
                 </div>
             </section>
 
-    <script>
-    // Path variables - SPEC compliant (AI.md PART 13)
-    const API_PATH = '{{.api_path}}';
-    const ADMIN_API_PATH = '{{.admin_api_path}}';
-
-    // Load stats and settings on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        loadDatabaseStats();
-        loadCacheStats();
-        loadSettings();
-        loadDatabaseConfig();
-        setupDatabaseDriverListener();
-    });
-
-    async function loadDatabaseStats() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/stats');
-            const data = await response.json();
-
-            if (data.database) {
-                document.getElementById('db-status').innerHTML = '<span class="badge badge-success">✅ Connected</span>';
-                document.getElementById('db-type').textContent = data.database.type || 'SQLite';
-                document.getElementById('db-size').textContent = formatBytes(data.database.size || 0);
-                document.getElementById('db-tables').textContent = data.database.tables || '0';
-            } else {
-                document.getElementById('db-status').innerHTML = '<span class="badge badge-danger">❌ Error</span>';
-            }
-        } catch (error) {
-            console.error('Failed to load database stats:', error);
-            document.getElementById('db-status').innerHTML = '<span class="badge badge-danger">❌ Error</span>';
-        }
-    }
-
-    async function loadCacheStats() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/stats');
-            const data = await response.json();
-
-            if (data.cache && data.cache.enabled) {
-                document.getElementById('cache-status').innerHTML = '<span class="badge badge-success">✅ Enabled</span>';
-                document.getElementById('cache-type').textContent = data.cache.type || 'Redis';
-                document.getElementById('cache-hitrate').textContent = (data.cache.hit_rate || 0) + '%';
-            } else {
-                document.getElementById('cache-status').innerHTML = '<span class="badge badge-secondary">⚪ Disabled</span>';
-                document.getElementById('cache-type').textContent = 'None';
-                document.getElementById('cache-hitrate').textContent = 'N/A';
-            }
-        } catch (error) {
-            console.error('Failed to load cache stats:', error);
-        }
-    }
-
-    async function loadSettings() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/all');
-            const data = await response.json();
-
-            if (data.settings) {
-                for (const [key, setting] of Object.entries(data.settings)) {
-                    const input = document.querySelector(`[name="${key}"]`);
-                    if (input) {
-                        if (input.type === 'checkbox') {
-                            input.checked = setting.value === 'true';
-                        } else {
-                            input.value = setting.value || '';
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-        }
-    }
-
-    async function optimizeDatabase() {
-        const btn = document.getElementById('optimize-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Optimizing...';
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/database/optimize', {
-                method: 'POST'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showOperationResult('✅ Database optimized successfully! Performance improved.', 'success');
-                refreshStats();
-            } else {
-                throw new Error(data.error?.message || 'Optimization failed');
-            }
-        } catch (error) {
-            showOperationResult('❌ ' + error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '⚡ Optimize Now';
-        }
-    }
-
-    async function vacuumDatabase() {
-        const btn = document.getElementById('vacuum-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Vacuuming...';
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/database/vacuum', {
-                method: 'POST'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showOperationResult('✅ Database vacuumed successfully! Space reclaimed.', 'success');
-                refreshStats();
-            } else {
-                throw new Error(data.error?.message || 'Vacuum failed');
-            }
-        } catch (error) {
-            showOperationResult('❌ ' + error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '🧹 Vacuum Now';
-        }
-    }
-
-    async function testConnection() {
-        const btn = document.getElementById('test-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Testing...';
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/database/test', {
-                method: 'POST'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showOperationResult(`✅ Connection test passed! Response time: ${data.response_time || 'N/A'}`, 'success');
-            } else {
-                throw new Error(data.error?.message || 'Connection test failed');
-            }
-        } catch (error) {
-            showOperationResult('❌ ' + error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '🔍 Test Connection';
-        }
-    }
-
-    async function clearCache() {
-        if (!await showConfirm('Clear all cached data? This will temporarily slow down the application until cache rebuilds.', 'Clear Cache')) {
-            return;
-        }
-
-        const btn = document.getElementById('clear-cache-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Clearing...';
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/cache/clear', {
-                method: 'POST'
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showCacheResult('✅ Cache cleared successfully!', 'success');
-                refreshCacheStats();
-            } else {
-                throw new Error(data.error?.message || 'Failed to clear cache');
-            }
-        } catch (error) {
-            showCacheResult('❌ ' + error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '🗑️ Clear All Cache';
-        }
-    }
-
-    function refreshStats() {
-        loadDatabaseStats();
-    }
-
-    function refreshCacheStats() {
-        loadCacheStats();
-    }
-
-    // Settings form submission
-    document.getElementById('db-settings-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const formData = new FormData(this);
-        const settings = {};
-
-        for (const [key, value] of formData.entries()) {
-            settings[key] = value;
-        }
-
-        settings['database.auto_optimize'] = document.getElementById('db_auto_optimize').checked ? 'true' : 'false';
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/bulk', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ settings })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showNotification('Database settings saved successfully', 'success');
-            } else {
-                throw new Error(data.error?.message || 'Failed to save settings');
-            }
-        } catch (error) {
-            showNotification(error.message, 'error');
-        }
-    });
-
-    function showOperationResult(message, type) {
-        const result = document.getElementById('operation-result');
-        result.className = `alert alert-result alert-${type === 'success' ? 'success' : 'danger'}`;
-        result.textContent = message;
-        result.classList.remove('hidden');
-
-        setTimeout(() => {
-            result.classList.add('hidden');
-        }, 5000);
-    }
-
-    function showCacheResult(message, type) {
-        const result = document.getElementById('cache-result');
-        result.className = `alert alert-result alert-${type === 'success' ? 'success' : 'danger'}`;
-        result.textContent = message;
-        result.classList.remove('hidden');
-
-        setTimeout(() => {
-            result.classList.add('hidden');
-        }, 5000);
-    }
-
-    function showNotification(message, type) {
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-        const notification = document.createElement('div');
-        notification.className = `alert ${alertClass} toast-notification`;
-        notification.textContent = message;
-
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.remove();
-        }, 4000);
-    }
-
-    function formatBytes(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    }
-
-    // Database Configuration Functions
-    async function loadDatabaseConfig() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/all');
-            const data = await response.json();
-
-            if (data.settings) {
-                // Load database driver
-                const driver = data.settings['database.driver'] || 'file';
-                document.getElementById('db_driver').value = driver;
-
-                // Load remote database fields
-                document.getElementById('db_host').value = data.settings['database.host'] || '';
-                document.getElementById('db_port').value = data.settings['database.port'] || '';
-                document.getElementById('db_name').value = data.settings['database.name'] || '';
-                document.getElementById('db_username').value = data.settings['database.username'] || '';
-                document.getElementById('db_password').value = data.settings['database.password'] || '';
-                document.getElementById('db_sslmode').value = data.settings['database.sslmode'] || 'disable';
-
-                // Update field visibility based on driver
-                updateDatabaseFieldVisibility(driver);
-            }
-        } catch (error) {
-            console.error('Failed to load database configuration:', error);
-        }
-    }
-
-    function setupDatabaseDriverListener() {
-        const driverSelect = document.getElementById('db_driver');
-        driverSelect.addEventListener('change', function() {
-            updateDatabaseFieldVisibility(this.value);
-        });
-    }
-
-    function updateDatabaseFieldVisibility(driver) {
-        const remoteFields = document.getElementById('remote-db-fields');
-        const postgresFields = document.getElementById('postgres-fields');
-
-        // Show remote fields for all drivers except 'file' and 'sqlite'
-        if (driver === 'file' || driver === 'sqlite') {
-            remoteFields.classList.add('hidden');
-            postgresFields.classList.add('hidden');
-        } else {
-            remoteFields.classList.remove('hidden');
-
-            // Show SSL mode only for PostgreSQL
-            if (driver === 'postgres' || driver === 'postgresql') {
-                postgresFields.classList.remove('hidden');
-            } else {
-                postgresFields.classList.add('hidden');
-            }
-        }
-    }
-
-    function togglePasswordVisibility() {
-        const passwordInput = document.getElementById('db_password');
-        const toggleButton = document.getElementById('toggle-password');
-
-        if (passwordInput.type === 'password') {
-            passwordInput.type = 'text';
-            toggleButton.textContent = '👁️‍🗨️';
-        } else {
-            passwordInput.type = 'password';
-            toggleButton.textContent = '👁️';
-        }
-    }
-
-    async function testDatabaseConnectionConfig() {
-        const btn = document.getElementById('test-db-connection-btn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Testing...';
-
-        try {
-            const driver = document.getElementById('db_driver').value;
-            const config = {
-                driver: driver
-            };
-
-            // Only include remote DB fields if driver is not file/sqlite
-            if (driver !== 'file' && driver !== 'sqlite') {
-                config.host = document.getElementById('db_host').value;
-                config.port = parseInt(document.getElementById('db_port').value);
-                config.name = document.getElementById('db_name').value;
-                config.username = document.getElementById('db_username').value;
-                config.password = document.getElementById('db_password').value;
-
-                if (driver === 'postgres' || driver === 'postgresql') {
-                    config.sslmode = document.getElementById('db_sslmode').value;
-                }
-            }
-
-            const response = await fetch(ADMIN_API_PATH + '/server/database/test-config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(config)
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                showDatabaseConfigResult('✅ Connection test passed! Database is accessible.', 'success');
-            } else {
-                throw new Error(data.error || 'Connection test failed');
-            }
-        } catch (error) {
-            showDatabaseConfigResult('❌ ' + error.message, 'error');
-        } finally {
-            btn.disabled = false;
-            btn.textContent = '🔍 Test Connection';
-        }
-    }
-
-    function cancelDatabaseConfig() {
-        // Reload the current configuration
-        loadDatabaseConfig();
-        showDatabaseConfigResult('Configuration changes cancelled', 'info');
-    }
-
-    // Database configuration form submission
-    document.getElementById('db-config-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const driver = document.getElementById('db_driver').value;
-        const settings = {
-            'database.driver': driver
-        };
-
-        // Only include remote DB fields if driver is not file/sqlite
-        if (driver !== 'file' && driver !== 'sqlite') {
-            settings['database.host'] = document.getElementById('db_host').value;
-            settings['database.port'] = document.getElementById('db_port').value;
-            settings['database.name'] = document.getElementById('db_name').value;
-            settings['database.username'] = document.getElementById('db_username').value;
-            settings['database.password'] = document.getElementById('db_password').value;
-
-            if (driver === 'postgres' || driver === 'postgresql') {
-                settings['database.sslmode'] = document.getElementById('db_sslmode').value;
-            }
-
-            // Validate required fields for remote databases
-            if (!settings['database.host']) {
-                showDatabaseConfigResult('❌ Host is required for remote databases', 'error');
-                return;
-            }
-            if (!settings['database.port']) {
-                showDatabaseConfigResult('❌ Port is required for remote databases', 'error');
-                return;
-            }
-            if (!settings['database.name']) {
-                showDatabaseConfigResult('❌ Database name is required for remote databases', 'error');
-                return;
-            }
-        }
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/database', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings)
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showDatabaseConfigResult('✅ Database configuration saved successfully! Please restart the server for changes to take effect.', 'success');
-            } else {
-                throw new Error(data.error || 'Failed to save database configuration');
-            }
-        } catch (error) {
-            showDatabaseConfigResult('❌ ' + error.message, 'error');
-        }
-    });
-
-    function showDatabaseConfigResult(message, type) {
-        const result = document.getElementById('db-config-result');
-        result.className = `alert alert-result alert-${type === 'success' ? 'success' : type === 'info' ? 'info' : 'danger'}`;
-        result.textContent = message;
-        result.classList.remove('hidden');
-
-        setTimeout(() => {
-            result.classList.add('hidden');
-        }, 5000);
-    }
-    </script>
+    <script type="application/json" id="admin-database-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <script src="/static/js/app.js"></script>
 
 {{template "admin_footer" .}}
 {{end}}

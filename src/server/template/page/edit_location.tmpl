@@ -92,12 +92,13 @@
                             title="Save changes to this location">Update Location</button>
                     <button type="button"
                             class="btn btn-secondary"
-                            onclick="window.location.href='/users/dashboard'"
+                            data-action="navigate"
+                            data-href="/users/dashboard"
                             aria-label="Cancel editing"
                             title="Cancel and return to dashboard without saving changes">Cancel</button>
                     <button type="button"
                             class="btn btn-danger"
-                            onclick="deleteLocation()"
+                            data-action="edit-location-delete"
                             aria-label="Delete location"
                             title="Permanently delete this location - this action cannot be undone">Delete</button>
                 </div>
@@ -105,81 +106,8 @@
         </div>
     </div>
 
-    <script>
-        // Path variables - SPEC compliant (AI.md PART 13)
-        const API_PATH = '{{.api_path}}';
-
-        const form = document.getElementById('locationForm');
-        const messageDiv = document.getElementById('message');
-        const locationId = {{ .location.ID }};
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const data = {
-                name: document.getElementById('name').value,
-                latitude: parseFloat(document.getElementById('latitude').value),
-                longitude: parseFloat(document.getElementById('longitude').value),
-                timezone: document.getElementById('timezone').value || '',
-                alerts_enabled: document.getElementById('alerts_enabled').checked
-            };
-
-            try {
-                const response = await fetch(`${API_PATH}/users/locations/${locationId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    showMessage('Location updated successfully! Redirecting...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/users/dashboard';
-                    }, 1500);
-                } else {
-                    const error = await response.json();
-                    showMessage(error.error || 'Failed to update location', 'error');
-                }
-            } catch (error) {
-                showMessage('Network error: ' + error.message, 'error');
-            }
-        });
-
-        async function deleteLocation() {
-            if (!showConfirm('Are you sure you want to delete this location? This cannot be undone.')) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_PATH}/users/locations/${locationId}`, {
-                    method: 'DELETE'
-                });
-
-                if (response.ok) {
-                    showMessage('Location deleted successfully! Redirecting...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/users/dashboard';
-                    }, 1500);
-                } else {
-                    const error = await response.json();
-                    showMessage(error.error || 'Failed to delete location', 'error');
-                }
-            } catch (error) {
-                showMessage('Network error: ' + error.message, 'error');
-            }
-        }
-
-        function showMessage(text, type) {
-            messageDiv.className = type === 'error' ? 'error-message edit-error-message' : 'success-message edit-error-message';
-            messageDiv.textContent = text;
-            messageDiv.setAttribute('role', 'alert');
-            messageDiv.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-        }
-
-        // Initialize notification polling
-        if (typeof Notifications !== 'undefined') {
-            Notifications.startPolling(30000);
-        }
+    <script type="application/json" id="edit-location-data">
+    {"apiPath": "{{.api_path}}", "locationId": {{ .location.ID }}}
     </script>
 
 {{template "footer" .}}

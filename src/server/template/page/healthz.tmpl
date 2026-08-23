@@ -61,7 +61,7 @@
                     {{if .health.Cluster.Primary}}
                     <div class="code-wrapper">
                         <code class="mobile-code">{{.health.Cluster.Primary}}</code>
-                        <button class="copy-btn" type="button" onclick="copyToClipboard('{{.health.Cluster.Primary}}')">Copy</button>
+                        <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.health.Cluster.Primary}}">Copy</button>
                     </div>
                     {{else}}
                     <span class="text-comment">Not in cluster mode</span>
@@ -95,7 +95,7 @@
                     {{if .health.Features.Tor.Hostname}}
                     <div class="code-wrapper margin-y-md">
                         <code class="mobile-code">{{.health.Features.Tor.Hostname}}</code>
-                        <button class="copy-btn" type="button" onclick="copyToClipboard('{{.health.Features.Tor.Hostname}}')">Copy</button>
+                        <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.health.Features.Tor.Hostname}}">Copy</button>
                     </div>
                     {{end}}
                 {{else}}
@@ -163,38 +163,5 @@
     </div>
     {{end}}
 </main>
-
-<script>
-function copyToClipboard(text) {
-    if (!navigator.clipboard) {
-        return;
-    }
-    navigator.clipboard.writeText(text).then(function() {
-        if (typeof Toast !== 'undefined') {
-            Toast.success('Copied to clipboard!');
-        }
-    }).catch(function() {
-        if (typeof Toast !== 'undefined') {
-            Toast.error('Failed to copy');
-        }
-    });
-}
-
-(function() {
-    var remaining = 30;
-    var countdown = document.getElementById('health-countdown');
-    if (!countdown) {
-        return;
-    }
-    setInterval(function() {
-        remaining -= 1;
-        if (remaining <= 0) {
-            window.location.reload();
-            return;
-        }
-        countdown.textContent = String(remaining);
-    }, 1000);
-})();
-</script>
 
 {{template "footer" .}}

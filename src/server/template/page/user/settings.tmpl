@@ -119,7 +119,7 @@
 
                 <div class="profile-form-actions">
                     <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <button type="button" class="btn btn-secondary" onclick="resetForm()">Reset</button>
+                    <button type="button" class="btn btn-secondary" data-action="settings-reset-form">Reset</button>
                 </div>
             </form>
         </div>
@@ -172,53 +172,8 @@
 }
 </style>
 
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-// Bio character counter
-document.getElementById('bio').addEventListener('input', function() {
-    document.getElementById('bioCount').textContent = this.value.length;
-});
-
-// Save settings
-document.getElementById('accountSettingsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const data = {
-        account: {
-            display_name: document.getElementById('displayName').value,
-            bio: document.getElementById('bio').value,
-            location: document.getElementById('location').value,
-            website: document.getElementById('website').value,
-            timezone: document.getElementById('timezone').value,
-            language: document.getElementById('language').value,
-            date_format: document.querySelector('input[name="dateFormat"]:checked').value,
-            time_format: document.querySelector('input[name="timeFormat"]:checked').value
-        }
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/settings', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save settings');
-        }
-
-        Toast.success('Settings saved successfully!');
-    } catch (error) {
-        Toast.error('Failed to save settings: ' + error.message);
-    }
-});
-
-function resetForm() {
-    document.getElementById('accountSettingsForm').reset();
-}
+<script type="application/json" id="settings-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

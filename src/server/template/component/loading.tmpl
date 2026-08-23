@@ -49,7 +49,7 @@
                     </div>
                 </div>
 
-                <button id="retry-btn" class="search-button loading-page-retry-button">
+                <button id="retry-btn" class="search-button loading-page-retry-button" data-action="loading-retry">
                     🔄 Try Again Now
                 </button>
             </div>
@@ -72,130 +72,6 @@
         </div>
     </div>
 
-    <script>
-        let countdown = 30;  // Wait 30 seconds before first check
-        let countdownInterval;
-        let healthCheckInterval;
-        let firstCheckDone = false;
-
-        function updateCountdown() {
-            document.getElementById('countdown').textContent = Math.max(countdown, 0);
-            countdown--;
-
-            if (countdown < 0) {
-                clearInterval(countdownInterval);
-                retryConnection();
-            }
-        }
-
-        function startCountdown(seconds) {
-            // Clear any existing interval
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-            countdown = seconds;
-            // Start new countdown
-            countdownInterval = setInterval(updateCountdown, 1000);
-        }
-
-        function checkHealth() {
-            console.log('Checking service health...');
-
-            fetch('/server/healthz')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Health check:', data);
-
-                    // Check if service is ready
-                    if (data.ready === true) {
-                        console.log('✅ Service ready! Redirecting...');
-
-                        // Clear all intervals
-                        if (countdownInterval) clearInterval(countdownInterval);
-                        if (healthCheckInterval) clearInterval(healthCheckInterval);
-
-                        // Redirect to the originally requested URL or homepage
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const redirectUrl = urlParams.get('redirect') || '/';
-                        window.location.href = redirectUrl;
-                    } else {
-                        console.log('⏳ Service still initializing:', data.initialization);
-
-                        // After first check, start periodic checks every 15 seconds
-                        if (!firstCheckDone) {
-                            firstCheckDone = true;
-                            if (healthCheckInterval) clearInterval(healthCheckInterval);
-                            healthCheckInterval = setInterval(checkHealth, 15000); // Check every 15 seconds
-                            startCountdown(15); // Reset countdown to 15 seconds
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.log('❌ Health check failed:', error.message);
-
-                    // After first check, start periodic checks even if failed
-                    if (!firstCheckDone) {
-                        firstCheckDone = true;
-                        if (healthCheckInterval) clearInterval(healthCheckInterval);
-                        healthCheckInterval = setInterval(checkHealth, 15000);
-                        startCountdown(15);
-                    }
-                });
-        }
-
-        function retryConnection() {
-            console.log('Retrying connection...');
-
-            // Clear countdown interval
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-
-            // Show loading state
-            const retryBtn = document.getElementById('retry-btn');
-            retryBtn.textContent = '☕ Checking...';
-            retryBtn.disabled = true;
-
-            // Check if service is ready
-            fetch('/server/healthz')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.ready === true) {
-                        // Service is ready, redirect to main page
-                        console.log('✅ Service ready, redirecting...');
-
-                        // Clear all intervals
-                        if (healthCheckInterval) clearInterval(healthCheckInterval);
-
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const redirectUrl = urlParams.get('redirect') || '/';
-                        window.location.href = redirectUrl;
-                    } else {
-                        throw new Error(`Service not ready: ${JSON.stringify(data.initialization)}`);
-                    }
-                })
-                .catch(error => {
-                    console.log('⏳ Service still initializing:', error.message);
-
-                    // Reset countdown and try again after 15 seconds
-                    retryBtn.textContent = '🔄 Try Again Now';
-                    retryBtn.disabled = false;
-
-                    // Restart countdown with 15 seconds
-                    startCountdown(15);
-                });
-        }
-
-        // Start initial countdown (30 seconds before first check)
-        startCountdown(30);
-
-        // Manual retry button
-        document.getElementById('retry-btn').addEventListener('click', function() {
-            retryConnection();
-        });
-
-        // Do first health check after 30 seconds
-        setTimeout(checkHealth, 30000);
-    </script>
+    <script src="/static/js/app.js" defer></script>
 </body>
 </html>

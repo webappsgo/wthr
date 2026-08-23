@@ -8,7 +8,7 @@
     <div class="card margin-y-lg">
         <div id="contact-message" role="alert" aria-live="polite"></div>
 
-        <form id="contact-form" role="form" aria-label="Contact form" onsubmit="submitContactForm(event)">
+        <form id="contact-form" role="form" aria-label="Contact form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="contact-name" class="form-label">Name</label>
@@ -105,66 +105,8 @@
     </div>
 </div>
 
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-async function submitContactForm(event) {
-    event.preventDefault();
-
-    const form = event.target;
-    const submitBtn = document.getElementById('contact-submit');
-    const messageDiv = document.getElementById('contact-message');
-
-    // Disable submit button
-    submitBtn.disabled = true;
-    submitBtn.textContent = '📤 Sending...';
-
-    const formData = {
-        name: form.name.value,
-        email: form.email.value,
-        subject: form.subject.value,
-        message: form.message.value
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/server/contact', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-
-        if (response.ok) {
-            Alert.create('Message sent successfully! We\'ll get back to you soon.', {
-                type: 'success',
-                container: '#contact-message'
-            });
-            form.reset();
-            Toast.success('Message sent!');
-        } else {
-            const error = await response.json();
-            Alert.create(error.error || 'Failed to send message. Please try again.', {
-                type: 'error',
-                container: '#contact-message'
-            });
-        }
-    } catch (error) {
-        Alert.create('Network error. Please check your connection and try again.', {
-            type: 'error',
-            container: '#contact-message'
-        });
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '📧 Send Message';
-    }
-}
-
-// Initialize notification polling
-if (typeof Notifications !== 'undefined') {
-    Notifications.startPolling(30000);
-}
+<script type="application/json" id="contact-page-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

@@ -40,10 +40,10 @@
                 {{end}}
 
                 <div class="profile-form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="regenerateRecoveryKeys()">
+                    <button type="button" class="btn btn-secondary" data-action="regenerate-recovery-keys">
                         🔄 Regenerate Recovery Keys
                     </button>
-                    <button type="button" class="btn btn-danger" onclick="disable2FA()">
+                    <button type="button" class="btn btn-danger" data-action="disable-2fa">
                         🔓 Disable Two-Factor Authentication
                     </button>
                 </div>
@@ -59,7 +59,7 @@
                     After enabling, you'll need to enter a code from your authenticator app when logging in.
                 </p>
 
-                <button type="button" class="btn btn-primary" onclick="enable2FA()">
+                <button type="button" class="btn btn-primary" data-action="enable-2fa">
                     🔒 Enable Two-Factor Authentication
                 </button>
             {{end}}
@@ -99,7 +99,7 @@
                 <input id="newPasskeyPassword" class="form-input" type="password" placeholder="Enter your password to continue">
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" onclick="registerPasskey()">🔑 Add Passkey</button>
+                <button type="button" class="btn btn-primary" data-action="register-passkey">🔑 Add Passkey</button>
             </div>
 
             {{if .hasPasskeys}}
@@ -110,7 +110,7 @@
                     <div class="info-item">
                         <div class="info-label">{{.Name}}</div>
                         <div class="info-value text-comment">Created {{.CreatedAt.Format "2006-01-02 15:04"}}{{if .LastUsedAt}} · Last used {{.LastUsedAt.Format "2006-01-02 15:04"}}{{end}}</div>
-                        <button type="button" class="btn btn-danger margin-y-sm" onclick="deletePasskey({{.ID}}, {{printf "%q" .Name}})">Delete</button>
+                        <button type="button" class="btn btn-danger margin-y-sm" data-action="delete-passkey" data-passkey-id="{{.ID}}" data-passkey-name="{{.Name}}">Delete</button>
                     </div>
                     {{end}}
                 </div>
@@ -125,7 +125,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3>Enable Two-Factor Authentication</h3>
-            <button class="modal-close" onclick="closeSetupModal()">&times;</button>
+            <button class="modal-close" data-action="close-setup-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div id="setupStep1">
@@ -140,7 +140,7 @@
                         <small class="text-comment">Enter this key manually in your authenticator app</small>
                     </div>
                 </details>
-                <button type="button" class="btn btn-primary" onclick="nextSetupStep()">Next</button>
+                <button type="button" class="btn btn-primary" data-action="setup-2fa-next-step">Next</button>
             </div>
 
             <div id="setupStep2" class="d-none">
@@ -153,7 +153,7 @@
                         <input type="text" id="verificationCode" class="form-input" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
                     </div>
                     <button type="submit" class="btn btn-primary">Verify & Enable</button>
-                    <button type="button" class="btn btn-secondary" onclick="prevSetupStep()">Back</button>
+                    <button type="button" class="btn btn-secondary" data-action="setup-2fa-prev-step">Back</button>
                 </form>
             </div>
 
@@ -164,8 +164,8 @@
                     <p class="text-sm">These keys can be used to access your account if you lose your authenticator device. Each key can only be used once.</p>
                 </div>
                 <div id="recoveryKeysContainer" class="margin-y-md"></div>
-                <button type="button" class="btn btn-primary" onclick="downloadRecoveryKeys()">💾 Download Recovery Keys</button>
-                <button type="button" class="btn btn-success" onclick="finishSetup()">✓ I've Saved My Keys</button>
+                <button type="button" class="btn btn-primary" data-action="download-recovery-keys">💾 Download Recovery Keys</button>
+                <button type="button" class="btn btn-success" data-action="finish-2fa-setup">✓ I've Saved My Keys</button>
             </div>
         </div>
     </div>
@@ -176,7 +176,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3>Disable Two-Factor Authentication</h3>
-            <button class="modal-close" onclick="closeDisableModal()">&times;</button>
+            <button class="modal-close" data-action="close-disable-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="alert alert-warning">
@@ -190,7 +190,7 @@
                     <input type="password" id="disablePassword" class="form-input" required>
                 </div>
                 <button type="submit" class="btn btn-danger">Disable 2FA</button>
-                <button type="button" class="btn btn-secondary" onclick="closeDisableModal()">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-action="close-disable-2fa-modal">Cancel</button>
             </form>
         </div>
     </div>
@@ -256,305 +256,8 @@
 }
 </style>
 
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-let setup2FASecret = '';
-let recoveryKeysList = [];
-
-function bufferToBase64url(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-}
-
-function base64urlToBuffer(base64url) {
-    const padded = (base64url + '==='.slice((base64url.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/');
-    const binary = atob(padded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes.buffer;
-}
-
-function normalizeCreationOptions(options) {
-    const publicKey = options.publicKey || options;
-    publicKey.challenge = base64urlToBuffer(publicKey.challenge);
-    publicKey.user.id = base64urlToBuffer(publicKey.user.id);
-    if (Array.isArray(publicKey.excludeCredentials)) {
-        publicKey.excludeCredentials = publicKey.excludeCredentials.map((credential) => ({
-            ...credential,
-            id: base64urlToBuffer(credential.id),
-        }));
-    }
-    return publicKey;
-}
-
-function serializeCredential(credential) {
-    return {
-        id: credential.id,
-        rawId: bufferToBase64url(credential.rawId),
-        type: credential.type,
-        response: {
-            attestationObject: bufferToBase64url(credential.response.attestationObject),
-            clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
-            transports: credential.response.getTransports ? credential.response.getTransports() : [],
-            publicKeyAlgorithm: credential.response.getPublicKeyAlgorithm ? credential.response.getPublicKeyAlgorithm() : undefined,
-            publicKey: credential.response.getPublicKey ? bufferToBase64url(credential.response.getPublicKey()) : undefined,
-            authenticatorData: credential.response.getAuthenticatorData ? bufferToBase64url(credential.response.getAuthenticatorData()) : undefined,
-        },
-        authenticatorAttachment: credential.authenticatorAttachment || undefined,
-    };
-}
-
-// Enable 2FA Flow
-async function enable2FA() {
-    try {
-        const response = await fetch(API_PATH + '/users/security/2fa/setup', {
-            method: 'GET'
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to start 2FA setup');
-        }
-
-        const data = await response.json();
-        setup2FASecret = data.secret;
-
-        // Show QR code
-        document.getElementById('qrCodeContainer').innerHTML = `<img src="${data.qr_code}" alt="QR Code">`;
-        document.getElementById('manualSecret').value = data.secret;
-
-        // Show modal
-        document.getElementById('setup2FAModal').style.display = 'flex';
-        document.getElementById('setupStep1').style.display = 'block';
-        document.getElementById('setupStep2').style.display = 'none';
-        document.getElementById('setupStep3').style.display = 'none';
-    } catch (error) {
-        Toast.error('Failed to setup 2FA: ' + error.message);
-    }
-}
-
-function nextSetupStep() {
-    document.getElementById('setupStep1').style.display = 'none';
-    document.getElementById('setupStep2').style.display = 'block';
-    document.getElementById('verificationCode').focus();
-}
-
-function prevSetupStep() {
-    document.getElementById('setupStep2').style.display = 'none';
-    document.getElementById('setupStep1').style.display = 'block';
-}
-
-async function registerPasskey() {
-    if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.create) {
-        Toast.error('This browser does not support passkeys');
-        return;
-    }
-
-    const name = document.getElementById('newPasskeyName').value.trim();
-    const password = document.getElementById('newPasskeyPassword').value;
-    if (!name || !password) {
-        Toast.error('Passkey name and password are required');
-        return;
-    }
-
-    try {
-        const startResponse = await fetch(API_PATH + '/users/security/passkeys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, password }),
-        });
-        const startPayload = await startResponse.json();
-        if (!startResponse.ok || !startPayload.ok) {
-            throw new Error(startPayload.error || 'Failed to start passkey registration');
-        }
-
-        const credential = await navigator.credentials.create({
-            publicKey: normalizeCreationOptions(startPayload.options),
-        });
-        if (!credential) {
-            throw new Error('Passkey registration was cancelled');
-        }
-
-        const finishResponse = await fetch(API_PATH + '/users/security/passkeys', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(serializeCredential(credential)),
-        });
-        const finishPayload = await finishResponse.json();
-        if (!finishResponse.ok || !finishPayload.ok) {
-            throw new Error(finishPayload.error || 'Failed to register passkey');
-        }
-
-        if (finishPayload.recovery_keys) {
-            recoveryKeysList = finishPayload.recovery_keys;
-            document.getElementById('recoveryKeysContainer').innerHTML = recoveryKeysList.map((key) => `<div class="recovery-key">${key}</div>`).join('');
-            document.getElementById('setup2FAModal').style.display = 'flex';
-            document.getElementById('setupStep1').style.display = 'none';
-            document.getElementById('setupStep2').style.display = 'none';
-            document.getElementById('setupStep3').style.display = 'block';
-        } else {
-            window.location.reload();
-        }
-    } catch (error) {
-        Toast.error('Failed to register passkey: ' + error.message);
-    }
-}
-
-async function deletePasskey(passkeyID, name) {
-    if (!confirm(`Delete passkey "${name}"?`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(API_PATH + '/users/security/passkeys/' + passkeyID, {
-            method: 'DELETE',
-        });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) {
-            throw new Error(payload.error || 'Failed to delete passkey');
-        }
-        window.location.reload();
-    } catch (error) {
-        Toast.error('Failed to delete passkey: ' + error.message);
-    }
-}
-
-// Verify and enable 2FA
-document.getElementById('verify2FAForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const code = document.getElementById('verificationCode').value;
-
-    try {
-        const response = await fetch(API_PATH + '/users/security/2fa/enable', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                secret: setup2FASecret,
-                code: code
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Invalid verification code');
-        }
-
-        const data = await response.json();
-        recoveryKeysList = data.recovery_keys;
-
-        // Show recovery keys
-        displayRecoveryKeys(recoveryKeysList);
-
-        document.getElementById('setupStep2').style.display = 'none';
-        document.getElementById('setupStep3').style.display = 'block';
-    } catch (error) {
-        Toast.error('Verification failed: ' + error.message);
-    }
-});
-
-function displayRecoveryKeys(keys) {
-    const container = document.getElementById('recoveryKeysContainer');
-    container.innerHTML = '<h4>Your Recovery Keys:</h4>' +
-        keys.map(key => `<div class="recovery-key">${key}</div>`).join('');
-}
-
-function downloadRecoveryKeys() {
-    const text = 'Weather - Recovery Keys\n\n' +
-        'These recovery keys can be used to access your account if you lose your authenticator device.\n' +
-        'Each key can only be used once. Keep them in a safe place.\n\n' +
-        recoveryKeysList.join('\n');
-
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'recovery-keys.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-function finishSetup() {
-    closeSetupModal();
-    Toast.success('Two-factor authentication enabled successfully!');
-    setTimeout(() => window.location.reload(), 1000);
-}
-
-function closeSetupModal() {
-    document.getElementById('setup2FAModal').style.display = 'none';
-    document.getElementById('verificationCode').value = '';
-    setup2FASecret = '';
-    recoveryKeysList = [];
-}
-
-// Disable 2FA
-function disable2FA() {
-    document.getElementById('disable2FAModal').style.display = 'flex';
-}
-
-document.getElementById('disable2FAForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const password = document.getElementById('disablePassword').value;
-
-    try {
-        const response = await fetch(API_PATH + '/users/security/2fa/disable', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: password })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to disable 2FA');
-        }
-
-        Toast.success('Two-factor authentication disabled');
-        setTimeout(() => window.location.reload(), 1000);
-    } catch (error) {
-        Toast.error('Failed to disable 2FA: ' + error.message);
-    }
-});
-
-function closeDisableModal() {
-    document.getElementById('disable2FAModal').style.display = 'none';
-    document.getElementById('disablePassword').value = '';
-}
-
-// Regenerate Recovery Keys
-async function regenerateRecoveryKeys() {
-    const code = prompt('Enter your authenticator code to regenerate recovery keys:');
-    if (!code) return;
-
-    try {
-        const response = await fetch(API_PATH + '/users/security/2fa/recovery/regenerate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: code })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to regenerate recovery keys');
-        }
-
-        const data = await response.json();
-        recoveryKeysList = data.recovery_keys;
-
-        // Show keys in modal
-        displayRecoveryKeys(recoveryKeysList);
-        document.getElementById('setup2FAModal').style.display = 'flex';
-        document.getElementById('setupStep1').style.display = 'none';
-        document.getElementById('setupStep2').style.display = 'none';
-        document.getElementById('setupStep3').style.display = 'block';
-    } catch (error) {
-        Toast.error('Failed to regenerate recovery keys: ' + error.message);
-    }
-}
+<script type="application/json" id="security-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

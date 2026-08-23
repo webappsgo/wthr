@@ -184,7 +184,7 @@
                         {{ else if eq .Severity "Moderate" }}
                             {{ $severityClass = "severity-moderate" }}
                         {{ end }}
-                        <div class="alert-card {{$severityClass}}" onclick="toggleAlertDetails(this)">
+                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
                             <div class="alert-header">
                                 <div class="alert-type">{{.Event}}</div>
                                 {{if .DistanceMiles}}
@@ -235,7 +235,7 @@
                         {{ else if eq .Severity "Moderate" }}
                             {{ $severityClass = "severity-moderate" }}
                         {{ end }}
-                        <div class="alert-card {{$severityClass}}" onclick="toggleAlertDetails(this)">
+                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
                             <div class="alert-header">
                                 <div class="alert-type">{{.Event}}</div>
                                 {{if .DistanceMiles}}
@@ -286,7 +286,7 @@
                         {{ else if eq .Severity "Moderate" }}
                             {{ $severityClass = "severity-moderate" }}
                         {{ end }}
-                        <div class="alert-card {{$severityClass}}" onclick="toggleAlertDetails(this)">
+                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
                             <div class="alert-header">
                                 <div class="alert-type">{{.Event}}</div>
                                 {{if .DistanceMiles}}
@@ -337,7 +337,7 @@
                         {{ else if eq .Severity "Moderate" }}
                             {{ $severityClass = "severity-moderate" }}
                         {{ end }}
-                        <div class="alert-card {{$severityClass}}" onclick="toggleAlertDetails(this)">
+                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
                             <div class="alert-header">
                                 <div class="alert-type">{{.Event}}</div>
                                 {{if .DistanceMiles}}
@@ -388,7 +388,7 @@
                         {{ else if eq .Severity "Moderate" }}
                             {{ $severityClass = "severity-moderate" }}
                         {{ end }}
-                        <div class="alert-card {{$severityClass}}" onclick="toggleAlertDetails(this)">
+                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
                             <div class="alert-header">
                                 <div class="alert-type">{{.Event}}</div>
                                 {{if .DistanceMiles}}
@@ -443,14 +443,14 @@
                         <strong class="console-section__label">Severe Weather:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}">Copy</button>
                         </div>
                     </div>
                     <div class="command-item">
                         <strong class="console-section__label">JSON API:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}">Copy</button>
                         </div>
                     </div>
                 </div>
@@ -646,39 +646,6 @@
                 dropdown.classList.remove('autocomplete-dropdown-visible');
                 dropdown.innerHTML = '';
             }
-        }
-
-        function toggleAlertDetails(card) {
-            const details = card.querySelector('.alert-details');
-            const expand = card.querySelector('.alert-expand');
-            if (details && expand) {
-                if (details.classList.contains('display-none')) {
-                    details.classList.remove('display-none');
-                    expand.textContent = '▲ Click to collapse';
-                } else {
-                    details.classList.add('display-none');
-                    expand.textContent = '▼ Click to expand';
-                }
-            }
-        }
-
-        // Copy command to clipboard
-        function copyCommand(button, text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                button.textContent = '✗ Failed';
-                setTimeout(() => {
-                    button.textContent = 'Copy';
-                }, 2000);
-            });
         }
 
         // Initialize notification polling

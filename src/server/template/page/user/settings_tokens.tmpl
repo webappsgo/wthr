@@ -22,7 +22,7 @@
     <div class="card profile-card">
         <div class="card-header d-flex justify-between align-center">
             <h2 class="profile-card-header-title">API Tokens</h2>
-            <button type="button" class="btn btn-primary" onclick="showNewTokenModal()">+ New Token</button>
+            <button type="button" class="btn btn-primary" data-action="tokens-show-new-modal">+ New Token</button>
         </div>
         <div class="card-body">
             <div id="tokenList">
@@ -51,7 +51,7 @@
                             {{end}}
                         </div>
                     </div>
-                    <button type="button" class="btn btn-danger btn-sm" onclick="revokeToken({{.ID}})">Revoke</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-action="tokens-revoke" data-token-id="{{.ID}}">Revoke</button>
                 </div>
                 {{end}}
                 {{else}}
@@ -91,7 +91,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3>Create New Token</h3>
-            <button class="modal-close" onclick="closeNewTokenModal()">&times;</button>
+            <button class="modal-close" data-action="tokens-close-new-modal">&times;</button>
         </div>
         <div class="modal-body">
             <form id="newTokenForm">
@@ -122,7 +122,7 @@
 
                 <div class="profile-form-actions">
                     <button type="submit" class="btn btn-primary">Create Token</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeNewTokenModal()">Cancel</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-close-new-modal">Cancel</button>
                 </div>
             </form>
         </div>
@@ -143,11 +143,11 @@
                 <label class="form-label">Your new API token:</label>
                 <div class="token-display">
                     <input type="text" id="createdToken" class="form-input" readonly>
-                    <button type="button" class="btn btn-secondary" onclick="copyToken()">Copy</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-copy-created">Copy</button>
                 </div>
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" onclick="closeTokenCreatedModal()">Done</button>
+                <button type="button" class="btn btn-primary" data-action="tokens-close-created-modal">Done</button>
             </div>
         </div>
     </div>
@@ -290,86 +290,8 @@
 }
 </style>
 
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-function showNewTokenModal() {
-    document.getElementById('newTokenModal').style.display = 'flex';
-}
-
-function closeNewTokenModal() {
-    document.getElementById('newTokenModal').style.display = 'none';
-    document.getElementById('newTokenForm').reset();
-}
-
-function closeTokenCreatedModal() {
-    document.getElementById('tokenCreatedModal').style.display = 'none';
-    window.location.reload();
-}
-
-function copyToken() {
-    const tokenInput = document.getElementById('createdToken');
-    tokenInput.select();
-    document.execCommand('copy');
-    Toast.success('Token copied to clipboard');
-}
-
-// Create new token
-document.getElementById('newTokenForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const data = {
-        name: document.getElementById('tokenName').value,
-        scopes: document.getElementById('tokenScopes').value,
-        expires_in: parseInt(document.getElementById('tokenExpires').value)
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/tokens', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to create token');
-        }
-
-        const result = await response.json();
-
-        // Show the created token
-        closeNewTokenModal();
-        document.getElementById('createdToken').value = result.token;
-        document.getElementById('tokenCreatedModal').style.display = 'flex';
-    } catch (error) {
-        Toast.error('Failed to create token: ' + error.message);
-    }
-});
-
-// Revoke token
-async function revokeToken(tokenId) {
-    if (!await showConfirm('Are you sure you want to revoke this token? This action cannot be undone.', 'Revoke Token')) {
-        return;
-    }
-
-    try {
-        const response = await fetch(API_PATH + '/users/tokens/' + tokenId, {
-            method: 'DELETE'
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to revoke token');
-        }
-
-        Toast.success('Token revoked');
-        document.querySelector(`[data-token-id="${tokenId}"]`).remove();
-    } catch (error) {
-        Toast.error('Failed to revoke token: ' + error.message);
-    }
-}
+<script type="application/json" id="settings-tokens-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

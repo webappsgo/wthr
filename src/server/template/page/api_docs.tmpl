@@ -53,14 +53,14 @@
                     <strong class="console-section__label">Weather API:</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/api/v1/weather?location=London</code>
-                        <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSsf {{.HostInfo.FullHost}}/api/v1/weather?location=London')">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/api/v1/weather?location=London">Copy</button>
                     </div>
                 </div>
                 <div class="command-item">
                     <strong class="console-section__label">GraphQL Query:</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/graphql -d '{query}'</code>
-                        <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSsf {{.HostInfo.FullHost}}/graphql')">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/graphql">Copy</button>
                     </div>
                 </div>
             </div>
@@ -96,21 +96,5 @@
             </div>
         </div>
     </div>
-
-    <script>
-        function copyCommand(button, text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-            });
-        }
-    </script>
 
 {{template "footer" .}}

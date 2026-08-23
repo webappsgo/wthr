@@ -39,7 +39,7 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-secondary" onclick="refreshSystemInfo()" aria-label="{{t $lang "admin.system.refresh_system_aria"}}">
+                    <button class="btn btn-secondary" data-action="refresh-system-info" aria-label="{{t $lang "admin.system.refresh_system_aria"}}">
                         🔄 {{t $lang "action.refresh"}}
                     </button>
                 </div>
@@ -114,10 +114,10 @@
                     </div>
 
                     <div class="button-group">
-                        <button class="btn btn-secondary" onclick="triggerGC()" aria-label="{{t $lang "admin.system.trigger_gc_aria"}}">
+                        <button class="btn btn-secondary" data-action="trigger-gc" aria-label="{{t $lang "admin.system.trigger_gc_aria"}}">
                             🧹 {{t $lang "admin.system.run_gc_action"}}
                         </button>
-                        <button class="btn btn-secondary" onclick="refreshResourceUsage()" aria-label="{{t $lang "admin.system.refresh_resources_aria"}}">
+                        <button class="btn btn-secondary" data-action="refresh-resource-usage" aria-label="{{t $lang "admin.system.refresh_resources_aria"}}">
                             🔄 {{t $lang "action.refresh"}}
                         </button>
                     </div>
@@ -208,13 +208,13 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button class="btn btn-secondary" onclick="reloadConfig()" aria-label="{{t $lang "admin.system.reload_config_aria"}}">
+                        <button class="btn btn-secondary" data-action="reload-config" aria-label="{{t $lang "admin.system.reload_config_aria"}}">
                             🔄 {{t $lang "admin.system.reload_config_action"}}
                         </button>
-                        <button class="btn btn-info" onclick="viewAllRoutes()" aria-label="{{t $lang "admin.system.view_routes_aria"}}">
+                        <button class="btn btn-info" data-action="view-all-routes" aria-label="{{t $lang "admin.system.view_routes_aria"}}">
                             🗺️ {{t $lang "admin.system.view_routes_action"}}
                         </button>
-                        <button class="btn btn-info" onclick="exportSystemInfo()" aria-label="{{t $lang "admin.system.export_info_aria"}}">
+                        <button class="btn btn-info" data-action="export-system-info" aria-label="{{t $lang "admin.system.export_info_aria"}}">
                             📥 {{t $lang "admin.system.export_info_action"}}
                         </button>
                     </div>
@@ -223,199 +223,8 @@
                 </div>
             </section>
 
-    <script>
-    // Path variables - SPEC compliant (AI.md PART 13)
-    const API_PATH = '{{.api_path}}';
-    const ADMIN_API_PATH = '{{.admin_api_path}}';
-
-    // Load system info on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        loadSystemInfo();
-        loadResourceUsage();
-        loadNetworkInfo();
-        loadSettings();
-
-        // Auto-refresh every 30 seconds
-        setInterval(loadResourceUsage, 30000);
-    });
-
-    async function loadSystemInfo() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/stats');
-            const data = await response.json();
-
-            if (data) {
-                document.getElementById('uptime').textContent = formatUptime(data.uptime_seconds || 0);
-                document.getElementById('version').textContent = data.version || 'dev';
-                document.getElementById('build-date').textContent = data.build_date || 'unknown';
-
-                // Server info
-                document.getElementById('os').textContent = data.os || '-';
-                document.getElementById('arch').textContent = data.arch || '-';
-                document.getElementById('go-version').textContent = data.go_version || '-';
-                document.getElementById('hostname').textContent = data.hostname || '-';
-                document.getElementById('working-dir').textContent = data.working_dir || '-';
-                document.getElementById('pid').textContent = data.pid || '-';
-
-                // Environment
-                document.getElementById('mode').textContent = data.mode || 'production';
-                document.getElementById('debug').textContent = data.debug ? 'Yes' : 'No';
-            }
-        } catch (error) {
-            console.error('Failed to load system info:', error);
-        }
-    }
-
-    async function loadResourceUsage() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/stats');
-            const data = await response.json();
-
-            if (data.memory) {
-                document.getElementById('memory-alloc').textContent = formatBytes(data.memory.alloc || 0);
-                document.getElementById('memory-sys').textContent = formatBytes(data.memory.sys || 0);
-                document.getElementById('goroutines').textContent = data.goroutines || '0';
-                document.getElementById('gc-runs').textContent = data.memory.num_gc || '0';
-            }
-        } catch (error) {
-            console.error('Failed to load resource usage:', error);
-        }
-    }
-
-    async function loadNetworkInfo() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/stats');
-            const data = await response.json();
-
-            document.getElementById('http-port').textContent = data.http_port || '-';
-            document.getElementById('https-port').textContent = data.https_port || '-';
-            document.getElementById('https-enabled').textContent = data.https_enabled ? 'Yes' : 'No';
-            document.getElementById('server-url').textContent = data.server_url || window.location.origin;
-
-            // Tor info
-            if (data.tor) {
-                document.getElementById('tor-status').innerHTML = data.tor.enabled ?
-                    '<span class="badge badge-success">✅ Running</span>' :
-                    '<span class="badge badge-secondary">⚪ Disabled</span>';
-                document.getElementById('onion-address').textContent = data.tor.address || 'Not configured';
-            }
-        } catch (error) {
-            console.error('Failed to load network info:', error);
-        }
-    }
-
-    async function loadSettings() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/all');
-            const data = await response.json();
-
-            if (data.settings) {
-                document.getElementById('data-dir').textContent = data.settings['server.data_dir']?.value || '-';
-                document.getElementById('config-dir').textContent = data.settings['server.config_dir']?.value || '-';
-                document.getElementById('log-dir').textContent = data.settings['server.log_dir']?.value || '-';
-                document.getElementById('timezone').textContent = data.settings['server.timezone']?.value || '-';
-            }
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-        }
-    }
-
-    async function triggerGC() {
-        try {
-            const response = await fetch('/debug/gc', { method: 'POST' });
-            if (response.ok) {
-                showActionResult('✅ Garbage collection completed', 'success');
-                setTimeout(loadResourceUsage, 1000);
-            } else {
-                throw new Error('GC trigger failed');
-            }
-        } catch (error) {
-            showActionResult('❌ Failed to trigger GC: ' + error.message, 'error');
-        }
-    }
-
-    async function reloadConfig() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/reload', { method: 'POST' });
-            const data = await response.json();
-
-            if (response.ok) {
-                showActionResult('✅ Configuration reloaded successfully', 'success');
-            } else {
-                throw new Error(data.error?.message || 'Reload failed');
-            }
-        } catch (error) {
-            showActionResult('❌ ' + error.message, 'error');
-        }
-    }
-
-    function viewAllRoutes() {
-        window.open('/debug/routes', '_blank');
-    }
-
-    function exportSystemInfo() {
-        fetch(ADMIN_API_PATH + '/server/stats')
-            .then(response => response.json())
-            .then(data => {
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'system-info-' + new Date().toISOString().split('T')[0] + '.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                showActionResult('✅ System info exported', 'success');
-            })
-            .catch(error => {
-                showActionResult('❌ Export failed: ' + error.message, 'error');
-            });
-    }
-
-    function refreshSystemInfo() {
-        loadSystemInfo();
-        loadNetworkInfo();
-        loadSettings();
-    }
-
-    function refreshResourceUsage() {
-        loadResourceUsage();
-    }
-
-    function showActionResult(message, type) {
-        const result = document.getElementById('action-result');
-        result.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
-        result.textContent = message;
-        result.style.display = 'block';
-
-        setTimeout(() => {
-            result.style.display = 'none';
-        }, 5000);
-    }
-
-    function formatUptime(seconds) {
-        const days = Math.floor(seconds / 86400);
-        const hours = Math.floor((seconds % 86400) / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-
-        if (days > 0) {
-            return `${days}d ${hours}h ${minutes}m`;
-        } else if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        } else {
-            return `${minutes}m`;
-        }
-    }
-
-    function formatBytes(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    }
-    </script>
+    <script type="application/json" id="admin-system-data">{"adminApiPath": {{.admin_api_path}}}</script>
+    <script src="/static/js/app.js"></script>
 
 {{template "admin_footer" .}}
 {{end}}

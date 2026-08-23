@@ -118,7 +118,7 @@
                 <strong class="console-section__label">Detail:</strong>
                 <div class="code-wrapper">
                     <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}</code>
-                    <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}')">Copy</button>
+                    <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}">Copy</button>
                 </div>
             </div>
         </div>
@@ -133,57 +133,9 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    const map = L.map('map').setView([{{.Earthquake.Latitude}}, {{.Earthquake.Longitude}}], 8);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 18
-    }).addTo(map);
-
-    const size = Math.max(10, {{.Earthquake.Magnitude}} * 5);
-    const color = {{.Earthquake.Magnitude}} < 2 ? '#50fa7b' :
-                 {{.Earthquake.Magnitude}} < 4 ? '#f1fa8c' :
-                 {{.Earthquake.Magnitude}} < 5 ? '#ffb86c' :
-                 {{.Earthquake.Magnitude}} < 6 ? '#ff5555' : '#bd93f9';
-
-    const marker = L.circleMarker([{{.Earthquake.Latitude}}, {{.Earthquake.Longitude}}], {
-        radius: size,
-        fillColor: color,
-        color: '#f8f8f2',
-        weight: 3,
-        opacity: 1,
-        fillOpacity: 0.8
-    }).addTo(map);
-
-    const popupContent = `
-        <div class="map-popup">
-            <strong class="map-popup__title">M {{printf "%.1f" .Earthquake.Magnitude}}</strong>
-            <div class="map-popup__place">{{.Earthquake.Place}}</div>
-            <div class="map-popup__time">{{.Earthquake.Time.Format "2006-01-02 15:04:05"}}</div>
-            <div class="map-popup__meta">Depth: {{printf "%.1f" .Earthquake.Depth}}km</div>
-            {{if eq .Earthquake.Tsunami 1}}<div class="map-popup__warning">🌊 Tsunami Warning</div>{{end}}
-        </div>
-    `;
-    marker.bindPopup(popupContent).openPopup();
-
-    function copyCommand(button, text) {
-        navigator.clipboard.writeText(text).then(() => {
-            const originalText = button.textContent;
-            button.textContent = '✓ Copied!';
-            button.classList.add('copied');
-            setTimeout(() => {
-                button.textContent = originalText;
-                button.classList.remove('copied');
-            }, 2000);
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-            button.textContent = '✗ Failed';
-            setTimeout(() => {
-                button.textContent = 'Copy';
-            }, 2000);
-        });
-    }
+<script type="application/json" id="earthquake-detail-data">
+{"latitude": {{.Earthquake.Latitude}}, "longitude": {{.Earthquake.Longitude}}, "magnitude": {{.Earthquake.Magnitude}}, "place": {{.Earthquake.Place | printf "%q"}}, "time": {{.Earthquake.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{.Earthquake.Depth}}, "tsunami": {{.Earthquake.Tsunami}}}
 </script>
 
 {{template "footer" .}}

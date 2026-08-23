@@ -33,7 +33,7 @@
 
             <!-- Notification Bell per AI.md lines 21581-21650 -->
             <div class="notification-bell" aria-label="Notifications">
-                <button class="bell-button" onclick="Dropdown.toggle('notification-dropdown', 'notification-bell')" aria-haspopup="true" aria-expanded="false" title="View notifications">
+                <button class="bell-button" data-action="nav-dropdown-toggle" data-dropdown-id="notification-dropdown" data-trigger-id="notification-bell" aria-haspopup="true" aria-expanded="false" title="View notifications">
                     <svg class="bell-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
                     </svg>
@@ -42,7 +42,7 @@
                 <div class="notification-dropdown" id="notification-dropdown" role="menu" hidden>
                     <div class="dropdown-header">
                         <span>Notifications</span>
-                        <button class="mark-all-read" onclick="Notifications.markAllRead()">Mark all read</button>
+                        <button class="mark-all-read" data-action="nav-notifications-mark-all-read">Mark all read</button>
                     </div>
                     <div class="notification-list" id="notification-list">
                         <div class="notification-empty">No notifications</div>
@@ -53,7 +53,7 @@
 
             <!-- Profile Avatar with Dropdown -->
             <div class="profile-avatar">
-                <button class="avatar" onclick="Dropdown.toggle('profile-dropdown', 'profile-avatar')" id="profile-avatar" aria-label="User menu" aria-haspopup="true" aria-expanded="false" title="Open user menu - Access profile, notifications, and logout" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){Dropdown.toggle('profile-dropdown','profile-avatar');event.preventDefault();}">
+                <button class="avatar" data-action="nav-dropdown-toggle" data-dropdown-id="profile-dropdown" data-trigger-id="profile-avatar" id="profile-avatar" aria-label="User menu" aria-haspopup="true" aria-expanded="false" title="Open user menu - Access profile, notifications, and logout">
                     {{if .user.Email}}
                         {{ index .user.Email 0 | printf "%c" | upper }}
                     {{else}}
@@ -96,11 +96,11 @@
                         <!-- Theme toggle per AI.md lines 21676-21698 -->
                         <div class="profile-dropdown-item theme-toggle-row">
                             <span>Theme:</span>
-                            <button onclick="Theme.set('dark')" class="theme-btn" data-theme="dark" title="Dark theme">Dark</button>
+                            <button data-action="nav-theme-set" class="theme-btn" data-theme="dark" title="Dark theme">Dark</button>
                             <span class="theme-sep">|</span>
-                            <button onclick="Theme.set('light')" class="theme-btn" data-theme="light" title="Light theme">Light</button>
+                            <button data-action="nav-theme-set" class="theme-btn" data-theme="light" title="Light theme">Light</button>
                             <span class="theme-sep">|</span>
-                            <button onclick="Theme.set('auto')" class="theme-btn" data-theme="auto" title="Auto theme">Auto</button>
+                            <button data-action="nav-theme-set" class="theme-btn" data-theme="auto" title="Auto theme">Auto</button>
                         </div>
                         <div class="dropdown-divider" role="separator"></div>
                         <a href="/server/help" class="profile-dropdown-item" role="menuitem" title="Help documentation">❓ Help</a>
@@ -110,7 +110,7 @@
             </div>
 
             <!-- Mobile Menu Toggle -->
-            <button class="mobile-menu-toggle" onclick="Dropdown.toggle('mobile-menu', 'mobile-menu-toggle')" id="mobile-menu-toggle" aria-label="Toggle mobile navigation menu" aria-expanded="false" aria-controls="mobile-menu" title="Open mobile navigation menu" onkeydown="if(event.key==='Enter'||event.key===' '){Dropdown.toggle('mobile-menu','mobile-menu-toggle');event.preventDefault();}">
+            <button class="mobile-menu-toggle" data-action="nav-dropdown-toggle" data-dropdown-id="mobile-menu" data-trigger-id="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle mobile navigation menu" aria-expanded="false" aria-controls="mobile-menu" title="Open mobile navigation menu">
                 ☰
             </button>
         </div>

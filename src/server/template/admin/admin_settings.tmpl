@@ -13,91 +13,104 @@
         <!-- Settings Tabs -->
         <div class="tabs" role="tablist" aria-label="{{t $lang "admin.settings.tabs_aria_label"}}">
             <button class="tab active"
-                    onclick="switchSettingsTab('server')"
+                    data-action="switch-settings-tab"
+                    data-tab="server"
                     role="tab"
                     aria-selected="true"
                     aria-controls="tab-server"
                     aria-label="{{t $lang "admin.settings.tab_server_aria"}}"
                     title="{{t $lang "admin.settings.tab_server_title"}}">🏠 {{t $lang "admin.settings.tab_server_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('security')"
+                    data-action="switch-settings-tab"
+                    data-tab="security"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-security"
                     aria-label="{{t $lang "admin.settings.tab_security_aria"}}"
                     title="{{t $lang "admin.settings.tab_security_title"}}">🔒 {{t $lang "admin.settings.tab_security_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('features')"
+                    data-action="switch-settings-tab"
+                    data-tab="features"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-features"
                     aria-label="{{t $lang "admin.settings.tab_features_aria"}}"
                     title="{{t $lang "admin.settings.tab_features_title"}}">✨ {{t $lang "admin.settings.tab_features_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('backup')"
+                    data-action="switch-settings-tab"
+                    data-tab="backup"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-backup"
                     aria-label="{{t $lang "admin.settings.tab_backup_aria"}}"
                     title="{{t $lang "admin.settings.tab_backup_title"}}">💾 {{t $lang "admin.settings.tab_backup_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('logging')"
+                    data-action="switch-settings-tab"
+                    data-tab="logging"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-logging"
                     aria-label="{{t $lang "admin.settings.tab_logging_aria"}}"
                     title="{{t $lang "admin.settings.tab_logging_title"}}">📝 {{t $lang "admin.settings.tab_logging_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('smtp')"
+                    data-action="switch-settings-tab"
+                    data-tab="smtp"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-smtp"
                     aria-label="{{t $lang "admin.settings.tab_smtp_aria"}}"
                     title="{{t $lang "admin.settings.tab_smtp_title"}}">📧 {{t $lang "admin.settings.tab_smtp_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('ratelimit')"
+                    data-action="switch-settings-tab"
+                    data-tab="ratelimit"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-ratelimit"
                     aria-label="{{t $lang "admin.settings.tab_ratelimit_aria"}}"
                     title="{{t $lang "admin.settings.tab_ratelimit_title"}}">🚦 {{t $lang "admin.settings.tab_ratelimit_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('ssl')"
+                    data-action="switch-settings-tab"
+                    data-tab="ssl"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-ssl"
                     aria-label="{{t $lang "admin.settings.tab_ssl_aria"}}"
                     title="{{t $lang "admin.settings.tab_ssl_title"}}">🔐 {{t $lang "admin.settings.tab_ssl_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('weather')"
+                    data-action="switch-settings-tab"
+                    data-tab="weather"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-weather"
                     aria-label="{{t $lang "admin.settings.tab_weather_aria"}}"
                     title="{{t $lang "admin.settings.tab_weather_title"}}">🌤️ {{t $lang "admin.settings.tab_weather_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('notifications')"
+                    data-action="switch-settings-tab"
+                    data-tab="notifications"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-notifications"
                     aria-label="{{t $lang "admin.settings.tab_notifications_aria"}}"
                     title="{{t $lang "admin.settings.tab_notifications_title"}}">🔔 {{t $lang "admin.settings.tab_notifications_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('advanced')"
+                    data-action="switch-settings-tab"
+                    data-tab="advanced"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-advanced"
                     aria-label="{{t $lang "admin.settings.tab_advanced_aria"}}"
                     title="{{t $lang "admin.settings.tab_advanced_title"}}">⚙️ {{t $lang "admin.settings.tab_advanced_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('tor')"
+                    data-action="switch-settings-tab"
+                    data-tab="tor"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-tor"
                     aria-label="{{t $lang "admin.settings.tab_tor_aria"}}"
                     title="{{t $lang "admin.settings.tab_tor_title"}}">🧅 {{t $lang "admin.settings.tab_tor_label"}}</button>
             <button class="tab"
-                    onclick="switchSettingsTab('history')"
+                    data-action="switch-settings-tab"
+                    data-tab="history"
                     role="tab"
                     aria-selected="false"
                     aria-controls="tab-history"
@@ -110,7 +123,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.general_heading"}}</h2>
                 <form id="form-server-general"
-                      onsubmit="saveSettings(event, 'server-general')"
+                      data-settings-category="server-general"
                       role="form"
                       aria-label="{{t $lang "admin.settings.general_form_aria"}}">
                     <div class="form-group">
@@ -177,7 +190,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.process_heading"}}</h2>
                 <form id="form-server-process"
-                      onsubmit="saveSettings(event, 'server-process')"
+                      data-settings-category="server-process"
                       role="form"
                       aria-label="{{t $lang "admin.settings.process_form_aria"}}">
                     <div class="form-group">
@@ -222,7 +235,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.branding_heading"}}</h2>
                 <form id="form-server-branding"
-                      onsubmit="saveSettings(event, 'server-branding')"
+                      data-settings-category="server-branding"
                       role="form"
                       aria-label="{{t $lang "admin.settings.branding_form_aria"}}">
                     <div class="form-group">
@@ -273,7 +286,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.config_heading"}}</h2>
                 <form id="form-server-config"
-                      onsubmit="saveSettings(event, 'server-config')"
+                      data-settings-category="server-config"
                       role="form"
                       aria-label="{{t $lang "admin.settings.config_form_aria"}}">
                     <div class="form-group">
@@ -364,7 +377,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.auth_sessions_heading"}}</h2>
                 <form id="form-security"
-                      onsubmit="saveSettings(event, 'security')"
+                      data-settings-category="security"
                       role="form"
                       aria-label="{{t $lang "admin.settings.security_form_aria"}}">
                     <div class="form-group">
@@ -436,7 +449,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.feature_toggles_heading"}}</h2>
                 <form id="form-features"
-                      onsubmit="saveSettings(event, 'features')"
+                      data-settings-category="features"
                       role="form"
                       aria-label="{{t $lang "admin.settings.features_form_aria"}}">
                     <div class="form-group">
@@ -500,7 +513,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.backup_config_heading"}}</h2>
                 <form id="form-backup"
-                      onsubmit="saveSettings(event, 'backup')"
+                      data-settings-category="backup"
                       role="form"
                       aria-label="{{t $lang "admin.settings.backup_form_aria"}}">
                     <div class="form-group">
@@ -572,7 +585,7 @@
             <div class="card">
                 <h2>{{t $lang "admin.settings.logging_config_heading"}}</h2>
                 <form id="form-logging"
-                      onsubmit="saveSettings(event, 'logging')"
+                      data-settings-category="logging"
                       role="form"
                       aria-label="{{t $lang "admin.settings.logging_form_aria"}}">
                     <div class="form-group">
@@ -678,7 +691,7 @@
         <div id="tab-smtp" class="tab-content" role="tabpanel" aria-labelledby="tab-smtp">
             <div class="card">
                 <h2>📧 {{t $lang "admin.settings.smtp_config_heading"}}</h2>
-                <form id="form-smtp" onsubmit="saveSettings(event, 'smtp')" role="form" aria-label="{{t $lang "admin.settings.smtp_form_aria"}}">
+                <form id="form-smtp" data-settings-category="smtp" role="form" aria-label="{{t $lang "admin.settings.smtp_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -739,7 +752,7 @@
         <div id="tab-ratelimit" class="tab-content" role="tabpanel" aria-labelledby="tab-ratelimit">
             <div class="card">
                 <h2>🚦 {{t $lang "admin.settings.rate_limit_heading"}}</h2>
-                <form id="form-ratelimit" onsubmit="saveSettings(event, 'ratelimit')" role="form">
+                <form id="form-ratelimit" data-settings-category="ratelimit" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -779,7 +792,7 @@
         <div id="tab-ssl" class="tab-content" role="tabpanel" aria-labelledby="tab-ssl">
             <div class="card">
                 <h2>🔐 {{t $lang "admin.settings.ssl_config_heading"}}</h2>
-                <form id="form-ssl" onsubmit="saveSettings(event, 'ssl')" role="form">
+                <form id="form-ssl" data-settings-category="ssl" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -833,7 +846,7 @@
         <div id="tab-weather" class="tab-content" role="tabpanel" aria-labelledby="tab-weather">
             <div class="card">
                 <h2>🌤️ {{t $lang "admin.settings.weather_config_heading"}}</h2>
-                <form id="form-weather" onsubmit="saveSettings(event, 'weather')" role="form">
+                <form id="form-weather" data-settings-category="weather" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label for="weather_refresh_interval">{{t $lang "admin.settings.weather_refresh_interval_label"}}</label>
@@ -882,7 +895,7 @@
         <div id="tab-notifications" class="tab-content" role="tabpanel" aria-labelledby="tab-notifications">
             <div class="card">
                 <h2>🔔 {{t $lang "admin.settings.notification_system_heading"}}</h2>
-                <form id="form-notifications" onsubmit="saveSettings(event, 'notifications')" role="form">
+                <form id="form-notifications" data-settings-category="notifications" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -922,7 +935,7 @@
         <div id="tab-advanced" class="tab-content" role="tabpanel" aria-labelledby="tab-advanced">
             <div class="card">
                 <h2>🌍 {{t $lang "admin.settings.geoip_config_heading"}}</h2>
-                <form id="form-geoip" onsubmit="saveSettings(event, 'geoip')" role="form">
+                <form id="form-geoip" data-settings-category="geoip" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -945,7 +958,7 @@
 
             <div class="card">
                 <h2>🌐 {{t $lang "admin.settings.cors_config_heading"}}</h2>
-                <form id="form-cors" onsubmit="saveSettings(event, 'cors')" role="form">
+                <form id="form-cors" data-settings-category="cors" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -983,7 +996,7 @@
 
             <div class="card">
                 <h2>⏰ {{t $lang "admin.settings.scheduler_config_heading"}}</h2>
-                <form id="form-scheduler" onsubmit="saveSettings(event, 'scheduler')" role="form">
+                <form id="form-scheduler" data-settings-category="scheduler" role="form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -1021,7 +1034,7 @@
         <div id="tab-tor" class="tab-content" role="tabpanel" aria-labelledby="tab-tor">
             <div class="card">
                 <h2>🧅 {{t $lang "admin.settings.tor_hidden_service_heading"}}</h2>
-                <form id="form-tor" onsubmit="saveSettings(event, 'tor')" role="form" aria-label="{{t $lang "admin.settings.tor_form_aria"}}">
+                <form id="form-tor" data-settings-category="tor" role="form" aria-label="{{t $lang "admin.settings.tor_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
@@ -1102,7 +1115,7 @@
                 <p>{{t $lang "admin.settings.history_intro"}}</p>
 
                 <form id="form-history"
-                      onsubmit="saveSettings(event, 'history')"
+                      data-settings-category="history"
                       role="form"
                       aria-label="{{t $lang "admin.settings.history_form_aria"}}">
 
@@ -1203,76 +1216,7 @@
         </div>
 
     <!-- Scripts -->
+    <script type="application/json" id="admin-settings-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
     <script src="/static/js/app.js"></script>
-    <script>
-        // Path variables - SPEC compliant (AI.md PART 13)
-        const API_PATH = '{{.api_path}}';
-        const ADMIN_API_PATH = '{{.admin_api_path}}';
-
-        // Tab switching
-        function switchSettingsTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Show selected tab
-            document.getElementById('tab-' + tabName).classList.add('active');
-            event.target.classList.add('active');
-        }
-
-        // Save settings
-        async function saveSettings(event, category) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            const settings = {};
-
-            // Convert form data to settings object
-            for (let [key, value] of formData.entries()) {
-                if (form.elements[key].type === 'checkbox') {
-                    settings[key] = form.elements[key].checked;
-                } else {
-                    settings[key] = value;
-                }
-            }
-
-            try {
-                // Send multiple settings updates
-                for (let [key, value] of Object.entries(settings)) {
-                    const response = await fetch(`${ADMIN_API_PATH}/server/settings/${key}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ value: value })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Failed to update ${key}`);
-                    }
-                }
-
-                Toast.success(`${category} settings saved successfully`);
-
-                // Reload page after a delay to show new settings
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } catch (error) {
-                Toast.error('Failed to save settings: ' + error.message);
-                console.error('Error saving settings:', error);
-            }
-        }
-
-        // Initialize notifications
-        document.addEventListener('DOMContentLoaded', function() {
-            Notifications.fetch();
-            Notifications.startPolling(60000); // Poll every minute
-        });
-    </script>
 
 {{template "admin_footer" .}}

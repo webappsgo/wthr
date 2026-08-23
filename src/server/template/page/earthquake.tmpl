@@ -96,7 +96,8 @@
                 {{if .Location}}
                 <button type="button"
                         class="search-button secondary flex-1"
-                        onclick="window.location.href='/earthquake?feed={{.FeedType}}'"
+                        data-action="navigate"
+                        data-href="/earthquake?feed={{.FeedType}}"
                         aria-label="View all earthquakes worldwide"
                         title="Clear location filter and view all earthquakes worldwide">
                     🗺️ View All
@@ -167,7 +168,7 @@
                     {{ $badge = "magnitude-badge--major" }}
                 {{ end }}
 
-                <div onclick="focusEarthquake({{.Latitude}}, {{.Longitude}})" class="earthquake-item {{$severity}}">
+                <div data-action="earthquake-item" data-lat="{{.Latitude}}" data-lng="{{.Longitude}}" class="earthquake-item {{$severity}}">
                     <div class="flex gap-md flex-column-mobile">
                         <span class="magnitude-badge {{$badge}}">
                             {{printf "%.1f" .Magnitude}}
@@ -188,7 +189,7 @@
                                 {{if .MMI}}<div><strong>MMI:</strong> {{printf "%.1f" .MMI}}</div>{{end}}
                             </div>
                         </div>
-                        <a href="/earthquake/detail/{{.ID}}" onclick="event.stopPropagation();" class="text-cyan font-medium">Details →</a>
+                        <a href="/earthquake/detail/{{.ID}}" data-action="stop-propagation" class="text-cyan font-medium">Details →</a>
                     </div>
                 </div>
                 {{else}}
@@ -206,7 +207,7 @@
                     <strong class="console-section__label">All Earthquakes:</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}</code>
-                        <button class="copy-btn" onclick="copyCommand(this, 'curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}')">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">Copy</button>
                     </div>
                 </div>
                 {{if .Location}}
@@ -214,7 +215,7 @@
                     <strong class="console-section__label">Selected Feed:</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}</code>
-                        <button class="copy-btn" onclick="copyCommand(this, 'curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}')">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">Copy</button>
                     </div>
                 </div>
                 {{end}}
@@ -231,158 +232,9 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // Auto-fill location with closest earthquake on page load
-        window.addEventListener('DOMContentLoaded', function() {
-            const earthquakes = [
-                {{range .Earthquakes}}
-                {
-                    lat: {{.Latitude}},
-                    lng: {{.Longitude}},
-                    mag: {{.Magnitude}},
-                    place: "{{.Place}}"
-                },
-                {{end}}
-            ];
 
-            // If no location is set and we have earthquakes, find the closest one
-            {{if not .Location}}
-            if (earthquakes.length > 0) {
-                const centerLat = {{.CenterLat}};
-                const centerLon = {{.CenterLon}};
-
-                // Find closest earthquake to user location
-                let closest = earthquakes[0];
-                let minDist = Number.MAX_VALUE;
-
-                earthquakes.forEach(eq => {
-                    const dist = Math.sqrt(Math.pow(eq.lat - centerLat, 2) + Math.pow(eq.lng - centerLon, 2));
-                    if (dist < minDist) {
-                        minDist = dist;
-                        closest = eq;
-                    }
-                });
-
-                // Extract location from place (e.g., "10 km NE of Albany, NY" -> "Albany, NY")
-                let locationName = closest.place;
-                const match = locationName.match(/(?:of|near)\s+([^,]+(?:,\s*[^,]+)?)/i);
-                if (match) {
-                    locationName = match[1].trim();
-                }
-
-                // Set the input value
-                document.getElementById('eq-location-input').placeholder = '🔍 ' + locationName + ' (closest)';
-            }
-            {{end}}
-        });
-
-        // Initialize map
-        const map = L.map('map').setView([{{.CenterLat}}, {{.CenterLon}}], {{if .Location}}6{{else}}2{{end}});
-
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 18
-        }).addTo(map);
-
-        // Add earthquakes to map
-        const earthquakes = [
-            {{range .Earthquakes}}
-            {
-                lat: {{.Latitude}},
-                lng: {{.Longitude}},
-                mag: {{.Magnitude}},
-                place: "{{.Place}}",
-                time: "{{.Time.Format "2006-01-02 15:04:05"}}",
-                depth: {{.Depth}},
-                tsunami: {{.Tsunami}},
-                url: "{{.URL}}"
-            },
-            {{end}}
-        ];
-
-        const markers = [];
-        earthquakes.forEach(eq => {
-            // Size marker based on magnitude
-            const size = Math.max(5, eq.mag * 4);
-            const color = eq.mag < 2 ? '#50fa7b' :
-                         eq.mag < 4 ? '#f1fa8c' :
-                         eq.mag < 5 ? '#ffb86c' :
-                         eq.mag < 6 ? '#ff5555' : '#bd93f9';
-
-            const marker = L.circleMarker([eq.lat, eq.lng], {
-                radius: size,
-                fillColor: color,
-                color: '#f8f8f2',
-                weight: 2,
-                opacity: 0.8,
-                fillOpacity: 0.6
-            }).addTo(map);
-
-            // Popup content
-        const popupContent = `
-            <div class="map-popup">
-                <strong class="map-popup__title">M ${eq.mag.toFixed(1)}</strong>
-                <div class="map-popup__place">${eq.place}</div>
-                <div class="map-popup__time">${eq.time}</div>
-                <div class="map-popup__meta">Depth: ${eq.depth.toFixed(1)}km</div>
-                ${eq.tsunami ? '<div class="map-popup__warning">🌊 Tsunami Warning</div>' : ''}
-                <a href="${eq.url}" target="_blank" class="map-popup__link">View Details</a>
-            </div>
-        `;
-            marker.bindPopup(popupContent);
-            markers.push(marker);
-        });
-
-        // Fit map to show all earthquake markers when location is searched
-        {{if .Location}}
-        if (markers.length > 0) {
-            const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1));
-        }
-        {{end}}
-
-        // Function to focus on earthquake
-        function focusEarthquake(lat, lng) {
-            map.setView([lat, lng], 8);
-        }
-
-        // Toggle details on click
-        document.querySelectorAll('.earthquake-item').forEach(item => {
-            item.addEventListener('click', function() {
-                const details = this.querySelector('.eq-details');
-                if (details) {
-                    details.classList.toggle('visible');
-                }
-            });
-        });
-
-        // Auto-refresh every 5 minutes
-        setTimeout(() => location.reload(), 300000);
-
-        // Copy command to clipboard
-        function copyCommand(button, text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                button.textContent = '✗ Failed';
-                setTimeout(() => {
-                    button.textContent = 'Copy';
-                }, 2000);
-            });
-        }
-
-        // Initialize notification polling
-        if (typeof Notifications !== 'undefined') {
-            Notifications.startPolling(30000);
-        }
+    <script type="application/json" id="earthquake-page-data">
+    {"centerLat": {{.CenterLat}}, "centerLon": {{.CenterLon}}, "hasLocation": {{if .Location}}true{{else}}false{{end}}, "earthquakes": [{{range $i, $e := .Earthquakes}}{{if $i}},{{end}}{"lat": {{$e.Latitude}}, "lng": {{$e.Longitude}}, "mag": {{$e.Magnitude}}, "place": {{$e.Place | printf "%q"}}, "time": {{$e.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{$e.Depth}}, "tsunami": {{$e.Tsunami}}, "url": {{$e.URL | printf "%q"}}}{{end}}]}
     </script>
 
 {{template "footer" .}}

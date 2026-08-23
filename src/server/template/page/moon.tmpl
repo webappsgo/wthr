@@ -161,28 +161,28 @@
                         <strong class="console-section__label">Weather:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}">Copy</button>
                         </div>
                     </div>
                     <div class="command-item">
                         <strong class="console-section__label">One-Line:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3">Copy</button>
                         </div>
                     </div>
                     <div class="command-item">
                         <strong class="console-section__label">Moon:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/moon')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon">Copy</button>
                         </div>
                     </div>
                     <div class="command-item">
                         <strong class="console-section__label">Moon Location:</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" onclick="copyCommand(this, 'curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}')">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}">Copy</button>
                         </div>
                     </div>
                 </div>
@@ -360,25 +360,6 @@
                 dropdown.classList.remove('autocomplete-dropdown-visible');
                 dropdown.innerHTML = '';
             }
-        }
-
-        // Copy command to clipboard
-        function copyCommand(button, text) {
-            navigator.clipboard.writeText(text).then(() => {
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                button.classList.add('copied');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('copied');
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                button.textContent = '✗ Failed';
-                setTimeout(() => {
-                    button.textContent = 'Copy';
-                }, 2000);
-            });
         }
 
         // Initialize notification polling

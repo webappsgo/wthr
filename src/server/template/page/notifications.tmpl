@@ -15,86 +15,8 @@
     </div>
 </div>
 
-<script>
-    // Path variables - SPEC compliant (AI.md PART 13)
-    const API_PATH = '{{.api_path}}';
-
-    let currentFilter = 'all';
-
-    async function loadNotifications() {
-        const unreadParam = currentFilter === 'unread' ? '?unread=true' : '';
-        const response = await fetch(`${API_PATH}/users/notifications${unreadParam}`);
-        const data = await response.json();
-
-        const container = document.getElementById('notifications-list');
-
-        if (!data.notifications || data.notifications.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state__icon">📭</div>
-                    <h3 class="empty-state__title">No notifications</h3>
-                    <p class="empty-state__message">You're all caught up!</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = data.notifications.map(n => {
-            const time = new Date(n.created_at).toLocaleString();
-            const typeClass = n.type || 'info';
-            const unreadClass = n.read ? '' : 'unread';
-
-            return `
-                <div class="notification-item ${unreadClass}" data-id="${n.id}">
-                    <div class="notification-header">
-                        <div>
-                            <span class="notification-title">${n.title}</span>
-                            <span class="notification-type ${typeClass}">${n.type}</span>
-                        </div>
-                        <span class="notification-time">${time}</span>
-                    </div>
-                    <div class="notification-message">${n.message}</div>
-                    <div class="notification-actions">
-                        ${!n.read ? `<button class="btn btn-outline btn-sm" onclick="markAsRead(${n.id})">✓ Mark as Read</button>` : ''}
-                        ${n.link ? `<a href="${n.link}" class="btn btn-outline btn-sm">View</a>` : ''}
-                        <button class="btn btn-danger btn-sm" onclick="deleteNotification(${n.id})">🗑️ Delete</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    async function markAsRead(id) {
-        await fetch(`${API_PATH}/users/notifications/${id}/read`, { method: 'PATCH' });
-        loadNotifications();
-    }
-
-    async function deleteNotification(id) {
-        if (!showConfirm('Delete this notification?')) return;
-        await fetch(`${API_PATH}/users/notifications/${id}`, { method: 'DELETE' });
-        loadNotifications();
-    }
-
-    document.getElementById('mark-all-read').addEventListener('click', async () => {
-        await fetch(API_PATH + '/users/notifications/read', { method: 'PATCH' });
-        loadNotifications();
-    });
-
-    document.querySelectorAll('.filter-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            currentFilter = tab.dataset.filter;
-            loadNotifications();
-        });
-    });
-
-    loadNotifications();
-    setInterval(loadNotifications, 30000);
-
-    if (typeof Notifications !== 'undefined') {
-        Notifications.startPolling(30000);
-    }
+<script type="application/json" id="notifications-list-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

@@ -808,6 +808,56 @@
     color: var(--color-muted);
 }
 
+/* Admin Security page (admin/admin_security.tmpl) */
+.passkeys-list-hidden {
+    display: none;
+}
+
+.passkeys-list-heading {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.passkey-name-field-group {
+    margin-top: 1.5rem;
+}
+
+.passkey-op-status-hidden {
+    display: none;
+    margin-top: 1rem;
+}
+
+.passkey-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--color-border, #2d3748);
+}
+
+.passkey-item-name {
+    font-weight: 500;
+}
+
+.passkey-item-meta {
+    font-size: 0.8rem;
+    color: var(--color-muted, #a0aec0);
+}
+
+.passkey-item-delete-btn {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.75rem;
+}
+
+.floating-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 300px;
+}
+
 /* Task History Modal Scroll */
 .task-history-scroll {
     max-height: 500px;
@@ -966,3 +1016,121 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Admin Tasks page (admin/admin_tasks_enhanced.tmpl) */
+.timeline-task {
+  position: absolute;
+  width: 8%;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  background: var(--color-primary, #3182ce);
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.timeline-task.running { background: var(--color-success, #38a169); }
+.timeline-top-0 { top: 10px; }
+.timeline-top-1 { top: 40px; }
+.timeline-top-2 { top: 70px; }
+.timeline-left-0 { left: 0%; }
+.timeline-left-1 { left: 1%; }
+.timeline-left-2 { left: 2%; }
+.timeline-left-3 { left: 3%; }
+.timeline-left-4 { left: 4%; }
+.timeline-left-5 { left: 5%; }
+.timeline-left-6 { left: 6%; }
+.timeline-left-7 { left: 7%; }
+.timeline-left-8 { left: 8%; }
+.timeline-left-9 { left: 9%; }
+.timeline-left-10 { left: 10%; }
+.timeline-left-11 { left: 11%; }
+.timeline-left-12 { left: 12%; }
+.timeline-left-13 { left: 13%; }
+.timeline-left-14 { left: 14%; }
+.timeline-left-15 { left: 15%; }
+.timeline-left-16 { left: 16%; }
+.timeline-left-17 { left: 17%; }
+.timeline-left-18 { left: 18%; }
+.timeline-left-19 { left: 19%; }
+.timeline-left-20 { left: 20%; }
+.timeline-left-21 { left: 21%; }
+.timeline-left-22 { left: 22%; }
+.timeline-left-23 { left: 23%; }
+.timeline-left-24 { left: 24%; }
+.timeline-left-25 { left: 25%; }
+.timeline-left-26 { left: 26%; }
+.timeline-left-27 { left: 27%; }
+.timeline-left-28 { left: 28%; }
+.timeline-left-29 { left: 29%; }
+.timeline-left-30 { left: 30%; }
+.timeline-left-31 { left: 31%; }
+.timeline-left-32 { left: 32%; }
+.timeline-left-33 { left: 33%; }
+.timeline-left-34 { left: 34%; }
+.timeline-left-35 { left: 35%; }
+.timeline-left-36 { left: 36%; }
+.timeline-left-37 { left: 37%; }
+.timeline-left-38 { left: 38%; }
+.timeline-left-39 { left: 39%; }
+.timeline-left-40 { left: 40%; }
+.timeline-left-41 { left: 41%; }
+.timeline-left-42 { left: 42%; }
+.timeline-left-43 { left: 43%; }
+.timeline-left-44 { left: 44%; }
+.timeline-left-45 { left: 45%; }
+.timeline-left-46 { left: 46%; }
+.timeline-left-47 { left: 47%; }
+.timeline-left-48 { left: 48%; }
+.timeline-left-49 { left: 49%; }
+.timeline-left-50 { left: 50%; }
+.timeline-left-51 { left: 51%; }
+.timeline-left-52 { left: 52%; }
+.timeline-left-53 { left: 53%; }
+.timeline-left-54 { left: 54%; }
+.timeline-left-55 { left: 55%; }
+.timeline-left-56 { left: 56%; }
+.timeline-left-57 { left: 57%; }
+.timeline-left-58 { left: 58%; }
+.timeline-left-59 { left: 59%; }
+.timeline-left-60 { left: 60%; }
+.timeline-left-61 { left: 61%; }
+.timeline-left-62 { left: 62%; }
+.timeline-left-63 { left: 63%; }
+.timeline-left-64 { left: 64%; }
+.timeline-left-65 { left: 65%; }
+.timeline-left-66 { left: 66%; }
+.timeline-left-67 { left: 67%; }
+.timeline-left-68 { left: 68%; }
+.timeline-left-69 { left: 69%; }
+.timeline-left-70 { left: 70%; }
+.timeline-left-71 { left: 71%; }
+.timeline-left-72 { left: 72%; }
+.timeline-left-73 { left: 73%; }
+.timeline-left-74 { left: 74%; }
+.timeline-left-75 { left: 75%; }
+.timeline-left-76 { left: 76%; }
+.timeline-left-77 { left: 77%; }
+.timeline-left-78 { left: 78%; }
+.timeline-left-79 { left: 79%; }
+.timeline-left-80 { left: 80%; }
+.timeline-left-81 { left: 81%; }
+.timeline-left-82 { left: 82%; }
+.timeline-left-83 { left: 83%; }
+.timeline-left-84 { left: 84%; }
+.timeline-left-85 { left: 85%; }
+.timeline-left-86 { left: 86%; }
+.timeline-left-87 { left: 87%; }
+.timeline-left-88 { left: 88%; }
+.timeline-left-89 { left: 89%; }
+.timeline-left-90 { left: 90%; }
+.timeline-left-91 { left: 91%; }
+.timeline-left-92 { left: 92%; }
+.timeline-left-93 { left: 93%; }
+.timeline-left-94 { left: 94%; }
+.timeline-left-95 { left: 95%; }
+.timeline-left-96 { left: 96%; }
+.timeline-left-97 { left: 97%; }
+.timeline-left-98 { left: 98%; }
+.timeline-left-99 { left: 99%; }
+.timeline-left-100 { left: 100%; }

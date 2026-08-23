@@ -48,7 +48,7 @@
 
                 <div class="profile-form-actions">
                     <button type="submit" class="btn btn-primary">💾 Save Changes</button>
-                    <button type="button" class="btn btn-secondary" onclick="resetForm()">↻ Reset</button>
+                    <button type="button" class="btn btn-secondary" data-action="profile-reset-form">↻ Reset</button>
                 </div>
             </form>
         </div>
@@ -204,7 +204,7 @@
 
                 <div class="profile-form-actions">
                     <button type="submit" class="btn btn-primary">💾 Save Preferences</button>
-                    <button type="button" class="btn btn-secondary" onclick="loadNotificationPreferences()">↻ Reset</button>
+                    <button type="button" class="btn btn-secondary" data-action="profile-load-notification-prefs">↻ Reset</button>
                 </div>
             </form>
         </div>
@@ -242,192 +242,8 @@
     </div>
 </div>
 
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-// Save profile changes
-document.getElementById('profileForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const formData = {
-        email: document.getElementById('email').value,
-        display_name: document.getElementById('displayName').value,
-        phone: document.getElementById('phone').value
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/profile', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(formData)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update profile');
-        }
-
-        Toast.success('Profile updated successfully!');
-
-        // Reload page to show updated info in navbar
-        setTimeout(() => window.location.reload(), 1000);
-    } catch (error) {
-        Toast.error('Failed to update profile: ' + error.message);
-    }
-});
-
-// Change password
-document.getElementById('passwordForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const currentPassword = document.getElementById('currentPassword').value;
-    const newPassword = document.getElementById('newPassword').value;
-    const confirmPassword = document.getElementById('confirmPassword').value;
-
-    if (newPassword !== confirmPassword) {
-        Toast.error('Passwords do not match');
-        return;
-    }
-
-    if (newPassword.length < 8) {
-        Toast.error('Password must be at least 8 characters');
-        return;
-    }
-
-    try {
-        const response = await fetch(API_PATH + '/users/password', {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                current_password: currentPassword,
-                new_password: newPassword
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to change password');
-        }
-
-        Toast.success('Password changed successfully!');
-
-        // Clear password fields
-        document.getElementById('currentPassword').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('confirmPassword').value = '';
-    } catch (error) {
-        Toast.error('Failed to change password: ' + error.message);
-    }
-});
-
-// Reset form to original values
-function resetForm() {
-    document.getElementById('profileForm').reset();
-}
-
-// Update duration label as slider moves
-function updateDurationLabel(type, value) {
-    document.getElementById(`durationLabel${type.charAt(0).toUpperCase() + type.slice(1)}`).textContent = value + 's';
-}
-
-// Load notification preferences on page load
-async function loadNotificationPreferences() {
-    try {
-        const response = await fetch(API_PATH + '/users/notifications/preferences');
-
-        if (!response.ok) {
-            throw new Error('Failed to load preferences');
-        }
-
-        const prefs = await response.json();
-
-        // Set checkbox values
-        document.getElementById('enableToast').checked = prefs.enable_toast !== false;
-        document.getElementById('enableBanner').checked = prefs.enable_banner !== false;
-        document.getElementById('enableCenter').checked = prefs.enable_center !== false;
-        document.getElementById('enableSound').checked = prefs.enable_sound === true;
-
-        // Set toast duration values
-        const successDuration = prefs.toast_duration_success || 5;
-        const infoDuration = prefs.toast_duration_info || 5;
-        const warningDuration = prefs.toast_duration_warning || 10;
-
-        document.getElementById('toastDurationSuccess').value = successDuration;
-        document.getElementById('toastDurationInfo').value = infoDuration;
-        document.getElementById('toastDurationWarning').value = warningDuration;
-
-        updateDurationLabel('success', successDuration);
-        updateDurationLabel('info', infoDuration);
-        updateDurationLabel('warning', warningDuration);
-    } catch (error) {
-        console.error('Failed to load notification preferences:', error);
-        // Use defaults if loading fails
-    }
-}
-
-// Save notification preferences
-document.getElementById('notificationPreferencesForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const preferences = {
-        enable_toast: document.getElementById('enableToast').checked,
-        enable_banner: document.getElementById('enableBanner').checked,
-        enable_center: document.getElementById('enableCenter').checked,
-        enable_sound: document.getElementById('enableSound').checked,
-        toast_duration_success: parseInt(document.getElementById('toastDurationSuccess').value),
-        toast_duration_info: parseInt(document.getElementById('toastDurationInfo').value),
-        toast_duration_warning: parseInt(document.getElementById('toastDurationWarning').value)
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/notifications/preferences', {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(preferences)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to update preferences');
-        }
-
-        // Show success notification using the notification manager
-        if (typeof notificationManager !== 'undefined') {
-            notificationManager.preferences = preferences;
-            notificationManager.showToast({
-                type: 'success',
-                title: 'Preferences Saved',
-                message: 'Your notification preferences have been updated successfully.',
-                display: 'toast'
-            });
-        } else {
-            Toast.success('Notification preferences updated successfully!');
-        }
-    } catch (error) {
-        if (typeof notificationManager !== 'undefined') {
-            notificationManager.showToast({
-                type: 'error',
-                title: 'Save Failed',
-                message: 'Failed to update preferences: ' + error.message,
-                display: 'toast'
-            });
-        } else {
-            Toast.error('Failed to update preferences: ' + error.message);
-        }
-    }
-});
-
-// Load preferences when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    loadNotificationPreferences();
-});
+<script type="application/json" id="profile-data">
+{"apiPath": "{{.api_path}}"}
 </script>
 
 {{template "footer" .}}

@@ -82,7 +82,7 @@
                                    id="ssl_renewal_schedule"
                                    value="{{.config.Tasks.SSLRenewal.Schedule}}"
                                    placeholder="0 3 * * *"
-                                   onchange="previewCron('ssl_renewal', this.value)">
+                                   class="cron-schedule-input" data-task-id="ssl_renewal">
                             <div class="help-text">{{t $lang "admin.scheduler.ssl_renewal_help"}}</div>
                             <div class="cron-preview" id="ssl_renewal_preview" class="hidden"></div>
                         </div>
@@ -112,7 +112,7 @@
                                    id="geoip_update_schedule"
                                    value="{{.config.Tasks.GeoIPUpdate.Schedule}}"
                                    placeholder="0 3 * * 0"
-                                   onchange="previewCron('geoip_update', this.value)">
+                                   class="cron-schedule-input" data-task-id="geoip_update">
                             <div class="help-text">{{t $lang "admin.scheduler.geoip_help"}}</div>
                             <div class="cron-preview" id="geoip_update_preview" class="hidden"></div>
                         </div>
@@ -144,7 +144,7 @@
                                    id="blocklist_update_schedule"
                                    value="{{.config.Tasks.BlocklistUpdate.Schedule}}"
                                    placeholder="0 4 * * *"
-                                   onchange="previewCron('blocklist_update', this.value)">
+                                   class="cron-schedule-input" data-task-id="blocklist_update">
                             <div class="help-text">{{t $lang "admin.scheduler.blocklist_help"}}</div>
                             <div class="cron-preview" id="blocklist_update_preview" class="hidden"></div>
                         </div>
@@ -197,7 +197,7 @@
                                    id="cve_update_schedule"
                                    value="{{.config.Tasks.CVEUpdate.Schedule}}"
                                    placeholder="0 5 * * *"
-                                   onchange="previewCron('cve_update', this.value)">
+                                   class="cron-schedule-input" data-task-id="cve_update">
                             <div class="help-text">{{t $lang "admin.scheduler.cve_help"}}</div>
                             <div class="cron-preview" id="cve_update_preview" class="hidden"></div>
                         </div>
@@ -252,7 +252,7 @@
                                    id="session_cleanup_schedule"
                                    value="{{.config.Tasks.SessionCleanup.Schedule}}"
                                    placeholder="@hourly"
-                                   onchange="previewCron('session_cleanup', this.value)">
+                                   class="cron-schedule-input" data-task-id="session_cleanup">
                             <div class="help-text">{{t $lang "admin.scheduler.session_cleanup_help"}}</div>
                             <div class="cron-preview" id="session_cleanup_preview" class="hidden"></div>
                         </div>
@@ -282,7 +282,7 @@
                                    id="token_cleanup_schedule"
                                    value="{{.config.Tasks.TokenCleanup.Schedule}}"
                                    placeholder="0 6 * * *"
-                                   onchange="previewCron('token_cleanup', this.value)">
+                                   class="cron-schedule-input" data-task-id="token_cleanup">
                             <div class="help-text">{{t $lang "admin.scheduler.token_cleanup_help"}}</div>
                             <div class="cron-preview" id="token_cleanup_preview" class="hidden"></div>
                         </div>
@@ -312,7 +312,7 @@
                                    id="log_rotation_schedule"
                                    value="{{.config.Tasks.LogRotation.Schedule}}"
                                    placeholder="0 0 * * *"
-                                   onchange="previewCron('log_rotation', this.value)">
+                                   class="cron-schedule-input" data-task-id="log_rotation">
                             <div class="help-text">{{t $lang "admin.scheduler.log_rotation_help"}}</div>
                             <div class="cron-preview" id="log_rotation_preview" class="hidden"></div>
                         </div>
@@ -377,7 +377,7 @@
                                    id="healthcheck_self_schedule"
                                    value="{{.config.Tasks.HealthcheckSelf.Schedule}}"
                                    placeholder="@every 5m"
-                                   onchange="previewCron('healthcheck_self', this.value)">
+                                   class="cron-schedule-input" data-task-id="healthcheck_self">
                             <div class="help-text">{{t $lang "admin.scheduler.healthcheck_help"}}</div>
                             <div class="cron-preview" id="healthcheck_self_preview" class="hidden"></div>
                         </div>
@@ -407,7 +407,7 @@
                                    id="tor_health_schedule"
                                    value="{{.config.Tasks.TorHealth.Schedule}}"
                                    placeholder="@every 10m"
-                                   onchange="previewCron('tor_health', this.value)">
+                                   class="cron-schedule-input" data-task-id="tor_health">
                             <div class="help-text">{{t $lang "admin.scheduler.tor_health_help"}}</div>
                             <div class="cron-preview" id="tor_health_preview" class="hidden"></div>
                         </div>
@@ -433,107 +433,7 @@
         </form>
     </div>
 
-    <script>
-        // Get admin path from template (AI.md: use configurable admin_path)
-        const adminPath = '{{.admin_path}}';
-
-        // Form submission
-        document.getElementById('schedulerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const formData = new FormData(e.target);
-            const config = {};
-
-            // Convert FormData to nested object
-            for (let [key, value] of formData.entries()) {
-                const parts = key.split('.');
-                if (parts.length === 1) {
-                    config[key] = value;
-                } else if (parts.length === 2) {
-                    if (!config[parts[0]]) config[parts[0]] = {};
-                    config[parts[0]][parts[1]] = value;
-                }
-            }
-
-            // Handle checkboxes (unchecked boxes don't appear in FormData)
-            document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                const parts = cb.name.split('.');
-                if (parts.length === 2) {
-                    if (!config[parts[0]]) config[parts[0]] = {};
-                    config[parts[0]][parts[1]] = cb.checked;
-                }
-            });
-
-            try {
-                const response = await fetch(adminPath + '/config/scheduler', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(config)
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to save configuration');
-                }
-
-                showSuccess('Scheduler configuration saved successfully!');
-                setTimeout(() => {
-                    window.location.href = adminPath + '/config/scheduler';
-                }, 1500);
-            } catch (error) {
-                showError('Failed to save configuration: ' + error.message);
-            }
-        });
-
-        // Cron preview (simplified - would need a proper cron parser)
-        function previewCron(taskId, expr) {
-            const preview = document.getElementById(taskId + '_preview');
-            if (!expr || expr.trim() === '') {
-                preview.style.display = 'none';
-                return;
-            }
-
-            // Basic validation and preview
-            let description = '';
-            if (expr === '@hourly') {
-                description = 'Every hour at the start of the hour';
-            } else if (expr === '@daily') {
-                description = 'Every day at midnight';
-            } else if (expr === '@weekly') {
-                description = 'Every Sunday at midnight';
-            } else if (expr.startsWith('@every ')) {
-                description = 'Every ' + expr.substring(7);
-            } else if (expr.match(/^\d+ \d+ \* \* \*$/)) {
-                const parts = expr.split(' ');
-                description = `Daily at ${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}`;
-            } else if (expr.match(/^\d+ \d+ \* \* \d+$/)) {
-                const parts = expr.split(' ');
-                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                description = `Every ${days[parseInt(parts[4])]} at ${parts[1].padStart(2, '0')}:${parts[0].padStart(2, '0')}`;
-            } else {
-                description = 'Custom cron expression: ' + expr;
-            }
-
-            preview.innerHTML = `<div class="cron-preview-title">Next Run:</div><div class="cron-preview-times">${description}</div>`;
-            preview.style.display = 'block';
-        }
-
-        // Alert functions
-        function showSuccess(msg) {
-            const alert = document.getElementById('successAlert');
-            alert.textContent = msg;
-            alert.classList.add('show');
-            setTimeout(() => alert.classList.remove('show'), 5000);
-        }
-
-        function showError(msg) {
-            const alert = document.getElementById('errorAlert');
-            alert.textContent = msg;
-            alert.classList.add('show');
-            setTimeout(() => alert.classList.remove('show'), 5000);
-        }
-    </script>
+    <script type="application/json" id="admin-scheduler-data">{"adminPath": {{.admin_path}}}</script>
+    <script src="/static/js/app.js"></script>
 {{template "admin_footer" .}}
 {{end}}

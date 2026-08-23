@@ -181,10 +181,10 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_robots_aria"}}">
                                 💾 {{t $lang "admin.web.save_robots_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="previewRobotsTxt()" aria-label="{{t $lang "admin.web.preview_robots_aria"}}">
+                            <button type="button" class="btn btn-secondary" data-action="admin-web-preview-robots" aria-label="{{t $lang "admin.web.preview_robots_aria"}}">
                                 👁️ {{t $lang "admin.web.preview_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="resetRobotsTxt()" aria-label="{{t $lang "admin.web.reset_defaults_aria"}}">
+                            <button type="button" class="btn btn-secondary" data-action="admin-web-reset-robots" aria-label="{{t $lang "admin.web.reset_defaults_aria"}}">
                                 🔄 {{t $lang "admin.web.reset_default_action"}}
                             </button>
                         </div>
@@ -293,7 +293,7 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_security_aria"}}">
                                 💾 {{t $lang "admin.web.save_security_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" onclick="previewSecurityTxt()" aria-label="{{t $lang "admin.web.preview_security_aria"}}">
+                            <button type="button" class="btn btn-secondary" data-action="admin-web-preview-security" aria-label="{{t $lang "admin.web.preview_security_aria"}}">
                                 👁️ {{t $lang "admin.web.preview_action"}}
                             </button>
                         </div>
@@ -301,128 +301,8 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                 </div>
             </section>
 
-    <script>
-    // Path variables - SPEC compliant (AI.md PART 13)
-    const API_PATH = '{{.api_path}}';
-    const ADMIN_API_PATH = '{{.admin_api_path}}';
-
-    // Load current settings on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        loadSettings();
-    });
-
-    async function loadSettings() {
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/all');
-            const data = await response.json();
-
-            if (data.settings) {
-                // Populate all form fields
-                for (const [key, setting] of Object.entries(data.settings)) {
-                    const input = document.querySelector(`[name="${key}"]`);
-                    if (input) {
-                        input.value = setting.value || '';
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Failed to load settings:', error);
-            showNotification('Failed to load settings', 'error');
-        }
-    }
-
-    // Branding form submission
-    document.getElementById('branding-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await saveFormSettings(this, 'Branding settings saved successfully');
-    });
-
-    // SEO form submission
-    document.getElementById('seo-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await saveFormSettings(this, 'SEO settings saved successfully');
-    });
-
-    // robots.txt form submission
-    document.getElementById('robots-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await saveFormSettings(this, 'robots.txt saved successfully');
-    });
-
-    // security.txt form submission
-    document.getElementById('security-txt-form').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        await saveFormSettings(this, 'security.txt saved successfully');
-    });
-
-    async function saveFormSettings(form, successMessage) {
-        const formData = new FormData(form);
-        const settings = {};
-
-        for (const [key, value] of formData.entries()) {
-            settings[key] = value;
-        }
-
-        try {
-            const response = await fetch(ADMIN_API_PATH + '/server/settings/bulk', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ settings })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showNotification(successMessage, 'success');
-            } else {
-                throw new Error(data.error?.message || 'Failed to save settings');
-            }
-        } catch (error) {
-            console.error('Save error:', error);
-            showNotification(error.message, 'error');
-        }
-    }
-
-    function previewRobotsTxt() {
-        window.open('/robots.txt', '_blank');
-    }
-
-    function previewSecurityTxt() {
-        window.open('/.well-known/security.txt', '_blank');
-    }
-
-    async function resetRobotsTxt() {
-        if (await showConfirm('Reset robots.txt to default configuration?', 'Reset Robots.txt')) {
-            document.getElementById('robots_txt').value = `User-agent: *
-Allow: /
-Disallow: /admin/
-Disallow: /api/
-Sitemap: {app_url}/sitemap.xml`;
-            showNotification('robots.txt reset to defaults (not saved yet)', 'info');
-        }
-    }
-
-    function showNotification(message, type) {
-        // Simple notification (can be enhanced with a proper notification system)
-        const alertClass = type === 'success' ? 'alert-success' :
-                          type === 'error' ? 'alert-danger' : 'alert-info';
-
-        const notification = document.createElement('div');
-        notification.className = `alert ${alertClass}`;
-        notification.style.position = 'fixed';
-        notification.style.top = '20px';
-        notification.style.right = '20px';
-        notification.style.zIndex = '9999';
-        notification.textContent = message;
-
-        document.body.appendChild(notification);
-
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
-    }
+    <script type="application/json" id="admin-web-data">
+    {"apiPath": "{{.api_path}}", "adminApiPath": "{{.admin_api_path}}"}
     </script>
 
 {{template "admin_footer" .}}

@@ -44,7 +44,7 @@
                 <label class="form-label">Your API Token</label>
                 <div class="token-box">
                     <code id="api-token" class="token-value long-string">{{ .APIToken }}</code>
-                    <button type="button" class="btn-copy" onclick="copyToken()">Copy</button>
+                    <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">Copy</button>
                 </div>
                 <small class="form-hint">Use this token in the Authorization header: <code>Bearer {token}</code></small>
             </div>
@@ -70,16 +70,8 @@
         {{ end }}
     </div>
 
+    <script src="/static/js/app.js" defer></script>
     <script>
-        function copyToken() {
-            var token = document.getElementById('api-token').textContent;
-            navigator.clipboard.writeText(token).then(function() {
-                var btn = document.querySelector('.btn-copy');
-                btn.textContent = 'Copied!';
-                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
-            });
-        }
-
         document.getElementById('token-copied').addEventListener('change', function() {
             document.getElementById('submit-btn').disabled = !this.checked;
         });

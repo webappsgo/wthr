@@ -75,7 +75,7 @@
         <p>This application is also available via Tor for enhanced privacy.</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code">{{.server.Tor.OnionAddress}}</code>
-            <button class="copy-btn" onclick="copyToClipboard('{{.server.Tor.OnionAddress}}')">Copy</button>
+            <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">Copy</button>
         </div>
         <p class="text-comment"><small>Requires Tor Browser or Tor-enabled browser.</small></p>
     </div>
@@ -96,20 +96,5 @@
         </div>
     </div>
 </div>
-
-<script>
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        Toast.success('Copied to clipboard!');
-    }).catch(err => {
-        Toast.error('Failed to copy');
-    });
-}
-
-// Initialize notification polling
-if (typeof Notifications !== 'undefined') {
-    Notifications.startPolling(30000);
-}
-</script>
 
 {{template "footer" .}}

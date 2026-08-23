@@ -88,6 +88,10 @@
             font-size: 0.9rem;
         }
         .back-link:hover { text-decoration: underline; }
+        .inline-link {
+            color: inherit;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -105,122 +109,8 @@
         </div>
         <a href="/server/auth/login" class="back-link">← {{t $lang "admin.passkey_login.back_link"}}</a>
 
-        <script>
-        (function () {
-            'use strict';
-
-            var pendingToken = {{.pending_session_token | js}};
-            var adminPath   = {{.admin_path | js}};
-
-            function bufferToBase64url(buffer) {
-                var bytes = new Uint8Array(buffer);
-                var binary = '';
-                for (var i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-                return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-            }
-
-            function base64urlToBuffer(b64url) {
-                var padded = (b64url + '==='.slice((b64url.length + 3) % 4))
-                    .replace(/-/g, '+').replace(/_/g, '/');
-                var binary = atob(padded);
-                var bytes = new Uint8Array(binary.length);
-                for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                return bytes.buffer;
-            }
-
-            function normalizeOptions(options) {
-                var pk = options.publicKey || options;
-                pk.challenge = base64urlToBuffer(pk.challenge);
-                if (Array.isArray(pk.allowCredentials)) {
-                    pk.allowCredentials = pk.allowCredentials.map(function (cred) {
-                        return Object.assign({}, cred, { id: base64urlToBuffer(cred.id) });
-                    });
-                }
-                return pk;
-            }
-
-            function serializeAssertion(assertion, ceremonyToken) {
-                return {
-                    ceremony_token: ceremonyToken,
-                    id:    assertion.id,
-                    rawId: bufferToBase64url(assertion.rawId),
-                    type:  assertion.type,
-                    response: {
-                        authenticatorData: bufferToBase64url(assertion.response.authenticatorData),
-                        clientDataJSON:    bufferToBase64url(assertion.response.clientDataJSON),
-                        signature:         bufferToBase64url(assertion.response.signature),
-                        userHandle: assertion.response.userHandle
-                            ? bufferToBase64url(assertion.response.userHandle)
-                            : null,
-                    },
-                };
-            }
-
-            function setStatus(msg, cls) {
-                var box = document.getElementById('passkeyStatus');
-                if (!box) return;
-                box.className = 'status-box ' + cls;
-                box.innerHTML = msg;
-            }
-
-            async function run() {
-                if (!pendingToken) {
-                    setStatus('Session expired or invalid. <a href="/server/auth/login" style="color:inherit;text-decoration:underline">Please log in again.</a>', 'status-error');
-                    return;
-                }
-                if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
-                    setStatus('This browser does not support passkeys. Please use a modern browser.', 'status-error');
-                    return;
-                }
-
-                try {
-                    // Step 1 — fetch WebAuthn challenge options
-                    var challengeResp = await fetch('/api/v1/server/auth/admin/passkey/challenge', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ session_token: pendingToken }),
-                    });
-                    var challengeData = await challengeResp.json();
-                    if (!challengeResp.ok || !challengeData.ok) {
-                        throw new Error(challengeData.error || 'Failed to start passkey authentication');
-                    }
-
-                    setStatus('<span class="spinner"></span> Touch your security key or use your device passkey to continue…', 'status-info');
-
-                    // Step 2 — prompt the browser for the passkey
-                    var credential = await navigator.credentials.get({
-                        publicKey: normalizeOptions(challengeData.options),
-                    });
-                    if (!credential) {
-                        throw new Error('Passkey authentication was cancelled');
-                    }
-
-                    setStatus('<span class="spinner"></span> Verifying credential…', 'status-info');
-
-                    // Step 3 — verify with the server
-                    var payload = serializeAssertion(credential, challengeData.ceremony_token);
-                    var verifyResp = await fetch('/api/v1/server/auth/admin/passkey/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                    });
-                    var verifyData = await verifyResp.json();
-                    if (!verifyResp.ok || !verifyData.ok) {
-                        throw new Error(verifyData.error || 'Passkey verification failed');
-                    }
-
-                    setStatus('Authentication successful. Redirecting…', 'status-success');
-                    window.location.href = '/' + adminPath + '/dashboard';
-
-                } catch (err) {
-                    setStatus('Passkey authentication failed: ' + (err.message || String(err)) +
-                        ' <a href="/server/auth/login" style="color:inherit;text-decoration:underline">Try again</a>', 'status-error');
-                }
-            }
-
-            run();
-        })();
-        </script>
+        <script type="application/json" id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</script>
+        <script src="/static/js/app.js"></script>
         {{end}}
     </div>
 </body>

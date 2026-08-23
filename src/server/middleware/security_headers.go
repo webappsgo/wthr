@@ -26,9 +26,10 @@ func SecurityHeaders() gin.HandlerFunc {
 
 		// Content Security Policy
 		// Allows resources needed for maps (Leaflet from unpkg.com, tiles from OpenStreetMap)
-		// Allows inline styles for Dracula theme and inline scripts for functionality
+		// Allows inline styles for Dracula theme; all JS lives in static/js/app.js
+		// bound via data-action delegation, so script-src no longer needs unsafe-inline
 		csp := "default-src 'self'; " +
-			"script-src 'self' 'unsafe-inline' https://unpkg.com; " +
+			"script-src 'self' https://unpkg.com; " +
 			"style-src 'self' 'unsafe-inline' https://unpkg.com; " +
 			"img-src 'self' data: https: blob:; " +
 			"font-src 'self' https://unpkg.com; " +

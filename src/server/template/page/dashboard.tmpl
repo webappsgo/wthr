@@ -53,8 +53,8 @@
                             </div>
 
                             <div class="flex gap-sm margin-y-md">
-                                <button type="button" class="btn btn-secondary btn-sm flex-1" onclick="window.location.href='/{{.Latitude}},{{.Longitude}}'">{{t $.server.Lang "dashboard_view_weather"}}</button>
-                                <button type="button" class="btn btn-primary btn-sm flex-1" onclick="window.location.href='/users/locations/{{.ID}}/edit'">{{t $.server.Lang "btn_edit"}}</button>
+                                <button type="button" class="btn btn-secondary btn-sm flex-1" data-action="navigate" data-href="/{{.Latitude}},{{.Longitude}}">{{t $.server.Lang "dashboard_view_weather"}}</button>
+                                <button type="button" class="btn btn-primary btn-sm flex-1" data-action="navigate" data-href="/users/locations/{{.ID}}/edit">{{t $.server.Lang "btn_edit"}}</button>
                             </div>
                         </div>
                     </div>
@@ -71,11 +71,5 @@
         </div>
     </section>
 </div>
-
-<script>
-    if (typeof Notifications !== 'undefined') {
-        Notifications.startPolling(30000);
-    }
-</script>
 
 {{template "footer" .}}
