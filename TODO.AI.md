@@ -3859,3 +3859,39 @@ any of the above: `src/graphql/context_keys_test.go`,
     Verified `gofmt -l src tests` clean, `go build ./...` clean,
     `go vet ./...` clean, `go test ./src/server/model/...` passes.
     Committed together with item 170 (both pure gofmt, no logic change).
+
+173. DONE (2026-08-23): dead `binding:"..."` struct tags found during the
+    locations/auth gin->chi conversion follow-up (background agent
+    aefe4d525adce6871 flagged "validation-tag-loss" across its scope as a
+    functional regression). Investigation found item 169's
+    `handler.DecodeAndValidate` (validator/v10, `SetTagName("binding")`)
+    already restored enforcement at nearly every flagged call site
+    (auth.go, auth_api.go, auth_ldap.go, locations.go, user_public.go,
+    admin_web.go, admin_logs_format.go all call `DecodeAndValidate`) — the
+    agent's report predated that rollout finishing. The two other
+    "compile blocker" items in its report (`web.go:232`
+    `SaveLocationCookies`, `theme.go:53` `SetThemeCookie`) were also
+    already converted to `(w, r, ...)` signatures by the time this was
+    checked — no gin import remains anywhere in `src` (confirmed via
+    `grep -rl "gin-gonic" src --include=*.go`, zero results). The one real
+    remaining issue: 3 inline anonymous request structs in `src/main.go`
+    (admin user-invite create, admin self password-change, admin invite)
+    still carried `binding:"required[,...]"` tags but decoded via raw
+    `json.NewDecoder(...).Decode()` (package `main`, not `handler`, so
+    `DecodeAndValidate` never ran) — the tags were dead/misleading, not
+    silent bypasses, since each site already has redundant explicit
+    validation downstream (`util.ValidateUsername`/`util.ValidateEmail`
+    immediately after decode, or service-layer `util.ValidateEmail` in
+    `AdminInviteService.CreateInvite`); the one gap (empty
+    `current_password` on the admin password-change endpoint had no
+    explicit empty-string check, relying only on `VerifyPassword` failing
+    against an empty string) was tightened with an explicit
+    `if req.CurrentPassword == "" { ... }` check. Removed the three dead
+    `binding:"..."` tags from `src/main.go` (kept the plain `json:"..."`
+    tags) since they enforced nothing and misrepresented the actual
+    validation path to readers. Verified via Docker (casjaysdev/go:latest):
+    `gofmt -l src` clean, `go build ./...` clean, `go vet ./...` clean,
+    `go test ./...` full suite passes (all packages green, no
+    regressions). `grep -rn 'binding:"' src --include=*.go` now shows only
+    live, enforced tags inside the `handler` package (all routed through
+    `DecodeAndValidate`).

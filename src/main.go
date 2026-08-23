@@ -2764,8 +2764,8 @@ func main() {
 			}
 
 			var req struct {
-				Username      string `json:"username" binding:"required,min=3"`
-				Email         string `json:"email" binding:"required,email"`
+				Username      string `json:"username"`
+				Email         string `json:"email"`
 				Role          string `json:"role"`
 				ExpiresInDays int    `json:"expires_in_days"`
 			}
@@ -3138,12 +3138,17 @@ func main() {
 			}
 
 			var req struct {
-				CurrentPassword string `json:"current_password" binding:"required"`
-				NewPassword     string `json:"new_password" binding:"required"`
-				ConfirmPassword string `json:"confirm_password" binding:"required"`
+				CurrentPassword string `json:"current_password"`
+				NewPassword     string `json:"new_password"`
+				ConfirmPassword string `json:"confirm_password"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				return
+			}
+
+			if req.CurrentPassword == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Current password is required"})
 				return
 			}
 
@@ -3521,7 +3526,7 @@ func main() {
 			}
 
 			var req struct {
-				Email     string `json:"email" binding:"required,email"`
+				Email     string `json:"email"`
 				ExpiresIn string `json:"expires_in"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
