@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/md5"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -398,8 +397,7 @@ func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.
 	}
 
 	var req UpdateAvatarRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -585,13 +583,7 @@ func (h *UserPublicHandler) ChangePassword(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req ChangePasswordRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	if req.CurrentPassword == "" || req.NewPassword == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "current_password and new_password are required"})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -620,13 +612,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 		NewEmail        string `json:"new_email" binding:"required,email"`
 		CurrentPassword string `json:"current_password" binding:"required"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	if req.CurrentPassword == "" || req.NewEmail == "" || util.ValidateEmail(req.NewEmail) != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "new_email and current_password are required"})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -678,8 +664,7 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 		CurrentPassword string `json:"current_password" binding:"required"`
 		Confirm         string `json:"confirm" binding:"required"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

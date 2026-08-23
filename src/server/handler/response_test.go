@@ -372,7 +372,7 @@ func TestErrorHelperWrappers(t *testing.T) {
 		{"Forbidden", func(w http.ResponseWriter, r *http.Request) { Forbidden(w, r, "m") }, http.StatusForbidden, ErrForbidden},
 		{"Conflict", func(w http.ResponseWriter, r *http.Request) { Conflict(w, r, "m") }, http.StatusConflict, ErrConflict},
 		{"InternalError", func(w http.ResponseWriter, r *http.Request) { InternalError(w, r, "m") }, http.StatusInternalServerError, ErrInternal},
-		{"ValidationFailed", func(w http.ResponseWriter, r *http.Request) { ValidationFailed(w, r, "m", nil) }, http.StatusUnprocessableEntity, ErrValidationFailed},
+		{"ValidationFailed", func(w http.ResponseWriter, r *http.Request) { ValidationFailed(w, r, "m", nil) }, http.StatusBadRequest, ErrValidationFailed},
 		{"RateLimited", func(w http.ResponseWriter, r *http.Request) { RateLimited(w, r, "m") }, http.StatusTooManyRequests, ErrRateLimited},
 	}
 	for _, tt := range tests {

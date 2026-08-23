@@ -619,8 +619,7 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 	}
 
 	var req CreateTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

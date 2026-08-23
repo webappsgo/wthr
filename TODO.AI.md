@@ -3779,25 +3779,44 @@ any of the above: `src/graphql/context_keys_test.go`,
     No code changes. Read: AI.md PART 9 ("Debug Logging"), PART 11
     (line 16792, Console vs Logs).
 
-169. TODO (flagged 2026-08-23 during item 165's gin->chi Phase 4 handler
-    conversion, by the handler-conversion agents): every converted
-    handler that relied on gin's `binding:"required"` /
-    `binding:"required,email"` struct tags has silently lost that
-    validation - `c.ShouldBindJSON(&req)` enforced those tags at bind
-    time, but the chi replacement (`json.NewDecoder(r.Body).Decode(&req)`)
-    performs no validation at all, so the tags are now inert dead
-    annotations. Confirmed present in at least `server_pages.go`
-    `HandleContactFormSubmission` and `auth_api.go`'s registration/login
-    handlers; likely project-wide across every converted handler that had
-    a `binding:` tag (not yet fully enumerated - needs a full
-    `grep -rn 'binding:"' src/server/handler/` sweep once Phase 4
-    finishes). AI.md PART 3's "Required pure-Go libraries" list already
-    approves `go-playground/validator/v10` for exactly this purpose, so
-    the fix is not a new dependency choice, just wiring it in - but doing
-    so touches every affected handler and is deliberately deferred to
-    after item 165's migration is fully committed (PART 4 in progress),
-    to keep that commit scoped to router-shape changes only. Read: AI.md
-    PART 3 (validator/v10), PART 14 (request validation expectations).
+169. DONE (2026-08-23): wired `go-playground/validator/v10` (registered
+    via `go mod tidy` in Docker, approved by AI.md PART 3) into every
+    handler decode site that carries real `binding:"..."` struct tags.
+    Added `src/server/handler/validate.go` with a shared
+    `DecodeAndValidate(w, r, &req)` helper (JSON-decode + `SetTagName
+    ("binding")` validator instance; writes the canonical error response
+    and returns `false` on decode or validation failure). Converted
+    call sites: `admin_logs_format.go` (1), `admin_ssl.go` (4),
+    `admin_web.go` (2), `auth.go` (2 of 3 - login/register; `UpdateProfile`
+    has no binding tags, left as-is), `auth_api.go` (9, all handlers),
+    `auth_ldap.go` (1), `locations.go` (2 of 3 - Create/UpdateLocation;
+    `ToggleAlerts` has no binding tags), `notification_channels.go`
+    (1 of 2 - `TestChannel`; `UpdateChannel` has no binding tags),
+    `notification_preferences.go` (2 of 4 - Create* only; Update* have no
+    binding tags), `server_pages.go` (1, `HandleContactFormSubmission`),
+    `user_public.go` (4, including `ChangePassword`), `user_settings.go`
+    (1 of 2 - `CreateToken`; `UpdateSettings` has no binding tags).
+    Skipped entirely: `admin_admins.go`, `admin_tor.go`,
+    `notification_templates.go` (only comment-referenced `binding:`,
+    no real struct tags). Unused `encoding/json` imports removed where
+    the file's last raw-decode call site was converted.
+    Fixed a real pre-existing spec bug surfaced by this wiring:
+    `response.go`'s `ValidationFailed` helper returned HTTP 422
+    (`StatusUnprocessableEntity`); AI.md PART 9 / this project's own
+    `.claude/rules/backend-rules.md` map `VALIDATION_FAILED` to 400, not
+    422 - corrected to `http.StatusBadRequest`, confirmed via
+    `grep -rn "ValidationFailed(" src/server/handler/` that
+    `validate.go` was the only production call site. Updated
+    `response_test.go`'s own `TestErrorHelperWrappers/ValidationFailed`
+    expectation and 4 `notification_preferences_test.go` subtests that
+    still asserted the old ad-hoc `INVALID_INPUT` code instead of the
+    canonical `VALIDATION_FAILED`/`BAD_REQUEST` codes `DecodeAndValidate`
+    now produces. Verified in Docker (casjaysdev/go:latest):
+    `gofmt -l src` clean, `go build ./...` clean, `go vet ./...` clean,
+    `go test ./...` all pass, coverage 61.2% (>= 60% required, generated
+    GraphQL code filtered per `make test`'s own logic). Read: AI.md
+    PART 3 (validator/v10), PART 9 (error code -> status mapping),
+    PART 14 (request validation expectations).
 
 170. DONE (2026-08-23): ran `gofmt -w src/graphql/resolvers_helpers.go`
     (Docker casjaysdev/go:latest) — added the missing blank line between

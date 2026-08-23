@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -286,13 +285,7 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 			Message string `json:"message" binding:"required"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&form); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid form data"})
-			return
-		}
-
-		if form.Name == "" || form.Email == "" || !strings.Contains(form.Email, "@") || form.Subject == "" || form.Message == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid form data"})
+		if !DecodeAndValidate(w, r, &form) {
 			return
 		}
 

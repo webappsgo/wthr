@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -98,23 +97,7 @@ func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request
 		Content string `json:"content" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": "Invalid request body",
-			},
-		})
-		return
-	}
-
-	if req.Content == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "MISSING_CONTENT",
-				"message": "content is required",
-			},
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -158,23 +141,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 		Content string `json:"content" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": "Invalid request body",
-			},
-		})
-		return
-	}
-
-	if req.Content == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "MISSING_CONTENT",
-				"message": "content is required",
-			},
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

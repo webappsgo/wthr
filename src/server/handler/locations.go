@@ -124,8 +124,7 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 		Timezone  string  `json:"timezone"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -200,8 +199,7 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 		AlertsEnabled bool    `json:"alerts_enabled"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

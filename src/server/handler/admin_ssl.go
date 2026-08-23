@@ -99,8 +99,7 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 		Staging bool `json:"staging"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
@@ -161,8 +160,7 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 		Force bool `json:"force"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
@@ -317,8 +315,7 @@ func (h *SSLHandler) RevokeCertificate(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
@@ -353,8 +350,7 @@ func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 		ChallengeType string   `json:"challengeType" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 

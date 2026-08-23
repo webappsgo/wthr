@@ -330,9 +330,10 @@ func InternalError(w http.ResponseWriter, r *http.Request, message string) {
 	RespondError(w, r, http.StatusInternalServerError, ErrInternal, message)
 }
 
-// ValidationFailed returns a 422 Validation Failed error
+// ValidationFailed returns a 400 Bad Request error (AI.md PART 9:
+// VALIDATION_FAILED maps to 400, not 422).
 func ValidationFailed(w http.ResponseWriter, r *http.Request, message string, details map[string]interface{}) {
-	RespondError(w, r, http.StatusUnprocessableEntity, ErrValidationFailed, message, details)
+	RespondError(w, r, http.StatusBadRequest, ErrValidationFailed, message, details)
 }
 
 // RateLimited returns a 429 Rate Limited error

@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"log"
 	"net/http"
@@ -58,8 +57,7 @@ func (h *LogFormatHandler) SetLogFormat(w http.ResponseWriter, r *http.Request) 
 		Format string `json:"format" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 

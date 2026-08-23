@@ -4,7 +4,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -42,13 +41,7 @@ type LDAPLoginRequest struct {
 // @Router /auth/ldap [post]
 func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LDAPLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "username and password are required"})
-		return
-	}
-
-	if req.Username == "" || req.Password == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "username and password are required"})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

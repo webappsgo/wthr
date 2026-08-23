@@ -124,8 +124,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Support both JSON and form data
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAuthJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		if !DecodeAndValidate(w, r, &req) {
 			return
 		}
 	} else {
@@ -386,8 +385,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	// Support both JSON and form data
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "application/json") {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAuthJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		if !DecodeAndValidate(w, r, &req) {
 			return
 		}
 	} else {

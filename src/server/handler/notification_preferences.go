@@ -160,14 +160,7 @@ func (h *NotificationPreferencesHandler) CreatePreference(w http.ResponseWriter,
 		Config          map[string]interface{} `json:"config"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
-		return
-	}
-
-	// binding:"required" equivalent
-	if req.ChannelType == "" {
-		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -363,14 +356,7 @@ func (h *NotificationPreferencesHandler) CreateSubscription(w http.ResponseWrite
 		Config               map[string]interface{} `json:"config"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
-		return
-	}
-
-	// binding:"required" equivalent
-	if req.SubscriptionType == "" || req.SubscriptionCategory == "" {
-		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Invalid request")
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

@@ -245,7 +245,7 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
-		assertPreferencesErrorShape(t, w, ErrInvalidInput)
+		assertPreferencesErrorShape(t, w, ErrValidationFailed)
 	})
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestNotificationPreferencesHandlerCreatePreference(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
-		assertPreferencesErrorShape(t, w, ErrInvalidInput)
+		assertPreferencesErrorShape(t, w, ErrBadRequest)
 	})
 
 	t.Run("valid body creates row", func(t *testing.T) {
@@ -570,7 +570,7 @@ func TestNotificationPreferencesHandlerCreateSubscription(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
-		assertPreferencesErrorShape(t, w, ErrInvalidInput)
+		assertPreferencesErrorShape(t, w, ErrValidationFailed)
 	})
 
 	t.Run("malformed body returns 400", func(t *testing.T) {
@@ -583,7 +583,7 @@ func TestNotificationPreferencesHandlerCreateSubscription(t *testing.T) {
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400: %s", w.Code, w.Body.String())
 		}
-		assertPreferencesErrorShape(t, w, ErrInvalidInput)
+		assertPreferencesErrorShape(t, w, ErrBadRequest)
 	})
 
 	t.Run("valid body creates row", func(t *testing.T) {

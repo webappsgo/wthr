@@ -220,13 +220,7 @@ func (h *NotificationChannelHandler) TestChannel(w http.ResponseWriter, r *http.
 		Recipient string `json:"recipient" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Recipient required"})
-		return
-	}
-
-	if req.Recipient == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Recipient required"})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 

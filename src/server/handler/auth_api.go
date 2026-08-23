@@ -4,7 +4,6 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -812,11 +811,7 @@ func CompleteAPIServerInvite(token string, username string, password string) (*S
 // @Router /api/v1/server/auth/login [post]
 func (h *AuthAPIHandler) HandleAPILogin(w http.ResponseWriter, r *http.Request) {
 	var req APILoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -863,11 +858,7 @@ func (h *AuthAPIHandler) HandleAPILogin(w http.ResponseWriter, r *http.Request) 
 // @Router /api/v1/server/auth/register [post]
 func (h *AuthAPIHandler) HandleAPIRegister(w http.ResponseWriter, r *http.Request) {
 	var req APIRegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -947,11 +938,7 @@ func (h *AuthAPIHandler) HandleAPILogout(w http.ResponseWriter, r *http.Request)
 func (h *AuthAPIHandler) HandleAPI2FA(w http.ResponseWriter, r *http.Request) {
 	var req API2FARequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -991,11 +978,7 @@ func (h *AuthAPIHandler) HandleAPI2FA(w http.ResponseWriter, r *http.Request) {
 func (h *AuthAPIHandler) HandleAPIRecoveryUse(w http.ResponseWriter, r *http.Request) {
 	var req APIRecoveryUseRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -1075,11 +1058,7 @@ func (h *AuthAPIHandler) HandleAPIRefresh(w http.ResponseWriter, r *http.Request
 func (h *AuthAPIHandler) HandleAPIVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req APIVerifyEmailRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -1114,11 +1093,7 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(w http.ResponseWriter, r *http.Req
 func (h *AuthAPIHandler) HandleAPIPasswordForgot(w http.ResponseWriter, r *http.Request) {
 	var req APIPasswordForgotRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid email format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -1154,11 +1129,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(w http.ResponseWriter, r *http.
 func (h *AuthAPIHandler) HandleAPIPasswordReset(w http.ResponseWriter, r *http.Request) {
 	var req APIPasswordResetRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -1228,11 +1199,7 @@ func (h *AuthAPIHandler) HandleAPIUserInviteComplete(w http.ResponseWriter, r *h
 		Password string `json:"password" binding:"required,min=8"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -1318,11 +1285,7 @@ func (h *AuthAPIHandler) HandleAPIServerInviteComplete(w http.ResponseWriter, r 
 		Password string `json:"password" binding:"required,min=8"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"ok":    false,
-			"error": "Invalid request format",
-		})
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
