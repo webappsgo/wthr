@@ -3654,24 +3654,41 @@ any of the above: `src/graphql/context_keys_test.go`,
     Docker go vet + full test suite verified: all packages pass, `go
     vet ./...` clean, `src/common/i18n` coverage 78.9%.
 
-163. TODO (flagged 2026-08-22 while working item 156): 152 `onclick=`
-    occurrences remain across 27 files under `src/server/template/`, and 54
-    templates embed inline `<script>` blocks (`grep -rl '<script>'
-    src/server/template/`), most interpolating server-side data
-    (`{{t $lang "..."}}`, `{{.admin_api_path}}`, etc.) directly into the
-    script body. This blocks removing `'unsafe-inline'`/`https://unpkg.com`
-    from the CSP `script-src` directive (item 156). Needs: (a) convert every
-    template-level `onclick=` to `data-action` delegation in `app.js`
-    following the pattern already used for `AdminAuthSettings` and the
-    9 sites fixed in item 156; (b) for inline `<script>` blocks that need
-    server-rendered data, adopt a data-passing convention (e.g. a
-    `<script type="application/json" id="...">` payload or `data-*`
-    attributes on a container element) so the JS logic itself can move to
-    `static/js/`, since CSP nonces/hashes are not an option once external
-    JS also needs the translated strings; (c) only after (a) and (b) cover
-    every remaining site, tighten the CSP header. This is large and touches
-    most of the admin panel and several public pages - treat as its own
-    scoped pass, not a quick fix. Read: AI.md PART 11, 16, 31.
+163. DONE (2026-08-22): converted every template-level `onclick=` (152
+    occurrences across 27 files) to `data-action` delegation in `app.js`,
+    and every inline `<script>` block interpolating server-side data (54
+    files) to a `<script type="application/json">` payload consumed by a
+    corresponding `app.js` module, then removed `'unsafe-inline'` from the
+    CSP `script-src` directive (`style-src`'s `unsafe-inline` and all
+    `unpkg.com` references for Leaflet left untouched, out of scope).
+    Delegated the mechanical conversion to `designer` subagents in
+    batches; incidental automated security review during the pass
+    surfaced and fixed two genuine issues introduced/exposed by the new
+    code: an attribute-context XSS in admin backup filename rendering
+    (added `Utils.escapeAttr`, since text-node escaping does not encode
+    quote characters) and an open redirect in the loading page's
+    `?redirect=` handling (now requires a same-origin absolute path), plus
+    a third XSS found on review in the new `NotificationsListPage` module
+    (unescaped notification title/type/message/link rendered via
+    `innerHTML`) fixed before commit.
+    - src/server/static/js/app.js: added `Utils.escapeAttr`; added
+      per-page modules (`AdminDashboardPage`, `AdminTorPage`,
+      `AdminWebPage`, `LoadingPage`, `ContactPage`, `EarthquakePage`,
+      `EditLocationPage`, `HealthzPage`, `ProfilePage`,
+      `NotificationsListPage`, and others) with `data-action` delegated
+      handlers.
+    - src/server/middleware/security_headers.go: removed `'unsafe-inline'`
+      from CSP `script-src`.
+    - src/server/static/css/admin.css: added classes replacing inline
+      `style=` attributes removed from admin_security.tmpl.
+    - 26 templates under src/server/template/{admin,page,page/user,
+      partial,component}/: onclick= -> data-action, inline <script> ->
+      JSON payload.
+    Docker build+vet+full test suite verified: all packages pass. `node
+    --check` verified app.js syntax. go-lint verified clean for all
+    touched files (2 pre-existing unrelated violations noted in
+    tests/docker.sh and tests/incus.sh, out of this item's scope).
+    Committed `471ee51dd210`, pushed, CI green.
 
 164. TODO (flagged 2026-08-22 while working item 156): `src/middleware/
     security.go` defines a second, separate `SecurityHeaders(sslEnabled
