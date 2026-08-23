@@ -96,6 +96,16 @@ type ServerConfig struct {
 	Features      FeatureConfig      `yaml:"features"`
 	// Security holds project-level at-rest encryption settings per AI.md PART 11
 	Security SecurityConfig `yaml:"security"`
+	// TrustedProxies gates which peers may set forwarded/real-IP headers per AI.md PART 5/12
+	TrustedProxies TrustedProxiesConfig `yaml:"trusted_proxies"`
+}
+
+// TrustedProxiesConfig represents the trusted-proxy allow-list per AI.md PART 12.
+// Private ranges, link-local addresses, and the same /24 as the listen address
+// are always trusted with no config; Additional extends that set with public
+// upstream proxies (IP, CIDR, or DNS name), refreshed every 5 minutes.
+type TrustedProxiesConfig struct {
+	Additional []string `yaml:"additional"`
 }
 
 // SecurityConfig represents the server-wide at-rest encryption settings per

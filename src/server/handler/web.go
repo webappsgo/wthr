@@ -45,7 +45,7 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 
 	var weatherData interface{}
 	var errorMsg string
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)
@@ -166,7 +166,7 @@ func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) 
 		units = "imperial"
 	}
 
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 
 	// Auto-detect location using priority order:
 	// 1. URL parameter (already checked above)

@@ -722,7 +722,7 @@ func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []strin
 		AdminUsername(r),
 		filepath.Base(backupPath),
 		string(details),
-		util.GetClientIP(r),
+		util.TrustedGetClientIP(r),
 		r.UserAgent(),
 	)
 	if err != nil {

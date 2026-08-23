@@ -344,7 +344,7 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	// Create session
 	sessionModel := &models.UserSessionModel{DB: usersDB}
-	session, err := sessionModel.CreateSession(userID, util.GetClientIP(r), r.UserAgent(), 24*time.Hour)
+	session, err := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), 24*time.Hour)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/oidc_callback.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":    "OIDC Callback",

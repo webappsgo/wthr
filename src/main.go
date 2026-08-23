@@ -489,15 +489,11 @@ func main() {
 	r := chi.NewRouter()
 
 	// NOTE: gin's r.SetTrustedProxies([]string{...}) has no chi/project
-	// equivalent, so this call is dropped rather than translated. Confirmed
-	// this is not translated elsewhere either: the project's AI.md PART 5/12
-	// trusted-proxies gate (server.trusted_proxies) does not exist anywhere
-	// in this codebase today — src/util/host.go's GetClientIP unconditionally
-	// trusts CF-Connecting-IP/X-Real-IP/X-Forwarded-For/True-Client-IP from
-	// any peer with no config-driven trust check. This predates this
-	// migration (gin's SetTrustedProxies only ever gated gin's own unused
-	// c.ClientIP() helper, never GetClientIP) and is not a regression from
-	// it. Tracked as TODO.AI.md item 171.
+	// equivalent, so this call is dropped rather than translated. The
+	// project's AI.md PART 5/12 trusted-proxies gate is now implemented as
+	// server.trusted_proxies (src/config) + util.TrustedGetClientIP
+	// (src/util/trusted_proxies.go), which all call sites use instead of
+	// the unguarded util.GetClientIP. See TODO.AI.md item 171.
 
 	// AI.md PART 5: Middleware order - security first!
 	// 1. URL normalization (FIRST - normalize before anything else)
@@ -1334,7 +1330,7 @@ func main() {
 	// IP detection endpoint (always available for My Location feature)
 	r.Get("/debug/ip", func(w http.ResponseWriter, r *http.Request) {
 		// IP detection for My Location button
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 
 		// Try to get location from IP
 		coords, err := weatherService.GetCoordinatesFromIP(clientIP)

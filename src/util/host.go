@@ -137,7 +137,11 @@ func getGlobalIPv4() string {
 	return ""
 }
 
-// GetClientIP extracts the real client IP from reverse proxy headers
+// GetClientIP extracts the real client IP from reverse proxy headers.
+// This is the unguarded resolver: it honors every forwarded-IP header
+// unconditionally. Most callers should use TrustedGetClientIP instead,
+// which only honors these headers when the immediate peer passes the
+// server.trusted_proxies gate (AI.md PART 5/12).
 func GetClientIP(r *http.Request) string {
 	// Check Cloudflare header first
 	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
@@ -163,6 +167,11 @@ func GetClientIP(r *http.Request) string {
 
 	// Check True-Client-IP
 	if ip := r.Header.Get("True-Client-IP"); ip != "" {
+		return ip
+	}
+
+	// Check X-Client-IP
+	if ip := r.Header.Get("X-Client-IP"); ip != "" {
 		return ip
 	}
 

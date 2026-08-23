@@ -226,7 +226,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
 			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
 			VALUES (?, ?, ?, ?, ?, ?)
-		`, sessionToken, adminID, util.GetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
+		`, sessionToken, adminID, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
 
 		if err != nil {
 			RenderHTML(w, r, http.StatusInternalServerError, "admin/login.tmpl", map[string]interface{}{

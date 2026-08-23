@@ -215,7 +215,7 @@ func (h *MoonHandler) getLocationFromRequest(w http.ResponseWriter, r *http.Requ
 	location := r.URL.Query().Get("location")
 	lat := r.URL.Query().Get("lat")
 	lon := r.URL.Query().Get("lon")
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 
 	var coords *service.Coordinates
 	var err error

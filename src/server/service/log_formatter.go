@@ -410,7 +410,7 @@ func escapeCEF(s string) string {
 func ExtractLogEntry(r *http.Request, startTime time.Time, statusCode int, bytesWritten int) *LogEntry {
 	entry := &LogEntry{
 		Timestamp:   startTime,
-		RemoteAddr:  util.GetClientIP(r),
+		RemoteAddr:  util.TrustedGetClientIP(r),
 		Method:      r.Method,
 		Path:        r.URL.Path,
 		Protocol:    r.Proto,

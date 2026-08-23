@@ -3825,33 +3825,32 @@ any of the above: `src/graphql/context_keys_test.go`,
     clean, `go vet ./...` clean, `go test ./src/graphql/...` passes.
     Committed together with item 172 (both pure gofmt, no logic change).
 
-171. TODO (flagged 2026-08-23 during item 165's gin->chi Phase 6 main.go
-    bootstrap conversion, confirmed independently by reading
-    src/util/host.go directly): AI.md PART 5/12 requires every
-    X-Forwarded-*/real-IP header to be gated on the immediate peer being
-    inside `server.trusted_proxies` (private ranges + link-local +
-    same-/24-as-listen-address always trusted, `additional` allow-list
-    for public upstream proxies) before being honored, with untrusted
-    peers' forged headers dropped in favor of `r.RemoteAddr`. Confirmed
-    via `grep -rln "trusted_proxies\|TrustedProxies" src/` (zero matches
-    anywhere in the tree) that this gate does not exist at all:
-    `src/util/host.go:141` `GetClientIP(r *http.Request)` unconditionally
-    trusts `CF-Connecting-IP`, `X-Real-IP`, `X-Forwarded-For`, and
-    `True-Client-IP` from any peer, with no config-driven trust check.
-    This predates the gin->chi migration — gin's old
-    `r.SetTrustedProxies([]string{...})` call (removed in Phase 6, was
-    at old main.go ~line 485) only gated gin's own internal
-    `c.ClientIP()` helper, which `GetClientIP` never called or wrapped,
-    so the gap existed before this migration and is not a regression
-    introduced by it. Left out of scope for item 165 (a real fix needs
-    `server.trusted_proxies` config support + a peer-trust check
-    wrapping `GetClientIP`, which is new functionality, not a
-    router-shape change). Fix: add `server.trusted_proxies` config
-    (PART 12), rewrite `GetClientIP` (or add a wrapping
-    `TrustedGetClientIP(r, trustedProxies)`) to only honor forwarded
-    headers when `r.RemoteAddr`'s host is in the trusted set, falling
-    back to `r.RemoteAddr` otherwise, and audit all call sites of
-    `GetClientIP` for the new signature.
+171. DONE (2026-08-23): implemented the AI.md PART 5/12 trusted-proxies
+    gate. Added `server.trusted_proxies.additional` config
+    (`TrustedProxiesConfig` on `ServerConfig`, src/config/config.go).
+    Added `src/util/trusted_proxies.go`: `isTrustedPeer()` (always-trusted
+    loopback/RFC1918/RFC4193-ULA/link-local ranges + same-/24-as-listen-
+    address + `additional` allow-list supporting IP/CIDR/DNS-name, DNS
+    resolved and cached with a 5-minute refresh per spec), `sameSlash24()`,
+    and the exported `TrustedGetClientIP(r *http.Request) string`, which
+    only honors forwarded/real-IP headers (via the now-unguarded
+    `GetClientIP`) when `r.RemoteAddr` passes the gate, otherwise falling
+    back to the raw peer address. Also added the previously-missing
+    `X-Client-IP` header check to `GetClientIP` per PART 12's Client-IP
+    header table. Audited and updated all ~50 real call sites of
+    `util.GetClientIP(r)` across handlers/middleware/graphql/main.go to
+    call `util.TrustedGetClientIP(r)` instead (doc-comment-only mentions
+    in main.go left as prose, updated to describe the new gate). Verified
+    no middleware in this codebase rewrites `r.RemoteAddr`
+    (`grep -rn "RemoteAddr\s*=" src --include=*.go`), so no context-
+    stashing of the original peer was needed. Added
+    `src/util/trusted_proxies_test.go` (17 subtests: always-trusted
+    ranges, nil-config safety, same-/24 listen-address matching, IP/CIDR/
+    DNS-name `additional` entries, `TrustedGetClientIP` header-honoring
+    vs header-dropping behavior). Verified via Docker
+    (casjaysdev/go:latest): `gofmt -l src` clean, `go build ./...` clean,
+    `go vet ./...` clean, `go test ./...` full suite passes (all
+    packages green, no regressions).
 
 172. DONE (2026-08-23): ran
     `gofmt -w src/server/model/timestamp_cleanup_test.go` (Docker

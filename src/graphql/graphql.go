@@ -87,7 +87,7 @@ func PlaygroundHandler(endpoint string) http.HandlerFunc {
 
 func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
 	ctx := r.Context()
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	ctx = context.WithValue(ctx, ctxKeyRequestIP, clientIP)
 	ctx = context.WithValue(ctx, ctxKeyClientIP, clientIP)
 	ctx = context.WithValue(ctx, ctxKeyRequestHost, r.Host)

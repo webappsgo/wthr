@@ -197,7 +197,7 @@ func logCSRFFailure(r *http.Request, reason string) {
 				"security",
 				"api",
 				"",
-				util.GetClientIP(r),
+				util.TrustedGetClientIP(r),
 				reason,
 				map[string]interface{}{
 					"endpoint":   r.URL.Path,

@@ -87,7 +87,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -114,7 +114,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 		if nameCookie, err := r.Cookie("user_location_name"); err == nil {
 			locationName = nameCookie.Value
 			// Re-resolve the location to get full data
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -124,7 +124,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 
 	// If still no location, use IP-based geolocation as fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -281,7 +281,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 			locationName = fmt.Sprintf("%.4f, %.4f", latitude, longitude)
 		} else {
 			// Geocode the location using weather service (proper resolution)
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -308,7 +308,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 		if nameCookie, err := r.Cookie("user_location_name"); err == nil {
 			locationName = nameCookie.Value
 			// Re-resolve the location to get full data
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationName, clientIP)
 			if err == nil {
 				locationCoords = coords
@@ -318,7 +318,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 
 	// If still no location, use IP-based fallback
 	if latitude == 0 && longitude == 0 {
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err == nil {
 			locationCoords = coords
@@ -488,7 +488,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherAPI(w http.ResponseWriter, r *
 			longitude = lon
 		} else {
 			// Geocode using proper resolution
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			coords, err := h.weatherService.ParseAndResolveLocation(locationParam, clientIP)
 			if err == nil {
 				latitude = coords.Latitude

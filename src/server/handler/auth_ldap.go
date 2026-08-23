@@ -105,7 +105,7 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionModel := &models.UserSessionModel{DB: usersDB}
-	session, sessionErr := sessionModel.CreateSession(userID, util.GetClientIP(r), r.UserAgent(), 24*time.Hour)
+	session, sessionErr := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), 24*time.Hour)
 	if sessionErr != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create session"})
 		return

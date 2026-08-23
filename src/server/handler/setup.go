@@ -339,7 +339,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
 		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, sessionID, adminID, util.GetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()), dbtime.FormatSQLTimestamp(expiresAt))
+	`, sessionID, adminID, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()), dbtime.FormatSQLTimestamp(expiresAt))
 
 	if err != nil {
 		h.setupError(w, r, http.StatusInternalServerError, "Failed to create session")

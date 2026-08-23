@@ -815,7 +815,7 @@ func (h *AuthAPIHandler) HandleAPILogin(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	response, err := LoginAPIUser(h.DB, &req, util.GetClientIP(r))
+	response, err := LoginAPIUser(h.DB, &req, util.TrustedGetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		switch err.Error() {
@@ -942,7 +942,7 @@ func (h *AuthAPIHandler) HandleAPI2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := CompleteAPIUserTwoFactor(h.DB, &req, util.GetClientIP(r))
+	response, err := CompleteAPIUserTwoFactor(h.DB, &req, util.TrustedGetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		if err.Error() == "Invalid request format" {
@@ -982,7 +982,7 @@ func (h *AuthAPIHandler) HandleAPIRecoveryUse(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	response, err := UseAPIUserRecoveryKey(h.DB, &req, util.GetClientIP(r))
+	response, err := UseAPIUserRecoveryKey(h.DB, &req, util.TrustedGetClientIP(r))
 	if err != nil {
 		status := http.StatusUnauthorized
 		if strings.Contains(err.Error(), "failed to create session") || strings.Contains(err.Error(), "failed to load remaining recovery keys") {
@@ -1098,7 +1098,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(w http.ResponseWriter, r *http.
 	}
 
 	if err := RequestAPIUserPasswordReset(h.DB, &req, &APIPasswordResetContext{
-		ClientIP: util.GetClientIP(r),
+		ClientIP: util.TrustedGetClientIP(r),
 		FullHost: util.GetHostInfo(r).FullHost,
 	}); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{

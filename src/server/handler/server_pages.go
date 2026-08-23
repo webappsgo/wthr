@@ -304,7 +304,7 @@ Message:
 ---
 IP: %s
 User Agent: %s
-Time: %s`, form.Name, form.Email, form.Subject, form.Message, util.GetClientIP(r), r.UserAgent(), time.Now().Format("2006-01-02 15:04:05"))
+Time: %s`, form.Name, form.Email, form.Subject, form.Message, util.TrustedGetClientIP(r), r.UserAgent(), time.Now().Format("2006-01-02 15:04:05"))
 
 			adminEmail := ""
 			if cfg != nil {
@@ -377,7 +377,7 @@ func saveContactToDB(r *http.Request, name, email, subject, message string) erro
 	_, err := database.ExecContext(context.Background(), db.DB, database.TimeoutWrite, `
 		INSERT INTO contact_submissions (name, email, subject, message, ip_address, user_agent, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, name, email, subject, message, util.GetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))
+	`, name, email, subject, message, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()))
 
 	return err
 }

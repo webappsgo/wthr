@@ -146,7 +146,7 @@ func (h *APIHandler) GetWeather(w http.ResponseWriter, r *http.Request) {
 			enhanced, _ = h.locationEnhancer.EnhanceLocationData(geocodeResult)
 		}
 	} else if location != "" {
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
@@ -167,7 +167,7 @@ func (h *APIHandler) GetWeather(w http.ResponseWriter, r *http.Request) {
 		enhanced, _ = h.locationEnhancer.EnhanceLocationData(geocodeResult)
 	} else {
 		// IP-based location detection
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, "LOCATION_ERROR", err.Error())
@@ -272,7 +272,7 @@ func (h *APIHandler) GetWeatherByLocation(w http.ResponseWriter, r *http.Request
 	location := strings.TrimSpace(chi.URLParam(r, "location"))
 	unitsParam := strings.TrimSpace(r.URL.Query().Get("units"))
 
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(location, clientIP)
 	if err != nil {
 		RespondError(w, r, http.StatusBadRequest, "WEATHER_ERROR", err.Error())
@@ -400,10 +400,10 @@ func (h *APIHandler) GetForecast(w http.ResponseWriter, r *http.Request) {
 
 		coords, err = h.weatherService.GetCoordinates(fmt.Sprintf("%f,%f", latitude, longitude), "")
 	} else if location != "" {
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 	} else {
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err = h.weatherService.GetCoordinatesFromIP(clientIP)
 	}
 
@@ -498,7 +498,7 @@ func (h *APIHandler) GetForecastByLocation(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(location, clientIP)
 	if err != nil {
 		RespondError(w, r, http.StatusBadRequest, "FORECAST_ERROR", err.Error())
@@ -635,7 +635,7 @@ func (h *APIHandler) SearchLocations(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]interface{} "Client IP information and headers"
 // @Router /api/v1/ip [get]
 func (h *APIHandler) GetIP(w http.ResponseWriter, r *http.Request) {
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 
 	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"ip":        clientIP,
@@ -658,7 +658,7 @@ func (h *APIHandler) GetIP(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {object} map[string]interface{} "Unable to detect location"
 // @Router /api/v1/location [get]
 func (h *APIHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 
 	coords, err := h.weatherService.GetCoordinatesFromIP(clientIP)
 	if err != nil {

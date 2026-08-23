@@ -100,7 +100,7 @@ func (h *EarthquakeHandler) HandleEarthquakes(w http.ResponseWriter, r *http.Req
 
 	// Get client location for map centering and distance calculation
 	// Priority: 1. Saved cookies, 2. IP geolocation
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	var centerLat, centerLon float64 = 0.0, 0.0
 	hasUserLocation := false
 
@@ -204,7 +204,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(w http.ResponseWriter, r
 	}
 
 	// Parse location
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	coords, err := h.weatherService.ParseAndResolveLocation(locationInput, clientIP)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
@@ -495,7 +495,7 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(w http.ResponseWriter, r *http
 			}
 		}
 
-		clientIP := util.GetClientIP(r)
+		clientIP := util.TrustedGetClientIP(r)
 		coords, err := h.weatherService.ParseAndResolveLocation(locationPath, clientIP)
 		if err != nil {
 			writeText(w, http.StatusBadRequest, "Location not found: %s\n", locationPath)

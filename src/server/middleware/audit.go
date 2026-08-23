@@ -43,7 +43,7 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 			}
 
 			// Get client info
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			userAgent := r.UserAgent()
 
 			// Capture the response

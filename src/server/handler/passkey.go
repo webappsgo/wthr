@@ -685,7 +685,7 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = userModel.UpdateLastLogin(user.ID, util.GetClientIP(r))
+	_ = userModel.UpdateLastLogin(user.ID, util.TrustedGetClientIP(r))
 	passkeyCeremonyCache.Delete(token)
 	clearPasskeyCeremonyCookie(w, r)
 	setUserSessionCookie(w, r, response.Token, *response.ExpiresAt)

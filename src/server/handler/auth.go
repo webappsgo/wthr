@@ -173,7 +173,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasPasskeys {
-			pendingToken, perr := CreateAdminPendingSession(admin.ID, util.GetClientIP(r), r.UserAgent())
+			pendingToken, perr := CreateAdminPendingSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent())
 			if perr != nil {
 				respondWithError(w, r, http.StatusInternalServerError, "Failed to create pending session")
 				return
@@ -217,7 +217,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 		duration := 30 * 24 * time.Hour
-		adminSession, err := adminSessionModel.CreateSession(admin.ID, util.GetClientIP(r), r.UserAgent(), duration)
+		adminSession, err := adminSessionModel.CreateSession(admin.ID, util.TrustedGetClientIP(r), r.UserAgent(), duration)
 		if err != nil {
 			respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
 			return

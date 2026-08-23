@@ -21,7 +21,7 @@ func AccessLogger(logger *util.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(ww, r)
 			duration := time.Since(start)
 
-			clientIP := util.GetClientIP(r)
+			clientIP := util.TrustedGetClientIP(r)
 			method := r.Method
 			path := r.URL.Path
 			protocol := r.Proto

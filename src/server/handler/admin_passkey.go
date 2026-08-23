@@ -179,7 +179,7 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 
 		// Audit: admin.passkey_added per AI.md PART 11 shape.
 		logAdminPasskeyAudit(h.DB, "admin.passkey_added", admin.ID, result.Passkey.ID,
-			result.Passkey.Name, util.GetClientIP(r), r.UserAgent())
+			result.Passkey.Name, util.TrustedGetClientIP(r), r.UserAgent())
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
@@ -279,7 +279,7 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 		adminPasskeyEnvelope(r),
 		envelope.CeremonyToken,
 		body,
-		util.GetClientIP(r),
+		util.TrustedGetClientIP(r),
 		r.UserAgent(),
 		adminSessionDuration,
 	)
@@ -346,7 +346,7 @@ func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Reque
 
 	// Audit: admin.passkey_removed per AI.md PART 11 shape.
 	logAdminPasskeyAudit(h.DB, "admin.passkey_removed", admin.ID, passkeyID,
-		passkeyName, util.GetClientIP(r), r.UserAgent())
+		passkeyName, util.TrustedGetClientIP(r), r.UserAgent())
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,

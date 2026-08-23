@@ -39,7 +39,7 @@ func (h *WeatherHandler) HandleRoot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	isBrowser := util.IsBrowser(r)
 	params := util.ParseQueryParams(r)
 
@@ -170,7 +170,7 @@ func (h *WeatherHandler) HandleLocation(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	clientIP := util.GetClientIP(r)
+	clientIP := util.TrustedGetClientIP(r)
 	isBrowser := util.IsBrowser(r)
 	params := util.ParseQueryParams(r)
 
