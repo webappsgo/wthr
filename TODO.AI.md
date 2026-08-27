@@ -2724,8 +2724,9 @@ any of the above: `src/graphql/context_keys_test.go`,
     first, fix the production code, and only then let the fixture execute
     the unmodified schema constant. Read: AI.md PART 10, 29.
 
-109. TODO (flagged 2026-08-21 by item 96 - NEEDS A USER DECISION BEFORE THE
-    NEXT RELEASE): `server_notification_templates` has no `is_default`
+109. DONE (2026-08-27; user confirmed the derived-flag approach is preferred
+    over adding an `is_default` column - no further code change needed):
+    `server_notification_templates` has no `is_default`
     column, so item 96 could not preserve the old write path. Rather than
     invent a column, the flag is now DERIVED: a template is the default when
     its `template_name` equals the new exported
@@ -2886,14 +2887,16 @@ any of the above: `src/graphql/context_keys_test.go`,
     other table lives in the schema constants; this is schema-definition
     drift and the same class as item 123. Read: AI.md PART 10.
 
-121. TODO (flagged 2026-08-21, NEEDS A USER DECISION): the scheduler's weather
-    alerts previously used a three-tier severity ladder - `info` (rain),
-    `warning` (wind), `alert` (freeze, heat, severe). `user_notifications.type`
-    is CHECK-constrained to success/info/warning/error/security, so `alert` is
-    not storable. The fix mapped freeze/heat/severe to
-    `model.NotificationTypeError` to preserve three distinct tiers rather than
-    collapsing them into `warning`. Confirm that is the wanted mapping; the
-    alternative (`warning` for all five non-rain alerts) is a one-line change.
+121. DONE (2026-08-27; user decided `error` didn't fit this context): the
+    scheduler's weather alerts previously used a three-tier severity ladder -
+    `info` (rain), `warning` (wind), `alert` (freeze, heat, severe).
+    `user_notifications.type` is CHECK-constrained to
+    success/info/warning/error/security, so `alert` is not storable. Freeze,
+    heat, and severe weather alerts (`src/scheduler/scheduler.go`, the three
+    `createNotification` calls for "Freezing Temperature Alert", "Heat Alert",
+    and "Severe Weather Alert") now collapse to `model.NotificationTypeWarning`,
+    matching the existing high-wind alert - all five non-rain alerts are
+    `warning`, only rain stays `info`.
 
 122. DONE (2026-08-21, verified rather than re-fixed): item 133's conversion
     pass already covered this site. `src/server/middleware/audit.go` binds

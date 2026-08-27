@@ -574,7 +574,7 @@ func checkAndCreateAlerts(userID, locationID int, locationName string, weather s
 
 	// Check for extreme cold (below 32°F / 0°C)
 	if weather.Current.Temperature < 32 {
-		createNotification(userID, model.NotificationTypeError, "Freezing Temperature Alert",
+		createNotification(userID, model.NotificationTypeWarning, "Freezing Temperature Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Bundle up!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -582,7 +582,7 @@ func checkAndCreateAlerts(userID, locationID int, locationName string, weather s
 
 	// Check for extreme heat (above 95°F / 35°C)
 	if weather.Current.Temperature > 95 {
-		createNotification(userID, model.NotificationTypeError, "Heat Alert",
+		createNotification(userID, model.NotificationTypeWarning, "Heat Alert",
 			fmt.Sprintf("%s: Temperature is %.1f°F. Stay hydrated!", locationName, weather.Current.Temperature),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
@@ -606,7 +606,7 @@ func checkAndCreateAlerts(userID, locationID int, locationName string, weather s
 
 	// Check for severe weather codes (thunderstorms, snow, etc.)
 	if weather.Current.WeatherCode >= 95 {
-		createNotification(userID, model.NotificationTypeError, "Severe Weather Alert",
+		createNotification(userID, model.NotificationTypeWarning, "Severe Weather Alert",
 			fmt.Sprintf("%s: Severe weather detected. Stay safe!", locationName),
 			fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
