@@ -374,3 +374,175 @@ func TestServeLoadingPage_CLI(t *testing.T) {
 		t.Errorf("body = %q, want the CLI ASCII banner", w.Body.String())
 	}
 }
+
+// TestClusterCheckFromStatus covers the pure cluster-status-to-check-string
+// mapping, including the default/unknown fallback branch.
+func TestClusterCheckFromStatus(t *testing.T) {
+	cases := []struct {
+		status string
+		want   string
+	}{
+		{"connected", "ok"},
+		{"degraded", "degraded"},
+		{"disconnected", "error"},
+		{"", "error"},
+		{"bogus", "error"},
+	}
+	for _, c := range cases {
+		if got := clusterCheckFromStatus(c.status); got != c.want {
+			t.Errorf("clusterCheckFromStatus(%q) = %q, want %q", c.status, got, c.want)
+		}
+	}
+}
+
+// TestWantsExplicitJSON covers both trigger conditions (Accept header and
+// ?format=json query param) plus the negative default case.
+func TestWantsExplicitJSON(t *testing.T) {
+	t.Run("Accept application/json", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/server/healthz", nil)
+		r.Header.Set("Accept", "application/json")
+		if !wantsExplicitJSON(r) {
+			t.Error("expected true for Accept: application/json")
+		}
+	})
+	t.Run("format=json query param", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/server/healthz?format=json", nil)
+		if !wantsExplicitJSON(r) {
+			t.Error("expected true for ?format=json")
+		}
+	})
+	t.Run("neither present", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/server/healthz", nil)
+		r.Header.Set("Accept", "text/html")
+		if wantsExplicitJSON(r) {
+			t.Error("expected false when neither trigger is present")
+		}
+	})
+}
+
+// TestPublicHealthStatusClass covers the CSS-class mapping for every known
+// status plus the default/unknown fallback.
+func TestPublicHealthStatusClass(t *testing.T) {
+	cases := []struct {
+		status string
+		want   string
+	}{
+		{"healthy", "status-ok"},
+		{"degraded", "status-warning"},
+		{"maintenance", "status-error"},
+		{"bogus", "status-error"},
+	}
+	for _, c := range cases {
+		if got := publicHealthStatusClass(c.status); got != c.want {
+			t.Errorf("publicHealthStatusClass(%q) = %q, want %q", c.status, got, c.want)
+		}
+	}
+}
+
+// TestPublicHealthStatusText covers the human-readable status-text mapping
+// for every known status plus the default/unknown fallback.
+func TestPublicHealthStatusText(t *testing.T) {
+	cases := []struct {
+		status string
+		want   string
+	}{
+		{"healthy", "All Systems Operational"},
+		{"degraded", "Service Degraded"},
+		{"maintenance", "Maintenance Mode"},
+		{"bogus", "Service Unavailable"},
+	}
+	for _, c := range cases {
+		if got := publicHealthStatusText(c.status); got != c.want {
+			t.Errorf("publicHealthStatusText(%q) = %q, want %q", c.status, got, c.want)
+		}
+	}
+}
+
+// TestFormatPublicHealthText covers the plaintext report formatter across a
+// fully-populated response (including optional Tagline and Maintenance
+// fields) and a minimal response with those optional fields empty/nil.
+func TestFormatPublicHealthText(t *testing.T) {
+	t.Run("fully populated response", func(t *testing.T) {
+		resp := publicHealthResponse{
+			Project: publicHealthProject{
+				Name:        "wthr",
+				Tagline:     "Weather, simply",
+				Description: "A weather app",
+			},
+			Status:    "healthy",
+			Version:   "1.0.0",
+			GoVersion: "go1.23",
+			Build: publicHealthBuild{
+				Commit: "abc123",
+				Date:   "2026-01-01",
+			},
+			Uptime:    "1h0m0s",
+			Mode:      "production",
+			Timestamp: "2026-01-01T00:00:00Z",
+			Cluster: publicHealthCluster{
+				Enabled: true,
+				Status:  "connected",
+				Primary: "node-1",
+				Nodes:   []string{"node-1", "node-2"},
+			},
+			Features: publicHealthFeatures{
+				MultiUser: true,
+				Tor:       publicHealthTor{Enabled: true, Running: true, Status: "ok", Hostname: "abc.onion"},
+				GeoIP:     true,
+			},
+			Checks: publicHealthChecks{
+				Database:  "ok",
+				Cache:     "ok",
+				Disk:      "ok",
+				Scheduler: "ok",
+				Cluster:   "ok",
+				Tor:       "ok",
+			},
+			Stats: publicHealthStats{
+				RequestsTotal:     100,
+				Requests24H:       10,
+				ActiveConnections: 2,
+			},
+			Maintenance: &publicHealthMaintenance{
+				Reason:  "upgrade",
+				Message: "Upgrading database",
+			},
+		}
+
+		out := formatPublicHealthText(resp)
+
+		for _, want := range []string{
+			"project.tagline: Weather, simply",
+			"healthy",
+			"1.0.0",
+			"go1.23",
+			"abc123",
+			"node-1",
+			"Upgrading database",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("formatPublicHealthText output missing %q\nfull output:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("minimal response omits optional fields", func(t *testing.T) {
+		resp := publicHealthResponse{
+			Project: publicHealthProject{
+				Name:        "wthr",
+				Description: "A weather app",
+			},
+			Status:  "healthy",
+			Version: "1.0.0",
+		}
+
+		out := formatPublicHealthText(resp)
+
+		if strings.Contains(out, "project.tagline:") {
+			t.Errorf("expected no tagline line when Tagline is empty, got:\n%s", out)
+		}
+		if !strings.Contains(out, "wthr") {
+			t.Errorf("expected project name in output, got:\n%s", out)
+		}
+	})
+}

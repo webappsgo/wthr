@@ -1,8 +1,11 @@
 package dbtime
 
 import (
+	"database/sql"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 // zoneWest and zoneEast are deliberately extreme fixed offsets. A timestamp
@@ -246,5 +249,98 @@ func TestIsAfter(t *testing.T) {
 				t.Fatalf("IsAfter(%v, %s) = %v, want %v", tt.stored, tt.threshold, got, tt.want)
 			}
 		})
+	}
+}
+
+// openTestDB creates an in-memory sqlite DB with a single test table holding
+// an integer id and a timestamp column, mirroring how session/token/log
+// cleanup tables are shaped in the real schema.
+func openTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	if _, err := db.Exec(`CREATE TABLE items (id INTEGER PRIMARY KEY, expires_at TEXT)`); err != nil {
+		t.Fatalf("CREATE TABLE error = %v", err)
+	}
+
+	return db
+}
+
+func TestSelectRowIDsWithTimestampBefore(t *testing.T) {
+	db := openTestDB(t)
+
+	past := reference.Add(-1 * time.Hour)
+	future := reference.Add(1 * time.Hour)
+
+	if _, err := db.Exec(`INSERT INTO items (id, expires_at) VALUES (?, ?), (?, ?), (?, ?), (?, NULL)`,
+		1, FormatSQLTimestamp(past),
+		2, FormatSQLTimestamp(reference),
+		3, FormatSQLTimestamp(future),
+		4,
+	); err != nil {
+		t.Fatalf("INSERT error = %v", err)
+	}
+
+	t.Run("excludes equal cutoff", func(t *testing.T) {
+		ids, err := SelectRowIDsWithTimestampBefore(db, "items", "id", "expires_at", reference, false)
+		if err != nil {
+			t.Fatalf("SelectRowIDsWithTimestampBefore() error = %v", err)
+		}
+		if len(ids) != 1 {
+			t.Fatalf("SelectRowIDsWithTimestampBefore() = %v, want exactly the past row", ids)
+		}
+	})
+
+	t.Run("includes equal cutoff", func(t *testing.T) {
+		ids, err := SelectRowIDsWithTimestampBefore(db, "items", "id", "expires_at", reference, true)
+		if err != nil {
+			t.Fatalf("SelectRowIDsWithTimestampBefore() error = %v", err)
+		}
+		if len(ids) != 2 {
+			t.Fatalf("SelectRowIDsWithTimestampBefore() = %v, want the past row and the exact-match row", ids)
+		}
+	})
+}
+
+func TestDeleteRowsWithTimestampBefore(t *testing.T) {
+	db := openTestDB(t)
+
+	past := reference.Add(-1 * time.Hour)
+	future := reference.Add(1 * time.Hour)
+
+	if _, err := db.Exec(`INSERT INTO items (id, expires_at) VALUES (?, ?), (?, ?)`,
+		1, FormatSQLTimestamp(past),
+		2, FormatSQLTimestamp(future),
+	); err != nil {
+		t.Fatalf("INSERT error = %v", err)
+	}
+
+	deleted, err := DeleteRowsWithTimestampBefore(db, "items", "id", "expires_at", reference, false)
+	if err != nil {
+		t.Fatalf("DeleteRowsWithTimestampBefore() error = %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("DeleteRowsWithTimestampBefore() deleted = %d, want 1", deleted)
+	}
+
+	var remaining int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM items`).Scan(&remaining); err != nil {
+		t.Fatalf("count query error = %v", err)
+	}
+	if remaining != 1 {
+		t.Fatalf("remaining rows = %d, want 1 (the future row)", remaining)
+	}
+
+	var remainingID int
+	if err := db.QueryRow(`SELECT id FROM items`).Scan(&remainingID); err != nil {
+		t.Fatalf("id query error = %v", err)
+	}
+	if remainingID != 2 {
+		t.Fatalf("remaining row id = %d, want 2 (the future row)", remainingID)
 	}
 }

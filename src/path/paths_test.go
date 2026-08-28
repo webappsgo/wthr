@@ -113,6 +113,167 @@ func TestGetLinuxPaths_XDGOverride(t *testing.T) {
 	}
 }
 
+// TestGetDarwinPaths verifies macOS path construction for both the
+// root/system-service branch (/Library/...) and the per-user branch
+// (~/Library/...), mirroring TestGetLinuxPaths_PrivilegeSplit.
+func TestGetDarwinPaths(t *testing.T) {
+	p := getDarwinPaths("wthr")
+	if p.GOOS != "darwin" {
+		t.Errorf("GOOS = %q, want darwin", p.GOOS)
+	}
+	if p.AppName != "wthr" {
+		t.Errorf("AppName = %q, want wthr", p.AppName)
+	}
+
+	orgNamespace := filepath.Join("webappsgo", "wthr")
+	if !strings.Contains(p.DataDir, orgNamespace) {
+		t.Errorf("DataDir %q missing org namespace %q", p.DataDir, orgNamespace)
+	}
+
+	if os.Geteuid() == 0 {
+		if !p.IsPrivileged {
+			t.Error("expected IsPrivileged=true when running as root")
+		}
+		if !strings.HasPrefix(p.DataDir, "/Library/Application Support") {
+			t.Errorf("root DataDir = %q, want prefix /Library/Application Support", p.DataDir)
+		}
+		if !strings.HasPrefix(p.LogDir, "/Library/Logs") {
+			t.Errorf("root LogDir = %q, want prefix /Library/Logs", p.LogDir)
+		}
+		if !strings.HasPrefix(p.CacheDir, "/Library/Caches") {
+			t.Errorf("root CacheDir = %q, want prefix /Library/Caches", p.CacheDir)
+		}
+	} else {
+		if p.IsPrivileged {
+			t.Error("expected IsPrivileged=false when running as non-root")
+		}
+		homeDir, _ := os.UserHomeDir()
+		if !strings.HasPrefix(p.DataDir, filepath.Join(homeDir, "Library", "Application Support")) {
+			t.Errorf("non-root DataDir = %q, want prefix under %q", p.DataDir, homeDir)
+		}
+		if !strings.HasPrefix(p.LogDir, filepath.Join(homeDir, "Library", "Logs")) {
+			t.Errorf("non-root LogDir = %q, want prefix under %q", p.LogDir, homeDir)
+		}
+	}
+}
+
+// TestGetWindowsPaths verifies Windows path construction for both the
+// service-account branch (gated on USERDOMAIN/USERNAME env vars, using
+// %PROGRAMDATA%) and the interactive-user branch (%APPDATA%/%LOCALAPPDATA%).
+func TestGetWindowsPaths(t *testing.T) {
+	origDomain := os.Getenv("USERDOMAIN")
+	origUsername := os.Getenv("USERNAME")
+	origAppData := os.Getenv("APPDATA")
+	origLocalAppData := os.Getenv("LOCALAPPDATA")
+	origProgramData := os.Getenv("PROGRAMDATA")
+	t.Cleanup(func() {
+		os.Setenv("USERDOMAIN", origDomain)
+		os.Setenv("USERNAME", origUsername)
+		os.Setenv("APPDATA", origAppData)
+		os.Setenv("LOCALAPPDATA", origLocalAppData)
+		os.Setenv("PROGRAMDATA", origProgramData)
+	})
+
+	orgNamespace := filepath.Join("webappsgo", "wthr")
+
+	t.Run("service account uses PROGRAMDATA", func(t *testing.T) {
+		os.Setenv("USERDOMAIN", "NT AUTHORITY")
+		os.Unsetenv("USERNAME")
+		os.Setenv("PROGRAMDATA", `C:\ProgramData`)
+
+		p := getWindowsPaths("wthr")
+		if p.GOOS != "windows" {
+			t.Errorf("GOOS = %q, want windows", p.GOOS)
+		}
+		if !p.IsPrivileged {
+			t.Error("expected IsPrivileged=true for NT AUTHORITY service account")
+		}
+		wantData := filepath.Join(`C:\ProgramData`, orgNamespace, "data")
+		if p.DataDir != wantData {
+			t.Errorf("DataDir = %q, want %q", p.DataDir, wantData)
+		}
+	})
+
+	t.Run("interactive user uses APPDATA/LOCALAPPDATA", func(t *testing.T) {
+		os.Unsetenv("USERDOMAIN")
+		os.Setenv("USERNAME", "casjay")
+		os.Setenv("APPDATA", `C:\Users\casjay\AppData\Roaming`)
+		os.Setenv("LOCALAPPDATA", `C:\Users\casjay\AppData\Local`)
+
+		p := getWindowsPaths("wthr")
+		if p.IsPrivileged {
+			t.Error("expected IsPrivileged=false for interactive user")
+		}
+		wantData := filepath.Join(`C:\Users\casjay\AppData\Local`, orgNamespace)
+		if p.DataDir != wantData {
+			t.Errorf("DataDir = %q, want %q", p.DataDir, wantData)
+		}
+		wantConfig := filepath.Join(`C:\Users\casjay\AppData\Roaming`, orgNamespace)
+		if p.ConfigDir != wantConfig {
+			t.Errorf("ConfigDir = %q, want %q", p.ConfigDir, wantConfig)
+		}
+	})
+
+	t.Run("missing APPDATA falls back to USERPROFILE", func(t *testing.T) {
+		os.Unsetenv("USERDOMAIN")
+		os.Setenv("USERNAME", "casjay")
+		os.Unsetenv("APPDATA")
+		os.Unsetenv("LOCALAPPDATA")
+		os.Setenv("USERPROFILE", `C:\Users\casjay`)
+		t.Cleanup(func() { os.Unsetenv("USERPROFILE") })
+
+		p := getWindowsPaths("wthr")
+		wantConfig := filepath.Join(`C:\Users\casjay`, "AppData", "Roaming", orgNamespace)
+		if p.ConfigDir != wantConfig {
+			t.Errorf("ConfigDir = %q, want %q", p.ConfigDir, wantConfig)
+		}
+	})
+}
+
+// TestGetBSDPaths verifies BSD path construction for both the root branch
+// (/var/db, /usr/local/etc, ...) and the per-user branch (~/.local/share,
+// ~/.config, ...), mirroring TestGetLinuxPaths_PrivilegeSplit.
+func TestGetBSDPaths(t *testing.T) {
+	p := getBSDPaths("wthr")
+	if p.AppName != "wthr" {
+		t.Errorf("AppName = %q, want wthr", p.AppName)
+	}
+	if p.GOOS == "" {
+		t.Error("GOOS must not be empty")
+	}
+
+	orgNamespace := filepath.Join("webappsgo", "wthr")
+	if !strings.Contains(p.DataDir, orgNamespace) {
+		t.Errorf("DataDir %q missing org namespace %q", p.DataDir, orgNamespace)
+	}
+
+	if os.Geteuid() == 0 {
+		if !p.IsPrivileged {
+			t.Error("expected IsPrivileged=true when running as root")
+		}
+		if !strings.HasPrefix(p.DataDir, "/var/db") {
+			t.Errorf("root DataDir = %q, want prefix /var/db", p.DataDir)
+		}
+		if !strings.HasPrefix(p.ConfigDir, "/usr/local/etc") {
+			t.Errorf("root ConfigDir = %q, want prefix /usr/local/etc", p.ConfigDir)
+		}
+		if !strings.HasPrefix(p.LogDir, "/var/log") {
+			t.Errorf("root LogDir = %q, want prefix /var/log", p.LogDir)
+		}
+	} else {
+		if p.IsPrivileged {
+			t.Error("expected IsPrivileged=false when running as non-root")
+		}
+		homeDir, _ := os.UserHomeDir()
+		if !strings.HasPrefix(p.DataDir, filepath.Join(homeDir, ".local", "share")) {
+			t.Errorf("non-root DataDir = %q, want prefix under %q/.local/share", p.DataDir, homeDir)
+		}
+		if !strings.HasPrefix(p.ConfigDir, filepath.Join(homeDir, ".config")) {
+			t.Errorf("non-root ConfigDir = %q, want prefix under %q/.config", p.ConfigDir, homeDir)
+		}
+	}
+}
+
 // TestEnsureDir_CreatesAndVerifiesWritable exercises real directory
 // creation on a temp dir: permission bits, idempotency (create twice),
 // and the internal writability probe.

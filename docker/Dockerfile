@@ -39,8 +39,12 @@ ARG LICENSE=MIT
 # See dockerfile_conventions.md → OCI Annotations.
 
 # Install required packages
+# Upgrade first so base-image system libs (e.g. libcrypto3/libssl3) get the
+# latest patched build even when a stale alpine:latest layer is cache-hit,
+# instead of only patching the packages this line explicitly adds.
 # NOTE: Tor binary installed but NOT configured here - binary handles all Tor setup (see PART 32)
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     git \
     curl \
     bash \

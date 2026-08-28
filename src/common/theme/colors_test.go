@@ -78,6 +78,39 @@ func TestThemePaletteFieldsPopulated(t *testing.T) {
 	}
 }
 
+func TestGetTerminalPalette(t *testing.T) {
+	tests := []struct {
+		name      string
+		themeMode string
+		want      *TerminalPalette // nil means "either dark or light is acceptable"
+	}{
+		{"dark", "dark", &TerminalPaletteDark},
+		{"light", "light", &TerminalPaletteLight},
+		{"empty defaults via system detection", "", nil},
+		{"unrecognized garbage defaults via system detection", "solarized", nil},
+		{"auto resolves to a valid palette", "auto", nil},
+		{"system resolves to a valid palette", "system", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetTerminalPalette(tt.themeMode)
+
+			if tt.want != nil {
+				if got != *tt.want {
+					t.Errorf("GetTerminalPalette(%q) = %+v, want %+v", tt.themeMode, got, *tt.want)
+				}
+				return
+			}
+
+			// depends on IsSystemDarkTheme(); accept either known palette.
+			if got != TerminalPaletteDark && got != TerminalPaletteLight {
+				t.Errorf("GetTerminalPalette(%q) = %+v, want either TerminalPaletteDark or TerminalPaletteLight", tt.themeMode, got)
+			}
+		})
+	}
+}
+
 // TestIsSystemDarkTheme verifies the function runs without panicking and is
 // idempotent (repeated calls in the same process return the same value,
 // since neither gsettings nor defaults output should change mid-test-run).

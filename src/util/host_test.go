@@ -1,6 +1,7 @@
 package util
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -280,4 +281,44 @@ func TestGetFQDN_DomainEnvOverride(t *testing.T) {
 			t.Errorf("GetFQDN() = %q, want example.com", got)
 		}
 	})
+}
+
+// TestGetGlobalIPv6 exercises the network-interface scan without asserting a
+// specific address (environment-dependent); it must not panic, and any
+// non-empty result must parse as a global-unicast IPv6 address.
+func TestGetGlobalIPv6(t *testing.T) {
+	got := getGlobalIPv6()
+	if got == "" {
+		return
+	}
+	ip := net.ParseIP(got)
+	if ip == nil {
+		t.Fatalf("getGlobalIPv6() = %q, not a parseable IP", got)
+	}
+	if ip.To4() != nil {
+		t.Errorf("getGlobalIPv6() = %q, want an IPv6 address", got)
+	}
+	if !ip.IsGlobalUnicast() {
+		t.Errorf("getGlobalIPv6() = %q, want a global unicast address", got)
+	}
+}
+
+// TestGetGlobalIPv4 exercises the network-interface scan without asserting a
+// specific address (environment-dependent); it must not panic, and any
+// non-empty result must parse as a global-unicast IPv4 address.
+func TestGetGlobalIPv4(t *testing.T) {
+	got := getGlobalIPv4()
+	if got == "" {
+		return
+	}
+	ip := net.ParseIP(got)
+	if ip == nil {
+		t.Fatalf("getGlobalIPv4() = %q, not a parseable IP", got)
+	}
+	if ip.To4() == nil {
+		t.Errorf("getGlobalIPv4() = %q, want an IPv4 address", got)
+	}
+	if !ip.IsGlobalUnicast() {
+		t.Errorf("getGlobalIPv4() = %q, want a global unicast address", got)
+	}
 }

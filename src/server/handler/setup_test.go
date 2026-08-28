@@ -531,3 +531,49 @@ func TestSetupRequiredMiddleware(t *testing.T) {
 		}
 	})
 }
+
+// TestGenerateRandomPassword verifies the generated password has the
+// requested length, draws only from the documented charset, and produces a
+// different value on each call (crypto/rand-backed, not a fixed sequence).
+func TestGenerateRandomPassword(t *testing.T) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#-_$"
+
+	t.Run("returns requested length from the documented charset", func(t *testing.T) {
+		pw, err := generateRandomPassword(24)
+		if err != nil {
+			t.Fatalf("generateRandomPassword() error = %v", err)
+		}
+		if len(pw) != 24 {
+			t.Fatalf("generateRandomPassword(24) length = %d, want 24", len(pw))
+		}
+		for _, c := range pw {
+			if !bytes.ContainsRune([]byte(charset), c) {
+				t.Fatalf("generateRandomPassword() produced out-of-charset rune %q", c)
+			}
+		}
+	})
+
+	t.Run("zero length returns an empty string", func(t *testing.T) {
+		pw, err := generateRandomPassword(0)
+		if err != nil {
+			t.Fatalf("generateRandomPassword(0) error = %v", err)
+		}
+		if pw != "" {
+			t.Fatalf("generateRandomPassword(0) = %q, want empty string", pw)
+		}
+	})
+
+	t.Run("consecutive calls differ", func(t *testing.T) {
+		first, err := generateRandomPassword(32)
+		if err != nil {
+			t.Fatalf("generateRandomPassword() error = %v", err)
+		}
+		second, err := generateRandomPassword(32)
+		if err != nil {
+			t.Fatalf("generateRandomPassword() error = %v", err)
+		}
+		if first == second {
+			t.Fatal("generateRandomPassword() returned identical values on consecutive calls, want randomness")
+		}
+	})
+}

@@ -460,3 +460,306 @@ func TestNotificationService_ShouldSendEmail(t *testing.T) {
 		})
 	}
 }
+
+func TestNewNotificationService(t *testing.T) {
+	userDB, serverDB := setupNotificationTestDB(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	wsHub := NewWebSocketHub()
+	service := NewNotificationService(userDB, serverDB, wsHub)
+
+	if service == nil {
+		t.Fatal("NewNotificationService() returned nil")
+	}
+	if service.UserDB != userDB || service.ServerDB != serverDB || service.WSHub != wsHub {
+		t.Error("NewNotificationService() did not wire the given DB/hub fields through")
+	}
+	if service.UserNotif == nil || service.UserNotif.DB != userDB {
+		t.Error("NewNotificationService() UserNotif model not wired to userDB")
+	}
+	if service.AdminNotif == nil || service.AdminNotif.DB != serverDB {
+		t.Error("NewNotificationService() AdminNotif model not wired to serverDB")
+	}
+	if service.Prefs == nil || service.Prefs.UserDB != userDB || service.Prefs.ServerDB != serverDB {
+		t.Error("NewNotificationService() Prefs model not wired to both DBs")
+	}
+
+	notif, err := service.SendInfoToAdmin(1, "Constructed", "via NewNotificationService")
+	if err != nil {
+		t.Fatalf("SendInfoToAdmin() on constructed service error = %v", err)
+	}
+	if notif.Type != model.NotificationTypeInfo {
+		t.Errorf("Notification type = %v, want info", notif.Type)
+	}
+}
+
+func TestNotificationService_SendInfoToAdmin(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	notif, err := service.SendInfoToAdmin(1, "Admin Info", "Info message")
+	if err != nil {
+		t.Fatalf("SendInfoToAdmin() error = %v", err)
+	}
+	if notif.Type != model.NotificationTypeInfo {
+		t.Errorf("Notification type = %v, want info", notif.Type)
+	}
+}
+
+func TestNotificationService_SendWarningToAdmin(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	notif, err := service.SendWarningToAdmin(1, "Admin Warning", "Warning message")
+	if err != nil {
+		t.Fatalf("SendWarningToAdmin() error = %v", err)
+	}
+	if notif.Type != model.NotificationTypeWarning {
+		t.Errorf("Notification type = %v, want warning", notif.Type)
+	}
+}
+
+func TestNotificationService_SendErrorToAdmin(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	notif, err := service.SendErrorToAdmin(1, "Admin Error", "Error message")
+	if err != nil {
+		t.Fatalf("SendErrorToAdmin() error = %v", err)
+	}
+	if notif.Type != model.NotificationTypeError {
+		t.Errorf("Notification type = %v, want error", notif.Type)
+	}
+}
+
+func TestNotificationService_SendSecurityToAdmin(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	notif, err := service.SendSecurityToAdmin(1, "Admin Security", "Security message")
+	if err != nil {
+		t.Fatalf("SendSecurityToAdmin() error = %v", err)
+	}
+	if notif.Type != model.NotificationTypeSecurity {
+		t.Errorf("Notification type = %v, want security", notif.Type)
+	}
+	if notif.Display != model.NotificationDisplayBanner {
+		t.Errorf("Notification display = %v, want banner", notif.Display)
+	}
+}
+
+func TestNotificationService_AdminNotificationsLifecycle(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	first, err := service.SendSuccessToAdmin(1, "First", "First message")
+	if err != nil {
+		t.Fatalf("SendSuccessToAdmin() error = %v", err)
+	}
+	_, err = service.SendInfoToAdmin(1, "Second", "Second message")
+	if err != nil {
+		t.Fatalf("SendInfoToAdmin() error = %v", err)
+	}
+
+	all, err := service.GetAdminNotifications(1, 10, 0)
+	if err != nil {
+		t.Fatalf("GetAdminNotifications() error = %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("GetAdminNotifications() = %d notifications, want 2", len(all))
+	}
+
+	unread, err := service.GetAdminUnreadNotifications(1)
+	if err != nil {
+		t.Fatalf("GetAdminUnreadNotifications() error = %v", err)
+	}
+	if len(unread) != 2 {
+		t.Fatalf("GetAdminUnreadNotifications() = %d, want 2", len(unread))
+	}
+
+	count, err := service.GetAdminUnreadCount(1)
+	if err != nil {
+		t.Fatalf("GetAdminUnreadCount() error = %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("GetAdminUnreadCount() = %d, want 2", count)
+	}
+
+	if err := service.MarkAdminNotificationAsRead(first.ID, 1); err != nil {
+		t.Fatalf("MarkAdminNotificationAsRead() error = %v", err)
+	}
+	count, err = service.GetAdminUnreadCount(1)
+	if err != nil {
+		t.Fatalf("GetAdminUnreadCount() error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("GetAdminUnreadCount() after marking one read = %d, want 1", count)
+	}
+
+	if err := service.MarkAllAdminNotificationsAsRead(1); err != nil {
+		t.Fatalf("MarkAllAdminNotificationsAsRead() error = %v", err)
+	}
+	count, err = service.GetAdminUnreadCount(1)
+	if err != nil {
+		t.Fatalf("GetAdminUnreadCount() error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("GetAdminUnreadCount() after marking all read = %d, want 0", count)
+	}
+
+	if err := service.DismissAdminNotification(first.ID, 1); err != nil {
+		t.Fatalf("DismissAdminNotification() error = %v", err)
+	}
+	if err := service.DeleteAdminNotification(first.ID, 1); err != nil {
+		t.Fatalf("DeleteAdminNotification() error = %v", err)
+	}
+}
+
+func TestNotificationService_GetAdminStatistics(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	_, _ = service.SendSuccessToAdmin(1, "Success", "Message")
+	_, _ = service.SendInfoToAdmin(1, "Info", "Message")
+	notif3, _ := service.SendWarningToAdmin(1, "Warning", "Message")
+
+	_ = service.MarkAdminNotificationAsRead(notif3.ID, 1)
+
+	stats, err := service.GetAdminStatistics(1)
+	if err != nil {
+		t.Fatalf("GetAdminStatistics() error = %v", err)
+	}
+	if stats.Total != 3 {
+		t.Errorf("Total = %d, want 3", stats.Total)
+	}
+	if stats.Unread != 2 {
+		t.Errorf("Unread = %d, want 2", stats.Unread)
+	}
+	if stats.Read != 1 {
+		t.Errorf("Read = %d, want 1", stats.Read)
+	}
+}
+
+func TestNotificationService_AdminPreferences(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	prefs, err := service.GetAdminPreferences(1)
+	if err != nil {
+		t.Fatalf("GetAdminPreferences() error = %v", err)
+	}
+	if !prefs.EnableToast || !prefs.EnableBanner || !prefs.EnableCenter {
+		t.Error("Default admin preferences should have toast/banner/center enabled")
+	}
+
+	adminID := 1
+	newPrefs := &model.NotificationPreferences{
+		AdminID:      &adminID,
+		EnableToast:  false,
+		EnableBanner: true,
+		EnableCenter: true,
+		EnableSound:  true,
+	}
+	if err := service.UpdateAdminPreferences(1, newPrefs); err != nil {
+		t.Fatalf("UpdateAdminPreferences() error = %v", err)
+	}
+
+	updated, err := service.GetAdminPreferences(1)
+	if err != nil {
+		t.Fatalf("GetAdminPreferences() after update error = %v", err)
+	}
+	if updated.EnableToast {
+		t.Error("EnableToast should be false after update")
+	}
+	if !updated.EnableSound {
+		t.Error("EnableSound should be true after update")
+	}
+}
+
+func TestNotificationService_CleanupExpired(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	_, _ = service.SendSuccessToUser(1, "Test", "Message")
+	_, _ = service.SendSuccessToAdmin(1, "Test", "Message")
+
+	if err := service.CleanupExpired(); err != nil {
+		t.Fatalf("CleanupExpired() error = %v", err)
+	}
+}
+
+func TestNotificationService_EnforceLimits(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	if err := service.EnforceLimits(); err != nil {
+		t.Fatalf("EnforceLimits() error = %v", err)
+	}
+}
+
+func TestNotificationService_ShouldSendEmailToAdmin(t *testing.T) {
+	service, userDB, serverDB := setupNotificationService(t)
+	defer userDB.Close()
+	defer serverDB.Close()
+
+	tests := []struct {
+		name           string
+		adminID        int
+		eventType      string
+		severity       string
+		smtpConfigured bool
+		want           bool
+	}{
+		{
+			name:           "No SMTP configured",
+			adminID:        1,
+			eventType:      "backup",
+			severity:       "info",
+			smtpConfigured: false,
+			want:           false,
+		},
+		{
+			name:           "Critical event with SMTP",
+			adminID:        1,
+			eventType:      "ssl_expiry",
+			severity:       "critical",
+			smtpConfigured: true,
+			want:           true,
+		},
+		{
+			name:           "Error event with SMTP",
+			adminID:        1,
+			eventType:      "backup_failed",
+			severity:       "error",
+			smtpConfigured: true,
+			want:           true,
+		},
+		{
+			name:           "Info event with SMTP, admin offline",
+			adminID:        1,
+			eventType:      "backup",
+			severity:       "info",
+			smtpConfigured: true,
+			want:           true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := service.ShouldSendEmailToAdmin(tt.adminID, tt.eventType, tt.severity, tt.smtpConfigured)
+			if got != tt.want {
+				t.Errorf("ShouldSendEmailToAdmin() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -297,3 +297,184 @@ func TestRegenerateRecoveryKeys(t *testing.T) {
 		}
 	})
 }
+
+// TestLoadCurrentUserTwoFactorStatus covers the package-level wrapper used by
+// non-HTTP callers, both with 2FA disabled (no DB dependency) and enabled
+// (recovery-key count loaded from the DB).
+func TestLoadCurrentUserTwoFactorStatus(t *testing.T) {
+	secret := "JBSWY3DPEHPK3PXP"
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("disabled reports zero keys", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "loadstatus1", "loadstatus1@example.com", "correcthorse123", false, "")
+
+		status, err := LoadCurrentUserTwoFactorStatus(db, user)
+		if err != nil {
+			t.Fatalf("LoadCurrentUserTwoFactorStatus() error = %v", err)
+		}
+		if status.Enabled || status.RecoveryKeysCount != 0 {
+			t.Fatalf("status = %+v, want disabled/zero", status)
+		}
+	})
+
+	t.Run("enabled reports recovery key count", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "loadstatus2", "loadstatus2@example.com", "correcthorse123", true, secret)
+		if _, err := (&models.RecoveryKeyModel{DB: db}).GenerateRecoveryKeys(int(user.ID)); err != nil {
+			t.Fatalf("seed recovery keys: %v", err)
+		}
+
+		status, err := LoadCurrentUserTwoFactorStatus(db, user)
+		if err != nil {
+			t.Fatalf("LoadCurrentUserTwoFactorStatus() error = %v", err)
+		}
+		if !status.Enabled || status.RecoveryKeysCount == 0 {
+			t.Fatalf("status = %+v, want enabled with recovery keys", status)
+		}
+	})
+}
+
+// TestPrepareCurrentUserTwoFactorSetup covers the package-level wrapper's
+// already-enabled guard (pure, no DB dependency) and the successful setup
+// payload generation.
+func TestPrepareCurrentUserTwoFactorSetup(t *testing.T) {
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("already enabled returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "prep1", "prep1@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
+
+		if _, err := PrepareCurrentUserTwoFactorSetup(db, user); err == nil {
+			t.Fatal("expected error when 2FA already enabled")
+		}
+	})
+
+	t.Run("not yet enabled generates a setup payload", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "prep2", "prep2@example.com", "correcthorse123", false, "")
+
+		setup, err := PrepareCurrentUserTwoFactorSetup(db, user)
+		if err != nil {
+			t.Fatalf("PrepareCurrentUserTwoFactorSetup() error = %v", err)
+		}
+		if setup.Secret == "" || setup.QRCode == "" || setup.ManualURL == "" {
+			t.Fatalf("setup = %+v, want populated fields", setup)
+		}
+	})
+}
+
+// TestEnableCurrentUserTwoFactor covers the package-level wrapper's
+// already-enabled guard and the invalid-code rejection, both pure/no
+// side-effecting-DB-write paths.
+func TestEnableCurrentUserTwoFactor(t *testing.T) {
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("already enabled returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "enable1", "enable1@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
+
+		if _, err := EnableCurrentUserTwoFactor(db, user, "JBSWY3DPEHPK3PXP", "000000"); err == nil {
+			t.Fatal("expected error when 2FA already enabled")
+		}
+	})
+
+	t.Run("invalid code returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "enable2", "enable2@example.com", "correcthorse123", false, "")
+
+		if _, err := EnableCurrentUserTwoFactor(db, user, "JBSWY3DPEHPK3PXP", "000000"); err == nil {
+			t.Fatal("expected error for invalid verification code")
+		}
+	})
+}
+
+// TestDisableCurrentUserTwoFactor covers the package-level wrapper's
+// not-enabled guard (pure) and the wrong-password rejection.
+func TestDisableCurrentUserTwoFactor(t *testing.T) {
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("not enabled returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "disable1", "disable1@example.com", "correcthorse123", false, "")
+
+		if err := DisableCurrentUserTwoFactor(db, user, "correcthorse123"); err == nil {
+			t.Fatal("expected error when 2FA not enabled")
+		}
+	})
+
+	t.Run("wrong password returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "disable2", "disable2@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
+
+		if err := DisableCurrentUserTwoFactor(db, user, "wrongpassword"); err == nil {
+			t.Fatal("expected error for wrong password")
+		}
+	})
+}
+
+// TestVerifyCurrentUserTwoFactorCode covers the package-level wrapper's
+// not-enabled guard (pure) and the invalid-code rejection.
+func TestVerifyCurrentUserTwoFactorCode(t *testing.T) {
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("not enabled returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "verify1", "verify1@example.com", "correcthorse123", false, "")
+
+		if err := VerifyCurrentUserTwoFactorCode(db, user, "000000"); err == nil {
+			t.Fatal("expected error when 2FA not enabled")
+		}
+	})
+
+	t.Run("invalid code returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "verify2", "verify2@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
+
+		if err := VerifyCurrentUserTwoFactorCode(db, user, "000000"); err == nil {
+			t.Fatal("expected error for invalid verification code")
+		}
+	})
+
+	t.Run("valid code succeeds", func(t *testing.T) {
+		secret := "JBSWY3DPEHPK3PXP"
+		user := seedTwoFactorUser(t, db, "verify3", "verify3@example.com", "correcthorse123", true, secret)
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+
+		if err := VerifyCurrentUserTwoFactorCode(db, user, code); err != nil {
+			t.Fatalf("VerifyCurrentUserTwoFactorCode() error = %v", err)
+		}
+	})
+}
+
+// TestRegenerateCurrentUserRecoveryKeys covers the package-level wrapper's
+// not-enabled guard (pure), the invalid-code rejection, and the success path.
+func TestRegenerateCurrentUserRecoveryKeys(t *testing.T) {
+	_, db := newTwoFactorTestHandler(t)
+
+	t.Run("not enabled returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "regen1", "regen1@example.com", "correcthorse123", false, "")
+
+		if _, err := RegenerateCurrentUserRecoveryKeys(db, user, "000000"); err == nil {
+			t.Fatal("expected error when 2FA not enabled")
+		}
+	})
+
+	t.Run("invalid code returns error", func(t *testing.T) {
+		user := seedTwoFactorUser(t, db, "regen2", "regen2@example.com", "correcthorse123", true, "JBSWY3DPEHPK3PXP")
+
+		if _, err := RegenerateCurrentUserRecoveryKeys(db, user, "000000"); err == nil {
+			t.Fatal("expected error for invalid verification code")
+		}
+	})
+
+	t.Run("valid code regenerates keys", func(t *testing.T) {
+		secret := "JBSWY3DPEHPK3PXP"
+		user := seedTwoFactorUser(t, db, "regen3", "regen3@example.com", "correcthorse123", true, secret)
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+
+		resp, err := RegenerateCurrentUserRecoveryKeys(db, user, code)
+		if err != nil {
+			t.Fatalf("RegenerateCurrentUserRecoveryKeys() error = %v", err)
+		}
+		if len(resp.RecoveryKeys) == 0 {
+			t.Fatal("expected non-empty recovery keys")
+		}
+	})
+}

@@ -337,3 +337,71 @@ func TestModeConfig_SecuritySettings(t *testing.T) {
 		t.Error("Development should not require HTTPS")
 	}
 }
+
+func TestModeStringString(t *testing.T) {
+	if got := ModeDevelopment.String(); got != "development" {
+		t.Errorf("ModeDevelopment.String() = %q, want %q", got, "development")
+	}
+	if got := ModeProduction.String(); got != "production" {
+		t.Errorf("ModeProduction.String() = %q, want %q", got, "production")
+	}
+}
+
+func TestModeStringValidate(t *testing.T) {
+	if err := ModeDevelopment.Validate(); err != nil {
+		t.Errorf("ModeDevelopment.Validate() error = %v, want nil", err)
+	}
+	if err := ModeProduction.Validate(); err != nil {
+		t.Errorf("ModeProduction.Validate() error = %v, want nil", err)
+	}
+	if err := ModeString("bogus").Validate(); err == nil {
+		t.Error("ModeString(\"bogus\").Validate() error = nil, want error")
+	}
+}
+
+func TestGetCORSPolicy(t *testing.T) {
+	prodConfig, err := NewModeConfig(ModeProduction, "example.com", 8080)
+	if err != nil {
+		t.Fatalf("NewModeConfig(production) error = %v", err)
+	}
+	devConfig, err := NewModeConfig(ModeDevelopment, "localhost", 8080)
+	if err != nil {
+		t.Fatalf("NewModeConfig(development) error = %v", err)
+	}
+
+	if got := prodConfig.GetCORSPolicy(); got != "strict" {
+		t.Errorf("production GetCORSPolicy() = %q, want %q", got, "strict")
+	}
+	if got := devConfig.GetCORSPolicy(); got != "*" {
+		t.Errorf("development GetCORSPolicy() = %q, want %q", got, "*")
+	}
+}
+
+// TestPrintConfig only verifies PrintConfig runs without panicking - its
+// output goes to stdout for startup logs/--status and has no return value
+// to assert against.
+func TestPrintConfig(t *testing.T) {
+	prodConfig, err := NewModeConfig(ModeProduction, "example.com", 8080)
+	if err != nil {
+		t.Fatalf("NewModeConfig(production) error = %v", err)
+	}
+	prodConfig.PrintConfig()
+}
+
+func TestWarningMessage(t *testing.T) {
+	prodConfig, err := NewModeConfig(ModeProduction, "example.com", 8080)
+	if err != nil {
+		t.Fatalf("NewModeConfig(production) error = %v", err)
+	}
+	if got := prodConfig.WarningMessage(); got != "" {
+		t.Errorf("production WarningMessage() = %q, want empty", got)
+	}
+
+	devConfig, err := NewModeConfig(ModeDevelopment, "localhost", 8080)
+	if err != nil {
+		t.Fatalf("NewModeConfig(development) error = %v", err)
+	}
+	if got := devConfig.WarningMessage(); got == "" {
+		t.Error("development WarningMessage() = empty, want a warning")
+	}
+}
