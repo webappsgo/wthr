@@ -50,7 +50,7 @@ func (h *MetricsHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	var config MetricsConfig
 
 	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
@@ -61,7 +61,7 @@ func (h *MetricsHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 
 	// In a real implementation, this would update the Prometheus registry
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Metrics configuration updated successfully",
+		"message": Translate(r, "success.admin.metrics.metrics_configuration_updated_successfully"),
 		"config":  config,
 	})
 }
@@ -147,18 +147,18 @@ func (h *MetricsHandler) CreateMetric(w http.ResponseWriter, r *http.Request) {
 	var metric CustomMetric
 
 	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// Validate metric
 	if metric.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric name is required"})
+		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_name_is_required"))
 		return
 	}
 
 	if metric.Type == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric type is required"})
+		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_type_is_required"))
 		return
 	}
 
@@ -170,13 +170,13 @@ func (h *MetricsHandler) CreateMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !validTypes[metric.Type] {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid metric type"})
+		BadRequest(w, r, Translate(r, "errors.admin.metrics.invalid_metric_type"))
 		return
 	}
 
 	// In a real implementation, this would register the metric with Prometheus
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"message": "Custom metric created successfully",
+		"message": Translate(r, "success.admin.metrics.custom_metric_created_successfully"),
 		"metric":  metric,
 	})
 }
@@ -186,13 +186,13 @@ func (h *MetricsHandler) DeleteMetric(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
 	if name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Metric name is required"})
+		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_name_is_required"))
 		return
 	}
 
 	// In a real implementation, this would unregister the metric
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Custom metric deleted successfully",
+		"message": Translate(r, "success.admin.metrics.custom_metric_deleted_successfully"),
 		"name":    name,
 	})
 }
@@ -278,13 +278,13 @@ func (h *MetricsHandler) ToggleMetric(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// In a real implementation, this would enable/disable the metric
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Metric updated successfully",
+		"message": Translate(r, "success.admin.metrics.metric_updated_successfully"),
 		"name":    name,
 		"enabled": request.Enabled,
 	})

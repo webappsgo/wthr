@@ -39,7 +39,7 @@ func NewAdminsHandler(db *sql.DB, inviteService *service.AdminInviteService) *Ad
 func (h *AdminsHandler) ListAdmins(w http.ResponseWriter, r *http.Request) {
 	admins, err := h.AdminModel.GetAll()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch admins"})
+		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_fetch_admins"))
 		return
 	}
 
@@ -58,7 +58,7 @@ func (h *AdminsHandler) ListAdmins(w http.ResponseWriter, r *http.Request) {
 func (h *AdminsHandler) GetAdminCount(w http.ResponseWriter, r *http.Request) {
 	count, err := h.AdminModel.GetCount()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to count admins"})
+		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_count_admins"))
 		return
 	}
 
@@ -77,33 +77,33 @@ func (h *AdminsHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// binding:"required,email" equivalent
 	if request.Email == "" || util.ValidateEmail(request.Email) != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// Get current admin ID from session (set by RequireAdminAuth middleware)
 	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 	currentAdminID := adminIDInterface.(int)
 
 	invite, expiresIn, err := h.InviteService.CreateInvite(request.Email, currentAdminID, request.ExpiresIn)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":         true,
-		"message":    "Invitation created successfully",
+		"message":    Translate(r, "success.admin.admins.invitation_created_successfully"),
 		"token":      invite.Token,
 		"email":      invite.InvitedEmail,
 		"expires_at": invite.ExpiresAt,
@@ -120,20 +120,19 @@ func (h *AdminsHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// binding:"required" / "required,min=3" / "required,min=8" equivalents
 	if request.Token == "" || len(request.Username) < 3 || len(request.Password) < 8 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	admin, err := h.InviteService.AcceptInvite(request.Token, request.Username, request.Password)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error":   "Failed to accept invite",
+		BadRequest(w, r, Translate(r, "errors.admin.admins.failed_to_accept_invite"), map[string]interface{}{
 			"details": err.Error(),
 		})
 		return
@@ -141,7 +140,7 @@ func (h *AdminsHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Admin account created successfully",
+		"message": Translate(r, "success.admin.admins.admin_account_created_successfully"),
 		"admin": map[string]interface{}{
 			"id":       admin.ID,
 			"username": admin.Username,
@@ -154,7 +153,7 @@ func (h *AdminsHandler) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 func (h *AdminsHandler) GetPendingInvites(w http.ResponseWriter, r *http.Request) {
 	invites, err := h.InviteService.GetPendingInvites()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch invites"})
+		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_fetch_invites"))
 		return
 	}
 
@@ -169,13 +168,12 @@ func (h *AdminsHandler) GetPendingInvites(w http.ResponseWriter, r *http.Request
 func (h *AdminsHandler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Token is required"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.token_is_required"))
 		return
 	}
 
 	if err := h.InviteService.RevokeInvite(token); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Failed to revoke invite",
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.admins.failed_to_revoke_invite"), map[string]interface{}{
 			"details": err.Error(),
 		})
 		return
@@ -183,7 +181,7 @@ func (h *AdminsHandler) RevokeInvite(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Invite revoked successfully",
+		"message": Translate(r, "success.admin.admins.invite_revoked_successfully"),
 	})
 }
 
@@ -192,7 +190,7 @@ func (h *AdminsHandler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_admin_id"))
 		return
 	}
 
@@ -202,19 +200,18 @@ func (h *AdminsHandler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// binding:"required,min=3" / "required,email" equivalents
 	if len(request.Username) < 3 || request.Email == "" || util.ValidateEmail(request.Email) != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	if err := h.AdminModel.Update(id, request.Username, request.Email); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Failed to update admin",
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.admins.failed_to_update_admin"), map[string]interface{}{
 			"details": err.Error(),
 		})
 		return
@@ -222,7 +219,7 @@ func (h *AdminsHandler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Admin updated successfully",
+		"message": Translate(r, "success.admin.admins.admin_updated_successfully"),
 	})
 }
 
@@ -231,7 +228,7 @@ func (h *AdminsHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_admin_id"))
 		return
 	}
 
@@ -239,18 +236,17 @@ func (h *AdminsHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 	// Get current admin ID from session (set by RequireAdminAuth middleware)
 	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 	currentAdminID := int64(adminIDInterface.(int))
 	if id == currentAdminID {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot delete your own account"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 		return
 	}
 
 	if err := h.AdminModel.Delete(id); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error":   "Failed to delete admin",
+		BadRequest(w, r, Translate(r, "errors.admin.admins.failed_to_delete_admin"), map[string]interface{}{
 			"details": err.Error(),
 		})
 		return
@@ -258,7 +254,7 @@ func (h *AdminsHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Admin deleted successfully",
+		"message": Translate(r, "success.admin.admins.admin_deleted_successfully"),
 	})
 }
 
@@ -267,7 +263,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_admin_id"))
 		return
 	}
 
@@ -277,7 +273,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
@@ -286,7 +282,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// empty value BEFORE the handler body ran, making the "if request.CurrentPassword != ""
 	// branch below dead code as originally written - preserved verbatim here.
 	if request.CurrentPassword == "" || len(request.NewPassword) < 8 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
@@ -294,7 +290,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Get current admin from session
 	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 	currentAdminID := int64(adminIDInterface.(int))
@@ -304,13 +300,13 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		var currentHash string
 		err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT password FROM admins WHERE id = ?", currentAdminID).Scan(&currentHash)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify password"})
+			InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_verify_password"))
 			return
 		}
 
 		valid, _ := model.VerifyPassword(request.CurrentPassword, currentHash)
 		if !valid {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
+			Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
 			return
 		}
 	}
@@ -318,13 +314,12 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Hash new password with Argon2id
 	passwordHash, err := util.HashPassword(request.NewPassword)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to hash password"})
+		InternalError(w, r, Translate(r, "errors.admin.admins.failed_to_hash_password"))
 		return
 	}
 
 	if err := h.AdminModel.UpdatePassword(id, passwordHash); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Failed to update password",
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.admins.failed_to_update_password"), map[string]interface{}{
 			"details": err.Error(),
 		})
 		return
@@ -332,7 +327,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Password updated successfully",
+		"message": Translate(r, "success.admin.admins.password_updated_successfully"),
 	})
 }
 
@@ -343,7 +338,7 @@ func (h *AdminsHandler) ShowAdminsPage(w http.ResponseWriter, r *http.Request) {
 	pendingInvites, _ := h.InviteService.GetPendingInvites()
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_admins.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":           "Admin Management",
+		"title":           Translate(r, "admin.admins.admin_management"),
 		"page":            "admins",
 		"admins":          admins,
 		"admin_count":     count,
@@ -356,8 +351,8 @@ func (h *AdminsHandler) ShowInviteAcceptPage(w http.ResponseWriter, r *http.Requ
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
-			"title":   "Invalid Invite",
-			"message": "No invite token provided",
+			"title":   Translate(r, "errors.admin.admins.invalid_invite"),
+			"message": Translate(r, "errors.admin.admins.no_invite_token_provided"),
 		}))
 		return
 	}
@@ -366,14 +361,14 @@ func (h *AdminsHandler) ShowInviteAcceptPage(w http.ResponseWriter, r *http.Requ
 	invite, err := h.InviteService.VerifyInvite(token)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
-			"title":   "Invalid Invite",
+			"title":   Translate(r, "errors.admin.admins.invalid_invite"),
 			"message": err.Error(),
 		}))
 		return
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin-invite-accept.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":   "Accept Admin Invitation",
+		"title":   Translate(r, "admin.admins.accept_admin_invitation"),
 		"token":   token,
 		"email":   invite.InvitedEmail,
 		"expires": invite.ExpiresAt,

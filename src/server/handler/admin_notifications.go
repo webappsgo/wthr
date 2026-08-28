@@ -16,7 +16,7 @@ type AdminNotificationsHandler struct {
 // ShowNotificationSettings displays notification settings page
 func (h *AdminNotificationsHandler) ShowNotificationSettings(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_notifications.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title": "Notification Settings",
+		"title": Translate(r, "admin.notifications.notification_settings"),
 	}))
 }
 
@@ -41,7 +41,7 @@ func (h *AdminNotificationsHandler) UpdateNotificationSettings(w http.ResponseWr
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *AdminNotificationsHandler) UpdateNotificationSettings(w http.ResponseWr
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 

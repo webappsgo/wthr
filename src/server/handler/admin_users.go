@@ -16,7 +16,7 @@ type AdminUsersHandler struct {
 // ShowUserSettings displays user management settings page
 func (h *AdminUsersHandler) ShowUserSettings(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title": "User Management Settings",
+		"title": Translate(r, "admin.users.user_management_settings"),
 	}))
 }
 
@@ -29,7 +29,7 @@ func (h *AdminUsersHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -44,7 +44,7 @@ func (h *AdminUsersHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Re
 		req.RegistrationMode = "invite"
 	case "open", "invite", "admin_only", "disabled":
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid registration mode"})
+		BadRequest(w, r, Translate(r, "errors.admin.users.invalid_registration_mode"))
 		return
 	}
 
@@ -56,7 +56,7 @@ func (h *AdminUsersHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 

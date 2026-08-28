@@ -35,14 +35,14 @@ type LocationHandler struct {
 func (h *LocationHandler) ListLocations(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	locations, err := locationModel.GetByUserID(int(user.ID))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch locations"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_fetch_locations"))
 		return
 	}
 
@@ -66,26 +66,26 @@ func (h *LocationHandler) ListLocations(w http.ResponseWriter, r *http.Request) 
 func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
+		BadRequest(w, r, Translate(r, "errors.locations.invalid_location_id"))
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
+		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
 		return
 	}
 
 	// Verify ownership
 	if int64(location.UserID) != user.ID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
@@ -108,7 +108,7 @@ func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -130,11 +130,11 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 
 	// Validate coordinates
 	if req.Latitude < -90 || req.Latitude > 90 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Latitude must be between -90 and 90"})
+		BadRequest(w, r, Translate(r, "errors.locations.latitude_must_be_between_90_and_90"))
 		return
 	}
 	if req.Longitude < -180 || req.Longitude > 180 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Longitude must be between -180 and 180"})
+		BadRequest(w, r, Translate(r, "errors.locations.longitude_must_be_between_180_and_180"))
 		return
 	}
 
@@ -143,17 +143,17 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 	// Check location limit per IDEA.md: Save up to 10 locations per user
 	count, err := locationModel.Count(int(user.ID))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to check location count"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_check_location_count"))
 		return
 	}
 	if count >= 10 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Maximum of 10 saved locations allowed per user"})
+		BadRequest(w, r, Translate(r, "errors.locations.maximum_of_10_saved_locations_allowed_per_user"))
 		return
 	}
 
 	location, err := locationModel.Create(int(user.ID), req.Name, req.Latitude, req.Longitude, req.Timezone)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create location"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_create_location"))
 		return
 	}
 
@@ -179,13 +179,13 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
+		BadRequest(w, r, Translate(r, "errors.locations.invalid_location_id"))
 		return
 	}
 
@@ -204,11 +204,11 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 	}
 
 	if req.Latitude < -90 || req.Latitude > 90 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Latitude must be between -90 and 90"})
+		BadRequest(w, r, Translate(r, "errors.locations.latitude_must_be_between_90_and_90"))
 		return
 	}
 	if req.Longitude < -180 || req.Longitude > 180 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Longitude must be between -180 and 180"})
+		BadRequest(w, r, Translate(r, "errors.locations.longitude_must_be_between_180_and_180"))
 		return
 	}
 
@@ -217,21 +217,23 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
+		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
 	// Update location
 	if err := locationModel.Update(id, req.Name, req.Latitude, req.Longitude, req.Timezone, req.AlertsEnabled); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update location"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_update_location"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Location updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.locations.location_updated_successfully"),
+	})
 }
 
 // DeleteLocation deletes a saved location
@@ -252,13 +254,13 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 func (h *LocationHandler) DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
+		BadRequest(w, r, Translate(r, "errors.locations.invalid_location_id"))
 		return
 	}
 
@@ -267,34 +269,36 @@ func (h *LocationHandler) DeleteLocation(w http.ResponseWriter, r *http.Request)
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
+		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
 	// Delete location
 	if err := locationModel.Delete(id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete location"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_delete_location"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Location deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.locations.location_deleted_successfully"),
+	})
 }
 
 // ToggleAlerts toggles weather alerts for a location
 func (h *LocationHandler) ToggleAlerts(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid location ID"})
+		BadRequest(w, r, Translate(r, "errors.locations.invalid_location_id"))
 		return
 	}
 
@@ -303,7 +307,7 @@ func (h *LocationHandler) ToggleAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -312,21 +316,21 @@ func (h *LocationHandler) ToggleAlerts(w http.ResponseWriter, r *http.Request) {
 	// Verify ownership
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Location not found"})
+		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
 		return
 	}
 	if int64(location.UserID) != user.ID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
 	// Toggle alerts
 	if err := locationModel.ToggleAlerts(id, req.Enabled); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to toggle alerts"})
+		InternalError(w, r, Translate(r, "errors.locations.failed_to_toggle_alerts"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Alerts updated successfully", "enabled": req.Enabled})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.locations.alerts_updated_successfully"), "enabled": req.Enabled})
 }
 
 // ShowAddLocationPage renders the add location page
@@ -338,7 +342,7 @@ func (h *LocationHandler) ShowAddLocationPage(w http.ResponseWriter, r *http.Req
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/add_location.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title": "Add Location - Weather",
+		"title": Translate(r, "locations.add_location_page_title"),
 		"user":  user,
 		"page":  "locations",
 	}))
@@ -354,24 +358,24 @@ func (h *LocationHandler) ShowEditLocationPage(w http.ResponseWriter, r *http.Re
 
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Invalid location ID"}))
+		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": Translate(r, "errors.locations.invalid_location_id")}))
 		return
 	}
 
 	locationModel := &model.LocationModel{DB: h.DB}
 	location, err := locationModel.GetByID(id)
 	if err != nil {
-		middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Location not found"}))
+		middleware.RenderHTML(w, r, http.StatusNotFound, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": Translate(r, "errors.locations.location_not_found")}))
 		return
 	}
 
 	if int64(location.UserID) != user.ID {
-		middleware.RenderHTML(w, r, http.StatusForbidden, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": "Access denied"}))
+		middleware.RenderHTML(w, r, http.StatusForbidden, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{"error": Translate(r, "errors.locations.access_denied")}))
 		return
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/edit_location.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":    "Edit Location - Weather",
+		"title":    Translate(r, "locations.edit_location_page_title"),
 		"user":     user,
 		"location": location,
 		"page":     "locations",
@@ -382,7 +386,7 @@ func (h *LocationHandler) ShowEditLocationPage(w http.ResponseWriter, r *http.Re
 func (h *LocationHandler) SearchLocations(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len(query) < 2 {
-		InvalidInput(w, r, "Query must be at least 2 characters")
+		InvalidInput(w, r, Translate(r, "errors.locations.query_must_be_at_least_2_characters"))
 		return
 	}
 
@@ -396,14 +400,14 @@ func (h *LocationHandler) SearchLocations(w http.ResponseWriter, r *http.Request
 func (h *LocationHandler) LookupZipCode(w http.ResponseWriter, r *http.Request) {
 	zipCode := strings.TrimSpace(chi.URLParam(r, "code"))
 	if zipCode == "" {
-		InvalidInput(w, r, "ZIP code is required")
+		InvalidInput(w, r, Translate(r, "errors.locations.zip_code_is_required"))
 		return
 	}
 
 	// Use weather service to geocode the ZIP code
 	coords, err := h.WeatherService.ParseAndResolveLocation(zipCode, "")
 	if err != nil {
-		NotFound(w, r, "ZIP code not found")
+		NotFound(w, r, Translate(r, "errors.locations.zip_code_not_found"))
 		return
 	}
 
@@ -430,30 +434,30 @@ func (h *LocationHandler) LookupCoordinates(w http.ResponseWriter, r *http.Reque
 
 	lat, err := strconv.ParseFloat(latStr, 64)
 	if err != nil {
-		InvalidInput(w, r, "Invalid latitude")
+		InvalidInput(w, r, Translate(r, "errors.locations.invalid_latitude"))
 		return
 	}
 
 	lon, err := strconv.ParseFloat(lonStr, 64)
 	if err != nil {
-		InvalidInput(w, r, "Invalid longitude")
+		InvalidInput(w, r, Translate(r, "errors.locations.invalid_longitude"))
 		return
 	}
 
 	// Validate coordinate ranges
 	if lat < -90 || lat > 90 {
-		InvalidInput(w, r, "Latitude must be between -90 and 90")
+		InvalidInput(w, r, Translate(r, "errors.locations.latitude_must_be_between_90_and_90"))
 		return
 	}
 	if lon < -180 || lon > 180 {
-		InvalidInput(w, r, "Longitude must be between -180 and 180")
+		InvalidInput(w, r, Translate(r, "errors.locations.longitude_must_be_between_180_and_180"))
 		return
 	}
 
 	// Use weather service to reverse geocode
 	coords, err := h.WeatherService.ReverseGeocode(lat, lon)
 	if err != nil {
-		NotFound(w, r, "Location not found")
+		NotFound(w, r, Translate(r, "errors.locations.location_not_found"))
 		return
 	}
 

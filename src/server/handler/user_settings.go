@@ -45,7 +45,7 @@ func (h *UserSettingsHandler) ShowAccountSettings(w http.ResponseWriter, r *http
 	}
 
 	NegotiateResponse(w, r, "page/user/settings.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":       "Account Settings",
+		"title":       Translate(r, "user.settings.account_settings"),
 		"page":        "settings",
 		"settingsTab": "account",
 		"user":        user,
@@ -65,7 +65,7 @@ func (h *UserSettingsHandler) ShowPrivacySettings(w http.ResponseWriter, r *http
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
 	NegotiateResponse(w, r, "page/user/settings_privacy.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":       "Privacy Settings",
+		"title":       Translate(r, "user.settings.privacy_settings"),
 		"page":        "settings",
 		"settingsTab": "privacy",
 		"user":        user,
@@ -86,7 +86,7 @@ func (h *UserSettingsHandler) ShowNotificationSettings(w http.ResponseWriter, r 
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
 	NegotiateResponse(w, r, "page/user/settings_notifications.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":       "Notification Settings",
+		"title":       Translate(r, "user.settings.notification_settings"),
 		"page":        "settings",
 		"settingsTab": "notifications",
 		"user":        user,
@@ -107,7 +107,7 @@ func (h *UserSettingsHandler) ShowAppearanceSettings(w http.ResponseWriter, r *h
 	prefs, _ := h.getOrCreatePreferences(user.ID)
 
 	NegotiateResponse(w, r, "page/user/settings_appearance.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":       "Appearance Settings",
+		"title":       Translate(r, "user.settings.appearance_settings"),
 		"page":        "settings",
 		"settingsTab": "appearance",
 		"user":        user,
@@ -128,7 +128,7 @@ func (h *UserSettingsHandler) ShowTokensSettings(w http.ResponseWriter, r *http.
 	tokens, _ := h.getUserTokens(user.ID)
 
 	NegotiateResponse(w, r, "page/user/settings_tokens.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":       "API Tokens",
+		"title":       Translate(r, "user.settings.api_tokens"),
 		"page":        "settings",
 		"settingsTab": "tokens",
 		"user":        user,
@@ -197,13 +197,13 @@ type AppearanceSettings struct {
 func (h *UserSettingsHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	response, err := h.loadSettings(user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get preferences"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_get_preferences"))
 		return
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -233,22 +233,22 @@ type UpdateSettingsRequest struct {
 func (h *UserSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	var req UpdateSettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if err := h.applySettingsUpdate(user.ID, &req); err != nil {
 		switch err.Error() {
 		case "bio must be 500 characters or fewer", "theme must be one of: dark, light, auto":
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update settings"})
+			InternalError(w, r, Translate(r, "errors.user.settings.failed_to_update_settings"))
 		}
 		return
 	}
@@ -261,7 +261,9 @@ func (h *UserSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Requ
 		server.SetThemeCookie(w, r, req.Appearance.Theme)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Settings updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.settings.settings_updated_successfully"),
+	})
 }
 
 // LoadUserSettings loads the live user settings payload used by /api/v1/users/settings.
@@ -614,7 +616,7 @@ type CreateTokenRequest struct {
 func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -627,14 +629,14 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 	var count int
 	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_tokens WHERE user_id = ?", user.ID).Scan(&count)
 	if count >= 5 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Maximum 5 tokens per user"})
+		BadRequest(w, r, Translate(r, "errors.user.settings.maximum_5_tokens_per_user"))
 		return
 	}
 
 	// Generate token with usr_ prefix per AI.md PART 11
 	token, err := models.GenerateTokenWithPrefix(models.PrefixUser)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to generate token"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_generate_token"))
 		return
 	}
 	tokenHash := models.HashToken(token)
@@ -657,14 +659,14 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 	`, user.ID, tokenHash, tokenPrefix, req.Name, req.Scopes, dbtime.FormatSQLTimestamp(time.Now()), expiresAt)
 
 	if dbErr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create token"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_create_token"))
 		return
 	}
 
 	// Return the full token (only shown once)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"token":   token,
-		"message": "Token created. This token will only be shown once.",
+		"message": Translate(r, "success.user.settings.token_created_this_token_will_only_be_shown_once"),
 	})
 }
 
@@ -683,7 +685,7 @@ func (h *UserSettingsHandler) CreateToken(w http.ResponseWriter, r *http.Request
 func (h *UserSettingsHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -694,17 +696,19 @@ func (h *UserSettingsHandler) RevokeToken(w http.ResponseWriter, r *http.Request
 	`, tokenID, user.ID)
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke token"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_revoke_token"))
 		return
 	}
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Token not found"})
+		NotFound(w, r, Translate(r, "errors.user.settings.token_not_found"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.settings.token_revoked"),
+	})
 }
 
 // ListTokens returns all tokens for the current user
@@ -720,13 +724,13 @@ func (h *UserSettingsHandler) RevokeToken(w http.ResponseWriter, r *http.Request
 func (h *UserSettingsHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	tokens, err := h.getUserTokens(user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get tokens"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_get_tokens"))
 		return
 	}
 
@@ -738,14 +742,14 @@ func (h *UserSettingsHandler) ListTokens(w http.ResponseWriter, r *http.Request)
 func (h *UserSettingsHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	sessions, err := sessionModel.GetActiveSessions(user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to list sessions"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_list_sessions"))
 		return
 	}
 
@@ -796,18 +800,18 @@ func (h *UserSettingsHandler) ListSessions(w http.ResponseWriter, r *http.Reques
 func (h *UserSettingsHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	rowIDStr := chi.URLParam(r, "id")
 	if rowIDStr == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Session ID required"})
+		BadRequest(w, r, Translate(r, "errors.user.settings.session_id_required"))
 		return
 	}
 	rowID, err := strconv.ParseInt(rowIDStr, 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid session ID"})
+		BadRequest(w, r, Translate(r, "errors.user.settings.invalid_session_id"))
 		return
 	}
 
@@ -826,25 +830,27 @@ func (h *UserSettingsHandler) RevokeSession(w http.ResponseWriter, r *http.Reque
 		rowID,
 	).Scan(&ownerID, &expiresAtRaw)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Session not found"})
+		NotFound(w, r, Translate(r, "errors.user.settings.session_not_found"))
 		return
 	}
 	if !dbtime.IsAfter(expiresAtRaw, time.Now()) {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Session not found"})
+		NotFound(w, r, Translate(r, "errors.user.settings.session_not_found"))
 		return
 	}
 	if ownerID != user.ID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Session does not belong to you"})
+		Forbidden(w, r, Translate(r, "errors.user.settings.session_does_not_belong_to_you"))
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	if err := sessionModel.DeleteSessionByRowID(rowID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke session"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_revoke_session"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Session revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.settings.session_revoked"),
+	})
 }
 
 // RevokeAllSessions deletes all sessions for the authenticated user (logout everywhere).
@@ -852,15 +858,17 @@ func (h *UserSettingsHandler) RevokeSession(w http.ResponseWriter, r *http.Reque
 func (h *UserSettingsHandler) RevokeAllSessions(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: h.DB}
 	if err := sessionModel.DeleteAllSessionsForUser(user.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke sessions"})
+		InternalError(w, r, Translate(r, "errors.user.settings.failed_to_revoke_sessions"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "All sessions revoked"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.settings.all_sessions_revoked"),
+	})
 }

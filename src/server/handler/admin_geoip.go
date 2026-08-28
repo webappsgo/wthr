@@ -16,7 +16,7 @@ type AdminGeoIPHandler struct {
 // ShowGeoIPSettings displays GeoIP settings page
 func (h *AdminGeoIPHandler) ShowGeoIPSettings(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_geoip.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title": "GeoIP Settings",
+		"title": Translate(r, "admin.geoip.geoip_settings"),
 	}))
 }
 
@@ -33,7 +33,7 @@ func (h *AdminGeoIPHandler) UpdateGeoIPSettings(w http.ResponseWriter, r *http.R
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *AdminGeoIPHandler) UpdateGeoIPSettings(w http.ResponseWriter, r *http.R
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 

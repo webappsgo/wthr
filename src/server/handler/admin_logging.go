@@ -49,13 +49,13 @@ func (h *LoggingHandler) UpdateFormats(w http.ResponseWriter, r *http.Request) {
 	var formats LogFormats
 
 	if err := json.NewDecoder(r.Body).Decode(&formats); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// In a real implementation, this would update the logger configuration
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Logging formats updated successfully",
+		"message": Translate(r, "success.admin.logging.logging_formats_updated_successfully"),
 		"formats": formats,
 	})
 }
@@ -127,7 +127,7 @@ func (h *LoggingHandler) ExportLogs(w http.ResponseWriter, r *http.Request) {
 	case "json":
 		h.exportJSON(w, r)
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid format"})
+		BadRequest(w, r, Translate(r, "errors.admin.logging.invalid_format"))
 	}
 }
 
@@ -194,7 +194,7 @@ func (h *LoggingHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
 			"timestamp": time.Now().Format(time.RFC3339),
 			"level":     "ERROR",
 			"source":    "auth",
-			"message":   "Failed login attempt",
+			"message":   Translate(r, "admin.logging.sample.failed_login_attempt"),
 			"metadata": map[string]string{
 				"ip":       "192.168.1.100",
 				"username": "admin",
@@ -205,7 +205,7 @@ func (h *LoggingHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
 			"timestamp": time.Now().Format(time.RFC3339),
 			"level":     "INFO",
 			"source":    "api",
-			"message":   "API request processed",
+			"message":   Translate(r, "admin.logging.sample.api_request_processed"),
 			"metadata": map[string]string{
 				"method":   "GET",
 				"path":     "/api/v1/weather",
@@ -228,13 +228,13 @@ func (h *LoggingHandler) ConfigureFail2ban(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// In a real implementation, this would configure Fail2ban
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Fail2ban configuration saved",
+		"message": Translate(r, "success.admin.logging.fail2ban_configuration_saved"),
 		"config":  config,
 	})
 }
@@ -250,13 +250,13 @@ func (h *LoggingHandler) ConfigureSyslog(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// In a real implementation, this would configure Syslog
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Syslog configuration saved",
+		"message": Translate(r, "success.admin.logging.syslog_configuration_saved"),
 		"config":  config,
 	})
 }
@@ -275,7 +275,7 @@ func (h *LoggingHandler) TestFormat(w http.ResponseWriter, r *http.Request) {
 
 	sample, ok := samples[format]
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid format"})
+		BadRequest(w, r, Translate(r, "errors.admin.logging.invalid_format"))
 		return
 	}
 

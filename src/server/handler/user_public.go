@@ -133,11 +133,11 @@ func (h *UserPublicHandler) GetPublicProfile(w http.ResponseWriter, r *http.Requ
 
 	profile, err := h.loadPublicProfile(username, viewerUserID)
 	if err == sql.ErrNoRows {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "User not found"})
+		NotFound(w, r, Translate(r, "errors.user.public.user_not_found"))
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Database error"})
+		InternalError(w, r, Translate(r, "errors.user.public.database_error"))
 		return
 	}
 
@@ -358,13 +358,13 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 func (h *UserPublicHandler) GetCurrentUserAvatar(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	response, err := h.loadCurrentUserAvatar(user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get avatar info"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_get_avatar_info"))
 		return
 	}
 
@@ -392,7 +392,7 @@ type UpdateAvatarRequest struct {
 func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -404,10 +404,10 @@ func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.
 	response, err := UpdateCurrentUserAvatar(h.DB, user.ID, &req)
 	if err != nil {
 		if err.Error() == "avatar type must be one of: gravatar, url" || err.Error() == "URL is required for url avatar type" || err.Error() == "avatar URL must use HTTPS" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update avatar"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_update_avatar"))
 		return
 	}
 
@@ -427,16 +427,18 @@ func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.
 func (h *UserPublicHandler) ResetAvatar(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	if err := h.resetCurrentUserAvatar(user.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to reset avatar"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_reset_avatar"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Avatar reset to Gravatar"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.public.avatar_reset_to_gravatar"),
+	})
 }
 
 // UploadAvatar handles avatar file upload
@@ -456,13 +458,13 @@ func (h *UserPublicHandler) ResetAvatar(w http.ResponseWriter, r *http.Request) 
 func (h *UserPublicHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	uploadedFile, header, err := r.FormFile("file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "No file uploaded"})
+		BadRequest(w, r, Translate(r, "errors.user.public.no_file_uploaded"))
 		return
 	}
 	_ = uploadedFile.Close()
@@ -475,10 +477,10 @@ func (h *UserPublicHandler) UploadAvatar(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		switch err.Error() {
 		case "No file uploaded", "File too large (max 2MB)", "Invalid image type":
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 			return
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save avatar"})
+			InternalError(w, r, Translate(r, "errors.user.public.failed_to_save_avatar"))
 			return
 		}
 	}
@@ -578,7 +580,7 @@ func (h *UserPublicHandler) changeCurrentUserPassword(userID int64, req *ChangeP
 func (h *UserPublicHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -589,14 +591,16 @@ func (h *UserPublicHandler) ChangePassword(w http.ResponseWriter, r *http.Reques
 
 	if err := h.changeCurrentUserPassword(user.ID, &req); err != nil {
 		if err.Error() == "current password is incorrect" {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
+			Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password changed successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.public.password_changed_successfully"),
+	})
 }
 
 // ChangeEmail allows an authenticated user to change their email address.
@@ -604,7 +608,7 @@ func (h *UserPublicHandler) ChangePassword(w http.ResponseWriter, r *http.Reques
 func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -619,12 +623,12 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	// Verify current password before allowing email change
 	var passwordHash string
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify credentials"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
 		return
 	}
 	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
 		return
 	}
 
@@ -632,7 +636,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	var existing int64
 	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
 	if existing != 0 {
-		writeJSON(w, http.StatusConflict, map[string]interface{}{"error": "Email address is already in use"})
+		Conflict(w, r, Translate(r, "errors.user.public.email_address_is_already_in_use"))
 		return
 	}
 
@@ -644,11 +648,13 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
 		req.NewEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
 	); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update email"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_update_email"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Email address updated. Please verify your new email address."})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.public.email_address_updated_please_verify_your_new"),
+	})
 }
 
 // DeleteAccount permanently deletes the authenticated user's account.
@@ -656,7 +662,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -669,28 +675,30 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 	}
 
 	if req.Confirm != "DELETE" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": `Confirmation must be the exact string "DELETE"`})
+		BadRequest(w, r, Translate(r, "errors.user.public.confirmation_must_be_delete"))
 		return
 	}
 
 	// Verify password before allowing deletion
 	var passwordHash string
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify credentials"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
 		return
 	}
 	valid, err := util.VerifyPassword(req.CurrentPassword, passwordHash)
 	if err != nil || !valid {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.current_password_is_incorrect"))
 		return
 	}
 
 	// Delete the account (cascades to sessions, preferences, locations, etc.)
 	userModel := &models.UserModel{DB: h.DB}
 	if err := userModel.Delete(user.ID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete account"})
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_delete_account"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Account deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.user.public.account_deleted_successfully"),
+	})
 }

@@ -47,17 +47,17 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	ldapCfg := h.LDAPService.Config()
 	if !ldapCfg.Enabled {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"error": "LDAP authentication is not enabled"})
+		RespondError(w, r, http.StatusServiceUnavailable, ErrServiceUnavail, Translate(r, "errors.auth.ldap.ldap_authentication_is_not_enabled"))
 		return
 	}
 
 	email, displayName, err := h.LDAPService.Authenticate(req.Username, req.Password)
 	if err != nil {
 		if err.Error() == "invalid credentials" {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid credentials"})
+			Unauthorized(w, r, Translate(r, "errors.auth.ldap.invalid_credentials"))
 			return
 		}
-		writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"error": "LDAP service unavailable"})
+		RespondError(w, r, http.StatusServiceUnavailable, ErrServiceUnavail, Translate(r, "errors.auth.ldap.ldap_service_unavailable"))
 		return
 	}
 
@@ -78,12 +78,12 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 		randToken, tokenErr := models.GenerateSecureToken(32)
 		if tokenErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
+			InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_account"))
 			return
 		}
 		pwHash, hashErr := models.HashPassword(randToken)
 		if hashErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
+			InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_account"))
 			return
 		}
 		// created_at/updated_at are bound as canonical UTC text rather than
@@ -95,19 +95,19 @@ func (h *LDAPAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			VALUES (?, ?, ?, ?, 'user', 1, 1, ?, ?)
 		`, req.Username, email, displayName, pwHash, now, now)
 		if insertErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create account"})
+			InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_account"))
 			return
 		}
 		userID, _ = result.LastInsertId()
 	} else if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "database error"})
+		InternalError(w, r, Translate(r, "errors.auth.ldap.database_error"))
 		return
 	}
 
 	sessionModel := &models.UserSessionModel{DB: usersDB}
 	session, sessionErr := sessionModel.CreateSession(userID, util.TrustedGetClientIP(r), r.UserAgent(), 24*time.Hour)
 	if sessionErr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to create session"})
+		InternalError(w, r, Translate(r, "errors.auth.ldap.failed_to_create_session"))
 		return
 	}
 

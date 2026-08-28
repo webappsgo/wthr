@@ -55,7 +55,7 @@ func (h *LogsHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 	// Read log file
 	logs, err := h.readLogs(tailLines)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_read_logs"))
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *LogsHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 func (h *LogsHandler) DownloadLogs(w http.ResponseWriter, r *http.Request) {
 	// Check if log file exists
 	if _, err := os.Stat(h.logFile); os.IsNotExist(err) {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Log file not found"})
+		NotFound(w, r, Translate(r, "errors.admin.logs.log_file_not_found"))
 		return
 	}
 
@@ -83,11 +83,13 @@ func (h *LogsHandler) DownloadLogs(w http.ResponseWriter, r *http.Request) {
 func (h *LogsHandler) ClearLogs(w http.ResponseWriter, r *http.Request) {
 	// Truncate log file
 	if err := os.Truncate(h.logFile, 0); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to clear logs"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_clear_logs"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Logs cleared successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.admin.logs.logs_cleared_successfully"),
+	})
 }
 
 // GetLogStats returns statistics about the logs
@@ -95,7 +97,7 @@ func (h *LogsHandler) GetLogStats(w http.ResponseWriter, r *http.Request) {
 	// Read all logs
 	logs, err := h.readLogs(-1)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_read_logs"))
 		return
 	}
 
@@ -139,14 +141,14 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Streaming unsupported"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.streaming_unsupported"))
 		return
 	}
 
 	// Get current file size
 	fileInfo, err := os.Stat(h.logFile)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to stat log file"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_stat_log_file"))
 		return
 	}
 
@@ -274,18 +276,18 @@ func (h *LogsHandler) RotateLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Copy current log to archive
 	if err := copyFile(h.logFile, archivePath); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to archive logs"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_archive_logs"))
 		return
 	}
 
 	// Truncate current log file
 	if err := os.Truncate(h.logFile, 0); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to truncate log file"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_truncate_log_file"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Logs rotated successfully",
+		"message": Translate(r, "success.admin.logs.logs_rotated_successfully"),
 		"archive": archivePath,
 	})
 }
@@ -294,7 +296,7 @@ func (h *LogsHandler) RotateLogs(w http.ResponseWriter, r *http.Request) {
 func (h *LogsHandler) ListArchivedLogs(w http.ResponseWriter, r *http.Request) {
 	files, err := os.ReadDir(h.logsDir)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read logs directory"})
+		InternalError(w, r, Translate(r, "errors.admin.logs.failed_to_read_logs_directory"))
 		return
 	}
 
@@ -362,12 +364,7 @@ func (h *LogsHandler) GetAuditLogs(w http.ResponseWriter, r *http.Request) {
 	// Read audit log
 	events, total, err := h.readAuditLogs(auditFile, limit, offset, eventType, username, startDate, endDate)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "READ_FAILED",
-				"message": "Failed to read audit logs",
-			},
-		})
+		RespondError(w, r, http.StatusInternalServerError, "READ_FAILED", Translate(r, "errors.admin.logs.failed_to_read_audit_logs"))
 		return
 	}
 
@@ -388,12 +385,7 @@ func (h *LogsHandler) DownloadAuditLogs(w http.ResponseWriter, r *http.Request) 
 
 	// Check if file exists
 	if _, err := os.Stat(auditFile); os.IsNotExist(err) {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "NOT_FOUND",
-				"message": "Audit log file not found",
-			},
-		})
+		RespondError(w, r, http.StatusNotFound, "NOT_FOUND", Translate(r, "errors.admin.logs.audit_log_file_not_found"))
 		return
 	}
 
@@ -417,12 +409,7 @@ func (h *LogsHandler) SearchAuditLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": "Invalid search parameters",
-			},
-		})
+		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.admin.logs.invalid_search_parameters"))
 		return
 	}
 
@@ -434,12 +421,7 @@ func (h *LogsHandler) SearchAuditLogs(w http.ResponseWriter, r *http.Request) {
 	auditFile := filepath.Join(h.logsDir, "audit.log")
 	events, total, err := h.searchAuditLogs(auditFile, req)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "SEARCH_FAILED",
-				"message": "Failed to search audit logs",
-			},
-		})
+		RespondError(w, r, http.StatusInternalServerError, "SEARCH_FAILED", Translate(r, "errors.admin.logs.failed_to_search_audit_logs"))
 		return
 	}
 
@@ -461,12 +443,7 @@ func (h *LogsHandler) GetAuditStats(w http.ResponseWriter, r *http.Request) {
 	// Read all audit logs
 	events, _, err := h.readAuditLogs(auditFile, -1, 0, "", "", "", "")
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "READ_FAILED",
-				"message": "Failed to read audit logs",
-			},
-		})
+		RespondError(w, r, http.StatusInternalServerError, "READ_FAILED", Translate(r, "errors.admin.logs.failed_to_read_audit_logs"))
 		return
 	}
 

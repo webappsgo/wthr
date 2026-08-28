@@ -130,7 +130,7 @@ func (h *AdminHandler) ShowSchedulerConfig(w http.ResponseWriter, r *http.Reques
 	themeServerCtx, _ := middleware.GetServerContext(r.Context())
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_scheduler.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":  "Scheduler Configuration",
+		"title":  Translate(r, "admin.scheduler.scheduler_configuration"),
 		"user":   user,
 		"config": config,
 		"server": themeServerCtx,
@@ -141,7 +141,7 @@ func (h *AdminHandler) ShowSchedulerConfig(w http.ResponseWriter, r *http.Reques
 func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Request) {
 	var config map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body: " + err.Error()})
+		BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_request_body")+": "+err.Error())
 		return
 	}
 
@@ -150,22 +150,22 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 	// Validate and save global settings
 	if timezone, ok := config["timezone"].(string); ok {
 		if !isValidTimezone(timezone) {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid timezone"})
+			BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_timezone"))
 			return
 		}
 		if err := settingsModel.SetString("scheduler.timezone", timezone); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save timezone"})
+			InternalError(w, r, Translate(r, "errors.admin.scheduler.failed_to_save_timezone"))
 			return
 		}
 	}
 
 	if catchUpWindow, ok := config["catch_up_window"].(string); ok {
 		if !isValidDuration(catchUpWindow) {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid catch-up window format. Use format like: 1h, 30m, 2h30m"})
+			BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_catch_up_window_format_use_format_like"))
 			return
 		}
 		if err := settingsModel.SetString("scheduler.catch_up_window", catchUpWindow); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save catch-up window"})
+			InternalError(w, r, Translate(r, "errors.admin.scheduler.failed_to_save_catch_up_window"))
 			return
 		}
 	}
@@ -196,15 +196,11 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 		// Validate and save schedule
 		if schedule, ok := task.config["schedule"].(string); ok {
 			if !isValidCronOrSpecial(schedule) {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-					"error": fmt.Sprintf("Invalid schedule for %s: %s", task.name, schedule),
-				})
+				BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_schedule_for")+fmt.Sprintf(": %s: %s", task.name, schedule))
 				return
 			}
 			if err := settingsModel.SetString(prefix+".schedule", schedule); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-					"error": fmt.Sprintf("Failed to save schedule for %s", task.name),
-				})
+				InternalError(w, r, Translate(r, "errors.admin.scheduler.failed_to_save_schedule_for")+": "+task.name)
 				return
 			}
 		}
@@ -213,9 +209,7 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 		if task.name != "ssl_renewal" {
 			if enabled, ok := task.config["enabled"].(bool); ok {
 				if err := settingsModel.SetBool(prefix+".enabled", enabled); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-						"error": fmt.Sprintf("Failed to save enabled state for %s", task.name),
-					})
+					InternalError(w, r, Translate(r, "errors.admin.scheduler.failed_to_save_enabled_state_for")+": "+task.name)
 					return
 				}
 			}
@@ -229,9 +223,7 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 			}
 			if retryDelay, ok := task.config["retry_delay"].(string); ok {
 				if !isValidDuration(retryDelay) {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-						"error": fmt.Sprintf("Invalid retry_delay for %s", task.name),
-					})
+					BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_retry_delay_for")+": "+task.name)
 					return
 				}
 				settingsModel.SetString(prefix+".retry_delay", retryDelay)
@@ -240,14 +232,14 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 		case "log_rotation":
 			if maxAge, ok := task.config["max_age"].(string); ok {
 				if !isValidDuration(maxAge) {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid max_age format"})
+					BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_max_age_format"))
 					return
 				}
 				settingsModel.SetString(prefix+".max_age", maxAge)
 			}
 			if maxSize, ok := task.config["max_size"].(string); ok {
 				if !isValidSize(maxSize) {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid max_size format"})
+					BadRequest(w, r, Translate(r, "errors.admin.scheduler.invalid_max_size_format"))
 					return
 				}
 				settingsModel.SetString(prefix+".max_size", maxSize)
@@ -264,7 +256,7 @@ func (h *AdminHandler) SaveSchedulerConfig(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Scheduler configuration saved successfully",
+		"message": Translate(r, "success.admin.scheduler.scheduler_configuration_saved_successfully"),
 	})
 }
 
@@ -439,7 +431,7 @@ func (h *AdminHandler) GetSchedulerConfigJSON(w http.ResponseWriter, r *http.Req
 	// Convert to JSON for pretty output
 	jsonData, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to serialize configuration"})
+		InternalError(w, r, Translate(r, "errors.admin.scheduler.failed_to_serialize_configuration"))
 		return
 	}
 

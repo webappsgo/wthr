@@ -30,7 +30,7 @@ func (h *UserNotificationHandlers) GetNotifications(w http.ResponseWriter, r *ht
 	// Get authenticated user ID from context
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *UserNotificationHandlers) GetNotifications(w http.ResponseWriter, r *ht
 	// Get notifications
 	notifications, err := h.NotificationService.GetUserNotifications(userID.(int), limit, offset)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to retrieve notifications"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_retrieve_notifications"))
 		return
 	}
 
@@ -71,13 +71,13 @@ func (h *UserNotificationHandlers) GetNotifications(w http.ResponseWriter, r *ht
 func (h *UserNotificationHandlers) GetUnreadNotifications(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	notifications, err := h.NotificationService.GetUserUnreadNotifications(userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to retrieve unread notifications"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_retrieve_unread_notifications"))
 		return
 	}
 
@@ -92,13 +92,13 @@ func (h *UserNotificationHandlers) GetUnreadNotifications(w http.ResponseWriter,
 func (h *UserNotificationHandlers) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	count, err := h.NotificationService.GetUserUnreadCount(userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to get unread count"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_get_unread_count"))
 		return
 	}
 
@@ -112,13 +112,13 @@ func (h *UserNotificationHandlers) GetUnreadCount(w http.ResponseWriter, r *http
 func (h *UserNotificationHandlers) GetStatistics(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	stats, err := h.NotificationService.GetUserStatistics(userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to get statistics"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_get_statistics"))
 		return
 	}
 
@@ -130,24 +130,24 @@ func (h *UserNotificationHandlers) GetStatistics(w http.ResponseWriter, r *http.
 func (h *UserNotificationHandlers) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "notification ID required"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.notification_id_required"))
 		return
 	}
 
 	err := h.NotificationService.MarkUserNotificationAsRead(notificationID, userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "notification not found or access denied"})
+		NotFound(w, r, Translate(r, "errors.user.notifications.notification_not_found_or_access_denied"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "notification marked as read",
+		"message": Translate(r, "success.user.notifications.notification_marked_as_read"),
 		"id":      notificationID,
 	})
 }
@@ -157,18 +157,18 @@ func (h *UserNotificationHandlers) MarkAsRead(w http.ResponseWriter, r *http.Req
 func (h *UserNotificationHandlers) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	err := h.NotificationService.MarkAllUserNotificationsAsRead(userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to mark notifications as read"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_mark_notifications_as_read"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "all notifications marked as read",
+		"message": Translate(r, "success.user.notifications.all_notifications_marked_as_read"),
 	})
 }
 
@@ -177,24 +177,24 @@ func (h *UserNotificationHandlers) MarkAllAsRead(w http.ResponseWriter, r *http.
 func (h *UserNotificationHandlers) Dismiss(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "notification ID required"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.notification_id_required"))
 		return
 	}
 
 	err := h.NotificationService.DismissUserNotification(notificationID, userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "notification not found or access denied"})
+		NotFound(w, r, Translate(r, "errors.user.notifications.notification_not_found_or_access_denied"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "notification dismissed",
+		"message": Translate(r, "success.user.notifications.notification_dismissed"),
 		"id":      notificationID,
 	})
 }
@@ -204,24 +204,24 @@ func (h *UserNotificationHandlers) Dismiss(w http.ResponseWriter, r *http.Reques
 func (h *UserNotificationHandlers) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	notificationID := chi.URLParam(r, "id")
 	if notificationID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "notification ID required"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.notification_id_required"))
 		return
 	}
 
 	err := h.NotificationService.DeleteUserNotification(notificationID, userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "notification not found or access denied"})
+		NotFound(w, r, Translate(r, "errors.user.notifications.notification_not_found_or_access_denied"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "notification deleted",
+		"message": Translate(r, "success.user.notifications.notification_deleted"),
 		"id":      notificationID,
 	})
 }
@@ -231,13 +231,13 @@ func (h *UserNotificationHandlers) Delete(w http.ResponseWriter, r *http.Request
 func (h *UserNotificationHandlers) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	prefs, err := h.NotificationService.GetUserPreferences(userID.(int))
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to get preferences"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_get_preferences"))
 		return
 	}
 
@@ -249,38 +249,38 @@ func (h *UserNotificationHandlers) GetPreferences(w http.ResponseWriter, r *http
 func (h *UserNotificationHandlers) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 	userID, exists := reqctx.Get(r.Context(), "user_id")
 	if !exists {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	var prefs model.NotificationPreferences
 	if err := json.NewDecoder(r.Body).Decode(&prefs); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.invalid_request_body"))
 		return
 	}
 
 	// Validate toast durations (1-60 seconds)
 	if prefs.ToastDurationSuccess < 1 || prefs.ToastDurationSuccess > 60 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "toast_duration_success must be between 1 and 60 seconds"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.toast_duration_success_must_be_between_1_and_60"))
 		return
 	}
 	if prefs.ToastDurationInfo < 1 || prefs.ToastDurationInfo > 60 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "toast_duration_info must be between 1 and 60 seconds"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.toast_duration_info_must_be_between_1_and_60"))
 		return
 	}
 	if prefs.ToastDurationWarning < 1 || prefs.ToastDurationWarning > 60 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "toast_duration_warning must be between 1 and 60 seconds"})
+		BadRequest(w, r, Translate(r, "errors.user.notifications.toast_duration_warning_must_be_between_1_and_60"))
 		return
 	}
 
 	err := h.NotificationService.UpdateUserPreferences(userID.(int), &prefs)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "failed to update preferences"})
+		InternalError(w, r, Translate(r, "errors.user.notifications.failed_to_update_preferences"))
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "preferences updated successfully",
+		"message": Translate(r, "success.user.notifications.preferences_updated_successfully"),
 	})
 }
 

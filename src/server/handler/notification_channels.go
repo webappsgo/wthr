@@ -44,7 +44,7 @@ func (h *NotificationChannelHandler) ListChannels(w http.ResponseWriter, r *http
 		ORDER BY channel_name ASC
 	`)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch channels"})
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_channels"))
 		return
 	}
 	defer rows.Close()
@@ -121,7 +121,7 @@ func (h *NotificationChannelHandler) GetChannel(w http.ResponseWriter, r *http.R
 		&lastTestAt, &lastSuccessAt, &lastError, &failureCount)
 
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Channel not found"})
+		NotFound(w, r, Translate(r, "errors.notifications.channels.channel_not_found"))
 		return
 	}
 
@@ -160,7 +160,7 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
 		return
 	}
 
@@ -179,11 +179,13 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 	`, req.Enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), channelType)
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update channel"})
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_update_channel"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.notifications.channels.channel_updated_successfully"),
+	})
 }
 
 // EnableChannel enables a channel
@@ -192,11 +194,13 @@ func (h *NotificationChannelHandler) EnableChannel(w http.ResponseWriter, r *htt
 
 	err := h.ChannelManager.EnableChannel(channelType)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to enable channel"})
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_enable_channel"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel enabled successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.notifications.channels.channel_enabled_successfully"),
+	})
 }
 
 // DisableChannel disables a channel
@@ -205,11 +209,13 @@ func (h *NotificationChannelHandler) DisableChannel(w http.ResponseWriter, r *ht
 
 	err := h.ChannelManager.DisableChannel(channelType)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to disable channel"})
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_disable_channel"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Channel disabled successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.notifications.channels.channel_disabled_successfully"),
+	})
 }
 
 // TestChannel tests a channel configuration
@@ -228,30 +234,34 @@ func (h *NotificationChannelHandler) TestChannel(w http.ResponseWriter, r *http.
 	if channelType == "email" {
 		// Load config and send test
 		if err := h.SMTP.LoadConfig(); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load SMTP config"})
+			InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_load_smtp_config"))
 			return
 		}
 
 		if err := h.SMTP.SendTestEmail(req.Recipient); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+			InternalError(w, r, err.Error())
 			return
 		}
 
 		// Auto-enable if configured
 		h.SMTP.EnableChannel()
 
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Test email sent successfully"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"message": Translate(r, "success.notifications.channels.test_email_sent_successfully"),
+		})
 		return
 	}
 
 	// Generic channel test
 	err := h.ChannelManager.TestChannel(channelType, req.Recipient)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Test notification sent successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.notifications.channels.test_notification_sent_successfully"),
+	})
 }
 
 // GetChannelStats returns statistics for a channel
@@ -260,7 +270,7 @@ func (h *NotificationChannelHandler) GetChannelStats(w http.ResponseWriter, r *h
 
 	stats, err := h.ChannelManager.GetChannelStats(channelType)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Channel not found"})
+		NotFound(w, r, Translate(r, "errors.notifications.channels.channel_not_found"))
 		return
 	}
 
@@ -295,7 +305,7 @@ func (h *NotificationChannelHandler) ListSMTPProviders(w http.ResponseWriter, r 
 func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *http.Request) {
 	found, err := h.SMTP.AutoDetect()
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": err.Error()})
+		NotFound(w, r, err.Error())
 		return
 	}
 
@@ -304,26 +314,26 @@ func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *ht
 		h.SMTP.LoadConfig()
 		config := h.SMTP.GetConfig()
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"message": "SMTP server detected",
+			"message": Translate(r, "success.notifications.channels.smtp_server_detected"),
 			"host":    config.Host,
 			"port":    config.Port,
 		})
 		return
 	}
 
-	writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "No SMTP server detected"})
+	NotFound(w, r, Translate(r, "errors.notifications.channels.no_smtp_server_detected"))
 }
 
 // InitializeChannels initializes all channels in database
 func (h *NotificationChannelHandler) InitializeChannels(w http.ResponseWriter, r *http.Request) {
 	err := h.ChannelManager.InitializeChannels()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Channels initialized successfully",
+		"message": Translate(r, "success.notifications.channels.channels_initialized_successfully"),
 		"total":   len(service.ChannelRegistry),
 	})
 }
@@ -424,7 +434,7 @@ func (h *NotificationChannelHandler) GetNotificationHistory(w http.ResponseWrite
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch history"})
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_fetch_history"))
 		return
 	}
 	defer rows.Close()

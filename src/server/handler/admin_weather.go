@@ -16,7 +16,7 @@ type AdminWeatherHandler struct {
 // ShowWeatherSettings displays weather settings page
 func (h *AdminWeatherHandler) ShowWeatherSettings(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_weather.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title": "Weather Settings",
+		"title": Translate(r, "admin.weather.weather_settings"),
 	}))
 }
 
@@ -49,7 +49,7 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(w http.ResponseWriter, r *ht
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -75,7 +75,7 @@ func (h *AdminWeatherHandler) UpdateWeatherSettings(w http.ResponseWriter, r *ht
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 

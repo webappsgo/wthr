@@ -74,7 +74,7 @@ func seedUserAccountRow(t *testing.T, db *sql.DB, id int64, email, username stri
 }
 
 func TestUserSettingsHandler_GetSettings(t *testing.T) {
-	t.Run("unauthenticated returns 401 with raw error shape", func(t *testing.T) {
+	t.Run("unauthenticated returns 401 with canonical error shape", func(t *testing.T) {
 		db := newTestUsersDB(t)
 		h := NewUserSettingsHandler(db)
 		r, w := newUSTestRequest(t, http.MethodGet, "/api/v1/users/settings", "")
@@ -84,12 +84,15 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
 		}
-		var got map[string]string
+		var got map[string]interface{}
 		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 			t.Fatalf("unmarshal body: %v", err)
 		}
-		if got["error"] != "Not authenticated" {
-			t.Errorf(`error = %q, want "Not authenticated"`, got["error"])
+		if got["error"] != "UNAUTHORIZED" {
+			t.Errorf(`error = %q, want "UNAUTHORIZED"`, got["error"])
+		}
+		if got["message"] != "errors.admin.admins.not_authenticated" {
+			t.Errorf(`message = %q, want "errors.admin.admins.not_authenticated"`, got["message"])
 		}
 	})
 

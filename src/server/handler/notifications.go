@@ -121,7 +121,7 @@ func scanNotification(scan func(dest ...interface{}) error) (Notification, error
 func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authedUserID(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 
 	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, query, args...)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_fetch_notifications"))
 		return
 	}
 	defer rows.Close()
@@ -175,14 +175,14 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 	for rows.Next() {
 		n, scanErr := scanNotification(rows.Scan)
 		if scanErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
+			InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_fetch_notifications"))
 			return
 		}
 
 		notifications = append(notifications, n)
 	}
 	if err := rows.Err(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_fetch_notifications"))
 		return
 	}
 
@@ -194,7 +194,7 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 		countQuery += unreadNotificationPredicate
 	}
 	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, countQuery, countArgs...).Scan(&total); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch notifications"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_fetch_notifications"))
 		return
 	}
 
@@ -210,7 +210,7 @@ func (h *NotificationHandler) ListNotifications(w http.ResponseWriter, r *http.R
 func (h *NotificationHandler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authedUserID(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
@@ -218,7 +218,7 @@ func (h *NotificationHandler) GetUnreadCount(w http.ResponseWriter, r *http.Requ
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT COUNT(*) FROM user_notifications WHERE user_id = ?"+unreadNotificationPredicate, userID).Scan(&count)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get unread count"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_get_unread_count"))
 		return
 	}
 
@@ -231,7 +231,7 @@ func (h *NotificationHandler) GetUnreadCount(w http.ResponseWriter, r *http.Requ
 func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authedUserID(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 	notificationID := chi.URLParam(r, "id")
@@ -241,12 +241,12 @@ func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request)
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT user_id FROM user_notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Notification not found"})
+		NotFound(w, r, Translate(r, "errors.notifications.core.notification_not_found"))
 		return
 	}
 
 	if ownerID != userID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
@@ -256,7 +256,7 @@ func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request)
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"UPDATE user_notifications SET read = 1 WHERE id = ? AND user_id = ?", notificationID, userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to mark notification as read"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_mark_notification_as_read"))
 		return
 	}
 
@@ -267,14 +267,14 @@ func (h *NotificationHandler) MarkAsRead(w http.ResponseWriter, r *http.Request)
 func (h *NotificationHandler) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authedUserID(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 
 	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"UPDATE user_notifications SET read = 1 WHERE user_id = ? AND read = 0", userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to mark notifications as read"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_mark_notifications_as_read"))
 		return
 	}
 
@@ -285,7 +285,7 @@ func (h *NotificationHandler) MarkAllAsRead(w http.ResponseWriter, r *http.Reque
 func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.Request) {
 	userID, ok := authedUserID(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "unauthorized"})
+		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
 	}
 	notificationID := chi.URLParam(r, "id")
@@ -295,12 +295,12 @@ func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.
 	err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
 		"SELECT user_id FROM user_notifications WHERE id = ?", notificationID).Scan(&ownerID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Notification not found"})
+		NotFound(w, r, Translate(r, "errors.notifications.core.notification_not_found"))
 		return
 	}
 
 	if ownerID != userID {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Access denied"})
+		Forbidden(w, r, Translate(r, "errors.locations.access_denied"))
 		return
 	}
 
@@ -308,7 +308,7 @@ func (h *NotificationHandler) DeleteNotification(w http.ResponseWriter, r *http.
 	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		"DELETE FROM user_notifications WHERE id = ? AND user_id = ?", notificationID, userID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete notification"})
+		InternalError(w, r, Translate(r, "errors.notifications.core.failed_to_delete_notification"))
 		return
 	}
 
@@ -361,7 +361,7 @@ func (h *NotificationHandler) ShowNotificationsPage(w http.ResponseWriter, r *ht
 
 	NegotiateResponse(w, r, "page/notifications.tmpl", util.TemplateData(r, map[string]interface{}{
 		"IsAdmin": userRole == "admin",
-		"title":   "Notifications",
+		"title":   Translate(r, "notifications.notifications_page_title"),
 		"page":    "notifications",
 	}))
 }

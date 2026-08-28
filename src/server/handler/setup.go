@@ -29,8 +29,7 @@ type SetupHandler struct {
 // AI.md: First step of setup - user must enter setup token displayed in console
 func (h *SetupHandler) ShowSetupTokenEntry(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_token.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": "Server Setup - Enter Setup Token",
-	}))
+		"Title": Translate(r, "setup.server_setup_enter_setup_token")}))
 }
 
 // VerifySetupTokenAtAdmin handles setup token verification at /server/admin/verify-token
@@ -56,8 +55,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Re
 			"branding": map[string]interface{}{
 				"Title": title,
 			},
-			"error": "Setup token is required",
-		}))
+			"error": Translate(r, "errors.setup.setup_token_is_required")}))
 		return
 	}
 
@@ -71,8 +69,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Re
 			"branding": map[string]interface{}{
 				"Title": title,
 			},
-			"error": "Setup token not found or already used",
-		}))
+			"error": Translate(r, "errors.setup.setup_token_not_found_or_already_used")}))
 		return
 	}
 
@@ -83,8 +80,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Re
 			"branding": map[string]interface{}{
 				"Title": title,
 			},
-			"error": "Invalid setup token",
-		}))
+			"error": Translate(r, "errors.setup.invalid_setup_token")}))
 		return
 	}
 
@@ -106,19 +102,19 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Setup token is required"})
+			BadRequest(w, r, Translate(r, "errors.setup.setup_token_is_required"))
 			return
 		}
 	} else {
 		if err := r.ParseForm(); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Setup token is required"})
+			BadRequest(w, r, Translate(r, "errors.setup.setup_token_is_required"))
 			return
 		}
 		input.SetupToken = r.FormValue("setup_token")
 	}
 
 	if input.SetupToken == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Setup token is required"})
+		BadRequest(w, r, Translate(r, "errors.setup.setup_token_is_required"))
 		return
 	}
 
@@ -126,12 +122,12 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 	configDir := path.GetConfigDir()
 	valid, err := util.ValidateSetupToken(configDir, input.SetupToken)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Setup token not found or already used"})
+		BadRequest(w, r, Translate(r, "errors.setup.setup_token_not_found_or_already_used"))
 		return
 	}
 
 	if !valid {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Invalid setup token"})
+		Unauthorized(w, r, Translate(r, "errors.setup.invalid_setup_token"))
 		return
 	}
 
@@ -163,7 +159,7 @@ func (h *SetupHandler) ShowAdminSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_admin.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": "Create Administrator - " + title,
+		"Title": Translate(r, "setup.create_administrator") + " - " + title,
 	}))
 }
 
@@ -184,7 +180,7 @@ func (h *SetupHandler) setupError(w http.ResponseWriter, r *http.Request, status
 	}
 
 	middleware.RenderHTML(w, r, status, "page/setup_admin.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": "Create Administrator - " + title,
+		"Title": Translate(r, "setup.create_administrator") + " - " + title,
 		"error": errorMsg,
 	}))
 }
@@ -196,7 +192,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Verify setup token was validated
 	verifiedCookie, err := r.Cookie("setup_token_verified")
 	if err != nil || verifiedCookie.Value != "true" {
-		h.setupError(w, r, http.StatusUnauthorized, "Setup token not verified")
+		h.setupError(w, r, http.StatusUnauthorized, Translate(r, "errors.setup.setup_token_not_verified"))
 		return
 	}
 
@@ -211,12 +207,12 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Accept both JSON and form data
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			h.setupError(w, r, http.StatusBadRequest, "Invalid form data")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.invalid_form_data"))
 			return
 		}
 	} else {
 		if err := r.ParseForm(); err != nil {
-			h.setupError(w, r, http.StatusBadRequest, "Invalid form data")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.invalid_form_data"))
 			return
 		}
 		input.Username = r.FormValue("username")
@@ -229,12 +225,12 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Validate email
 	email := strings.TrimSpace(input.Email)
 	if email == "" {
-		h.setupError(w, r, http.StatusBadRequest, "Email is required")
+		h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.email_is_required"))
 		return
 	}
 	// Basic email validation
 	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-		h.setupError(w, r, http.StatusBadRequest, "Invalid email format")
+		h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.invalid_email_format"))
 		return
 	}
 
@@ -255,27 +251,27 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		var err error
 		generatedPassword, err = generateRandomPassword(32)
 		if err != nil {
-			h.setupError(w, r, http.StatusInternalServerError, "Failed to generate secure password")
+			h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_generate_secure_password"))
 			return
 		}
 		password = generatedPassword
 	} else {
 		// Use custom password - must be confirmed
 		if input.Password == "" {
-			h.setupError(w, r, http.StatusBadRequest, "Password is required")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.password_is_required"))
 			return
 		}
 		// Passwords cannot start or end with whitespace
 		if input.Password != strings.TrimSpace(input.Password) {
-			h.setupError(w, r, http.StatusBadRequest, "Password cannot start or end with whitespace")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.password_cannot_start_or_end_with_whitespace"))
 			return
 		}
 		if len(input.Password) < 12 {
-			h.setupError(w, r, http.StatusBadRequest, "Password must be at least 12 characters")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.password_must_be_at_least_12_characters"))
 			return
 		}
 		if input.Password != input.ConfirmPassword {
-			h.setupError(w, r, http.StatusBadRequest, "Passwords do not match")
+			h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.passwords_do_not_match"))
 			return
 		}
 		password = input.Password
@@ -285,19 +281,19 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	var count int
 	err = database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials WHERE username = ?", username).Scan(&count)
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Database error")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.database_error"))
 		return
 	}
 
 	if count > 0 {
-		h.setupError(w, r, http.StatusConflict, "Username already exists")
+		h.setupError(w, r, http.StatusConflict, Translate(r, "errors.setup.username_already_exists"))
 		return
 	}
 
 	// Hash password using Argon2id (AI.md PART 3 requirement)
 	hashedPassword, err := util.HashPassword(password)
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to hash password")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_hash_password"))
 		return
 	}
 
@@ -312,21 +308,21 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	`, username, email, hashedPassword, createdAt, createdAt)
 
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to create administrator")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_create_administrator"))
 		return
 	}
 
 	// Get the newly created admin ID
 	adminID, err := result.LastInsertId()
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to retrieve admin ID")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_retrieve_admin_id"))
 		return
 	}
 
 	// Create admin session (auto-login) in server_admin_sessions
 	sessionID, err := generateSessionID()
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to generate session ID")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_generate_session_id"))
 		return
 	}
 	// 7 days
@@ -342,7 +338,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	`, sessionID, adminID, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()), dbtime.FormatSQLTimestamp(expiresAt))
 
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to create session")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_create_session"))
 		return
 	}
 
@@ -373,7 +369,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// AI.md: Step 2 - API Token auto-generated
 	apiToken, err := generateAPIToken()
 	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, "Failed to generate API token")
+		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_generate_api_token"))
 		return
 	}
 
@@ -481,7 +477,7 @@ func (h *SetupHandler) ShowAPIToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_api_token.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":             "API Token - " + title,
+		"Title":             Translate(r, "setup.api_token") + " - " + title,
 		"APIToken":          apiToken,
 		"GeneratedPassword": generatedPassword,
 		"Username":          username,
@@ -524,7 +520,7 @@ func (h *SetupHandler) ShowServerConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_server_config.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":           "Server Configuration - " + title,
+		"Title":           Translate(r, "setup.server_configuration") + " - " + title,
 		"DefaultAppName":  title,
 		"DefaultDomain":   defaultDomain,
 		"DefaultMode":     defaultMode,
@@ -536,9 +532,7 @@ func (h *SetupHandler) ShowServerConfig(w http.ResponseWriter, r *http.Request) 
 func (h *SetupHandler) ProcessServerConfig(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_server_config.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": "Server Configuration",
-			"error": "Invalid form data",
-		}))
+			"Title": Translate(r, "setup.server_configuration"), "error": Translate(r, "errors.setup.invalid_form_data")}))
 		return
 	}
 
@@ -601,7 +595,7 @@ func (h *SetupHandler) ShowSecurity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": "Security Settings - " + title,
+		"Title": Translate(r, "setup.security_settings") + " - " + title,
 	}))
 }
 
@@ -609,9 +603,7 @@ func (h *SetupHandler) ShowSecurity(w http.ResponseWriter, r *http.Request) {
 func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": "Security Settings",
-			"error": "Invalid form data",
-		}))
+			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.invalid_form_data")}))
 		return
 	}
 
@@ -632,9 +624,7 @@ func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
 	// Validate backup password match
 	if input.BackupPassword != "" && input.BackupPassword != input.BackupPasswordConfirm {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_security.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": "Security Settings",
-			"error": "Backup passwords do not match",
-		}))
+			"Title": Translate(r, "setup.security_settings"), "error": Translate(r, "errors.setup.backup_passwords_do_not_match")}))
 		return
 	}
 
@@ -686,7 +676,7 @@ func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
 	database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT email FROM server_admin_credentials LIMIT 1").Scan(&adminEmail)
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_services.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":        "Optional Services - " + title,
+		"Title":        Translate(r, "setup.optional_services") + " - " + title,
 		"TorAvailable": torAvailable,
 		"AdminEmail":   adminEmail,
 	}))
@@ -696,9 +686,7 @@ func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
 func (h *SetupHandler) ProcessServices(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/setup_services.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title": "Optional Services",
-			"error": "Invalid form data",
-		}))
+			"Title": Translate(r, "setup.optional_services"), "error": Translate(r, "errors.setup.invalid_form_data")}))
 		return
 	}
 
@@ -790,7 +778,7 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_complete.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":     "Setup Complete - Weather",
+		"Title":     Translate(r, "setup.setup_complete"),
 		"AdminPath": adminPath,
 	}))
 }
@@ -809,7 +797,7 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"status":  "error",
-			"message": "Failed to check admin status",
+			"message": Translate(r, "setup.status.failed_to_check_admin_status"),
 		})
 		return
 	}
@@ -820,8 +808,8 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 			"status":      "not_started",
 			"step":        0,
 			"total_steps": 2,
-			"message":     "Setup not started",
-			"next_action": "Create primary admin account",
+			"message":     Translate(r, "setup.status.setup_not_started"),
+			"next_action": Translate(r, "setup.status.create_primary_admin_account"),
 			"next_route":  adminPath,
 			"is_complete": false,
 		})
@@ -838,8 +826,8 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 			"status":      "admin_created",
 			"step":        1,
 			"total_steps": 2,
-			"message":     "Primary admin created, setup wizard still in progress",
-			"next_action": "Continue server setup",
+			"message":     Translate(r, "setup.status.primary_admin_created_setup_wizard_still_in_progress"),
+			"next_action": Translate(r, "setup.status.continue_server_setup"),
 			"next_route":  adminPath + "/config/setup/api-token",
 			"is_complete": false,
 		})
@@ -851,8 +839,8 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 		"status":      "completed",
 		"step":        2,
 		"total_steps": 2,
-		"message":     "Setup completed successfully",
-		"next_action": "Access admin dashboard",
+		"message":     Translate(r, "setup.status.setup_completed_successfully"),
+		"next_action": Translate(r, "setup.status.access_admin_dashboard"),
 		"next_route":  adminPath,
 		"is_complete": true,
 	})

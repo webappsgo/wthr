@@ -17,9 +17,12 @@ import (
 // adminUsernameKey is the reqctx key holding the resolved admin username.
 const adminUsernameKey = "admin_username"
 
-// AdminLang returns the active request language, defaulting to English when the
-// i18n middleware has not resolved one (AI.md PART 31 fallback chain).
-func AdminLang(r *http.Request) string {
+// Lang returns the active request language, defaulting to English when the
+// i18n middleware has not resolved one (AI.md PART 31 fallback chain). This
+// is a general-purpose helper for every handler in this package (admin and
+// non-admin alike) — the "lang" reqctx key is populated by the shared i18n
+// middleware in main.go for all requests, not just admin routes.
+func Lang(r *http.Request) string {
 	if value, ok := reqctx.Get(r.Context(), "lang"); ok {
 		if lang, ok := value.(string); ok && lang != "" {
 			return lang
@@ -28,14 +31,27 @@ func AdminLang(r *http.Request) string {
 	return "en"
 }
 
-// AdminTranslate resolves a translation key for the active request language.
-// A missing global i18n instance falls back to the key itself so a page never
-// fails to render because translations are unavailable.
-func AdminTranslate(r *http.Request, key string) string {
+// Translate resolves a translation key for the active request language. A
+// missing global i18n instance falls back to the key itself so a response
+// never fails to render because translations are unavailable (AI.md PART 31:
+// unsupported/missing language must never error or crash).
+func Translate(r *http.Request, key string) string {
 	if instance := i18n.GetGlobalI18n(); instance != nil {
-		return instance.T(AdminLang(r), key)
+		return instance.T(Lang(r), key)
 	}
 	return key
+}
+
+// AdminLang is a naming-compatible alias for Lang, kept for admin-panel call
+// sites that predate the general-purpose rename.
+func AdminLang(r *http.Request) string {
+	return Lang(r)
+}
+
+// AdminTranslate is a naming-compatible alias for Translate, kept for
+// admin-panel call sites that predate the general-purpose rename.
+func AdminTranslate(r *http.Request, key string) string {
+	return Translate(r, key)
 }
 
 // AdminUsername returns the username of the currently authenticated Server

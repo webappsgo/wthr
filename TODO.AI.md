@@ -2840,19 +2840,27 @@ any of the above: `src/graphql/context_keys_test.go`,
     `dbtime.ParseStoredTimestamp`/`dbtime.IsAfter`, following
     `src/server/model/admin.go`. Read: AI.md PART 10.
 
-116. TODO (flagged 2026-08-21 by the notifications repoint): the entire
-    `src/server/handler/` package has no i18n. Every JSON error string it
-    returns is hardcoded English - for example
-    `src/server/handler/user_notifications.go:30,45,69,88,108` - while
-    PART 31 requires that every human-readable string, explicitly including
-    HTTP errors and API JSON messages, resolve through `t()`. This is not a
-    handful of sites; it is the package-wide default. `en.json` currently
-    carries only `error.generic`, `error.not_found`,
-    `error.invalid_location`, `error.network`, `error.server` and
-    `error.try_again`, so the fix needs a proper `errors.*` key family
-    added to all seven locale files first, then a sweep of the package. The
-    key set must stay identical across every locale or `make i18n-validate`
-    fails. Read: AI.md PART 31.
+116. DONE (2026-08-28): swept `src/server/handler/*.go` (21 in-scope files)
+    and replaced every hardcoded-English raw `writeJSON` error/success call
+    with the canonical `RespondError`-family helpers (`BadRequest`,
+    `Unauthorized`, `NotFound`, `Forbidden`, `Conflict`, `InternalError`,
+    `ValidationFailed`, etc.) passing `Translate(r, "errors.*"/"success.*")`.
+    Added 297 new `errors.*`/`success.*` keys (identical key set, 2225 keys
+    total) to all seven locale files (`en`, `es`, `zh`, `fr`, `ar`, `de`,
+    `ja`); legacy `error.*` keys left untouched for compatibility. Updated
+    2 test files (`admin_logging_test.go`, `user_settings_test.go`) whose
+    assertions expected the old hardcoded English string (tests run
+    without `i18n.SetGlobalI18n()`, so `Translate()` falls back to the raw
+    key literal - documented fallback behavior, not a bug). Verified: `go
+    build ./...` and `make test` both pass (60.3% coverage, >=60% gate);
+    all 7 locale JSON files validated with `python3 -m json.tool`; key-set
+    parity confirmed identical across all locales via manual diff (no
+    `make i18n-validate` target exists in this repo's Makefile - only the
+    6 core targets are permitted per PART 26). Out-of-scope files left
+    untouched (confirmed still hardcoded, tracked separately if needed):
+    `server_pages.go`, `admin_auth_settings.go`, `admin_passkey.go`,
+    `passkey.go` - none of these were in the 21-file scope for this item.
+    Read: AI.md PART 31.
 
 117. DONE (2026-08-21; `acquireTaskLock` now reads `locked_by`/`locked_at`,
     judges staleness in Go, and steals with a compare-and-swap on the observed
@@ -3898,3 +3906,19 @@ any of the above: `src/graphql/context_keys_test.go`,
     regressions). `grep -rn 'binding:"' src --include=*.go` now shows only
     live, enforced tags inside the `handler` package (all routed through
     `DecodeAndValidate`).
+
+174. TODO (flagged 2026-08-28 during item 116's i18n sweep): four
+    `src/server/handler/` files were out of that item's declared scope and
+    still return hardcoded-English JSON error strings via raw `writeJSON`
+    calls, same class of PART 31 violation as item 116 fixed everywhere
+    else: `server_pages.go` (contact-form save/send failures, ~3 sites),
+    `admin_auth_settings.go` (~2 sites, some already reuse `err.Error()`
+    directly), `admin_passkey.go` (~15 sites: "Not authenticated",
+    "Invalid request body", "Failed to load passkeys", etc.), and
+    `passkey.go` (~10+ sites, user-facing passkey mirror of
+    `admin_passkey.go`). Fix the same way item 116 did: swap each raw
+    `writeJSON(w, status, map[string]interface{}{"error": "..."})` for the
+    matching `RespondError`-family helper (`Unauthorized`, `BadRequest`,
+    `InternalError`, etc.) passing `Translate(r, "errors.*")`; add new keys
+    to all seven locale files, keeping the key set identical everywhere.
+    Read: AI.md PART 31.

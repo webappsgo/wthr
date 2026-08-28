@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -36,8 +38,9 @@ func TestNewSSLHandler_DefaultsHTTPSAddr(t *testing.T) {
 // TestCalculateNextRenewal_Future verifies a certificate expiring well in
 // the future returns a formatted renewal date 30 days before expiry.
 func TestCalculateNextRenewal_Future(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	notAfter := time.Now().Add(60 * 24 * time.Hour)
-	got := calculateNextRenewal(notAfter)
+	got := calculateNextRenewal(req, notAfter)
 
 	want := notAfter.Add(-30 * 24 * time.Hour).Format("2006-01-02 15:04")
 	if got != want {
@@ -46,13 +49,16 @@ func TestCalculateNextRenewal_Future(t *testing.T) {
 }
 
 // TestCalculateNextRenewal_PastRenewalWindow verifies a certificate whose
-// 30-day-before-expiry renewal window has already passed returns "Now".
+// 30-day-before-expiry renewal window has already passed returns the
+// translated "Now" value.
 func TestCalculateNextRenewal_PastRenewalWindow(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	// Expires in 10 days: the renewal date (expiry-30d) is already in the past.
 	notAfter := time.Now().Add(10 * 24 * time.Hour)
-	got := calculateNextRenewal(notAfter)
+	got := calculateNextRenewal(req, notAfter)
 
-	if got != "Now" {
-		t.Errorf("calculateNextRenewal() = %q, want %q", got, "Now")
+	want := Translate(req, "admin.ssl.status.now")
+	if got != want {
+		t.Errorf("calculateNextRenewal() = %q, want %q", got, want)
 	}
 }

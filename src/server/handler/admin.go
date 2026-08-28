@@ -30,7 +30,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	userModel := &model.UserModel{DB: h.DB}
 	users, err := userModel.GetAll()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch users"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_users"))
 		return
 	}
 
@@ -46,13 +46,13 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	// Validate username
 	if err := util.ValidateUsername(req.Username); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.Create(username, req.Email, req.Password, req.Role)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to create user"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_create_user"))
 		return
 	}
 
@@ -72,18 +72,18 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.invalid_user_id"))
 		return
 	}
 
 	// Prevent modifying your own account
 	currentUser, ok := middleware.GetCurrentUser(r)
 	if !ok || currentUser == nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 	if currentUser.ID == id {
-		writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Cannot modify your own account credentials. Contact another administrator if you need to change your username, email, or role."})
+		Forbidden(w, r, Translate(r, "errors.admin.core.cannot_modify_your_own_account_credentials"))
 		return
 	}
 
@@ -94,13 +94,13 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	// Validate username
 	if err := util.ValidateUsername(req.Username); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
@@ -109,44 +109,44 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Update(id, username, req.Email, req.Role); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update user"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_user"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "User updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.admin.core.user_updated_successfully")})
 }
 
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.invalid_user_id"))
 		return
 	}
 
 	// Prevent deleting yourself
 	currentUser, ok := middleware.GetCurrentUser(r)
 	if !ok || currentUser == nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 	if currentUser.ID == id {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot delete your own account"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 		return
 	}
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.Delete(id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to delete user"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_delete_user"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "User deleted successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.admin.core.user_deleted_successfully")})
 }
 
 func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid user ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.invalid_user_id"))
 		return
 	}
 
@@ -155,22 +155,22 @@ func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if len(req.Password) < 8 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Password must be at least 8 characters"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.password_must_be_at_least_8_characters"))
 		return
 	}
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.UpdatePassword(id, req.Password); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update password"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_password"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.admin.core.password_updated_successfully")})
 }
 
 // Settings Management APIs
@@ -178,7 +178,7 @@ func (h *AdminHandler) UpdateUserPassword(w http.ResponseWriter, r *http.Request
 func (h *AdminHandler) ListSettings(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.QueryContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT key, value, type, COALESCE(description, ''), updated_at FROM server_config ORDER BY key")
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch settings"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_settings"))
 		return
 	}
 	defer rows.Close()
@@ -211,11 +211,11 @@ func (h *AdminHandler) GetSetting(w http.ResponseWriter, r *http.Request) {
 		Scan(&value, &settingType, &description, &updatedAt)
 
 	if err == sql.ErrNoRows {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Setting not found"})
+		NotFound(w, r, Translate(r, "errors.admin.core.setting_not_found"))
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch setting"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_setting"))
 		return
 	}
 
@@ -236,12 +236,12 @@ func (h *AdminHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if req.Value == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Value is required"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.value_is_required"))
 		return
 	}
 
@@ -249,11 +249,11 @@ func (h *AdminHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
 		req.Value, time.Now(), key)
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update setting"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_setting"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Setting updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.admin.core.setting_updated_successfully")})
 }
 
 // API Token Management APIs
@@ -269,7 +269,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		tokenModel := &model.TokenModel{DB: h.DB}
 		tokens, err := tokenModel.GetByUserID(uid)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
+			InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
 			return
 		}
 		writeJSON(w, http.StatusOK, tokens)
@@ -284,7 +284,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		ORDER BY t.created_at DESC
 	`)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
 		return
 	}
 	defer rows.Close()
@@ -305,7 +305,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		var storedCreatedAt, storedLastUsedAt, storedExpiresAt interface{}
 
 		if err := rows.Scan(&id, &ownerID, &email, &name, &tokenPrefix, &storedCreatedAt, &storedLastUsedAt, &storedExpiresAt); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
+			InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
 			return
 		}
 
@@ -330,7 +330,7 @@ func (h *AdminHandler) ListTokens(w http.ResponseWriter, r *http.Request) {
 		tokens = append(tokens, token)
 	}
 	if err := rows.Err(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch tokens"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_tokens"))
 		return
 	}
 
@@ -344,24 +344,24 @@ func (h *AdminHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	if req.UserID == 0 || req.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "user_id and name are required"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.user_id_and_name_are_required"))
 		return
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
 	token, err := tokenModel.Create(req.UserID, req.Name)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to generate token"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_generate_token"))
 		return
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"message": "Token generated successfully. Save it now - it won't be shown again!",
+		"message": Translate(r, "success.admin.core.token_generated_successfully"),
 		"token":   token,
 	})
 }
@@ -369,17 +369,17 @@ func (h *AdminHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid token ID"})
+		BadRequest(w, r, Translate(r, "errors.admin.core.invalid_token_id"))
 		return
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
 	if err := tokenModel.Delete(id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke token"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_revoke_token"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Token revoked successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.admin.core.token_revoked_successfully")})
 }
 
 // Audit Log APIs
@@ -403,7 +403,7 @@ func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	`, limit)
 
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch audit logs"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_fetch_audit_logs"))
 		return
 	}
 	defer rows.Close()
@@ -452,13 +452,13 @@ func (h *AdminHandler) ClearAuditLogs(w http.ResponseWriter, r *http.Request) {
 	cutoff := time.Now().AddDate(0, 0, -days)
 	result, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutBulk, "DELETE FROM server_audit_log WHERE timestamp < ?", cutoff)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to clear logs"})
+		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_clear_logs"))
 		return
 	}
 
 	affected, _ := result.RowsAffected()
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Audit logs cleared successfully",
+		"message": Translate(r, "success.admin.core.audit_logs_cleared_successfully"),
 		"deleted": affected,
 	})
 }
@@ -470,16 +470,16 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	// server_audit_log's real columns are status/timestamp (server_schema.go),
 	// not success/created_at. Scan errors must be propagated, not swallowed.
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log").Scan(&totalLogs); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count total audit logs: %w", err).Error()})
+		InternalError(w, r, fmt.Errorf("count total audit logs: %w", err).Error())
 		return
 	}
 
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status != 'success'").Scan(&errorLogs); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count error audit logs: %w", err).Error()})
+		InternalError(w, r, fmt.Errorf("count error audit logs: %w", err).Error())
 		return
 	}
 	if err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_audit_log WHERE status = 'success'").Scan(&successLogs); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count success audit logs: %w", err).Error()})
+		InternalError(w, r, fmt.Errorf("count success audit logs: %w", err).Error())
 		return
 	}
 
@@ -494,7 +494,7 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 		WHERE timestamp IS NOT NULL
 	`)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		InternalError(w, r, fmt.Errorf("count recent audit logs: %w", err).Error())
 		return
 	}
 	defer recentRows.Close()
@@ -504,7 +504,7 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 	for recentRows.Next() {
 		var storedTimestamp interface{}
 		if err := recentRows.Scan(&storedTimestamp); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+			InternalError(w, r, fmt.Errorf("count recent audit logs: %w", err).Error())
 			return
 		}
 
@@ -516,7 +516,7 @@ func (h *AdminHandler) GetLogsStats(w http.ResponseWriter, r *http.Request) {
 		recentLogs++
 	}
 	if err := recentRows.Err(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Errorf("count recent audit logs: %w", err).Error()})
+		InternalError(w, r, fmt.Errorf("count recent audit logs: %w", err).Error())
 		return
 	}
 
@@ -612,7 +612,7 @@ func (h *AdminHandler) GetScheduledTasks(w http.ResponseWriter, r *http.Request)
 		ORDER BY task_name
 	`)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to fetch scheduled tasks", "details": err.Error()})
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.core.failed_to_fetch_scheduled_tasks"), map[string]interface{}{"details": err.Error()})
 		return
 	}
 	defer rows.Close()
@@ -850,7 +850,7 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_settings.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":    "Server Settings",
+		"title":    Translate(r, "admin.server_settings"),
 		"user":     admin,
 		"settings": settings,
 		"Settings": historySettings,

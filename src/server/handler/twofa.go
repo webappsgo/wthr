@@ -209,13 +209,13 @@ func (h *TwoFactorHandler) regenerateCurrentUserRecoveryKeys(user *model.User, c
 func (h *TwoFactorHandler) GetTwoFactorStatus(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.twofa.not_authenticated"))
 		return
 	}
 
 	status, err := h.loadCurrentUserTwoFactorStatus(user)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to get two-factor status"})
+		InternalError(w, r, Translate(r, "errors.twofa.failed_to_get_two_factor_status"))
 		return
 	}
 
@@ -249,7 +249,7 @@ func (h *TwoFactorHandler) ShowSecurityPage(w http.ResponseWriter, r *http.Reque
 	}
 
 	NegotiateResponse(w, r, "page/user/security.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":             "Security Settings",
+		"title":             Translate(r, "user.security_settings"),
 		"user":              user,
 		"recoveryKeysCount": recoveryKeysCount,
 		"passkeys":          passkeys,
@@ -269,17 +269,17 @@ func (h *TwoFactorHandler) ShowSecurityPage(w http.ResponseWriter, r *http.Reque
 func (h *TwoFactorHandler) SetupTwoFactor(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
 	setup, err := h.prepareCurrentUserTwoFactorSetup(user)
 	if err != nil {
 		if err.Error() == "two-factor authentication is already enabled" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Two-factor authentication is already enabled"})
+			BadRequest(w, r, Translate(r, "errors.twofa.two_factor_authentication_is_already_enabled"))
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
@@ -307,7 +307,7 @@ func (h *TwoFactorHandler) SetupTwoFactor(w http.ResponseWriter, r *http.Request
 func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -317,22 +317,22 @@ func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Secret == "" || req.Code == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
 		return
 	}
 
 	response, err := h.enableCurrentUserTwoFactor(user, req.Secret, req.Code)
 	if err != nil {
 		if err.Error() == "two-factor authentication is already enabled" || err.Error() == "invalid verification code" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":       response.Message,
+		"message":       Translate(r, "success.twofa.two_factor_authentication_enabled_successfully"),
 		"recovery_keys": response.RecoveryKeys,
 	})
 }
@@ -352,7 +352,7 @@ func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Reques
 func (h *TwoFactorHandler) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -361,26 +361,26 @@ func (h *TwoFactorHandler) DisableTwoFactor(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Password == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
 		return
 	}
 
 	if err := h.disableCurrentUserTwoFactor(user, req.Password); err != nil {
 		switch err.Error() {
 		case "two-factor authentication is not enabled":
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 			return
 		case "invalid password":
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": err.Error()})
+			Unauthorized(w, r, err.Error())
 			return
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+			InternalError(w, r, err.Error())
 			return
 		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Two-factor authentication disabled successfully",
+		"message": Translate(r, "success.twofa.two_factor_authentication_disabled_successfully"),
 	})
 }
 
@@ -400,7 +400,7 @@ func (h *TwoFactorHandler) DisableTwoFactor(w http.ResponseWriter, r *http.Reque
 func (h *TwoFactorHandler) VerifyTwoFactorCode(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -409,17 +409,17 @@ func (h *TwoFactorHandler) VerifyTwoFactorCode(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
 		return
 	}
 
 	if err := h.verifyCurrentUserTwoFactorCode(user, req.Code); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+		BadRequest(w, r, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Code verified successfully",
+		"message": Translate(r, "success.twofa.code_verified_successfully"),
 	})
 }
 
@@ -438,7 +438,7 @@ func (h *TwoFactorHandler) VerifyTwoFactorCode(w http.ResponseWriter, r *http.Re
 func (h *TwoFactorHandler) RegenerateRecoveryKeys(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Not authenticated"})
+		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
 	}
 
@@ -447,22 +447,22 @@ func (h *TwoFactorHandler) RegenerateRecoveryKeys(w http.ResponseWriter, r *http
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Code == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request"})
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
 		return
 	}
 
 	response, err := h.regenerateCurrentUserRecoveryKeys(user, req.Code)
 	if err != nil {
 		if err.Error() == "two-factor authentication is not enabled" || err.Error() == "invalid verification code" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+			BadRequest(w, r, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+		InternalError(w, r, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":       response.Message,
+		"message":       Translate(r, "success.twofa.recovery_keys_regenerated_successfully"),
 		"recovery_keys": response.RecoveryKeys,
 	})
 }

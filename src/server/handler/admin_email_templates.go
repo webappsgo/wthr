@@ -32,7 +32,7 @@ func (h *EmailTemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Reques
 
 	// Validate template name
 	if !isValidTemplateName(templateName) {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
@@ -41,7 +41,7 @@ func (h *EmailTemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Reques
 	// Read template file
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Template not found"})
+		NotFound(w, r, Translate(r, "errors.admin.email_templates.template_not_found"))
 		return
 	}
 
@@ -57,19 +57,19 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 
 	// Validate template name
 	if !isValidTemplateName(templateName) {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
 	var template EmailTemplate
 	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// Validate template
 	if template.Subject == "" || template.Body == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Subject and body are required"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.subject_and_body_are_required"))
 		return
 	}
 
@@ -79,11 +79,13 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 	// Write template file
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to save template"})
+		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_save_template"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Template updated successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.admin.email_templates.template_updated_successfully"),
+	})
 }
 
 // ListTemplates returns all available email templates
@@ -92,7 +94,7 @@ func (h *EmailTemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Requ
 
 	files, err := os.ReadDir(emailDir)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to read templates directory"})
+		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_read_templates_directory"))
 		return
 	}
 
@@ -119,20 +121,20 @@ func (h *EmailTemplateHandler) TestTemplate(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
 	// Validate template name
 	if !isValidTemplateName(request.Template) {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
 	// In a real implementation, this would use the email service
 	// For now, we'll just return success
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": fmt.Sprintf("Test email sent using template: %s", request.Template),
+		"message": fmt.Sprintf("%s: %s", Translate(r, "success.admin.email_templates.test_email_sent_using_template"), request.Template),
 	})
 }
 
@@ -187,7 +189,7 @@ func (h *EmailTemplateHandler) ExportTemplate(w http.ResponseWriter, r *http.Req
 	templateName := chi.URLParam(r, "name")
 
 	if !isValidTemplateName(templateName) {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
@@ -195,7 +197,7 @@ func (h *EmailTemplateHandler) ExportTemplate(w http.ResponseWriter, r *http.Req
 
 	content, err := os.ReadFile(templatePath)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Template not found"})
+		NotFound(w, r, Translate(r, "errors.admin.email_templates.template_not_found"))
 		return
 	}
 
@@ -213,18 +215,18 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 	templateName := chi.URLParam(r, "name")
 
 	if !isValidTemplateName(templateName) {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid template name"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
 	var template EmailTemplate
 	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid JSON format"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_json_format"))
 		return
 	}
 
 	if template.Subject == "" || template.Body == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Subject and body are required"})
+		BadRequest(w, r, Translate(r, "errors.admin.email_templates.subject_and_body_are_required"))
 		return
 	}
 
@@ -232,9 +234,11 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to import template"})
+		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_import_template"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Template imported successfully"})
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message": Translate(r, "success.admin.email_templates.template_imported_successfully"),
+	})
 }
