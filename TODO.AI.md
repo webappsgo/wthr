@@ -2874,11 +2874,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     out of the schema fix deliberately because it changes lock semantics.
     Read: AI.md PART 10, PART 19.
 
-118. TODO (flagged 2026-08-21 by the scheduler schema fix): `src/scheduler/
-    scheduler.go:521-557,575` - the weather alert titles, messages and the
-    "View forecast" action label are hardcoded English, violating the PART 31
-    no-hardcoded-strings rule. Same key-family dependency as item 116: the
-    locale files need the keys before the sweep. Read: AI.md PART 31.
+118. DONE (2026-08-28): `src/scheduler/scheduler.go` weather-alert titles,
+    messages and the "View forecast" action label were hardcoded English,
+    violating the PART 31 no-hardcoded-strings rule. Fixed by adding 11 new
+    `scheduler.weather_alerts.*` keys (identical set across all 7 locale
+    files, 2226 -> 2237 keys each, verified with zero symmetric-difference
+    mismatch) and resolving the recipient's stored language preference via
+    a new `resolveUserLang(userID)` helper (`model.UserModel.GetByID` ->
+    `.Language`, falling back to the default language when unset/
+    unsupported/lookup-fails) since scheduler tasks run with no live
+    http.Request and can't use the request-scoped `handler.Lang(r)` helper.
+    Added `translateAlert(lang, key)` for the key lookup and threaded a
+    translated `actionLabel` through `createNotification`. Templated values
+    (location name, temperature, wind speed, precipitation) use Go printf
+    verbs stored directly in the locale JSON values with `fmt.Sprintf`,
+    matching the existing scheduler.go idiom (the project's `i18n.T()` has
+    no `{variable}` interpolation support). Verified: `go build ./...`
+    clean, `go test ./src/scheduler/... ./src/common/i18n/...` and full
+    `go test ./...` pass, `gofmt -l` clean, all 7 locale files confirmed
+    key-identical. Read: AI.md PART 31.
 
 119. DONE (2026-08-21; the unread `db` parameters were removed from the
     affected task signatures and every call site updated): `src/scheduler/

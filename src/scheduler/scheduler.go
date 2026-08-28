@@ -25,6 +25,7 @@ import (
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -571,48 +572,83 @@ func checkAndCreateAlerts(userID, locationID int, locationName string, weather s
 	} `json:"current"`
 }) int {
 	alertCount := 0
+	lang := resolveUserLang(userID)
+	actionLabel := translateAlert(lang, "scheduler.weather_alerts.view_forecast")
 
 	// Check for extreme cold (below 32°F / 0°C)
 	if weather.Current.Temperature < 32 {
-		createNotification(userID, model.NotificationTypeWarning, "Freezing Temperature Alert",
-			fmt.Sprintf("%s: Temperature is %.1f°F. Bundle up!", locationName, weather.Current.Temperature),
-			fmt.Sprintf("/dashboard?location=%d", locationID))
+		createNotification(userID, model.NotificationTypeWarning,
+			translateAlert(lang, "scheduler.weather_alerts.freezing_title"),
+			fmt.Sprintf(translateAlert(lang, "scheduler.weather_alerts.freezing_message"), locationName, weather.Current.Temperature),
+			actionLabel, fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
 	}
 
 	// Check for extreme heat (above 95°F / 35°C)
 	if weather.Current.Temperature > 95 {
-		createNotification(userID, model.NotificationTypeWarning, "Heat Alert",
-			fmt.Sprintf("%s: Temperature is %.1f°F. Stay hydrated!", locationName, weather.Current.Temperature),
-			fmt.Sprintf("/dashboard?location=%d", locationID))
+		createNotification(userID, model.NotificationTypeWarning,
+			translateAlert(lang, "scheduler.weather_alerts.heat_title"),
+			fmt.Sprintf(translateAlert(lang, "scheduler.weather_alerts.heat_message"), locationName, weather.Current.Temperature),
+			actionLabel, fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
 	}
 
 	// Check for high winds (above 40 mph)
 	if weather.Current.WindSpeed > 40 {
-		createNotification(userID, model.NotificationTypeWarning, "High Wind Alert",
-			fmt.Sprintf("%s: Wind speed is %.0f mph. Secure loose objects!", locationName, weather.Current.WindSpeed),
-			fmt.Sprintf("/dashboard?location=%d", locationID))
+		createNotification(userID, model.NotificationTypeWarning,
+			translateAlert(lang, "scheduler.weather_alerts.wind_title"),
+			fmt.Sprintf(translateAlert(lang, "scheduler.weather_alerts.wind_message"), locationName, weather.Current.WindSpeed),
+			actionLabel, fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
 	}
 
 	// Check for heavy precipitation (above 0.5 inches)
 	if weather.Current.Precipitation > 0.5 {
-		createNotification(userID, model.NotificationTypeInfo, "Heavy Rain Alert",
-			fmt.Sprintf("%s: Heavy precipitation detected (%.1f in). Prepare for flooding!", locationName, weather.Current.Precipitation),
-			fmt.Sprintf("/dashboard?location=%d", locationID))
+		createNotification(userID, model.NotificationTypeInfo,
+			translateAlert(lang, "scheduler.weather_alerts.rain_title"),
+			fmt.Sprintf(translateAlert(lang, "scheduler.weather_alerts.rain_message"), locationName, weather.Current.Precipitation),
+			actionLabel, fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
 	}
 
 	// Check for severe weather codes (thunderstorms, snow, etc.)
 	if weather.Current.WeatherCode >= 95 {
-		createNotification(userID, model.NotificationTypeWarning, "Severe Weather Alert",
-			fmt.Sprintf("%s: Severe weather detected. Stay safe!", locationName),
-			fmt.Sprintf("/dashboard?location=%d", locationID))
+		createNotification(userID, model.NotificationTypeWarning,
+			translateAlert(lang, "scheduler.weather_alerts.severe_title"),
+			fmt.Sprintf(translateAlert(lang, "scheduler.weather_alerts.severe_message"), locationName),
+			actionLabel, fmt.Sprintf("/dashboard?location=%d", locationID))
 		alertCount++
 	}
 
 	return alertCount
+}
+
+// resolveUserLang looks up the recipient's stored language preference for a
+// scheduler-generated notification. Scheduler tasks run with no live
+// http.Request, so they cannot use handler.Lang(r) - the recipient's saved
+// preference (AI.md PART 31 fallback chain step 4: default en) is the
+// closest equivalent available in a background context.
+func resolveUserLang(userID int) string {
+	instance := i18n.GetGlobalI18n()
+	if instance == nil {
+		return "en"
+	}
+	users := &model.UserModel{DB: database.GetUsersDB()}
+	user, err := users.GetByID(int64(userID))
+	if err != nil || user == nil || user.Language == "" || !instance.IsSupported(user.Language) {
+		return instance.GetDefaultLanguage()
+	}
+	return user.Language
+}
+
+// translateAlert resolves a translation key for a background scheduler task.
+// A missing global i18n instance falls back to the key itself so an alert
+// never fails to send because translations are unavailable (AI.md PART 31).
+func translateAlert(lang, key string) string {
+	if instance := i18n.GetGlobalI18n(); instance != nil {
+		return instance.T(lang, key)
+	}
+	return key
 }
 
 // createNotification creates a user notification for a weather alert.
@@ -622,12 +658,12 @@ func checkAndCreateAlerts(userID, locationID int, locationName string, weather s
 // single writer for this table. That gives the row its ULID primary key, its
 // display value and its 30-day expiry, and carries the deep link in action_json
 // as a NotificationAction, which is where the schema actually keeps a link.
-func createNotification(userID int, notifType model.NotificationType, title, message, link string) {
+func createNotification(userID int, notifType model.NotificationType, title, message, actionLabel, link string) {
 	notifications := &model.UserNotificationModel{DB: database.GetUsersDB()}
 
 	// src/server/service/notification_service.go renders every non-security
 	// severity as a toast; weather alerts follow the same mapping.
-	action := &model.NotificationAction{Label: "View forecast", URL: link}
+	action := &model.NotificationAction{Label: actionLabel, URL: link}
 
 	if _, err := notifications.Create(userID, notifType, model.NotificationDisplayToast, title, message, action); err != nil {
 		log.Printf("WARNING: Failed to create notification: %v", err)
