@@ -191,55 +191,55 @@ func (c *CLI) ShowHelp() {
 	binaryName := filepath.Base(os.Args[0])
 
 	// AI.md PART 8 line 8558: First line format
-	fmt.Printf("%s %s - Production-grade weather API server\n", binaryName, Version)
+	fmt.Printf(T("cli.help.title")+"\n", binaryName, Version)
 	fmt.Println()
 
 	// Usage section
-	fmt.Println("Usage:")
-	fmt.Printf("  %s [flags]\n", binaryName)
+	fmt.Println(T("cli.help.usage_heading"))
+	fmt.Printf(T("cli.help.usage_line")+"\n", binaryName)
 	fmt.Println()
 
 	// Information section
-	fmt.Println("Information:")
-	fmt.Println("  -h, --help                        Show help (--help for any command shows its help)")
-	fmt.Println("  -v, --version                     Show version")
-	fmt.Println("      --status                      Show server status and health")
+	fmt.Println(T("cli.help.information_heading"))
+	fmt.Println(T("cli.help.flag_help"))
+	fmt.Println(T("cli.help.flag_version"))
+	fmt.Println(T("cli.help.flag_status"))
 	fmt.Println()
 
 	// Shell Integration section
-	fmt.Println("Shell Integration:")
-	fmt.Println("      --shell completions [SHELL]   Print shell completions")
-	fmt.Println("      --shell init [SHELL]          Print shell init command")
-	fmt.Println("      --shell --help                Show shell help")
+	fmt.Println(T("cli.help.shell_integration_heading"))
+	fmt.Println(T("cli.help.flag_shell_completions"))
+	fmt.Println(T("cli.help.flag_shell_init"))
+	fmt.Println(T("cli.help.flag_shell_help"))
 	fmt.Println()
 
 	// Server Configuration section
-	fmt.Println("Server Configuration:")
-	fmt.Println("      --mode {production|development}  Application mode (default: production)")
-	fmt.Println("      --config DIR                  Config directory")
-	fmt.Println("      --data DIR                    Data directory")
-	fmt.Println("      --cache DIR                   Cache directory")
-	fmt.Println("      --log DIR                     Log directory")
-	fmt.Println("      --backup DIR                  Backup directory")
-	fmt.Println("      --pid FILE                    PID file path")
-	fmt.Println("      --address ADDR                Listen address (default: 0.0.0.0)")
-	fmt.Println("      --port PORT                   Listen port (default: random 64xxx, 80 in container)")
-	fmt.Println("      --baseurl PATH                URL path prefix (default: /)")
-	fmt.Println("      --daemon                      Run as daemon (detach from terminal)")
-	fmt.Println("      --debug                       Enable debug mode")
-	fmt.Println("      --color {auto|yes|no}         Color output (default: auto)")
-	fmt.Println("      --lang CODE                   Language for output (default: auto)")
+	fmt.Println(T("cli.help.server_configuration_heading"))
+	fmt.Println(T("cli.help.flag_mode"))
+	fmt.Println(T("cli.help.flag_config"))
+	fmt.Println(T("cli.help.flag_data"))
+	fmt.Println(T("cli.help.flag_cache"))
+	fmt.Println(T("cli.help.flag_log"))
+	fmt.Println(T("cli.help.flag_backup"))
+	fmt.Println(T("cli.help.flag_pid"))
+	fmt.Println(T("cli.help.flag_address"))
+	fmt.Println(T("cli.help.flag_port"))
+	fmt.Println(T("cli.help.flag_baseurl"))
+	fmt.Println(T("cli.help.flag_daemon"))
+	fmt.Println(T("cli.help.flag_debug"))
+	fmt.Println(T("cli.help.flag_color"))
+	fmt.Println(T("cli.help.flag_lang"))
 	fmt.Println()
 
 	// Service Management section
-	fmt.Println("Service Management:")
-	fmt.Println("      --service CMD                 Service management (--service --help for details)")
-	fmt.Println("      --maintenance CMD             Maintenance operations (--maintenance --help for details)")
-	fmt.Println("      --update [CMD]                Check/perform updates (--update --help for details)")
+	fmt.Println(T("cli.help.service_management_heading"))
+	fmt.Println(T("cli.help.flag_service"))
+	fmt.Println(T("cli.help.flag_maintenance"))
+	fmt.Println(T("cli.help.flag_update"))
 	fmt.Println()
 
 	// Final line per spec
-	fmt.Printf("Run '%s <command> --help' for detailed help on any command.\n", binaryName)
+	fmt.Printf(T("cli.help.footer")+"\n", binaryName)
 }
 
 // ShowVersion displays version information per AI.md PART 16 line 13778
@@ -252,10 +252,10 @@ func (c *CLI) ShowHelp() {
 //	OS/Arch: {os}/{arch}
 func (c *CLI) ShowVersion() {
 	binaryName := filepath.Base(os.Args[0])
-	fmt.Printf("%s v%s\n", binaryName, Version)
-	fmt.Printf("Built: %s\n", BuildDate)
-	fmt.Printf("Go: %s\n", runtime.Version())
-	fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Printf(T("cli.version.name_version")+"\n", binaryName, Version)
+	fmt.Printf(T("cli.version.built")+"\n", BuildDate)
+	fmt.Printf(T("cli.version.go")+"\n", runtime.Version())
+	fmt.Printf(T("cli.version.os_arch")+"\n", runtime.GOOS, runtime.GOARCH)
 }
 
 // GetFlag returns a flag value

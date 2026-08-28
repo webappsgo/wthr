@@ -50,24 +50,24 @@ func ServiceCommand(args []string) error {
 }
 
 func showServiceHelp() {
-	fmt.Println("Service Management Help")
+	fmt.Println(T("cli.service.help_title"))
 	fmt.Println()
-	fmt.Println("INSTALLATION:")
-	fmt.Println("  wthr --service --install     Install as system service (requires root/admin)")
-	fmt.Println("  wthr --service --uninstall   Remove system service (requires root/admin)")
-	fmt.Println("  wthr --service --disable     Disable system service (requires root/admin)")
+	fmt.Println(T("cli.service.help_installation_heading"))
+	fmt.Println(T("cli.service.help_install"))
+	fmt.Println(T("cli.service.help_uninstall"))
+	fmt.Println(T("cli.service.help_disable"))
 	fmt.Println()
-	fmt.Println("CONTROL:")
-	fmt.Println("  wthr --service start         Start the service")
-	fmt.Println("  wthr --service stop          Stop the service")
-	fmt.Println("  wthr --service restart       Restart the service")
-	fmt.Println("  wthr --service reload        Reload configuration (SIGHUP)")
+	fmt.Println(T("cli.service.help_control_heading"))
+	fmt.Println(T("cli.service.help_start"))
+	fmt.Println(T("cli.service.help_stop"))
+	fmt.Println(T("cli.service.help_restart"))
+	fmt.Println(T("cli.service.help_reload"))
 	fmt.Println()
-	fmt.Println("SUPPORTED SERVICE MANAGERS:")
-	fmt.Println("  Linux:   systemd, runit")
-	fmt.Println("  macOS:   launchd")
-	fmt.Println("  BSD:     rc.d")
-	fmt.Println("  Windows: Windows Service Manager")
+	fmt.Println(T("cli.service.help_managers_heading"))
+	fmt.Println(T("cli.service.help_managers_linux"))
+	fmt.Println(T("cli.service.help_managers_macos"))
+	fmt.Println(T("cli.service.help_managers_bsd"))
+	fmt.Println(T("cli.service.help_managers_windows"))
 	fmt.Println()
 }
 
@@ -149,7 +149,7 @@ func disableService() error {
 	case "darwin":
 		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist")
 	case "freebsd", "openbsd", "netbsd":
-		fmt.Println("Service disabled. Remove from /etc/rc.conf to prevent auto-start.")
+		fmt.Println(T("cli.service.disabled_bsd_hint"))
 		return nil
 	case "windows":
 		return runCommand("sc", "config", "wthr", "start=", "disabled")
@@ -218,7 +218,7 @@ func reloadService() error {
 	case "freebsd", "openbsd", "netbsd":
 		return runCommand("service", "wthr", "reload")
 	case "windows":
-		fmt.Println("Config reload via Windows Service Manager not supported. Use restart instead.")
+		fmt.Println(T("cli.service.reload_windows_unsupported"))
 		return restartService()
 	default:
 		return fmt.Errorf("service reload not supported on %s", runtime.GOOS)
@@ -280,8 +280,8 @@ WantedBy=multi-user.target
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
-	fmt.Printf("%s Systemd service installed successfully\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Use: systemctl start wthr")
+	fmt.Printf(T("cli.service.systemd_install_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.systemd_use_start"))
 	return nil
 }
 
@@ -298,7 +298,7 @@ func uninstallSystemdService() error {
 	// Reload systemd
 	runCommand("systemctl", "daemon-reload")
 
-	fmt.Printf("%s Systemd service uninstalled\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.systemd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -333,8 +333,8 @@ func installLaunchdService() error {
 		return fmt.Errorf("failed to load service: %w", err)
 	}
 
-	fmt.Printf("%s Launchd service installed successfully\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Use: launchctl start io.github.webappsgo.wthr")
+	fmt.Printf(T("cli.service.launchd_install_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.launchd_use_start"))
 	return nil
 }
 
@@ -347,7 +347,7 @@ func uninstallLaunchdService() error {
 	// Remove plist
 	os.Remove(plistPath)
 
-	fmt.Printf("%s Launchd service uninstalled\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.launchd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -374,16 +374,16 @@ run_rc_command "$1"
 		return fmt.Errorf("failed to write rc.d script: %w", err)
 	}
 
-	fmt.Printf("%s RC.d service installed successfully\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Add to /etc/rc.conf: wthr_enable=\"YES\"")
-	fmt.Println("  Use: service wthr start")
+	fmt.Printf(T("cli.service.rcd_install_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.rcd_add_rcconf"))
+	fmt.Println(T("cli.service.rcd_use_start"))
 	return nil
 }
 
 func uninstallRCDService() error {
 	os.Remove("/usr/local/etc/rc.d/wthr")
-	fmt.Printf("%s RC.d service uninstalled\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Remove from /etc/rc.conf: wthr_enable")
+	fmt.Printf(T("cli.service.rcd_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.rcd_remove_rcconf"))
 	return nil
 }
 
@@ -409,8 +409,8 @@ func installWindowsService() error {
 	// Set startup type to automatic
 	runCommand("nssm", "set", "wthr", "Start", "SERVICE_AUTO_START")
 
-	fmt.Printf("%s Windows service installed successfully\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Use: sc start wthr")
+	fmt.Printf(T("cli.service.windows_install_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.windows_use_start"))
 	return nil
 }
 
@@ -425,7 +425,7 @@ func uninstallWindowsService() error {
 		runCommand("sc", "delete", "wthr")
 	}
 
-	fmt.Printf("%s Windows service uninstalled\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.windows_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -500,9 +500,9 @@ exec svlogd -tt /var/log/webappsgo/wthr
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
-	fmt.Printf("%s Runit service installed successfully\n", display.Emoji("✓", "[OK]"))
-	fmt.Println("  Service directory: /etc/sv/wthr")
-	fmt.Println("  Service link: /var/service/wthr")
+	fmt.Printf(T("cli.service.runit_install_success")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Println(T("cli.service.runit_service_dir"))
+	fmt.Println(T("cli.service.runit_service_link"))
 
 	return nil
 }
@@ -523,7 +523,7 @@ func uninstallRunitService() error {
 		return fmt.Errorf("failed to remove service directory: %w", err)
 	}
 
-	fmt.Printf("%s Runit service uninstalled\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.runit_uninstall_success")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -544,7 +544,7 @@ func commandExists(name string) bool {
 func createSystemUser() error {
 	// Check if user already exists
 	if userExists("wthr") {
-		fmt.Printf("%s System user 'wthr' already exists\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.service.user_already_exists")+"\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
@@ -583,7 +583,7 @@ func createLinuxUser() error {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -614,7 +614,7 @@ func createMacOSUser() error {
 	runCommand("dscl", ".", "-create", "/Users/wthr", "RealName", "Weather")
 	runCommand("dscl", ".", "-create", "/Users/wthr", "NFSHomeDirectory", "/var/empty")
 
-	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -639,7 +639,7 @@ func createBSDUser() error {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	fmt.Printf("%s Created system user 'wthr'\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.user_created")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 
@@ -666,7 +666,7 @@ func createServiceDirectories() error {
 		}
 	}
 
-	fmt.Printf("%s Created service directories\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.service.directories_created")+"\n", display.Emoji("✓", "[OK]"))
 	return nil
 }
 

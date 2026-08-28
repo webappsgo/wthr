@@ -66,7 +66,7 @@ func UpdateCommand(args []string) error {
 
 // checkForUpdates checks for available updates
 func checkForUpdates() error {
-	fmt.Println("Checking for updates...")
+	fmt.Println(T("cli.update.checking"))
 
 	// Check stable
 	stable, err := fetchRelease(githubStable)
@@ -77,51 +77,51 @@ func checkForUpdates() error {
 	// Check beta
 	beta, err := fetchRelease(githubBeta)
 	if err != nil {
-		fmt.Printf("Warning: Could not check beta release: %v\n", err)
+		fmt.Printf(T("cli.update.warning_beta_check_failed")+"\n", err)
 	}
 
 	// Check daily
 	daily, err := fetchRelease(githubDaily)
 	if err != nil {
-		fmt.Printf("Warning: Could not check daily release: %v\n", err)
+		fmt.Printf(T("cli.update.warning_daily_check_failed")+"\n", err)
 	}
 
 	// Display current version
-	fmt.Printf("\nCurrent version: %s\n", Version)
+	fmt.Printf("\n"+T("cli.update.current_version")+"\n", Version)
 	fmt.Println()
 
 	// Display available versions
 	if stable != nil {
-		fmt.Printf("Stable:  %s (released %s)\n", stable.TagName, stable.PublishedAt.Format("2006-01-02"))
+		fmt.Printf(T("cli.update.stable_line")+"\n", stable.TagName, stable.PublishedAt.Format("2006-01-02"))
 		if isNewer(stable.TagName, Version) {
-			fmt.Printf("         %s Update available!\n", display.Emoji("✨", "*"))
+			fmt.Printf(T("cli.update.update_available")+"\n", display.Emoji("✨", "*"))
 		}
 	}
 
 	if beta != nil {
-		fmt.Printf("Beta:    %s (released %s)\n", beta.TagName, beta.PublishedAt.Format("2006-01-02"))
+		fmt.Printf(T("cli.update.beta_line")+"\n", beta.TagName, beta.PublishedAt.Format("2006-01-02"))
 		if isNewer(beta.TagName, Version) {
-			fmt.Printf("         %s Update available!\n", display.Emoji("✨", "*"))
+			fmt.Printf(T("cli.update.update_available")+"\n", display.Emoji("✨", "*"))
 		}
 	}
 
 	if daily != nil {
-		fmt.Printf("Daily:   %s (released %s)\n", daily.TagName, daily.PublishedAt.Format("2006-01-02"))
+		fmt.Printf(T("cli.update.daily_line")+"\n", daily.TagName, daily.PublishedAt.Format("2006-01-02"))
 	}
 
 	fmt.Println()
-	fmt.Println("To update:")
-	fmt.Println("  wthr --update yes                     # Update to latest stable")
-	fmt.Println("  wthr --update branch stable           # Update to stable branch")
-	fmt.Println("  wthr --update branch beta             # Update to beta branch")
-	fmt.Println("  wthr --update branch daily            # Update to daily build")
+	fmt.Println(T("cli.update.to_update_heading"))
+	fmt.Println(T("cli.update.hint_yes"))
+	fmt.Println(T("cli.update.hint_branch_stable"))
+	fmt.Println(T("cli.update.hint_branch_beta"))
+	fmt.Println(T("cli.update.hint_branch_daily"))
 
 	return nil
 }
 
 // performUpdate performs the actual update
 func performUpdate(branch string) error {
-	fmt.Printf("Updating to %s branch...\n", branch)
+	fmt.Printf(T("cli.update.updating_to_branch")+"\n", branch)
 
 	// Get release URL based on branch
 	var releaseURL string
@@ -142,11 +142,11 @@ func performUpdate(branch string) error {
 		return fmt.Errorf("failed to fetch release: %w", err)
 	}
 
-	fmt.Printf("Found version: %s\n", release.TagName)
+	fmt.Printf(T("cli.update.found_version")+"\n", release.TagName)
 
 	// Check if already up to date
 	if !isNewer(release.TagName, Version) && branch == "stable" {
-		fmt.Printf("%s Already up to date!\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.update.already_up_to_date")+"\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
@@ -167,7 +167,7 @@ func performUpdate(branch string) error {
 		return fmt.Errorf("no binary found for %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
 
-	fmt.Printf("Downloading: %s (%.2f MB)\n", assetName, float64(assetSize)/(1024*1024))
+	fmt.Printf(T("cli.update.downloading")+"\n", assetName, float64(assetSize)/(1024*1024))
 
 	// Download binary to org-namespaced temp path per AI.md PART 29
 	tmpDir := filepath.Join(os.TempDir(), "webappsgo")
@@ -182,13 +182,13 @@ func performUpdate(branch string) error {
 	// Verify checksum per AI.md PART 23 line 32321
 	// Checksum file is expected at {binary}.sha256
 	checksumURL := downloadURL + ".sha256"
-	fmt.Println("Verifying checksum...")
+	fmt.Println(T("cli.update.verifying_checksum"))
 	if err := verifyChecksum(tmpFile, checksumURL); err != nil {
 		// Clean up failed download
 		os.Remove(tmpFile)
 		return fmt.Errorf("checksum verification failed: %w", err)
 	}
-	fmt.Printf("%s Checksum verified\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.update.checksum_verified")+"\n", display.Emoji("✓", "[OK]"))
 
 	// Make executable
 	if err := os.Chmod(tmpFile, 0755); err != nil {
@@ -207,7 +207,7 @@ func performUpdate(branch string) error {
 		return fmt.Errorf("failed to backup current binary: %w", err)
 	}
 
-	fmt.Println("Backed up current binary")
+	fmt.Println(T("cli.update.backed_up_binary"))
 
 	// Replace binary
 	if err := os.Rename(tmpFile, currentBinary); err != nil {
@@ -227,11 +227,11 @@ func performUpdate(branch string) error {
 		return fmt.Errorf("new binary verification failed, restored backup: %w", err)
 	}
 
-	fmt.Printf("\n%s Update successful!\n", display.Emoji("✓", "[OK]"))
-	fmt.Printf("New version: %s\n", release.TagName)
+	fmt.Printf("\n"+T("cli.update.update_successful")+"\n", display.Emoji("✓", "[OK]"))
+	fmt.Printf(T("cli.update.new_version")+"\n", release.TagName)
 	fmt.Println(string(output))
-	fmt.Println("\nBackup saved at:", backupPath)
-	fmt.Println("Please restart the service for changes to take effect")
+	fmt.Println("\n" + T("cli.update.backup_saved_at") + " " + backupPath)
+	fmt.Println(T("cli.update.restart_hint"))
 
 	return nil
 }
@@ -300,7 +300,7 @@ func downloadFile(filepath string, url string) error {
 			// Show progress
 			if size > 0 {
 				percent := float64(downloaded) / float64(size) * 100
-				fmt.Printf("\r  Progress: %.1f%%", percent)
+				fmt.Printf("\r"+T("cli.update.progress"), percent)
 			}
 		}
 		if err == io.EOF {

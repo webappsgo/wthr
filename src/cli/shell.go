@@ -41,26 +41,26 @@ func (c *CLI) handleShellCommand(cmd string, args []string) error {
 
 // showShellHelp displays shell integration help per AI.md PART 25
 func (c *CLI) showShellHelp(binaryName string) {
-	fmt.Println("Shell integration commands:")
+	fmt.Println(T("cli.shell.help_title"))
 	fmt.Println()
-	fmt.Println("  completions [SHELL]   Print shell completion script")
-	fmt.Println("                        Auto-detects shell if SHELL omitted")
-	fmt.Println("                        Supported: bash, zsh, fish, sh, dash, ksh, powershell, pwsh")
+	fmt.Println(T("cli.shell.help_completions_line"))
+	fmt.Println(T("cli.shell.help_autodetect_line"))
+	fmt.Println(T("cli.shell.help_supported_line"))
 	fmt.Println()
-	fmt.Println("  init [SHELL]          Print shell init command for eval")
-	fmt.Println("                        Auto-detects shell if SHELL omitted")
+	fmt.Println(T("cli.shell.help_init_line"))
+	fmt.Println(T("cli.shell.help_autodetect_line"))
 	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  # Add to shell profile for persistent completions")
-	fmt.Printf("  %s --shell init >> ~/.bashrc      # bash\n", binaryName)
-	fmt.Printf("  %s --shell init >> ~/.zshrc       # zsh\n", binaryName)
-	fmt.Printf("  %s --shell init >> ~/.config/fish/config.fish  # fish\n", binaryName)
+	fmt.Println(T("cli.shell.help_usage_heading"))
+	fmt.Println(T("cli.shell.help_usage_profile_comment"))
+	fmt.Printf(T("cli.shell.help_usage_bashrc")+"\n", binaryName)
+	fmt.Printf(T("cli.shell.help_usage_zshrc")+"\n", binaryName)
+	fmt.Printf(T("cli.shell.help_usage_fishrc")+"\n", binaryName)
 	fmt.Println()
-	fmt.Println("  # Or eval directly for current session")
-	fmt.Printf("  eval \"$(%s --shell init)\"\n", binaryName)
+	fmt.Println(T("cli.shell.help_usage_eval_comment"))
+	fmt.Printf(T("cli.shell.help_usage_eval")+"\n", binaryName)
 	fmt.Println()
-	fmt.Println("  # Generate completion script only")
-	fmt.Printf("  %s --shell completions bash > /etc/bash_completion.d/%s\n", binaryName, binaryName)
+	fmt.Println(T("cli.shell.help_usage_generate_comment"))
+	fmt.Printf(T("cli.shell.help_usage_generate")+"\n", binaryName, binaryName)
 }
 
 // detectShell auto-detects the current shell
@@ -111,19 +111,19 @@ func printCompletions(binaryName, shell string) {
 func printInit(binaryName, shell string) {
 	switch shell {
 	case "bash":
-		fmt.Printf("# %s shell completions\n", binaryName)
+		fmt.Printf(T("cli.shell.init_comment")+"\n", binaryName)
 		fmt.Printf("eval \"$(%s --shell completions bash)\"\n", binaryName)
 	case "zsh":
-		fmt.Printf("# %s shell completions\n", binaryName)
+		fmt.Printf(T("cli.shell.init_comment")+"\n", binaryName)
 		fmt.Printf("eval \"$(%s --shell completions zsh)\"\n", binaryName)
 	case "fish":
-		fmt.Printf("# %s shell completions\n", binaryName)
+		fmt.Printf(T("cli.shell.init_comment")+"\n", binaryName)
 		fmt.Printf("%s --shell completions fish | source\n", binaryName)
 	case "powershell", "pwsh":
-		fmt.Printf("# %s shell completions\n", binaryName)
+		fmt.Printf(T("cli.shell.init_comment")+"\n", binaryName)
 		fmt.Printf("Invoke-Expression (& %s --shell completions powershell)\n", binaryName)
 	default:
-		fmt.Printf("# %s shell completions\n", binaryName)
+		fmt.Printf(T("cli.shell.init_comment")+"\n", binaryName)
 		fmt.Printf("eval \"$(%s --shell completions bash)\"\n", binaryName)
 	}
 }

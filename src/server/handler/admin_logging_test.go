@@ -229,7 +229,7 @@ func TestLoggingHandler_ConfigureFail2ban_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	if !jsonFieldEquals(t, w.Body.Bytes(), "message", "success.admin.logging.fail2ban_configuration_saved") {
+	if !jsonFieldEquals(t, w.Body.Bytes(), "message", "Fail2ban configuration saved") {
 		t.Errorf("unexpected response body: %s", w.Body.String())
 	}
 }
@@ -265,7 +265,7 @@ func TestLoggingHandler_ConfigureSyslog_Success(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	if !jsonFieldEquals(t, w.Body.Bytes(), "message", "success.admin.logging.syslog_configuration_saved") {
+	if !jsonFieldEquals(t, w.Body.Bytes(), "message", "Syslog configuration saved") {
 		t.Errorf("unexpected response body: %s", w.Body.String())
 	}
 }

@@ -10,6 +10,32 @@ import (
 	"github.com/webappsgo/wthr/src/util"
 )
 
+// defaultLocalesFS embeds this package's own locale files so a default
+// global instance (English) is always available — including in unit tests
+// and any early CLI exit-immediately path that runs before main.go's
+// server-language-aware i18n.SetGlobalI18n call. See init() below.
+//
+//go:embed locales/*.json
+var defaultLocalesFS embed.FS
+
+// init installs a default (English) global i18n instance at package load
+// time, per AI.md PART 31's "Server CLI Output"/"Client CLI Output"
+// requirement that help/version/status output be translatable even on the
+// exit-immediately paths that run before full server startup. Callers that
+// run after server.yml is loaded (main.go) still call SetGlobalI18n with the
+// server-configured language, which simply replaces this default.
+func init() {
+	instance, err := loadI18nFromFS(defaultLocalesFS, "locales", "en")
+	if err != nil {
+		// Embedded locales are compiled into the binary and validated by
+		// make i18n-validate; a load failure here is a build defect, not a
+		// runtime condition to recover from. Leave globalI18n nil so
+		// existing nil-safe callers keep their own hardcoded fallback.
+		return
+	}
+	SetGlobalI18n(instance)
+}
+
 // I18n provides internationalization support.
 // AI.md PART 31 - NON-NEGOTIABLE
 type I18n struct {
@@ -21,6 +47,13 @@ type I18n struct {
 
 // NewI18n creates a new internationalization service
 func NewI18n(fs embed.FS, defaultLang string) (*I18n, error) {
+	return loadI18nFromFS(fs, "common/i18n/locales", defaultLang)
+}
+
+// loadI18nFromFS loads locale files from dir within the given embedded FS.
+// dir must match the path prefix the caller's //go:embed directive produced
+// (embed paths are always relative to the declaring file's own directory).
+func loadI18nFromFS(fs embed.FS, dir, defaultLang string) (*I18n, error) {
 	i18n := &I18n{
 		translations:  make(map[string]map[string]string),
 		defaultLang:   defaultLang,
@@ -28,7 +61,7 @@ func NewI18n(fs embed.FS, defaultLang string) (*I18n, error) {
 	}
 
 	// Load all locale files from embedded FS
-	entries, err := fs.ReadDir("common/i18n/locales")
+	entries, err := fs.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read locale directory: %w", err)
 	}
@@ -39,7 +72,7 @@ func NewI18n(fs embed.FS, defaultLang string) (*I18n, error) {
 		}
 
 		lang := strings.TrimSuffix(entry.Name(), ".json")
-		data, err := fs.ReadFile(fmt.Sprintf("common/i18n/locales/%s", entry.Name()))
+		data, err := fs.ReadFile(fmt.Sprintf("%s/%s", dir, entry.Name()))
 		if err != nil {
 			return nil, fmt.Errorf("failed to read locale file %s: %w", entry.Name(), err)
 		}

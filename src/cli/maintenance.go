@@ -78,8 +78,8 @@ func MaintenanceCommand(args []string) error {
 }
 
 func updateServerConfig() error {
-	fmt.Println("Updating server configuration...")
-	fmt.Println("  Syncing database settings to server.yml")
+	fmt.Println(T("cli.maintenance.updating_server_config"))
+	fmt.Println(T("cli.maintenance.syncing_db_settings"))
 
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
@@ -147,8 +147,8 @@ func updateServerConfig() error {
 		return fmt.Errorf("failed to write %s: %w", configPath, err)
 	}
 
-	fmt.Printf("\n%s Configuration written to %s\n", display.Emoji("✓", "[OK]"), configPath)
-	fmt.Println("  Send SIGHUP to reload: kill -HUP $(pidof wthr)")
+	fmt.Printf("\n"+T("cli.maintenance.config_written")+"\n", display.Emoji("✓", "[OK]"), configPath)
+	fmt.Println(T("cli.maintenance.sighup_hint"))
 	return nil
 }
 
@@ -187,7 +187,7 @@ func setMaintenanceMode(mode string) error {
 		return fmt.Errorf("invalid mode: %s (use production or development)", mode)
 	}
 
-	fmt.Printf("Setting mode to: %s\n", mode)
+	fmt.Printf(T("cli.maintenance.setting_mode")+"\n", mode)
 
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
@@ -210,8 +210,8 @@ func setMaintenanceMode(mode string) error {
 		return fmt.Errorf("failed to write %s: %w", configPath, err)
 	}
 
-	fmt.Printf("\n%s Mode set to %q in %s\n", display.Emoji("✓", "[OK]"), mode, configPath)
-	fmt.Println("  Restart the server for changes to take effect.")
+	fmt.Printf("\n"+T("cli.maintenance.mode_set")+"\n", display.Emoji("✓", "[OK]"), mode, configPath)
+	fmt.Println(T("cli.maintenance.restart_hint"))
 	return nil
 }
 
@@ -257,8 +257,8 @@ func updateYAMLKey(yaml, key, value string) string {
 
 // adminRecoverySetup allows recovery of admin access after restore or lockout
 func adminRecoverySetup() error {
-	fmt.Printf("%s Admin Account Recovery Setup\n", display.Emoji("🔧", "*"))
-	fmt.Println("This will reset the primary admin account credentials.")
+	fmt.Printf(T("cli.maintenance.admin_recovery_title")+"\n", display.Emoji("🔧", "*"))
+	fmt.Println(T("cli.maintenance.admin_recovery_description"))
 	fmt.Println()
 
 	// Get directory paths
@@ -284,21 +284,21 @@ func adminRecoverySetup() error {
 	defer db.Close()
 
 	// Prompt for new admin credentials
-	fmt.Print("Enter new admin username (default: admin): ")
+	fmt.Print(T("cli.maintenance.prompt_username"))
 	var username string
 	fmt.Scanln(&username)
 	if username == "" {
 		username = "admin"
 	}
 
-	fmt.Print("Enter new admin password: ")
+	fmt.Print(T("cli.maintenance.prompt_password"))
 	var password string
 	fmt.Scanln(&password)
 	if password == "" {
 		return fmt.Errorf("password cannot be empty")
 	}
 
-	fmt.Print("Confirm password: ")
+	fmt.Print(T("cli.maintenance.prompt_confirm_password"))
 	var confirmPassword string
 	fmt.Scanln(&confirmPassword)
 	if password != confirmPassword {
@@ -349,14 +349,14 @@ func adminRecoverySetup() error {
 		if err != nil {
 			return fmt.Errorf("failed to create admin credentials: %w", err)
 		}
-		fmt.Printf("\n%s New admin account created\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf("\n"+T("cli.maintenance.admin_created")+"\n", display.Emoji("✓", "[OK]"))
 	} else {
-		fmt.Printf("\n%s Admin account updated\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf("\n"+T("cli.maintenance.admin_updated")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
-	fmt.Printf("  Username: %s\n", username)
-	fmt.Printf("\n%s Please restart the server and login with the new credentials\n", display.Emoji("⚠️", "WARNING:"))
-	fmt.Println("  Use: systemctl restart wthr")
+	fmt.Printf(T("cli.maintenance.username_line")+"\n", username)
+	fmt.Printf("\n"+T("cli.maintenance.restart_login_warning")+"\n", display.Emoji("⚠️", "WARNING:"))
+	fmt.Println(T("cli.maintenance.systemctl_restart_hint"))
 
 	return nil
 }
@@ -411,7 +411,7 @@ func hashPasswordArgon2id(password string) (string, error) {
 
 // verifySystem verifies system integrity per AI.md PART 22
 func verifySystem() error {
-	fmt.Printf("%s System Verification\n", display.Emoji("🔍", "[..]"))
+	fmt.Printf(T("cli.maintenance.verify_title")+"\n", display.Emoji("🔍", "[..]"))
 	fmt.Println()
 
 	// Get directory paths
@@ -433,81 +433,81 @@ func verifySystem() error {
 	errors := 0
 
 	// 1. Verify server.db exists and is accessible
-	fmt.Print("Checking server.db... ")
+	fmt.Print(T("cli.maintenance.checking_server_db"))
 	serverDBPath := filepath.Join(dataDir, "db", "server.db")
 	if err := verifyDatabaseFile(serverDBPath); err != nil {
-		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
+		fmt.Printf(T("cli.maintenance.check_fail")+"\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 2. Verify users.db exists and is accessible
-	fmt.Print("Checking users.db... ")
+	fmt.Print(T("cli.maintenance.checking_users_db"))
 	usersDBPath := filepath.Join(dataDir, "db", "users.db")
 	if err := verifyDatabaseFile(usersDBPath); err != nil {
-		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
+		fmt.Printf(T("cli.maintenance.check_fail")+"\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 3. Verify server.yml exists
-	fmt.Print("Checking server.yml... ")
+	fmt.Print(T("cli.maintenance.checking_server_yml"))
 	configPath := filepath.Join(configDir, "server.yml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		fmt.Printf("%s NOT FOUND (using defaults)\n", display.Emoji("⚠️", "WARNING:"))
+		fmt.Printf(T("cli.maintenance.config_not_found")+"\n", display.Emoji("⚠️", "WARNING:"))
 	} else if err != nil {
-		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
+		fmt.Printf(T("cli.maintenance.check_fail")+"\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 4. Verify log directory is writable
-	fmt.Print("Checking log directory... ")
+	fmt.Print(T("cli.maintenance.checking_log_dir"))
 	if err := verifyDirectoryWritable(logDir); err != nil {
-		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
+		fmt.Printf(T("cli.maintenance.check_fail")+"\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 5. Verify data directory is writable
-	fmt.Print("Checking data directory... ")
+	fmt.Print(T("cli.maintenance.checking_data_dir"))
 	if err := verifyDirectoryWritable(dataDir); err != nil {
-		fmt.Printf("%s FAIL: %v\n", display.Emoji("❌", "[FAIL]"), err)
+		fmt.Printf(T("cli.maintenance.check_fail")+"\n", display.Emoji("❌", "[FAIL]"), err)
 		errors++
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 6. Verify at least one admin account exists
-	fmt.Print("Checking admin accounts... ")
+	fmt.Print(T("cli.maintenance.checking_admin_accounts"))
 	if err := verifyAdminExists(serverDBPath); err != nil {
-		fmt.Printf("%s WARNING: %v\n", display.Emoji("⚠️", "[!]"), err)
-		fmt.Println("   Run: wthr --maintenance admin-recovery")
+		fmt.Printf(T("cli.maintenance.admin_check_warning")+"\n", display.Emoji("⚠️", "[!]"), err)
+		fmt.Println(T("cli.maintenance.admin_recovery_run_hint"))
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// 7. Check GeoIP databases (optional)
-	fmt.Print("Checking GeoIP databases... ")
+	fmt.Print(T("cli.maintenance.checking_geoip"))
 	geoipDir := filepath.Join(dataDir, "geoip")
 	if _, err := os.Stat(geoipDir); os.IsNotExist(err) {
-		fmt.Printf("%s NOT FOUND (will download on first use)\n", display.Emoji("⚠️", "WARNING:"))
+		fmt.Printf(T("cli.maintenance.geoip_not_found")+"\n", display.Emoji("⚠️", "WARNING:"))
 	} else {
-		fmt.Printf("%s OK\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.check_ok")+"\n", display.Emoji("✓", "[OK]"))
 	}
 
 	// Summary
 	fmt.Println()
 	if errors == 0 {
-		fmt.Printf("%s System verification completed successfully\n", display.Emoji("✓", "[OK]"))
+		fmt.Printf(T("cli.maintenance.verify_success")+"\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
 
-	fmt.Printf("%s System verification failed with %d error(s)\n", display.Emoji("❌", "[FAIL]"), errors)
+	fmt.Printf(T("cli.maintenance.verify_failed")+"\n", display.Emoji("❌", "[FAIL]"), errors)
 	return fmt.Errorf("verification failed")
 }
 

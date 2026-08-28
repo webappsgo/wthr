@@ -27,64 +27,64 @@ type StatusCommand struct {
 
 // Execute runs the status command
 func (s *StatusCommand) Execute() error {
-	fmt.Println("Weather - Server Status")
+	fmt.Println(T("cli.status.title"))
 	fmt.Println()
 
 	// Server Status
-	fmt.Println("Server Status:")
+	fmt.Println(T("cli.status.server_status_heading"))
 	if s.ServerRunning {
-		fmt.Println("  Status:   Running")
-		fmt.Printf("  Port:     %d\n", s.Port)
-		fmt.Printf("  Mode:     %s\n", s.Mode)
+		fmt.Println(T("cli.status.running"))
+		fmt.Printf(T("cli.status.port")+"\n", s.Port)
+		fmt.Printf(T("cli.status.mode")+"\n", s.Mode)
 		if !s.StartTime.IsZero() {
 			uptime := time.Since(s.StartTime)
-			fmt.Printf("  Uptime:   %s\n", formatDuration(uptime))
+			fmt.Printf(T("cli.status.uptime")+"\n", formatDuration(uptime))
 		}
 	} else {
-		fmt.Println("  Status:   Stopped")
+		fmt.Println(T("cli.status.stopped"))
 	}
 	fmt.Println()
 
 	// Node Information
-	fmt.Println("Node Information:")
+	fmt.Println(T("cli.status.node_information_heading"))
 	if s.NodeID == "" || s.NodeID == "standalone" {
-		fmt.Println("  Node:     standalone")
+		fmt.Println(T("cli.status.node_standalone"))
 	} else {
-		fmt.Printf("  Node:     %s\n", s.NodeID)
+		fmt.Printf(T("cli.status.node")+"\n", s.NodeID)
 		hostname, _ := os.Hostname()
 		if hostname != "" {
-			fmt.Printf("  Hostname: %s\n", hostname)
+			fmt.Printf(T("cli.status.hostname")+"\n", hostname)
 		}
 	}
 	fmt.Println()
 
 	// Cluster Information (per TEMPLATE.md PART 6)
-	fmt.Println("Cluster:")
+	fmt.Println(T("cli.status.cluster_heading"))
 	if s.ClusterMode {
-		fmt.Println("  Mode:     cluster")
-		fmt.Printf("  Status:   %s\n", s.ClusterStatus)
-		fmt.Printf("  Nodes:    %d\n", s.ClusterNodes)
+		fmt.Println(T("cli.status.cluster_mode_cluster"))
+		fmt.Printf(T("cli.status.cluster_status")+"\n", s.ClusterStatus)
+		fmt.Printf(T("cli.status.cluster_nodes")+"\n", s.ClusterNodes)
 		if s.DatabaseInfo != "" {
-			fmt.Printf("  Database: %s\n", s.DatabaseInfo)
+			fmt.Printf(T("cli.status.database")+"\n", s.DatabaseInfo)
 		}
 	} else {
-		fmt.Println("  Mode:     disabled")
+		fmt.Println(T("cli.status.cluster_mode_disabled"))
 	}
 	fmt.Println()
 
 	// Tor Hidden Service (per TEMPLATE.md PART 6)
-	fmt.Println("Tor Hidden Service:")
+	fmt.Println(T("cli.status.tor_heading"))
 	if s.TorEnabled {
 		if s.TorConnected {
-			fmt.Println("  Status:   Connected")
+			fmt.Println(T("cli.status.tor_connected"))
 			if s.TorAddress != "" {
-				fmt.Printf("  Address:  %s\n", s.TorAddress)
+				fmt.Printf(T("cli.status.tor_address")+"\n", s.TorAddress)
 			}
 		} else {
-			fmt.Println("  Status:   Disconnected")
+			fmt.Println(T("cli.status.tor_disconnected"))
 		}
 	} else {
-		fmt.Println("  Status:   Disabled")
+		fmt.Println(T("cli.status.tor_disabled"))
 	}
 	fmt.Println()
 
@@ -113,13 +113,13 @@ func formatDuration(d time.Duration) string {
 // ShowStatusNotRunning shows status when server is not running
 // This allows --status to work even when server is down
 func ShowStatusNotRunning() {
-	fmt.Println("Weather - Server Status")
+	fmt.Println(T("cli.status.title"))
 	fmt.Println()
-	fmt.Println("Server Status:  Stopped")
-	fmt.Println("Node:           standalone")
-	fmt.Println("Cluster:        disabled")
-	fmt.Println("Tor:            Unknown (server not running)")
+	fmt.Println(T("cli.status.stopped_summary"))
+	fmt.Println(T("cli.status.node_standalone_summary"))
+	fmt.Println(T("cli.status.cluster_disabled_summary"))
+	fmt.Println(T("cli.status.tor_unknown_summary"))
 	fmt.Println()
-	fmt.Println("Use 'wthr --service start' to start the server")
+	fmt.Println(T("cli.status.start_hint"))
 	fmt.Println()
 }

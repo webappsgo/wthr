@@ -91,8 +91,8 @@ func TestUserSettingsHandler_GetSettings(t *testing.T) {
 		if got["error"] != "UNAUTHORIZED" {
 			t.Errorf(`error = %q, want "UNAUTHORIZED"`, got["error"])
 		}
-		if got["message"] != "errors.admin.admins.not_authenticated" {
-			t.Errorf(`message = %q, want "errors.admin.admins.not_authenticated"`, got["message"])
+		if got["message"] != "Not authenticated" {
+			t.Errorf(`message = %q, want "Not authenticated"`, got["message"])
 		}
 	})
 

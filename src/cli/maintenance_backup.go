@@ -65,7 +65,7 @@ func MaintenanceBackupCommand(args []string) error {
 	if password == "" {
 		// Check if encryption is enabled in config
 		// For now, always prompt to allow encrypted backups
-		fmt.Print("Backup encryption password (leave empty for unencrypted): ")
+		fmt.Print(T("cli.maintenance_backup.password_prompt"))
 		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 		fmt.Println()
 		if err != nil {
@@ -74,7 +74,7 @@ func MaintenanceBackupCommand(args []string) error {
 		password = string(passwordBytes)
 	}
 
-	fmt.Printf("%s Creating backup...\n", display.Emoji("🔄", "->"))
+	fmt.Printf(T("cli.maintenance_backup.creating")+"\n", display.Emoji("🔄", "->"))
 	fmt.Println()
 
 	// Create backup per AI.md PART 25
@@ -95,20 +95,20 @@ func MaintenanceBackupCommand(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("%s Backup completed successfully!\n", display.Emoji("✅", "[OK]"))
-	fmt.Printf("%s Backup file: %s\n", display.Emoji("📦", "*"), backupPath)
+	fmt.Printf(T("cli.maintenance_backup.completed")+"\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf(T("cli.maintenance_backup.file")+"\n", display.Emoji("📦", "*"), backupPath)
 
 	// Show file size
 	if info, err := os.Stat(backupPath); err == nil {
 		size := float64(info.Size()) / 1024 / 1024
-		fmt.Printf("%s Size: %.2f MB\n", display.Emoji("📊", "*"), size)
+		fmt.Printf(T("cli.maintenance_backup.size")+"\n", display.Emoji("📊", "*"), size)
 	}
 
 	if password != "" {
-		fmt.Printf("%s Backup is encrypted\n", display.Emoji("🔒", "*"))
+		fmt.Printf(T("cli.maintenance_backup.encrypted")+"\n", display.Emoji("🔒", "*"))
 		fmt.Println()
-		fmt.Printf("%s IMPORTANT: Save your encryption password securely!\n", display.Emoji("⚠️", "WARNING:"))
-		fmt.Println("   Without the password, this backup cannot be restored.")
+		fmt.Printf(T("cli.maintenance_backup.save_password_warning")+"\n", display.Emoji("⚠️", "WARNING:"))
+		fmt.Println(T("cli.maintenance_backup.save_password_detail"))
 	}
 
 	return nil
@@ -139,7 +139,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	// Check if encrypted (has .enc extension)
 	if filepath.Ext(backupFile) == ".enc" && password == "" {
 		// Prompt for password per AI.md PART 25 line 22464
-		fmt.Print("Backup encryption password: ")
+		fmt.Print(T("cli.maintenance_backup.restore_password_prompt"))
 		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 		fmt.Println()
 		if err != nil {
@@ -163,8 +163,8 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	// Confirm restore operation
-	fmt.Printf("%s WARNING: This will overwrite current configuration and databases!\n", display.Emoji("⚠️", "[!]"))
-	fmt.Print("Are you sure you want to restore? (yes/no): ")
+	fmt.Printf(T("cli.maintenance_backup.restore_warning")+"\n", display.Emoji("⚠️", "[!]"))
+	fmt.Print(T("cli.maintenance_backup.restore_confirm_prompt"))
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
 	if err != nil {
@@ -172,12 +172,12 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 	response = strings.TrimSpace(strings.ToLower(response))
 	if response != "yes" {
-		fmt.Println("Restore cancelled.")
+		fmt.Println(T("cli.maintenance_backup.restore_cancelled"))
 		return nil
 	}
 
 	fmt.Println()
-	fmt.Printf("%s Restoring backup...\n", display.Emoji("🔄", "->"))
+	fmt.Printf(T("cli.maintenance_backup.restoring")+"\n", display.Emoji("🔄", "->"))
 	fmt.Println()
 
 	// Create backup service
@@ -197,12 +197,12 @@ func MaintenanceRestoreCommand(args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Printf("%s Restore completed successfully!\n", display.Emoji("✅", "[OK]"))
+	fmt.Printf(T("cli.maintenance_backup.restore_completed")+"\n", display.Emoji("✅", "[OK]"))
 	fmt.Println()
-	fmt.Println("Please restart the wthr service for changes to take effect:")
-	fmt.Println("  systemctl restart wthr")
-	fmt.Println("  or")
-	fmt.Println("  wthr --service restart")
+	fmt.Println(T("cli.maintenance_backup.restart_hint"))
+	fmt.Println(T("cli.maintenance_backup.restart_systemctl"))
+	fmt.Println(T("cli.maintenance_backup.restart_or"))
+	fmt.Println(T("cli.maintenance_backup.restart_wthr_service"))
 
 	return nil
 }

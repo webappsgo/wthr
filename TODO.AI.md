@@ -2960,12 +2960,60 @@ any of the above: `src/graphql/context_keys_test.go`,
     password and writes them directly, which is a different (and weaker)
     recovery model. Feature-level fix. Read: AI.md PART 22.
 
-126. TODO (flagged 2026-08-21 by the CLI legacy-table fix): the entire
-    `src/cli` package emits user-facing strings via raw `fmt.Println`/
-    `fmt.Printf` with no i18n helper, violating PART 31, which explicitly
-    covers CLI output. Same key-family dependency as items 116 and 118 - the
-    `errors.*`/`cli.*` families must land in all seven locale files first.
-    Read: AI.md PART 31.
+126. DONE (2026-08-28): the entire `src/cli` package emitted user-facing
+    strings via raw `fmt.Println`/`fmt.Printf`/`fmt.Print` with no i18n
+    helper, violating PART 31, which explicitly covers CLI output. Fixed by
+    converting all 7 non-test files (`cli.go`, `status.go`, `update.go`,
+    `maintenance.go`, `service.go`, `maintenance_backup.go`, `shell.go`;
+    `config.go` had zero raw print calls, correctly left untouched) to use
+    the existing `cli.T()` helper, and adding 191 new `cli.<subcommand>.
+    <slug>`-namespaced keys (identical set across all 7 locale files,
+    2237 -> 2428 keys each, verified with zero symmetric-difference
+    mismatch) covering help text, status output, update-flow messages,
+    maintenance/backup output, service-management output, and shell
+    integration prose. Scope decision: the embedded bash/zsh/fish/
+    powershell completion-script bodies inside `printBashCompletions`/
+    `printZshCompletions`/`printFishCompletions`/`printPowerShellCompletions`
+    were deliberately left untranslated (they're shell syntax read by a
+    shell, not prose read by a human) — only the surrounding
+    `showShellHelp()`/`printInit()` prose was converted. While fixing this,
+    discovered `T()` silently returned bare dotted keys everywhere (both
+    in production for exit-immediately CLI flags and in the entire
+    existing `src/cli` unit test suite) because `i18n.SetGlobalI18n()` was
+    only ever called deep inside `main()`'s server-startup path, never
+    from any test and never from any pre-startup CLI exit path — meaning
+    the CLI i18n conversion, as originally done, would never actually
+    render translated text anywhere. Fixed in `src/common/i18n/i18n.go`
+    (necessary, minimal scope expansion beyond the file list this item
+    started with) by extracting `NewI18n`'s body into a new
+    `loadI18nFromFS(fs, dir, defaultLang)` helper parameterized on the
+    locale directory, and adding a package `init()` with its own
+    `//go:embed locales/*.json` (`defaultLocalesFS`) that calls
+    `loadI18nFromFS(defaultLocalesFS, "locales", "en")` and
+    `SetGlobalI18n(...)` at package load time — guaranteeing a non-nil
+    English default is always available before `main()` runs, while
+    leaving `main()`'s own server-language-aware `SetGlobalI18n` call
+    (which simply replaces this default later) untouched. `NewI18n`'s
+    public signature and its one existing caller (`main.go`) are
+    unchanged. Fixing this surfaced 3 pre-existing, unrelated test-
+    assertion bugs in `src/server/handler` (`admin_logging_test.go` x2,
+    `user_settings_test.go` x1) that only passed before because global
+    i18n was never initialized in the test process. These are a live
+    regression against the currently-green test suite (introduced by
+    this item's own `init()` change, not merely "pre-existing"), so per
+    the commit-gate rule they were fixed immediately rather than
+    deferred: the 3 assertions hardcoded the raw untranslated i18n key
+    (e.g. `"errors.admin.admins.not_authenticated"`) as the expected
+    value instead of the actual translated English string; corrected to
+    assert the real translated text (`"Not authenticated"`, `"Fail2ban
+    configuration saved"`, `"Syslog configuration saved"`) in
+    `src/server/handler/admin_logging_test.go` (2 assertions) and
+    `src/server/handler/user_settings_test.go` (1 assertion). See item
+    175 (closed). Verified via Docker (casjaysdev/go:latest): `go build
+    ./...` clean, full `go test ./...` all green (every package, no
+    remaining failures), `gofmt -l .` clean, all 7 locale JSON files
+    confirmed valid and key-identical (2428 keys each), no `\uXXXX`
+    escapes, single trailing newline. Read: AI.md PART 31.
 
 127. DONE (2026-08-21): item 87's original file list named
     `src/server/setup.go`, which does not exist and never did - the real file
@@ -3936,3 +3984,31 @@ any of the above: `src/graphql/context_keys_test.go`,
     `InternalError`, etc.) passing `Translate(r, "errors.*")`; add new keys
     to all seven locale files, keeping the key set identical everywhere.
     Read: AI.md PART 31.
+
+175. DONE (2026-08-28, fixed same-day as part of item 126's commit — a
+    live regression against the current test suite, not deferrable): 3
+    tests in `src/server/handler` asserted the literal untranslated i18n
+    dotted key as the expected response `message`, instead of the actual
+    translated English text — `admin_logging_test.go`'s
+    `TestLoggingHandler_ConfigureFail2ban_Success` (wants
+    `"success.admin.logging.fail2ban_configuration_saved"`, handler
+    actually (and correctly) returns `"Fail2ban configuration saved"`),
+    the sibling `TestLoggingHandler_ConfigureSyslog_Success` (wants
+    `"success.admin.logging.syslog_configuration_saved"`, actual is
+    `"Syslog configuration saved"`), and `user_settings_test.go`'s
+    `TestUserSettingsHandler_GetSettings/unauthenticated_returns_401_with_canonical_error_shape`
+    (wants `"errors.admin.admins.not_authenticated"`, actual is `"Not
+    authenticated"`). These only passed historically because
+    `i18n.GetGlobalI18n()` was nil for the whole life of the test binary
+    (nothing ever called `i18n.SetGlobalI18n()` outside `main()`'s
+    server-startup path, which unit tests never invoke), so `T()`/
+    `Translate()` fell through to returning the bare key — the tests were
+    unknowingly asserting broken (untranslated) behavior as correct. Item
+    126 fixed that root cause (`src/common/i18n/i18n.go` now seeds a
+    default English global instance via `init()`), which is the correct
+    fix for PART 31 compliance, but it flips these 3 assertions to fail
+    since the handlers now (correctly) return real translated text. Fix:
+    Fixed: updated the 3 assertions in `admin_logging_test.go`/
+    `user_settings_test.go` to expect the actual translated English
+    strings instead of the raw keys. Verified: full `go test ./...`
+    green. Read: AI.md PART 31.
