@@ -184,11 +184,11 @@ func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresA
 	appName := translate("app.name", "Weather")
 
 	subject, body, err := RenderEmailTemplate("user_invite", lang, map[string]any{
-		"AppName":          appName,
-		"InviteURL":        inviteURL,
-		"MinutesRemaining": minutesRemaining,
-		"ExpiresAt":        expiresAt.Format(time.RFC1123),
-		"AppURL":           s.BaseURL,
+		"app_name":           appName,
+		"invite_link":        inviteURL,
+		"expires_in_minutes": minutesRemaining,
+		"expires_at":         expiresAt.Format(time.RFC1123),
+		"app_url":            s.BaseURL,
 	})
 	if err != nil {
 		return err

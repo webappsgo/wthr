@@ -617,11 +617,20 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 					appName = translated
 				}
 			}
+			// baseURL is a full scheme+host URL (e.g. "https://fqdn"); fqdn is
+			// derived from it since this scope has no separate bare-hostname
+			// variable to reuse.
+			fqdn := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(baseURL, "https://"), "http://"), "/")
+
 			subject, body, renderErr := service.RenderEmailTemplate("password_reset", userLang, map[string]any{
-				"AppName":          appName,
-				"ResetLink":        resetURL,
-				"ResetExpiryHours": "1",
-				"AppURL":           baseURL,
+				"app_name":        appName,
+				"reset_link":      resetURL,
+				"expires":         "1 hour",
+				"app_url":         baseURL,
+				"fqdn":            fqdn,
+				"recipient_email": user.Email,
+				"timestamp":       issuedAt.UTC().Format(time.RFC1123),
+				"ip":              requestIP,
 			})
 			if renderErr == nil {
 				_ = smtpService.SendEmail(user.Email, subject, body)

@@ -1,31 +1,24 @@
-Subject: {{tf .Lang "email.ssl_renewed.subject" "app_name" .AppName}}
+Subject: SSL certificate renewed - {app_name}
 ---
-{{t .Lang "email.common.greeting_admin"}}
+Hello Administrator,
 
-{{tf .Lang "email.ssl_renewed.intro" "app_name" .AppName}}
+Your SSL certificate for {app_name} has been renewed successfully.
 
-**{{t .Lang "email.ssl_renewed.details_heading"}}:**
-- {{t .Lang "email.common.label_domain"}}: {{.Domain}}
-- {{t .Lang "email.ssl_renewed.label_issued"}}: {{.IssueDate}}
-- {{t .Lang "email.ssl_expiring.label_expires"}}: {{.ExpiryDate}}
-- {{t .Lang "email.ssl_renewed.label_valid_for"}}: {{tf .Lang "email.ssl_renewed.days_suffix" "days" .ValidityDays}}
-- {{t .Lang "email.ssl_expiring.label_issuer"}}: {{.Issuer}}
+**Renewal details:**
+- Domain: {fqdn}
+- Expires: {expiry_date}
+- Valid until: {valid_until}
 
-{{t .Lang "email.ssl_renewed.continuity_notice"}}
+Your site will continue to serve secure HTTPS connections without interruption.
 
-**{{t .Lang "email.ssl_renewed.cert_info_heading"}}:**
-- {{t .Lang "email.ssl_renewed.label_previous_expiry"}}: {{.OldExpiryDate}}
-- {{t .Lang "email.ssl_renewed.label_new_expiry"}}: {{.ExpiryDate}}
-- {{t .Lang "email.ssl_renewed.label_method"}}: {{.RenewalMethod}}
+**Next steps:**
+- No action is required on your part.
+- We'll notify you again before this certificate needs to be renewed.
 
-**{{t .Lang "email.ssl_renewed.next_steps_heading"}}:**
-- {{t .Lang "email.ssl_renewed.no_action_required"}}
-- {{t .Lang "email.ssl_renewed.next_reminder"}}: {{.NextReminderDate}}
+Visitors to your site will not notice any change.
 
-{{t .Lang "email.ssl_renewed.visitor_notice"}}
-
-{{tf .Lang "email.ssl_renewed.thanks" "app_name" .AppName}}
+Thank you for using {app_name}.
 
 ---
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}

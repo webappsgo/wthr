@@ -1,30 +1,30 @@
-Subject: {{tf .Lang "email.user_invite.subject" "app_name" .AppName}}
+Subject: You're invited to join {app_name}
 ---
-{{t .Lang "email.common.greeting_exclaim"}}
+Hello!
 
-{{tf .Lang "email.user_invite.intro" "app_name" .AppName}}
+You've been invited to join {app_name}!
 
-**{{t .Lang "email.user_invite.accept_heading"}}:**
+**Accept your invitation:**
 
-{{t .Lang "email.user_invite.accept_body"}}
-{{.InviteURL}}
+Click the button below to accept the invitation and create your account.
+{invite_link}
 
-{{tf .Lang "email.user_invite.expiry_notice" "minutes" .MinutesRemaining}}
+This invitation will expire in {expires_in_minutes} minutes.
 
-**{{t .Lang "email.user_invite.what_you_can_do_heading"}}:**
+**What you can do:**
 
-- {{t .Lang "email.user_invite.feature_conditions"}}
-- {{t .Lang "email.user_invite.feature_forecasts"}}
-- {{t .Lang "email.user_invite.feature_alerts"}}
-- {{t .Lang "email.user_invite.feature_history"}}
-- {{t .Lang "email.user_invite.feature_preferences"}}
+- Real-time current conditions
+- Detailed, personalized forecasts
+- Weather alerts and notifications
+- Historical weather data
+- Fully customizable preferences
 
-{{tf .Lang "email.user_invite.closing" "app_name" .AppName}}
+We look forward to having you on {app_name}.
 
-{{.AppName}} {{t .Lang "email.account_disabled.team_suffix"}}
+{app_name} Team
 
 ---
-{{tf .Lang "email.user_invite.footer_sent_by" "expires_at" .ExpiresAt}}
+This invitation expires at {expires_at}.
 
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}

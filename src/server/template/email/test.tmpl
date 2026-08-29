@@ -1,36 +1,36 @@
-Subject: {{tf .Lang "email.test.subject" "app_name" .AppName}}
+Subject: Test email from {app_name}
 ---
-{{t .Lang "email.common.greeting_exclaim"}}
+Hello!
 
-{{t .Lang "email.test.intro"}}
+This is a test email to verify that your SMTP configuration is working correctly.
 
-**{{t .Lang "email.test.status_heading"}}:**
-{{t .Lang "email.test.status_smtp_ok"}}
-{{t .Lang "email.test.status_auth_ok"}}
-{{t .Lang "email.test.status_delivery_ok"}}
+**Status:**
+Connection successful
+Authentication successful
+Delivery successful
 
-**{{t .Lang "email.test.config_details_heading"}}:**
-- {{t .Lang "email.test.label_smtp_server"}}: {{.SMTPHost}}
-- {{t .Lang "email.test.label_port"}}: {{.SMTPPort}}
-- {{t .Lang "email.test.label_security"}}: {{.SMTPSecurity}}
-- {{t .Lang "email.test.label_from_address"}}: {{.FromAddress}}
-- {{t .Lang "email.test.label_sent_at"}}: {{.SentTime}}
+**Configuration details:**
+- SMTP server: {smtp_host}
+- Port: {smtp_port}
+- Security: {smtp_security}
+- From address: {from_address}
+- Sent at: {sent_time}
 
-**{{t .Lang "email.test.variables_heading"}}:**
-{{t .Lang "email.test.variables_intro"}}
-- {{t .Lang "email.test.var_app_name"}}: {{.AppName}}
-- {{t .Lang "email.test.var_app_url"}}: {{.AppURL}}
-- {{t .Lang "email.test.var_current_time"}}: {{.CurrentTime}}
-- {{t .Lang "email.test.var_version"}}: {{.Version}}
+**Template variables:**
+The following variables are available for use in email templates:
+- Application name: {app_name}
+- Application URL: {app_url}
+- Current time: {current_time}
+- Application version: {version}
 
-{{tf .Lang "email.test.success_notice" "app_name" .AppName}}
+If you received this email, your {app_name} SMTP configuration is working correctly.
 
-**{{t .Lang "email.test.need_help_heading"}}**
-- {{t .Lang "email.test.help_review_settings"}}
-- {{t .Lang "email.test.help_check_logs"}}
-- {{t .Lang "email.test.help_provider_settings"}}
-- {{t .Lang "email.test.help_documentation"}}
+**Need help?**
+- Review your SMTP settings in the admin panel
+- Check the server logs for detailed error messages
+- Verify the settings recommended by your email provider
+- Consult the documentation for SMTP setup guidance
 
 ---
-{{tf .Lang "email.common.footer_test" "app_name" .AppName}}
-{{.AppURL}}
+This is a test email from {app_name}.
+{app_url}

@@ -1,39 +1,32 @@
-Subject: {{tf .Lang "email.2fa_disabled.subject" "app_name" .AppName}}
+Subject: Two-Factor Authentication Disabled - {app_name}
 ---
-{{t .Lang "email.2fa_disabled.alert_heading"}}
+2FA DISABLED
 
-{{t .Lang "email.common.greeting"}}
+This alert was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+Time: {timestamp}
 
-{{tf .Lang "email.2fa_disabled.intro" "app_name" .AppName}}
+Two-factor authentication has been disabled on your account.
 
-**{{t .Lang "email.2fa_disabled.details_heading"}}:**
-- {{t .Lang "email.common.label_email"}}: {{.UserEmail}}
-- {{t .Lang "email.2fa_disabled.label_disabled_at"}}: {{.Timestamp}}
-- {{t .Lang "email.common.label_ip_address"}}: {{.IPAddress}}
-- {{t .Lang "email.common.label_location"}}: {{.Location}}
+Method used: {method}
+  (password, recovery key, or admin action)
 
-{{t .Lang "email.2fa_disabled.less_secure_notice"}}
+────────────────────────────────────────────────────────────────────────
+⚠️  DID NOT DO THIS?
 
-**{{t .Lang "email.2fa_disabled.recommend_heading"}}:**
-1. {{t .Lang "email.2fa_disabled.action_reenable"}}
-2. {{t .Lang "email.2fa_disabled.action_strong_password"}}
-3. {{t .Lang "email.2fa_disabled.action_review_settings"}}
-4. {{t .Lang "email.2fa_disabled.action_change_password"}}
+If you did not disable 2FA, your account may be compromised:
 
-**{{t .Lang "email.2fa_disabled.not_you_heading"}}**
-{{t .Lang "email.2fa_disabled.not_you_notice"}}
-1. {{t .Lang "email.2fa_disabled.followup_change_password"}}
-2. {{t .Lang "email.2fa_disabled.followup_reenable"}}
-3. {{tf .Lang "email.2fa_disabled.followup_contact" "admin_email" .AdminEmail}}
-4. {{t .Lang "email.2fa_disabled.followup_review_activity"}}
+1. Change your password immediately:
+   {app_url}/server/auth/password/forgot
 
-{{t .Lang "email.2fa_disabled.reenable_notice"}}
-{{.AppURL}}/profile/security
+2. Re-enable 2FA:
+   {app_url}/settings/security
 
-{{t .Lang "email.2fa_disabled.stay_safe"}}
+3. Contact support:
+   {admin_email}
+────────────────────────────────────────────────────────────────────────
 
----
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
-
-{{t .Lang "email.2fa_disabled.immediate_assistance"}} {{.AdminEmail}}
+--
+{app_name}
+{app_url}

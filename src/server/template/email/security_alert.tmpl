@@ -1,43 +1,33 @@
-Subject: {{tf .Lang "email.security_alert.subject" "app_name" .AppName}}
+Subject: Security Alert - {app_name}
 ---
-{{t .Lang "email.common.greeting_admin"}}
+SECURITY ALERT
 
-**{{t .Lang "email.security_alert.alert_label"}}:** {{tf .Lang "email.security_alert.detected_notice" "app_name" .AppName}}
+This alert was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+Time: {timestamp}
 
-**{{t .Lang "email.security_alert.event_details_heading"}}:**
-- {{t .Lang "email.security_alert.label_type"}}: {{.AlertType}}
-- {{t .Lang "email.common.label_severity"}}: {{.Severity}}
-- {{t .Lang "email.common.label_date"}}: {{.AlertDate}}
-- {{t .Lang "email.common.label_time"}}: {{.AlertTime}}
-- {{t .Lang "email.common.label_source_ip"}}: {{.SourceIP}}
-- {{t .Lang "email.security_alert.label_description"}}: {{.AlertDescription}}
+{event}
 
-**{{t .Lang "email.security_alert.event_summary_heading"}}:**
-{{.EventSummary}}
+Details:
+  Source IP: {ip}
+  {details}
 
-**{{t .Lang "email.security_alert.recommended_actions_heading"}}:**
-{{.RecommendedActions}}
+────────────────────────────────────────────────────────────────────────
+⚠️  RECOMMENDED ACTIONS
 
-**{{t .Lang "email.security_alert.automatic_responses_heading"}}:**
-{{.AutomaticResponses}}
+If this activity was not you:
 
-**{{t .Lang "email.security_alert.what_to_do_heading"}}:**
-1. {{t .Lang "email.security_alert.action_review_logs"}}
-2. {{t .Lang "email.security_alert.action_investigate_ip"}}
-3. {{t .Lang "email.security_alert.action_check_activity"}}
-4. {{t .Lang "email.security_alert.action_update_settings"}}
-5. {{t .Lang "email.security_alert.action_block_ip"}}
+1. Change your password immediately:
+   {app_url}/server/auth/password/forgot
 
-**{{t .Lang "email.security_alert.audit_logs_heading"}}:**
-{{.AuditLogsURL}}
+2. Review account activity:
+   {app_url}/settings/security
 
-**{{t .Lang "email.security_alert.security_settings_heading"}}:**
-{{.SecuritySettingsURL}}
+3. Contact support if needed:
+   {admin_email}
+────────────────────────────────────────────────────────────────────────
 
-{{t .Lang "email.security_alert.false_positive_notice"}}
-
-{{tf .Lang "email.security_alert.generated_notice" "app_name" .AppName}}
-
----
-{{tf .Lang "email.common.footer_automated_security" "app_name" .AppName}}
-{{.AppURL}}
+--
+{app_name}
+{app_url}

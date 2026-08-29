@@ -1,32 +1,33 @@
-Subject: {{tf .Lang "email.2fa_enabled.subject" "app_name" .AppName}}
+Subject: Two-factor authentication enabled on {app_name}
 ---
-{{t .Lang "email.common.greeting"}}
+Hello,
 
-{{tf .Lang "email.2fa_enabled.intro" "app_name" .AppName}}
+Two-factor authentication has been successfully enabled on your {app_name} account.
 
-**{{t .Lang "email.2fa_enabled.details_heading"}}:**
-- {{t .Lang "email.common.label_email"}}: {{.UserEmail}}
-- {{t .Lang "email.2fa_enabled.label_enabled_at"}}: {{.Timestamp}}
-- {{t .Lang "email.common.label_ip_address"}}: {{.IPAddress}}
-- {{t .Lang "email.common.label_location"}}: {{.Location}}
+**Details:**
+- Email: {recipient_email}
+- Enabled at: {timestamp}
+- Method: {method}
+- IP address: {ip}
+- Location: {location}
 
-{{t .Lang "email.2fa_enabled.more_secure_notice"}}
+Your account is now protected with an extra layer of security.
 
-**{{t .Lang "email.2fa_enabled.tips_heading"}}:**
-- {{t .Lang "email.2fa_enabled.tip_backup_codes"}}
-- {{t .Lang "email.2fa_enabled.tip_dont_share"}}
-- {{t .Lang "email.2fa_enabled.tip_lost_access"}}
+**Security tips:**
+- Store your recovery keys somewhere safe and offline
+- Never share your authentication codes with anyone
+- If you lose access to your authenticator, use a recovery key to sign in
 
-**{{t .Lang "email.2fa_enabled.not_you_heading"}}**
-{{t .Lang "email.2fa_enabled.not_you_notice"}}
-1. {{t .Lang "email.2fa_enabled.followup_change_password"}}
-2. {{tf .Lang "email.2fa_enabled.followup_contact" "admin_email" .AdminEmail}}
-3. {{t .Lang "email.2fa_enabled.followup_review_activity"}}
+**If this wasn't you:**
+If you did not enable two-factor authentication, please secure your account immediately:
+1. Change your password immediately
+2. Contact us at {admin_email}
+3. Review your recent account activity
 
-{{t .Lang "email.2fa_enabled.thanks"}}
+Thank you for keeping your {app_name} account secure.
 
 ---
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}
 
-{{t .Lang "email.2fa_enabled.security_questions"}} {{.AdminEmail}}
+If you have any questions about account security, don't hesitate to reach out. {admin_email}

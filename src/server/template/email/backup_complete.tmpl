@@ -1,26 +1,22 @@
-Subject: {{tf .Lang "email.backup_complete.subject" "app_name" .AppName}}
+Subject: Backup completed successfully - {app_name}
 ---
-{{t .Lang "email.common.greeting_admin"}}
+Hello Administrator,
 
-{{tf .Lang "email.backup_complete.intro" "app_name" .AppName}}
+A scheduled backup of {app_name} completed successfully.
 
-**{{t .Lang "email.backup_complete.details_heading"}}:**
-- {{t .Lang "email.common.label_date"}}: {{.BackupDate}}
-- {{t .Lang "email.common.label_time"}}: {{.BackupTime}}
-- {{t .Lang "email.backup_complete.label_file"}}: {{.BackupFilename}}
-- {{t .Lang "email.backup_complete.label_size"}}: {{.BackupSize}}
-- {{t .Lang "email.common.label_location"}}: {{.BackupLocation}}
+**Backup details:**
+- Time: {timestamp}
+- File: {filename}
+- Size: {size}
 
-**{{t .Lang "email.backup_complete.contents_heading"}}:**
-- {{t .Lang "email.backup_complete.content_database"}}
-- {{t .Lang "email.backup_complete.content_config"}}
-- {{t .Lang "email.backup_complete.content_user_data"}}
-- {{t .Lang "email.backup_complete.content_settings"}}
+**Backup contents:**
+- Database
+- Server configuration
+- User data
+- Application settings
 
-{{t .Lang "email.backup_complete.storage_notice"}}
-
-**{{t .Lang "email.backup_complete.next_backup_label"}}:** {{.NextBackup}}
+This backup has passed all verification checks and is ready for use if a restore is ever needed.
 
 ---
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}

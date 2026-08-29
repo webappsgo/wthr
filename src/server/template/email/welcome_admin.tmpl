@@ -1,27 +1,26 @@
-Subject: Verify Your Email - {app_name}
+Subject: Welcome to {app_name} - Admin Setup Complete
 ---
-EMAIL VERIFICATION
+ADMIN SETUP COMPLETE
 
 This email was sent to: {recipient_email}
 From: {app_name} ({fqdn})
-Sent at: {timestamp}
 
-You (or someone) requested to add this email address to an account on
-{app_name} ({fqdn}).
+Congratulations! Your {app_name} instance is now configured.
 
-To verify this email address, visit the following link:
-
-{verify_link}
-
-This link expires in {expires}.
+Admin Panel: {admin_url}
+Username: {admin_username}
 
 ────────────────────────────────────────────────────────────────────────
-⚠️  DID NOT REQUEST THIS?
+IMPORTANT NEXT STEPS
 
-If you did not request to add this email to an account, you can safely
-ignore this email. No account will be created or linked.
+1. Log in to the admin panel and review your settings
+2. Configure SMTP for email notifications
+3. Enable SSL/TLS for secure connections
+4. Set up regular backups
+5. Enable two-factor authentication
 
-No action is required on your part.
+Keep your admin credentials secure. If you lose access, use:
+  {project_name} --maintenance setup
 ────────────────────────────────────────────────────────────────────────
 
 --

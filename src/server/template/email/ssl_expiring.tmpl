@@ -1,37 +1,36 @@
-Subject: {{tf .Lang "email.ssl_expiring.subject" "app_name" .AppName}}
+Subject: SSL certificate expiring soon - {app_name}
 ---
-{{t .Lang "email.common.greeting_admin"}}
+Hello Administrator,
 
-{{tf .Lang "email.ssl_expiring.intro" "app_name" .AppName}}
+Your SSL certificate for {app_name} is expiring soon.
 
-**{{t .Lang "email.ssl_expiring.details_heading"}}:**
-- {{t .Lang "email.common.label_domain"}}: {{.Domain}}
-- {{t .Lang "email.ssl_expiring.label_expires"}}: {{.ExpiryDate}}
-- {{t .Lang "email.ssl_expiring.label_days_remaining"}}: {{.DaysRemaining}}
-- {{t .Lang "email.ssl_expiring.label_issuer"}}: {{.Issuer}}
+**Certificate details:**
+- Domain: {fqdn}
+- Expires: {expiry_date}
+- Days remaining: {expires_in}
 
-**{{t .Lang "email.ssl_expiring.action_required_heading"}}:**
-{{tf .Lang "email.ssl_expiring.action_required_body" "app_name" .AppName}}
+**Action required:**
+To avoid service disruption, please renew your SSL certificate for {app_name} before it expires.
 
-**{{t .Lang "email.ssl_expiring.options_heading"}}:**
-1. **{{t .Lang "email.ssl_expiring.option_auto_heading"}}:**
-   - {{t .Lang "email.ssl_expiring.option_auto_step1"}}
-   - {{t .Lang "email.ssl_expiring.option_auto_step2"}}
-   - {{t .Lang "email.ssl_expiring.option_auto_step3"}}
+**Renewal options:**
+1. **Automatic renewal:**
+   - Ensure automatic renewal is enabled in your admin settings
+   - Verify your DNS records are correctly configured
+   - No further action needed - renewal will happen automatically
 
-2. **{{t .Lang "email.ssl_expiring.option_manual_heading"}}:**
-   - {{t .Lang "email.ssl_expiring.option_manual_step1"}}
-   - {{t .Lang "email.ssl_expiring.option_manual_step2"}}
-   - {{tf .Lang "email.ssl_expiring.option_manual_step3" "app_name" .AppName}}
+2. **Manual renewal:**
+   - Go to your SSL settings in the admin panel
+   - Request a new certificate
+   - Follow the prompts to complete renewal for {app_name}
 
-**{{t .Lang "email.ssl_expiring.what_happens_heading"}}:**
-- {{t .Lang "email.ssl_expiring.effect_warnings"}}
-- {{t .Lang "email.ssl_expiring.effect_https_fails"}}
-- {{t .Lang "email.ssl_expiring.effect_users_blocked"}}
-- {{t .Lang "email.ssl_expiring.effect_tor_unaffected"}}
+**What happens if it expires:**
+- Browsers will show security warnings to visitors
+- Secure (HTTPS) connections will stop working
+- Visitors may be blocked from accessing your site
+- Access over Tor will remain unaffected
 
-{{tf .Lang "email.ssl_expiring.renew_before" "expiry_date" .ExpiryDate}}
+Please renew before {expiry_date} to avoid any disruption.
 
 ---
-{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
-{{.AppURL}}
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}

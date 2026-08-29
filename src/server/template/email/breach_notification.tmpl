@@ -1,69 +1,84 @@
-Subject: {{tf .Lang "email.breach_notification.subject" "app_name" .AppName}}
+Subject: Important Security Notice - {app_name}
 ---
-{{t .Lang "email.breach_notification.important_heading"}}
+IMPORTANT SECURITY NOTICE
 
-{{tf .Lang "email.breach_notification.dear_user" "app_name" .AppName}}
+This notice was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+Date: {timestamp}
+Reference: {breach_id}
 
-{{t .Lang "email.breach_notification.intro"}}
+We are writing to inform you of a security incident that may have affected
+your account on {app_name}.
 
-**{{t .Lang "email.breach_notification.what_happened_heading"}}:**
+────────────────────────────────────────────────────────────────────────
+WHAT HAPPENED
 
-{{.BreachDescription}}
+{breach_summary}
 
-**{{t .Lang "email.breach_notification.affected_data_heading"}}:**
+Date discovered: {breach_date}
+Incident type: {breach_type}
+────────────────────────────────────────────────────────────────────────
 
-{{.AffectedData}}
+────────────────────────────────────────────────────────────────────────
+WHAT INFORMATION WAS INVOLVED
 
-**{{t .Lang "email.breach_notification.incident_date_heading"}}:**
+The following categories of data may have been affected:
 
-{{.IncidentDate}}
+{affected_data}
+────────────────────────────────────────────────────────────────────────
 
-**{{t .Lang "email.breach_notification.what_we_are_doing_heading"}}:**
+────────────────────────────────────────────────────────────────────────
+WHAT WE ARE DOING
 
-{{.OurActions}}
+We take the security of your information seriously. Upon discovering this
+incident, we immediately:
 
-**{{t .Lang "email.breach_notification.what_you_should_do_heading"}}:**
+- Secured affected systems and contained the incident
+- Launched a comprehensive investigation
+- Notified relevant authorities as required by law
+- Enhanced our security measures to prevent future incidents
 
-{{t .Lang "email.breach_notification.recommend_intro"}}
+{notification_deadline}
+────────────────────────────────────────────────────────────────────────
 
-1. **{{t .Lang "email.breach_notification.action_change_password"}}:**
-   {{.PasswordResetURL}}
+────────────────────────────────────────────────────────────────────────
+WHAT YOU SHOULD DO
 
-2. **{{t .Lang "email.breach_notification.action_enable_2fa"}}:**
-   {{.TwoFactorSetupURL}}
+We recommend you take the following steps to protect your account:
 
-3. **{{t .Lang "email.breach_notification.action_review_activity"}}:**
-   {{.ActivityURL}}
+{recommended_actions}
 
-4. **{{t .Lang "email.breach_notification.action_monitor"}}:**
-   - {{t .Lang "email.breach_notification.monitor_logins"}}
-   - {{t .Lang "email.breach_notification.monitor_phishing"}}
-   - {{t .Lang "email.breach_notification.monitor_connected_services"}}
+1. Change your password immediately:
+   {app_url}/server/auth/password/forgot
 
-5. **{{t .Lang "email.breach_notification.action_update_other_passwords"}}:**
-   {{t .Lang "email.breach_notification.action_update_other_passwords_detail"}}
+2. Review your account activity:
+   {app_url}/users/security
 
-**{{t .Lang "email.breach_notification.resources_heading"}}:**
+3. Enable two-factor authentication if not already enabled:
+   {app_url}/users/security/2fa
 
-- {{t .Lang "email.breach_notification.resource_report"}}: {{.IncidentReportURL}}
-- {{t .Lang "email.breach_notification.resource_guide"}}: {{.SecurityGuideURL}}
-- {{t .Lang "email.breach_notification.resource_support"}}: {{.SupportEmail}}
+4. Monitor your accounts for any suspicious activity
+────────────────────────────────────────────────────────────────────────
 
-{{tf .Lang "email.breach_notification.apology" "app_name" .AppName}}
+────────────────────────────────────────────────────────────────────────
+CONTACT INFORMATION
 
-**{{t .Lang "email.breach_notification.questions_heading"}}**
+If you have questions or need assistance:
 
-{{t .Lang "email.breach_notification.questions_body"}}
-{{.SupportEmail}}
+Email: {contact_email}
+{contact_phone}
+{dpo_contact}
 
-{{tf .Lang "email.breach_notification.closing_thanks" "app_name" .AppName}}
+Reference this ID in all communications: {breach_id}
+────────────────────────────────────────────────────────────────────────
 
-{{t .Lang "email.breach_notification.signoff_team"}}
-{{.AppName}}
+{regulatory_notice}
 
----
-{{tf .Lang "email.common.footer_official_notification" "app_name" .AppName}}
-{{.AppURL}}
+We sincerely apologize for any concern or inconvenience this may cause.
+We remain committed to protecting your information and will continue to
+take steps to enhance our security measures.
 
-{{t .Lang "email.breach_notification.incident_reference"}}: {{.IncidentID}}
-{{t .Lang "email.breach_notification.notification_date"}}: {{.NotificationDate}}
+--
+{app_name}
+{app_url}
