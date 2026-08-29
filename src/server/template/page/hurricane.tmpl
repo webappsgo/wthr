@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} - Weather</title>
+    <title>{{.Title}} - {{t .server.Lang "hurricane_page_title_suffix"}}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
@@ -16,14 +16,14 @@
     <div class="weather-container">
 
         <div class="hurricane-header">
-            <h1>🌀 Active Hurricanes & Tropical Storms</h1>
+            <h1>🌀 {{t .server.Lang "hurricane_page_heading"}}</h1>
             <p class="storm-count">
                 {{ if eq .Count 0 }}
-                    No active storms
+                    {{t .server.Lang "hurricane_no_active_storms"}}
                 {{ else if eq .Count 1 }}
-                    1 active storm
+                    {{t .server.Lang "hurricane_one_active_storm"}}
                 {{ else }}
-                    {{.Count}} active storms
+                    {{.Count}} {{t .server.Lang "hurricane_active_storms_count"}}
                 {{ end }}
             </p>
         </div>
@@ -31,9 +31,9 @@
         {{ if eq .Count 0 }}
         <div class="no-storms">
             <div class="no-storms-icon">🌊</div>
-            <h3>All Clear!</h3>
-            <p>No active tropical storms or hurricanes at this time.</p>
-            <p class="text-sm margin-y-md">Data from NOAA National Hurricane Center</p>
+            <h3>{{t .server.Lang "hurricane_all_clear_heading"}}</h3>
+            <p>{{t .server.Lang "hurricane_all_clear_message"}}</p>
+            <p class="text-sm margin-y-md">{{t .server.Lang "hurricane_data_source_noaa"}}</p>
         </div>
         {{ else }}
         <div class="storms-grid">
@@ -59,43 +59,43 @@
 
                 <div class="storm-details">
                     <div class="detail-item">
-                        <span class="detail-label">Wind Speed</span>
+                        <span class="detail-label">{{t $.server.Lang "hurricane_wind_speed_label"}}</span>
                         <span class="detail-value">{{.WindSpeed}} mph</span>
                     </div>
                     <div class="detail-item">
-                        <span class="detail-label">Pressure</span>
+                        <span class="detail-label">{{t $.server.Lang "hurricane_pressure_label"}}</span>
                         <span class="detail-value">{{.Pressure}} mb</span>
                     </div>
                     {{ if gt .MovementSpeed 0 }}
                     <div class="detail-item">
-                        <span class="detail-label">Movement</span>
+                        <span class="detail-label">{{t $.server.Lang "hurricane_movement_label"}}</span>
                         <span class="detail-value">{{.MovementDir}} {{.MovementSpeed}} mph</span>
                     </div>
                     {{ end }}
                     <div class="detail-item">
-                        <span class="detail-label">Basin</span>
+                        <span class="detail-label">{{t $.server.Lang "hurricane_basin_label"}}</span>
                         <span class="detail-value">{{.Basin}}</span>
                     </div>
                 </div>
 
                 <div class="storm-location">
-                    <strong>Location:</strong> {{.Latitude}}, {{.Longitude}}
+                    <strong>{{t $.server.Lang "index_location_label"}}:</strong> {{.Latitude}}, {{.Longitude}}
                 </div>
 
                 <div class="storm-update">
-                    Last Update: {{.LastUpdate}}
+                    {{t $.server.Lang "hurricane_last_update_label"}}: {{.LastUpdate}}
                 </div>
 
                 {{ if or .PublicAdvisory .ForecastAdvisory .DiscussionLink }}
                 <div class="advisory-links">
                     {{ if .PublicAdvisory }}
-                    <a href="{{.PublicAdvisory}}" target="_blank" class="advisory-link">📄 Public Advisory</a>
+                    <a href="{{.PublicAdvisory}}" target="_blank" class="advisory-link">📄 {{t $.server.Lang "hurricane_public_advisory_link"}}</a>
                     {{ end }}
                     {{ if .ForecastAdvisory }}
-                    <a href="{{.ForecastAdvisory}}" target="_blank" class="advisory-link">📊 Forecast</a>
+                    <a href="{{.ForecastAdvisory}}" target="_blank" class="advisory-link">📊 {{t $.server.Lang "hurricane_forecast_link"}}</a>
                     {{ end }}
                     {{ if .DiscussionLink }}
-                    <a href="{{.DiscussionLink}}" target="_blank" class="advisory-link">💬 Discussion</a>
+                    <a href="{{.DiscussionLink}}" target="_blank" class="advisory-link">💬 {{t $.server.Lang "hurricane_discussion_link"}}</a>
                     {{ end }}
                 </div>
                 {{ end }}
@@ -106,9 +106,9 @@
 
         <div class="data-footer">
             <p class="data-footer__text">
-                Data provided by <a href="https://www.nhc.noaa.gov" target="_blank" class="data-footer__link">NOAA National Hurricane Center</a>
+                {{t .server.Lang "hurricane_data_provided_by"}} <a href="https://www.nhc.noaa.gov" target="_blank" class="data-footer__link">{{t .server.Lang "hurricane_noaa_nhc_name"}}</a>
                 <br>
-                Updates every 10 minutes
+                {{t .server.Lang "hurricane_updates_frequency"}}
             </p>
         </div>
     </div>

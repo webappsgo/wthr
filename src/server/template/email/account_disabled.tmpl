@@ -1,52 +1,52 @@
-Subject: Account Status Update - {app_name}
+Subject: {{tf .Lang "email.account_disabled.subject" "app_name" .AppName}}
 ---
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-This email is to inform you that your {app_name} account has been disabled.
+{{tf .Lang "email.account_disabled.intro" "app_name" .AppName}}
 
-**Account Status:** Disabled
-**Date:** {disable_date}
-**Reason:** {disable_reason}
+**{{t .Lang "email.account_disabled.status_label"}}:** {{t .Lang "email.account_disabled.status_value"}}
+**{{t .Lang "email.common.label_date"}}:** {{.DisableDate}}
+**{{t .Lang "email.account_disabled.reason_label"}}:** {{.DisableReason}}
 
-**What This Means:**
+**{{t .Lang "email.account_disabled.what_this_means_heading"}}**
 
-- You can no longer log in to your account
-- Your saved locations and preferences are preserved
-- Your data will be retained according to our retention policy
+- {{t .Lang "email.account_disabled.effect_cannot_login"}}
+- {{t .Lang "email.account_disabled.effect_data_preserved"}}
+- {{t .Lang "email.account_disabled.effect_retention"}}
 
-**Why Was My Account Disabled?**
+**{{t .Lang "email.account_disabled.why_heading"}}**
 
-{detailed_reason}
+{{.DetailedReason}}
 
-**Can I Reactivate My Account?**
+**{{t .Lang "email.account_disabled.reactivate_heading"}}**
 
-{reactivation_info}
+{{.ReactivationInfo}}
 
-**Questions or Concerns?**
+**{{t .Lang "email.account_disabled.questions_heading"}}**
 
-If you believe this was done in error or have questions about this action, please contact our support team:
+{{t .Lang "email.account_disabled.questions_notice"}}
 
-Email: {support_email}
-Subject: Account Disabled - {username}
+{{t .Lang "email.common.label_email"}}: {{.SupportEmail}}
+{{tf .Lang "email.account_disabled.subject_line" "username" .Username}}
 
-**Data Retention:**
+**{{t .Lang "email.account_disabled.retention_heading"}}:**
 
-Your account data will be retained for {retention_period} days. After this period, your data may be permanently deleted according to our data retention policy.
+{{tf .Lang "email.account_disabled.retention_notice" "days" .RetentionPeriodDays}}
 
-**Appeal Process:**
+**{{t .Lang "email.account_disabled.appeal_heading"}}:**
 
-If you wish to appeal this decision, please:
-1. Contact support at {support_email}
-2. Include your username: {username}
-3. Provide any relevant information
+{{t .Lang "email.account_disabled.appeal_intro"}}
+1. {{tf .Lang "email.account_disabled.appeal_step_contact" "support_email" .SupportEmail}}
+2. {{tf .Lang "email.account_disabled.appeal_step_username" "username" .Username}}
+3. {{t .Lang "email.account_disabled.appeal_step_info"}}
 
-We appreciate your understanding.
+{{t .Lang "email.account_disabled.thanks_understanding"}}
 
-{app_name} Team
+{{.AppName}} {{t .Lang "email.account_disabled.team_suffix"}}
 
 ---
-This is an automated notification from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated_notification" "app_name" .AppName}}
+{{.AppURL}}
 
-Account: {username}
-Date: {notification_date}
+{{t .Lang "email.account_disabled.account_label"}}: {{.Username}}
+{{t .Lang "email.common.label_date"}}: {{.NotificationDate}}

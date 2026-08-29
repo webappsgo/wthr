@@ -25,12 +25,12 @@
 
 <div class="weather-container page-container earthquake-detail">
     <nav class="eq-detail-nav">
-        <a href="/" class="eq-detail-nav__link eq-detail-nav__link--home">🏠 Home</a>
-        <a href="/moon" class="eq-detail-nav__link eq-detail-nav__link--moon">🌙 Moon</a>
-        <a href="/earthquake" class="eq-detail-nav__link eq-detail-nav__link--earthquake">🌍 Earthquakes</a>
+        <a href="/" class="eq-detail-nav__link eq-detail-nav__link--home">🏠 {{t .server.Lang "earthquake_detail_nav_home"}}</a>
+        <a href="/moon" class="eq-detail-nav__link eq-detail-nav__link--moon">🌙 {{t .server.Lang "earthquake_detail_nav_moon"}}</a>
+        <a href="/earthquake" class="eq-detail-nav__link eq-detail-nav__link--earthquake">🌍 {{t .server.Lang "earthquake_detail_nav_earthquakes"}}</a>
     </nav>
 
-    <a href="/earthquake" class="eq-detail-back-link">← Back to Earthquakes</a>
+    <a href="/earthquake" class="eq-detail-back-link">← {{t .server.Lang "earthquake_detail_back_link"}}</a>
 
     <section class="eq-detail-card">
         <h1 class="eq-detail-title {{$titleClass}}">{{.Earthquake.Place}}</h1>
@@ -38,49 +38,49 @@
         <div class="eq-detail-summary">
             <div class="eq-magnitude">
                 <span class="eq-magnitude__badge {{$magnitudeClass}}">{{printf "%.1f" .Earthquake.Magnitude}}</span>
-                <span class="eq-magnitude__label">Magnitude</span>
+                <span class="eq-magnitude__label">{{t .server.Lang "earthquake_detail_magnitude_label"}}</span>
             </div>
 
             {{if eq .Earthquake.Tsunami 1}}
-            <div class="eq-tsunami-alert">🌊 Tsunami Warning</div>
+            <div class="eq-tsunami-alert">🌊 {{t .server.Lang "earthquake_detail_tsunami_warning"}}</div>
             {{end}}
         </div>
 
         <div class="eq-detail-grid">
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Time</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_time_label"}}</div>
                 <div class="eq-detail-attribute__value">{{.Earthquake.Time.Format "2006-01-02 15:04:05"}}</div>
                 <div class="eq-detail-attribute__meta">{{.Earthquake.Time.Format "MST"}}</div>
             </div>
 
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Location</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_location_label"}}</div>
                 <div class="eq-detail-attribute__value">{{.Earthquake.Latitude}}°, {{.Earthquake.Longitude}}°</div>
-                <div class="eq-detail-attribute__meta">Latitude, Longitude</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_lat_lon_meta"}}</div>
             </div>
 
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Depth</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_depth_label"}}</div>
                 <div class="eq-detail-attribute__value">{{printf "%.1f" .Earthquake.Depth}} km</div>
-                <div class="eq-detail-attribute__meta">Below surface</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_below_surface"}}</div>
             </div>
 
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Status</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_status_label"}}</div>
                 <div class="eq-detail-attribute__value">{{.Earthquake.Status | upper}}</div>
-                <div class="eq-detail-attribute__meta">Reviewed by USGS</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_reviewed_by_usgs"}}</div>
             </div>
 
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Type</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_type_label"}}</div>
                 <div class="eq-detail-attribute__value">{{.Earthquake.MagnitudeType}} {{.Earthquake.Type | upper}}</div>
             </div>
 
             {{if .Earthquake.Felt}}
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Reported Felt</div>
-                <div class="eq-detail-attribute__value">{{.Earthquake.Felt}} people</div>
-                <div class="eq-detail-attribute__meta">USGS Did You Feel It?</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_felt_label"}}</div>
+                <div class="eq-detail-attribute__value">{{.Earthquake.Felt}} {{t .server.Lang "earthquake_detail_felt_people"}}</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_felt_meta"}}</div>
             </div>
             {{end}}
 
@@ -88,7 +88,7 @@
             <div class="eq-detail-attribute">
                 <div class="eq-detail-attribute__label">CDI</div>
                 <div class="eq-detail-attribute__value">{{printf "%.1f" .Earthquake.CDI}}</div>
-                <div class="eq-detail-attribute__meta">Community Determined Intensity</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_cdi_meta"}}</div>
             </div>
             {{end}}
 
@@ -96,13 +96,13 @@
             <div class="eq-detail-attribute">
                 <div class="eq-detail-attribute__label">MMI</div>
                 <div class="eq-detail-attribute__value">{{printf "%.1f" .Earthquake.MMI}}</div>
-                <div class="eq-detail-attribute__meta">Modified Mercalli Intensity</div>
+                <div class="eq-detail-attribute__meta">{{t .server.Lang "earthquake_detail_mmi_meta"}}</div>
             </div>
             {{end}}
 
             {{if .Earthquake.Alert}}
             <div class="eq-detail-attribute">
-                <div class="eq-detail-attribute__label">Alert Level</div>
+                <div class="eq-detail-attribute__label">{{t .server.Lang "earthquake_detail_alert_level_label"}}</div>
                 <div class="eq-detail-attribute__value">{{.Earthquake.Alert | upper}}</div>
             </div>
             {{end}}
@@ -112,13 +112,13 @@
     </section>
 
     <section class="console-section">
-        <h3 class="console-section__title text-green">📟 Console Command</h3>
+        <h3 class="console-section__title text-green">📟 {{t .server.Lang "earthquake_detail_console_heading"}}</h3>
         <div class="console-commands">
             <div class="command-item">
-                <strong class="console-section__label">Detail:</strong>
+                <strong class="console-section__label">{{t .server.Lang "earthquake_detail_command_label"}}</strong>
                 <div class="code-wrapper">
                     <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}</code>
-                    <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}">Copy</button>
+                    <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
                 </div>
             </div>
         </div>
@@ -126,8 +126,8 @@
 
     <div class="data-footer">
         <p class="data-footer__text">
-            Data provided by <a href="https://earthquake.usgs.gov/" target="_blank" class="data-footer__link">USGS Earthquake Hazards Program</a><br>
-            Updated frequently throughout the day
+            {{t .server.Lang "earthquake_detail_data_provided_by"}} <a href="https://earthquake.usgs.gov/" target="_blank" class="data-footer__link">{{t .server.Lang "earthquake_detail_usgs_program"}}</a><br>
+            {{t .server.Lang "earthquake_detail_updated_frequently"}}
         </p>
     </div>
 </div>

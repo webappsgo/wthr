@@ -12,8 +12,8 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Server Admin Invite</h1>
-            <p>You have been invited to become a server administrator</p>
+            <h1>{{t .server.Lang "server_invite_title"}}</h1>
+            <p>{{t .server.Lang "server_invite_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
@@ -23,29 +23,29 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <input type="hidden" name="code" value="{{.code}}">
                 <div class="form-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required autocomplete="username" placeholder="Choose a username" value="{{.username}}">
+                    <label for="username">{{t .server.Lang "server_invite_username_label"}}</label>
+                    <input type="text" id="username" name="username" required autocomplete="username" placeholder="{{t .server.Lang "server_invite_username_placeholder"}}" value="{{.username}}">
                 </div>
                 <div class="form-group">
-                    <label for="email">Invited Email</label>
+                    <label for="email">{{t .server.Lang "server_invite_email_label"}}</label>
                     <input type="email" id="email" value="{{.email}}" readonly disabled>
                 </div>
                 {{if .expires_at}}
-                <p class="auth-subtitle">This invitation expires at {{.expires_at}}.</p>
+                <p class="auth-subtitle">{{t .server.Lang "server_invite_expires_at"}} {{.expires_at}}.</p>
                 {{end}}
                 <div class="form-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required autocomplete="new-password" placeholder="Enter password">
+                    <label for="password">{{t .server.Lang "server_invite_password_label"}}</label>
+                    <input type="password" id="password" name="password" required autocomplete="new-password" placeholder="{{t .server.Lang "server_invite_password_placeholder"}}">
                 </div>
                 <div class="form-group">
-                    <label for="confirm_password">Confirm Password</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" placeholder="Confirm password">
+                    <label for="confirm_password">{{t .server.Lang "server_invite_confirm_password_label"}}</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" placeholder="{{t .server.Lang "server_invite_confirm_password_placeholder"}}">
                 </div>
-                <button type="submit" class="btn btn-primary">Accept Invitation</button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "server_invite_submit_button"}}</button>
             </form>
 
             <div class="auth-links">
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/login">{{t .server.Lang "server_invite_back_to_login"}}</a>
             </div>
         </div>
     </div>

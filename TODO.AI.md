@@ -3137,12 +3137,24 @@ any of the above: `src/graphql/context_keys_test.go`,
     Nothing else in the repo references `server_cve_alerts`, so no reader
     needed updating alongside the rename.
 
-135. TODO (flagged 2026-08-21 during the item 94 locale pass): the non-admin
-    templates under `src/server/template/page/**` and
-    `src/server/template/email/**` still contain zero `t` calls and hardcode
-    English. PART 31 is project-wide and explicitly covers email templates,
-    so this is the same violation item 94 fixed, just outside its
-    admin-only scope. Read: AI.md PART 31, 18.
+135. DONE (2026-08-28). RESOLVED: converted all 53 page templates
+    (`src/server/template/page/**`, including `page/user/*.tmpl`) to
+    `{{t .server.Lang "key"}}` calls, matching the item 94 convention. Also
+    found the email templates were dead files never rendered at send
+    time — every real `SendEmail` call site built subject/body as
+    hardcoded English `fmt.Sprintf` strings, bypassing
+    `src/server/template/email/**` entirely. Converted all 19 email
+    templates from `{variable}` syntax to Go `text/template` with
+    `{{t}}`/`{{tf}}` i18n calls (Subject/`---`/body structure kept for the
+    admin override contract), added `service.RenderEmailTemplate()`
+    (`src/server/service/email_template.go`) to actually load
+    (admin-override-first, embedded-default-fallback), parse, and execute
+    them, and rewired every `SendEmail` call site
+    (`auth_api.go`, `admin_invite.go`, `server_pages.go`) to call it with
+    the recipient's `users.language`, falling back to the default language
+    when no user context exists. Added all new `email.*`/page keys to all
+    7 locale files, verified key parity. `go build`/`go test`/`gofmt`
+    clean.
 
 136. DONE (2026-08-22). RESOLVED: replaced the inline
     `onclick="addOIDCProvider()"` handler in

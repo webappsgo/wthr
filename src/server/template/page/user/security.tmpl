@@ -4,26 +4,26 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">🔒 Security Settings</h1>
-        <p class="text-comment">Manage your account security and two-factor authentication</p>
+        <h1 class="profile-page-header-title">🔒 {{t .server.Lang "security_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "security_subtitle"}}</p>
     </div>
 
     <!-- Two-Factor Authentication Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Two-Factor Authentication</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "security_2fa_heading"}}</h2>
         </div>
         <div class="card-body">
             {{if .user.TwoFactorEnabled}}
                 <!-- 2FA Enabled State -->
                 <div class="alert alert-success margin-y-md">
-                    <strong>✓ Two-factor authentication is enabled</strong>
-                    <p class="text-sm margin-y-sm">Your account is protected with an additional layer of security.</p>
+                    <strong>✓ {{t .server.Lang "security_2fa_enabled_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_2fa_enabled_message"}}</p>
                 </div>
 
                 <div class="info-grid margin-y-md">
                     <div class="info-item">
-                        <div class="info-label">Recovery Keys Remaining</div>
+                        <div class="info-label">{{t .server.Lang "security_recovery_keys_remaining"}}</div>
                         <div class="info-value">
                             <span class="{{if lt .recoveryKeysCount 3}}text-danger{{else}}text-success{{end}}">
                                 {{.recoveryKeysCount}} / 10
@@ -34,33 +34,32 @@
 
                 {{if lt .recoveryKeysCount 3}}
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ Low Recovery Keys</strong>
-                    <p class="text-sm margin-y-sm">You have less than 3 recovery keys remaining. Consider regenerating them.</p>
+                    <strong>⚠ {{t .server.Lang "security_low_recovery_keys"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_low_recovery_keys_message"}}</p>
                 </div>
                 {{end}}
 
                 <div class="profile-form-actions">
                     <button type="button" class="btn btn-secondary" data-action="regenerate-recovery-keys">
-                        🔄 Regenerate Recovery Keys
+                        🔄 {{t .server.Lang "security_regenerate_recovery_keys"}}
                     </button>
                     <button type="button" class="btn btn-danger" data-action="disable-2fa">
-                        🔓 Disable Two-Factor Authentication
+                        🔓 {{t .server.Lang "security_disable_2fa"}}
                     </button>
                 </div>
             {{else}}
                 <!-- 2FA Disabled State -->
                 <div class="alert alert-info margin-y-md">
-                    <strong>ℹ Two-factor authentication is disabled</strong>
-                    <p class="text-sm margin-y-sm">Enable 2FA to add an extra layer of security to your account.</p>
+                    <strong>ℹ {{t .server.Lang "security_2fa_disabled_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_2fa_disabled_message"}}</p>
                 </div>
 
                 <p class="text-comment margin-y-md">
-                    Two-factor authentication (2FA) adds an additional security step to your login process.
-                    After enabling, you'll need to enter a code from your authenticator app when logging in.
+                    {{t .server.Lang "security_2fa_explanation"}}
                 </p>
 
                 <button type="button" class="btn btn-primary" data-action="enable-2fa">
-                    🔒 Enable Two-Factor Authentication
+                    🔒 {{t .server.Lang "security_enable_2fa"}}
                 </button>
             {{end}}
         </div>
@@ -68,49 +67,49 @@
 
     <div class="card profile-card margin-y-md">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Passkeys</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "security_passkeys_heading"}}</h2>
         </div>
         <div class="card-body">
             {{if .hasPasskeys}}
                 <div class="alert alert-success margin-y-md">
-                    <strong>✓ {{len .passkeys}} passkey{{if ne (len .passkeys) 1}}s are{{else}} is{{end}} registered</strong>
-                    <p class="text-sm margin-y-sm">You can use a passkey as a primary sign-in method or as the second step after entering your password.</p>
+                    <strong>✓ {{len .passkeys}} {{if ne (len .passkeys) 1}}{{t .server.Lang "security_passkeys_registered_plural"}}{{else}}{{t .server.Lang "security_passkey_registered_singular"}}{{end}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_passkeys_success_message"}}</p>
                 </div>
             {{else}}
                 <div class="alert alert-info margin-y-md">
-                    <strong>ℹ No passkeys registered yet</strong>
-                    <p class="text-sm margin-y-sm">Passkeys let you sign in with your device biometrics or security key instead of typing a one-time code.</p>
+                    <strong>ℹ {{t .server.Lang "security_no_passkeys_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_no_passkeys_message"}}</p>
                 </div>
             {{end}}
 
             {{if and .hasPasskeys (lt .recoveryKeysCount 3)}}
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ Low Recovery Keys</strong>
-                    <p class="text-sm margin-y-sm">You have less than 3 recovery keys remaining. Keep fresh keys available in case a passkey device is lost.</p>
+                    <strong>⚠ {{t .server.Lang "security_low_recovery_keys"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_low_recovery_keys_passkey_message"}}</p>
                 </div>
             {{end}}
 
             <div class="form-group">
-                <label class="form-label" for="newPasskeyName">New Passkey Name</label>
-                <input id="newPasskeyName" class="form-input" type="text" placeholder="My laptop passkey">
+                <label class="form-label" for="newPasskeyName">{{t .server.Lang "security_new_passkey_name_label"}}</label>
+                <input id="newPasskeyName" class="form-input" type="text" placeholder="{{t .server.Lang "security_new_passkey_name_placeholder"}}">
             </div>
             <div class="form-group">
-                <label class="form-label" for="newPasskeyPassword">Confirm Password</label>
-                <input id="newPasskeyPassword" class="form-input" type="password" placeholder="Enter your password to continue">
+                <label class="form-label" for="newPasskeyPassword">{{t .server.Lang "security_confirm_password_label"}}</label>
+                <input id="newPasskeyPassword" class="form-input" type="password" placeholder="{{t .server.Lang "security_confirm_password_placeholder"}}">
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" data-action="register-passkey">🔑 Add Passkey</button>
+                <button type="button" class="btn btn-primary" data-action="register-passkey">🔑 {{t .server.Lang "security_add_passkey"}}</button>
             </div>
 
             {{if .hasPasskeys}}
             <div class="margin-y-md">
-                <h3 class="profile-card-header-title">Registered Passkeys</h3>
+                <h3 class="profile-card-header-title">{{t .server.Lang "security_registered_passkeys_heading"}}</h3>
                 <div class="info-grid">
                     {{range .passkeys}}
                     <div class="info-item">
                         <div class="info-label">{{.Name}}</div>
-                        <div class="info-value text-comment">Created {{.CreatedAt.Format "2006-01-02 15:04"}}{{if .LastUsedAt}} · Last used {{.LastUsedAt.Format "2006-01-02 15:04"}}{{end}}</div>
-                        <button type="button" class="btn btn-danger margin-y-sm" data-action="delete-passkey" data-passkey-id="{{.ID}}" data-passkey-name="{{.Name}}">Delete</button>
+                        <div class="info-value text-comment">{{t $.server.Lang "security_created_label"}} {{.CreatedAt.Format "2006-01-02 15:04"}}{{if .LastUsedAt}} · {{t $.server.Lang "security_last_used_label"}} {{.LastUsedAt.Format "2006-01-02 15:04"}}{{end}}</div>
+                        <button type="button" class="btn btn-danger margin-y-sm" data-action="delete-passkey" data-passkey-id="{{.ID}}" data-passkey-name="{{.Name}}">{{t $.server.Lang "security_delete"}}</button>
                     </div>
                     {{end}}
                 </div>
@@ -124,48 +123,48 @@
 <div id="setup2FAModal" class="modal d-none">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Enable Two-Factor Authentication</h3>
+            <h3>{{t .server.Lang "security_enable_2fa"}}</h3>
             <button class="modal-close" data-action="close-setup-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div id="setupStep1">
-                <h4>Step 1: Scan QR Code</h4>
-                <p class="text-comment">Scan this QR code with your authenticator app (Google Authenticator, Authy, 1Password, etc.)</p>
+                <h4>{{t .server.Lang "security_step1_scan_qr"}}</h4>
+                <p class="text-comment">{{t .server.Lang "security_step1_scan_qr_message"}}</p>
                 <div id="qrCodeContainer" class="text-center margin-y-md"></div>
                 <details class="margin-y-md">
-                    <summary class="text-comment">Can't scan? Enter manually</summary>
+                    <summary class="text-comment">{{t .server.Lang "security_cant_scan_enter_manually"}}</summary>
                     <div class="margin-y-sm">
-                        <label class="form-label">Secret Key</label>
+                        <label class="form-label">{{t .server.Lang "security_secret_key_label"}}</label>
                         <input type="text" id="manualSecret" class="form-input" readonly>
-                        <small class="text-comment">Enter this key manually in your authenticator app</small>
+                        <small class="text-comment">{{t .server.Lang "security_secret_key_hint"}}</small>
                     </div>
                 </details>
-                <button type="button" class="btn btn-primary" data-action="setup-2fa-next-step">Next</button>
+                <button type="button" class="btn btn-primary" data-action="setup-2fa-next-step">{{t .server.Lang "security_next"}}</button>
             </div>
 
             <div id="setupStep2" class="d-none">
-                <h4>Step 2: Verify Code</h4>
-                <p class="text-comment">Enter the 6-digit code from your authenticator app</p>
+                <h4>{{t .server.Lang "security_step2_verify_code"}}</h4>
+                <p class="text-comment">{{t .server.Lang "security_step2_verify_code_message"}}</p>
                 <form id="verify2FAForm" class="margin-y-md">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
-                        <label class="form-label">Verification Code</label>
+                        <label class="form-label">{{t .server.Lang "security_verification_code_label"}}</label>
                         <input type="text" id="verificationCode" class="form-input" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
                     </div>
-                    <button type="submit" class="btn btn-primary">Verify & Enable</button>
-                    <button type="button" class="btn btn-secondary" data-action="setup-2fa-prev-step">Back</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "security_verify_and_enable"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="setup-2fa-prev-step">{{t .server.Lang "security_back"}}</button>
                 </form>
             </div>
 
             <div id="setupStep3" class="d-none">
-                <h4>Step 3: Save Recovery Keys</h4>
+                <h4>{{t .server.Lang "security_step3_save_recovery_keys"}}</h4>
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ Important: Save These Recovery Keys</strong>
-                    <p class="text-sm">These keys can be used to access your account if you lose your authenticator device. Each key can only be used once.</p>
+                    <strong>⚠ {{t .server.Lang "security_important_save_keys"}}</strong>
+                    <p class="text-sm">{{t .server.Lang "security_save_keys_message"}}</p>
                 </div>
                 <div id="recoveryKeysContainer" class="margin-y-md"></div>
-                <button type="button" class="btn btn-primary" data-action="download-recovery-keys">💾 Download Recovery Keys</button>
-                <button type="button" class="btn btn-success" data-action="finish-2fa-setup">✓ I've Saved My Keys</button>
+                <button type="button" class="btn btn-primary" data-action="download-recovery-keys">💾 {{t .server.Lang "security_download_recovery_keys"}}</button>
+                <button type="button" class="btn btn-success" data-action="finish-2fa-setup">✓ {{t .server.Lang "security_saved_my_keys"}}</button>
             </div>
         </div>
     </div>
@@ -175,22 +174,22 @@
 <div id="disable2FAModal" class="modal d-none">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Disable Two-Factor Authentication</h3>
+            <h3>{{t .server.Lang "security_disable_2fa"}}</h3>
             <button class="modal-close" data-action="close-disable-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="alert alert-warning">
-                <strong>⚠ Warning</strong>
-                <p>Disabling 2FA will make your account less secure. All recovery keys will be deleted.</p>
+                <strong>⚠ {{t .server.Lang "security_warning_label"}}</strong>
+                <p>{{t .server.Lang "security_disable_2fa_warning_message"}}</p>
             </div>
             <form id="disable2FAForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label class="form-label">Confirm Password</label>
+                    <label class="form-label">{{t .server.Lang "security_confirm_password_label"}}</label>
                     <input type="password" id="disablePassword" class="form-input" required>
                 </div>
-                <button type="submit" class="btn btn-danger">Disable 2FA</button>
-                <button type="button" class="btn btn-secondary" data-action="close-disable-2fa-modal">Cancel</button>
+                <button type="submit" class="btn btn-danger">{{t .server.Lang "security_disable_2fa"}}</button>
+                <button type="button" class="btn btn-secondary" data-action="close-disable-2fa-modal">{{t .server.Lang "security_cancel"}}</button>
             </form>
         </div>
     </div>

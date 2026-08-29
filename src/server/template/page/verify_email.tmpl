@@ -12,15 +12,15 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Email Verification</h1>
+            <h1>{{t .server.Lang "verify_email_heading"}}</h1>
 
             {{if .error}}
             <div class="alert alert-error" role="alert">{{.error}}</div>
             <div class="auth-links">
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/login">{{t .server.Lang "user_invite_back_to_login"}}</a>
             </div>
             {{else}}
-            <p>Verifying your email address...</p>
+            <p>{{t .server.Lang "verify_email_verifying"}}</p>
             {{end}}
         </div>
     </div>

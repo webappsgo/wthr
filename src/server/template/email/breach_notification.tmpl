@@ -1,69 +1,69 @@
-Subject: Important Security Notice - {app_name}
+Subject: {{tf .Lang "email.breach_notification.subject" "app_name" .AppName}}
 ---
-IMPORTANT SECURITY NOTICE
+{{t .Lang "email.breach_notification.important_heading"}}
 
-Dear {app_name} User,
+{{tf .Lang "email.breach_notification.dear_user" "app_name" .AppName}}
 
-We are writing to inform you of a security incident that may have affected your account.
+{{t .Lang "email.breach_notification.intro"}}
 
-**What Happened:**
+**{{t .Lang "email.breach_notification.what_happened_heading"}}:**
 
-{breach_description}
+{{.BreachDescription}}
 
-**What Information Was Involved:**
+**{{t .Lang "email.breach_notification.affected_data_heading"}}:**
 
-{affected_data}
+{{.AffectedData}}
 
-**Date of Incident:**
+**{{t .Lang "email.breach_notification.incident_date_heading"}}:**
 
-{incident_date}
+{{.IncidentDate}}
 
-**What We're Doing:**
+**{{t .Lang "email.breach_notification.what_we_are_doing_heading"}}:**
 
-{our_actions}
+{{.OurActions}}
 
-**What You Should Do:**
+**{{t .Lang "email.breach_notification.what_you_should_do_heading"}}:**
 
-We strongly recommend you take the following actions immediately:
+{{t .Lang "email.breach_notification.recommend_intro"}}
 
-1. **Change Your Password:**
-   {password_reset_url}
+1. **{{t .Lang "email.breach_notification.action_change_password"}}:**
+   {{.PasswordResetURL}}
 
-2. **Enable Two-Factor Authentication:**
-   {2fa_setup_url}
+2. **{{t .Lang "email.breach_notification.action_enable_2fa"}}:**
+   {{.TwoFactorSetupURL}}
 
-3. **Review Recent Account Activity:**
-   {activity_url}
+3. **{{t .Lang "email.breach_notification.action_review_activity"}}:**
+   {{.ActivityURL}}
 
-4. **Monitor for Suspicious Activity:**
-   - Watch for unusual login attempts
-   - Be alert for phishing emails
-   - Review any connected services
+4. **{{t .Lang "email.breach_notification.action_monitor"}}:**
+   - {{t .Lang "email.breach_notification.monitor_logins"}}
+   - {{t .Lang "email.breach_notification.monitor_phishing"}}
+   - {{t .Lang "email.breach_notification.monitor_connected_services"}}
 
-5. **Update Passwords on Other Services:**
-   If you used the same password elsewhere, change those passwords too.
+5. **{{t .Lang "email.breach_notification.action_update_other_passwords"}}:**
+   {{t .Lang "email.breach_notification.action_update_other_passwords_detail"}}
 
-**Additional Resources:**
+**{{t .Lang "email.breach_notification.resources_heading"}}:**
 
-- Incident Report: {incident_report_url}
-- Security Best Practices: {security_guide_url}
-- Contact Support: {support_email}
+- {{t .Lang "email.breach_notification.resource_report"}}: {{.IncidentReportURL}}
+- {{t .Lang "email.breach_notification.resource_guide"}}: {{.SecurityGuideURL}}
+- {{t .Lang "email.breach_notification.resource_support"}}: {{.SupportEmail}}
 
-We take the security of your information very seriously and sincerely apologize for any inconvenience this may cause. If you have any questions or concerns, please don't hesitate to contact us.
+{{tf .Lang "email.breach_notification.apology" "app_name" .AppName}}
 
-**Questions?**
+**{{t .Lang "email.breach_notification.questions_heading"}}**
 
-If you have questions about this incident, please contact us at:
-{support_email}
+{{t .Lang "email.breach_notification.questions_body"}}
+{{.SupportEmail}}
 
-Thank you for your understanding and continued trust in {app_name}.
+{{tf .Lang "email.breach_notification.closing_thanks" "app_name" .AppName}}
 
-Security Team
-{app_name}
+{{t .Lang "email.breach_notification.signoff_team"}}
+{{.AppName}}
 
 ---
-This is an official security notification from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_official_notification" "app_name" .AppName}}
+{{.AppURL}}
 
-Incident Reference: {incident_id}
-Notification Date: {notification_date}
+{{t .Lang "email.breach_notification.incident_reference"}}: {{.IncidentID}}
+{{t .Lang "email.breach_notification.notification_date"}}: {{.NotificationDate}}

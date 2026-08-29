@@ -4,8 +4,8 @@
 <main class="container" id="main-content" role="main" aria-label="Weather forecast content">
     <div class="admin_header">
         <div>
-            <h1>🌤️ Weather Forecast</h1>
-            <p class="subtitle">Real-time weather data and forecasts</p>
+            <h1>🌤️ {{t .server.Lang "index_page_heading"}}</h1>
+            <p class="subtitle">{{t .server.Lang "index_page_subtitle"}}</p>
         </div>
     </div>
 
@@ -25,14 +25,14 @@
                             placeholder="Enter city or coordinates"
                             value="{{.Location}}"
                             autocomplete="off"
-                            aria-label="Location search input"
+                            aria-label="{{t .server.Lang "index_location_search_aria"}}"
                             aria-autocomplete="list"
                             aria-controls="autocomplete-dropdown"
                         >
-                        <div id="autocomplete-dropdown" class="autocomplete-dropdown" role="listbox" aria-label="Location suggestions"></div>
+                        <div id="autocomplete-dropdown" class="autocomplete-dropdown" role="listbox" aria-label="{{t .server.Lang "index_location_suggestions_aria"}}"></div>
                     </div>
-                    <label for="units-select" class="sr-only">Temperature unit</label>
-                    <select name="units" id="units-select" class="location-input weather-form__units" aria-label="Temperature unit selection">
+                    <label for="units-select" class="sr-only">{{t .server.Lang "index_temperature_unit_label"}}</label>
+                    <select name="units" id="units-select" class="location-input weather-form__units" aria-label="{{t .server.Lang "index_temperature_unit_label"}}">
                         <option value="imperial"{{if eq .Units "imperial"}} selected{{end}}>°F</option>
                         <option value="metric"{{if eq .Units "metric"}} selected{{end}}>°C</option>
                     </select>
@@ -41,10 +41,10 @@
                 <!-- Second row: Buttons -->
                 <div class="weather-form__button-row">
                     <button type="submit" class="search-button weather-form__button" aria-label="{{t .server.Lang "btn_search"}} weather">
-                        🌤️ Get Weather
+                        🌤️ {{t .server.Lang "index_get_weather_button"}}
                     </button>
-                    <button type="button" id="location-btn" class="search-button weather-form__button--location" aria-label="Use my current location">
-                        📍 My Location
+                    <button type="button" id="location-btn" class="search-button weather-form__button--location" aria-label="{{t .server.Lang "index_use_location_aria"}}">
+                        📍 {{t .server.Lang "index_my_location_button"}}
                     </button>
                 </div>
             </div>
@@ -56,20 +56,20 @@
                 <div class="location-info">
                     <!-- Always show location name -->
                     <div class="location-detail">
-                        📍 <strong class="text-cyan">Location:</strong>
+                        📍 <strong class="text-cyan">{{t .server.Lang "index_location_label"}}:</strong>
                         <span class="location-detail-value--yellow">{{if .WeatherData.Location.ShortName}}{{.WeatherData.Location.ShortName}}{{else}}{{.WeatherData.Location.Name}}, {{.WeatherData.Location.Country}}{{end}}</span>
                     </div>
                     <div class="location-detail">
-                        🌍 <strong class="text-cyan">Country:</strong>
+                        🌍 <strong class="text-cyan">{{t .server.Lang "index_country_label"}}:</strong>
                         <span class="location-detail-value--green">{{.WeatherData.Location.Country}}</span>
                     </div>
                     <div class="location-detail">
-                        🗺️ <strong class="text-cyan">Coordinates:</strong>
+                        🗺️ <strong class="text-cyan">{{t .server.Lang "index_coordinates_label"}}:</strong>
                         <span class="text-pink">{{.WeatherData.Location.Latitude}}, {{.WeatherData.Location.Longitude}}</span>
                     </div>
                     {{if .WeatherData.Location.Population}}
                     <div class="location-detail">
-                        👥 <strong class="text-cyan">Population:</strong>
+                        👥 <strong class="text-cyan">{{t .server.Lang "index_population_label"}}:</strong>
                         <span class="location-detail-value--orange">{{.WeatherData.Location.PopulationFormatted}}</span>
                     </div>
                     {{end}}
@@ -79,7 +79,7 @@
 
         {{if .Error}}
             <div class="error-message-box">
-                <strong>Error:</strong> {{.Error}}
+                <strong>{{t .server.Lang "index_error_label"}}:</strong> {{.Error}}
             </div>
         {{end}}
 
@@ -97,10 +97,10 @@
                         {{.WeatherData.Current.Description}}
                     </div>
                     <div class="weather-stats">
-                        <div class="stat">Feels like: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.FeelsLike}}{{if eq .Units "imperial"}}°F{{else}}°C{{end}}</span></div>
-                        <div class="stat">Wind: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.WindSpeed}} {{if eq .Units "imperial"}}mph{{else}}km/h{{end}}</span></div>
-                        <div class="stat">Humidity: <span class="stat-value">{{.WeatherData.Current.Humidity}}%</span></div>
-                        <div class="stat">Pressure: <span class="stat-value">{{if eq .Units "imperial"}}{{printf "%.2f" .WeatherData.Current.Pressure}} inHg{{else}}{{printf "%.0f" .WeatherData.Current.Pressure}} hPa{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "index_feels_like_stat"}}: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.FeelsLike}}{{if eq .Units "imperial"}}°F{{else}}°C{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "index_th_wind"}}: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.WindSpeed}} {{if eq .Units "imperial"}}mph{{else}}km/h{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "index_humidity_label"}}: <span class="stat-value">{{.WeatherData.Current.Humidity}}%</span></div>
+                        <div class="stat">{{t .server.Lang "index_pressure_label"}}: <span class="stat-value">{{if eq .Units "imperial"}}{{printf "%.2f" .WeatherData.Current.Pressure}} inHg{{else}}{{printf "%.0f" .WeatherData.Current.Pressure}} hPa{{end}}</span></div>
                     </div>
                 </div>
             </div>
@@ -111,12 +111,12 @@
                 <table class="forecast-table desktop-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Conditions</th>
-                            <th>Temperature</th>
-                            <th>Feels Like</th>
-                            <th>Wind</th>
-                            <th>Precipitation</th>
+                            <th>{{t .server.Lang "index_th_date"}}</th>
+                            <th>{{t .server.Lang "index_th_conditions"}}</th>
+                            <th>{{t .server.Lang "index_th_temperature"}}</th>
+                            <th>{{t .server.Lang "index_th_feels_like"}}</th>
+                            <th>{{t .server.Lang "index_th_wind"}}</th>
+                            <th>{{t .server.Lang "index_th_precipitation"}}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -166,7 +166,7 @@
                                     <div class="wind-info">💨 {{printf "%.0f" $day.WindSpeedMax}} {{if eq $.Units "imperial"}}mph{{else}}km/h{{end}}</div>
                                     <div class="precipitation">☔ {{printf "%.1f" $day.Precipitation}} {{if eq $.Units "imperial"}}in{{else}}mm{{end}} ({{$day.PrecipitationProbability}}%)</div>
                                     {{if $day.FeelsLikeMax}}
-                                    <div class="text-comment">Feels like ↑{{printf "%.0f" $day.FeelsLikeMax}}° ↓{{printf "%.0f" $day.FeelsLikeMin}}°</div>
+                                    <div class="text-comment">{{t $.server.Lang "index_feels_like_stat"}} ↑{{printf "%.0f" $day.FeelsLikeMax}}° ↓{{printf "%.0f" $day.FeelsLikeMin}}°</div>
                                     {{end}}
                                 </div>
                             </div>
@@ -178,34 +178,34 @@
 
             <!-- Console Command Examples -->
             <div class="console-container">
-                <h3 class="console-title">Console Access</h3>
+                <h3 class="console-title">{{t .server.Lang "index_console_access_heading"}}</h3>
                 <div class="console-commands">
                     <div class="command-item">
-                        <strong class="console-label">Weather:</strong>
+                        <strong class="console-label">{{t .server.Lang "index_console_weather_label"}}:</strong>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}</code>
                     </div>
                     <div class="command-item">
-                        <strong class="console-label">One-Line:</strong>
+                        <strong class="console-label">{{t .server.Lang "index_console_oneline_label"}}:</strong>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}?format=3</code>
                     </div>
                     <div class="command-item">
-                        <strong class="console-label">Moon:</strong>
+                        <strong class="console-label">{{t .server.Lang "index_console_moon_label"}}:</strong>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon</code>
                     </div>
                     <div class="command-item">
-                        <strong class="console-label">Moon Location:</strong>
+                        <strong class="console-label">{{t .server.Lang "index_console_moon_location_label"}}:</strong>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.LocationFormatted}}</code>
                     </div>
                     <div class="command-item">
-                        <strong class="console-label">JSON API:</strong>
+                        <strong class="console-label">{{t .server.Lang "index_console_json_api_label"}}:</strong>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location={{.LocationFormatted}}</code>
                     </div>
                 </div>
             </div>
         {{else}}
             <div class="welcome-container">
-                <h2 class="welcome-title">Welcome to Weather</h2>
-                <p class="welcome-text">Your location has been detected and pre-filled above. Try these examples:</p>
+                <h2 class="welcome-title">{{t .server.Lang "index_welcome_heading"}}</h2>
+                <p class="welcome-text">{{t .server.Lang "index_welcome_text"}}</p>
                 <div class="city-grid">
                     <a href="?location=London" class="city-link">🇬🇧 London</a>
                     <a href="?location=Tokyo" class="city-link">🇯🇵 Tokyo</a>
@@ -214,7 +214,7 @@
                 </div>
 
                 <div class="city-grid-container">
-                    <h4 class="city-grid-title">Console Access:</h4>
+                    <h4 class="city-grid-title">{{t .server.Lang "index_console_access_heading"}}:</h4>
                     <div class="console-commands">
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/London</code>
                         <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location=Paris</code>
@@ -228,7 +228,7 @@
             <p class="page-footer-text">
                 <a href="https://github.com/webappsgo/wthr" target="_blank" class="page-footer-link">Weather</a>
                 <span class="page-footer-divider">•</span>
-                <span>Made with <span class="page-footer-heart">❤️</span></span>
+                <span>{{t .server.Lang "index_footer_made_with"}} <span class="page-footer-heart">❤️</span></span>
                 <span class="page-footer-divider">•</span>
                 <a href="/docs" class="page-footer-link--green">v2.0.0</a>
             </p>
@@ -239,6 +239,24 @@
     <script>
         // Path variables - SPEC compliant (AI.md PART 13)
         const API_PATH = '{{.api_path}}';
+        const I18N = {
+            getting: '{{t .server.Lang "index_js_getting"}}',
+            gps: '{{t .server.Lang "index_js_gps"}}',
+            lowAccuracy: '{{t .server.Lang "index_js_low_accuracy"}}',
+            myLocation: '{{t .server.Lang "index_my_location_button"}}',
+            locating: '{{t .server.Lang "index_js_locating"}}',
+            found: '{{t .server.Lang "index_js_found"}}',
+            forceRefresh: '{{t .server.Lang "index_js_force_refresh"}}',
+            ipLocation: '{{t .server.Lang "index_js_ip_location"}}',
+            locationUnavailable: '{{t .server.Lang "index_js_location_unavailable"}}',
+            locationDenied: '{{t .server.Lang "index_js_location_denied"}}',
+            locationServicesUnavailable: '{{t .server.Lang "index_js_location_services_unavailable"}}',
+            enterManually: '{{t .server.Lang "index_js_enter_manually"}}',
+            locationBtnTooltip: '{{t .server.Lang "index_js_location_btn_tooltip"}}',
+            locationNotAvailable: '{{t .server.Lang "index_js_location_not_available"}}',
+            locationPrefilled: '{{t .server.Lang "index_js_location_prefilled"}}',
+            approximateLocation: '{{t .server.Lang "index_js_approximate_location"}}'
+        };
 
         async function getLocation() {
             const button = document.getElementById('location-btn');
@@ -247,7 +265,7 @@
                 return;
             }
             const originalText = button.textContent;
-            button.textContent = '📍 Getting...';
+            button.textContent = '📍 ' + I18N.getting;
             button.disabled = true;
 
             try {
@@ -264,7 +282,7 @@
                 }
 
                 // Try high-accuracy GPS first
-                button.textContent = '📍 GPS...';
+                button.textContent = '📍 ' + I18N.gps;
                 let position = null;
 
                 try {
@@ -286,9 +304,9 @@
                                 // Show accuracy warning if location is imprecise
                                 if (pos.coords.accuracy > 1000) {
                                     console.warn('⚠️ Low accuracy GPS reading:', pos.coords.accuracy + 'm');
-                                    button.textContent = '📍 Low Accuracy';
+                                    button.textContent = '📍 ' + I18N.lowAccuracy;
                                     setTimeout(() => {
-                                        button.textContent = '📍 My Location';
+                                        button.textContent = '📍 ' + I18N.myLocation;
                                     }, 2000);
                                 }
 
@@ -308,7 +326,7 @@
                     });
                 } catch (gpsError) {
                     console.log('🔄 High-accuracy GPS failed, trying network location...');
-                    button.textContent = '📍 Location...';
+                    button.textContent = '📍 ' + I18N.locating;
 
                     // Fallback to network-based location
                     try {
@@ -352,7 +370,7 @@
                 console.log('Geolocation redirecting to:', newUrl);
 
                 // Visual feedback before redirect
-                button.textContent = '📍 Found!';
+                button.textContent = '📍 ' + I18N.found;
                 setTimeout(() => {
                     window.location.href = newUrl;
                 }, 500);
@@ -362,17 +380,17 @@
                 button.textContent = originalText;
                 button.disabled = false;
 
-                let userMessage = 'Unable to get your location';
+                let userMessage = I18N.locationUnavailable;
 
                 if (error.code === 1) {
-                    userMessage = 'Location access denied. Using IP-based location instead';
+                    userMessage = I18N.locationDenied;
                     // Try IP fallback even for permission denied
                     console.log('Location permission denied, attempting IP-based fallback');
                     tryIPLocationFallback(button, originalText);
                     return;
                 } else {
                     // For all other errors (GPS unavailable, timeout, etc), try IP fallback
-                    userMessage = 'Location services unavailable. Using IP-based location instead';
+                    userMessage = I18N.locationServicesUnavailable;
                     console.log('All location services failed, attempting IP-based fallback');
                     tryIPLocationFallback(button, originalText);
                     return;
@@ -381,7 +399,7 @@
                 // Show error in a more user-friendly way
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'js-error-display-red';
-                errorDiv.textContent = userMessage + '. Please enter a location manually.';
+                errorDiv.textContent = userMessage + I18N.enterManually;
 
                 const form = document.querySelector('form');
                 form.parentNode.insertBefore(errorDiv, form.nextSibling);
@@ -393,7 +411,7 @@
         function tryIPLocationFallback(button, originalText) {
             console.log('🌐 Attempting IP-based location detection via our server');
             console.log('ℹ️ This indicates GPS/Network location failed or was denied');
-            button.textContent = '📍 IP Location...';
+            button.textContent = '📍 ' + I18N.ipLocation;
 
             // Use our own server's IP detection endpoint
             fetch('/debug/ip')
@@ -417,7 +435,7 @@
 
                         console.log('IP fallback redirecting to:', newUrl);
 
-                        button.textContent = '📍 Found!';
+                        button.textContent = '📍 ' + I18N.found;
                         setTimeout(() => {
                             window.location.href = newUrl;
                         }, 800);
@@ -431,10 +449,10 @@
                     button.disabled = false;
 
                     // Show helpful message about already detected location
-                    const currentLocation = document.querySelector('input[name="location"]').value || 'your approximate location';
+                    const currentLocation = document.querySelector('input[name="location"]').value || I18N.approximateLocation;
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'js-error-display-orange';
-                    errorDiv.innerHTML = `📍 Location detection not available on this device.<br>The form above is pre-filled with: <strong>${currentLocation}</strong>`;
+                    errorDiv.innerHTML = `📍 ${I18N.locationNotAvailable}<br>${I18N.locationPrefilled} <strong>${currentLocation}</strong>`;
 
                     const form = document.querySelector('form');
                     form.parentNode.insertBefore(errorDiv, form.nextSibling);
@@ -527,9 +545,9 @@
                         // Double tap detected - force refresh location
                         console.log('🔄 Double tap detected - force refresh location');
                         this.dataset.forceRefresh = 'true';
-                        this.textContent = '🔄 Force Refresh...';
+                        this.textContent = '🔄 ' + I18N.forceRefresh;
                         setTimeout(() => {
-                            this.textContent = '📍 My Location';
+                            this.textContent = '📍 ' + I18N.myLocation;
                         }, 1000);
                         getLocation();
                     } else {
@@ -543,7 +561,7 @@
                 });
 
                 // Add tooltip hint for mobile users
-                locationBtn.title = "Tap for location, double-tap for fresh GPS";
+                locationBtn.title = I18N.locationBtnTooltip;
             }
         });
 

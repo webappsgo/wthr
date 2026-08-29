@@ -3,295 +3,295 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">Help & Documentation</h1>
+    <h1 class="text-purple">{{t .server.Lang "help_heading"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Quick Start - Terminal/API</h2>
-        <p class="text-comment margin-bottom-1">Get weather data directly from your terminal. No API key required!</p>
+        <h2 class="text-cyan">{{t .server.Lang "help_quick_start_heading"}}</h2>
+        <p class="text-comment margin-bottom-1">{{t .server.Lang "help_quick_start_intro"}}</p>
         <div class="console-commands">
             <div class="command-item">
-                <strong class="console-label">Current Weather:</strong>
+                <strong class="console-label">{{t .server.Lang "help_current_weather_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/London</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">One-Line Format:</strong>
+                <strong class="console-label">{{t .server.Lang "help_one_line_format_label"}}</strong>
                 <code class="mobile-code">curl "{{.HostInfo.FullHost}}/Paris?format=3"</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">Moon Phase:</strong>
+                <strong class="console-label">{{t .server.Lang "help_moon_phase_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/moon</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">JSON API:</strong>
+                <strong class="console-label">{{t .server.Lang "help_json_api_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/weather?location=Tokyo</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">Earthquakes:</strong>
+                <strong class="console-label">{{t .server.Lang "help_earthquakes_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/earthquakes?feed=all_day</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">Severe Weather:</strong>
+                <strong class="console-label">{{t .server.Lang "help_severe_weather_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/severe-weather?location=Miami</code>
             </div>
         </div>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Getting Started</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_getting_started_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">How do I get weather for my location?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_faq_location_question"}}</summary>
             <div class="help-content">
-                <p>Simply enter a city name, ZIP code, or coordinates in the search box on the <a href="/" class="text-cyan">homepage</a>. You can also click "My Location" to auto-detect your position using GPS or IP geolocation.</p>
-                <p>Supported location formats:</p>
+                <p>{{t .server.Lang "help_faq_location_answer1"}}</p>
+                <p>{{t .server.Lang "help_faq_location_formats_intro"}}</p>
                 <ul>
-                    <li>City name: <code>London</code>, <code>New York</code></li>
-                    <li>City with state/country: <code>Paris, France</code>, <code>Albany, NY</code></li>
-                    <li>ZIP/Postal code: <code>10001</code>, <code>SW1A 1AA</code></li>
-                    <li>Coordinates: <code>40.7128,-74.0060</code></li>
+                    <li>{{t .server.Lang "help_faq_location_format_city"}} <code>London</code>, <code>New York</code></li>
+                    <li>{{t .server.Lang "help_faq_location_format_city_state"}} <code>Paris, France</code>, <code>Albany, NY</code></li>
+                    <li>{{t .server.Lang "help_faq_location_format_zip"}} <code>10001</code>, <code>SW1A 1AA</code></li>
+                    <li>{{t .server.Lang "help_faq_location_format_coords"}} <code>40.7128,-74.0060</code></li>
                 </ul>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">How do I create an account?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_faq_account_question"}}</summary>
             <div class="help-content">
-                <p>Click the user icon in the top right corner and select "Register". Fill in your email, username, and password. After registering, you can save up to 10 favorite locations and subscribe to weather alerts.</p>
+                <p>{{t .server.Lang "help_faq_account_answer"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">How do I enable weather alerts?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_faq_alerts_question"}}</summary>
             <div class="help-content">
-                <p>From your <a href="/users/dashboard" class="text-cyan">dashboard</a>, add a location and enable "Weather Alerts". You'll receive notifications for severe weather affecting that location via WebSocket push or email (if configured).</p>
+                <p>{{t .server.Lang "help_faq_alerts_answer"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Features</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_features_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">Weather Forecasts</summary>
+            <summary class="help-summary">{{t .server.Lang "help_feature_forecasts_title"}}</summary>
             <div class="help-content">
-                <p>Get 16-day forecasts with hourly and daily breakdowns:</p>
+                <p>{{t .server.Lang "help_feature_forecasts_intro"}}</p>
                 <ul>
-                    <li>Current conditions - temperature, humidity, wind, pressure</li>
-                    <li>48-hour hourly forecast</li>
-                    <li>16-day daily forecast</li>
-                    <li>Precipitation probability and amounts</li>
-                    <li>UV index and feels-like temperature</li>
+                    <li>{{t .server.Lang "help_feature_forecasts_current"}}</li>
+                    <li>{{t .server.Lang "help_feature_forecasts_48h"}}</li>
+                    <li>{{t .server.Lang "help_feature_forecasts_16d"}}</li>
+                    <li>{{t .server.Lang "help_feature_forecasts_precip"}}</li>
+                    <li>{{t .server.Lang "help_feature_forecasts_uv"}}</li>
                 </ul>
-                <p>Data from <a href="https://open-meteo.com" target="_blank" class="text-cyan">Open-Meteo</a>, updated every 15 minutes.</p>
+                <p>{{t .server.Lang "help_feature_forecasts_data_from"}} <a href="https://open-meteo.com" target="_blank" class="text-cyan">Open-Meteo</a>{{t .server.Lang "help_feature_forecasts_updated_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Severe Weather Alerts</summary>
+            <summary class="help-summary">{{t .server.Lang "help_feature_severe_title"}}</summary>
             <div class="help-content">
-                <p>The <a href="/severe-weather" class="text-cyan">Severe Weather page</a> shows real-time alerts from:</p>
+                <p>{{t .server.Lang "help_feature_severe_intro"}} <a href="/severe-weather" class="text-cyan">{{t .server.Lang "help_feature_severe_page_link"}}</a> {{t .server.Lang "help_feature_severe_shows"}}</p>
                 <ul>
-                    <li>🇺🇸 USA - NOAA Weather API</li>
-                    <li>🇨🇦 Canada - Environment Canada</li>
-                    <li>🇬🇧 UK - Met Office</li>
-                    <li>🇦🇺 Australia - Bureau of Meteorology</li>
-                    <li>🇯🇵 Japan - JMA</li>
-                    <li>🇲🇽 Mexico - CONAGUA</li>
+                    <li>🇺🇸 {{t .server.Lang "help_feature_severe_usa"}}</li>
+                    <li>🇨🇦 {{t .server.Lang "help_feature_severe_canada"}}</li>
+                    <li>🇬🇧 {{t .server.Lang "help_feature_severe_uk"}}</li>
+                    <li>🇦🇺 {{t .server.Lang "help_feature_severe_australia"}}</li>
+                    <li>🇯🇵 {{t .server.Lang "help_feature_severe_japan"}}</li>
+                    <li>🇲🇽 {{t .server.Lang "help_feature_severe_mexico"}}</li>
                 </ul>
-                <p>Filter by type (hurricanes, tornadoes, storms, winter, floods) and distance. Alerts updated every 5 minutes.</p>
+                <p>{{t .server.Lang "help_feature_severe_filter_note"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Hurricane Tracking</summary>
+            <summary class="help-summary">{{t .server.Lang "help_feature_hurricane_title"}}</summary>
             <div class="help-content">
-                <p>Monitor active tropical storms and hurricanes from NOAA National Hurricane Center. Track storm position, wind speed, pressure, movement, and forecast path.</p>
+                <p>{{t .server.Lang "help_feature_hurricane_desc"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Earthquake Monitoring</summary>
+            <summary class="help-summary">{{t .server.Lang "help_feature_earthquake_title"}}</summary>
             <div class="help-content">
-                <p>The <a href="/earthquake" class="text-cyan">Earthquake page</a> shows real-time seismic activity from USGS:</p>
+                <p>{{t .server.Lang "help_feature_earthquake_intro"}} <a href="/earthquake" class="text-cyan">{{t .server.Lang "help_feature_earthquake_page_link"}}</a> {{t .server.Lang "help_feature_earthquake_shows"}}</p>
                 <ul>
-                    <li>Filter by time range (hour, day, week, month)</li>
-                    <li>Filter by magnitude (all, M4.5+, significant)</li>
-                    <li>View tsunami warnings</li>
-                    <li>Interactive map with earthquake markers</li>
-                    <li>Search by location to find nearby earthquakes</li>
+                    <li>{{t .server.Lang "help_feature_earthquake_filter_time"}}</li>
+                    <li>{{t .server.Lang "help_feature_earthquake_filter_magnitude"}}</li>
+                    <li>{{t .server.Lang "help_feature_earthquake_tsunami"}}</li>
+                    <li>{{t .server.Lang "help_feature_earthquake_map"}}</li>
+                    <li>{{t .server.Lang "help_feature_earthquake_search"}}</li>
                 </ul>
-                <p>Data updated every minute.</p>
+                <p>{{t .server.Lang "help_feature_earthquake_updated"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Moon Phase Tracking</summary>
+            <summary class="help-summary">{{t .server.Lang "help_feature_moon_title"}}</summary>
             <div class="help-content">
-                <p>The <a href="/moon" class="text-cyan">Moon page</a> shows:</p>
+                <p>{{t .server.Lang "help_feature_moon_intro"}} <a href="/moon" class="text-cyan">{{t .server.Lang "help_feature_moon_page_link"}}</a> {{t .server.Lang "help_feature_moon_shows"}}</p>
                 <ul>
-                    <li>Current phase (new, waxing crescent, first quarter, etc.)</li>
-                    <li>Illumination percentage</li>
-                    <li>Days since new moon</li>
-                    <li>Moonrise and moonset times for your location</li>
+                    <li>{{t .server.Lang "help_feature_moon_phase"}}</li>
+                    <li>{{t .server.Lang "help_feature_moon_illumination"}}</li>
+                    <li>{{t .server.Lang "help_feature_moon_days_since"}}</li>
+                    <li>{{t .server.Lang "help_feature_moon_rise_set"}}</li>
                 </ul>
-                <p>Calculated internally - no external API needed.</p>
+                <p>{{t .server.Lang "help_feature_moon_calculated"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">API Access</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_api_access_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">API Endpoints</summary>
+            <summary class="help-summary">{{t .server.Lang "help_api_endpoints_title"}}</summary>
             <div class="help-content">
-                <p>All endpoints available at <code>/api/v1/</code>:</p>
+                <p>{{t .server.Lang "help_api_endpoints_intro"}} <code>/api/v1/</code>:</p>
                 <ul>
-                    <li><code>GET /api/v1/weather?location=CITY</code> - Current weather and forecast</li>
-                    <li><code>GET /api/v1/earthquakes?feed=all_day</code> - Earthquake data</li>
-                    <li><code>GET /api/v1/severe-weather?location=CITY</code> - Severe weather alerts</li>
-                    <li><code>GET /api/v1/hurricanes</code> - Active hurricanes</li>
-                    <li><code>GET /api/v1/moon?location=CITY</code> - Moon phase data</li>
-                    <li><code>GET /api/v1/search?q=QUERY</code> - Location search</li>
-                    <li><code>GET /server/healthz</code> - Health check</li>
+                    <li><code>GET /api/v1/weather?location=CITY</code> - {{t .server.Lang "help_api_endpoint_weather"}}</li>
+                    <li><code>GET /api/v1/earthquakes?feed=all_day</code> - {{t .server.Lang "help_api_endpoint_earthquakes"}}</li>
+                    <li><code>GET /api/v1/severe-weather?location=CITY</code> - {{t .server.Lang "help_api_endpoint_severe"}}</li>
+                    <li><code>GET /api/v1/hurricanes</code> - {{t .server.Lang "help_api_endpoint_hurricanes"}}</li>
+                    <li><code>GET /api/v1/moon?location=CITY</code> - {{t .server.Lang "help_api_endpoint_moon"}}</li>
+                    <li><code>GET /api/v1/search?q=QUERY</code> - {{t .server.Lang "help_api_endpoint_search"}}</li>
+                    <li><code>GET /server/healthz</code> - {{t .server.Lang "help_api_endpoint_healthz"}}</li>
                 </ul>
-                <p>Visit <a href="/docs" class="text-cyan">/docs</a> for full API documentation.</p>
+                <p>{{t .server.Lang "help_api_docs_visit"}} <a href="/docs" class="text-cyan">/docs</a> {{t .server.Lang "help_api_docs_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Do I need an API key?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_api_key_question"}}</summary>
             <div class="help-content">
-                <p><strong>No API key required</strong> for public endpoints. All weather data sources are free/public APIs.</p>
-                <p>If you have an account, you can generate API tokens from your <a href="/users/settings" class="text-cyan">settings page</a> for authenticated access with higher rate limits.</p>
+                <p><strong>{{t .server.Lang "help_api_key_no_key_required"}}</strong> {{t .server.Lang "help_api_key_answer1"}}</p>
+                <p>{{t .server.Lang "help_api_key_answer2_prefix"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help_settings_page_link"}}</a> {{t .server.Lang "help_api_key_answer2_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Rate Limits</summary>
+            <summary class="help-summary">{{t .server.Lang "help_rate_limits_title"}}</summary>
             <div class="help-content">
                 <ul>
-                    <li><strong>Anonymous:</strong> 20 requests per minute</li>
-                    <li><strong>Authenticated:</strong> 100 requests per minute</li>
-                    <li><strong>Admin:</strong> Unlimited</li>
+                    <li><strong>{{t .server.Lang "help_rate_limits_anonymous_label"}}</strong> {{t .server.Lang "help_rate_limits_anonymous_value"}}</li>
+                    <li><strong>{{t .server.Lang "help_rate_limits_authenticated_label"}}</strong> {{t .server.Lang "help_rate_limits_authenticated_value"}}</li>
+                    <li><strong>{{t .server.Lang "help_rate_limits_admin_label"}}</strong> {{t .server.Lang "help_rate_limits_admin_value"}}</li>
                 </ul>
-                <p>Check response headers: <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></p>
+                <p>{{t .server.Lang "help_rate_limits_headers_intro"}} <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Response Formats</summary>
+            <summary class="help-summary">{{t .server.Lang "help_response_formats_title"}}</summary>
             <div class="help-content">
-                <p>Set the <code>Accept</code> header to control response format:</p>
+                <p>{{t .server.Lang "help_response_formats_intro"}} <code>Accept</code> {{t .server.Lang "help_response_formats_intro_suffix"}}</p>
                 <ul>
-                    <li><code>Accept: application/json</code> - JSON response</li>
-                    <li><code>Accept: text/plain</code> - Plain text (for terminal)</li>
-                    <li><code>Accept: text/html</code> - HTML page (default for browsers)</li>
+                    <li><code>Accept: application/json</code> - {{t .server.Lang "help_response_format_json"}}</li>
+                    <li><code>Accept: text/plain</code> - {{t .server.Lang "help_response_format_text"}}</li>
+                    <li><code>Accept: text/html</code> - {{t .server.Lang "help_response_format_html"}}</li>
                 </ul>
-                <p>GraphQL endpoint available at <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. Supports POST with <code>application/json</code> body.</p>
+                <p>{{t .server.Lang "help_graphql_endpoint_intro"}} <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. {{t .server.Lang "help_graphql_endpoint_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">GraphQL API</summary>
+            <summary class="help-summary">{{t .server.Lang "help_graphql_api_title"}}</summary>
             <div class="help-content">
-                <p>Send queries and mutations to <code>POST /graphql</code> with a JSON body of the form <code>{"query": "...", "variables": {...}}</code>.</p>
-                <p><strong>Key Queries</strong></p>
+                <p>{{t .server.Lang "help_graphql_send_intro"}} <code>POST /graphql</code> {{t .server.Lang "help_graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
+                <p><strong>{{t .server.Lang "help_graphql_key_queries_heading"}}</strong></p>
                 <ul>
-                    <li><code>weather(location: String!)</code> - Current weather and forecast</li>
-                    <li><code>currentUser</code> - Authenticated user profile</li>
-                    <li><code>savedLocations</code> - User's saved locations</li>
-                    <li><code>userTokens</code> - API tokens for authenticated user</li>
-                    <li><code>userPasskeys</code> - Registered passkeys for authenticated user</li>
-                    <li><code>publicUserProfile(username: String!)</code> - Public user profile</li>
+                    <li><code>weather(location: String!)</code> - {{t .server.Lang "help_graphql_query_weather"}}</li>
+                    <li><code>currentUser</code> - {{t .server.Lang "help_graphql_query_current_user"}}</li>
+                    <li><code>savedLocations</code> - {{t .server.Lang "help_graphql_query_saved_locations"}}</li>
+                    <li><code>userTokens</code> - {{t .server.Lang "help_graphql_query_user_tokens"}}</li>
+                    <li><code>userPasskeys</code> - {{t .server.Lang "help_graphql_query_user_passkeys"}}</li>
+                    <li><code>publicUserProfile(username: String!)</code> - {{t .server.Lang "help_graphql_query_public_profile"}}</li>
                 </ul>
-                <p><strong>Authentication Mutations</strong></p>
+                <p><strong>{{t .server.Lang "help_graphql_auth_mutations_heading"}}</strong></p>
                 <ul>
-                    <li><code>register(username, email, password)</code> - Create an account</li>
-                    <li><code>login(username, password)</code> - Sign in</li>
-                    <li><code>logout</code> - End session</li>
-                    <li><code>requestPasswordReset(email)</code> - Start password reset</li>
-                    <li><code>resetPassword(token, newPassword)</code> - Complete password reset</li>
-                    <li><code>verifyEmail(token)</code> - Verify email address</li>
-                    <li><code>twoFactorLogin(sessionToken, code)</code> - Complete 2FA login</li>
-                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - Login with recovery key</li>
+                    <li><code>register(username, email, password)</code> - {{t .server.Lang "help_graphql_mutation_register"}}</li>
+                    <li><code>login(username, password)</code> - {{t .server.Lang "help_graphql_mutation_login"}}</li>
+                    <li><code>logout</code> - {{t .server.Lang "help_graphql_mutation_logout"}}</li>
+                    <li><code>requestPasswordReset(email)</code> - {{t .server.Lang "help_graphql_mutation_request_reset"}}</li>
+                    <li><code>resetPassword(token, newPassword)</code> - {{t .server.Lang "help_graphql_mutation_reset_password"}}</li>
+                    <li><code>verifyEmail(token)</code> - {{t .server.Lang "help_graphql_mutation_verify_email"}}</li>
+                    <li><code>twoFactorLogin(sessionToken, code)</code> - {{t .server.Lang "help_graphql_mutation_2fa_login"}}</li>
+                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - {{t .server.Lang "help_graphql_mutation_recovery_login"}}</li>
                 </ul>
-                <p><strong>WebAuthn / Passkey Mutations (User)</strong></p>
-                <p>Register a new passkey, use it to log in, or remove it. Two-phase ceremony: begin returns <code>ceremonyToken</code> + WebAuthn options; finish sends the browser credential.</p>
+                <p><strong>{{t .server.Lang "help_graphql_user_passkey_heading"}}</strong></p>
+                <p>{{t .server.Lang "help_graphql_user_passkey_intro"}} <code>ceremonyToken</code> {{t .server.Lang "help_graphql_user_passkey_middle"}}</p>
                 <ul>
-                    <li><code>beginUserPasskeyRegistration(name, password)</code> - Start passkey registration</li>
-                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - Complete passkey registration</li>
-                    <li><code>deleteUserPasskey(id)</code> - Remove a passkey</li>
-                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - Start passkey login (public)</li>
-                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - Complete passkey login (public)</li>
+                    <li><code>beginUserPasskeyRegistration(name, password)</code> - {{t .server.Lang "help_graphql_mutation_begin_user_passkey_reg"}}</li>
+                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_user_passkey_reg"}}</li>
+                    <li><code>deleteUserPasskey(id)</code> - {{t .server.Lang "help_graphql_mutation_delete_user_passkey"}}</li>
+                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help_graphql_mutation_begin_user_passkey_login"}}</li>
+                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_user_passkey_login"}}</li>
                 </ul>
-                <p><strong>WebAuthn / Passkey Mutations (Admin)</strong></p>
-                <p>Admin accounts use passkeys as their primary authentication method. Management mutations require an active admin session; challenge mutations are public (called during login).</p>
+                <p><strong>{{t .server.Lang "help_graphql_admin_passkey_heading"}}</strong></p>
+                <p>{{t .server.Lang "help_graphql_admin_passkey_intro"}}</p>
                 <ul>
-                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - Start admin passkey registration (admin auth)</li>
-                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - Complete admin passkey registration (admin auth)</li>
-                    <li><code>deleteAdminPasskey(id)</code> - Remove an admin passkey (admin auth)</li>
-                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - Start admin passkey login challenge (public)</li>
-                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - Complete admin passkey login (public)</li>
+                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - {{t .server.Lang "help_graphql_mutation_begin_admin_passkey_reg"}}</li>
+                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_admin_passkey_reg"}}</li>
+                    <li><code>deleteAdminPasskey(id)</code> - {{t .server.Lang "help_graphql_mutation_delete_admin_passkey"}}</li>
+                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help_graphql_mutation_begin_admin_passkey_login"}}</li>
+                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_admin_passkey_login"}}</li>
                 </ul>
-                <p>Full schema introspection available via <code>POST /graphql</code> with a standard introspection query, or visit the <a href="/graphql" class="text-cyan">GraphQL playground</a>.</p>
+                <p>{{t .server.Lang "help_graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help_graphql_introspection_middle"}} <a href="/graphql" class="text-cyan">{{t .server.Lang "help_graphql_playground_link"}}</a>.</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Troubleshooting</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_troubleshooting_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">Weather data isn't loading</summary>
+            <summary class="help-summary">{{t .server.Lang "help_trouble_weather_title"}}</summary>
             <div class="help-content">
                 <ul>
-                    <li>Refresh the page (F5 or Ctrl+R)</li>
-                    <li>Verify the location name is correct</li>
-                    <li>Try coordinates instead of city name</li>
-                    <li>Check <a href="/server/healthz" class="text-cyan">/server/healthz</a> for server status</li>
+                    <li>{{t .server.Lang "help_trouble_weather_refresh"}}</li>
+                    <li>{{t .server.Lang "help_trouble_weather_verify"}}</li>
+                    <li>{{t .server.Lang "help_trouble_weather_coords"}}</li>
+                    <li>{{t .server.Lang "help_trouble_weather_check"}} <a href="/server/healthz" class="text-cyan">/server/healthz</a> {{t .server.Lang "help_trouble_weather_status"}}</li>
                 </ul>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">Location detection not working</summary>
+            <summary class="help-summary">{{t .server.Lang "help_trouble_location_title"}}</summary>
             <div class="help-content">
                 <ul>
-                    <li>Allow location access in your browser when prompted</li>
-                    <li>If GPS fails, the system will fall back to IP-based detection</li>
-                    <li>You can always enter your location manually</li>
+                    <li>{{t .server.Lang "help_trouble_location_allow"}}</li>
+                    <li>{{t .server.Lang "help_trouble_location_gps_fallback"}}</li>
+                    <li>{{t .server.Lang "help_trouble_location_manual"}}</li>
                 </ul>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">I forgot my password</summary>
+            <summary class="help-summary">{{t .server.Lang "help_trouble_password_title"}}</summary>
             <div class="help-content">
-                <p>Click "Forgot Password" on the <a href="/server/auth/login" class="text-cyan">login page</a>. Enter your email address and we'll send you a password reset link.</p>
+                <p>{{t .server.Lang "help_trouble_password_click"}} <a href="/server/auth/login" class="text-cyan">{{t .server.Lang "help_trouble_password_login_link"}}</a>. {{t .server.Lang "help_trouble_password_instructions"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Privacy & Security</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_privacy_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">What data do you collect?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_privacy_data_question"}}</summary>
             <div class="help-content">
-                <p>See our <a href="/server/privacy" class="text-cyan">Privacy Policy</a>. We collect minimal data: account information (if registered), saved locations, and usage logs for security.</p>
+                <p>{{t .server.Lang "help_privacy_data_see"}} <a href="/server/privacy" class="text-cyan">{{t .server.Lang "help_privacy_policy_link"}}</a>. {{t .server.Lang "help_privacy_data_answer"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">How do I delete my account?</summary>
+            <summary class="help-summary">{{t .server.Lang "help_privacy_delete_question"}}</summary>
             <div class="help-content">
-                <p>Go to your <a href="/users/settings" class="text-cyan">settings page</a> and click "Delete Account". This action is permanent.</p>
+                <p>{{t .server.Lang "help_privacy_delete_go_to"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help_settings_page_link"}}</a> {{t .server.Lang "help_privacy_delete_answer"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Still Need Help?</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help_still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">
-            <a href="/server/contact" class="btn btn-primary">Contact Support</a>
-            <a href="/docs" class="btn btn-secondary">API Documentation</a>
-            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">Report an Issue</a>
+            <a href="/server/contact" class="btn btn-primary">{{t .server.Lang "help_contact_support_label"}}</a>
+            <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api_docs_heading"}}</a>
+            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">{{t .server.Lang "help_report_issue_label"}}</a>
         </div>
     </div>
 </div>

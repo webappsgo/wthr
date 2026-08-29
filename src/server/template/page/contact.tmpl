@@ -3,104 +3,104 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">Contact Us</h1>
+    <h1 class="text-purple">{{t .server.Lang "contact_heading"}}</h1>
 
     <div class="card margin-y-lg">
         <div id="contact-message" role="alert" aria-live="polite"></div>
 
-        <form id="contact-form" role="form" aria-label="Contact form">
+        <form id="contact-form" role="form" aria-label="{{t .server.Lang "contact_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
-                <label for="contact-name" class="form-label">Name</label>
+                <label for="contact-name" class="form-label">{{t .server.Lang "contact_name_label"}}</label>
                 <input type="text"
                        id="contact-name"
                        name="name"
                        class="form-input"
                        required
-                       aria-label="Your name"
+                       aria-label="{{t .server.Lang "contact_name_aria"}}"
                        aria-required="true"
                        aria-describedby="contact-name-help"
-                       title="Enter your full name"
+                       title="{{t .server.Lang "contact_name_title"}}"
                        placeholder="John Doe">
-                <small id="contact-name-help" class="form-help">Your full name</small>
+                <small id="contact-name-help" class="form-help">{{t .server.Lang "contact_name_help"}}</small>
             </div>
 
             <div class="form-group">
-                <label for="contact-email" class="form-label">Email</label>
+                <label for="contact-email" class="form-label">{{t .server.Lang "contact_email_label"}}</label>
                 <input type="email"
                        id="contact-email"
                        name="email"
                        class="form-input"
                        required
-                       aria-label="Your email address"
+                       aria-label="{{t .server.Lang "contact_email_aria"}}"
                        aria-required="true"
                        aria-describedby="contact-email-help"
-                       title="Enter your email address for us to reply"
+                       title="{{t .server.Lang "contact_email_title"}}"
                        placeholder="john@example.com">
-                <small id="contact-email-help" class="form-help">We'll use this to reply to you</small>
+                <small id="contact-email-help" class="form-help">{{t .server.Lang "contact_email_help"}}</small>
             </div>
 
             <div class="form-group">
-                <label for="contact-subject" class="form-label">Subject</label>
+                <label for="contact-subject" class="form-label">{{t .server.Lang "contact_subject_label"}}</label>
                 <select id="contact-subject"
                         name="subject"
                         class="form-input"
                         required
-                        aria-label="Message subject"
+                        aria-label="{{t .server.Lang "contact_subject_aria"}}"
                         aria-required="true"
                         aria-describedby="contact-subject-help"
-                        title="Choose the subject that best describes your message">
-                    <option value="">Select a subject...</option>
-                    <option value="general">General Inquiry</option>
-                    <option value="support">Technical Support</option>
-                    <option value="bug">Report a Bug</option>
-                    <option value="feature">Feature Request</option>
-                    <option value="privacy">Privacy Concern</option>
-                    <option value="account">Account Issue</option>
-                    <option value="other">Other</option>
+                        title="{{t .server.Lang "contact_subject_title"}}">
+                    <option value="">{{t .server.Lang "contact_subject_select"}}</option>
+                    <option value="general">{{t .server.Lang "contact_subject_general"}}</option>
+                    <option value="support">{{t .server.Lang "contact_subject_support"}}</option>
+                    <option value="bug">{{t .server.Lang "contact_subject_bug"}}</option>
+                    <option value="feature">{{t .server.Lang "contact_subject_feature"}}</option>
+                    <option value="privacy">{{t .server.Lang "contact_subject_privacy"}}</option>
+                    <option value="account">{{t .server.Lang "contact_subject_account"}}</option>
+                    <option value="other">{{t .server.Lang "contact_subject_other"}}</option>
                 </select>
-                <small id="contact-subject-help" class="form-help">What is your message about?</small>
+                <small id="contact-subject-help" class="form-help">{{t .server.Lang "contact_subject_help"}}</small>
             </div>
 
             <div class="form-group">
-                <label for="contact-message-text" class="form-label">Message</label>
+                <label for="contact-message-text" class="form-label">{{t .server.Lang "contact_message_label"}}</label>
                 <textarea id="contact-message-text"
                           name="message"
                           class="form-input"
                           rows="8"
                           required
-                          aria-label="Your message"
+                          aria-label="{{t .server.Lang "contact_message_aria"}}"
                           aria-required="true"
                           aria-describedby="contact-message-help"
-                          title="Enter your detailed message"
-                          placeholder="Please describe your question or concern in detail..."></textarea>
-                <small id="contact-message-help" class="form-help">Be as detailed as possible</small>
+                          title="{{t .server.Lang "contact_message_title"}}"
+                          placeholder="{{t .server.Lang "contact_message_placeholder"}}"></textarea>
+                <small id="contact-message-help" class="form-help">{{t .server.Lang "contact_message_help"}}</small>
             </div>
 
             <div class="form-actions">
                 <button type="submit"
                         class="btn btn-primary"
                         id="contact-submit"
-                        aria-label="Send message"
-                        title="Submit your contact form">
-                    📧 Send Message
+                        aria-label="{{t .server.Lang "contact_send_aria"}}"
+                        title="{{t .server.Lang "contact_send_title"}}">
+                    📧 {{t .server.Lang "contact_send_label"}}
                 </button>
                 <button type="reset"
                         class="btn btn-secondary"
-                        aria-label="Clear form"
-                        title="Clear all fields and start over">
-                    🔄 Clear Form
+                        aria-label="{{t .server.Lang "contact_clear_aria"}}"
+                        title="{{t .server.Lang "contact_clear_title"}}">
+                    🔄 {{t .server.Lang "contact_clear_label"}}
                 </button>
             </div>
         </form>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Alternative Contact Methods</h2>
+        <h2 class="text-cyan">{{t .server.Lang "contact_alternative_heading"}}</h2>
         <div class="margin-y-md">
-            <p><strong>GitHub Issues:</strong> <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="text-cyan">Report bugs or request features</a></p>
-            <p><strong>Documentation:</strong> <a href="/docs" class="text-cyan">API documentation and guides</a></p>
-            <p><strong>Help:</strong> <a href="/server/help" class="text-cyan">Frequently asked questions</a></p>
+            <p><strong>{{t .server.Lang "contact_github_issues_label"}}</strong> <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="text-cyan">{{t .server.Lang "contact_github_issues_link"}}</a></p>
+            <p><strong>{{t .server.Lang "contact_documentation_label"}}</strong> <a href="/docs" class="text-cyan">{{t .server.Lang "contact_documentation_link"}}</a></p>
+            <p><strong>{{t .server.Lang "contact_help_label"}}</strong> <a href="/server/help" class="text-cyan">{{t .server.Lang "contact_help_link"}}</a></p>
         </div>
     </div>
 </div>

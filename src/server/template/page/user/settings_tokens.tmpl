@@ -4,25 +4,25 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">API Tokens</h1>
-        <p class="text-comment">Manage your personal API tokens</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings_tokens_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings_tokens_subtitle"}}</p>
     </div>
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">Account</a>
-        <a href="/users/settings/privacy" class="settings-nav-item">Privacy</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">Notifications</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">Appearance</a>
-        <a href="/users/security" class="settings-nav-item">Security</a>
-        <a href="/users/tokens" class="settings-nav-item active">API Tokens</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings_nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item active">{{t .server.Lang "settings_nav_api_tokens"}}</a>
     </div>
 
     <!-- API Tokens Card -->
     <div class="card profile-card">
         <div class="card-header d-flex justify-between align-center">
-            <h2 class="profile-card-header-title">API Tokens</h2>
-            <button type="button" class="btn btn-primary" data-action="tokens-show-new-modal">+ New Token</button>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_tokens_title"}}</h2>
+            <button type="button" class="btn btn-primary" data-action="tokens-show-new-modal">+ {{t .server.Lang "settings_tokens_new_token"}}</button>
         </div>
         <div class="card-body">
             <div id="tokenList">
@@ -30,34 +30,34 @@
                 {{range .tokens}}
                 <div class="token-item" data-token-id="{{.ID}}">
                     <div class="token-info">
-                        <div class="token-name">{{if .Name}}{{.Name}}{{else}}Unnamed Token{{end}}</div>
+                        <div class="token-name">{{if .Name}}{{.Name}}{{else}}{{t $.server.Lang "settings_tokens_unnamed_token"}}{{end}}</div>
                         <div class="token-meta">
                             <span class="token-prefix">{{.TokenPrefix}}</span>
                             {{if .Scopes}}
-                            <span class="token-scopes">Scopes: {{.Scopes}}</span>
+                            <span class="token-scopes">{{t $.server.Lang "settings_tokens_scopes_label"}} {{.Scopes}}</span>
                             {{end}}
                         </div>
                         <div class="token-dates">
-                            <span>Created: {{.CreatedAt.Format "Jan 2, 2006"}}</span>
+                            <span>{{t $.server.Lang "settings_tokens_created_label"}} {{.CreatedAt.Format "Jan 2, 2006"}}</span>
                             {{if .ExpiresAt}}
-                            <span>Expires: {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
+                            <span>{{t $.server.Lang "settings_tokens_expires_label"}} {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
                             {{else}}
-                            <span>Expires: Never</span>
+                            <span>{{t $.server.Lang "settings_tokens_expires_label"}} {{t $.server.Lang "settings_tokens_never"}}</span>
                             {{end}}
                             {{if .LastUsedAt}}
-                            <span>Last used: {{.LastUsedAt.Format "Jan 2, 2006 15:04"}}</span>
+                            <span>{{t $.server.Lang "settings_tokens_last_used_label"}} {{.LastUsedAt.Format "Jan 2, 2006 15:04"}}</span>
                             {{else}}
-                            <span>Last used: Never</span>
+                            <span>{{t $.server.Lang "settings_tokens_last_used_label"}} {{t $.server.Lang "settings_tokens_never"}}</span>
                             {{end}}
                         </div>
                     </div>
-                    <button type="button" class="btn btn-danger btn-sm" data-action="tokens-revoke" data-token-id="{{.ID}}">Revoke</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-action="tokens-revoke" data-token-id="{{.ID}}">{{t $.server.Lang "settings_tokens_revoke"}}</button>
                 </div>
                 {{end}}
                 {{else}}
                 <div class="empty-state">
-                    <p>No API tokens yet.</p>
-                    <p class="text-comment">Create a token to access the API programmatically.</p>
+                    <p>{{t .server.Lang "settings_tokens_empty_title"}}</p>
+                    <p class="text-comment">{{t .server.Lang "settings_tokens_empty_message"}}</p>
                 </div>
                 {{end}}
             </div>
@@ -67,19 +67,18 @@
     <!-- Token Info Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">About API Tokens</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_tokens_about_heading"}}</h2>
         </div>
         <div class="card-body">
             <div class="info-content">
-                <p>API tokens allow you to access the API without using your password. Use them for:</p>
+                <p>{{t .server.Lang "settings_tokens_about_intro"}}</p>
                 <ul>
-                    <li>CLI applications</li>
-                    <li>Scripts and automation</li>
-                    <li>Third-party integrations</li>
+                    <li>{{t .server.Lang "settings_tokens_use_cli"}}</li>
+                    <li>{{t .server.Lang "settings_tokens_use_scripts"}}</li>
+                    <li>{{t .server.Lang "settings_tokens_use_integrations"}}</li>
                 </ul>
                 <p class="text-comment">
-                    <strong>Security note:</strong> Tokens are shown only once when created. Store them securely.
-                    If a token is compromised, revoke it immediately.
+                    <strong>{{t .server.Lang "settings_tokens_security_note_label"}}</strong> {{t .server.Lang "settings_tokens_security_note_message"}}
                 </p>
             </div>
         </div>
@@ -90,7 +89,7 @@
 <div id="newTokenModal" class="modal d-none">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Create New Token</h3>
+            <h3>{{t .server.Lang "settings_tokens_create_new_title"}}</h3>
             <button class="modal-close" data-action="tokens-close-new-modal">&times;</button>
         </div>
         <div class="modal-body">
@@ -98,31 +97,31 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label for="tokenName" class="form-label">Token Name</label>
+                    <label for="tokenName" class="form-label">{{t .server.Lang "settings_tokens_name_label"}}</label>
                     <input type="text" id="tokenName" class="form-input" required placeholder="My CLI Token">
-                    <small class="text-comment">A descriptive name to identify this token</small>
+                    <small class="text-comment">{{t .server.Lang "settings_tokens_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="tokenScopes" class="form-label">Scopes (optional)</label>
+                    <label for="tokenScopes" class="form-label">{{t .server.Lang "settings_tokens_scopes_label_optional"}}</label>
                     <input type="text" id="tokenScopes" class="form-input" placeholder="read, write">
-                    <small class="text-comment">Comma-separated list of scopes. Leave empty for full access.</small>
+                    <small class="text-comment">{{t .server.Lang "settings_tokens_scopes_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="tokenExpires" class="form-label">Expiration</label>
+                    <label for="tokenExpires" class="form-label">{{t .server.Lang "settings_tokens_expiration_label"}}</label>
                     <select id="tokenExpires" class="form-input">
-                        <option value="0">Never</option>
-                        <option value="7">7 days</option>
-                        <option value="30">30 days</option>
-                        <option value="90">90 days</option>
-                        <option value="365">1 year</option>
+                        <option value="0">{{t .server.Lang "settings_tokens_never"}}</option>
+                        <option value="7">{{t .server.Lang "settings_tokens_7_days"}}</option>
+                        <option value="30">{{t .server.Lang "settings_tokens_30_days"}}</option>
+                        <option value="90">{{t .server.Lang "settings_tokens_90_days"}}</option>
+                        <option value="365">{{t .server.Lang "settings_tokens_1_year"}}</option>
                     </select>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">Create Token</button>
-                    <button type="button" class="btn btn-secondary" data-action="tokens-close-new-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "settings_tokens_create_button"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-close-new-modal">{{t .server.Lang "security_cancel"}}</button>
                 </div>
             </form>
         </div>
@@ -133,21 +132,21 @@
 <div id="tokenCreatedModal" class="modal d-none">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Token Created</h3>
+            <h3>{{t .server.Lang "settings_tokens_created_title"}}</h3>
         </div>
         <div class="modal-body">
             <div class="alert alert-warning">
-                <strong>Important:</strong> Copy your token now. You won't be able to see it again!
+                <strong>{{t .server.Lang "settings_tokens_important_label"}}</strong> {{t .server.Lang "settings_tokens_created_warning"}}
             </div>
             <div class="form-group">
-                <label class="form-label">Your new API token:</label>
+                <label class="form-label">{{t .server.Lang "settings_tokens_your_new_token_label"}}</label>
                 <div class="token-display">
                     <input type="text" id="createdToken" class="form-input" readonly>
-                    <button type="button" class="btn btn-secondary" data-action="tokens-copy-created">Copy</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-copy-created">{{t .server.Lang "weather_copy"}}</button>
                 </div>
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" data-action="tokens-close-created-modal">Done</button>
+                <button type="button" class="btn btn-primary" data-action="tokens-close-created-modal">{{t .server.Lang "settings_tokens_done_button"}}</button>
             </div>
         </div>
     </div>

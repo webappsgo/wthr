@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🌍 Earthquake Monitor - Weather</title>
+    <title>🌍 {{t .server.Lang "earthquake_page_title"}}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
@@ -16,7 +16,7 @@
     <div class="weather-container">
 
         <!-- Location Search Form -->
-        <form id="earthquake-form" class="search-form" role="form" aria-label="Earthquake search filters">
+        <form id="earthquake-form" class="search-form" role="form" aria-label="{{t .server.Lang "earthquake_search_filters_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="search-row-single flex-column-mobile">
                 <input
@@ -24,49 +24,49 @@
                     name="location"
                     id="eq-location-input"
                     class="location-input flex-1"
-                    placeholder="🔍 Search location or coordinates"
+                    placeholder="🔍 {{t .server.Lang "earthquake_search_placeholder"}}"
                     value="{{if .Location}}{{.Location}}{{end}}"
                     autocomplete="off"
-                    aria-label="Search location or coordinates"
-                    title="Search for earthquakes near a specific location - enter a city name or coordinates"
+                    aria-label="{{t .server.Lang "earthquake_search_aria"}}"
+                    title="{{t .server.Lang "earthquake_search_title"}}"
                 >
             </div>
 
             <div class="search-row flex-column-mobile">
                 <select name="feed"
                         class="select-input flex-1"
-                        aria-label="Select time range and magnitude filter"
-                        title="Choose which earthquakes to display based on time range and minimum magnitude">
-                    <option value="all_hour" {{if eq .FeedType "all_hour"}}selected{{end}}>Past Hour</option>
-                    <option value="all_day" {{if eq .FeedType "all_day"}}selected{{end}}>Past Day</option>
-                    <option value="all_week" {{if eq .FeedType "all_week"}}selected{{end}}>Past Week</option>
-                    <option value="all_month" {{if eq .FeedType "all_month"}}selected{{end}}>Past Month</option>
-                    <option value="4.5_day" {{if eq .FeedType "4.5_day"}}selected{{end}}>M4.5+ Day</option>
-                    <option value="4.5_week" {{if eq .FeedType "4.5_week"}}selected{{end}}>M4.5+ Week</option>
-                    <option value="significant_day" {{if eq .FeedType "significant_day"}}selected{{end}}>Significant Day</option>
-                    <option value="significant_week" {{if eq .FeedType "significant_week"}}selected{{end}}>Significant Week</option>
+                        aria-label="{{t .server.Lang "earthquake_feed_select_aria"}}"
+                        title="{{t .server.Lang "earthquake_feed_select_title"}}">
+                    <option value="all_hour" {{if eq .FeedType "all_hour"}}selected{{end}}>{{t .server.Lang "earthquake_feed_past_hour"}}</option>
+                    <option value="all_day" {{if eq .FeedType "all_day"}}selected{{end}}>{{t .server.Lang "earthquake_feed_past_day"}}</option>
+                    <option value="all_week" {{if eq .FeedType "all_week"}}selected{{end}}>{{t .server.Lang "earthquake_feed_past_week"}}</option>
+                    <option value="all_month" {{if eq .FeedType "all_month"}}selected{{end}}>{{t .server.Lang "earthquake_feed_past_month"}}</option>
+                    <option value="4.5_day" {{if eq .FeedType "4.5_day"}}selected{{end}}>{{t .server.Lang "earthquake_feed_m45_day"}}</option>
+                    <option value="4.5_week" {{if eq .FeedType "4.5_week"}}selected{{end}}>{{t .server.Lang "earthquake_feed_m45_week"}}</option>
+                    <option value="significant_day" {{if eq .FeedType "significant_day"}}selected{{end}}>{{t .server.Lang "earthquake_feed_significant_day"}}</option>
+                    <option value="significant_week" {{if eq .FeedType "significant_week"}}selected{{end}}>{{t .server.Lang "earthquake_feed_significant_week"}}</option>
                 </select>
                 <select name="sort"
                         class="select-input flex-1"
-                        aria-label="Sort earthquakes by"
-                        title="Choose how to sort the earthquake results">
-                    <option value="newest" {{if or (eq .SortBy "newest") (not .SortBy)}}selected{{end}}>Newest First</option>
-                    <option value="oldest" {{if eq .SortBy "oldest"}}selected{{end}}>Oldest First</option>
-                    <option value="magnitude" {{if eq .SortBy "magnitude"}}selected{{end}}>By Magnitude</option>
-                    <option value="depth" {{if eq .SortBy "depth"}}selected{{end}}>By Depth</option>
+                        aria-label="{{t .server.Lang "earthquake_sort_aria"}}"
+                        title="{{t .server.Lang "earthquake_sort_title"}}">
+                    <option value="newest" {{if or (eq .SortBy "newest") (not .SortBy)}}selected{{end}}>{{t .server.Lang "earthquake_sort_newest"}}</option>
+                    <option value="oldest" {{if eq .SortBy "oldest"}}selected{{end}}>{{t .server.Lang "earthquake_sort_oldest"}}</option>
+                    <option value="magnitude" {{if eq .SortBy "magnitude"}}selected{{end}}>{{t .server.Lang "earthquake_sort_magnitude"}}</option>
+                    <option value="depth" {{if eq .SortBy "depth"}}selected{{end}}>{{t .server.Lang "earthquake_sort_depth"}}</option>
                     {{if .HasUserLocation}}
-                    <option value="closest" {{if eq .SortBy "closest"}}selected{{end}}>Closest First</option>
+                    <option value="closest" {{if eq .SortBy "closest"}}selected{{end}}>{{t .server.Lang "earthquake_sort_closest"}}</option>
                     {{end}}
                 </select>
                 <input
                     type="number"
                     name="number"
-                    placeholder="Limit (0 = all)"
+                    placeholder="{{t .server.Lang "earthquake_limit_placeholder"}}"
                     min="0"
                     value="{{if .Number}}{{.Number}}{{end}}"
                     class="location-input flex-1"
-                    aria-label="Maximum number of results"
-                    title="Limit the number of results shown (enter 0 to show all earthquakes)"
+                    aria-label="{{t .server.Lang "earthquake_limit_aria"}}"
+                    title="{{t .server.Lang "earthquake_limit_title"}}"
                 >
             </div>
 
@@ -75,13 +75,13 @@
                 <input
                     type="number"
                     name="radius"
-                    placeholder="Radius (km)"
+                    placeholder="{{t .server.Lang "earthquake_radius_placeholder"}}"
                     value="{{if .Radius}}{{.Radius}}{{end}}"
                     min="100"
                     max="20000"
                     class="location-input"
-                    aria-label="Search radius in kilometers"
-                    title="Search radius around the location in kilometers (100-20000 km)"
+                    aria-label="{{t .server.Lang "earthquake_radius_aria"}}"
+                    title="{{t .server.Lang "earthquake_radius_title"}}"
                 >
             </div>
             {{end}}
@@ -89,18 +89,18 @@
             <div class="search-row-single">
                 <button type="submit"
                         class="search-button primary flex-1"
-                        aria-label="Search for earthquakes"
-                        title="Search for earthquakes with the selected filters">
-                    🌍 Search Earthquakes
+                        aria-label="{{t .server.Lang "earthquake_search_submit_aria"}}"
+                        title="{{t .server.Lang "earthquake_search_submit_title"}}">
+                    🌍 {{t .server.Lang "earthquake_search_submit_label"}}
                 </button>
                 {{if .Location}}
                 <button type="button"
                         class="search-button secondary flex-1"
                         data-action="navigate"
                         data-href="/earthquake?feed={{.FeedType}}"
-                        aria-label="View all earthquakes worldwide"
-                        title="Clear location filter and view all earthquakes worldwide">
-                    🗺️ View All
+                        aria-label="{{t .server.Lang "earthquake_view_all_aria"}}"
+                        title="{{t .server.Lang "earthquake_view_all_title"}}">
+                    🗺️ {{t .server.Lang "earthquake_view_all_label"}}
                 </button>
                 {{end}}
             </div>
@@ -114,7 +114,7 @@
         <div class="grid-auto-fit-200 margin-y-lg">
             <div class="stat-box">
                 <div class="stat-box__value stat-box__value--cyan">{{len .Earthquakes}}</div>
-                <div class="stat-box__label">Total Earthquakes</div>
+                <div class="stat-box__label">{{t .server.Lang "earthquake_stat_total"}}</div>
             </div>
             <div class="stat-box">
                 {{ $maxMag := 0.0 }}
@@ -122,7 +122,7 @@
                     {{if gt .Magnitude $maxMag}}{{$maxMag = .Magnitude}}{{end}}
                 {{end}}
                 <div class="stat-box__value stat-box__value--orange">{{printf "%.1f" $maxMag}}</div>
-                <div class="stat-box__label">Largest Magnitude</div>
+                <div class="stat-box__label">{{t .server.Lang "earthquake_stat_largest_magnitude"}}</div>
             </div>
             <div class="stat-box">
                 {{ $tsunami := 0 }}
@@ -130,7 +130,7 @@
                     {{if eq .Tsunami 1}}{{$tsunami = 1}}{{end}}
                 {{end}}
                 <div class="stat-box__value stat-box__value--purple">{{if gt $tsunami 0}}⚠️{{else}}✓{{end}}</div>
-                <div class="stat-box__label">Tsunami Warnings</div>
+                <div class="stat-box__label">{{t .server.Lang "earthquake_stat_tsunami_warnings"}}</div>
             </div>
         </div>
 
@@ -139,7 +139,7 @@
 
         <!-- Earthquake List -->
         <div class="margin-y-lg">
-            <h2 class="text-cyan">Recent Earthquakes</h2>
+            <h2 class="text-cyan">{{t .server.Lang "earthquake_recent_heading"}}</h2>
             <div class="scroll-container">
                 {{range .Earthquakes}}
                 {{ $severity := "earthquake-item--moderate" }}
@@ -175,25 +175,25 @@
                         </span>
                         <div class="flex-1">
                             <div class="font-semibold">{{.Place}}</div>
-                            {{if eq .Tsunami 1}}<span class="text-cyan font-semibold">🌊 TSUNAMI</span>{{end}}
+                            {{if eq .Tsunami 1}}<span class="text-cyan font-semibold">🌊 {{t $.server.Lang "earthquake_tsunami_badge"}}</span>{{end}}
                             <div class="eq-info">
-                                {{.Time.Format "2006-01-02 15:04:05"}} • Depth: {{printf "%.1f" .Depth}}km
-                                {{if .DistanceFmt}} • <span class="text-cyan">📍 {{.DistanceFmt}} away</span>{{end}}
-                                {{if .Felt}} • Felt by {{.Felt}} people{{end}}
+                                {{.Time.Format "2006-01-02 15:04:05"}} • {{t $.server.Lang "earthquake_depth_label"}} {{printf "%.1f" .Depth}}km
+                                {{if .DistanceFmt}} • <span class="text-cyan">📍 {{.DistanceFmt}} {{t $.server.Lang "earthquake_away_label"}}</span>{{end}}
+                                {{if .Felt}} • {{t $.server.Lang "earthquake_felt_by_label"}} {{.Felt}} {{t $.server.Lang "earthquake_detail_felt_people"}}{{end}}
                             </div>
                             <div class="eq-details">
-                                <div><strong>Coordinates:</strong> {{.Latitude}}, {{.Longitude}}</div>
-                                <div><strong>Type:</strong> {{.MagnitudeType}} {{.Type}}</div>
-                                <div><strong>Status:</strong> {{.Status}}</div>
+                                <div><strong>{{t $.server.Lang "earthquake_coordinates_label"}}:</strong> {{.Latitude}}, {{.Longitude}}</div>
+                                <div><strong>{{t $.server.Lang "earthquake_detail_type_label"}}:</strong> {{.MagnitudeType}} {{.Type}}</div>
+                                <div><strong>{{t $.server.Lang "earthquake_detail_status_label"}}:</strong> {{.Status}}</div>
                                 {{if .CDI}}<div><strong>CDI:</strong> {{printf "%.1f" .CDI}}</div>{{end}}
                                 {{if .MMI}}<div><strong>MMI:</strong> {{printf "%.1f" .MMI}}</div>{{end}}
                             </div>
                         </div>
-                        <a href="/earthquake/detail/{{.ID}}" data-action="stop-propagation" class="text-cyan font-medium">Details →</a>
+                        <a href="/earthquake/detail/{{.ID}}" data-action="stop-propagation" class="text-cyan font-medium">{{t $.server.Lang "earthquake_details_link"}} →</a>
                     </div>
                 </div>
                 {{else}}
-                <p class="text-center text-comment margin-y-lg">No earthquakes found.</p>
+                <p class="text-center text-comment margin-y-lg">{{t .server.Lang "earthquake_none_found"}}</p>
                 {{end}}
             </div>
         </div>
@@ -201,21 +201,21 @@
         {{if .Earthquakes}}
         <!-- Console Commands -->
         <div class="console-section">
-            <h3 class="console-section__title text-green">📟 Console Commands</h3>
+            <h3 class="console-section__title text-green">📟 {{t .server.Lang "earthquake_console_heading"}}</h3>
             <div class="console-commands">
                 <div class="command-item">
-                    <strong class="console-section__label">All Earthquakes:</strong>
+                    <strong class="console-section__label">{{t .server.Lang "earthquake_console_all_label"}}</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}</code>
-                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
                     </div>
                 </div>
                 {{if .Location}}
                 <div class="command-item">
-                    <strong class="console-section__label">Selected Feed:</strong>
+                    <strong class="console-section__label">{{t .server.Lang "earthquake_console_selected_feed_label"}}</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}</code>
-                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">Copy</button>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -s {{.HostInfo.FullHost}}/api/v1/earthquakes?feed={{.FeedType}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
                     </div>
                 </div>
                 {{end}}
@@ -225,8 +225,8 @@
 
         <div class="data-footer">
             <p class="data-footer__text">
-                Data from <a href="https://earthquake.usgs.gov/" target="_blank" class="data-footer__link">USGS Earthquake Hazards Program</a><br>
-                Updated frequently throughout the day
+                {{t .server.Lang "earthquake_data_from"}} <a href="https://earthquake.usgs.gov/" target="_blank" class="data-footer__link">{{t .server.Lang "earthquake_detail_usgs_program"}}</a><br>
+                {{t .server.Lang "earthquake_detail_updated_frequently"}}
             </p>
         </div>
     </div>

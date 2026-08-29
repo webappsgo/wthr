@@ -1,22 +1,22 @@
-Subject: Welcome to {app_name}!
+Subject: {{tf .Lang "email.welcome.subject" "app_name" .AppName}}
 ---
-Hello!
+{{t .Lang "email.common.greeting_exclaim"}}
 
-Welcome to {app_name}! Your weather application is now set up and ready to use.
+{{tf .Lang "email.welcome.intro" "app_name" .AppName}}
 
-You can access your weather dashboard at:
-{app_url}
+{{t .Lang "email.welcome.dashboard_intro"}}
+{{.AppURL}}
 
-**Getting Started:**
-- Add your favorite locations
-- Enable weather alerts
-- Customize your notification preferences
-- Explore weather forecasts and historical data
+**{{t .Lang "email.welcome.getting_started_heading"}}:**
+- {{t .Lang "email.welcome.step_add_locations"}}
+- {{t .Lang "email.welcome.step_enable_alerts"}}
+- {{t .Lang "email.welcome.step_customize_notifications"}}
+- {{t .Lang "email.welcome.step_explore_forecasts"}}
 
-If you have any questions or need assistance, please don't hesitate to contact us.
+{{t .Lang "email.welcome.contact_notice"}}
 
-Thank you for choosing {app_name}!
+{{tf .Lang "email.welcome.thanks" "app_name" .AppName}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

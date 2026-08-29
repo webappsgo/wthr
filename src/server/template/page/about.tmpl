@@ -3,95 +3,95 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">About Weather</h1>
+    <h1 class="text-purple">{{t .server.Lang "about_heading"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">What is Weather?</h2>
-        <p>A unified weather information platform that aggregates global meteorological data from authoritative sources into a single, accessible service. Weather provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and lunar phases through a single API and web interface.</p>
-        <p class="text-comment margin-top-1">All weather data sources are free/public APIs - no API keys required. Single binary deployment with no external dependencies.</p>
+        <h2 class="text-cyan">{{t .server.Lang "about_what_is_heading"}}</h2>
+        <p>{{t .server.Lang "about_what_is_description"}}</p>
+        <p class="text-comment margin-top-1">{{t .server.Lang "about_free_apis_note"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Application Information</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about_app_info_heading"}}</h2>
         <div class="stat-box margin-y-md">
-            <div class="stat-box__label">Version</div>
+            <div class="stat-box__label">{{t .server.Lang "admin.system.version_label"}}</div>
             <div class="stat-box__value">{{.server.Version}}</div>
         </div>
         <div class="stat-box margin-y-md">
-            <div class="stat-box__label">Build Date</div>
+            <div class="stat-box__label">{{t .server.Lang "admin.system.build_date_label"}}</div>
             <div class="stat-box__value">{{.server.BuildDate}}</div>
         </div>
         <div class="stat-box margin-y-md">
-            <div class="stat-box__label">Mode</div>
+            <div class="stat-box__label">{{t .server.Lang "admin.system.mode_label"}}</div>
             <div class="stat-box__value">{{.server.Mode}}</div>
         </div>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Key Features</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about_features_heading"}}</h2>
         <ul class="feature-list">
-            <li>🌤️ <strong>Weather Forecasts</strong> - 16-day global forecasts with hourly/daily breakdown via Open-Meteo</li>
-            <li>⚠️ <strong>Severe Weather Alerts</strong> - Real-time alerts from US (NOAA), Canada, UK, Australia, Japan, Mexico</li>
-            <li>🌀 <strong>Hurricane Tracking</strong> - Active tropical storm monitoring from NOAA National Hurricane Center</li>
-            <li>🌍 <strong>Earthquake Data</strong> - Real-time seismic activity from USGS with tsunami warnings</li>
-            <li>🌙 <strong>Moon Phases</strong> - Lunar cycles, illumination percentage, moonrise/moonset times</li>
-            <li>📍 <strong>Location Detection</strong> - Automatic IP-based geolocation with GeoIP database</li>
-            <li>📊 <strong>Multi-Format API</strong> - JSON, text/plain, and GraphQL support</li>
-            <li>💻 <strong>Terminal Output</strong> - ASCII/ANSI colored weather for curl and terminal users</li>
-            <li>🔔 <strong>WebSocket Alerts</strong> - Real-time push notifications for severe weather</li>
-            <li>🔑 <strong>Passkey / WebAuthn</strong> - Admin accounts use hardware-key and biometric authentication</li>
-            <li>🔗 <strong>GraphQL API</strong> - Full GraphQL endpoint at <code>/graphql</code> including passkey auth mutations</li>
-            <li>📱 <strong>Mobile-First Design</strong> - Responsive interface works on any device</li>
+            <li>🌤️ <strong>{{t .server.Lang "about_feature_forecasts_title"}}</strong> - {{t .server.Lang "about_feature_forecasts_desc"}}</li>
+            <li>⚠️ <strong>{{t .server.Lang "about_feature_alerts_title"}}</strong> - {{t .server.Lang "about_feature_alerts_desc"}}</li>
+            <li>🌀 <strong>{{t .server.Lang "about_feature_hurricanes_title"}}</strong> - {{t .server.Lang "about_feature_hurricanes_desc"}}</li>
+            <li>🌍 <strong>{{t .server.Lang "about_feature_earthquakes_title"}}</strong> - {{t .server.Lang "about_feature_earthquakes_desc"}}</li>
+            <li>🌙 <strong>{{t .server.Lang "about_feature_moon_title"}}</strong> - {{t .server.Lang "about_feature_moon_desc"}}</li>
+            <li>📍 <strong>{{t .server.Lang "about_feature_location_title"}}</strong> - {{t .server.Lang "about_feature_location_desc"}}</li>
+            <li>📊 <strong>{{t .server.Lang "about_feature_api_title"}}</strong> - {{t .server.Lang "about_feature_api_desc"}}</li>
+            <li>💻 <strong>{{t .server.Lang "about_feature_terminal_title"}}</strong> - {{t .server.Lang "about_feature_terminal_desc"}}</li>
+            <li>🔔 <strong>{{t .server.Lang "about_feature_websocket_title"}}</strong> - {{t .server.Lang "about_feature_websocket_desc"}}</li>
+            <li>🔑 <strong>{{t .server.Lang "about_feature_passkey_title"}}</strong> - {{t .server.Lang "about_feature_passkey_desc"}}</li>
+            <li>🔗 <strong>{{t .server.Lang "about_feature_graphql_title"}}</strong> - {{t .server.Lang "about_feature_graphql_desc"}}</li>
+            <li>📱 <strong>{{t .server.Lang "about_feature_mobile_title"}}</strong> - {{t .server.Lang "about_feature_mobile_desc"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Data Sources</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about_data_sources_heading"}}</h2>
         <ul class="feature-list">
-            <li>🌤️ <strong>Weather Forecasts:</strong> Open-Meteo API (updated every 15 minutes)</li>
-            <li>⚠️ <strong>US Alerts:</strong> NOAA Weather API (updated every 5 minutes)</li>
-            <li>🌀 <strong>Hurricanes:</strong> NOAA National Hurricane Center (updated every 15 minutes)</li>
-            <li>🌍 <strong>Earthquakes:</strong> USGS Earthquake API (updated every minute)</li>
-            <li>🌙 <strong>Moon Phases:</strong> Calculated internally (no external API)</li>
-            <li>📍 <strong>IP Geolocation:</strong> sapics/ip-location-db (updated monthly)</li>
+            <li>🌤️ <strong>{{t .server.Lang "about_source_forecasts_title"}}</strong> {{t .server.Lang "about_source_forecasts_desc"}}</li>
+            <li>⚠️ <strong>{{t .server.Lang "about_source_us_alerts_title"}}</strong> {{t .server.Lang "about_source_us_alerts_desc"}}</li>
+            <li>🌀 <strong>{{t .server.Lang "about_source_hurricanes_title"}}</strong> {{t .server.Lang "about_source_hurricanes_desc"}}</li>
+            <li>🌍 <strong>{{t .server.Lang "about_source_earthquakes_title"}}</strong> {{t .server.Lang "about_source_earthquakes_desc"}}</li>
+            <li>🌙 <strong>{{t .server.Lang "about_source_moon_title"}}</strong> {{t .server.Lang "about_source_moon_desc"}}</li>
+            <li>📍 <strong>{{t .server.Lang "about_source_geoip_title"}}</strong> {{t .server.Lang "about_source_geoip_desc"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Who Is This For?</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about_who_heading"}}</h2>
         <ul class="feature-list">
-            <li>👩‍💻 <strong>Developers</strong> - Building weather-aware applications, need single API instead of 10+ integrations</li>
-            <li>🖥️ <strong>System Administrators</strong> - Need self-hosted weather services with full data control</li>
-            <li>🚨 <strong>Emergency Services</strong> - Monitoring severe weather and seismic activity in real-time</li>
-            <li>📰 <strong>News Organizations</strong> - Require reliable weather data feeds for broadcast/web</li>
-            <li>🏠 <strong>IoT/Smart Home</strong> - Systems needing weather integration for automation</li>
-            <li>👤 <strong>General Public</strong> - Clean, ad-free weather interface with location detection</li>
+            <li>👩‍💻 <strong>{{t .server.Lang "about_who_developers_title"}}</strong> - {{t .server.Lang "about_who_developers_desc"}}</li>
+            <li>🖥️ <strong>{{t .server.Lang "about_who_sysadmins_title"}}</strong> - {{t .server.Lang "about_who_sysadmins_desc"}}</li>
+            <li>🚨 <strong>{{t .server.Lang "about_who_emergency_title"}}</strong> - {{t .server.Lang "about_who_emergency_desc"}}</li>
+            <li>📰 <strong>{{t .server.Lang "about_who_news_title"}}</strong> - {{t .server.Lang "about_who_news_desc"}}</li>
+            <li>🏠 <strong>{{t .server.Lang "about_who_iot_title"}}</strong> - {{t .server.Lang "about_who_iot_desc"}}</li>
+            <li>👤 <strong>{{t .server.Lang "about_who_public_title"}}</strong> - {{t .server.Lang "about_who_public_desc"}}</li>
         </ul>
     </div>
 
     {{if .server.Tor.Enabled}}
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">🧅 Tor Hidden Service</h2>
-        <p>This application is also available via Tor for enhanced privacy.</p>
+        <h2 class="text-cyan">🧅 {{t .server.Lang "about_tor_heading"}}</h2>
+        <p>{{t .server.Lang "about_tor_description"}}</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code">{{.server.Tor.OnionAddress}}</code>
-            <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">Copy</button>
+            <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
-        <p class="text-comment"><small>Requires Tor Browser or Tor-enabled browser.</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "about_tor_browser_note"}}</small></p>
     </div>
     {{end}}
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Links</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about_links_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile">
             <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}" target="_blank" class="btn btn-primary">
-                GitHub Repository
+                {{t .server.Lang "about_github_repository"}}
             </a>
             <a href="/docs" class="btn btn-secondary">
-                API Documentation
+                {{t .server.Lang "about_api_documentation"}}
             </a>
             <a href="/server/help" class="btn btn-secondary">
-                Help & Support
+                {{t .server.Lang "about_help_support"}}
             </a>
         </div>
     </div>

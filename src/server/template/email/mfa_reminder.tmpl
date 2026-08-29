@@ -1,31 +1,31 @@
-Subject: Secure Your Account - {app_name}
+Subject: {{tf .Lang "email.mfa_reminder.subject" "app_name" .AppName}}
 ---
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-We noticed that you haven't enabled two-factor authentication (2FA) on your {app_name} account yet.
+{{tf .Lang "email.mfa_reminder.intro" "app_name" .AppName}}
 
-**Why Enable 2FA?**
+**{{t .Lang "email.mfa_reminder.why_heading"}}**
 
-Two-factor authentication adds an extra layer of security to your account. Even if someone gets your password, they won't be able to access your account without the second factor.
+{{t .Lang "email.mfa_reminder.why_body"}}
 
-**Set Up 2FA Now:**
+**{{t .Lang "email.mfa_reminder.setup_heading"}}**
 
-You can enable 2FA in your account settings:
-{setup_url}
+{{t .Lang "email.mfa_reminder.setup_body"}}
+{{.SetupURL}}
 
-**Options Available:**
-- Time-based One-Time Password (TOTP) - works with apps like Google Authenticator, Authy, 1Password
-- Recovery codes for emergency access
+**{{t .Lang "email.mfa_reminder.options_heading"}}**
+- {{t .Lang "email.mfa_reminder.option_totp"}}
+- {{t .Lang "email.mfa_reminder.option_recovery_codes"}}
 
-**Don't Want Reminders?**
+**{{t .Lang "email.mfa_reminder.dismiss_heading"}}**
 
-If you prefer not to enable 2FA, you can permanently dismiss these reminders in your security settings:
-{dismiss_url}
+{{t .Lang "email.mfa_reminder.dismiss_body"}}
+{{.DismissURL}}
 
-Thank you for helping keep {app_name} secure!
+{{tf .Lang "email.mfa_reminder.thanks" "app_name" .AppName}}
 
 ---
-This is an automated security reminder from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated_reminder" "app_name" .AppName}}
+{{.AppURL}}
 
-Note: We send this reminder once every 6 months to help keep your account secure.
+{{t .Lang "email.mfa_reminder.frequency_note"}}

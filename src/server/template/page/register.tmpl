@@ -11,18 +11,18 @@
 <body>
     <div class="register-container">
         <div class="register-header">
-            <h1>🌤️ Weather</h1>
-            <p>Create a new account</p>
+            <h1>🌤️ {{t .server.Lang "login_brand_heading"}}</h1>
+            <p>{{t .server.Lang "register_create_account_subtitle"}}</p>
         </div>
 
         {{ if .error }}
         <div class="error-message" role="alert" aria-live="assertive">{{ .error }}</div>
         {{ end }}
 
-        <form method="POST" action="/server/auth/register" id="registerForm" role="form" aria-label="User registration form">
+        <form method="POST" action="/server/auth/register" id="registerForm" role="form" aria-label="{{t .server.Lang "register_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">{{t .server.Lang "register_username_label"}}</label>
                 <input type="text"
                        id="username"
                        name="username"
@@ -31,41 +31,41 @@
                        minlength="3"
                        maxlength="32"
                        pattern="[a-z][a-z0-9_-]{2,31}"
-                       aria-label="Username"
+                       aria-label="{{t .server.Lang "register_username_label"}}"
                        aria-required="true"
                        aria-describedby="username-requirements"
-                       title="Choose a unique username for your account">
-                <small id="username-requirements">3-32 characters, lowercase letters, numbers, underscores, and hyphens. Must start with a letter.</small>
+                       title="{{t .server.Lang "register_username_title"}}">
+                <small id="username-requirements">{{t .server.Lang "register_username_requirements"}}</small>
             </div>
 
             <div class="form-group">
-                <label for="email">Email</label>
+                <label for="email">{{t .server.Lang "register_email_label"}}</label>
                 <input type="email"
                        id="email"
                        name="email"
                        required
-                       aria-label="Email address"
+                       aria-label="{{t .server.Lang "register_email_aria"}}"
                        aria-required="true"
-                       title="Enter your email address for account verification">
+                       title="{{t .server.Lang "register_email_title"}}">
             </div>
 
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">{{t .server.Lang "login_password_label"}}</label>
                 <input type="password"
                        id="password"
                        name="password"
                        required
                        minlength="8"
-                       aria-label="Password"
+                       aria-label="{{t .server.Lang "login_password_label"}}"
                        aria-required="true"
                        aria-describedby="password-requirements password-strength-indicator"
-                       title="Create a secure password for your account">
-                <small id="password-requirements">Minimum 8 characters</small>
+                       title="{{t .server.Lang "register_password_title"}}">
+                <small id="password-requirements">{{t .server.Lang "register_password_requirements"}}</small>
                 <div class="password-strength">
                     <div class="password-strength-bar"
                          id="strengthBar"
                          role="progressbar"
-                         aria-label="Password strength indicator"
+                         aria-label="{{t .server.Lang "register_password_strength_aria"}}"
                          aria-live="polite"
                          aria-valuemin="0"
                          aria-valuemax="4"
@@ -75,36 +75,44 @@
             </div>
 
             <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
+                <label for="confirm_password">{{t .server.Lang "register_confirm_password_label"}}</label>
                 <input type="password"
                        id="confirm_password"
                        name="confirm_password"
                        required
-                       aria-label="Confirm password"
+                       aria-label="{{t .server.Lang "register_confirm_password_label"}}"
                        aria-required="true"
                        aria-describedby="password-match-help"
-                       title="Re-enter your password to confirm">
-                <small id="password-match-help" class="sr-only">Password must match the password entered above</small>
+                       title="{{t .server.Lang "register_confirm_password_title"}}">
+                <small id="password-match-help" class="sr-only">{{t .server.Lang "register_password_match_help"}}</small>
             </div>
 
             <button type="submit"
                     class="btn-primary"
-                    aria-label="Create user account"
-                    title="Create your weather account">
-                Create Account
+                    aria-label="{{t .server.Lang "register_submit_aria"}}"
+                    title="{{t .server.Lang "register_submit_title"}}">
+                {{t .server.Lang "register_submit_button"}}
             </button>
         </form>
 
         <div class="form-footer">
-            <p>Already have an account? <a href="/server/auth/login">Sign in here</a></p>
+            <p>{{t .server.Lang "register_already_have_account"}} <a href="/server/auth/login">{{t .server.Lang "register_sign_in_link"}}</a></p>
         </div>
 
         <div class="back-link">
-            <a href="/">← Back to Weather</a>
+            <a href="/">← {{t .server.Lang "login_back_to_weather_link"}}</a>
         </div>
     </div>
 
     <script>
+        const I18N = {
+            passwordStrengthWeak: '{{t .server.Lang "register_js_strength_weak"}}',
+            passwordStrengthMedium: '{{t .server.Lang "register_js_strength_medium"}}',
+            passwordStrengthStrong: '{{t .server.Lang "register_js_strength_strong"}}',
+            passwordTooShort: '{{t .server.Lang "register_js_password_too_short"}}',
+            passwordsDoNotMatch: '{{t .server.Lang "register_js_passwords_no_match"}}'
+        };
+
         const passwordInput = document.getElementById('password');
         const confirmInput = document.getElementById('confirm_password');
         const strengthBar = document.getElementById('strengthBar');
@@ -126,13 +134,13 @@
 
             if (strength <= 1) {
                 strengthBar.classList.add('weak');
-                strengthIndicator.textContent = 'Password strength: Weak';
+                strengthIndicator.textContent = I18N.passwordStrengthWeak;
             } else if (strength <= 3) {
                 strengthBar.classList.add('medium');
-                strengthIndicator.textContent = 'Password strength: Medium';
+                strengthIndicator.textContent = I18N.passwordStrengthMedium;
             } else {
                 strengthBar.classList.add('strong');
-                strengthIndicator.textContent = 'Password strength: Strong';
+                strengthIndicator.textContent = I18N.passwordStrengthStrong;
             }
         });
 
@@ -143,13 +151,13 @@
 
             if (password.length < 8) {
                 e.preventDefault();
-                showAlert('Password must be at least 8 characters long');
+                showAlert(I18N.passwordTooShort);
                 return;
             }
 
             if (password !== confirm) {
                 e.preventDefault();
-                showAlert('Passwords do not match');
+                showAlert(I18N.passwordsDoNotMatch);
                 return;
             }
         });

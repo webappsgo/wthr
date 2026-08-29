@@ -1,39 +1,39 @@
-Subject: Two-Factor Authentication Disabled - {app_name}
+Subject: {{tf .Lang "email.2fa_disabled.subject" "app_name" .AppName}}
 ---
-⚠️ SECURITY ALERT
+{{t .Lang "email.2fa_disabled.alert_heading"}}
 
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-Two-factor authentication (2FA) has been DISABLED on your {app_name} account.
+{{tf .Lang "email.2fa_disabled.intro" "app_name" .AppName}}
 
-**Account Details:**
-- Email: {user_email}
-- Disabled at: {timestamp}
-- IP Address: {ip_address}
-- Location: {location}
+**{{t .Lang "email.2fa_disabled.details_heading"}}:**
+- {{t .Lang "email.common.label_email"}}: {{.UserEmail}}
+- {{t .Lang "email.2fa_disabled.label_disabled_at"}}: {{.Timestamp}}
+- {{t .Lang "email.common.label_ip_address"}}: {{.IPAddress}}
+- {{t .Lang "email.common.label_location"}}: {{.Location}}
 
-**Your account is now less secure.** Without 2FA, anyone with your password can access your account.
+{{t .Lang "email.2fa_disabled.less_secure_notice"}}
 
-**We strongly recommend:**
-1. Re-enable two-factor authentication as soon as possible
-2. Use a strong, unique password
-3. Review your account settings and recent activity
-4. Change your password if you suspect unauthorized access
+**{{t .Lang "email.2fa_disabled.recommend_heading"}}:**
+1. {{t .Lang "email.2fa_disabled.action_reenable"}}
+2. {{t .Lang "email.2fa_disabled.action_strong_password"}}
+3. {{t .Lang "email.2fa_disabled.action_review_settings"}}
+4. {{t .Lang "email.2fa_disabled.action_change_password"}}
 
-**Didn't disable 2FA?**
-If you didn't disable two-factor authentication, your account may be compromised. Please:
-1. Change your password immediately
-2. Re-enable 2FA right away
-3. Contact us at {admin_email}
-4. Review all account activity for suspicious behavior
+**{{t .Lang "email.2fa_disabled.not_you_heading"}}**
+{{t .Lang "email.2fa_disabled.not_you_notice"}}
+1. {{t .Lang "email.2fa_disabled.followup_change_password"}}
+2. {{t .Lang "email.2fa_disabled.followup_reenable"}}
+3. {{tf .Lang "email.2fa_disabled.followup_contact" "admin_email" .AdminEmail}}
+4. {{t .Lang "email.2fa_disabled.followup_review_activity"}}
 
-To re-enable 2FA, visit:
-{app_url}/profile/security
+{{t .Lang "email.2fa_disabled.reenable_notice"}}
+{{.AppURL}}/profile/security
 
-Stay safe!
+{{t .Lang "email.2fa_disabled.stay_safe"}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}
 
-For immediate security assistance, contact: {admin_email}
+{{t .Lang "email.2fa_disabled.immediate_assistance"}} {{.AdminEmail}}

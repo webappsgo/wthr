@@ -3,72 +3,72 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">Terms of Service</h1>
+    <h1 class="text-purple">{{t .server.Lang "terms_page_title"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Acceptance of Terms</h2>
-        <p>By accessing or using Weather, you agree to be bound by these terms. If you do not agree, do not use the service.</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_acceptance_title"}}</h2>
+        <p>{{t .server.Lang "terms_acceptance_text"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Description of Service</h2>
-        <p>Weather provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and moon phase information through a web interface and API.</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_description_title"}}</h2>
+        <p>{{t .server.Lang "terms_description_text"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Acceptable Use</h2>
-        <p>You may use the service for lawful purposes. You must not:</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_acceptable_use_title"}}</h2>
+        <p>{{t .server.Lang "terms_acceptable_use_intro"}}</p>
         <ul>
-            <li>Attempt to disrupt or interfere with the service</li>
-            <li>Circumvent rate limits or access controls</li>
-            <li>Use the service to harm others</li>
-            <li>Scrape or harvest data beyond API rate limits</li>
-            <li>Misrepresent your identity or affiliation</li>
+            <li>{{t .server.Lang "terms_acceptable_use_disrupt"}}</li>
+            <li>{{t .server.Lang "terms_acceptable_use_circumvent"}}</li>
+            <li>{{t .server.Lang "terms_acceptable_use_harm"}}</li>
+            <li>{{t .server.Lang "terms_acceptable_use_scrape"}}</li>
+            <li>{{t .server.Lang "terms_acceptable_use_misrepresent"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">API Usage</h2>
-        <p>The API is provided free of charge with the following conditions:</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_api_usage_title"}}</h2>
+        <p>{{t .server.Lang "terms_api_usage_intro"}}</p>
         <ul>
-            <li><strong>Rate Limits:</strong> Anonymous requests are limited to 20/minute. Authenticated requests are limited to 100/minute.</li>
-            <li><strong>Fair Use:</strong> Excessive usage may be throttled or blocked</li>
-            <li><strong>Attribution:</strong> If you display weather data from this service, attribution is appreciated but not required</li>
+            <li><strong>{{t .server.Lang "terms_api_rate_limits_label"}}</strong> {{t .server.Lang "terms_api_rate_limits_text"}}</li>
+            <li><strong>{{t .server.Lang "terms_api_fair_use_label"}}</strong> {{t .server.Lang "terms_api_fair_use_text"}}</li>
+            <li><strong>{{t .server.Lang "terms_api_attribution_label"}}</strong> {{t .server.Lang "terms_api_attribution_text"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Data Accuracy</h2>
-        <p>Weather data is sourced from third-party providers including Open-Meteo, USGS, and NOAA. We do not guarantee the accuracy, completeness, or timeliness of data.</p>
-        <p><strong>Do not rely solely on this service for safety-critical decisions.</strong> Always consult official weather services and emergency management agencies for life-threatening weather situations.</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_data_accuracy_title"}}</h2>
+        <p>{{t .server.Lang "terms_data_accuracy_text"}}</p>
+        <p><strong>{{t .server.Lang "terms_data_accuracy_warning"}}</strong> {{t .server.Lang "terms_data_accuracy_advice"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Limitation of Liability</h2>
-        <p>Weather is provided "as-is" without warranty of any kind, express or implied. We are not liable for any damages arising from:</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_liability_title"}}</h2>
+        <p>{{t .server.Lang "terms_liability_intro"}}</p>
         <ul>
-            <li>Use of or inability to use the service</li>
-            <li>Inaccurate or delayed weather data</li>
-            <li>Service interruptions or downtime</li>
-            <li>Decisions made based on data provided by this service</li>
+            <li>{{t .server.Lang "terms_liability_use"}}</li>
+            <li>{{t .server.Lang "terms_liability_inaccurate"}}</li>
+            <li>{{t .server.Lang "terms_liability_interruptions"}}</li>
+            <li>{{t .server.Lang "terms_liability_decisions"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Changes to Terms</h2>
-        <p>We may update these terms at any time. Continued use of the service after changes constitutes acceptance of the new terms. Significant changes will be announced on the site.</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_changes_title"}}</h2>
+        <p>{{t .server.Lang "terms_changes_text"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Contact</h2>
-        <p>For questions about these terms, please contact us:</p>
+        <h2 class="text-cyan">{{t .server.Lang "terms_contact_title"}}</h2>
+        <p>{{t .server.Lang "terms_contact_text"}}</p>
         <div class="margin-y-md">
-            <a href="/server/contact" class="btn btn-primary">Contact Form</a>
+            <a href="/server/contact" class="btn btn-primary">{{t .server.Lang "terms_contact_form_button"}}</a>
         </div>
     </div>
 
     <div class="card margin-y-lg">
-        <p class="text-comment"><small>Last updated: {{.server.BuildDate}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "terms_last_updated_label"}} {{.server.BuildDate}}</small></p>
     </div>
 </div>
 

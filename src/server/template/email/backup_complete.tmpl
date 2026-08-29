@@ -1,26 +1,26 @@
-Subject: Backup Completed Successfully - {app_name}
+Subject: {{tf .Lang "email.backup_complete.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-A backup of {app_name} has been completed successfully.
+{{tf .Lang "email.backup_complete.intro" "app_name" .AppName}}
 
-**Backup Details:**
-- Date: {backup_date}
-- Time: {backup_time}
-- File: {backup_filename}
-- Size: {backup_size}
-- Location: {backup_location}
+**{{t .Lang "email.backup_complete.details_heading"}}:**
+- {{t .Lang "email.common.label_date"}}: {{.BackupDate}}
+- {{t .Lang "email.common.label_time"}}: {{.BackupTime}}
+- {{t .Lang "email.backup_complete.label_file"}}: {{.BackupFilename}}
+- {{t .Lang "email.backup_complete.label_size"}}: {{.BackupSize}}
+- {{t .Lang "email.common.label_location"}}: {{.BackupLocation}}
 
-**What was backed up:**
-- Database
-- Configuration files
-- User data
-- System settings
+**{{t .Lang "email.backup_complete.contents_heading"}}:**
+- {{t .Lang "email.backup_complete.content_database"}}
+- {{t .Lang "email.backup_complete.content_config"}}
+- {{t .Lang "email.backup_complete.content_user_data"}}
+- {{t .Lang "email.backup_complete.content_settings"}}
 
-The backup file has been stored securely. We recommend downloading and storing a copy in a separate, secure location for disaster recovery purposes.
+{{t .Lang "email.backup_complete.storage_notice"}}
 
-**Next scheduled backup:** {next_backup}
+**{{t .Lang "email.backup_complete.next_backup_label"}}:** {{.NextBackup}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

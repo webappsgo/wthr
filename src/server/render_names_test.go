@@ -42,6 +42,7 @@ func buildProductionLikeTemplate(t *testing.T) map[string]bool {
 		"add":   func(a, b int) int { return a + b },
 		"sub":   func(a, b int) int { return a - b },
 		"t":     func(_, key string) string { return key },
+		"tf":    func(_, key string, _ ...string) string { return key },
 	}
 	tmpl := template.New("").Funcs(funcs)
 	for _, path := range paths {

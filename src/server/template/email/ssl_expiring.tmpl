@@ -1,37 +1,37 @@
-Subject: ⚠️ SSL Certificate Expiring Soon - {app_name}
+Subject: {{tf .Lang "email.ssl_expiring.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-Your SSL/TLS certificate for {app_name} will expire soon.
+{{tf .Lang "email.ssl_expiring.intro" "app_name" .AppName}}
 
-**Certificate Details:**
-- Domain: {domain}
-- Expires: {expiry_date}
-- Days Remaining: {days_remaining}
-- Issuer: {issuer}
+**{{t .Lang "email.ssl_expiring.details_heading"}}:**
+- {{t .Lang "email.common.label_domain"}}: {{.Domain}}
+- {{t .Lang "email.ssl_expiring.label_expires"}}: {{.ExpiryDate}}
+- {{t .Lang "email.ssl_expiring.label_days_remaining"}}: {{.DaysRemaining}}
+- {{t .Lang "email.ssl_expiring.label_issuer"}}: {{.Issuer}}
 
-**Action Required:**
-Your SSL certificate needs to be renewed to maintain secure HTTPS access to your weather application.
+**{{t .Lang "email.ssl_expiring.action_required_heading"}}:**
+{{tf .Lang "email.ssl_expiring.action_required_body" "app_name" .AppName}}
 
-**Options:**
-1. **Automatic Renewal (Let's Encrypt):**
-   - If using Let's Encrypt, automatic renewal should occur
-   - Verify certbot/acme.sh is configured correctly
-   - Check renewal logs for any issues
+**{{t .Lang "email.ssl_expiring.options_heading"}}:**
+1. **{{t .Lang "email.ssl_expiring.option_auto_heading"}}:**
+   - {{t .Lang "email.ssl_expiring.option_auto_step1"}}
+   - {{t .Lang "email.ssl_expiring.option_auto_step2"}}
+   - {{t .Lang "email.ssl_expiring.option_auto_step3"}}
 
-2. **Manual Renewal:**
-   - Log in to your certificate authority
-   - Generate a new certificate
-   - Update the certificate in {app_name} settings
+2. **{{t .Lang "email.ssl_expiring.option_manual_heading"}}:**
+   - {{t .Lang "email.ssl_expiring.option_manual_step1"}}
+   - {{t .Lang "email.ssl_expiring.option_manual_step2"}}
+   - {{tf .Lang "email.ssl_expiring.option_manual_step3" "app_name" .AppName}}
 
-**What Happens if Certificate Expires:**
-- Browsers will show security warnings
-- HTTPS connections will fail
-- Users may not be able to access your application
-- Tor hidden service will continue to work
+**{{t .Lang "email.ssl_expiring.what_happens_heading"}}:**
+- {{t .Lang "email.ssl_expiring.effect_warnings"}}
+- {{t .Lang "email.ssl_expiring.effect_https_fails"}}
+- {{t .Lang "email.ssl_expiring.effect_users_blocked"}}
+- {{t .Lang "email.ssl_expiring.effect_tor_unaffected"}}
 
-Please renew your certificate before {expiry_date} to avoid service disruption.
+{{tf .Lang "email.ssl_expiring.renew_before" "expiry_date" .ExpiryDate}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

@@ -672,6 +672,15 @@ func main() {
 		"t": func(lang, key string) string {
 			return i18nService.T(lang, key)
 		},
+		// i18n translation function with {variable} interpolation - pairs are
+		// varname/value pairs substituted into the translated text
+		"tf": func(lang, key string, pairs ...string) string {
+			text := i18nService.T(lang, key)
+			for i := 0; i+1 < len(pairs); i += 2 {
+				text = strings.ReplaceAll(text, "{"+pairs[i]+"}", pairs[i+1])
+			}
+			return text
+		},
 	}
 
 	// Parse all templates - wrap those without {{define}} in a define block to preserve full path names

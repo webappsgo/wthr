@@ -12,8 +12,8 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Forgot Username</h1>
-            <p>Enter your email to receive your username</p>
+            <h1>{{t .server.Lang "forgot_username_heading"}}</h1>
+            <p>{{t .server.Lang "forgot_username_intro"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
@@ -22,14 +22,14 @@
             <form method="POST" class="auth-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label for="email">{{t .server.Lang "forgot_password_email_label"}}</label>
                     <input type="email" id="email" name="email" required autocomplete="email" placeholder="you@example.com">
                 </div>
-                <button type="submit" class="btn btn-primary">Send Username</button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "forgot_username_submit"}}</button>
             </form>
 
             <div class="auth-links">
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/login">{{t .server.Lang "forgot_password_back_to_login"}}</a>
             </div>
         </div>
     </div>

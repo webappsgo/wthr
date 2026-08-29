@@ -3,99 +3,99 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">Privacy Policy</h1>
+    <h1 class="text-purple">{{t .server.Lang "privacy_page_heading"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Data Collection</h2>
-        <p>We collect the following types of information:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_data_collection_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_data_collection_intro"}}</p>
         <ul>
-            <li><strong>Account Information:</strong> Email address, username, and password (hashed) when you create an account</li>
-            <li><strong>Location Data:</strong> Locations you save for weather tracking</li>
-            <li><strong>Usage Data:</strong> Access logs, API usage, and feature interactions</li>
-            <li><strong>Technical Data:</strong> IP address, browser type, device information</li>
+            <li><strong>{{t .server.Lang "privacy_account_info_label"}}</strong> {{t .server.Lang "privacy_account_info_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_location_data_label"}}</strong> {{t .server.Lang "privacy_location_data_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_usage_data_label"}}</strong> {{t .server.Lang "privacy_usage_data_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_technical_data_label"}}</strong> {{t .server.Lang "privacy_technical_data_text"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">How We Use Your Data</h2>
-        <p>Your data is used for:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_data_use_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_data_use_intro"}}</p>
         <ul>
-            <li>Providing weather information for your saved locations</li>
-            <li>Sending weather alerts and notifications</li>
-            <li>Improving service quality and user experience</li>
-            <li>Security monitoring and abuse prevention</li>
-            <li>Technical support and troubleshooting</li>
+            <li>{{t .server.Lang "privacy_data_use_weather"}}</li>
+            <li>{{t .server.Lang "privacy_data_use_alerts"}}</li>
+            <li>{{t .server.Lang "privacy_data_use_quality"}}</li>
+            <li>{{t .server.Lang "privacy_data_use_security"}}</li>
+            <li>{{t .server.Lang "privacy_data_use_support"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Data Retention</h2>
-        <p>We retain your data as follows:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_data_retention_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_data_retention_intro"}}</p>
         <ul>
-            <li><strong>Account Data:</strong> Until you delete your account</li>
-            <li><strong>Access Logs:</strong> 7 days (configurable by administrator)</li>
-            <li><strong>Audit Logs:</strong> 90 days minimum for security purposes</li>
-            <li><strong>Weather Data:</strong> Cached temporarily (typically 10-60 minutes)</li>
+            <li><strong>{{t .server.Lang "privacy_account_data_label"}}</strong> {{t .server.Lang "privacy_account_data_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_access_logs_label"}}</strong> {{t .server.Lang "privacy_access_logs_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_audit_logs_label"}}</strong> {{t .server.Lang "privacy_audit_logs_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_weather_data_label"}}</strong> {{t .server.Lang "privacy_weather_data_text"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Third-Party Services</h2>
-        <p>We use the following third-party services:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_third_party_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_third_party_intro"}}</p>
         <ul>
-            <li><strong>Open-Meteo:</strong> Weather data provider</li>
-            <li><strong>USGS:</strong> Earthquake data</li>
-            <li><strong>GeoIP Databases:</strong> Location detection (IP-based)</li>
+            <li><strong>{{t .server.Lang "privacy_open_meteo_label"}}</strong> {{t .server.Lang "privacy_open_meteo_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_usgs_label"}}</strong> {{t .server.Lang "privacy_usgs_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_geoip_label"}}</strong> {{t .server.Lang "privacy_geoip_text"}}</li>
         </ul>
-        <p>We do not share your personal information with these services. API requests are anonymous.</p>
+        <p>{{t .server.Lang "privacy_third_party_disclaimer"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Cookies</h2>
-        <p>We use the following cookies:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_cookies_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_cookies_intro"}}</p>
         <ul>
-            <li><strong>Session Cookie:</strong> Required for authentication and login persistence</li>
-            <li><strong>CSRF Token:</strong> Required for security (form submission protection)</li>
-            <li><strong>Preferences:</strong> Optional - stores your theme and display preferences</li>
+            <li><strong>{{t .server.Lang "privacy_session_cookie_label"}}</strong> {{t .server.Lang "privacy_session_cookie_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_csrf_token_label"}}</strong> {{t .server.Lang "privacy_csrf_token_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_preferences_label"}}</strong> {{t .server.Lang "privacy_preferences_text"}}</li>
         </ul>
-        <p>All cookies are first-party only. We do not use third-party tracking cookies.</p>
+        <p>{{t .server.Lang "privacy_cookies_disclaimer"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Your Rights</h2>
-        <p>You have the right to:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_your_rights_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_your_rights_intro"}}</p>
         <ul>
-            <li><strong>Access:</strong> View all data we have about you</li>
-            <li><strong>Export:</strong> Download your data in machine-readable format</li>
-            <li><strong>Modify:</strong> Update your account information and preferences</li>
-            <li><strong>Delete:</strong> Permanently delete your account and all associated data</li>
-            <li><strong>Opt-out:</strong> Disable notifications and alerts</li>
+            <li><strong>{{t .server.Lang "privacy_right_access_label"}}</strong> {{t .server.Lang "privacy_right_access_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_right_export_label"}}</strong> {{t .server.Lang "privacy_right_export_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_right_modify_label"}}</strong> {{t .server.Lang "privacy_right_modify_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_right_delete_label"}}</strong> {{t .server.Lang "privacy_right_delete_text"}}</li>
+            <li><strong>{{t .server.Lang "privacy_right_optout_label"}}</strong> {{t .server.Lang "privacy_right_optout_text"}}</li>
         </ul>
-        <p>Access these features from your <a href="/users/profile" class="text-cyan">profile page</a>.</p>
+        <p>{{t .server.Lang "privacy_rights_access_prefix"}} <a href="/users/profile" class="text-cyan">{{t .server.Lang "privacy_profile_page_link"}}</a>.</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Security</h2>
-        <p>We protect your data using:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_security_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_security_intro"}}</p>
         <ul>
-            <li>Encrypted connections (HTTPS/TLS)</li>
-            <li>Argon2id password hashing (industry-leading security)</li>
-            <li>CSRF protection on all forms</li>
-            <li>Rate limiting to prevent abuse</li>
-            <li>Regular security audits</li>
+            <li>{{t .server.Lang "privacy_security_encrypted"}}</li>
+            <li>{{t .server.Lang "privacy_security_argon2id"}}</li>
+            <li>{{t .server.Lang "privacy_security_csrf"}}</li>
+            <li>{{t .server.Lang "privacy_security_rate_limiting"}}</li>
+            <li>{{t .server.Lang "privacy_security_audits"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">Contact</h2>
-        <p>For privacy concerns or data requests, please contact us:</p>
+        <h2 class="text-cyan">{{t .server.Lang "privacy_contact_heading"}}</h2>
+        <p>{{t .server.Lang "privacy_contact_intro"}}</p>
         <div class="margin-y-md">
-            <a href="/server/contact" class="btn btn-primary">Contact Form</a>
+            <a href="/server/contact" class="btn btn-primary">{{t .server.Lang "privacy_contact_form_link"}}</a>
         </div>
     </div>
 
     <div class="card margin-y-lg">
-        <p class="text-comment"><small>Last updated: {{.server.BuildDate}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "privacy_last_updated_label"}} {{.server.BuildDate}}</small></p>
     </div>
 </div>
 

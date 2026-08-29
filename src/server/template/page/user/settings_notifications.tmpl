@@ -4,24 +4,24 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">Notification Settings</h1>
-        <p class="text-comment">Configure how you receive notifications</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings_notifications_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings_notifications_subtitle"}}</p>
     </div>
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">Account</a>
-        <a href="/users/settings/privacy" class="settings-nav-item">Privacy</a>
-        <a href="/users/settings/notifications" class="settings-nav-item active">Notifications</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">Appearance</a>
-        <a href="/users/security" class="settings-nav-item">Security</a>
-        <a href="/users/tokens" class="settings-nav-item">API Tokens</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings_nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item active">{{t .server.Lang "settings_nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings_nav_api_tokens"}}</a>
     </div>
 
     <!-- Notification Settings Form -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Email Notifications</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_email_notifications_heading"}}</h2>
         </div>
         <div class="card-body">
             <form id="notificationSettingsForm">
@@ -31,64 +31,64 @@
                     <label class="toggle-item disabled">
                         <input type="checkbox" checked disabled>
                         <div class="toggle-content">
-                            <strong>Security alerts (required)</strong>
-                            <span class="badge badge-locked">Locked</span>
-                            <p class="text-comment">Password changes, new logins, 2FA changes. This setting cannot be disabled for your security.</p>
+                            <strong>{{t .server.Lang "settings_security_alerts_required"}}</strong>
+                            <span class="badge badge-locked">{{t .server.Lang "settings_locked_badge"}}</span>
+                            <p class="text-comment">{{t .server.Lang "settings_security_alerts_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="emailMentions" checked>
                         <div class="toggle-content">
-                            <strong>Mentions and replies</strong>
-                            <p class="text-comment">When someone mentions you or replies to you.</p>
+                            <strong>{{t .server.Lang "settings_mentions_replies_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_mentions_replies_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="emailUpdates">
                         <div class="toggle-content">
-                            <strong>Product updates</strong>
-                            <p class="text-comment">News about new features and improvements.</p>
+                            <strong>{{t .server.Lang "settings_product_updates_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_product_updates_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <div class="form-group margin-y-md">
-                    <label for="emailDigest" class="form-label">Activity Digest</label>
+                    <label for="emailDigest" class="form-label">{{t .server.Lang "settings_activity_digest_label"}}</label>
                     <select id="emailDigest" class="form-input">
-                        <option value="never">Never</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly" selected>Weekly</option>
+                        <option value="never">{{t .server.Lang "settings_digest_never"}}</option>
+                        <option value="daily">{{t .server.Lang "settings_digest_daily"}}</option>
+                        <option value="weekly" selected>{{t .server.Lang "settings_digest_weekly"}}</option>
                     </select>
-                    <small class="text-comment">Receive a summary of activity on your account</small>
+                    <small class="text-comment">{{t .server.Lang "settings_activity_digest_hint"}}</small>
                 </div>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">Push Notifications</h3>
+                <h3 class="section-title">{{t .server.Lang "settings_push_notifications_heading"}}</h3>
 
                 <div class="toggle-group">
                     <label class="toggle-item">
                         <input type="checkbox" id="pushEnabled">
                         <div class="toggle-content">
-                            <strong>Enable push notifications</strong>
-                            <p class="text-comment">Receive notifications in your browser even when you're not on this site.</p>
-                            <p class="text-comment text-sm">(Requires browser permission)</p>
+                            <strong>{{t .server.Lang "settings_enable_push_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_enable_push_hint"}}</p>
+                            <p class="text-comment text-sm">{{t .server.Lang "settings_requires_browser_permission"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item" id="pushMentionsWrapper">
                         <input type="checkbox" id="pushMentions" checked disabled>
                         <div class="toggle-content">
-                            <strong>Push for mentions</strong>
-                            <p class="text-comment">Receive push notifications when someone mentions you.</p>
+                            <strong>{{t .server.Lang "settings_push_for_mentions_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_push_for_mentions_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">Save Preferences</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile_save_preferences"}}</button>
                 </div>
             </form>
         </div>

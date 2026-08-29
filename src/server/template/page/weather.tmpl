@@ -25,7 +25,7 @@
                         id="location-input"
                         name="location"
                         class="location-input"
-                        placeholder="Enter city or coordinates"
+                        placeholder="{{t .server.Lang "weather_location_placeholder"}}"
                         value="{{.Location}}"
                         autocomplete="off"
                     >
@@ -39,10 +39,10 @@
 
             <div class="search-row-single">
                 <button type="submit" class="search-button primary flex-1">
-                    🌤️ Get Weather
+                    🌤️ {{t .server.Lang "weather_get_weather"}}
                 </button>
                 <button type="button" id="location-btn" class="search-button secondary flex-1">
-                    📍 My Location
+                    📍 {{t .server.Lang "weather_my_location"}}
                 </button>
             </div>
         </form>
@@ -53,7 +53,7 @@
 
         {{if .Error}}
             <div class="error-box">
-                <strong>Error:</strong> {{.Error}}
+                <strong>{{t .server.Lang "weather_error_label"}}</strong> {{.Error}}
             </div>
         {{end}}
 
@@ -71,10 +71,10 @@
                         {{.WeatherData.Current.Description}}
                     </div>
                     <div class="weather-stats">
-                        <div class="stat">Feels like: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.FeelsLike}}{{if eq .Units "imperial"}}°F{{else}}°C{{end}}</span></div>
-                        <div class="stat">Wind: <span class="stat-value">{{printf "%.0f" .WeatherData.Current.WindSpeed}} {{if eq .Units "imperial"}}mph{{else}}km/h{{end}}</span></div>
-                        <div class="stat">Humidity: <span class="stat-value">{{.WeatherData.Current.Humidity}}%</span></div>
-                        <div class="stat">Pressure: <span class="stat-value">{{if eq .Units "imperial"}}{{printf "%.2f" .WeatherData.Current.Pressure}} inHg{{else}}{{printf "%.0f" .WeatherData.Current.Pressure}} hPa{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "weather_feels_like"}} <span class="stat-value">{{printf "%.0f" .WeatherData.Current.FeelsLike}}{{if eq .Units "imperial"}}°F{{else}}°C{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "weather_wind"}} <span class="stat-value">{{printf "%.0f" .WeatherData.Current.WindSpeed}} {{if eq .Units "imperial"}}mph{{else}}km/h{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "weather_humidity"}} <span class="stat-value">{{.WeatherData.Current.Humidity}}%</span></div>
+                        <div class="stat">{{t .server.Lang "weather_pressure"}} <span class="stat-value">{{if eq .Units "imperial"}}{{printf "%.2f" .WeatherData.Current.Pressure}} inHg{{else}}{{printf "%.0f" .WeatherData.Current.Pressure}} hPa{{end}}</span></div>
                     </div>
                 </div>
             </div>
@@ -85,14 +85,14 @@
                 <table class="forecast-table desktop-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>Conditions</th>
-                            <th>Temperature</th>
-                            <th>Feels Like</th>
-                            <th>Wind</th>
-                            <th>Precipitation</th>
-                            <th>Wind Gusts</th>
-                            <th>Solar Radiation</th>
+                            <th>{{t .server.Lang "weather_th_date"}}</th>
+                            <th>{{t .server.Lang "weather_th_conditions"}}</th>
+                            <th>{{t .server.Lang "weather_th_temperature"}}</th>
+                            <th>{{t .server.Lang "weather_th_feels_like"}}</th>
+                            <th>{{t .server.Lang "weather_th_wind"}}</th>
+                            <th>{{t .server.Lang "weather_th_precipitation"}}</th>
+                            <th>{{t .server.Lang "weather_th_wind_gusts"}}</th>
+                            <th>{{t .server.Lang "weather_th_solar_radiation"}}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -150,23 +150,23 @@
                                     <div class="text-cyan font-medium">{{$day.Description}}</div>
                                     {{if $day.FeelsLikeMax}}
                                     <div class="text-comment">
-                                        <strong>Feels like:</strong> ↑{{printf "%.0f" $day.FeelsLikeMax}}° ↓{{printf "%.0f" $day.FeelsLikeMin}}°
+                                        <strong>{{t $.server.Lang "weather_card_feels_like"}}</strong> ↑{{printf "%.0f" $day.FeelsLikeMax}}° ↓{{printf "%.0f" $day.FeelsLikeMin}}°
                                     </div>
                                     {{end}}
                                     <div class="wind-info">
-                                        <strong>Wind:</strong> 💨 {{printf "%.0f" $day.WindSpeedMax}} {{if eq $.Units "imperial"}}mph{{else}}km/h{{end}} ({{$day.WindDirection}}°)
+                                        <strong>{{t $.server.Lang "weather_card_wind"}}</strong> 💨 {{printf "%.0f" $day.WindSpeedMax}} {{if eq $.Units "imperial"}}mph{{else}}km/h{{end}} ({{$day.WindDirection}}°)
                                     </div>
                                     <div class="wind-info">
-                                        <strong>Gusts:</strong> 💨 {{printf "%.0f" $day.WindGustsMax}} {{if eq $.Units "imperial"}}mph{{else}}km/h{{end}}
+                                        <strong>{{t $.server.Lang "weather_card_gusts"}}</strong> 💨 {{printf "%.0f" $day.WindGustsMax}} {{if eq $.Units "imperial"}}mph{{else}}km/h{{end}}
                                     </div>
                                     <div class="precipitation">
-                                        <strong>Precip:</strong> ☔ {{printf "%.1f" $day.Precipitation}} {{if eq $.Units "imperial"}}in{{else}}mm{{end}} • {{$day.PrecipitationProbability}}% chance
+                                        <strong>{{t $.server.Lang "weather_card_precip"}}</strong> ☔ {{printf "%.1f" $day.Precipitation}} {{if eq $.Units "imperial"}}in{{else}}mm{{end}} • {{$day.PrecipitationProbability}}% {{t $.server.Lang "weather_card_chance"}}
                                     </div>
                                     <div class="text-comment">
-                                        <strong>Duration:</strong> {{printf "%.1f" $day.PrecipitationHours}} hours
+                                        <strong>{{t $.server.Lang "weather_card_duration"}}</strong> {{printf "%.1f" $day.PrecipitationHours}} {{t $.server.Lang "weather_card_hours"}}
                                     </div>
                                     <div class="text-yellow">
-                                        <strong>Solar:</strong> ☀️ {{printf "%.1f" $day.SolarRadiation}} MJ/m²
+                                        <strong>{{t $.server.Lang "weather_card_solar"}}</strong> ☀️ {{printf "%.1f" $day.SolarRadiation}} MJ/m²
                                     </div>
                                 </div>
                             </div>
@@ -177,49 +177,49 @@
 
             <!-- Console Command Examples -->
             <div class="console-section">
-                <h3 class="console-section__title">Console Access</h3>
+                <h3 class="console-section__title">{{t .server.Lang "weather_console_access"}}</h3>
                 <div class="console-commands">
                     <div class="command-item">
-                        <strong class="console-section__label">Weather:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "weather_console_weather_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}">{{t .server.Lang "weather_copy"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">One-Line:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "weather_console_oneline_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}?format=3</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}?format=3">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.LocationFormatted}}?format=3">{{t .server.Lang "weather_copy"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">Moon:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "weather_console_moon_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon">{{t .server.Lang "weather_copy"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">Moon Location:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "weather_console_moon_location_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.LocationFormatted}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.LocationFormatted}}">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.LocationFormatted}}">{{t .server.Lang "weather_copy"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">JSON API:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "weather_console_json_api_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location={{.LocationFormatted}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location={{.LocationFormatted}}">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location={{.LocationFormatted}}">{{t .server.Lang "weather_copy"}}</button>
                         </div>
                     </div>
                 </div>
             </div>
         {{else}}
             <div class="welcome-section">
-                <h2 class="welcome-section__title">🌤️ Weather Forecasts</h2>
-                <p>Enter a city or coordinates above to get a 16-day forecast, or try one of these featured locations:</p>
+                <h2 class="welcome-section__title">🌤️ {{t .server.Lang "weather_forecasts_title"}}</h2>
+                <p>{{t .server.Lang "weather_forecasts_intro"}}</p>
                 <div class="city-links-grid">
                     <a href="?location=London" class="city-link">🇬🇧 London</a>
                     <a href="?location=Tokyo" class="city-link">🇯🇵 Tokyo</a>
@@ -227,20 +227,20 @@
                     <a href="?location=Sydney" class="city-link">🇦🇺 Sydney</a>
                 </div>
                 <div class="console-section margin-y-md">
-                    <h4 class="console-section__title">Quick Console Examples</h4>
+                    <h4 class="console-section__title">{{t .server.Lang "weather_quick_console_examples"}}</h4>
                     <div class="console-commands">
                         <div class="command-item">
-                            <strong class="console-section__label">London:</strong>
+                            <strong class="console-section__label">{{t .server.Lang "weather_console_london_label"}}</strong>
                             <div class="code-wrapper">
                                 <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/London</code>
-                                <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/London">Copy</button>
+                                <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/London">{{t .server.Lang "weather_copy"}}</button>
                             </div>
                         </div>
                         <div class="command-item">
-                            <strong class="console-section__label">Paris JSON:</strong>
+                            <strong class="console-section__label">{{t .server.Lang "weather_console_paris_json_label"}}</strong>
                             <div class="code-wrapper">
                                 <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location=Paris</code>
-                                <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location=Paris">Copy</button>
+                                <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/weather?location=Paris">{{t .server.Lang "weather_copy"}}</button>
                             </div>
                         </div>
                     </div>

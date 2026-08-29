@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1 class="login-title">Setup Complete</h1>
-                <p class="login-subtitle">Server Setup - Step 6 of 6</p>
+                <h1 class="login-title">{{t .server.Lang "setup_complete_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup_complete_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,26 +22,26 @@
                     <div class="progress-fill success" style="width: 100%"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">Admin</span>
-                    <span class="step completed">API Token</span>
-                    <span class="step completed">Server</span>
-                    <span class="step completed">Security</span>
-                    <span class="step completed">Services</span>
-                    <span class="step active">Complete</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_server"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_security"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_services"}}</span>
+                    <span class="step active">{{t .server.Lang "setup_step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info success-box">
-                <p>The Primary Administrator account has been created successfully.</p>
-                <p>You can now access the admin panel to configure your server.</p>
+                <p>{{t .server.Lang "setup_complete_success_line1"}}</p>
+                <p>{{t .server.Lang "setup_complete_success_line2"}}</p>
             </div>
 
             <div class="button-group">
                 <a href="{{.AdminPath}}/dashboard" class="btn-login">
-                    Go to Admin Dashboard
+                    {{t .server.Lang "setup_complete_go_to_dashboard"}}
                 </a>
                 <a href="/" class="btn-secondary">
-                    Go to Homepage
+                    {{t .server.Lang "setup_complete_go_to_homepage"}}
                 </a>
             </div>
         </div>

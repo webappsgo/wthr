@@ -1,32 +1,32 @@
-Subject: Two-Factor Authentication Enabled - {app_name}
+Subject: {{tf .Lang "email.2fa_enabled.subject" "app_name" .AppName}}
 ---
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-Two-factor authentication (2FA) has been successfully enabled on your {app_name} account.
+{{tf .Lang "email.2fa_enabled.intro" "app_name" .AppName}}
 
-**Account Details:**
-- Email: {user_email}
-- Enabled at: {timestamp}
-- IP Address: {ip_address}
-- Location: {location}
+**{{t .Lang "email.2fa_enabled.details_heading"}}:**
+- {{t .Lang "email.common.label_email"}}: {{.UserEmail}}
+- {{t .Lang "email.2fa_enabled.label_enabled_at"}}: {{.Timestamp}}
+- {{t .Lang "email.common.label_ip_address"}}: {{.IPAddress}}
+- {{t .Lang "email.common.label_location"}}: {{.Location}}
 
-Your account is now more secure! From now on, you'll need to enter a verification code from your authenticator app in addition to your password when logging in.
+{{t .Lang "email.2fa_enabled.more_secure_notice"}}
 
-**Important Security Tips:**
-- Keep your backup codes in a safe place
-- Don't share your authenticator app or backup codes with anyone
-- If you lose access to your authenticator app, use your backup codes to regain access
+**{{t .Lang "email.2fa_enabled.tips_heading"}}:**
+- {{t .Lang "email.2fa_enabled.tip_backup_codes"}}
+- {{t .Lang "email.2fa_enabled.tip_dont_share"}}
+- {{t .Lang "email.2fa_enabled.tip_lost_access"}}
 
-**Didn't enable 2FA?**
-If you didn't enable two-factor authentication, your account may be compromised. Please:
-1. Change your password immediately
-2. Contact us at {admin_email}
-3. Review your recent account activity
+**{{t .Lang "email.2fa_enabled.not_you_heading"}}**
+{{t .Lang "email.2fa_enabled.not_you_notice"}}
+1. {{t .Lang "email.2fa_enabled.followup_change_password"}}
+2. {{tf .Lang "email.2fa_enabled.followup_contact" "admin_email" .AdminEmail}}
+3. {{t .Lang "email.2fa_enabled.followup_review_activity"}}
 
-Thank you for taking steps to secure your account!
+{{t .Lang "email.2fa_enabled.thanks"}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}
 
-For security questions, contact: {admin_email}
+{{t .Lang "email.2fa_enabled.security_questions"}} {{.AdminEmail}}

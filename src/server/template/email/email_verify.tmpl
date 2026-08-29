@@ -1,25 +1,25 @@
-Subject: Verify Your Email - {app_name}
+Subject: {{tf .Lang "email.email_verify.subject" "app_name" .AppName}}
 ---
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-Thank you for signing up for {app_name}! To complete your registration, please verify your email address.
+{{tf .Lang "email.email_verify.intro" "app_name" .AppName}}
 
-**Verification Link:**
-{verify_link}
+**{{t .Lang "email.email_verify.verify_link_label"}}:**
+{{.VerifyLink}}
 
-This link will expire in {verify_expiry} hours.
+{{tf .Lang "email.email_verify.expiry_notice" "hours" .VerifyExpiryHours}}
 
-Once verified, you'll be able to:
-- Access your personalized weather dashboard
-- Set up location-based alerts
-- Customize your notification preferences
-- View weather forecasts and historical data
+{{t .Lang "email.email_verify.benefits_intro"}}
+- {{t .Lang "email.email_verify.benefit_dashboard"}}
+- {{t .Lang "email.email_verify.benefit_alerts"}}
+- {{t .Lang "email.email_verify.benefit_notifications"}}
+- {{t .Lang "email.email_verify.benefit_forecasts"}}
 
-If you didn't create an account with {app_name}, please ignore this email.
+{{tf .Lang "email.email_verify.ignore_notice" "app_name" .AppName}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}
 
-If you're having trouble clicking the link, copy and paste this URL into your browser:
-{verify_link}
+{{t .Lang "email.email_verify.trouble_clicking"}}
+{{.VerifyLink}}

@@ -12,8 +12,8 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Two-Factor Authentication</h1>
-            <p>Enter your authentication code</p>
+            <h1>{{t .server.Lang "two_factor_title"}}</h1>
+            <p>{{t .server.Lang "two_factor_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
@@ -22,15 +22,15 @@
             <form method="POST" class="auth-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="code">Authentication Code</label>
+                    <label for="code">{{t .server.Lang "two_factor_code_label"}}</label>
                     <input type="text" id="code" name="code" required autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000">
                 </div>
-                <button type="submit" class="btn btn-primary">Verify</button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "two_factor_verify_button"}}</button>
             </form>
 
             <div class="auth-links">
-                <a href="/server/auth/recovery/use">Use recovery key instead</a>
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/recovery/use">{{t .server.Lang "two_factor_use_recovery_key"}}</a>
+                <a href="/server/auth/login">{{t .server.Lang "two_factor_back_to_login"}}</a>
             </div>
         </div>
     </div>

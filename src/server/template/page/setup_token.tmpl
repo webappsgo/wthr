@@ -14,19 +14,19 @@
         <div class="setup-card">
             <div class="setup-header">
                 <div class="setup-icon">🔐</div>
-                <h1 class="setup-title">Server Setup</h1>
-                <p class="setup-subtitle">Enter the setup token from the server console</p>
+                <h1 class="setup-title">{{t .server.Lang "setup_token_title"}}</h1>
+                <p class="setup-subtitle">{{t .server.Lang "setup_token_subtitle"}}</p>
             </div>
 
             <div class="info-box">
-                <p>The setup token was displayed in the server console when it first started. Enter it below to create the Primary Administrator account.</p>
+                <p>{{t .server.Lang "setup_token_info"}}</p>
             </div>
 
             <div id="error-message" class="error-message" role="alert" aria-live="polite"></div>
 
-            <form id="token-form" role="form" aria-label="Setup token verification form">
+            <form id="token-form" role="form" aria-label="{{t .server.Lang "setup_token_form_aria_label"}}">
                 <div class="form-group">
-                    <label class="form-label" for="setup_token">Setup Token</label>
+                    <label class="form-label" for="setup_token">{{t .server.Lang "setup_token_label"}}</label>
                     <input type="text"
                            id="setup_token"
                            name="setup_token"
@@ -35,21 +35,21 @@
                            minlength="32"
                            maxlength="32"
                            pattern="[a-fA-F0-9]{32}"
-                           placeholder="32-character hex token"
+                           placeholder="{{t .server.Lang "setup_token_placeholder"}}"
                            autocomplete="off"
                            spellcheck="false"
-                           aria-label="Setup token"
+                           aria-label="{{t .server.Lang "setup_token_label"}}"
                            aria-required="true"
                            aria-describedby="token-hint"
-                           title="Enter the 32-character setup token from the server console">
-                    <small class="setup-admin-form-hint" id="token-hint">32 hexadecimal characters (a-f, 0-9)</small>
+                           title="{{t .server.Lang "setup_token_input_title"}}">
+                    <small class="setup-admin-form-hint" id="token-hint">{{t .server.Lang "setup_token_hint"}}</small>
                 </div>
 
                 <button type="submit"
                         id="submit-btn"
                         class="submit-button"
-                        aria-label="Verify setup token"
-                        title="Verify setup token and continue to admin creation">Continue</button>
+                        aria-label="{{t .server.Lang "setup_token_verify_aria_label"}}"
+                        title="{{t .server.Lang "setup_token_verify_title"}}">{{t .server.Lang "setup_token_continue_button"}}</button>
             </form>
         </div>
     </div>
@@ -66,13 +66,13 @@
 
             // Validate token format
             if (!/^[a-f0-9]{32}$/.test(token)) {
-                errorMsg.textContent = 'Invalid token format. Must be 32 hexadecimal characters.';
+                errorMsg.textContent = '{{t .server.Lang "setup_token_invalid_format_error"}}';
                 errorMsg.classList.add('edit-error-message');
                 return;
             }
 
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Verifying...';
+            submitBtn.textContent = '{{t .server.Lang "setup_token_verifying_button"}}';
 
             try {
                 const response = await fetch(window.location.pathname.replace(/\/$/, '') + '/verify', {
@@ -86,16 +86,16 @@
                 if (response.ok) {
                     window.location.href = result.redirect;
                 } else {
-                    errorMsg.textContent = result.error || 'Invalid setup token';
+                    errorMsg.textContent = result.error || '{{t .server.Lang "setup_token_invalid_token_error"}}';
                     errorMsg.classList.add('edit-error-message');
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Continue';
+                    submitBtn.textContent = '{{t .server.Lang "setup_token_continue_button"}}';
                 }
             } catch (error) {
-                errorMsg.textContent = 'Network error. Please try again.';
+                errorMsg.textContent = '{{t .server.Lang "setup_token_network_error"}}';
                 errorMsg.classList.add('edit-error-message');
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Continue';
+                submitBtn.textContent = '{{t .server.Lang "setup_token_continue_button"}}';
             }
         });
     </script>

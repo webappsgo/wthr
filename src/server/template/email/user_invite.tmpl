@@ -1,53 +1,30 @@
-Subject: You're Invited to Join {app_name}
+Subject: {{tf .Lang "email.user_invite.subject" "app_name" .AppName}}
 ---
-Hello!
+{{t .Lang "email.common.greeting_exclaim"}}
 
-{inviter_name} has invited you to join {app_name}.
+{{tf .Lang "email.user_invite.intro" "app_name" .AppName}}
 
-**What is {app_name}?**
+**{{t .Lang "email.user_invite.accept_heading"}}:**
 
-{app_description}
+{{t .Lang "email.user_invite.accept_body"}}
+{{.InviteURL}}
 
-**Your Invitation:**
+{{tf .Lang "email.user_invite.expiry_notice" "minutes" .MinutesRemaining}}
 
-You've been invited to create an account and start using {app_name}.
+**{{t .Lang "email.user_invite.what_you_can_do_heading"}}:**
 
-**Accept Your Invitation:**
+- {{t .Lang "email.user_invite.feature_conditions"}}
+- {{t .Lang "email.user_invite.feature_forecasts"}}
+- {{t .Lang "email.user_invite.feature_alerts"}}
+- {{t .Lang "email.user_invite.feature_history"}}
+- {{t .Lang "email.user_invite.feature_preferences"}}
 
-Click the link below to create your account:
-{invite_url}
+{{tf .Lang "email.user_invite.closing" "app_name" .AppName}}
 
-This invitation will expire in {expiry_hours} hours ({expiry_date}).
-
-**What You Can Do:**
-
-- Check current weather conditions
-- View detailed forecasts
-- Set up location-based alerts
-- Access historical weather data
-- Customize your preferences
-
-**Getting Started:**
-
-Once you create your account, you'll be able to:
-1. Add your favorite locations
-2. Set up weather notifications
-3. Explore forecasts and trends
-4. Access the full weather dashboard
-
-**Need Help?**
-
-If you have any questions, feel free to contact us at {support_email}
-
-We look forward to having you on board!
-
-{app_name} Team
+{{.AppName}} {{t .Lang "email.account_disabled.team_suffix"}}
 
 ---
-This invitation was sent by {inviter_name} ({inviter_email})
+{{tf .Lang "email.user_invite.footer_sent_by" "expires_at" .ExpiresAt}}
 
-This is an automated invitation from {app_name}
-{app_url}
-
-Invitation Code: {invite_code}
-Expires: {expiry_date}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

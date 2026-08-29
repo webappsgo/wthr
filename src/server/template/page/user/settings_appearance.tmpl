@@ -4,24 +4,24 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">Appearance Settings</h1>
-        <p class="text-comment">Customize how the app looks for you</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings_appearance_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings_appearance_subtitle"}}</p>
     </div>
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">Account</a>
-        <a href="/users/settings/privacy" class="settings-nav-item">Privacy</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">Notifications</a>
-        <a href="/users/settings/appearance" class="settings-nav-item active">Appearance</a>
-        <a href="/users/security" class="settings-nav-item">Security</a>
-        <a href="/users/tokens" class="settings-nav-item">API Tokens</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings_nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item active">{{t .server.Lang "settings_nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings_nav_api_tokens"}}</a>
     </div>
 
     <!-- Appearance Settings Form -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Theme</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_theme_heading"}}</h2>
         </div>
         <div class="card-body">
             <form id="appearanceSettingsForm">
@@ -32,7 +32,7 @@
                         <input type="radio" name="theme" value="dark" {{if eq .preferences.Theme "dark"}}checked{{end}}>
                         <div class="theme-preview theme-dark">
                             <div class="theme-icon">&#127769;</div>
-                            <span>Dark</span>
+                            <span>{{t .server.Lang "settings_theme_dark"}}</span>
                         </div>
                     </label>
 
@@ -40,7 +40,7 @@
                         <input type="radio" name="theme" value="light" {{if eq .preferences.Theme "light"}}checked{{end}}>
                         <div class="theme-preview theme-light">
                             <div class="theme-icon">&#9728;</div>
-                            <span>Light</span>
+                            <span>{{t .server.Lang "settings_theme_light"}}</span>
                         </div>
                     </label>
 
@@ -48,45 +48,45 @@
                         <input type="radio" name="theme" value="auto" {{if eq .preferences.Theme "auto"}}checked{{end}}>
                         <div class="theme-preview theme-auto">
                             <div class="theme-icon">&#128187;</div>
-                            <span>Auto</span>
+                            <span>{{t .server.Lang "settings_theme_auto"}}</span>
                         </div>
                     </label>
                 </div>
-                <p class="text-comment margin-y-sm">Default: Dark</p>
+                <p class="text-comment margin-y-sm">{{t .server.Lang "settings_theme_default_dark"}}</p>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">Font Size</h3>
+                <h3 class="section-title">{{t .server.Lang "settings_font_size_heading"}}</h3>
                 <div class="radio-group">
                     <label class="radio-label">
                         <input type="radio" name="fontSize" value="small">
-                        <span>Small</span>
+                        <span>{{t .server.Lang "settings_font_size_small"}}</span>
                     </label>
                     <label class="radio-label">
                         <input type="radio" name="fontSize" value="medium" checked>
-                        <span>Medium (default)</span>
+                        <span>{{t .server.Lang "settings_font_size_medium_default"}}</span>
                     </label>
                     <label class="radio-label">
                         <input type="radio" name="fontSize" value="large">
-                        <span>Large</span>
+                        <span>{{t .server.Lang "settings_font_size_large"}}</span>
                     </label>
                 </div>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">Accessibility</h3>
+                <h3 class="section-title">{{t .server.Lang "settings_accessibility_heading"}}</h3>
                 <div class="toggle-group">
                     <label class="toggle-item">
                         <input type="checkbox" id="reduceMotion">
                         <div class="toggle-content">
-                            <strong>Reduce motion</strong>
-                            <p class="text-comment">Minimize animations and transitions.</p>
+                            <strong>{{t .server.Lang "settings_reduce_motion_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_reduce_motion_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile_save_changes"}}</button>
                 </div>
             </form>
         </div>

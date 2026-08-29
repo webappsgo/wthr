@@ -1,33 +1,33 @@
-Subject: ⚠️ Backup Failed - {app_name}
+Subject: {{tf .Lang "email.backup_failed.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-**ATTENTION REQUIRED:** A backup of {app_name} has failed.
+**{{t .Lang "email.backup_failed.attention_label"}}:** {{tf .Lang "email.backup_failed.failed_notice" "app_name" .AppName}}
 
-**Failure Details:**
-- Date: {backup_date}
-- Time: {backup_time}
-- Error: {error_message}
-- Attempt: {attempt_number}
+**{{t .Lang "email.backup_failed.details_heading"}}:**
+- {{t .Lang "email.common.label_date"}}: {{.BackupDate}}
+- {{t .Lang "email.common.label_time"}}: {{.BackupTime}}
+- {{t .Lang "email.backup_failed.label_error"}}: {{.ErrorMessage}}
+- {{t .Lang "email.backup_failed.label_attempt"}}: {{.AttemptNumber}}
 
-**Possible Causes:**
-- Insufficient disk space
-- Permission issues
-- Database connection problems
-- Network connectivity issues
+**{{t .Lang "email.backup_failed.causes_heading"}}:**
+- {{t .Lang "email.backup_failed.cause_disk_space"}}
+- {{t .Lang "email.backup_failed.cause_permissions"}}
+- {{t .Lang "email.backup_failed.cause_db_connection"}}
+- {{t .Lang "email.backup_failed.cause_network"}}
 
-**Recommended Actions:**
-1. Check system logs for detailed error information
-2. Verify available disk space
-3. Check database connection and status
-4. Review backup configuration settings
-5. Manually trigger a backup from the admin panel
+**{{t .Lang "email.backup_failed.actions_heading"}}:**
+1. {{t .Lang "email.backup_failed.action_check_logs"}}
+2. {{t .Lang "email.backup_failed.action_check_disk"}}
+3. {{t .Lang "email.backup_failed.action_check_db"}}
+4. {{t .Lang "email.backup_failed.action_review_config"}}
+5. {{t .Lang "email.backup_failed.action_manual_trigger"}}
 
-**Impact:**
-Your data is still safe, but the scheduled backup was not created. Please address this issue promptly to ensure data protection.
+**{{t .Lang "email.backup_failed.impact_heading"}}:**
+{{t .Lang "email.backup_failed.impact_body"}}
 
-If you need assistance, please review the system logs or contact support.
+{{t .Lang "email.backup_failed.help_notice"}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

@@ -1,114 +1,114 @@
-Subject: [{severity}] Security Breach Detected - {app_name}
+Subject: {{tf .Lang "email.breach_admin_alert.subject" "severity" .Severity "app_name" .AppName}}
 ---
-⚠️ SECURITY BREACH DETECTED - IMMEDIATE ACTION REQUIRED ⚠️
+{{t .Lang "email.breach_admin_alert.header"}}
 
-**Severity:** {severity}
-**Detection Time:** {detection_time}
-**Incident ID:** {incident_id}
-
----
-
-**BREACH SUMMARY:**
-
-{breach_summary}
+**{{t .Lang "email.common.label_severity"}}:** {{.Severity}}
+**{{t .Lang "email.breach_admin_alert.label_detection_time"}}:** {{.DetectionTime}}
+**{{t .Lang "email.breach_admin_alert.label_incident_id"}}:** {{.IncidentID}}
 
 ---
 
-**DETECTION DETAILS:**
+**{{t .Lang "email.breach_admin_alert.summary_heading"}}:**
 
-Type: {breach_type}
-Source IP: {source_ip}
-Location: {source_location}
-User Agent: {user_agent}
-Affected Resource: {affected_resource}
-Detection Method: {detection_method}
+{{.BreachSummary}}
 
 ---
 
-**AFFECTED DATA:**
+**{{t .Lang "email.breach_admin_alert.detection_details_heading"}}:**
 
-{affected_data_details}
-
-Number of Users Affected: {affected_user_count}
-Data Types Compromised: {compromised_data_types}
-
----
-
-**IMMEDIATE ACTIONS REQUIRED:**
-
-1. **Review Incident Details:**
-   {incident_dashboard_url}
-
-2. **Verify Detection Accuracy:**
-   - Check for false positives
-   - Confirm breach scope
-   - Validate affected systems
-
-3. **Contain the Breach:**
-   - Block malicious IPs: {block_ip_url}
-   - Revoke compromised credentials
-   - Isolate affected systems
-
-4. **Notify Affected Users:**
-   - Draft user notification: {notification_draft_url}
-   - Review compliance requirements
-   - Send notifications: {send_notifications_url}
-
-5. **Document the Incident:**
-   - Record all findings
-   - Preserve evidence
-   - Update incident report: {incident_report_url}
+{{t .Lang "email.breach_admin_alert.label_type"}}: {{.BreachType}}
+{{t .Lang "email.common.label_source_ip"}}: {{.SourceIP}}
+{{t .Lang "email.common.label_location"}}: {{.SourceLocation}}
+{{t .Lang "email.breach_admin_alert.label_user_agent"}}: {{.UserAgent}}
+{{t .Lang "email.breach_admin_alert.label_affected_resource"}}: {{.AffectedResource}}
+{{t .Lang "email.breach_admin_alert.label_detection_method"}}: {{.DetectionMethod}}
 
 ---
 
-**RECOMMENDED ACTIONS:**
+**{{t .Lang "email.breach_admin_alert.affected_data_heading"}}:**
 
-{recommended_actions}
+{{.AffectedDataDetails}}
 
----
-
-**COMPLIANCE CONSIDERATIONS:**
-
-{compliance_notes}
+{{t .Lang "email.breach_admin_alert.label_affected_users"}}: {{.AffectedUserCount}}
+{{t .Lang "email.breach_admin_alert.label_data_types"}}: {{.CompromisedDataTypes}}
 
 ---
 
-**AUTOMATED RESPONSES:**
+**{{t .Lang "email.breach_admin_alert.immediate_actions_heading"}}:**
 
-The following automated responses have been triggered:
+1. **{{t .Lang "email.breach_admin_alert.action_review"}}:**
+   {{.IncidentDashboardURL}}
 
-{automated_responses}
+2. **{{t .Lang "email.breach_admin_alert.action_verify"}}:**
+   - {{t .Lang "email.breach_admin_alert.verify_false_positive"}}
+   - {{t .Lang "email.breach_admin_alert.verify_scope"}}
+   - {{t .Lang "email.breach_admin_alert.verify_systems"}}
 
----
+3. **{{t .Lang "email.breach_admin_alert.action_contain"}}:**
+   - {{t .Lang "email.breach_admin_alert.contain_block_ip"}}: {{.BlockIPURL}}
+   - {{t .Lang "email.breach_admin_alert.contain_revoke"}}
+   - {{t .Lang "email.breach_admin_alert.contain_isolate"}}
 
-**SYSTEM STATUS:**
+4. **{{t .Lang "email.breach_admin_alert.action_notify"}}:**
+   - {{t .Lang "email.breach_admin_alert.notify_draft"}}: {{.NotificationDraftURL}}
+   - {{t .Lang "email.breach_admin_alert.notify_compliance"}}
+   - {{t .Lang "email.breach_admin_alert.notify_send"}}: {{.SendNotificationsURL}}
 
-Application Status: {app_status}
-Database Status: {db_status}
-Security Systems: {security_status}
-
----
-
-**NEXT STEPS:**
-
-1. Acknowledge this alert: {acknowledge_url}
-2. Assign incident owner: {assign_url}
-3. Begin incident response procedures
-4. Contact security team if needed: {security_contact}
-
----
-
-**NEED HELP?**
-
-Emergency Security Contact: {emergency_contact}
-Security Documentation: {security_docs_url}
-Incident Response Playbook: {playbook_url}
+5. **{{t .Lang "email.breach_admin_alert.action_document"}}:**
+   - {{t .Lang "email.breach_admin_alert.document_findings"}}
+   - {{t .Lang "email.breach_admin_alert.document_evidence"}}
+   - {{t .Lang "email.breach_admin_alert.document_report"}}: {{.IncidentReportURL}}
 
 ---
 
-This is an automated security alert from {app_name}
-DO NOT REPLY to this email. Take action using the links above.
+**{{t .Lang "email.breach_admin_alert.recommended_actions_heading"}}:**
 
-{app_url}
-Incident ID: {incident_id}
-Alert Time: {alert_time}
+{{.RecommendedActions}}
+
+---
+
+**{{t .Lang "email.breach_admin_alert.compliance_heading"}}:**
+
+{{.ComplianceNotes}}
+
+---
+
+**{{t .Lang "email.breach_admin_alert.automated_responses_heading"}}:**
+
+{{t .Lang "email.breach_admin_alert.automated_responses_intro"}}
+
+{{.AutomatedResponses}}
+
+---
+
+**{{t .Lang "email.breach_admin_alert.system_status_heading"}}:**
+
+{{t .Lang "email.breach_admin_alert.label_app_status"}}: {{.AppStatus}}
+{{t .Lang "email.breach_admin_alert.label_db_status"}}: {{.DBStatus}}
+{{t .Lang "email.breach_admin_alert.label_security_status"}}: {{.SecurityStatus}}
+
+---
+
+**{{t .Lang "email.breach_admin_alert.next_steps_heading"}}:**
+
+1. {{t .Lang "email.breach_admin_alert.step_acknowledge"}}: {{.AcknowledgeURL}}
+2. {{t .Lang "email.breach_admin_alert.step_assign"}}: {{.AssignURL}}
+3. {{t .Lang "email.breach_admin_alert.step_begin_response"}}
+4. {{t .Lang "email.breach_admin_alert.step_contact_team"}}: {{.SecurityContact}}
+
+---
+
+**{{t .Lang "email.breach_admin_alert.need_help_heading"}}**
+
+{{t .Lang "email.breach_admin_alert.label_emergency_contact"}}: {{.EmergencyContact}}
+{{t .Lang "email.breach_admin_alert.label_security_docs"}}: {{.SecurityDocsURL}}
+{{t .Lang "email.breach_admin_alert.label_playbook"}}: {{.PlaybookURL}}
+
+---
+
+{{tf .Lang "email.common.footer_automated_alert" "app_name" .AppName}}
+{{t .Lang "email.breach_admin_alert.no_reply_notice"}}
+
+{{.AppURL}}
+{{t .Lang "email.breach_admin_alert.label_incident_id"}}: {{.IncidentID}}
+{{t .Lang "email.breach_admin_alert.label_alert_time"}}: {{.AlertTime}}

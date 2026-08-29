@@ -37,9 +37,9 @@ func GetStaticSubFS() (fs.FS, error) {
 // LoadTemplates loads all templates from the embedded filesystem
 //
 // The templates reference a shared set of helper functions (upper, lower,
-// title, add, sub, t). Placeholder implementations are registered here so
-// parsing succeeds standalone; callers that need real i18n translation
-// output should call Funcs() on the returned template to override "t"
+// title, add, sub, t, tf). Placeholder implementations are registered here
+// so parsing succeeds standalone; callers that need real i18n translation
+// output should call Funcs() on the returned template to override "t"/"tf"
 // with a translation-service-backed implementation before Execute.
 func LoadTemplates() (*template.Template, error) {
 	funcMap := template.FuncMap{
@@ -53,6 +53,9 @@ func LoadTemplates() (*template.Template, error) {
 			return a - b
 		},
 		"t": func(_, key string) string {
+			return key
+		},
+		"tf": func(_, key string, _ ...string) string {
 			return key
 		},
 	}

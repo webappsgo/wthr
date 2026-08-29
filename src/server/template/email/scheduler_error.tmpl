@@ -1,50 +1,50 @@
-Subject: ⚠️ Scheduled Task Failed - {app_name}
+Subject: {{tf .Lang "email.scheduler_error.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-A scheduled task in {app_name} has encountered an error and failed to complete.
+{{tf .Lang "email.scheduler_error.intro" "app_name" .AppName}}
 
-**Task Details:**
-- Task Name: {task_name}
-- Description: {task_description}
-- Scheduled Time: {scheduled_time}
-- Actual Run Time: {run_time}
-- Status: Failed
+**{{t .Lang "email.scheduler_error.task_details_heading"}}:**
+- {{t .Lang "email.scheduler_error.label_task_name"}}: {{.TaskName}}
+- {{t .Lang "email.scheduler_error.label_description"}}: {{.TaskDescription}}
+- {{t .Lang "email.scheduler_error.label_scheduled_time"}}: {{.ScheduledTime}}
+- {{t .Lang "email.scheduler_error.label_run_time"}}: {{.RunTime}}
+- {{t .Lang "email.scheduler_error.label_status"}}: {{t .Lang "email.scheduler_error.status_failed"}}
 
-**Error Information:**
-{error_message}
+**{{t .Lang "email.scheduler_error.error_info_heading"}}:**
+{{.ErrorMessage}}
 
-**Error Details:**
-{error_details}
+**{{t .Lang "email.scheduler_error.error_details_heading"}}:**
+{{.ErrorDetails}}
 
-**Task Configuration:**
-- Schedule: {task_schedule}
-- Last Successful Run: {last_success}
-- Consecutive Failures: {failure_count}
-- Next Scheduled Run: {next_run}
+**{{t .Lang "email.scheduler_error.task_config_heading"}}:**
+- {{t .Lang "email.scheduler_error.label_schedule"}}: {{.TaskSchedule}}
+- {{t .Lang "email.scheduler_error.label_last_success"}}: {{.LastSuccess}}
+- {{t .Lang "email.scheduler_error.label_consecutive_failures"}}: {{.FailureCount}}
+- {{t .Lang "email.scheduler_error.label_next_run"}}: {{.NextRun}}
 
-**Impact:**
-{impact_description}
+**{{t .Lang "email.scheduler_error.impact_heading"}}:**
+{{.ImpactDescription}}
 
-**Recommended Actions:**
-1. Review the error message and logs
-2. Check system resources (disk space, memory, CPU)
-3. Verify task configuration settings
-4. Manually trigger the task to test
-5. Update task schedule if needed
+**{{t .Lang "email.scheduler_error.actions_heading"}}:**
+1. {{t .Lang "email.scheduler_error.action_review_error"}}
+2. {{t .Lang "email.scheduler_error.action_check_resources"}}
+3. {{t .Lang "email.scheduler_error.action_verify_config"}}
+4. {{t .Lang "email.scheduler_error.action_manual_trigger"}}
+5. {{t .Lang "email.scheduler_error.action_update_schedule"}}
 
-**View Task Details:**
-{task_url}
+**{{t .Lang "email.scheduler_error.view_details_heading"}}:**
+{{.TaskURL}}
 
-**Common Causes:**
-- Insufficient system resources
-- Network connectivity issues
-- Database connection problems
-- Configuration errors
-- External service unavailability
+**{{t .Lang "email.scheduler_error.common_causes_heading"}}:**
+- {{t .Lang "email.scheduler_error.cause_resources"}}
+- {{t .Lang "email.scheduler_error.cause_network"}}
+- {{t .Lang "email.scheduler_error.cause_db_connection"}}
+- {{t .Lang "email.scheduler_error.cause_config"}}
+- {{t .Lang "email.scheduler_error.cause_external_service"}}
 
-If the problem persists, please review the system logs or consider disabling the task until the issue is resolved.
+{{t .Lang "email.scheduler_error.persist_notice"}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

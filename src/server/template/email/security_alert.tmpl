@@ -1,43 +1,43 @@
-Subject: 🔒 Security Alert - {app_name}
+Subject: {{tf .Lang "email.security_alert.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-**SECURITY ALERT:** A security event has been detected on {app_name}.
+**{{t .Lang "email.security_alert.alert_label"}}:** {{tf .Lang "email.security_alert.detected_notice" "app_name" .AppName}}
 
-**Event Details:**
-- Type: {alert_type}
-- Severity: {severity}
-- Date: {alert_date}
-- Time: {alert_time}
-- Source IP: {source_ip}
-- Description: {alert_description}
+**{{t .Lang "email.security_alert.event_details_heading"}}:**
+- {{t .Lang "email.security_alert.label_type"}}: {{.AlertType}}
+- {{t .Lang "email.common.label_severity"}}: {{.Severity}}
+- {{t .Lang "email.common.label_date"}}: {{.AlertDate}}
+- {{t .Lang "email.common.label_time"}}: {{.AlertTime}}
+- {{t .Lang "email.common.label_source_ip"}}: {{.SourceIP}}
+- {{t .Lang "email.security_alert.label_description"}}: {{.AlertDescription}}
 
-**Event Summary:**
-{event_summary}
+**{{t .Lang "email.security_alert.event_summary_heading"}}:**
+{{.EventSummary}}
 
-**Recommended Actions:**
-{recommended_actions}
+**{{t .Lang "email.security_alert.recommended_actions_heading"}}:**
+{{.RecommendedActions}}
 
-**Automatic Responses Taken:**
-{automatic_responses}
+**{{t .Lang "email.security_alert.automatic_responses_heading"}}:**
+{{.AutomaticResponses}}
 
-**What You Should Do:**
-1. Review the event details in the audit logs
-2. Investigate the source IP address
-3. Check for unusual account activity
-4. Update security settings if needed
-5. Consider blocking suspicious IP addresses
+**{{t .Lang "email.security_alert.what_to_do_heading"}}:**
+1. {{t .Lang "email.security_alert.action_review_logs"}}
+2. {{t .Lang "email.security_alert.action_investigate_ip"}}
+3. {{t .Lang "email.security_alert.action_check_activity"}}
+4. {{t .Lang "email.security_alert.action_update_settings"}}
+5. {{t .Lang "email.security_alert.action_block_ip"}}
 
-**Access Audit Logs:**
-{audit_logs_url}
+**{{t .Lang "email.security_alert.audit_logs_heading"}}:**
+{{.AuditLogsURL}}
 
-**Security Settings:**
-{security_settings_url}
+**{{t .Lang "email.security_alert.security_settings_heading"}}:**
+{{.SecuritySettingsURL}}
 
-If you need assistance or believe this is a false positive, please review the documentation or contact support.
+{{t .Lang "email.security_alert.false_positive_notice"}}
 
-**Note:** This alert was generated automatically by {app_name}'s security monitoring system.
+{{tf .Lang "email.security_alert.generated_notice" "app_name" .AppName}}
 
 ---
-This is an automated security message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated_security" "app_name" .AppName}}
+{{.AppURL}}

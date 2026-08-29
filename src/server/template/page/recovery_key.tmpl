@@ -12,8 +12,8 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Use Recovery Key</h1>
-            <p>Enter one of your recovery keys to regain access</p>
+            <h1>{{t .server.Lang "recovery_key_page_heading"}}</h1>
+            <p>{{t .server.Lang "recovery_key_page_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
@@ -22,14 +22,14 @@
             <form method="POST" class="auth-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="recovery_key">Recovery Key</label>
-                    <input type="text" id="recovery_key" name="recovery_key" required autocomplete="off" placeholder="Enter your recovery key">
+                    <label for="recovery_key">{{t .server.Lang "recovery_key_field_label"}}</label>
+                    <input type="text" id="recovery_key" name="recovery_key" required autocomplete="off" placeholder="{{t .server.Lang "recovery_key_field_placeholder"}}">
                 </div>
-                <button type="submit" class="btn btn-primary">Submit Recovery Key</button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "recovery_key_submit_button"}}</button>
             </form>
 
             <div class="auth-links">
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/login">{{t .server.Lang "oidc_back_to_login_link"}}</a>
             </div>
         </div>
     </div>

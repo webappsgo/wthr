@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">API Token</h1>
-                <p class="login-subtitle">Server Setup - Step 2 of 6</p>
+                <h1 class="login-title">{{t .server.Lang "setup_api_token_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup_api_token_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,18 +22,18 @@
                     <div class="progress-fill" style="width: 33.33%"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">Admin</span>
-                    <span class="step active">API Token</span>
-                    <span class="step">Server</span>
-                    <span class="step">Security</span>
-                    <span class="step">Services</span>
-                    <span class="step">Complete</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
+                    <span class="step active">{{t .server.Lang "setup_step_api_token"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_server"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_security"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>An API token has been generated for programmatic access.</p>
-                <p class="text-orange"><strong>Copy this token now - it will only be shown once!</strong></p>
+                <p>{{t .server.Lang "setup_api_token_intro"}}</p>
+                <p class="text-orange"><strong>{{t .server.Lang "setup_api_token_copy_warning"}}</strong></p>
             </div>
 
             {{ if .error }}
@@ -41,25 +41,25 @@
             {{ end }}
 
             <div class="token-display">
-                <label class="form-label">Your API Token</label>
+                <label class="form-label">{{t .server.Lang "setup_api_token_your_token_label"}}</label>
                 <div class="token-box">
                     <code id="api-token" class="token-value long-string">{{ .APIToken }}</code>
-                    <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">Copy</button>
+                    <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">{{t .server.Lang "btn_copy"}}</button>
                 </div>
-                <small class="form-hint">Use this token in the Authorization header: <code>Bearer {token}</code></small>
+                <small class="form-hint">{{t .server.Lang "setup_api_token_usage_hint"}} <code>Bearer {token}</code></small>
             </div>
 
             <div class="form-group checkbox-confirm">
                 <label class="checkbox-label">
                     <input type="checkbox" id="token-copied" required>
-                    <span>I have copied and saved my API token</span>
+                    <span>{{t .server.Lang "setup_api_token_confirm_checkbox"}}</span>
                 </label>
             </div>
 
             <form method="POST" action="" id="token-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <input type="hidden" name="token_acknowledged" value="true">
-                <button type="submit" id="submit-btn" class="btn-login" disabled>Continue to Server Configuration</button>
+                <button type="submit" id="submit-btn" class="btn-login" disabled>{{t .server.Lang "setup_api_token_continue_button"}}</button>
             </form>
         </div>
 

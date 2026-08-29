@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">Optional Services</h1>
-                <p class="login-subtitle">Server Setup - Step 5 of 6</p>
+                <h1 class="login-title">{{t .server.Lang "setup_services_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup_services_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,17 +22,17 @@
                     <div class="progress-fill" style="width: 83.33%"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">Admin</span>
-                    <span class="step completed">API Token</span>
-                    <span class="step completed">Server</span>
-                    <span class="step completed">Security</span>
-                    <span class="step active">Services</span>
-                    <span class="step">Complete</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_server"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_security"}}</span>
+                    <span class="step active">{{t .server.Lang "setup_step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>Enable optional services. All can be configured later in the admin panel.</p>
+                <p>{{t .server.Lang "setup_services_intro"}}</p>
             </div>
 
             {{ if .error }}
@@ -48,30 +48,30 @@
                                id="enable_ssl"
                                name="enable_ssl"
                                value="true">
-                        <span>Enable SSL/HTTPS</span>
+                        <span>{{t .server.Lang "setup_services_enable_ssl_label"}}</span>
                     </label>
-                    <p class="form-hint">Configure HTTPS with Let's Encrypt or custom certificates</p>
+                    <p class="form-hint">{{t .server.Lang "setup_services_enable_ssl_hint"}}</p>
 
                     <div id="ssl-options" class="sub-options hidden">
                         <div class="form-group">
-                            <label class="form-label" for="ssl_domain">SSL Domain</label>
+                            <label class="form-label" for="ssl_domain">{{t .server.Lang "setup_services_ssl_domain_label"}}</label>
                             <input type="text"
                                    id="ssl_domain"
                                    name="ssl_domain"
                                    class="form-input"
                                    value="{{ .DefaultDomain }}"
                                    placeholder="example.com">
-                            <small class="form-hint">Domain for Let's Encrypt certificate</small>
+                            <small class="form-hint">{{t .server.Lang "setup_services_ssl_domain_hint"}}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="ssl_email">Contact Email</label>
+                            <label class="form-label" for="ssl_email">{{t .server.Lang "setup_services_ssl_email_label"}}</label>
                             <input type="email"
                                    id="ssl_email"
                                    name="ssl_email"
                                    class="form-input"
                                    value="{{ .AdminEmail }}"
                                    placeholder="admin@example.com">
-                            <small class="form-hint">Required for Let's Encrypt notifications</small>
+                            <small class="form-hint">{{t .server.Lang "setup_services_ssl_email_hint"}}</small>
                         </div>
                     </div>
                 </div>
@@ -82,18 +82,18 @@
                                id="enable_multiuser"
                                name="enable_multiuser"
                                value="true">
-                        <span>Enable Multi-User Mode</span>
+                        <span>{{t .server.Lang "setup_services_enable_multiuser_label"}}</span>
                     </label>
-                    <p class="form-hint">Allow user registration and accounts (PART 34 feature)</p>
+                    <p class="form-hint">{{t .server.Lang "setup_services_enable_multiuser_hint"}}</p>
 
                     <div id="multiuser-options" class="sub-options hidden">
                         <div class="form-group">
-                            <label class="form-label" for="registration_mode">Registration Mode</label>
+                            <label class="form-label" for="registration_mode">{{t .server.Lang "setup_services_registration_mode_label"}}</label>
                             <select id="registration_mode" name="registration_mode" class="form-input">
-                                <option value="open">Open (anyone can register)</option>
-                                <option value="invite" selected>Invite Only (default)</option>
-                                <option value="admin_only">Admin Only</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="open">{{t .server.Lang "setup_services_registration_mode_open"}}</option>
+                                <option value="invite" selected>{{t .server.Lang "setup_services_registration_mode_invite"}}</option>
+                                <option value="admin_only">{{t .server.Lang "setup_services_registration_mode_admin_only"}}</option>
+                                <option value="disabled">{{t .server.Lang "setup_services_registration_mode_disabled"}}</option>
                             </select>
                         </div>
                     </div>
@@ -102,24 +102,24 @@
                 {{ if .TorAvailable }}
                 <div class="service-option">
                     <div class="service-status">
-                        <span class="status-badge status-active">Auto-Enabled</span>
+                        <span class="status-badge status-active">{{t .server.Lang "setup_services_auto_enabled_badge"}}</span>
                     </div>
                     <label class="checkbox-label disabled">
                         <input type="checkbox" checked disabled>
-                        <span>Tor Hidden Service</span>
+                        <span>{{t .server.Lang "setup_services_tor_label"}}</span>
                     </label>
-                    <p class="form-hint">Tor binary detected - hidden service will be created automatically</p>
+                    <p class="form-hint">{{t .server.Lang "setup_services_tor_hint"}}</p>
                     {{ if .OnionAddress }}
                     <p class="onion-preview"><code class="long-string">{{ .OnionAddress }}</code></p>
                     {{ end }}
                 </div>
                 {{ end }}
 
-                <button type="submit" id="submit-btn" class="btn-login">Complete Setup</button>
+                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_services_complete_button"}}</button>
             </form>
 
             <div class="setup-skip">
-                <a href="?skip=true" class="text-comment">Skip this step (enable later)</a>
+                <a href="?skip=true" class="text-comment">{{t .server.Lang "setup_services_skip_step"}}</a>
             </div>
         </div>
 
@@ -142,7 +142,7 @@
         document.getElementById('services-form').addEventListener('submit', function(e) {
             var btn = document.getElementById('submit-btn');
             btn.disabled = true;
-            btn.textContent = 'Completing Setup...';
+            btn.textContent = '{{t .server.Lang "setup_services_completing_button"}}';
         });
     </script>
 </body>

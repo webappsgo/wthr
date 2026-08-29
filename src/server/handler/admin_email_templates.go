@@ -174,6 +174,15 @@ func isValidTemplateName(name string) bool {
 		"security_alert",
 		"scheduler_error",
 		"test",
+		"2fa_disabled",
+		"2fa_enabled",
+		"account_disabled",
+		"breach_admin_alert",
+		"breach_notification",
+		"email_verify",
+		"mfa_reminder",
+		"password_changed",
+		"user_invite",
 	}
 
 	for _, valid := range validTemplates {

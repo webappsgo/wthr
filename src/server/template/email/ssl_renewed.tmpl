@@ -1,31 +1,31 @@
-Subject: ✅ SSL Certificate Renewed Successfully - {app_name}
+Subject: {{tf .Lang "email.ssl_renewed.subject" "app_name" .AppName}}
 ---
-Hello Administrator,
+{{t .Lang "email.common.greeting_admin"}}
 
-Great news! Your SSL/TLS certificate for {app_name} has been renewed successfully.
+{{tf .Lang "email.ssl_renewed.intro" "app_name" .AppName}}
 
-**New Certificate Details:**
-- Domain: {domain}
-- Issued: {issue_date}
-- Expires: {expiry_date}
-- Valid For: {validity_days} days
-- Issuer: {issuer}
+**{{t .Lang "email.ssl_renewed.details_heading"}}:**
+- {{t .Lang "email.common.label_domain"}}: {{.Domain}}
+- {{t .Lang "email.ssl_renewed.label_issued"}}: {{.IssueDate}}
+- {{t .Lang "email.ssl_expiring.label_expires"}}: {{.ExpiryDate}}
+- {{t .Lang "email.ssl_renewed.label_valid_for"}}: {{tf .Lang "email.ssl_renewed.days_suffix" "days" .ValidityDays}}
+- {{t .Lang "email.ssl_expiring.label_issuer"}}: {{.Issuer}}
 
-Your application will continue to serve secure HTTPS traffic without interruption.
+{{t .Lang "email.ssl_renewed.continuity_notice"}}
 
-**Certificate Information:**
-- Previous expiry: {old_expiry_date}
-- New expiry: {expiry_date}
-- Renewal method: {renewal_method}
+**{{t .Lang "email.ssl_renewed.cert_info_heading"}}:**
+- {{t .Lang "email.ssl_renewed.label_previous_expiry"}}: {{.OldExpiryDate}}
+- {{t .Lang "email.ssl_renewed.label_new_expiry"}}: {{.ExpiryDate}}
+- {{t .Lang "email.ssl_renewed.label_method"}}: {{.RenewalMethod}}
 
-**Next Steps:**
-- No action required - your certificate is active
-- Next renewal reminder: {next_reminder_date}
+**{{t .Lang "email.ssl_renewed.next_steps_heading"}}:**
+- {{t .Lang "email.ssl_renewed.no_action_required"}}
+- {{t .Lang "email.ssl_renewed.next_reminder"}}: {{.NextReminderDate}}
 
-Your website visitors will continue to see the secure padlock icon in their browsers, ensuring encrypted and trusted connections.
+{{t .Lang "email.ssl_renewed.visitor_notice"}}
 
-Thank you for maintaining secure access to {app_name}.
+{{tf .Lang "email.ssl_renewed.thanks" "app_name" .AppName}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

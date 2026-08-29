@@ -4,24 +4,24 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">Privacy Settings</h1>
-        <p class="text-comment">Control your profile visibility and data sharing</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings_privacy_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings_privacy_subtitle"}}</p>
     </div>
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">Account</a>
-        <a href="/users/settings/privacy" class="settings-nav-item active">Privacy</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">Notifications</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">Appearance</a>
-        <a href="/users/security" class="settings-nav-item">Security</a>
-        <a href="/users/tokens" class="settings-nav-item">API Tokens</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item active">{{t .server.Lang "settings_nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings_nav_api_tokens"}}</a>
     </div>
 
     <!-- Privacy Settings Form -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Profile Visibility</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_profile_visibility_heading"}}</h2>
         </div>
         <div class="card-body">
             <form id="privacySettingsForm">
@@ -31,74 +31,74 @@
                     <label class="visibility-option {{if eq .user.Visibility "public"}}selected{{end}}">
                         <input type="radio" name="visibility" value="public" {{if eq .user.Visibility "public"}}checked{{end}}>
                         <div class="visibility-content">
-                            <strong>Public</strong>
-                            <p class="text-comment">Anyone can view your profile and find you in search results.</p>
+                            <strong>{{t .server.Lang "settings_visibility_public"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_visibility_public_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="visibility-option {{if eq .user.Visibility "private"}}selected{{end}}">
                         <input type="radio" name="visibility" value="private" {{if eq .user.Visibility "private"}}checked{{end}}>
                         <div class="visibility-content">
-                            <strong>Private</strong>
-                            <p class="text-comment">Your profile is hidden from public view and search results. Only you can see your profile.</p>
+                            <strong>{{t .server.Lang "settings_visibility_private"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_visibility_private_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">When Profile is Public</h3>
+                <h3 class="section-title">{{t .server.Lang "settings_when_public_heading"}}</h3>
 
                 <div class="toggle-group">
                     <label class="toggle-item">
                         <input type="checkbox" id="showEmail">
                         <div class="toggle-content">
-                            <strong>Show email address on profile</strong>
-                            <p class="text-comment">Your email will be visible to anyone viewing your profile.</p>
+                            <strong>{{t .server.Lang "settings_show_email_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_show_email_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="showActivity" checked>
                         <div class="toggle-content">
-                            <strong>Show activity on profile</strong>
-                            <p class="text-comment">Recent activity will appear on your public profile.</p>
+                            <strong>{{t .server.Lang "settings_show_activity_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_show_activity_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="showOrgs" checked>
                         <div class="toggle-content">
-                            <strong>Show organization memberships</strong>
-                            <p class="text-comment">Organizations you belong to will be listed on your profile.</p>
+                            <strong>{{t .server.Lang "settings_show_orgs_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_show_orgs_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="searchable" checked>
                         <div class="toggle-content">
-                            <strong>Appear in search results</strong>
-                            <p class="text-comment">Others can find you when searching for users.</p>
+                            <strong>{{t .server.Lang "settings_searchable_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_searchable_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">When Profile is Private</h3>
+                <h3 class="section-title">{{t .server.Lang "settings_when_private_heading"}}</h3>
 
                 <div class="toggle-group">
                     <label class="toggle-item">
                         <input type="checkbox" id="orgVisibility" checked>
                         <div class="toggle-content">
-                            <strong>Show basic info in organizations</strong>
-                            <p class="text-comment">Members of organizations you belong to can see your username, name, and avatar. Your full profile remains private.</p>
+                            <strong>{{t .server.Lang "settings_org_visibility_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings_org_visibility_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile_save_changes"}}</button>
                 </div>
             </form>
         </div>

@@ -1,39 +1,39 @@
-Subject: New Login to {app_name}
+Subject: {{tf .Lang "email.login_alert.subject" "app_name" .AppName}}
 ---
-Hello,
+{{t .Lang "email.common.greeting"}}
 
-We detected a new login to your {app_name} account.
+{{tf .Lang "email.login_alert.intro" "app_name" .AppName}}
 
-**Login Details:**
-- Date: {login_date}
-- Time: {login_time}
-- Location: {login_location}
-- IP Address: {login_ip}
-- Device: {device_info}
-- Browser: {browser_info}
+**{{t .Lang "email.login_alert.details_heading"}}:**
+- {{t .Lang "email.common.label_date"}}: {{.LoginDate}}
+- {{t .Lang "email.common.label_time"}}: {{.LoginTime}}
+- {{t .Lang "email.common.label_location"}}: {{.LoginLocation}}
+- {{t .Lang "email.common.label_ip_address"}}: {{.LoginIP}}
+- {{t .Lang "email.common.label_device"}}: {{.DeviceInfo}}
+- {{t .Lang "email.common.label_browser"}}: {{.BrowserInfo}}
 
-**Was this you?**
-If you recognize this login, no action is needed. Your account is secure.
+**{{t .Lang "email.login_alert.was_this_you_heading"}}**
+{{t .Lang "email.login_alert.recognized_notice"}}
 
-**Didn't recognize this login?**
-If you did not perform this login, your account may be compromised. Please take the following actions immediately:
+**{{t .Lang "email.login_alert.not_recognized_heading"}}**
+{{t .Lang "email.login_alert.not_recognized_notice"}}
 
-1. Change your password right away
-2. Review recent account activity
-3. Enable two-factor authentication
-4. Log out all active sessions
-5. Contact support if needed
+1. {{t .Lang "email.login_alert.action_change_password"}}
+2. {{t .Lang "email.login_alert.action_review_activity"}}
+3. {{t .Lang "email.login_alert.action_enable_2fa"}}
+4. {{t .Lang "email.login_alert.action_logout_sessions"}}
+5. {{t .Lang "email.login_alert.action_contact_support"}}
 
-**Security Tips:**
-- Use a strong, unique password
-- Never share your credentials
-- Be cautious of phishing attempts
-- Keep your devices secure
-- Enable two-factor authentication
+**{{t .Lang "email.login_alert.tips_heading"}}:**
+- {{t .Lang "email.login_alert.tip_strong_password"}}
+- {{t .Lang "email.login_alert.tip_never_share"}}
+- {{t .Lang "email.login_alert.tip_phishing"}}
+- {{t .Lang "email.login_alert.tip_secure_devices"}}
+- {{t .Lang "email.login_alert.tip_enable_2fa"}}
 
-You can review your account security settings here:
-{account_security_url}
+{{t .Lang "email.login_alert.review_settings_notice"}}
+{{.AccountSecurityURL}}
 
 ---
-This is an automated message from {app_name}
-{app_url}
+{{tf .Lang "email.common.footer_automated" "app_name" .AppName}}
+{{.AppURL}}

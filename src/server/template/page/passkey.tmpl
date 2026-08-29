@@ -12,25 +12,35 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>Passkey Authentication</h1>
-            <p>Authenticate with your passkey</p>
+            <h1>{{t .server.Lang "passkey_page_heading"}}</h1>
+            <p>{{t .server.Lang "passkey_page_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
             {{end}}
 
             <div class="auth-message">
-                <p>Use a registered passkey to sign in without entering your password.</p>
+                <p>{{t .server.Lang "passkey_auth_message"}}</p>
             </div>
 
-            <div id="passkeyStatus" class="alert alert-info">Waiting for your browser to start passkey authentication...</div>
+            <div id="passkeyStatus" class="alert alert-info">{{t .server.Lang "passkey_status_waiting"}}</div>
 
             <div class="auth-links">
-                <a href="/server/auth/login">Back to Login</a>
+                <a href="/server/auth/login">{{t .server.Lang "oidc_back_to_login_link"}}</a>
             </div>
         </div>
     </div>
     <script>
+    const I18N = {
+        unsupportedBrowser: '{{t .server.Lang "passkey_js_unsupported_browser"}}',
+        failedStart: '{{t .server.Lang "passkey_js_failed_start"}}',
+        touchPrompt: '{{t .server.Lang "passkey_js_touch_prompt"}}',
+        cancelled: '{{t .server.Lang "passkey_js_cancelled"}}',
+        failedVerify: '{{t .server.Lang "passkey_js_failed_verify"}}',
+        successRedirecting: '{{t .server.Lang "passkey_js_success_redirecting"}}',
+        failedGeneric: '{{t .server.Lang "passkey_js_failed_generic"}}'
+    };
+
     function bufferToBase64url(buffer) {
         const bytes = new Uint8Array(buffer);
         let binary = '';
@@ -76,7 +86,7 @@
         const status = document.getElementById('passkeyStatus');
         if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
             status.className = 'alert alert-error';
-            status.textContent = 'This browser does not support passkeys.';
+            status.textContent = I18N.unsupportedBrowser;
             return;
         }
 
@@ -88,15 +98,15 @@
             });
             const challengePayload = await challengeResponse.json();
             if (!challengeResponse.ok || !challengePayload.ok) {
-                throw new Error(challengePayload.error || 'Failed to start passkey authentication');
+                throw new Error(challengePayload.error || I18N.failedStart);
             }
 
-            status.textContent = 'Touch your security key or use your device passkey prompt to continue.';
+            status.textContent = I18N.touchPrompt;
             const credential = await navigator.credentials.get({
                 publicKey: normalizeRequestOptions(challengePayload.options),
             });
             if (!credential) {
-                throw new Error('Passkey authentication was cancelled');
+                throw new Error(I18N.cancelled);
             }
 
             const verifyResponse = await fetch('/api/v1/server/auth/passkey/verify', {
@@ -106,15 +116,15 @@
             });
             const verifyPayload = await verifyResponse.json();
             if (!verifyResponse.ok || !verifyPayload.ok) {
-                throw new Error(verifyPayload.error || 'Failed to verify passkey');
+                throw new Error(verifyPayload.error || I18N.failedVerify);
             }
 
             status.className = 'alert alert-success';
-            status.textContent = 'Authentication successful. Redirecting...';
+            status.textContent = I18N.successRedirecting;
             window.location.href = '/users/dashboard';
         } catch (error) {
             status.className = 'alert alert-error';
-            status.textContent = error.message || 'Passkey authentication failed';
+            status.textContent = error.message || I18N.failedGeneric;
         }
     }
 

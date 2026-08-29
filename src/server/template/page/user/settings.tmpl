@@ -4,58 +4,58 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">Account Settings</h1>
-        <p class="text-comment">Manage your account information and preferences</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings_account_settings_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "profile_subtitle"}}</p>
     </div>
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item active">Account</a>
-        <a href="/users/settings/privacy" class="settings-nav-item">Privacy</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">Notifications</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">Appearance</a>
-        <a href="/users/security" class="settings-nav-item">Security</a>
-        <a href="/users/tokens" class="settings-nav-item">API Tokens</a>
+        <a href="/users/settings" class="settings-nav-item active">{{t .server.Lang "settings_nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings_nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings_nav_api_tokens"}}</a>
     </div>
 
     <!-- Account Settings Form -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">Profile Information</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings_profile_information"}}</h2>
         </div>
         <div class="card-body">
             <form id="accountSettingsForm">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label for="displayName" class="form-label">Display Name</label>
+                    <label for="displayName" class="form-label">{{t .server.Lang "profile_display_name_label"}}</label>
                     <input type="text" id="displayName" class="form-input" value="{{.user.DisplayName}}" placeholder="{{.user.Username}}">
-                    <small class="text-comment">Shown in the navigation bar and on your profile</small>
+                    <small class="text-comment">{{t .server.Lang "settings_display_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="bio" class="form-label">Bio</label>
-                    <textarea id="bio" class="form-input" rows="3" maxlength="500" placeholder="Tell us about yourself">{{.user.Bio}}</textarea>
-                    <small class="text-comment"><span id="bioCount">{{len .user.Bio}}</span>/500 characters</small>
+                    <label for="bio" class="form-label">{{t .server.Lang "settings_bio_label"}}</label>
+                    <textarea id="bio" class="form-input" rows="3" maxlength="500" placeholder="{{t .server.Lang "settings_bio_placeholder"}}">{{.user.Bio}}</textarea>
+                    <small class="text-comment"><span id="bioCount">{{len .user.Bio}}</span>{{t .server.Lang "settings_bio_char_count_suffix"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="location" class="form-label">Location</label>
+                    <label for="location" class="form-label">{{t .server.Lang "settings_location_label"}}</label>
                     <input type="text" id="location" class="form-input" value="{{.user.Location}}" placeholder="San Francisco, CA">
-                    <small class="text-comment">Where you're based (free text)</small>
+                    <small class="text-comment">{{t .server.Lang "settings_location_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="website" class="form-label">Website</label>
+                    <label for="website" class="form-label">{{t .server.Lang "settings_website_label"}}</label>
                     <input type="url" id="website" class="form-input" value="{{.user.Website}}" placeholder="https://example.com">
-                    <small class="text-comment">Your personal website or portfolio</small>
+                    <small class="text-comment">{{t .server.Lang "settings_website_hint"}}</small>
                 </div>
 
                 <hr class="settings-divider">
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="timezone" class="form-label">Timezone</label>
+                        <label for="timezone" class="form-label">{{t .server.Lang "settings_timezone_label"}}</label>
                         <select id="timezone" class="form-input">
                             <option value="UTC" {{if eq .user.Timezone "UTC"}}selected{{end}}>UTC</option>
                             <option value="America/New_York" {{if eq .user.Timezone "America/New_York"}}selected{{end}}>America/New_York (UTC-5)</option>
@@ -72,21 +72,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="language" class="form-label">Language</label>
+                        <label for="language" class="form-label">{{t .server.Lang "settings_language_label"}}</label>
                         <select id="language" class="form-input">
-                            <option value="en" {{if eq .user.Language "en"}}selected{{end}}>English</option>
-                            <option value="es" {{if eq .user.Language "es"}}selected{{end}}>Spanish</option>
-                            <option value="fr" {{if eq .user.Language "fr"}}selected{{end}}>French</option>
-                            <option value="de" {{if eq .user.Language "de"}}selected{{end}}>German</option>
-                            <option value="ja" {{if eq .user.Language "ja"}}selected{{end}}>Japanese</option>
-                            <option value="zh" {{if eq .user.Language "zh"}}selected{{end}}>Chinese</option>
-                            <option value="ar" {{if eq .user.Language "ar"}}selected{{end}}>Arabic</option>
+                            <option value="en" {{if eq .user.Language "en"}}selected{{end}}>{{t .server.Lang "lang_english"}}</option>
+                            <option value="es" {{if eq .user.Language "es"}}selected{{end}}>{{t .server.Lang "lang_spanish"}}</option>
+                            <option value="fr" {{if eq .user.Language "fr"}}selected{{end}}>{{t .server.Lang "lang_french"}}</option>
+                            <option value="de" {{if eq .user.Language "de"}}selected{{end}}>{{t .server.Lang "lang_german"}}</option>
+                            <option value="ja" {{if eq .user.Language "ja"}}selected{{end}}>{{t .server.Lang "lang_japanese"}}</option>
+                            <option value="zh" {{if eq .user.Language "zh"}}selected{{end}}>{{t .server.Lang "lang_chinese"}}</option>
+                            <option value="ar" {{if eq .user.Language "ar"}}selected{{end}}>{{t .server.Lang "lang_arabic"}}</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Date Format</label>
+                    <label class="form-label">{{t .server.Lang "settings_date_format_label"}}</label>
                     <div class="radio-group">
                         <label class="radio-label">
                             <input type="radio" name="dateFormat" value="YYYY-MM-DD" checked>
@@ -104,22 +104,22 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Time Format</label>
+                    <label class="form-label">{{t .server.Lang "settings_time_format_label"}}</label>
                     <div class="radio-group">
                         <label class="radio-label">
                             <input type="radio" name="timeFormat" value="24h" checked>
-                            <span>24-hour (14:30)</span>
+                            <span>{{t .server.Lang "settings_time_format_24h"}} (14:30)</span>
                         </label>
                         <label class="radio-label">
                             <input type="radio" name="timeFormat" value="12h">
-                            <span>12-hour (2:30 PM)</span>
+                            <span>{{t .server.Lang "settings_time_format_12h"}} (2:30 PM)</span>
                         </label>
                     </div>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <button type="button" class="btn btn-secondary" data-action="settings-reset-form">Reset</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile_save_changes"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="settings-reset-form">{{t .server.Lang "profile_reset"}}</button>
                 </div>
             </form>
         </div>

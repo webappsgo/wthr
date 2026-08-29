@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -173,20 +174,25 @@ func (s *AdminInviteService) CleanupExpiredInvites() error {
 func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresAt time.Time) error {
 	minutesRemaining := int(time.Until(expiresAt).Minutes())
 
-	subject := "Admin Invitation - Weather"
-	body := fmt.Sprintf(`You have been invited to become an administrator of the Weather instance at %s.
+	lang := "en"
+	if inst := i18n.GetGlobalI18n(); inst != nil {
+		if defaultLang := inst.GetDefaultLanguage(); defaultLang != "" {
+			lang = defaultLang
+		}
+	}
 
-Click the link below to accept the invitation and create your admin account:
+	appName := translate("app.name", "Weather")
 
-%s
-
-This invitation will expire in %d minutes.
-
-If you did not request this invitation, please ignore this email.
-
----
-Weather
-`, s.BaseURL, inviteURL, minutesRemaining)
+	subject, body, err := RenderEmailTemplate("user_invite", lang, map[string]any{
+		"AppName":          appName,
+		"InviteURL":        inviteURL,
+		"MinutesRemaining": minutesRemaining,
+		"ExpiresAt":        expiresAt.Format(time.RFC1123),
+		"AppURL":           s.BaseURL,
+	})
+	if err != nil {
+		return err
+	}
 
 	return s.EmailService.SendEmail(toEmail, subject, body)
 }

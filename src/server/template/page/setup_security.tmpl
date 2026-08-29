@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">Security Settings</h1>
-                <p class="login-subtitle">Server Setup - Step 4 of 6</p>
+                <h1 class="login-title">{{t .server.Lang "setup_security_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup_security_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,17 +22,17 @@
                     <div class="progress-fill" style="width: 66.67%"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">Admin</span>
-                    <span class="step completed">API Token</span>
-                    <span class="step completed">Server</span>
-                    <span class="step active">Security</span>
-                    <span class="step">Services</span>
-                    <span class="step">Complete</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_server"}}</span>
+                    <span class="step active">{{t .server.Lang "setup_step_security"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>Configure security settings. These can be changed later in the admin panel.</p>
+                <p>{{t .server.Lang "setup_security_intro"}}</p>
             </div>
 
             {{ if .error }}
@@ -43,22 +43,22 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label class="form-label" for="backup_password">Backup Encryption Password</label>
+                    <label class="form-label" for="backup_password">{{t .server.Lang "setup_security_backup_password_label"}}</label>
                     <input type="password"
                            id="backup_password"
                            name="backup_password"
                            class="form-input"
-                           placeholder="Optional but recommended">
-                    <small class="form-hint">Encrypts all backups with AES-256-GCM. Store this password securely!</small>
+                           placeholder="{{t .server.Lang "setup_security_backup_password_placeholder"}}">
+                    <small class="form-hint">{{t .server.Lang "setup_security_backup_password_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="backup_password_confirm">Confirm Backup Password</label>
+                    <label class="form-label" for="backup_password_confirm">{{t .server.Lang "setup_security_confirm_backup_password_label"}}</label>
                     <input type="password"
                            id="backup_password_confirm"
                            name="backup_password_confirm"
                            class="form-input"
-                           placeholder="Confirm password">
+                           placeholder="{{t .server.Lang "reset_password_confirm_password_placeholder"}}">
                 </div>
 
                 <div class="form-group">
@@ -67,21 +67,21 @@
                                id="enable_2fa"
                                name="enable_2fa"
                                value="true">
-                        <span>Enable Two-Factor Authentication (TOTP)</span>
+                        <span>{{t .server.Lang "setup_security_enable_2fa_label"}}</span>
                     </label>
-                    <small class="form-hint">Adds an extra layer of security to your admin account</small>
+                    <small class="form-hint">{{t .server.Lang "setup_security_enable_2fa_hint"}}</small>
                 </div>
 
                 <div id="totp-setup" class="hidden">
                     {{ if .TOTPSecret }}
                     <div class="totp-qr">
-                        <p>Scan this QR code with your authenticator app:</p>
-                        <img src="{{ .TOTPQRCode }}" alt="TOTP QR Code" class="qr-code">
-                        <p>Or enter this secret manually:</p>
+                        <p>{{t .server.Lang "setup_security_scan_qr_instruction"}}</p>
+                        <img src="{{ .TOTPQRCode }}" alt="{{t .server.Lang "setup_security_totp_qr_alt"}}" class="qr-code">
+                        <p>{{t .server.Lang "setup_security_manual_secret_instruction"}}</p>
                         <code class="long-string">{{ .TOTPSecret }}</code>
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="totp_code">Verify TOTP Code</label>
+                        <label class="form-label" for="totp_code">{{t .server.Lang "setup_security_verify_totp_label"}}</label>
                         <input type="text"
                                id="totp_code"
                                name="totp_code"
@@ -89,16 +89,16 @@
                                placeholder="000000"
                                pattern="[0-9]{6}"
                                maxlength="6">
-                        <small class="form-hint">Enter the 6-digit code from your authenticator app</small>
+                        <small class="form-hint">{{t .server.Lang "setup_security_totp_code_hint"}}</small>
                     </div>
                     {{ end }}
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login">Continue to Optional Services</button>
+                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_security_continue_button"}}</button>
             </form>
 
             <div class="setup-skip">
-                <a href="?skip=true" class="text-comment">Skip this step (configure later)</a>
+                <a href="?skip=true" class="text-comment">{{t .server.Lang "setup_security_skip_step"}}</a>
             </div>
         </div>
 
@@ -124,12 +124,12 @@
             var backupConfirm = document.getElementById('backup_password_confirm').value;
             if (backupPwd && backupPwd !== backupConfirm) {
                 e.preventDefault();
-                alert('Backup passwords do not match');
+                alert('{{t .server.Lang "setup_security_password_mismatch_alert"}}');
                 return false;
             }
             var btn = document.getElementById('submit-btn');
             btn.disabled = true;
-            btn.textContent = 'Saving...';
+            btn.textContent = '{{t .server.Lang "setup_security_saving_button"}}';
         });
     </script>
 </body>

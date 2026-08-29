@@ -16,7 +16,7 @@
     <div class="weather-container">
 
         <!-- Location Search Form - Mobile First (matching moon.html) -->
-        <form id="severe-weather-form" class="moon-form" role="form" aria-label="Severe weather alert search">
+        <form id="severe-weather-form" class="moon-form" role="form" aria-label="{{t .server.Lang "severe_weather_form_aria_label"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="moon-form__wrapper">
                 <!-- First row: Location input with type and distance filters to the right -->
@@ -27,39 +27,39 @@
                             id="location-input"
                             name="location"
                             class="location-input moon-form__input"
-                            placeholder="Enter city or coordinates"
+                            placeholder="{{t .server.Lang "severe_weather_location_placeholder"}}"
                             value="{{.LocationName}}"
                             autocomplete="off"
-                            aria-label="Search location"
+                            aria-label="{{t .server.Lang "severe_weather_search_location_aria"}}"
                             aria-autocomplete="list"
                             aria-controls="severe-autocomplete-dropdown"
-                            title="Enter a city name or coordinates to search for severe weather alerts"
+                            title="{{t .server.Lang "severe_weather_location_input_title"}}"
                         >
-                        <div id="severe-autocomplete-dropdown" class="autocomplete-dropdown" role="listbox" aria-label="Location suggestions"></div>
+                        <div id="severe-autocomplete-dropdown" class="autocomplete-dropdown" role="listbox" aria-label="{{t .server.Lang "severe_weather_location_suggestions_aria"}}"></div>
                     </div>
                     <select name="type"
                             id="type-select"
                             class="location-input moon-form__units"
-                            aria-label="Filter by weather alert type"
-                            title="Filter alerts by type - hurricanes, tornadoes, storms, winter weather, or floods">
-                        <option value="all"{{if eq .TypeFilter "all"}} selected{{end}}>All Types</option>
-                        <option value="hurricanes"{{if eq .TypeFilter "hurricanes"}} selected{{end}}>🌀 Hurricanes</option>
-                        <option value="tornadoes"{{if eq .TypeFilter "tornadoes"}} selected{{end}}>🌪️ Tornadoes</option>
-                        <option value="storms"{{if eq .TypeFilter "storms"}} selected{{end}}>⛈️ Storms</option>
-                        <option value="winter"{{if eq .TypeFilter "winter"}} selected{{end}}>❄️ Winter</option>
-                        <option value="floods"{{if eq .TypeFilter "floods"}} selected{{end}}>🌊 Floods</option>
+                            aria-label="{{t .server.Lang "severe_weather_type_filter_aria"}}"
+                            title="{{t .server.Lang "severe_weather_type_filter_title"}}">
+                        <option value="all"{{if eq .TypeFilter "all"}} selected{{end}}>{{t .server.Lang "severe_weather_type_all"}}</option>
+                        <option value="hurricanes"{{if eq .TypeFilter "hurricanes"}} selected{{end}}>🌀 {{t .server.Lang "severe_weather_type_hurricanes"}}</option>
+                        <option value="tornadoes"{{if eq .TypeFilter "tornadoes"}} selected{{end}}>🌪️ {{t .server.Lang "severe_weather_type_tornadoes"}}</option>
+                        <option value="storms"{{if eq .TypeFilter "storms"}} selected{{end}}>⛈️ {{t .server.Lang "severe_weather_type_storms"}}</option>
+                        <option value="winter"{{if eq .TypeFilter "winter"}} selected{{end}}>❄️ {{t .server.Lang "severe_weather_type_winter"}}</option>
+                        <option value="floods"{{if eq .TypeFilter "floods"}} selected{{end}}>🌊 {{t .server.Lang "severe_weather_type_floods"}}</option>
                     </select>
                     <select name="distance"
                             id="distance-select"
                             class="location-input moon-form__units"
-                            aria-label="Filter by distance radius"
-                            title="Search radius around the location - choose how far to search for weather alerts">
-                        <option value="25"{{if eq .DistanceFilter "25"}} selected{{end}}>25 mi</option>
-                        <option value="50"{{if eq .DistanceFilter "50"}} selected{{end}}>50 mi</option>
-                        <option value="100"{{if eq .DistanceFilter "100"}} selected{{end}}>100 mi</option>
-                        <option value="250"{{if eq .DistanceFilter "250"}} selected{{end}}>250 mi</option>
-                        <option value="500"{{if eq .DistanceFilter "500"}} selected{{end}}>500 mi</option>
-                        <option value="0"{{if eq .DistanceFilter "0"}} selected{{end}}>All</option>
+                            aria-label="{{t .server.Lang "severe_weather_distance_filter_aria"}}"
+                            title="{{t .server.Lang "severe_weather_distance_filter_title"}}">
+                        <option value="25"{{if eq .DistanceFilter "25"}} selected{{end}}>25 {{t .server.Lang "severe_weather_distance_unit"}}</option>
+                        <option value="50"{{if eq .DistanceFilter "50"}} selected{{end}}>50 {{t .server.Lang "severe_weather_distance_unit"}}</option>
+                        <option value="100"{{if eq .DistanceFilter "100"}} selected{{end}}>100 {{t .server.Lang "severe_weather_distance_unit"}}</option>
+                        <option value="250"{{if eq .DistanceFilter "250"}} selected{{end}}>250 {{t .server.Lang "severe_weather_distance_unit"}}</option>
+                        <option value="500"{{if eq .DistanceFilter "500"}} selected{{end}}>500 {{t .server.Lang "severe_weather_distance_unit"}}</option>
+                        <option value="0"{{if eq .DistanceFilter "0"}} selected{{end}}>{{t .server.Lang "severe_weather_distance_all"}}</option>
                     </select>
                 </div>
 
@@ -67,16 +67,16 @@
                 <div class="moon-form__row">
                     <button type="submit"
                             class="search-button moon-form__button"
-                            aria-label="Get weather alerts"
-                            title="Search for severe weather alerts with the selected filters">
-                        ⚠️ Get Alerts
+                            aria-label="{{t .server.Lang "severe_weather_get_alerts_aria"}}"
+                            title="{{t .server.Lang "severe_weather_get_alerts_title"}}">
+                        ⚠️ {{t .server.Lang "severe_weather_get_alerts_button"}}
                     </button>
                     <button type="button"
                             id="location-btn"
                             class="search-button moon-form__button--location"
-                            aria-label="Use my current location"
-                            title="Automatically detect and use your current location">
-                        📍 My Location
+                            aria-label="{{t .server.Lang "severe_weather_my_location_aria"}}"
+                            title="{{t .server.Lang "severe_weather_my_location_title"}}">
+                        📍 {{t .server.Lang "severe_weather_my_location_button"}}
                     </button>
                 </div>
             </div>
@@ -101,14 +101,14 @@
                 </div>
                 <div class="weather-details">
                     <div class="temperature">
-                        {{$visibleCount}} Active Alert{{if ne $visibleCount 1}}s{{end}}
+                        {{$visibleCount}} {{if eq $visibleCount 1}}{{t .server.Lang "severe_weather_active_alert_singular"}}{{else}}{{t .server.Lang "severe_weather_active_alert_plural"}}{{end}}
                     </div>
                     <div class="description">
-                        {{if .Data.Hurricanes}}{{len .Data.Hurricanes}}{{else}}0{{end}} hurricane{{if ne (len .Data.Hurricanes) 1}}s{{end}} tracked
+                        {{if .Data.Hurricanes}}{{len .Data.Hurricanes}}{{else}}0{{end}} {{if eq (len .Data.Hurricanes) 1}}{{t .server.Lang "severe_weather_hurricane_tracked_singular"}}{{else}}{{t .server.Lang "severe_weather_hurricane_tracked_plural"}}{{end}}
                     </div>
                     <div class="weather-stats">
-                        <div class="stat">Filter: <span class="stat-value">{{if eq .TypeFilter "all"}}All Types{{else}}{{.TypeFilter}}{{end}}</span></div>
-                        <div class="stat">Distance: <span class="stat-value">{{if eq .DistanceFilter "0"}}All{{else}}{{.DistanceFilter}} mi{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "severe_weather_filter_label"}} <span class="stat-value">{{if eq .TypeFilter "all"}}{{t .server.Lang "severe_weather_type_all"}}{{else}}{{.TypeFilter}}{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "severe_weather_distance_label"}} <span class="stat-value">{{if eq .DistanceFilter "0"}}{{t .server.Lang "severe_weather_distance_all"}}{{else}}{{.DistanceFilter}} {{t .server.Lang "severe_weather_distance_unit"}}{{end}}</span></div>
                     </div>
                 </div>
             </div>
@@ -119,7 +119,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">🌀</span>
-                        <span class="section-title">Hurricanes & Tropical Storms</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_hurricanes"}}</span>
                         <span class="section-count">{{len .Data.Hurricanes}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -141,24 +141,24 @@
                             <div class="storm-category">{{.Intensity}}</div>
                             <div class="storm-details">
                                 <div class="storm-detail">
-                                    <span class="detail-label">Wind Speed:</span>
+                                    <span class="detail-label">{{t .server.Lang "severe_weather_wind_speed_label"}}</span>
                                     <span class="detail-value">{{.WindSpeed}} mph</span>
                                 </div>
                                 <div class="storm-detail">
-                                    <span class="detail-label">Pressure:</span>
+                                    <span class="detail-label">{{t .server.Lang "severe_weather_pressure_label"}}</span>
                                     <span class="detail-value">{{.Pressure}} mb</span>
                                 </div>
                                 <div class="storm-detail">
-                                    <span class="detail-label">Movement:</span>
+                                    <span class="detail-label">{{t .server.Lang "severe_weather_movement_label"}}</span>
                                     <span class="detail-value">{{.Movement}}</span>
                                 </div>
                                 <div class="storm-detail">
-                                    <span class="detail-label">Position:</span>
+                                    <span class="detail-label">{{t .server.Lang "severe_weather_position_label"}}</span>
                                     <span class="detail-value">{{.Position}}</span>
                                 </div>
                             </div>
                             {{if .LastUpdate}}
-                            <div class="storm-update">Last Update: {{.LastUpdate}}</div>
+                            <div class="storm-update">{{t .server.Lang "severe_weather_last_update_label"}} {{.LastUpdate}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -171,7 +171,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">🌪️</span>
-                        <span class="section-title">Tornado Warnings</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_tornadoes"}}</span>
                         <span class="section-count">{{len .Data.TornadoWarnings}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -205,11 +205,11 @@
                                 <div class="alert-description">{{.Description}}</div>
                                 {{if .Instruction}}
                                 <div class="alert-instruction">
-                                    <strong>Instructions:</strong> {{.Instruction}}
+                                    <strong>{{t .server.Lang "severe_weather_instructions_label"}}</strong> {{.Instruction}}
                                 </div>
                                 {{end}}
                             </div>
-                            <div class="alert-expand">▼ Click to expand</div>
+                            <div class="alert-expand">▼ {{t .server.Lang "severe_weather_click_to_expand"}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -222,7 +222,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">⛈️</span>
-                        <span class="section-title">Severe Thunderstorms</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_severe_storms"}}</span>
                         <span class="section-count">{{len .Data.SevereStorms}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -256,11 +256,11 @@
                                 <div class="alert-description">{{.Description}}</div>
                                 {{if .Instruction}}
                                 <div class="alert-instruction">
-                                    <strong>Instructions:</strong> {{.Instruction}}
+                                    <strong>{{t .server.Lang "severe_weather_instructions_label"}}</strong> {{.Instruction}}
                                 </div>
                                 {{end}}
                             </div>
-                            <div class="alert-expand">▼ Click to expand</div>
+                            <div class="alert-expand">▼ {{t .server.Lang "severe_weather_click_to_expand"}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -273,7 +273,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">❄️</span>
-                        <span class="section-title">Winter Weather</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_winter"}}</span>
                         <span class="section-count">{{len .Data.WinterStorms}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -307,11 +307,11 @@
                                 <div class="alert-description">{{.Description}}</div>
                                 {{if .Instruction}}
                                 <div class="alert-instruction">
-                                    <strong>Instructions:</strong> {{.Instruction}}
+                                    <strong>{{t .server.Lang "severe_weather_instructions_label"}}</strong> {{.Instruction}}
                                 </div>
                                 {{end}}
                             </div>
-                            <div class="alert-expand">▼ Click to expand</div>
+                            <div class="alert-expand">▼ {{t .server.Lang "severe_weather_click_to_expand"}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -324,7 +324,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">🌊</span>
-                        <span class="section-title">Flood Warnings</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_floods"}}</span>
                         <span class="section-count">{{len .Data.FloodWarnings}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -358,11 +358,11 @@
                                 <div class="alert-description">{{.Description}}</div>
                                 {{if .Instruction}}
                                 <div class="alert-instruction">
-                                    <strong>Instructions:</strong> {{.Instruction}}
+                                    <strong>{{t .server.Lang "severe_weather_instructions_label"}}</strong> {{.Instruction}}
                                 </div>
                                 {{end}}
                             </div>
-                            <div class="alert-expand">▼ Click to expand</div>
+                            <div class="alert-expand">▼ {{t .server.Lang "severe_weather_click_to_expand"}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -375,7 +375,7 @@
                 <div class="alert-section">
                     <div class="section-header">
                         <span class="section-icon">⚠️</span>
-                        <span class="section-title">Other Alerts</span>
+                        <span class="section-title">{{t .server.Lang "severe_weather_section_other"}}</span>
                         <span class="section-count">{{len .Data.OtherAlerts}}</span>
                     </div>
                     <div class="alerts-grid">
@@ -409,11 +409,11 @@
                                 <div class="alert-description">{{.Description}}</div>
                                 {{if .Instruction}}
                                 <div class="alert-instruction">
-                                    <strong>Instructions:</strong> {{.Instruction}}
+                                    <strong>{{t .server.Lang "severe_weather_instructions_label"}}</strong> {{.Instruction}}
                                 </div>
                                 {{end}}
                             </div>
-                            <div class="alert-expand">▼ Click to expand</div>
+                            <div class="alert-expand">▼ {{t .server.Lang "severe_weather_click_to_expand"}}</div>
                             {{end}}
                         </div>
                         {{end}}
@@ -424,46 +424,46 @@
                 {{/* No alerts message */}}
                 {{if not .Data.Hurricanes}}{{if not .Data.TornadoWarnings}}{{if not .Data.SevereStorms}}{{if not .Data.WinterStorms}}{{if not .Data.FloodWarnings}}{{if not .Data.OtherAlerts}}
                 <div class="welcome-section">
-                    <h2 class="welcome-section__title">✅ No Active Alerts</h2>
-                    <p>No severe weather alerts for your location at this time.</p>
+                    <h2 class="welcome-section__title">✅ {{t .server.Lang "severe_weather_no_alerts_title"}}</h2>
+                    <p>{{t .server.Lang "severe_weather_no_alerts_message"}}</p>
                 </div>
                 {{end}}{{end}}{{end}}{{end}}{{end}}{{end}}
             {{else}}
                 <div class="welcome-section">
-                    <h2 class="welcome-section__title">✅ No Active Alerts</h2>
-                    <p>No severe weather alerts for your location at this time.</p>
+                    <h2 class="welcome-section__title">✅ {{t .server.Lang "severe_weather_no_alerts_title"}}</h2>
+                    <p>{{t .server.Lang "severe_weather_no_alerts_message"}}</p>
                 </div>
             {{end}}
 
             <!-- Console Command Examples -->
             <div class="console-section">
-                <h3 class="console-section__title">Console Access</h3>
+                <h3 class="console-section__title">{{t .server.Lang "severe_weather_console_access_title"}}</h3>
                 <div class="console-commands">
                     <div class="command-item">
-                        <strong class="console-section__label">Severe Weather:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "severe_weather_console_label_severe"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/severe-weather/{{.LocationData.Location.NameEncoded}}">{{t .server.Lang "btn_copy"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">JSON API:</strong>
+                        <strong class="console-section__label">{{t .server.Lang "severe_weather_console_label_json"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}">Copy</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/api/v1/severe-weather?location={{.LocationData.Location.NameEncoded}}">{{t .server.Lang "btn_copy"}}</button>
                         </div>
                     </div>
                 </div>
             </div>
         {{else}}
             <div class="welcome-section">
-                <h2 class="welcome-section__title">⚠️ Severe Weather Alerts</h2>
-                <p>Real-time warnings for hurricanes, tornadoes, severe storms, winter weather, and floods</p>
+                <h2 class="welcome-section__title">⚠️ {{t .server.Lang "severe_weather_welcome_title"}}</h2>
+                <p>{{t .server.Lang "severe_weather_welcome_subtitle"}}</p>
                 <div class="city-links-grid">
-                    <a href="?location=Miami" class="city-link">🌴 Miami</a>
-                    <a href="?location=Houston" class="city-link">🤠 Houston</a>
-                    <a href="?location=New+Orleans" class="city-link">🎺 New Orleans</a>
-                    <a href="?location=Tampa" class="city-link">⚡ Tampa</a>
+                    <a href="?location=Miami" class="city-link">🌴 {{t .server.Lang "severe_weather_city_miami"}}</a>
+                    <a href="?location=Houston" class="city-link">🤠 {{t .server.Lang "severe_weather_city_houston"}}</a>
+                    <a href="?location=New+Orleans" class="city-link">🎺 {{t .server.Lang "severe_weather_city_new_orleans"}}</a>
+                    <a href="?location=Tampa" class="city-link">⚡ {{t .server.Lang "severe_weather_city_tampa"}}</a>
                 </div>
             </div>
         {{end}}
@@ -508,7 +508,7 @@
                 locationBtn.addEventListener('click', async function() {
                     const originalText = this.textContent;
                     this.disabled = true;
-                    this.textContent = '📍 Getting location...';
+                    this.textContent = '📍 {{t .server.Lang "severe_weather_getting_location_button"}}';
 
                     try {
                         const position = await new Promise((resolve, reject) => {
@@ -522,7 +522,7 @@
                         const lon = position.coords.longitude.toFixed(4);
                         locationInput.value = `${lat},${lon}`;
 
-                        this.textContent = '📍 Found!';
+                        this.textContent = '📍 {{t .server.Lang "severe_weather_location_found_button"}}';
                         setTimeout(() => {
                             updateLocation();
                         }, 500);
@@ -533,7 +533,7 @@
                             .then(data => {
                                 if (data.location && data.location.value) {
                                     locationInput.value = data.location.value;
-                                    this.textContent = '📍 Found!';
+                                    this.textContent = '📍 {{t .server.Lang "severe_weather_location_found_button"}}';
                                     setTimeout(() => {
                                         updateLocation();
                                     }, 500);
@@ -544,7 +544,7 @@
                             .catch(() => {
                                 this.textContent = originalText;
                                 this.disabled = false;
-                                showAlert('Unable to detect your location. Please enter it manually.');
+                                showAlert('{{t .server.Lang "severe_weather_location_error_message"}}');
                             });
                     }
                 });

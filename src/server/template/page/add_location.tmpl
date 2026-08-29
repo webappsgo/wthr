@@ -4,8 +4,8 @@
 
     <div class="container">
         <div class="add-location-header">
-            <h1 class="text-purple">Add New Location</h1>
-            <a href="/users/dashboard" class="add-location-back-link">← Back to Dashboard</a>
+            <h1 class="text-purple">{{t .server.Lang "add_location_heading"}}</h1>
+            <a href="/users/dashboard" class="add-location-back-link">← {{t .server.Lang "add_location_back_to_dashboard"}}</a>
         </div>
 
         <div class="card">
@@ -15,80 +15,80 @@
                 <!-- GPS Button -->
                 <button class="btn btn-secondary gps-button"
                         data-action="add-location-use-current"
-                        aria-label="Use my current location"
-                        title="Use your device's GPS to automatically detect your current location">
-                    📍 Use My Current Location
+                        aria-label="{{t .server.Lang "add_location_use_current_aria"}}"
+                        title="{{t .server.Lang "add_location_use_current_title"}}">
+                    📍 {{t .server.Lang "add_location_use_current_label"}}
                 </button>
 
                 <!-- Tabs -->
-                <div class="tabs" id="add-location-tabs" role="tablist" aria-label="Location lookup methods">
+                <div class="tabs" id="add-location-tabs" role="tablist" aria-label="{{t .server.Lang "add_location_tabs_aria"}}">
                     <button class="tab active"
                             data-action="add-location-switch-tab"
                             data-tab="search"
                             role="tab"
-                            aria-label="Search by city name"
+                            aria-label="{{t .server.Lang "add_location_tab_search_aria"}}"
                             aria-selected="true"
-                            title="Search for a location by city name">🔍 Search</button>
+                            title="{{t .server.Lang "add_location_tab_search_title"}}">🔍 {{t .server.Lang "btn_search"}}</button>
                     <button class="tab"
                             data-action="add-location-switch-tab"
                             data-tab="zip"
                             role="tab"
-                            aria-label="Search by ZIP or postal code"
+                            aria-label="{{t .server.Lang "add_location_tab_zip_aria"}}"
                             aria-selected="false"
-                            title="Look up a location using ZIP or postal code">📮 ZIP Code</button>
+                            title="{{t .server.Lang "add_location_tab_zip_title"}}">📮 {{t .server.Lang "add_location_tab_zip_label"}}</button>
                     <button class="tab"
                             data-action="add-location-switch-tab"
                             data-tab="coords"
                             role="tab"
-                            aria-label="Search by coordinates"
+                            aria-label="{{t .server.Lang "add_location_tab_coords_aria"}}"
                             aria-selected="false"
-                            title="Enter exact latitude and longitude coordinates">🗺️ Coordinates</button>
+                            title="{{t .server.Lang "add_location_tab_coords_title"}}">🗺️ {{t .server.Lang "add_location_tab_coords_label"}}</button>
                 </div>
 
                 <!-- Search Tab -->
                 <div id="search-tab" class="tab-content active" role="tabpanel" aria-labelledby="search-tab-button">
                     <div class="form-group">
-                        <label class="form-label" for="citySearch">Search for a City</label>
+                        <label class="form-label" for="citySearch">{{t .server.Lang "add_location_search_city_label"}}</label>
                         <input type="text"
                                id="citySearch"
                                class="form-input"
-                               placeholder="e.g., New York, London, Tokyo..."
-                               aria-label="Search for a city"
+                               placeholder="{{t .server.Lang "add_location_search_city_placeholder"}}"
+                               aria-label="{{t .server.Lang "add_location_search_city_aria"}}"
                                aria-describedby="citySearch-help"
                                aria-autocomplete="list"
                                aria-controls="searchResults"
-                               title="Start typing a city name to search for locations worldwide">
-                        <p class="form-help" id="citySearch-help">Start typing to search for cities worldwide</p>
+                               title="{{t .server.Lang "add_location_search_city_title"}}">
+                        <p class="form-help" id="citySearch-help">{{t .server.Lang "add_location_search_city_help"}}</p>
                     </div>
 
                     <div class="search-results">
-                        <div id="searchResults" class="results-dropdown" role="listbox" aria-label="Search results"></div>
+                        <div id="searchResults" class="results-dropdown" role="listbox" aria-label="{{t .server.Lang "add_location_search_results_aria"}}"></div>
                     </div>
                 </div>
 
                 <!-- ZIP Code Tab -->
                 <div id="zip-tab" class="tab-content" role="tabpanel" aria-labelledby="zip-tab-button">
                     <div class="form-group">
-                        <label class="form-label" for="zipCode">ZIP / Postal Code</label>
+                        <label class="form-label" for="zipCode">{{t .server.Lang "add_location_zip_label"}}</label>
                         <input type="text"
                                id="zipCode"
                                class="form-input"
-                               placeholder="e.g., 10001, SW1A 1AA, 75001"
-                               aria-label="ZIP or postal code"
+                               placeholder="{{t .server.Lang "add_location_zip_placeholder"}}"
+                               aria-label="{{t .server.Lang "add_location_zip_aria"}}"
                                aria-describedby="zipCode-help"
-                               title="Enter a US ZIP code or international postal code to find the location">
-                        <p class="form-help" id="zipCode-help">Enter a US ZIP code or international postal code</p>
+                               title="{{t .server.Lang "add_location_zip_title"}}">
+                        <p class="form-help" id="zipCode-help">{{t .server.Lang "add_location_zip_help"}}</p>
                     </div>
                     <button class="btn btn-primary"
                             data-action="add-location-lookup-zip"
-                            aria-label="Look up location by ZIP code"
-                            title="Search for the location using the ZIP or postal code entered">Look Up Location</button>
+                            aria-label="{{t .server.Lang "add_location_lookup_zip_aria"}}"
+                            title="{{t .server.Lang "add_location_lookup_zip_title"}}">{{t .server.Lang "add_location_look_up"}}</button>
                 </div>
 
                 <!-- Coordinates Tab -->
                 <div id="coords-tab" class="tab-content" role="tabpanel" aria-labelledby="coords-tab-button">
                     <div class="form-group">
-                        <label class="form-label" for="manualLat">Latitude</label>
+                        <label class="form-label" for="manualLat">{{t .server.Lang "add_location_latitude_label"}}</label>
                         <input type="number"
                                id="manualLat"
                                class="form-input"
@@ -96,14 +96,14 @@
                                min="-90"
                                max="90"
                                placeholder="40.7128"
-                               aria-label="Latitude coordinate"
+                               aria-label="{{t .server.Lang "add_location_latitude_aria"}}"
                                aria-describedby="manualLat-help"
-                               title="Enter latitude coordinate (between -90 and 90 degrees) - positive for North, negative for South">
-                        <p class="form-help" id="manualLat-help">Between -90 and 90</p>
+                               title="{{t .server.Lang "add_location_latitude_title"}}">
+                        <p class="form-help" id="manualLat-help">{{t .server.Lang "add_location_latitude_help"}}</p>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="manualLon">Longitude</label>
+                        <label class="form-label" for="manualLon">{{t .server.Lang "add_location_longitude_label"}}</label>
                         <input type="number"
                                id="manualLon"
                                class="form-input"
@@ -111,56 +111,56 @@
                                min="-180"
                                max="180"
                                placeholder="-74.0060"
-                               aria-label="Longitude coordinate"
+                               aria-label="{{t .server.Lang "add_location_longitude_aria"}}"
                                aria-describedby="manualLon-help"
-                               title="Enter longitude coordinate (between -180 and 180 degrees) - positive for East, negative for West">
-                        <p class="form-help" id="manualLon-help">Between -180 and 180</p>
+                               title="{{t .server.Lang "add_location_longitude_title"}}">
+                        <p class="form-help" id="manualLon-help">{{t .server.Lang "add_location_longitude_help"}}</p>
                     </div>
                     <button class="btn btn-primary"
                             data-action="add-location-lookup-coords"
-                            aria-label="Look up location by coordinates"
-                            title="Search for the location using the coordinates entered">Look Up Location</button>
+                            aria-label="{{t .server.Lang "add_location_lookup_coords_aria"}}"
+                            title="{{t .server.Lang "add_location_lookup_coords_title"}}">{{t .server.Lang "add_location_look_up"}}</button>
                 </div>
 
                 <!-- Location Form (shown after selection) -->
-                <form id="locationForm" class="add-location-form-hidden" role="form" aria-label="Confirm and save location">
+                <form id="locationForm" class="add-location-form-hidden" role="form" aria-label="{{t .server.Lang "add_location_confirm_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-                    <h3 class="text-cyan add-location-form-title">Confirm Location Details</h3>
+                    <h3 class="text-cyan add-location-form-title">{{t .server.Lang "add_location_confirm_heading"}}</h3>
 
                     <div class="form-group">
-                        <label class="form-label" for="name">Location Name</label>
+                        <label class="form-label" for="name">{{t .server.Lang "add_location_name_label"}}</label>
                         <input type="text"
                                id="name"
                                class="form-input"
                                required
-                               placeholder="e.g., Home, Office"
-                               aria-label="Location name"
+                               placeholder="{{t .server.Lang "add_location_name_placeholder"}}"
+                               aria-label="{{t .server.Lang "add_location_name_aria"}}"
                                aria-required="true"
                                aria-describedby="name-help"
-                               title="Give this location a memorable name like 'Home', 'Office', or 'Vacation Spot'">
-                        <p class="form-help" id="name-help">Give this location a memorable name</p>
+                               title="{{t .server.Lang "add_location_name_title"}}">
+                        <p class="form-help" id="name-help">{{t .server.Lang "add_location_name_help"}}</p>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="displayCity">City</label>
+                        <label class="form-label" for="displayCity">{{t .server.Lang "add_location_city_label"}}</label>
                         <input type="text"
                                id="displayCity"
                                class="form-input"
                                readonly
-                               aria-label="City and country"
+                               aria-label="{{t .server.Lang "add_location_city_aria"}}"
                                aria-readonly="true"
-                               title="City and country for the selected location">
+                               title="{{t .server.Lang "add_location_city_title"}}">
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="displayCoords">Coordinates</label>
+                        <label class="form-label" for="displayCoords">{{t .server.Lang "add_location_coordinates_label"}}</label>
                         <input type="text"
                                id="displayCoords"
                                class="form-input"
                                readonly
-                               aria-label="Latitude and longitude coordinates"
+                               aria-label="{{t .server.Lang "add_location_coordinates_aria"}}"
                                aria-readonly="true"
-                               title="Latitude and longitude coordinates for the selected location">
+                               title="{{t .server.Lang "add_location_coordinates_title"}}">
                     </div>
 
                     <input type="hidden" id="latitude" name="latitude" aria-hidden="true">
@@ -170,19 +170,19 @@
                     <div class="flex gap-md add-location-form-actions">
                         <button type="submit"
                                 class="btn btn-primary"
-                                aria-label="Save location"
-                                title="Save this location to your dashboard">💾 Save Location</button>
+                                aria-label="{{t .server.Lang "add_location_save_aria"}}"
+                                title="{{t .server.Lang "add_location_save_title"}}">💾 {{t .server.Lang "add_location_save_label"}}</button>
                         <button type="button"
                                 class="btn btn-secondary"
                                 data-action="add-location-reset"
-                                aria-label="Start over"
-                                title="Clear the form and search for a different location">🔄 Start Over</button>
+                                aria-label="{{t .server.Lang "add_location_start_over_aria"}}"
+                                title="{{t .server.Lang "add_location_start_over_title"}}">🔄 {{t .server.Lang "add_location_start_over_label"}}</button>
                         <button type="button"
                                 class="btn btn-ghost"
                                 data-action="navigate"
                                 data-href="/users/dashboard"
-                                aria-label="Cancel"
-                                title="Cancel and return to dashboard without saving">Cancel</button>
+                                aria-label="{{t .server.Lang "action.cancel"}}"
+                                title="{{t .server.Lang "add_location_cancel_title"}}">{{t .server.Lang "action.cancel"}}</button>
                     </div>
                 </form>
             </div>

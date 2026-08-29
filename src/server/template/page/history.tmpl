@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} - Historical Weather Data</title>
+    <title>{{.Title}} - {{t .server.Lang "history_page_title_suffix"}}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
@@ -14,12 +14,12 @@
     {{template "navbar" .}}
 
     <div class="history-container">
-        <h1>📊 Historical Weather Data</h1>
-        <p>Explore weather patterns for any day across multiple years. Compare temperatures, precipitation, and more.</p>
+        <h1>📊 {{t .server.Lang "history_page_heading"}}</h1>
+        <p>{{t .server.Lang "history_page_intro"}}</p>
 
         {{if .Error}}
             <div class="error-box" role="alert" aria-live="polite">
-                <strong>Error:</strong> {{.Error}}
+                <strong>{{t .server.Lang "index_error_label"}}:</strong> {{.Error}}
             </div>
         {{end}}
 
@@ -30,12 +30,12 @@
         {{end}}
 
         <!-- Search Form -->
-        <form class="history-form" method="GET" action="/history" role="form" aria-label="Historical weather search form">
+        <form class="history-form" method="GET" action="/history" role="form" aria-label="{{t .server.Lang "history_search_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-row">
                 <div class="form-group">
                     <label for="location">
-                        📍 Location
+                        📍 {{t .server.Lang "label_location"}}
                         <span aria-hidden="true">*</span>
                     </label>
                     <input
@@ -43,20 +43,20 @@
                         id="location"
                         name="location"
                         value="{{.Location}}"
-                        placeholder="Enter city, coordinates, or zipcode"
+                        placeholder="{{t .server.Lang "history_location_placeholder"}}"
                         required
                         aria-required="true"
                         aria-describedby="location-help"
                         autocomplete="off"
                     >
                     <small id="location-help">
-                        Examples: "New York", "40.7128,-74.0060", or "10001"
+                        {{t .server.Lang "history_location_help"}}
                     </small>
                 </div>
 
                 <div class="form-group">
                     <label for="date">
-                        📅 Date
+                        📅 {{t .server.Lang "history_date_label"}}
                         <span aria-hidden="true">*</span>
                     </label>
                     <input
@@ -64,21 +64,20 @@
                         id="date"
                         name="date"
                         value="{{.Date}}"
-                        placeholder="MM/DD or MM/DD/YYYY"
+                        placeholder="{{t .server.Lang "history_date_placeholder"}}"
                         required
                         aria-required="true"
                         aria-describedby="date-help"
                         pattern="^(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])(/\d{4})?$"
-                        title="Enter date in MM/DD or MM/DD/YYYY format"
-                    >
+                        title="{{t .server.Lang "history_date_title"}}">
                     <small id="date-help">
-                        Enter month/day (e.g., "12/10") or full date (e.g., "12/10/2020"). If no year is provided, we'll start from {{.StartYear}}.
+                        {{t .server.Lang "history_date_help"}} {{.StartYear}}.
                     </small>
                 </div>
 
                 <div class="form-group">
                     <label for="years">
-                        🔢 Number of Years
+                        🔢 {{t .server.Lang "history_years_label"}}
                     </label>
                     <input
                         type="number"
@@ -93,101 +92,101 @@
                         aria-valuenow="{{.DefaultYears}}"
                     >
                     <small id="years-help">
-                        How many years to display ({{.MinYears}}-{{.MaxYears}}). Default: {{.DefaultYears}}
+                        {{t .server.Lang "history_years_help"}} ({{.MinYears}}-{{.MaxYears}}). {{t .server.Lang "history_default_label"}}: {{.DefaultYears}}
                     </small>
                 </div>
             </div>
 
-            <button type="submit" class="submit-button" aria-label="Search historical weather data">
-                🔍 Search Historical Weather
+            <button type="submit" class="submit-button" aria-label="{{t .server.Lang "history_search_button_aria"}}">
+                🔍 {{t .server.Lang "history_search_button"}}
             </button>
         </form>
 
         {{if .Historical}}
             <!-- Statistics Summary -->
             <div class="stats-summary" role="region" aria-labelledby="stats-heading">
-                <h2 id="stats-heading">📈 Statistics for {{.Historical.Date}}</h2>
-                <p>Showing data for {{.Historical.TotalYears}} years ({{(index .Historical.Years (sub (len .Historical.Years) 1)).Year}} - {{(index .Historical.Years 0).Year}})</p>
+                <h2 id="stats-heading">📈 {{t .server.Lang "history_stats_heading"}} {{.Historical.Date}}</h2>
+                <p>{{t .server.Lang "history_stats_showing_data"}} {{.Historical.TotalYears}} {{t .server.Lang "history_years_word"}} ({{(index .Historical.Years (sub (len .Historical.Years) 1)).Year}} - {{(index .Historical.Years 0).Year}})</p>
 
                 <div class="stats-grid">
                     <div class="stat-card" role="article" aria-labelledby="warmest-year-label">
-                        <h3 id="warmest-year-label">Warmest Year</h3>
+                        <h3 id="warmest-year-label">{{t .server.Lang "history_warmest_year_label"}}</h3>
                         <div class="value">{{.Historical.Stats.WarmestYear}}</div>
                         <div class="label">{{printf "%.1f" .Historical.Stats.MaxTempEver}}°</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="coldest-year-label">
-                        <h3 id="coldest-year-label">Coldest Year</h3>
+                        <h3 id="coldest-year-label">{{t .server.Lang "history_coldest_year_label"}}</h3>
                         <div class="value">{{.Historical.Stats.ColdestYear}}</div>
                         <div class="label">{{printf "%.1f" .Historical.Stats.MinTempEver}}°</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="wettest-year-label">
-                        <h3 id="wettest-year-label">Wettest Year</h3>
+                        <h3 id="wettest-year-label">{{t .server.Lang "history_wettest_year_label"}}</h3>
                         <div class="value">{{.Historical.Stats.WettestYear}}</div>
                         <div class="label">{{printf "%.1f" .Historical.Stats.MaxPrecipitation}} mm</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="driest-year-label">
-                        <h3 id="driest-year-label">Driest Year</h3>
+                        <h3 id="driest-year-label">{{t .server.Lang "history_driest_year_label"}}</h3>
                         <div class="value">{{.Historical.Stats.DriestYear}}</div>
-                        <div class="label">No rain</div>
+                        <div class="label">{{t .server.Lang "history_no_rain_label"}}</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="avg-high-label">
-                        <h3 id="avg-high-label">Average High</h3>
+                        <h3 id="avg-high-label">{{t .server.Lang "history_avg_high_label"}}</h3>
                         <div class="value">{{printf "%.1f" .Historical.Stats.AvgTempMax}}°</div>
-                        <div class="label">Across all years</div>
+                        <div class="label">{{t .server.Lang "history_across_all_years_label"}}</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="avg-low-label">
-                        <h3 id="avg-low-label">Average Low</h3>
+                        <h3 id="avg-low-label">{{t .server.Lang "history_avg_low_label"}}</h3>
                         <div class="value">{{printf "%.1f" .Historical.Stats.AvgTempMin}}°</div>
-                        <div class="label">Across all years</div>
+                        <div class="label">{{t .server.Lang "history_across_all_years_label"}}</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="avg-precip-label">
-                        <h3 id="avg-precip-label">Average Precipitation</h3>
+                        <h3 id="avg-precip-label">{{t .server.Lang "history_avg_precip_label"}}</h3>
                         <div class="value">{{printf "%.1f" .Historical.Stats.AvgPrecipitation}}</div>
-                        <div class="label">mm per year</div>
+                        <div class="label">{{t .server.Lang "history_mm_per_year_label"}}</div>
                     </div>
 
                     <div class="stat-card" role="article" aria-labelledby="total-years-label">
-                        <h3 id="total-years-label">Total Years</h3>
+                        <h3 id="total-years-label">{{t .server.Lang "history_total_years_label"}}</h3>
                         <div class="value">{{.Historical.Stats.TotalYears}}</div>
-                        <div class="label">Data points</div>
+                        <div class="label">{{t .server.Lang "history_data_points_label"}}</div>
                     </div>
                 </div>
             </div>
 
             <!-- Year-by-Year Data Table -->
             <div role="region" aria-labelledby="yearly-data-heading">
-                <h2 id="yearly-data-heading">📋 Year-by-Year Data</h2>
-                <table class="year-data-table" role="table" aria-label="Historical weather data by year">
+                <h2 id="yearly-data-heading">📋 {{t .server.Lang "history_yearly_data_heading"}}</h2>
+                <table class="year-data-table" role="table" aria-label="{{t .server.Lang "history_yearly_data_table_aria"}}">
                     <thead>
                         <tr role="row">
-                            <th role="columnheader" scope="col">Year</th>
-                            <th role="columnheader" scope="col">Date</th>
-                            <th role="columnheader" scope="col">High</th>
-                            <th role="columnheader" scope="col">Low</th>
-                            <th role="columnheader" scope="col">Avg</th>
-                            <th role="columnheader" scope="col">Precipitation</th>
-                            <th role="columnheader" scope="col">Wind</th>
-                            <th role="columnheader" scope="col">Humidity</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "history_th_year"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "index_th_date"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "history_th_high"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "history_th_low"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "history_th_avg"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "index_th_precipitation"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "index_th_wind"}}</th>
+                            <th role="columnheader" scope="col">{{t .server.Lang "history_th_humidity"}}</th>
                         </tr>
                     </thead>
                     <tbody>
                     {{range $index, $year := .Historical.Years}}
                         <tr role="row"
-                            {{if eq $year.Year $.Historical.Stats.WarmestYear}}class="warmest-year" aria-label="Warmest year"{{end}}
-                            {{if eq $year.Year $.Historical.Stats.ColdestYear}}class="coldest-year" aria-label="Coldest year"{{end}}
-                            {{if eq $year.Year $.Historical.Stats.WettestYear}}class="wettest-year" aria-label="Wettest year"{{end}}
+                            {{if eq $year.Year $.Historical.Stats.WarmestYear}}class="warmest-year" aria-label="{{t $.server.Lang "history_warmest_year_aria"}}"{{end}}
+                            {{if eq $year.Year $.Historical.Stats.ColdestYear}}class="coldest-year" aria-label="{{t $.server.Lang "history_coldest_year_aria"}}"{{end}}
+                            {{if eq $year.Year $.Historical.Stats.WettestYear}}class="wettest-year" aria-label="{{t $.server.Lang "history_wettest_year_aria"}}"{{end}}
                         >
                             <td role="cell">
                                 <strong>{{$year.Year}}</strong>
-                                {{if eq $year.Year $.Historical.Stats.WarmestYear}}<span aria-label="Warmest">🔥</span>{{end}}
-                                {{if eq $year.Year $.Historical.Stats.ColdestYear}}<span aria-label="Coldest">❄️</span>{{end}}
-                                {{if eq $year.Year $.Historical.Stats.WettestYear}}<span aria-label="Wettest">💧</span>{{end}}
+                                {{if eq $year.Year $.Historical.Stats.WarmestYear}}<span aria-label="{{t $.server.Lang "history_warmest_label"}}">🔥</span>{{end}}
+                                {{if eq $year.Year $.Historical.Stats.ColdestYear}}<span aria-label="{{t $.server.Lang "history_coldest_label"}}">❄️</span>{{end}}
+                                {{if eq $year.Year $.Historical.Stats.WettestYear}}<span aria-label="{{t $.server.Lang "history_wettest_label"}}">💧</span>{{end}}
                             </td>
                             <td role="cell">{{$year.Date}}</td>
                             <td role="cell">{{printf "%.1f" $year.TempMax}}°</td>
@@ -204,8 +203,8 @@
         {{else}}
             <div class="empty-state">
                 <p class="empty-state-icon">📊</p>
-                <p>Enter a location and date above to view historical weather data.</p>
-                <p class="empty-state-text">Available data from 1940 to present</p>
+                <p>{{t .server.Lang "history_empty_state_message"}}</p>
+                <p class="empty-state-text">{{t .server.Lang "history_empty_state_availability"}}</p>
             </div>
         {{end}}
     </div>

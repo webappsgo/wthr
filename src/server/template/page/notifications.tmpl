@@ -5,10 +5,10 @@
     <div class="notifications-container">
         <div class="top-actions">
             <div class="filter-tabs">
-                <button class="filter-tab active" data-filter="all">All</button>
-                <button class="filter-tab" data-filter="unread">Unread</button>
+                <button class="filter-tab active" data-filter="all">{{t .server.Lang "notifications_filter_all"}}</button>
+                <button class="filter-tab" data-filter="unread">{{t .server.Lang "notifications_filter_unread"}}</button>
             </div>
-            <button id="mark-all-read" class="btn btn-secondary btn-sm">✅ Mark All as Read</button>
+            <button id="mark-all-read" class="btn btn-secondary btn-sm">✅ {{t .server.Lang "notifications_mark_all_read"}}</button>
         </div>
 
         <div id="notifications-list"></div>

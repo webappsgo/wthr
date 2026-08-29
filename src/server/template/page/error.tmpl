@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - {{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</title>
+    <title>{{ if .server }}{{t .server.Lang "error_page_title_prefix"}}{{ else }}Error{{ end }} - {{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</title>
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
@@ -11,17 +11,17 @@
 <body>
     <div class="error-container">
         <div class="error-icon">⚠️</div>
-        <h1 class="error-title">Oops! Something went wrong</h1>
+        <h1 class="error-title">{{t .server.Lang "error_title"}}</h1>
         <div class="error-message">
             {{ if .error }}
                 {{ .error }}
             {{ else }}
-                An unexpected error occurred. Please try again.
+                {{t .server.Lang "error_unexpected"}}
             {{ end }}
         </div>
         <div class="error-actions">
-            <a href="javascript:history.back()" class="btn btn-secondary">Go Back</a>
-            <a href="/" class="btn btn-primary">Go Home</a>
+            <a href="javascript:history.back()" class="btn btn-secondary">{{t .server.Lang "error_go_back"}}</a>
+            <a href="/" class="btn btn-primary">{{t .server.Lang "error_go_home"}}</a>
         </div>
     </div>
 </body>

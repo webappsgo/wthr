@@ -293,18 +293,14 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 		smtpService := GetSMTPService(r)
 		if smtpService != nil {
 			// SMTP available - send email
-			emailBody := fmt.Sprintf(`Contact Form Submission
-
-From: %s <%s>
-Subject: %s
-
-Message:
-%s
-
----
-IP: %s
-User Agent: %s
-Time: %s`, form.Name, form.Email, form.Subject, form.Message, util.TrustedGetClientIP(r), r.UserAgent(), time.Now().Format("2006-01-02 15:04:05"))
+			emailBody := fmt.Sprintf("%s\n\n%s: %s <%s>\n%s: %s\n\n%s:\n%s\n\n---\n%s: %s\n%s: %s\n%s: %s",
+				Translate(r, "email.contact_notification.title"),
+				Translate(r, "email.contact_notification.label_from"), form.Name, form.Email,
+				Translate(r, "email.contact_notification.label_subject"), form.Subject,
+				Translate(r, "email.contact_notification.label_message"), form.Message,
+				Translate(r, "email.contact_notification.label_ip"), util.TrustedGetClientIP(r),
+				Translate(r, "email.contact_notification.label_user_agent"), r.UserAgent(),
+				Translate(r, "email.contact_notification.label_time"), time.Now().Format("2006-01-02 15:04:05"))
 
 			adminEmail := ""
 			if cfg != nil {
@@ -319,7 +315,7 @@ Time: %s`, form.Name, form.Email, form.Subject, form.Message, util.TrustedGetCli
 				return
 			}
 
-			err := smtpService.SendEmail(adminEmail, fmt.Sprintf("Contact: %s", form.Subject), emailBody)
+			err := smtpService.SendEmail(adminEmail, Translate(r, "email.contact_notification.subject_prefix")+form.Subject, emailBody)
 			if err != nil {
 				// Email failed - save to database as fallback
 				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {

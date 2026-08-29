@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">Server Configuration</h1>
-                <p class="login-subtitle">Server Setup - Step 3 of 6</p>
+                <h1 class="login-title">{{t .server.Lang "setup_server_config_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup_server_config_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,17 +22,17 @@
                     <div class="progress-fill" style="width: 50%"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">Admin</span>
-                    <span class="step completed">API Token</span>
-                    <span class="step active">Server</span>
-                    <span class="step">Security</span>
-                    <span class="step">Services</span>
-                    <span class="step">Complete</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
+                    <span class="step active">{{t .server.Lang "setup_step_server"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_security"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>Configure basic server settings. These can be changed later.</p>
+                <p>{{t .server.Lang "setup_server_config_intro"}}</p>
             </div>
 
             {{ if .error }}
@@ -43,7 +43,7 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label class="form-label" for="app_name">Application Name</label>
+                    <label class="form-label" for="app_name">{{t .server.Lang "setup_server_config_app_name_label"}}</label>
                     <input type="text"
                            id="app_name"
                            name="app_name"
@@ -51,37 +51,37 @@
                            value="{{ .DefaultAppName }}"
                            required
                            placeholder="Weather">
-                    <small class="form-hint">Display name for your server</small>
+                    <small class="form-hint">{{t .server.Lang "setup_server_config_app_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="domain">Domain / FQDN</label>
+                    <label class="form-label" for="domain">{{t .server.Lang "setup_server_config_domain_label"}}</label>
                     <input type="text"
                            id="domain"
                            name="domain"
                            class="form-input"
                            value="{{ .DefaultDomain }}"
                            placeholder="weather.example.com">
-                    <small class="form-hint">Primary domain (leave empty if unknown)</small>
+                    <small class="form-hint">{{t .server.Lang "setup_server_config_domain_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="mode">Application Mode</label>
+                    <label class="form-label" for="mode">{{t .server.Lang "setup_server_config_mode_label"}}</label>
                     <select id="mode" name="mode" class="form-input">
-                        <option value="production" {{ if eq .DefaultMode "production" }}selected{{ end }}>Production</option>
-                        <option value="development" {{ if eq .DefaultMode "development" }}selected{{ end }}>Development</option>
+                        <option value="production" {{ if eq .DefaultMode "production" }}selected{{ end }}>{{t .server.Lang "setup_server_config_mode_production"}}</option>
+                        <option value="development" {{ if eq .DefaultMode "development" }}selected{{ end }}>{{t .server.Lang "setup_server_config_mode_development"}}</option>
                     </select>
-                    <small class="form-hint">Production mode disables debug endpoints</small>
+                    <small class="form-hint">{{t .server.Lang "setup_server_config_mode_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="timezone">Server Timezone</label>
+                    <label class="form-label" for="timezone">{{t .server.Lang "setup_server_config_timezone_label"}}</label>
                     <select id="timezone" name="timezone" class="form-input">
                         <option value="UTC" {{ if eq .DefaultTimezone "UTC" }}selected{{ end }}>UTC</option>
-                        <option value="America/New_York" {{ if eq .DefaultTimezone "America/New_York" }}selected{{ end }}>America/New_York (Eastern)</option>
-                        <option value="America/Chicago" {{ if eq .DefaultTimezone "America/Chicago" }}selected{{ end }}>America/Chicago (Central)</option>
-                        <option value="America/Denver" {{ if eq .DefaultTimezone "America/Denver" }}selected{{ end }}>America/Denver (Mountain)</option>
-                        <option value="America/Los_Angeles" {{ if eq .DefaultTimezone "America/Los_Angeles" }}selected{{ end }}>America/Los_Angeles (Pacific)</option>
+                        <option value="America/New_York" {{ if eq .DefaultTimezone "America/New_York" }}selected{{ end }}>America/New_York ({{t .server.Lang "tz_eastern"}})</option>
+                        <option value="America/Chicago" {{ if eq .DefaultTimezone "America/Chicago" }}selected{{ end }}>America/Chicago ({{t .server.Lang "tz_central"}})</option>
+                        <option value="America/Denver" {{ if eq .DefaultTimezone "America/Denver" }}selected{{ end }}>America/Denver ({{t .server.Lang "tz_mountain"}})</option>
+                        <option value="America/Los_Angeles" {{ if eq .DefaultTimezone "America/Los_Angeles" }}selected{{ end }}>America/Los_Angeles ({{t .server.Lang "tz_pacific"}})</option>
                         <option value="Europe/London" {{ if eq .DefaultTimezone "Europe/London" }}selected{{ end }}>Europe/London</option>
                         <option value="Europe/Paris" {{ if eq .DefaultTimezone "Europe/Paris" }}selected{{ end }}>Europe/Paris</option>
                         <option value="Asia/Tokyo" {{ if eq .DefaultTimezone "Asia/Tokyo" }}selected{{ end }}>Asia/Tokyo</option>
@@ -89,11 +89,11 @@
                     </select>
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login">Continue to Security Settings</button>
+                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_server_config_continue_button"}}</button>
             </form>
 
             <div class="setup-skip">
-                <a href="?skip=true" class="text-comment">Skip this step (use defaults)</a>
+                <a href="?skip=true" class="text-comment">{{t .server.Lang "setup_security_skip_step"}}</a>
             </div>
         </div>
 
@@ -108,7 +108,7 @@
         document.getElementById('server-form').addEventListener('submit', function(e) {
             var btn = document.getElementById('submit-btn');
             btn.disabled = true;
-            btn.textContent = 'Saving...';
+            btn.textContent = '{{t .server.Lang "setup_security_saving_button"}}';
         });
     </script>
 </body>

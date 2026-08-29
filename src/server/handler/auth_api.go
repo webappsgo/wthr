@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -558,15 +559,21 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		}
 
 		var user struct {
-			ID    int64
-			Email string
+			ID       int64
+			Email    string
+			Language sql.NullString
 		}
 
 		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-			SELECT id, email FROM user_accounts WHERE email = ? AND is_active = 1
-		`, emailAddress).Scan(&user.ID, &user.Email)
+			SELECT id, email, language FROM user_accounts WHERE email = ? AND is_active = 1
+		`, emailAddress).Scan(&user.ID, &user.Email, &user.Language)
 		if err != nil {
 			return
+		}
+
+		userLang := user.Language.String
+		if userLang == "" {
+			userLang = "en"
 		}
 
 		token, err := models.GenerateSecureToken(32)
@@ -604,21 +611,21 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		// database and silently find no SMTP settings at all.
 		smtpService := service.NewSMTPService(database.GetServerDB())
 		if err := smtpService.LoadConfig(); err == nil {
-			subject := "Password Reset Request"
-			body := fmt.Sprintf(`
-<html>
-<body>
-	<h2>Password Reset Request</h2>
-	<p>You requested a password reset for your account.</p>
-	<p>Click the link below to reset your password (expires in 1 hour):</p>
-	<p><a href="%s">%s</a></p>
-	<p>If you did not request this reset, please ignore this email.</p>
-	<p><em>Sent at %s</em></p>
-</body>
-</html>
-			`, resetURL, resetURL, time.Now().Format(time.RFC1123))
-
-			_ = smtpService.SendEmail(user.Email, subject, body)
+			appName := "Weather"
+			if inst := i18n.GetGlobalI18n(); inst != nil {
+				if translated := inst.T(userLang, "app.name"); translated != "app.name" {
+					appName = translated
+				}
+			}
+			subject, body, renderErr := service.RenderEmailTemplate("password_reset", userLang, map[string]any{
+				"AppName":          appName,
+				"ResetLink":        resetURL,
+				"ResetExpiryHours": "1",
+				"AppURL":           baseURL,
+			})
+			if renderErr == nil {
+				_ = smtpService.SendEmail(user.Email, subject, body)
+			}
 		}
 	}(email, clientIP, fullHost)
 
