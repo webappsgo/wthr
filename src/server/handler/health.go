@@ -33,6 +33,10 @@ var (
 	// TorStatusGetter interface for getting Tor service status
 	torStatusGetter TorStatusProvider
 	torMutex        sync.RWMutex
+
+	// I2PStatusGetter interface for getting I2P eepsite status (AI.md PART 32.2)
+	i2pStatusGetter I2PStatusProvider
+	i2pMutex        sync.RWMutex
 )
 
 // TorStatusProvider is an interface for getting Tor service status
@@ -56,6 +60,31 @@ func GetTorStatus() (running bool, onionAddress string) {
 		return false, ""
 	}
 	return torStatusGetter.IsRunning(), torStatusGetter.GetOnionAddress()
+}
+
+// I2PStatusProvider is an interface for getting I2P eepsite status per AI.md PART 32.2
+type I2PStatusProvider interface {
+	IsRunning() bool
+	Status() string
+	Provider() string
+	EepsiteAddress() string
+}
+
+// SetI2PStatusProvider sets the global I2P status provider
+func SetI2PStatusProvider(provider I2PStatusProvider) {
+	i2pMutex.Lock()
+	defer i2pMutex.Unlock()
+	i2pStatusGetter = provider
+}
+
+// GetI2PStatus returns the current I2P eepsite status
+func GetI2PStatus() (running bool, status, provider, address string) {
+	i2pMutex.RLock()
+	defer i2pMutex.RUnlock()
+	if i2pStatusGetter == nil {
+		return false, "disabled", "none", ""
+	}
+	return i2pStatusGetter.IsRunning(), i2pStatusGetter.Status(), i2pStatusGetter.Provider(), i2pStatusGetter.EepsiteAddress()
 }
 
 // SetInitStatus updates initialization status
@@ -116,9 +145,20 @@ type publicHealthTor struct {
 	Hostname string `json:"hostname,omitempty"`
 }
 
+// publicHealthI2P mirrors AI.md PART 32.2 I2PInfo - opt-in, so it stays
+// disabled unless features.i2p is turned on.
+type publicHealthI2P struct {
+	Enabled  bool   `json:"enabled"`
+	Running  bool   `json:"running"`
+	Status   string `json:"status,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
 type publicHealthFeatures struct {
 	MultiUser bool            `json:"multi_user"`
 	Tor       publicHealthTor `json:"tor"`
+	I2P       publicHealthI2P `json:"i2p"`
 	GeoIP     bool            `json:"geoip"`
 }
 
@@ -129,6 +169,7 @@ type publicHealthChecks struct {
 	Scheduler string `json:"scheduler"`
 	Cluster   string `json:"cluster,omitempty"`
 	Tor       string `json:"tor,omitempty"`
+	I2P       string `json:"i2p,omitempty"`
 }
 
 type publicHealthStats struct {
@@ -458,6 +499,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 	cluster := getPublicClusterInfo(db, r)
 	geoIPEnabled := getPublicGeoIPStatus(db)
 	torFeature, torCheck := getPublicTorStatus(cfg)
+	i2pFeature, i2pCheck := getPublicI2PStatus(cfg)
 	stats := getPublicStats(db)
 	maintenanceMode := getMaintenanceMode(db)
 
@@ -481,6 +523,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		Features: publicHealthFeatures{
 			MultiUser: config.IsMultiUserEnabled(),
 			Tor:       torFeature,
+			I2P:       i2pFeature,
 			GeoIP:     geoIPEnabled,
 		},
 		Checks: publicHealthChecks{
@@ -490,6 +533,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 			Scheduler: schedulerCheck,
 			Cluster:   "",
 			Tor:       torCheck,
+			I2P:       i2pCheck,
 		},
 		Stats: stats,
 	}
@@ -502,6 +546,10 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 
 	if !torFeature.Enabled {
 		response.Checks.Tor = ""
+	}
+
+	if !i2pFeature.Enabled {
+		response.Checks.I2P = ""
 	}
 
 	statusCode := http.StatusOK
@@ -523,7 +571,8 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		response.Checks.Scheduler == "error" ||
 		response.Checks.Cluster == "degraded" ||
 		response.Checks.Cluster == "error" ||
-		response.Checks.Tor == "error":
+		response.Checks.Tor == "error" ||
+		response.Checks.I2P == "error":
 		response.Status = "degraded"
 	}
 
@@ -634,6 +683,32 @@ func getPublicTorStatus(cfg *config.AppConfig) (publicHealthTor, string) {
 	}, torCheck
 }
 
+// getPublicI2PStatus reports the eepsite state per AI.md PART 32.2. I2P is
+// opt-in, so a disabled feature reports enabled=false and contributes no check.
+func getPublicI2PStatus(cfg *config.AppConfig) (publicHealthI2P, string) {
+	i2pEnabled := false
+	if cfg != nil {
+		i2pEnabled = cfg.Server.Features.I2P || cfg.Server.I2P.Enabled
+	}
+	if !i2pEnabled {
+		return publicHealthI2P{Enabled: false, Status: "disabled", Provider: "none"}, ""
+	}
+
+	running, status, provider, address := GetI2PStatus()
+	i2pCheck := "ok"
+	if !running {
+		i2pCheck = "error"
+	}
+
+	return publicHealthI2P{
+		Enabled:  true,
+		Running:  running,
+		Status:   status,
+		Hostname: address,
+		Provider: provider,
+	}, i2pCheck
+}
+
 func getPublicStats(db *database.DB) publicHealthStats {
 	stats := publicHealthStats{}
 
@@ -740,6 +815,11 @@ func formatPublicHealthText(health publicHealthResponse) string {
 	fmt.Fprintf(&out, "features.tor.running: %t\n", health.Features.Tor.Running)
 	fmt.Fprintf(&out, "features.tor.status: %s\n", health.Features.Tor.Status)
 	fmt.Fprintf(&out, "features.tor.hostname: %s\n", health.Features.Tor.Hostname)
+	fmt.Fprintf(&out, "features.i2p.enabled: %t\n", health.Features.I2P.Enabled)
+	fmt.Fprintf(&out, "features.i2p.running: %t\n", health.Features.I2P.Running)
+	fmt.Fprintf(&out, "features.i2p.status: %s\n", health.Features.I2P.Status)
+	fmt.Fprintf(&out, "features.i2p.hostname: %s\n", health.Features.I2P.Hostname)
+	fmt.Fprintf(&out, "features.i2p.provider: %s\n", health.Features.I2P.Provider)
 	fmt.Fprintf(&out, "features.geoip: %t\n\n", health.Features.GeoIP)
 
 	fmt.Fprintf(&out, "# 7. Checks\n")
@@ -749,6 +829,9 @@ func formatPublicHealthText(health publicHealthResponse) string {
 	fmt.Fprintf(&out, "checks.scheduler: %s\n", health.Checks.Scheduler)
 	if health.Checks.Cluster != "" {
 		fmt.Fprintf(&out, "checks.cluster: %s\n", health.Checks.Cluster)
+	}
+	if health.Checks.I2P != "" {
+		fmt.Fprintf(&out, "checks.i2p: %s\n", health.Checks.I2P)
 	}
 	if health.Checks.Tor != "" {
 		fmt.Fprintf(&out, "checks.tor: %s\n", health.Checks.Tor)

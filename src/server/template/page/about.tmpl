@@ -74,10 +74,23 @@
         <h2 class="text-cyan">🧅 {{t .server.Lang "about_tor_heading"}}</h2>
         <p>{{t .server.Lang "about_tor_description"}}</p>
         <div class="code-wrapper margin-y-md">
-            <code class="mobile-code">{{.server.Tor.OnionAddress}}</code>
+            <code class="mobile-code onion-address">{{.server.Tor.OnionAddress}}</code>
             <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
         <p class="text-comment"><small>{{t .server.Lang "about_tor_browser_note"}}</small></p>
+    </div>
+    {{end}}
+
+    {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
+    <div class="card margin-y-lg">
+        <h2 class="text-cyan">🔗 {{t .server.Lang "about_i2p_heading"}}</h2>
+        <p>{{t .server.Lang "about_i2p_description"}}</p>
+        <div class="code-wrapper margin-y-md">
+            <code class="mobile-code i2p-address">{{.server.I2P.Address}}</code>
+            <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.server.I2P.Address}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
+        </div>
+        <p class="text-comment"><small>{{t .server.Lang "about_i2p_router_note"}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "about_i2p_help_link_text"}} <a href="/server/help#i2p-access" class="text-cyan">{{t .server.Lang "about_i2p_help_link_label"}}</a></small></p>
     </div>
     {{end}}
 

@@ -177,6 +177,29 @@ Sitemap: {app_url}/sitemap.xml</textarea>
                             </small>
                         </div>
 
+                        <fieldset class="form-group" id="ai-bots">
+                            <legend>{{t $lang "admin.web.ai_bots_heading"}}</legend>
+                            <p class="form-text">{{t $lang "admin.web.ai_bots_desc"}}</p>
+
+                            <div class="form-group">
+                                <label for="ai_bots_default">{{t $lang "admin.web.ai_bots_default_label"}}</label>
+                                <select id="ai_bots_default" name="web.robots.ai_bots.default" class="form-control">
+                                    <option value="allow"{{if eq $.AIBotsDefault "allow"}} selected{{end}}>{{t $lang "admin.web.ai_bots_allow"}}</option>
+                                    <option value="deny"{{if eq $.AIBotsDefault "deny"}} selected{{end}}>{{t $lang "admin.web.ai_bots_deny"}}</option>
+                                </select>
+                            </div>
+
+                            {{range $bot := $.RecognizedBots}}
+                            <div class="form-group">
+                                <label for="ai_bot_{{$bot}}">{{$bot}}</label>
+                                <select id="ai_bot_{{$bot}}" name="web.robots.ai_bots.bots.{{$bot}}" class="form-control" data-ai-bot="{{$bot}}">
+                                    <option value="allow"{{if eq (index $.AIBotPolicies $bot) "allow"}} selected{{end}}>{{t $lang "admin.web.ai_bots_allow"}}</option>
+                                    <option value="deny"{{if eq (index $.AIBotPolicies $bot) "deny"}} selected{{end}}>{{t $lang "admin.web.ai_bots_deny"}}</option>
+                                </select>
+                            </div>
+                            {{end}}
+                        </fieldset>
+
                         <div class="button-group">
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_robots_aria"}}">
                                 💾 {{t $lang "admin.web.save_robots_action"}}

@@ -43,9 +43,10 @@ func GetStaticSubFS() (fs.FS, error) {
 // with a translation-service-backed implementation before Execute.
 func LoadTemplates() (*template.Template, error) {
 	funcMap := template.FuncMap{
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"title": func(s string) string { return cases.Title(language.English).String(s) },
+		"upper":     strings.ToUpper,
+		"lower":     strings.ToLower,
+		"nextTheme": NextTheme,
+		"title":     func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b
 		},

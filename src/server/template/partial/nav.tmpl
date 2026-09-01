@@ -1,13 +1,13 @@
 {{define "navbar"}}
 <nav class="navbar" role="navigation" aria-label="Main navigation">
     <div class="navbar-container">
-        <!-- Brand Logo -->
+        <!-- Zone A: Brand Logo -->
         <a href="/" class="navbar-brand" aria-label="{{.server.Title}} home page" title="Go to home page">
             <span class="navbar-brand-icon" aria-hidden="true">🌤️</span>
             <span class="navbar-brand-text">{{.server.Title}}</span>
         </a>
 
-        <!-- Desktop Navigation Menu -->
+        <!-- Zone B: Centered Navigation Menu -->
         <div class="navbar-menu" role="menubar">
             <a href="/" class="navbar-link {{if eq .page "weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.home"}}" title="View current weather conditions">{{t .lang "nav.home"}}</a>
             <a href="/moon" class="navbar-link {{if eq .page "moon"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.moon"}}" title="View moon phases and lunar information">{{t .lang "nav.moon"}}</a>
@@ -16,7 +16,7 @@
             <a href="/users/dashboard" class="navbar-link {{if eq .page "dashboard"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.settings"}}" title="View your saved locations and preferences">{{t .lang "nav.settings"}}</a>
         </div>
 
-        <!-- Right Side Actions -->
+        <!-- Zone C: Profile & Preferences -->
         <div class="navbar-actions">
             <!-- Language Selector per AI.md PART 31 -->
             <div class="lang-selector">
@@ -31,6 +31,7 @@
                 </select>
             </div>
 
+            {{if .user.Email}}
             <!-- Notification Bell per AI.md lines 21581-21650 -->
             <div class="notification-bell" aria-label="Notifications">
                 <button class="bell-button" data-action="nav-dropdown-toggle" data-dropdown-id="notification-dropdown" data-trigger-id="notification-bell" aria-haspopup="true" aria-expanded="false" title="View notifications">
@@ -53,26 +54,18 @@
 
             <!-- Profile Avatar with Dropdown -->
             <div class="profile-avatar">
-                <button class="avatar" data-action="nav-dropdown-toggle" data-dropdown-id="profile-dropdown" data-trigger-id="profile-avatar" id="profile-avatar" aria-label="User menu" aria-haspopup="true" aria-expanded="false" title="Open user menu - Access profile, notifications, and logout">
-                    {{if .user.Email}}
-                        {{ index .user.Email 0 | printf "%c" | upper }}
-                    {{else}}
-                        U
-                    {{end}}
+                <button class="avatar" data-action="nav-dropdown-toggle" data-dropdown-id="profile-dropdown" data-trigger-id="profile-avatar" id="profile-avatar" aria-label="User menu" aria-haspopup="true" aria-expanded="false" title="Open user menu - Access profile, preferences, and logout">
+                    {{ index .user.Email 0 | printf "%c" | upper }}
                 </button>
                 <div class="profile-dropdown" id="profile-dropdown" role="menu" aria-labelledby="profile-avatar">
                     <div class="profile-dropdown-header">
                         <div>
-                            {{if .user.Email}}
-                                {{if .user.DisplayName}}
-                                    {{.user.DisplayName}}
-                                {{else if .user.Username}}
-                                    {{.user.Username}}
-                                {{else}}
-                                    {{.user.Email}}
-                                {{end}}
+                            {{if .user.DisplayName}}
+                                {{.user.DisplayName}}
+                            {{else if .user.Username}}
+                                {{.user.Username}}
                             {{else}}
-                                Guest
+                                {{.user.Email}}
                             {{end}}
                         </div>
                         <div class="profile-dropdown-role">
@@ -92,27 +85,66 @@
                         <a href="/users/settings" class="profile-dropdown-item" role="menuitem" title="Account settings">⚙️ {{t .lang "nav.settings"}}</a>
                         <a href="/users/security" class="profile-dropdown-item" role="menuitem" title="Password, 2FA, sessions">🔒 Security</a>
                         <a href="/users/tokens" class="profile-dropdown-item" role="menuitem" title="Manage API tokens">🔑 API Tokens</a>
+                        <a href="/server/preferences" class="profile-dropdown-item" role="menuitem" title="{{t .lang "preferences.description"}}">🎨 {{t .lang "nav.preferences"}}</a>
                         <div class="dropdown-divider" role="separator"></div>
-                        <!-- Theme toggle per AI.md lines 21676-21698 -->
-                        <div class="profile-dropdown-item theme-toggle-row">
-                            <span>Theme:</span>
-                            <button data-action="nav-theme-set" class="theme-btn" data-theme="dark" title="Dark theme">Dark</button>
-                            <span class="theme-sep">|</span>
-                            <button data-action="nav-theme-set" class="theme-btn" data-theme="light" title="Light theme">Light</button>
-                            <span class="theme-sep">|</span>
-                            <button data-action="nav-theme-set" class="theme-btn" data-theme="auto" title="Auto theme">Auto</button>
-                        </div>
+                        <!-- Theme toggle per AI.md PART 16: the POST value is the server-computed next mode, never a fixed value -->
+                        <form action="/server/preferences" method="post" class="profile-dropdown-item theme-toggle-row">
+                            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                            <input type="hidden" name="theme" value="{{nextTheme (or .server.Theme "dark")}}">
+                            <span class="theme-toggle-label">{{t .lang "theme.label"}}</span>
+                            <button type="submit" class="theme-btn" data-action="theme-cycle" title="{{t .lang "theme.switch"}}">
+                                {{t .lang (printf "theme.%s" (or .server.Theme "dark"))}}
+                            </button>
+                        </form>
                         <div class="dropdown-divider" role="separator"></div>
                         <a href="/server/help" class="profile-dropdown-item" role="menuitem" title="Help documentation">❓ Help</a>
                         <a href="/server/auth/logout" class="profile-dropdown-item" role="menuitem" title="Sign out of your account">🚪 {{t .lang "nav.logout"}}</a>
                     </nav>
                 </div>
             </div>
+            {{else}}
+            <!-- Guest preferences entry point per AI.md PART 16 "Guest Header" -->
+            <a href="/server/preferences" class="navbar-link navbar-icon-link" title="{{t .lang "preferences.description"}}">
+                <span aria-hidden="true">⚙️</span>
+                <span class="sr-only">{{t .lang "nav.preferences"}}</span>
+            </a>
+            <a href="/server/auth/login" class="navbar-link" title="{{t .lang "nav.login"}}">{{t .lang "nav.login"}}</a>
+            {{end}}
 
             <!-- Mobile Menu Toggle -->
             <button class="mobile-menu-toggle" data-action="nav-dropdown-toggle" data-dropdown-id="mobile-menu" data-trigger-id="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle mobile navigation menu" aria-expanded="false" aria-controls="mobile-menu" title="Open mobile navigation menu">
                 ☰
             </button>
+        </div>
+
+        <!-- Zone D: Theme toggle, far right, fully functional without JavaScript -->
+        <div class="navbar-theme">
+            {{if .user.Email}}
+            <form action="/server/preferences" method="post" class="theme-toggle-form">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <input type="hidden" name="theme" value="{{nextTheme (or .server.Theme "dark")}}">
+                <button type="submit" class="theme-button" data-action="theme-cycle" title="{{t .lang "theme.switch"}}">
+                    <span aria-hidden="true">🎨</span>
+                    <span class="sr-only">{{t .lang "theme.switch"}}</span>
+                </button>
+            </form>
+            {{else}}
+            <form action="/server/preferences" method="post" class="theme-toggle-inline" aria-label="{{t .lang "theme.label"}}">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <button type="submit" name="theme" value="dark" class="theme-button {{if eq (or .server.Theme "dark") "dark"}}active{{end}}" title="{{t .lang "theme.dark"}}">
+                    <span aria-hidden="true">🌙</span>
+                    <span class="sr-only">{{t .lang "theme.dark"}}</span>
+                </button>
+                <button type="submit" name="theme" value="light" class="theme-button {{if eq (or .server.Theme "dark") "light"}}active{{end}}" title="{{t .lang "theme.light"}}">
+                    <span aria-hidden="true">☀️</span>
+                    <span class="sr-only">{{t .lang "theme.light"}}</span>
+                </button>
+                <button type="submit" name="theme" value="auto" class="theme-button {{if eq (or .server.Theme "dark") "auto"}}active{{end}}" title="{{t .lang "theme.auto"}}">
+                    <span aria-hidden="true">🔄</span>
+                    <span class="sr-only">{{t .lang "theme.auto"}}</span>
+                </button>
+            </form>
+            {{end}}
         </div>
     </div>
 
@@ -123,6 +155,7 @@
         <a href="/severe-weather" class="mobile-menu-item" role="menuitem" title="View severe weather alerts">{{t .lang "nav.alerts"}}</a>
         <a href="/earthquake" class="mobile-menu-item" role="menuitem" title="View earthquakes">{{t .lang "nav.earthquakes"}}</a>
         <a href="/users/dashboard" class="mobile-menu-item" role="menuitem" title="View your dashboard">{{t .lang "nav.settings"}}</a>
+        <a href="/server/preferences" class="mobile-menu-item" role="menuitem" title="{{t .lang "preferences.description"}}">{{t .lang "nav.preferences"}}</a>
     </div>
 </nav>
 

@@ -24,6 +24,13 @@ func setSafeConfigDir(t *testing.T) {
 		t.Fatalf("WriteFile server.yml: %v", err)
 	}
 	t.Setenv("CONFIG_DIR", dir)
+
+	// GetHostFromRequest falls back to GetFQDN() (never raw r.Host) once no
+	// forwarded-host header is present, so pin DOMAIN to the same host the
+	// test requests use — otherwise GetFQDN() resolves the sandbox's actual
+	// os.Hostname(), which varies by container/run and breaks the fixed
+	// "http://example.com/..." expectations below.
+	t.Setenv("DOMAIN", "example.com")
 }
 
 func newTemplateDataRequest() *http.Request {

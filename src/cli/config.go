@@ -117,8 +117,8 @@ geoip:
   enabled: true
   update_interval: 604800  # 7 days in seconds
   databases:
-    - geolite2-city-ipv4
-    - geolite2-city-ipv6
+    - dbip-city-ipv4
+    - dbip-city-ipv6
     - geo-whois-asn-country
     - asn
 

@@ -39,7 +39,11 @@ const (
 	EmojiGlobe   = "🌐"
 	EmojiDocker  = "🐳"
 	EmojiOnion   = "🧅"
+	EmojiLink    = "🔗"
 	EmojiLock    = "🔐"
+	EmojiSignal  = "📡"
+	EmojiPackage = "📦"
+	EmojiWrench  = "🔧"
 )
 
 // Plain text fallbacks
@@ -53,7 +57,11 @@ const (
 	PlainGlobe   = "[WEB]"
 	PlainDocker  = "[DOCKER]"
 	PlainOnion   = "[TOR]"
+	PlainLink    = "[I2P]"
 	PlainLock    = "[TOKEN]"
+	PlainSignal  = "[LISTEN]"
+	PlainPackage = "[VERSION]"
+	PlainWrench  = "[DEV]"
 )
 
 // GetOK returns appropriate OK indicator
@@ -96,6 +104,11 @@ func GetDocker() string {
 	return Emoji(EmojiDocker, PlainDocker)
 }
 
+// GetLink returns the appropriate I2P eepsite indicator per AI.md PART 32.2
+func GetLink() string {
+	return Emoji(EmojiLink, PlainLink)
+}
+
 // GetOnion returns appropriate Tor indicator
 func GetOnion() string {
 	return Emoji(EmojiOnion, PlainOnion)
@@ -104,4 +117,19 @@ func GetOnion() string {
 // GetLock returns appropriate token/security indicator
 func GetLock() string {
 	return Emoji(EmojiLock, PlainLock)
+}
+
+// GetSignal returns appropriate listening-address indicator
+func GetSignal() string {
+	return Emoji(EmojiSignal, PlainSignal)
+}
+
+// GetPackage returns appropriate version indicator
+func GetPackage() string {
+	return Emoji(EmojiPackage, PlainPackage)
+}
+
+// GetWrench returns appropriate development-mode indicator
+func GetWrench() string {
+	return Emoji(EmojiWrench, PlainWrench)
 }

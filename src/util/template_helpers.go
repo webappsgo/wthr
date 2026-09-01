@@ -2,10 +2,28 @@ package util
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
+
+// SafeRedirectPath returns candidate when it is a safe same-site, path-only
+// redirect target, or the empty string when it must not be used as one.
+// Rejects empty, non-rooted, protocol-relative ("//evil.com"), and
+// backslash-based ("/\evil.com") targets, which browsers can interpret as
+// scheme-qualified URLs and enable an open redirect. Shared by every
+// form-submit redirect target in the codebase (theme toggle, preferences)
+// so the guard is defined and maintained in exactly one place.
+func SafeRedirectPath(candidate string) string {
+	if candidate == "" ||
+		!strings.HasPrefix(candidate, "/") ||
+		strings.HasPrefix(candidate, "//") ||
+		strings.HasPrefix(candidate, "/\\") {
+		return ""
+	}
+	return candidate
+}
 
 // LanguageInfo holds metadata about a supported language for UI display.
 // Defined here (in utils) to avoid import cycles with server/service.
@@ -41,6 +59,30 @@ type ServerContext struct {
 	VerifyBaidu     string
 	VerifyPinterest string
 	VerifyFacebook  string
+}
+
+// i2pLinkProvider reports the published eepsite address and whether the I2P
+// footer/help links should be shown at all.
+// AI.md PART 32.2: the link is rendered only when I2P is enabled, running, and
+// an address has actually been published.
+var i2pLinkProvider func() (string, bool)
+
+// SetI2PLinkProvider registers the resolver used to render the shared I2P links.
+// Passing nil clears the provider, which hides every I2P link again.
+func SetI2PLinkProvider(provider func() (string, bool)) {
+	i2pLinkProvider = provider
+}
+
+// i2pTemplateInfo resolves the shared I2P template payload for every page.
+func i2pTemplateInfo() map[string]interface{} {
+	if i2pLinkProvider == nil {
+		return map[string]interface{}{"Show": false, "Address": ""}
+	}
+	address, show := i2pLinkProvider()
+	if address == "" {
+		show = false
+	}
+	return map[string]interface{}{"Show": show, "Address": address}
 }
 
 // TemplateData enriches template data with server context, user info, and i18n data.
@@ -85,11 +127,20 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	}
 
 	// Get current URL for OpenGraph per AI.md PART 16
+	// Resolved via GetHostFromRequest/X-Forwarded-Proto instead of raw r.Host/r.TLS
+	// so overlay networks and reverse-proxy headers are honored consistently with
+	// every other host/proto resolution in this codebase (GetHostInfo, BannerListenURL)
 	scheme := "http"
-	if r.TLS != nil {
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	} else if r.TLS != nil {
 		scheme = "https"
 	}
-	currentURL := scheme + "://" + r.Host + r.URL.Path
+	currentURL := scheme + "://" + GetHostFromRequest(r) + r.URL.Path
+
+	// Compute the per-route robots directive per AI.md PART 16 "Robots Directive"
+	// Only explicitly allow-listed public routes are indexable; everything else fails closed
+	robots := RobotsMetaForPath(r.URL.Path)
 
 	// Get configurable paths per AI.md PART 17
 	// Templates must use these instead of hardcoded "/server/admin/" or "/api/v1/server/admin/"
@@ -125,11 +176,13 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 		"user":                userCtx,
 		"csrf_token":          csrfToken,
 		"current_url":         currentURL,
+		"robots":              robots,
 		"admin_path":          adminPath,
 		"api_path":            apiPath,
 		"admin_api_path":      adminAPIPath,
 		"lang":                lang,
 		"available_languages": availableLangs,
+		"i2p":                 i2pTemplateInfo(),
 	}
 
 	// Merge user-provided data

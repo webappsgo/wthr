@@ -5317,6 +5317,41 @@
       });
     },
 
+    collectAIBots: function(form) {
+      const bots = {};
+      form.querySelectorAll('[data-ai-bot]').forEach(function(select) {
+        bots[select.getAttribute('data-ai-bot')] = select.value;
+      });
+      const defaultSelect = form.querySelector('#ai_bots_default');
+      return {
+        default: defaultSelect ? defaultSelect.value : 'allow',
+        bots: bots
+      };
+    },
+
+    saveRobotsTxt: function(form) {
+      const content = form.querySelector('#robots_txt');
+      const adminApiPath = AdminWebPage.getData().adminApiPath;
+      fetch(adminApiPath + '/config/web/robots', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: content ? content.value : '',
+          ai_bots: AdminWebPage.collectAIBots(form)
+        })
+      }).then(function(response) {
+        return response.json().then(function(data) {
+          if (!response.ok) {
+            throw new Error(data.message || 'Failed to save robots.txt');
+          }
+          Toast.success('robots.txt saved successfully');
+        });
+      }).catch(function(error) {
+        console.error('Save error:', error);
+        Toast.error(error.message);
+      });
+    },
+
     previewRobotsTxt: function() {
       window.open('/robots.txt', '_blank');
     },
@@ -5359,7 +5394,7 @@
       if (robotsForm) {
         robotsForm.addEventListener('submit', function(e) {
           e.preventDefault();
-          AdminWebPage.saveFormSettings(robotsForm, 'robots.txt saved successfully');
+          AdminWebPage.saveRobotsTxt(robotsForm);
         });
       }
 
@@ -7245,9 +7280,6 @@
         case 'nav-notifications-mark-all-read':
           Notifications.markAllRead();
           break;
-        case 'nav-theme-set':
-          Theme.set(btn.dataset.theme);
-          break;
         case 'toggle-alert-details':
           (function() {
             const details = btn.querySelector('.alert-details');
@@ -7443,9 +7475,12 @@
   // Dark theme is DEFAULT per AI.md spec
   // ============================================
 
+  // Cycle order per AI.md PART 16: dark -> light -> auto -> dark
+  const THEME_CYCLE = ['dark', 'light', 'auto'];
+
   const Theme = {
     // Available themes: dark (default), light, auto
-    THEMES: ['dark', 'light', 'auto'],
+    THEMES: THEME_CYCLE,
     COOKIE_NAME: 'theme',
 
     /**
@@ -7469,15 +7504,16 @@
     },
 
     /**
-     * Get current theme from the server-readable theme cookie. The
-     * server already rendered the correct theme-* class on <html> from
-     * this same cookie (or the DB preference) with zero JS - this getter
-     * exists only so client-side JS enhancements (toggle/cycle) know the
-     * current selection.
+     * Get the LIVE theme from the theme-* class the server rendered on
+     * <html> (AI.md PART 16). The class is the single source of truth
+     * because it also reflects switches this script already applied in
+     * the current page view - the cookie and a form's hidden value are
+     * both stale after the first JS-driven switch, which is exactly what
+     * makes a hardcoded next-target stick after one click.
      */
     get: function() {
-      var cookieTheme = this.getCookie(this.COOKIE_NAME);
-      return this.THEMES.includes(cookieTheme) ? cookieTheme : 'dark';
+      var match = document.documentElement.className.match(/theme-(dark|light|auto)/);
+      return match ? match[1] : 'dark';
     },
 
     /**
@@ -7496,11 +7532,18 @@
      * Apply theme to document
      */
     apply: function(theme) {
+      // theme-auto is pure CSS via prefers-color-scheme (AI.md PART 16),
+      // so the class is written verbatim and never resolved here; only the
+      // theme-color meta tag needs the effective light/dark value.
       var effectiveTheme = theme;
       if (theme === 'auto') {
         effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
       }
-      document.documentElement.className = 'theme-' + effectiveTheme;
+      var root = document.documentElement;
+      THEME_CYCLE.forEach(function(name) {
+        root.classList.remove('theme-' + name);
+      });
+      root.classList.add('theme-' + theme);
       // Update theme-color meta tag
       var themeColor = effectiveTheme === 'dark' ? '#282a36' : '#ffffff';
       var metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -7516,11 +7559,13 @@
      */
     updateActiveButton: function(theme) {
       // Remove active class from all theme buttons
-      document.querySelectorAll('.theme-btn').forEach(function(btn) {
+      document.querySelectorAll('.theme-btn, .theme-toggle-inline .theme-button').forEach(function(btn) {
         btn.classList.remove('active');
       });
-      // Add active class to current theme button
-      var activeBtn = document.querySelector('.theme-btn[data-theme="' + theme + '"]');
+      // Add active class to the button representing the current theme:
+      // data-theme on the dropdown buttons, value on the guest 3-button form
+      var activeBtn = document.querySelector('.theme-btn[data-theme="' + theme + '"]') ||
+        document.querySelector('.theme-toggle-inline .theme-button[value="' + theme + '"]');
       if (activeBtn) {
         activeBtn.classList.add('active');
       }
@@ -7551,12 +7596,30 @@
      * Initialize theme system
      */
     init: function() {
-      // Apply saved theme
-      var currentTheme = this.get();
-      this.apply(currentTheme);
+      // The server already rendered the correct theme-* class on <html>;
+      // JS never re-resolves it, it only syncs the button states to it.
+      this.updateActiveButton(this.get());
 
-      // Listen for system preference changes when using auto theme
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+      // Instant preview: the form still submits normally (no preventDefault)
+      // so the server persists the value and re-renders the next target.
+      document.querySelectorAll('.theme-toggle-form, .theme-toggle-row').forEach(function(form) {
+        form.addEventListener('submit', function() {
+          var next = THEME_CYCLE[(THEME_CYCLE.indexOf(Theme.get()) + 1) % THEME_CYCLE.length];
+          Theme.apply(next);
+        });
+      });
+
+      // Guest 3-button form: preview the exact mode that was submitted
+      document.querySelectorAll('.theme-toggle-inline .theme-button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (THEME_CYCLE.includes(btn.value)) {
+            Theme.apply(btn.value);
+          }
+        });
+      });
+
+      // theme-color meta only: auto follows the OS through CSS on its own
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
         if (Theme.get() === 'auto') {
           Theme.apply('auto');
         }

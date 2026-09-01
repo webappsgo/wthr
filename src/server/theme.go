@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // ThemeCookieName is the cookie that persists a guest's (or a logged-in
@@ -64,6 +66,23 @@ func SetThemeCookie(w http.ResponseWriter, r *http.Request, mode string) {
 	})
 }
 
+// NextTheme returns the next mode in the cycle: dark -> light -> auto -> dark,
+// per AI.md PART 16. It is registered as the "nextTheme" template func so a
+// toggle's POST value is always derived from the resolved .Theme rather than
+// hardcoded - a fixed target only works on the first click. Input is trimmed
+// and lowercased; anything unrecognised (including the empty string) is
+// treated as unset and yields the default theme.
+func NextTheme(current string) string {
+	switch strings.ToLower(strings.TrimSpace(current)) {
+	case "dark":
+		return "light"
+	case "light":
+		return "auto"
+	default:
+		return DefaultTheme
+	}
+}
+
 // ThemeClass returns the literal class attribute value to render on <html>
 // for the given resolved mode ("theme-dark", "theme-light", "theme-auto").
 func ThemeClass(mode string) string {
@@ -86,15 +105,12 @@ func SetThemeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	SetThemeCookie(w, r, mode)
 
-	// Only allow same-site, path-only redirects - reject empty, non-rooted,
-	// protocol-relative ("//evil.com") and backslash-based ("/\evil.com")
-	// targets, which browsers can interpret as scheme-qualified URLs and
-	// enable an open redirect.
-	redirectTo := r.FormValue("redirect")
-	if redirectTo == "" ||
-		!strings.HasPrefix(redirectTo, "/") ||
-		strings.HasPrefix(redirectTo, "//") ||
-		strings.HasPrefix(redirectTo, "/\\") {
+	// Only allow same-site, path-only redirects - util.SafeRedirectPath rejects
+	// empty, non-rooted, protocol-relative ("//evil.com") and backslash-based
+	// ("/\evil.com") targets, which browsers can interpret as scheme-qualified
+	// URLs and enable an open redirect.
+	redirectTo := util.SafeRedirectPath(r.FormValue("redirect"))
+	if redirectTo == "" {
 		redirectTo = "/"
 	}
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)

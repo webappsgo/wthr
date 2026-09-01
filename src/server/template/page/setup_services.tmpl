@@ -110,7 +110,7 @@
                     </label>
                     <p class="form-hint">{{t .server.Lang "setup_services_tor_hint"}}</p>
                     {{ if .OnionAddress }}
-                    <p class="onion-preview"><code class="long-string">{{ .OnionAddress }}</code></p>
+                    <p class="onion-preview"><code class="onion-address">{{ .OnionAddress }}</code></p>
                     {{ end }}
                 </div>
                 {{ end }}

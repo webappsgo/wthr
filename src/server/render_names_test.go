@@ -36,13 +36,14 @@ func buildProductionLikeTemplate(t *testing.T) map[string]bool {
 		t.Fatalf("walk templates: %v", err)
 	}
 	funcs := template.FuncMap{
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"title": func(s string) string { return s },
-		"add":   func(a, b int) int { return a + b },
-		"sub":   func(a, b int) int { return a - b },
-		"t":     func(_, key string) string { return key },
-		"tf":    func(_, key string, _ ...string) string { return key },
+		"upper":     strings.ToUpper,
+		"lower":     strings.ToLower,
+		"nextTheme": NextTheme,
+		"title":     func(s string) string { return s },
+		"add":       func(a, b int) int { return a + b },
+		"sub":       func(a, b int) int { return a - b },
+		"t":         func(_, key string) string { return key },
+		"tf":        func(_, key string, _ ...string) string { return key },
 	}
 	tmpl := template.New("").Funcs(funcs)
 	for _, path := range paths {
@@ -80,6 +81,7 @@ var mustResolveRenderNames = []string{
 	"admin/admin_email.tmpl",
 	"admin/admin_email_editor.tmpl",
 	"admin/admin_geoip.tmpl",
+	"admin/admin_i2p.tmpl",
 	"admin/admin_logs.tmpl",
 	"admin/admin_metrics.tmpl",
 	"admin/admin_notifications.tmpl",
@@ -120,6 +122,7 @@ var mustResolveRenderNames = []string{
 	"page/oidc_callback.tmpl",
 	"page/oidc_redirect.tmpl",
 	"page/passkey.tmpl",
+	"page/preferences.tmpl",
 	"page/privacy.tmpl",
 	"page/recovery_key.tmpl",
 	"page/register.tmpl",

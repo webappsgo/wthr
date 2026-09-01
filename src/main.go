@@ -659,9 +659,10 @@ func main() {
 
 	// Create template function map with i18n support
 	templateFuncs := template.FuncMap{
-		"upper": strings.ToUpper,
-		"lower": strings.ToLower,
-		"title": func(s string) string { return cases.Title(language.English).String(s) },
+		"upper":     strings.ToUpper,
+		"lower":     strings.ToLower,
+		"nextTheme": server.NextTheme,
+		"title":     func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b
 		},
@@ -819,6 +820,23 @@ func main() {
 	// Set Tor status provider for health checks (AI.md PART 32)
 	handler.SetTorStatusProvider(torService)
 
+	// Initialize the I2P eepsite manager (AI.md PART 32.2 - OPTIONAL, opt-in).
+	// Construction is always safe; the manager is inert while the feature is off.
+	i2pManager := service.NewI2PManager(context.Background(), &cfg.Server.I2P)
+
+	// Set I2P status provider for health checks (AI.md PART 32.2)
+	handler.SetI2PStatusProvider(i2pManager)
+
+	// AI.md PART 32.2: shared footer/help I2P links resolve through this provider
+	// so they appear only once the eepsite is running with a published address
+	util.SetI2PLinkProvider(func() (string, bool) {
+		if i2pManager == nil || !i2pManager.IsRunning() {
+			return "", false
+		}
+		address := i2pManager.EepsiteAddress()
+		return address, address != ""
+	})
+
 	// Initialize config file watcher for live reload (TEMPLATE.md PART 1)
 	configPath := filepath.Join(dirPaths.Config, "server.yml")
 	configWatcher, err := service.NewConfigWatcher(configPath, func(newCfg *config.AppConfig) error {
@@ -835,6 +853,14 @@ func main() {
 		cfg.Server.RateLimit = newCfg.Server.RateLimit
 		cfg.Server.Tor = newCfg.Server.Tor
 		cfg.Server.Features = newCfg.Server.Features
+
+		// AI.md PART 32.2: apply I2P changes live through the manager
+		cfg.Server.I2P = newCfg.Server.I2P
+		if i2pManager != nil {
+			if err := i2pManager.UpdateConfig(&cfg.Server.I2P); err != nil {
+				log.Printf("Failed to apply I2P configuration: %v", err)
+			}
+		}
 
 		// Update global config for handlers
 		config.SetGlobalConfig(cfg)
@@ -1107,6 +1133,9 @@ func main() {
 
 	// Create Tor admin handler
 	torAdminHandler := handler.NewTorAdminHandler(torService, settingsModel, dirPaths.Data)
+
+	// Create I2P admin handler (AI.md PART 32.2)
+	i2pAdminHandler := handler.NewI2PAdminHandler(i2pManager, settingsModel, dirPaths.Data)
 
 	// Create email template handler
 	emailTemplateHandler := handler.NewEmailTemplateHandler(filepath.Join("src", "server", "template"))
@@ -1985,6 +2014,12 @@ func main() {
 			}))
 		})
 
+		// AI.md PART 32.2: I2P eepsite settings, opt-in and disabled by default
+		adminRoutes.Get("/config/network/i2p", i2pAdminHandler.ShowI2PSettings)
+		adminRoutes.Post("/config/network/i2p", i2pAdminHandler.UpdateSettings)
+		adminRoutes.Post("/config/network/i2p/regenerate", i2pAdminHandler.Regenerate)
+		adminRoutes.Post("/config/network/i2p/restart", i2pAdminHandler.Restart)
+
 		adminRoutes.Get("/config/channels", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin_channels.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Notification Channels - Admin",
@@ -2323,8 +2358,10 @@ func main() {
 			}))
 		})
 
-		// /{admin_path}/help - Admin help & documentation
-		adminRoutes.Get("/help", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/config/pages/help - Admin help & documentation.
+		// AI.md PART 17: everything except the admin's own account lives under
+		// /server/{admin_path}/config/*, so help sits with the other pages.
+		adminRoutes.Get("/config/pages/help", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_help.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Help - Admin",
 				"page":  "help",
@@ -3635,6 +3672,18 @@ func main() {
 			torAPI.Post("/import", torAdminHandler.ImportKeys)
 		}
 
+		// I2P eepsite management (AI.md PART 32.2)
+		// API per spec: /api/{api_version}/{admin_path}/config/i2p/
+		i2pAPI := chi.NewRouter()
+		adminAPI.Mount("/config/i2p", i2pAPI)
+		{
+			i2pAPI.Get("/", i2pAdminHandler.GetStatus)
+			i2pAPI.Patch("/", i2pAdminHandler.UpdateSettings)
+			i2pAPI.Post("/validate", i2pAdminHandler.Validate)
+			i2pAPI.Post("/regenerate", i2pAdminHandler.Regenerate)
+			i2pAPI.Post("/restart", i2pAdminHandler.Restart)
+		}
+
 		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
 		webAPI := chi.NewRouter()
 		adminAPI.Mount("/config/web", webAPI)
@@ -3880,6 +3929,11 @@ func main() {
 	r.Get("/server/help", handler.ShowHelpPage(db, cfg))
 	r.Get("/server/terms", handler.ShowTermsPage(db, cfg))
 
+	// Preferences (AI.md PART 16): theme + language, works with JS disabled
+	themePrefsHandler := handler.NewPreferencesHandler(db.DB)
+	r.With(middleware.OptionalAuth(db.DB)).Get("/server/preferences", themePrefsHandler.ShowPreferences)
+	r.With(middleware.OptionalAuth(db.DB)).Post("/server/preferences", themePrefsHandler.SavePreferences)
+
 	// Examples endpoint
 	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
 	r.Get("/examples", func(w http.ResponseWriter, r *http.Request) {
@@ -4058,6 +4112,17 @@ JSON API:
 		fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
 
+	// AI.md PART 32.2 startup step 17b: start the opt-in I2P eepsite after the
+	// HTTP listener is up so the tunnel forwards to the real backend port.
+	// A missing provider is a warning, never fatal.
+	if i2pManager != nil {
+		i2pManager.SetBackendPort(httpPortInt)
+		if err := i2pManager.Start(); err != nil {
+			log.Printf("Failed to start I2P eepsite: %v", err)
+			fmt.Printf("%s Failed to start I2P eepsite: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+	}
+
 	// Start config file watcher for live reload
 	if configWatcher != nil {
 		if err := configWatcher.Start(); err != nil {
@@ -4072,16 +4137,26 @@ JSON API:
 		torOnionAddr = cfg.Server.Tor.OnionAddr
 	}
 
+	// AI.md PART 32.2: the banner shows the eepsite only when I2P is enabled,
+	// running, and an address has actually been published
+	i2pEepsiteAddr := ""
+	if i2pManager != nil && i2pManager.IsRunning() {
+		i2pEepsiteAddr = i2pManager.EepsiteAddress()
+	}
+
 	// The setup wizard lives at {adminBasePath}/config/setup, so the banner needs the configured admin path
 	adminBasePath := "/server/admin"
 	if cfg != nil {
 		adminBasePath = "/server/" + cfg.GetAdminPath()
 	}
 
+	// AI.md PART 11: the banner resolves {proto} from the TLS state, never from request headers
+	bannerUseTLS := protocol == "https"
+
 	if isFirstRun {
-		util.DisplayFirstRunBanner(httpPortInt, setupToken, util.IsDockerized(), torOnionAddr, adminBasePath)
+		util.DisplayFirstRunBanner(httpPortInt, bannerUseTLS, setupToken, torOnionAddr, i2pEepsiteAddr, adminBasePath)
 	} else {
-		util.DisplayNormalBanner(Version, BuildDate, httpPortInt, util.IsDockerized(), torOnionAddr)
+		util.DisplayNormalBanner(Version, BuildDate, httpPortInt, bannerUseTLS, torOnionAddr, i2pEepsiteAddr)
 	}
 
 	// Setup signal handling
@@ -4121,6 +4196,14 @@ JSON API:
 			if err := torService.Stop(); err != nil {
 				log.Printf("Tor shutdown error: %v", err)
 				fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
+
+			// Stop I2P eepsite (AI.md PART 32.2)
+			if i2pManager != nil {
+				if err := i2pManager.Close(); err != nil {
+					log.Printf("I2P shutdown error: %v", err)
+					fmt.Printf("%s I2P shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+				}
 			}
 
 			// Stop config watcher
@@ -4164,6 +4247,14 @@ JSON API:
 				if err := torService.Stop(); err != nil {
 					log.Printf("Tor shutdown error: %v", err)
 					fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+				}
+
+				// Stop I2P eepsite (AI.md PART 32.2)
+				if i2pManager != nil {
+					if err := i2pManager.Close(); err != nil {
+						log.Printf("I2P shutdown error: %v", err)
+						fmt.Printf("%s I2P shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+					}
 				}
 
 				// Stop config watcher
@@ -4307,6 +4398,17 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 	fmt.Printf("   API Docs:       http://%s:%s/docs\n", address, port)
 	fmt.Printf("   Health Check:   http://%s:%s/server/healthz\n", address, port)
 	fmt.Printf("   Admin Panel:    http://%s:%s/admin\n", address, port)
+
+	// AI.md PART 32.2: the eepsite line sits beside the Tor line in --status
+	i2pStatusCfg := config.DefaultI2PConfig()
+	if statusCfg, statusErr := config.LoadConfig(); statusErr == nil && statusCfg != nil {
+		i2pStatusCfg = statusCfg.Server.I2P
+	}
+	i2pStatusText, i2pStatusAddress := service.I2PCLIStatus(&i2pStatusCfg)
+	fmt.Printf("\n%s I2P Eepsite: %s\n", display.Emoji("🔗", "*"), i2pStatusText)
+	if i2pStatusAddress != "" {
+		fmt.Printf("   Address:        %s\n", i2pStatusAddress)
+	}
 
 	fmt.Printf("\n%s Features:\n", display.Emoji("📡", "*"))
 	fmt.Printf("   %s Weather forecasts (Open-Meteo)\n", display.Emoji("✅", "[OK]"))

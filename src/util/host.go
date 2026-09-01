@@ -9,8 +9,40 @@ import (
 	"strings"
 )
 
+// OverlayHostFromRequest returns the overlay-network host when the request's
+// Host header is a Tor `.onion` or I2P `.b32.i2p` address, else an empty string.
+// AI.md PART 12 and PART 32: overlay detection is priority 0 - the Host header
+// is matched directly, with no proxy-header inspection and no trusted-proxy check.
+func OverlayHostFromRequest(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	lower := strings.ToLower(strings.TrimSuffix(host, "."))
+	if strings.HasSuffix(lower, ".onion") || strings.HasSuffix(lower, ".i2p") {
+		return lower
+	}
+	return ""
+}
+
 // GetHostInfo detects the host information from request headers
 func GetHostInfo(r *http.Request) *HostInfo {
+	// AI.md PART 32: overlay requests are always plain http - the anonymity
+	// network provides the transport encryption, so no TLS and no HSTS
+	if overlay := OverlayHostFromRequest(r); overlay != "" {
+		fullHost := fmt.Sprintf("http://%s", overlay)
+		return &HostInfo{
+			Protocol:   "http",
+			Hostname:   overlay,
+			Port:       "",
+			FullHost:   fullHost,
+			ExampleURL: fmt.Sprintf("%s/London", fullHost),
+		}
+	}
+
 	// Detect protocol from headers or TLS
 	protocol := r.Header.Get("X-Forwarded-Proto")
 	if protocol == "" {
@@ -39,6 +71,11 @@ func GetHostInfo(r *http.Request) *HostInfo {
 // GetHostFromRequest resolves hostname from request (TEMPLATE.md compliant)
 // Priority: X-Forwarded-Host > X-Real-Host > X-Original-Host > GetFQDN()
 func GetHostFromRequest(r *http.Request) string {
+	// 0. Overlay networks (Tor/I2P) win over every proxy header
+	if overlay := OverlayHostFromRequest(r); overlay != "" {
+		return overlay
+	}
+
 	// 1. Reverse proxy headers (highest priority)
 	for _, header := range []string{"X-Forwarded-Host", "X-Real-Host", "X-Original-Host"} {
 		if host := r.Header.Get(header); host != "" {

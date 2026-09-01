@@ -78,7 +78,7 @@
                         <p>{{t .server.Lang "setup_security_scan_qr_instruction"}}</p>
                         <img src="{{ .TOTPQRCode }}" alt="{{t .server.Lang "setup_security_totp_qr_alt"}}" class="qr-code">
                         <p>{{t .server.Lang "setup_security_manual_secret_instruction"}}</p>
-                        <code class="long-string">{{ .TOTPSecret }}</code>
+                        <code class="copy-value">{{ .TOTPSecret }}</code>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="totp_code">{{t .server.Lang "setup_security_verify_totp_label"}}</label>

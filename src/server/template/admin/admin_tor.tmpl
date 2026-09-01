@@ -21,7 +21,7 @@
         <div class="onion-address-box" role="region" aria-labelledby="address-label">
             <div>
                 <label id="address-label" class="d-block mb-1">{{t $lang "admin.tor.onion_address_label"}}</label>
-                <code id="onion-address">{{.TorStatus.onion_address}}</code>
+                <code id="onion-address" class="onion-address">{{.TorStatus.onion_address}}</code>
             </div>
             <button class="btn btn-secondary"
                     data-action="admin-tor-copy-address"

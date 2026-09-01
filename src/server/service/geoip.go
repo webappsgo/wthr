@@ -60,8 +60,8 @@ type GeoIPService struct {
 
 // Database URLs from sapics/ip-location-db (SPEC Section 16)
 const (
-	cityIPv4URL = "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv4.mmdb"
-	cityIPv6URL = "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv6.mmdb"
+	cityIPv4URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv4.mmdb"
+	cityIPv6URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv6.mmdb"
 	countryURL  = "https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb"
 	asnURL      = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb"
 )
@@ -72,8 +72,8 @@ func NewGeoIPService(configDir string) *GeoIPService {
 	geoipDir := filepath.Join(configDir, "geoip")
 
 	gs := &GeoIPService{
-		cityIPv4Path: filepath.Join(geoipDir, "geolite2-city-ipv4.mmdb"),
-		cityIPv6Path: filepath.Join(geoipDir, "geolite2-city-ipv6.mmdb"),
+		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
+		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
 		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
 		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),

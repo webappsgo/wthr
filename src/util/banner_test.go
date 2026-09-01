@@ -61,8 +61,8 @@ func TestDisplayFirstRunBanner_NoPanic(t *testing.T) {
 			t.Errorf("DisplayFirstRunBanner panicked: %v", r)
 		}
 	}()
-	DisplayFirstRunBanner(8080, "abcdef0123456789", false, "", "/server/admin")
-	DisplayFirstRunBanner(8080, "abcdef0123456789", true, "example.onion", "/server/admin")
+	DisplayFirstRunBanner(8080, false, "abcdef0123456789", "", "", "/server/admin")
+	DisplayFirstRunBanner(443, true, "abcdef0123456789", "example.onion", "abcdefghij.b32.i2p", "/server/admin")
 }
 
 // TestDisplayNormalBanner_NoPanic mirrors the first-run banner check for the
@@ -73,8 +73,8 @@ func TestDisplayNormalBanner_NoPanic(t *testing.T) {
 			t.Errorf("DisplayNormalBanner panicked: %v", r)
 		}
 	}()
-	DisplayNormalBanner("1.0.0", "2026-01-01T00:00:00Z", 8080, false, "")
-	DisplayNormalBanner("1.0.0", "2026-01-01T00:00:00Z", 8080, true, "example.onion")
+	DisplayNormalBanner("1.0.0", "2026-01-01T00:00:00Z", 8080, false, "", "")
+	DisplayNormalBanner("1.0.0", "2026-01-01T00:00:00Z", 8080, true, "example.onion", "abcdefghij.b32.i2p")
 }
 
 // TestPrintTierHelpers_NoPanic exercises the unexported per-tier print
@@ -85,12 +85,75 @@ func TestPrintTierHelpers_NoPanic(t *testing.T) {
 			t.Errorf("print tier helper panicked: %v", r)
 		}
 	}()
-	printFirstRunCompact("wthr", "http://localhost:8080", "tok")
-	printFirstRunMinimal("wthr", 8080, "tok")
+	printFirstRunFull("wthr", "http://localhost:8080", "example.onion", "abcdefghij.b32.i2p", "tok", "http://localhost:8080/server/admin/config/setup")
+	printFirstRunCompact("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/admin/config/setup")
+	printFirstRunMinimal("wthr", "http://localhost:8080", "tok")
 	printFirstRunMicro("wthr", 8080)
+	printFirstRunPlain("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/admin/config/setup")
+	printNormalFull("wthr", "1.0.0", "2026-01-01T00:00:00Z", "http://localhost:8080", "example.onion", "abcdefghij.b32.i2p")
 	printNormalCompact("wthr", "1.0.0", "http://localhost:8080")
-	printNormalMinimal("wthr", "1.0.0", 8080)
+	printNormalMinimal("wthr", "1.0.0", "http://localhost:8080")
 	printNormalMicro("wthr", 8080)
+	printNormalPlain("wthr", "1.0.0", "http://localhost:8080")
+}
+
+// TestBannerProto verifies the banner scheme is resolved from the TLS state only.
+func TestBannerProto(t *testing.T) {
+	if got := BannerProto(true); got != "https" {
+		t.Errorf("BannerProto(true) = %q, want %q", got, "https")
+	}
+	if got := BannerProto(false); got != "http" {
+		t.Errorf("BannerProto(false) = %q, want %q", got, "http")
+	}
+}
+
+// TestBannerListenURL covers default-port stripping, explicit ports, IPv6
+// bracketing, and the empty-host fallback required by AI.md PART 11/15.
+func TestBannerListenURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		proto string
+		host  string
+		port  int
+		want  string
+	}{
+		{"http_default_port_stripped", "http", "example.com", 80, "http://example.com"},
+		{"https_default_port_stripped", "https", "example.com", 443, "https://example.com"},
+		{"http_non_default_port_shown", "http", "example.com", 8080, "http://example.com:8080"},
+		{"https_non_default_port_shown", "https", "example.com", 8443, "https://example.com:8443"},
+		{"https_on_80_keeps_port", "https", "example.com", 80, "https://example.com:80"},
+		{"http_on_443_keeps_port", "http", "example.com", 443, "http://example.com:443"},
+		{"ipv6_bracketed", "http", "2001:db8::1", 8080, "http://[2001:db8::1]:8080"},
+		{"ipv6_already_bracketed", "http", "[2001:db8::1]", 8080, "http://[2001:db8::1]:8080"},
+		{"ipv4_unbracketed", "http", "192.0.2.10", 8080, "http://192.0.2.10:8080"},
+		{"empty_host_falls_back", "http", "", 8080, "http://localhost:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := BannerListenURL(tt.proto, tt.host, tt.port); got != tt.want {
+				t.Errorf("BannerListenURL(%q, %q, %d) = %q, want %q", tt.proto, tt.host, tt.port, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestBannerLineWidth verifies every rendered row of the full banner is the
+// same display width as its borders, so the box never looks ragged.
+func TestBannerLineWidth(t *testing.T) {
+	border := bannerBorder("╭", "╮")
+	borderWidth := bannerDisplayWidth(border)
+
+	lines := []string{
+		bannerLine("short"),
+		bannerLine("🚀 wthr · 📦 1.0.0"),
+		bannerLine("📡 Listening on http://example.com:8080"),
+	}
+	for _, line := range lines {
+		if got := bannerDisplayWidth(line); got != borderWidth {
+			t.Errorf("bannerDisplayWidth(%q) = %d, want %d", line, got, borderWidth)
+		}
+	}
 }
 
 // TestCenterText_ContainsOriginalText is a lightweight regression guard: for

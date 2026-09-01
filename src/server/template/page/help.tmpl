@@ -286,6 +286,25 @@
         </details>
     </div>
 
+    {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
+    <div class="card margin-y-lg" id="i2p-access">
+        <h2 class="text-cyan">🔗 {{t .server.Lang "help_i2p_heading"}}</h2>
+        <p>{{t .server.Lang "help_i2p_description"}}</p>
+        <h3 class="text-purple">{{t .server.Lang "help_i2p_address_heading"}}</h3>
+        <div class="code-wrapper margin-y-md">
+            <code class="mobile-code i2p-address">{{.server.I2P.Address}}</code>
+            <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.server.I2P.Address}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
+        </div>
+        <h3 class="text-purple">{{t .server.Lang "help_i2p_connect_heading"}}</h3>
+        <ol>
+            <li>{{t .server.Lang "help_i2p_step_install"}} <a href="https://geti2p.net/en/download" target="_blank" rel="noopener" class="text-cyan">I2P</a> {{t .server.Lang "help_i2p_step_install_or"}} <a href="https://i2pd.website/" target="_blank" rel="noopener" class="text-cyan">i2pd</a></li>
+            <li>{{t .server.Lang "help_i2p_step_proxy"}} <code class="mobile-code">127.0.0.1:4444</code></li>
+            <li>{{t .server.Lang "help_i2p_step_open"}} <code class="mobile-code i2p-address">http://{{.server.I2P.Address}}</code></li>
+        </ol>
+        <p class="text-comment"><small>{{t .server.Lang "help_i2p_http_note"}}</small></p>
+    </div>
+    {{end}}
+
     <div class="card margin-y-lg">
         <h2 class="text-cyan">{{t .server.Lang "help_still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">

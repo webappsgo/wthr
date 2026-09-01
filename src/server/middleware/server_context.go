@@ -22,6 +22,9 @@ type ServerContext struct {
 	Lang string
 	// Resolved theme class for <html> (AI.md PART 16): theme-dark/theme-light/theme-auto
 	ThemeClass string
+	// Raw resolved theme mode (AI.md PART 16): dark/light/auto - the value the
+	// toggle feeds to nextTheme so its POST target is always server-computed
+	Theme string
 	// SEO fields per AI.md PART 16
 	Keywords      string
 	Author        string
@@ -95,6 +98,7 @@ func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Han
 				Version:         version,
 				Lang:            lang.(string),
 				ThemeClass:      server.ThemeClass(themeMode),
+				Theme:           themeMode,
 				Keywords:        keywords,
 				Author:          author,
 				OGImage:         ogImage,
@@ -125,7 +129,8 @@ func GetServerContext(ctx context.Context) (ServerContext, bool) {
 			Description: "Weather information service",
 			Version:     "unknown",
 			Lang:        "en",
-			ThemeClass:  "theme-dark",
+			ThemeClass:  server.ThemeClass(server.DefaultTheme),
+			Theme:       server.DefaultTheme,
 			Keywords:    "weather, forecast, alerts",
 		}, false
 	}

@@ -18,8 +18,8 @@ func seedGeoIPFixtureFiles(t *testing.T, geoipDir string) {
 		t.Fatalf("failed to create geoip dir: %v", err)
 	}
 	for _, name := range []string{
-		"geolite2-city-ipv4.mmdb",
-		"geolite2-city-ipv6.mmdb",
+		"dbip-city-ipv4.mmdb",
+		"dbip-city-ipv6.mmdb",
 		"geo-whois-asn-country.mmdb",
 		"asn.mmdb",
 	} {
@@ -63,10 +63,10 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		waitGeoIPEnabled(t, gs)
 
 		wantDir := filepath.Join(dir, "geoip")
-		if gs.cityIPv4Path != filepath.Join(wantDir, "geolite2-city-ipv4.mmdb") {
+		if gs.cityIPv4Path != filepath.Join(wantDir, "dbip-city-ipv4.mmdb") {
 			t.Errorf("cityIPv4Path = %q, want under %q", gs.cityIPv4Path, wantDir)
 		}
-		if gs.cityIPv6Path != filepath.Join(wantDir, "geolite2-city-ipv6.mmdb") {
+		if gs.cityIPv6Path != filepath.Join(wantDir, "dbip-city-ipv6.mmdb") {
 			t.Errorf("cityIPv6Path = %q, want under %q", gs.cityIPv6Path, wantDir)
 		}
 		if gs.countryPath != filepath.Join(wantDir, "geo-whois-asn-country.mmdb") {
@@ -94,7 +94,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		waitGeoIPEnabled(t, gs)
 
 		wantDir := filepath.Join(dir, "geoip")
-		if gs.cityIPv4Path != filepath.Join(wantDir, "geolite2-city-ipv4.mmdb") {
+		if gs.cityIPv4Path != filepath.Join(wantDir, "dbip-city-ipv4.mmdb") {
 			t.Errorf("cityIPv4Path = %q, want under %q", gs.cityIPv4Path, wantDir)
 		}
 	})
@@ -110,7 +110,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		}
 		waitGeoIPEnabled(t, gs)
 
-		want := filepath.Join("geoip", "geolite2-city-ipv4.mmdb")
+		want := filepath.Join("geoip", "dbip-city-ipv4.mmdb")
 		if gs.cityIPv4Path != want {
 			t.Errorf("cityIPv4Path = %q, want %q", gs.cityIPv4Path, want)
 		}
@@ -344,8 +344,8 @@ func TestGeoIP_Reload_FailsWithoutDownloadableDatabases(t *testing.T) {
 	}
 
 	gs := &GeoIPService{
-		cityIPv4Path: filepath.Join(blocker, "geolite2-city-ipv4.mmdb"),
-		cityIPv6Path: filepath.Join(blocker, "geolite2-city-ipv6.mmdb"),
+		cityIPv4Path: filepath.Join(blocker, "dbip-city-ipv4.mmdb"),
+		cityIPv6Path: filepath.Join(blocker, "dbip-city-ipv6.mmdb"),
 		countryPath:  filepath.Join(blocker, "geo-whois-asn-country.mmdb"),
 		asnPath:      filepath.Join(blocker, "asn.mmdb"),
 		enabled:      true,
@@ -372,8 +372,8 @@ func TestGeoIP_Reload_SucceedsWithPreSeededDatabases(t *testing.T) {
 	seedGeoIPFixtureFiles(t, geoipDir)
 
 	gs := &GeoIPService{
-		cityIPv4Path: filepath.Join(geoipDir, "geolite2-city-ipv4.mmdb"),
-		cityIPv6Path: filepath.Join(geoipDir, "geolite2-city-ipv6.mmdb"),
+		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
+		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
 		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
 		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),
@@ -410,8 +410,8 @@ func TestGeoIP_LoadDatabases_AllFilesPresentEnablesService(t *testing.T) {
 	}
 
 	gs := &GeoIPService{
-		cityIPv4Path: filepath.Join(geoipDir, "geolite2-city-ipv4.mmdb"),
-		cityIPv6Path: filepath.Join(geoipDir, "geolite2-city-ipv6.mmdb"),
+		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
+		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
 		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
 		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),
@@ -463,7 +463,7 @@ func TestGeoIP_downloadDatabase_NetworkErrorSurfaced(t *testing.T) {
 //     pre-seeds all 4 expected mmdb files via seedGeoIPFixtureFiles first.
 //     UpdateDatabase/updateSingleDatabase's and loadDatabases' actual
 //     *download* success paths (the branch that calls http.Get against
-//     cdn.jsdelivr.net) have no network-free seam — this environment has
+//     the ip-location-db release and CDN hosts) have no network-free seam — this environment has
 //     real internet access, so a test cannot rely on "no network" to force
 //     that branch to fail either. Only the deterministic, network-independent
 //     failure seam (os.MkdirAll failing because a plain file occupies the

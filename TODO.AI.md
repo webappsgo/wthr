@@ -4024,3 +4024,25 @@ any of the above: `src/graphql/context_keys_test.go`,
     `user_settings_test.go` to expect the actual translated English
     strings instead of the raw keys. Verified: full `go test ./...`
     green. Read: AI.md PART 31.
+
+176. TODO (flagged 2026-08-31 during a code-review pass on unrelated
+    open-redirect-guard cleanup): `util.GetHostFromRequest`
+    (`src/util/host.go` lines 71-92) honors `X-Forwarded-Host`/
+    `X-Real-Host`/`X-Original-Host` from every caller unconditionally,
+    with no `server.trusted_proxies` gate — unlike `GetClientIP`, which
+    item 171 already wrapped with a gated `TrustedGetClientIP` per AI.md
+    PART 5's "NEVER trust `X-Forwarded-*` headers... from a peer that
+    isn't in `trusted_proxies`" rule. This is a pre-existing gap (not
+    introduced by this session's changes), same shape as item 171's
+    fix but for the Host header family instead of the client-IP header
+    family. Fix: add a `TrustedGetHostFromRequest(r *http.Request)
+    string` (or equivalent gated variant) in `src/util/trusted_proxies.go`
+    alongside `TrustedGetClientIP`, reusing `isTrustedPeer()`; audit and
+    update real call sites of `util.GetHostFromRequest(r)` to use the
+    gated version wherever the result feeds a security-relevant decision
+    (redirects, CORS origin checks, cookie domain, links shown back to
+    the user) — direct display-only uses may be lower priority but
+    should be reviewed too. Add matching subtests to
+    `trusted_proxies_test.go` (header-honored vs header-dropped by peer
+    trust, mirroring the existing `TrustedGetClientIP` coverage). Read:
+    AI.md PART 5, PART 12.

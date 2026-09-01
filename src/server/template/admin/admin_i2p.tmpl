@@ -1,0 +1,313 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+
+    <h1>🧭 {{t $lang "admin.i2p.title"}}</h1>
+    <p>{{t $lang "admin.i2p.intro"}}</p>
+
+    {{if eq .form_status "saved"}}
+    <div class="alert alert-success" role="status" aria-live="polite">
+        ✅ {{t $lang "admin.i2p.settings_saved"}}
+    </div>
+    {{end}}
+    {{if eq .form_status "regenerated"}}
+    <div class="alert alert-success" role="status" aria-live="polite">
+        ✅ {{t $lang "admin.i2p.address_regenerated"}}
+    </div>
+    {{end}}
+    {{if eq .form_status "restarted"}}
+    <div class="alert alert-success" role="status" aria-live="polite">
+        ✅ {{t $lang "admin.i2p.provider_restarted"}}
+    </div>
+    {{end}}
+    {{if eq .form_status "invalid"}}
+    <div class="alert alert-danger" role="alert">
+        ⚠️ {{t $lang "admin.i2p.error_invalid_settings"}}
+        {{if .invalid_fields}}<code>{{.invalid_fields}}</code>{{end}}
+    </div>
+    {{end}}
+    {{if eq .form_status "provider-error"}}
+    <div class="alert alert-danger" role="alert">
+        ⚠️ {{t $lang "admin.i2p.error_provider"}}
+    </div>
+    {{end}}
+    {{if eq .form_status "disabled"}}
+    <div class="alert alert-danger" role="alert">
+        ⚠️ {{t $lang "admin.i2p.error_disabled"}}
+    </div>
+    {{end}}
+
+    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-status-heading">
+        <h2 id="i2p-status-heading">{{t $lang "admin.i2p.status_heading"}}</h2>
+
+        <div class="status-row">
+            <span class="status-indicator {{if .I2PStatus.running}}status-connected{{else}}status-disconnected{{end}}"
+                  role="img"
+                  aria-label="{{if .I2PStatus.running}}{{t $lang "admin.i2p.status_running"}}{{else if .I2PStatus.enabled}}{{t $lang "admin.i2p.status_stopped"}}{{else}}{{t $lang "admin.i2p.status_disabled"}}{{end}}"></span>
+            <strong id="i2p-status-text">{{if .I2PStatus.running}}{{t $lang "admin.i2p.status_running"}}{{else if .I2PStatus.enabled}}{{t $lang "admin.i2p.status_stopped"}}{{else}}{{t $lang "admin.i2p.status_disabled"}}{{end}}</strong>
+        </div>
+
+        <table class="data-table mt-3">
+            <tbody>
+                <tr>
+                    <th scope="row">{{t $lang "admin.i2p.provider_label"}}</th>
+                    <td>{{.I2PStatus.provider}}</td>
+                </tr>
+                <tr>
+                    <th scope="row">{{t $lang "admin.i2p.binary_label"}}</th>
+                    <td>{{if .I2PStatus.binary}}{{.I2PStatus.binary}}{{else}}{{t $lang "admin.i2p.value_none"}}{{end}}</td>
+                </tr>
+                <tr>
+                    <th scope="row">{{t $lang "admin.i2p.sam_address_label"}}</th>
+                    <td>{{if .I2PStatus.sam_address}}{{.I2PStatus.sam_address}}{{else}}{{t $lang "admin.i2p.value_none"}}{{end}}</td>
+                </tr>
+                <tr>
+                    <th scope="row">{{t $lang "admin.i2p.uptime_label"}}</th>
+                    <td>{{.I2PStatus.uptime_seconds}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        {{if .I2PStatus.address}}
+        <div class="onion-address-box mt-3" role="region" aria-labelledby="i2p-address-label">
+            <div>
+                <label id="i2p-address-label" class="d-block mb-1">{{t $lang "admin.i2p.address_label"}}</label>
+                <code id="i2p-address" class="i2p-address">{{.I2PStatus.address}}</code>
+            </div>
+            <button type="button"
+                    class="btn btn-secondary"
+                    data-action="copy-to-clipboard"
+                    data-text="{{.I2PStatus.address}}"
+                    aria-label="{{t $lang "admin.i2p.copy_address_aria"}}">
+                📋 {{t $lang "admin.i2p.copy_action"}}
+            </button>
+        </div>
+        {{end}}
+    </section>
+
+    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-settings-heading">
+        <h2 id="i2p-settings-heading">{{t $lang "admin.i2p.settings_heading"}}</h2>
+        <p>{{t $lang "admin.i2p.settings_intro"}}</p>
+
+        <form method="post" action="{{.admin_path}}/config/network/i2p">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+
+            <div class="form-group">
+                <label for="i2p-enabled" class="form-label text-purple">
+                    {{t $lang "admin.i2p.enabled_label"}}
+                </label>
+                <input type="checkbox"
+                       id="i2p-enabled"
+                       name="enabled"
+                       value="true"
+                       {{if .I2PConfig.Enabled}}checked{{end}}
+                       aria-describedby="i2p-enabled-help">
+                <small id="i2p-enabled-help" class="form-help">
+                    {{t $lang "admin.i2p.enabled_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-binary" class="form-label text-purple">
+                    {{t $lang "admin.i2p.binary_field_label"}}
+                </label>
+                <input type="text"
+                       id="i2p-binary"
+                       name="binary"
+                       class="form-input"
+                       value="{{.I2PConfig.Binary}}"
+                       aria-describedby="i2p-binary-help">
+                <small id="i2p-binary-help" class="form-help">
+                    {{t $lang "admin.i2p.binary_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-sam-address" class="form-label text-purple">
+                    {{t $lang "admin.i2p.sam_address_field_label"}}
+                </label>
+                <input type="text"
+                       id="i2p-sam-address"
+                       name="sam_address"
+                       class="form-input"
+                       value="{{.I2PConfig.SAMAddress}}"
+                       aria-describedby="i2p-sam-address-help">
+                <small id="i2p-sam-address-help" class="form-help">
+                    {{t $lang "admin.i2p.sam_address_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-virtual-port" class="form-label text-purple">
+                    {{t $lang "admin.i2p.virtual_port_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-virtual-port"
+                       name="virtual_port"
+                       class="form-input"
+                       min="1"
+                       max="65535"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.VirtualPort}}"
+                       aria-describedby="i2p-virtual-port-help">
+                <small id="i2p-virtual-port-help" class="form-help">
+                    {{t $lang "admin.i2p.virtual_port_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-inbound-length" class="form-label text-purple">
+                    {{t $lang "admin.i2p.inbound_length_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-inbound-length"
+                       name="inbound_length"
+                       class="form-input"
+                       min="0"
+                       max="7"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.InboundLength}}"
+                       aria-describedby="i2p-inbound-length-help">
+                <small id="i2p-inbound-length-help" class="form-help">
+                    {{t $lang "admin.i2p.inbound_length_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-outbound-length" class="form-label text-purple">
+                    {{t $lang "admin.i2p.outbound_length_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-outbound-length"
+                       name="outbound_length"
+                       class="form-input"
+                       min="0"
+                       max="7"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.OutboundLength}}"
+                       aria-describedby="i2p-outbound-length-help">
+                <small id="i2p-outbound-length-help" class="form-help">
+                    {{t $lang "admin.i2p.outbound_length_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-inbound-quantity" class="form-label text-purple">
+                    {{t $lang "admin.i2p.inbound_quantity_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-inbound-quantity"
+                       name="inbound_quantity"
+                       class="form-input"
+                       min="1"
+                       max="16"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.InboundQuantity}}"
+                       aria-describedby="i2p-inbound-quantity-help">
+                <small id="i2p-inbound-quantity-help" class="form-help">
+                    {{t $lang "admin.i2p.inbound_quantity_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-outbound-quantity" class="form-label text-purple">
+                    {{t $lang "admin.i2p.outbound_quantity_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-outbound-quantity"
+                       name="outbound_quantity"
+                       class="form-input"
+                       min="1"
+                       max="16"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.OutboundQuantity}}"
+                       aria-describedby="i2p-outbound-quantity-help">
+                <small id="i2p-outbound-quantity-help" class="form-help">
+                    {{t $lang "admin.i2p.outbound_quantity_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-signature-type" class="form-label text-purple">
+                    {{t $lang "admin.i2p.signature_type_label"}}
+                </label>
+                <select id="i2p-signature-type"
+                        name="signature_type"
+                        class="form-input"
+                        aria-describedby="i2p-signature-type-help">
+                    <option value="7" {{if eq .I2PConfig.SignatureType 7}}selected{{end}}>7 — EdDSA-Ed25519</option>
+                    <option value="0" {{if eq .I2PConfig.SignatureType 0}}selected{{end}}>0 — DSA-SHA1</option>
+                </select>
+                <small id="i2p-signature-type-help" class="form-help">
+                    {{t $lang "admin.i2p.signature_type_help"}}
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="i2p-bootstrap-timeout" class="form-label text-purple">
+                    {{t $lang "admin.i2p.bootstrap_timeout_label"}}
+                </label>
+                <input type="number"
+                       id="i2p-bootstrap-timeout"
+                       name="bootstrap_timeout"
+                       class="form-input"
+                       min="30"
+                       max="600"
+                       step="1"
+                       required
+                       aria-required="true"
+                       value="{{.I2PConfig.BootstrapTimeout}}"
+                       aria-describedby="i2p-bootstrap-timeout-help">
+                <small id="i2p-bootstrap-timeout-help" class="form-help">
+                    {{t $lang "admin.i2p.bootstrap_timeout_help"}}
+                </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.i2p.save_aria"}}">
+                💾 {{t $lang "admin.i2p.save_action"}}
+            </button>
+        </form>
+    </section>
+
+    <section class="card mb-4 p-4" role="region" aria-labelledby="i2p-actions-heading">
+        <h2 id="i2p-actions-heading">{{t $lang "admin.i2p.actions_heading"}}</h2>
+
+        <div class="action-row">
+            <form method="post" action="{{.admin_path}}/config/network/i2p/restart" class="mr-md">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <button type="submit"
+                        class="btn btn-secondary"
+                        {{if not .I2PConfig.Enabled}}disabled{{end}}
+                        aria-label="{{t $lang "admin.i2p.restart_aria"}}">
+                    🔁 {{t $lang "admin.i2p.restart_action"}}
+                </button>
+            </form>
+
+            <form method="post" action="{{.admin_path}}/config/network/i2p/regenerate">
+                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <button type="submit"
+                        class="btn btn-danger"
+                        {{if not .I2PConfig.Enabled}}disabled{{end}}
+                        aria-label="{{t $lang "admin.i2p.regenerate_aria"}}">
+                    🔄 {{t $lang "admin.i2p.regenerate_action"}}
+                </button>
+            </form>
+        </div>
+
+        <p class="warning-text">
+            <strong>⚠️ {{t $lang "admin.i2p.regenerate_warning_label"}}</strong> {{t $lang "admin.i2p.regenerate_warning_text"}}
+        </p>
+    </section>
+
+{{template "admin_footer" .}}

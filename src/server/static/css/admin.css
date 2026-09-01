@@ -412,16 +412,28 @@
     color: var(--color-primary);
 }
 
-/* Long identifiers (IPs, onion addresses, tokens, hashes) must never overflow. */
+/* Long identifiers (IPs, tokens, hashes) wrap in place and must never overflow. */
 .admin-content .long-string,
 .admin-content .ip-address,
-.admin-content .onion-address,
 .admin-content .api-token,
 .admin-content .hash,
 .admin-content .uuid {
     font-family: var(--font-mono);
     word-break: break-all;
     overflow-wrap: break-word;
+}
+
+/* Onion, I2P, and copy-button values stay on one line and scroll horizontally. */
+.admin-content .onion-address,
+.admin-content .i2p-address,
+.admin-content .copy-value {
+    display: inline-block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
 }
 
 /* ============================================

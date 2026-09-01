@@ -99,6 +99,7 @@
         </summary>
         <ul class="nav-list">
           <li><a class="nav-link{{if eq $page "tor"}} is-active{{end}}" href="{{$ap}}/config/network/tor"{{if eq $page "tor"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tor"}}</a></li>
+          <li><a class="nav-link{{if eq $page "i2p"}} is-active{{end}}" href="{{$ap}}/config/network/i2p"{{if eq $page "i2p"}} aria-current="page"{{end}}>{{t $lang "admin.nav.i2p"}}</a></li>
           <li><a class="nav-link{{if eq $page "geoip"}} is-active{{end}}" href="{{$ap}}/config/network/geoip"{{if eq $page "geoip"}} aria-current="page"{{end}}>{{t $lang "admin.nav.geoip"}}</a></li>
           <li><a class="nav-link{{if eq $page "blocklists"}} is-active{{end}}" href="{{$ap}}/config/network/blocklists"{{if eq $page "blocklists"}} aria-current="page"{{end}}>{{t $lang "admin.nav.blocklists"}}</a></li>
         </ul>
@@ -134,7 +135,7 @@
           <span class="nav-section__text">{{t $lang "admin.nav.help"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "help"}} is-active{{end}}" href="{{$ap}}/help"{{if eq $page "help"}} aria-current="page"{{end}}>{{t $lang "admin.nav.documentation"}}</a></li>
+          <li><a class="nav-link{{if eq $page "help"}} is-active{{end}}" href="{{$ap}}/config/pages/help"{{if eq $page "help"}} aria-current="page"{{end}}>{{t $lang "admin.nav.documentation"}}</a></li>
         </ul>
       </details>
     </nav>
@@ -160,7 +161,7 @@
       </main>
       <footer class="admin-footer">
         <p class="admin-footer__item">{{t $lang "admin.footer.version"}} <span class="admin-footer__value">{{if .server}}{{.server.Version}}{{else}}{{t $lang "admin.footer.unknown"}}{{end}}</span></p>
-        <p class="admin-footer__item"><a class="admin-footer__link" href="{{$ap}}/help">{{t $lang "admin.footer.docs"}}</a></p>
+        <p class="admin-footer__item"><a class="admin-footer__link" href="{{$ap}}/config/pages/help">{{t $lang "admin.footer.docs"}}</a></p>
         <p class="admin-footer__item admin-status admin-status--{{$status}}">
           <span class="admin-status__dot" aria-hidden="true">{{if eq $status "error"}}&#10007;{{else if eq $status "warning"}}&#9888;{{else}}&#10003;{{end}}</span>
           <span class="admin-status__text">{{if eq $status "error"}}{{t $lang "admin.status.error"}}{{else if eq $status "warning"}}{{t $lang "admin.status.warning"}}{{else}}{{t $lang "admin.status.ok"}}{{end}}</span>

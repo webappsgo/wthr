@@ -50,9 +50,11 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 
 	robotsTxt := ""
 	securityTxt := ""
+	aiBots := config.AIBotsConfig{}
 	if cfg != nil {
 		robotsTxt = cfg.Web.RobotsTxt
 		securityTxt = cfg.Web.SecurityTxt
+		aiBots = cfg.Web.Robots.AIBots
 	}
 
 	// Get app URL for template variable replacement
@@ -65,12 +67,15 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	serverCtx, _ := middleware.GetServerContext(r.Context())
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":       "Web Settings",
-		"RobotsTxt":   robotsTxt,
-		"SecurityTxt": securityTxt,
-		"AppURL":      appURL,
-		"User":        admin,
-		"server":      serverCtx,
+		"Title":          "Web Settings",
+		"RobotsTxt":      robotsTxt,
+		"SecurityTxt":    securityTxt,
+		"AppURL":         appURL,
+		"User":           admin,
+		"server":         serverCtx,
+		"AIBotsDefault":  aiBotsDefault(aiBots),
+		"AIBotPolicies":  aiBotPolicies(aiBots),
+		"RecognizedBots": config.RecognizedAIBots,
 	}))
 }
 
@@ -79,15 +84,48 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	robotsTxt := ""
+	aiBots := config.AIBotsConfig{}
 
 	if cfg != nil {
 		robotsTxt = cfg.Web.RobotsTxt
+		aiBots = cfg.Web.Robots.AIBots
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"content": robotsTxt,
+		"ai_bots": map[string]interface{}{
+			"default":    aiBotsDefault(aiBots),
+			"bots":       aiBotPolicies(aiBots),
+			"recognized": config.RecognizedAIBots,
+		},
 	})
+}
+
+// aiBotsDefault returns the effective ai_bots.default value, defaulting to allow
+func aiBotsDefault(aiBots config.AIBotsConfig) string {
+	if strings.EqualFold(strings.TrimSpace(aiBots.Default), "deny") {
+		return "deny"
+	}
+	return "allow"
+}
+
+// aiBotPolicies returns the effective allow/deny policy for every recognized AI crawler
+func aiBotPolicies(aiBots config.AIBotsConfig) map[string]string {
+	denied := make(map[string]bool, len(config.RecognizedAIBots))
+	for _, bot := range aiBots.DeniedAIBots() {
+		denied[bot] = true
+	}
+
+	policies := make(map[string]string, len(config.RecognizedAIBots))
+	for _, bot := range config.RecognizedAIBots {
+		if denied[bot] {
+			policies[bot] = "deny"
+			continue
+		}
+		policies[bot] = "allow"
+	}
+	return policies
 }
 
 // UpdateRobotsTxt updates robots.txt content
@@ -95,6 +133,10 @@ func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
 func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Content string `json:"content" binding:"required"`
+		AIBots  *struct {
+			Default string            `json:"default"`
+			Bots    map[string]string `json:"bots"`
+		} `json:"ai_bots"`
 	}
 
 	if !DecodeAndValidate(w, r, &req) {
@@ -106,15 +148,28 @@ func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "UPDATE_FAILED",
-				"message": "Failed to update robots.txt in server.yml",
+				"message": Translate(r, "errors.admin.web.robots_update_failed"),
 			},
 		})
 		return
 	}
 
+	// AI.md PART 14: the AI crawler policy is edited alongside the robots.txt body
+	if req.AIBots != nil {
+		if err := config.UpdateWebRobotsAIBots(req.AIBots.Default, req.AIBots.Bots); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"error": map[string]interface{}{
+					"code":    "VALIDATION_FAILED",
+					"message": Translate(r, "errors.admin.web.robots_ai_bots_invalid"),
+				},
+			})
+			return
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "robots.txt updated successfully (will auto-reload)",
+		"message": Translate(r, "admin.web.robots_updated_message"),
 	})
 }
 
@@ -150,7 +205,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "UPDATE_FAILED",
-				"message": "Failed to update security.txt in server.yml",
+				"message": Translate(r, "errors.admin.web.security_update_failed"),
 			},
 		})
 		return
@@ -158,7 +213,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "security.txt updated successfully (will auto-reload)",
+		"message": Translate(r, "admin.web.security_updated_message"),
 	})
 }
 
@@ -181,6 +236,14 @@ Allow: /`
 	appURL := scheme + "://" + r.Host
 
 	robotsTxt = strings.ReplaceAll(robotsTxt, "{app_url}", appURL)
+
+	// AI.md PART 14: denied AI crawlers each get their own stanza; allowed ones
+	// stay covered by the wildcard User-agent block above
+	if cfg != nil {
+		if stanzas := cfg.Web.Robots.AIBots.AIBotStanzas(); stanzas != "" {
+			robotsTxt = strings.TrimRight(robotsTxt, "\n") + "\n\n" + stanzas
+		}
+	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	// Cache for 24 hours

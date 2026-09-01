@@ -10,6 +10,7 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -30,6 +31,61 @@ func SetBuildInfo(version, buildDate, commitID string) {
 	CommitID = commitID
 }
 
+// pageServerData builds the template "server" map for pages that add their own fields.
+// util.TemplateData lets caller keys win outright, so a page-supplied map would drop
+// the shared chrome context (language, theme, SEO) unless it starts from the
+// middleware ServerContext and overrides only page-specific keys (AI.md PART 16).
+func pageServerData(r *http.Request, extra map[string]interface{}) map[string]interface{} {
+	ctx, _ := middleware.GetServerContext(r.Context())
+	data := map[string]interface{}{
+		"Title":           ctx.Title,
+		"Tagline":         ctx.Tagline,
+		"Description":     ctx.Description,
+		"Version":         ctx.Version,
+		"Lang":            ctx.Lang,
+		"ThemeClass":      ctx.ThemeClass,
+		"Theme":           ctx.Theme,
+		"Keywords":        ctx.Keywords,
+		"Author":          ctx.Author,
+		"OGImage":         ctx.OGImage,
+		"TwitterHandle":   ctx.TwitterHandle,
+		"VerifyGoogle":    ctx.VerifyGoogle,
+		"VerifyBing":      ctx.VerifyBing,
+		"VerifyYandex":    ctx.VerifyYandex,
+		"VerifyBaidu":     ctx.VerifyBaidu,
+		"VerifyPinterest": ctx.VerifyPinterest,
+		"VerifyFacebook":  ctx.VerifyFacebook,
+	}
+	for key, value := range extra {
+		data[key] = value
+	}
+	return data
+}
+
+// buildI2PPageData exposes the opt-in eepsite state to public templates
+// (AI.md PART 32.2). Every field is zero-valued while I2P is disabled.
+func buildI2PPageData(cfg *config.AppConfig) map[string]interface{} {
+	enabled := false
+	if cfg != nil {
+		enabled = cfg.Server.Features.I2P || cfg.Server.I2P.Enabled
+	}
+	if !enabled {
+		return map[string]interface{}{
+			"Enabled":  false,
+			"Running":  false,
+			"Address":  "",
+			"Provider": "none",
+		}
+	}
+	running, _, provider, address := GetI2PStatus()
+	return map[string]interface{}{
+		"Enabled":  true,
+		"Running":  running,
+		"Address":  address,
+		"Provider": provider,
+	}
+}
+
 // ShowAboutPage renders the about page with content negotiation (AI.md PART 14)
 func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +101,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"user": user,
 			"page": "about",
-			"server": map[string]interface{}{
+			"server": pageServerData(r, map[string]interface{}{
 				"Title":       cfg.Server.Branding.Title,
 				"Description": cfg.Server.Branding.Description,
 				"Version":     Version,
@@ -57,7 +113,8 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 					"Enabled":      torEnabled,
 					"OnionAddress": onionAddress,
 				},
-			},
+				"I2P": buildI2PPageData(cfg),
+			}),
 			"HostInfo": util.GetHostInfo(r),
 		}
 
@@ -74,10 +131,10 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"user": user,
 			"page": "privacy",
-			"server": map[string]interface{}{
+			"server": pageServerData(r, map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
-			},
+			}),
 			"HostInfo": util.GetHostInfo(r),
 		}
 
@@ -94,11 +151,11 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"user": user,
 			"page": "contact",
-			"server": map[string]interface{}{
+			"server": pageServerData(r, map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
 				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
-			},
+			}),
 			"HostInfo": util.GetHostInfo(r),
 		}
 
@@ -115,11 +172,12 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"user": user,
 			"page": "help",
-			"server": map[string]interface{}{
+			"server": pageServerData(r, map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
 				"GitOrg":  "webappsgo",
 				"GitRepo": "wthr",
-			},
+				"I2P":     buildI2PPageData(cfg),
+			}),
 			"HostInfo": util.GetHostInfo(r),
 		}
 
@@ -136,10 +194,10 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		data := map[string]interface{}{
 			"user": user,
 			"page": "terms",
-			"server": map[string]interface{}{
+			"server": pageServerData(r, map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
-			},
+			}),
 			"HostInfo": util.GetHostInfo(r),
 		}
 

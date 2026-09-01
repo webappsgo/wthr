@@ -9,6 +9,12 @@
         <a href="/server/terms">{{t .lang "footer.terms"}}</a>
         <span class="page-footer__divider">•</span>
         <a href="/docs">{{t .lang "footer.about"}}</a>
+        <span class="page-footer__divider">•</span>
+        <a href="/server/preferences">{{t .lang "footer.preferences"}}</a>
+        {{if .i2p}}{{if .i2p.Show}}
+        <span class="page-footer__divider">•</span>
+        <a href="http://{{.i2p.Address}}" rel="noopener">{{t .lang "footer.i2p_support"}}</a>
+        {{end}}{{end}}
     </p>
 </footer>
 </body>

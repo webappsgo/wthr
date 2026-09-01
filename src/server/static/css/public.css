@@ -642,3 +642,95 @@
 .eq-details.visible {
   display: block !important;
 }
+
+/* ============================================
+   PREFERENCES PAGE (AI.md PART 16)
+   Mobile-first: options stack, then sit side by side from 768px up.
+   ============================================ */
+
+.preferences-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+
+.preferences-current {
+  color: var(--color-muted);
+}
+
+.preferences-label {
+  font-weight: 600;
+}
+
+.preferences-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  width: 100%;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.preferences-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  /* WCAG 2.1 AA touch target minimum */
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-bg-active);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.preferences-option:hover {
+  border-color: var(--color-primary);
+}
+
+.preferences-option:focus-within {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* Selection is shown by border plus the radio control itself, never by
+   colour alone, per the WCAG rules in AI.md PART 31 */
+.preferences-option:has(input:checked) {
+  border-color: var(--color-primary);
+}
+
+.preferences-option-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.preferences-option-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.preferences-option-title {
+  font-weight: 600;
+}
+
+.preferences-option-hint {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.preferences-save {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+@media (min-width: 768px) {
+  .preferences-fieldset {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .preferences-option {
+    flex: 1 1 220px;
+  }
+}

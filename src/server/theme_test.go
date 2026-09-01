@@ -181,3 +181,50 @@ func TestSetThemeHandler(t *testing.T) {
 		}
 	})
 }
+
+// TestNextTheme locks the AI.md PART 16 toggle cycle dark -> light -> auto ->
+// dark, including full wraparound, so a repeated click keeps cycling instead
+// of resubmitting a fixed value.
+func TestNextTheme(t *testing.T) {
+	tests := []struct {
+		name    string
+		current string
+		want    string
+	}{
+		{"dark advances to light", "dark", "light"},
+		{"light advances to auto", "light", "auto"},
+		{"auto wraps to dark", "auto", "dark"},
+		{"empty is unset and yields the default", "", DefaultTheme},
+		{"unknown value yields the default", "solarized", DefaultTheme},
+		{"uppercase is normalised", "DARK", "light"},
+		{"mixed case is normalised", "LiGhT", "auto"},
+		{"surrounding whitespace is trimmed", "  auto  ", "dark"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NextTheme(tt.current); got != tt.want {
+				t.Fatalf("NextTheme(%q) = %q, want %q", tt.current, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestNextThemeFullCycle walks the cycle three times from every valid starting
+// mode, proving every step lands on a valid theme and returns to its start.
+func TestNextThemeFullCycle(t *testing.T) {
+	for _, start := range []string{"dark", "light", "auto"} {
+		t.Run(start, func(t *testing.T) {
+			mode := start
+			for i := 0; i < len(ValidThemes); i++ {
+				mode = NextTheme(mode)
+				if !IsValidTheme(mode) {
+					t.Fatalf("step %d from %q produced invalid theme %q", i+1, start, mode)
+				}
+			}
+			if mode != start {
+				t.Fatalf("full cycle from %q ended at %q, want %q", start, mode, start)
+			}
+		})
+	}
+}

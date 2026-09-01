@@ -9,6 +9,11 @@
     {{if .server.Keywords}}<meta name="keywords" content="{{.server.Keywords}}">{{end}}
     {{if .server.Author}}<meta name="author" content="{{.server.Author}}">{{end}}
 
+    <!-- Per-route robots directive per AI.md PART 16 - computed server-side, -->
+    <!-- fails closed to noindex,nofollow for any route not explicitly public -->
+    <meta name="robots" content="{{if .robots}}{{.robots}}{{else}}noindex,nofollow{{end}}">
+    <link rel="canonical" href="{{.current_url}}">
+
     <!-- OpenGraph meta tags per AI.md PART 16 -->
     <meta property="og:title" content="{{.title}} - {{.server.Title}}">
     <meta property="og:description" content="{{.server.Description}}">
@@ -30,6 +35,18 @@
     {{if .server.VerifyBaidu}}<meta name="baidu-site-verification" content="{{.server.VerifyBaidu}}">{{end}}
     {{if .server.VerifyPinterest}}<meta name="p:domain_verify" content="{{.server.VerifyPinterest}}">{{end}}
     {{if .server.VerifyFacebook}}<meta property="fb:domain_verification" content="{{.server.VerifyFacebook}}">{{end}}
+
+    <!-- Structured data per AI.md PART 16 - schema.org WebSite -->
+    <!-- No SearchAction: the only search routes are JSON APIs under /api/, which are noindex -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "{{.server.Title}}",
+      "description": "{{.server.Description}}",
+      "url": "{{.current_url}}"
+    }
+    </script>
 
     <!-- AI.md PART 16: theme class is rendered server-side on <html> above from -->
     <!-- the theme cookie/DB preference - zero JS required, no flash of wrong theme -->

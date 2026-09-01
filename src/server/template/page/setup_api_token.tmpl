@@ -43,7 +43,7 @@
             <div class="token-display">
                 <label class="form-label">{{t .server.Lang "setup_api_token_your_token_label"}}</label>
                 <div class="token-box">
-                    <code id="api-token" class="token-value long-string">{{ .APIToken }}</code>
+                    <code id="api-token" class="token-value copy-value">{{ .APIToken }}</code>
                     <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">{{t .server.Lang "btn_copy"}}</button>
                 </div>
                 <small class="form-hint">{{t .server.Lang "setup_api_token_usage_hint"}} <code>Bearer {token}</code></small>

@@ -351,6 +351,10 @@ a:hover {
 @media (min-width: 768px) {
   .navbar-menu {
     display: flex;
+    /* Zone B fills the space between brand and actions so the links
+       stay centered while the theme toggle stays pinned far right */
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 
@@ -485,6 +489,77 @@ a:hover {
 .theme-sep {
   color: var(--color-muted);
   font-size: 0.8rem;
+}
+
+.theme-toggle-label {
+  margin-right: auto;
+  font-size: 0.9rem;
+}
+
+/* ============================================
+   HEADER ZONE D - THEME TOGGLE (AI.md PART 16)
+   Works with JavaScript disabled: it is a real POST form whose value
+   is the server-computed next mode.
+   ============================================ */
+
+.navbar-theme {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 0 0 auto;
+}
+
+.theme-toggle-form,
+.theme-toggle-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.theme-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* WCAG 2.1 AA touch target minimum */
+  min-width: 44px;
+  min-height: 44px;
+  background: transparent;
+  border: 1px solid var(--color-bg-active);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-button:hover {
+  background: var(--color-bg-active);
+  border-color: var(--color-primary);
+}
+
+.theme-button:focus-visible {
+  outline: 3px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* The active mode is marked by border AND an underline, never by colour
+   alone, per the WCAG 2.1 AA rules in AI.md PART 31 */
+.theme-button.active {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 -3px 0 0 var(--color-primary);
+}
+
+/* Guest gear link into /server/preferences */
+.navbar-icon-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: 1.1rem;
 }
 
 /* ============================================
@@ -5258,6 +5333,19 @@ a.profile-dropdown-item[href="/server/auth/logout"]:hover {
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
   overflow-x: auto;
+}
+
+/* Onion, I2P, and copy-button values stay on one line and scroll horizontally */
+.onion-address,
+.i2p-address,
+.copy-value {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
 }
 
 .btn-copy {

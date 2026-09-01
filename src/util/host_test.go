@@ -322,3 +322,63 @@ func TestGetGlobalIPv4(t *testing.T) {
 		t.Errorf("getGlobalIPv4() = %q, want a global unicast address", got)
 	}
 }
+
+// AI.md PART 12/32: overlay Host headers are matched at priority 0 and always
+// resolve to plain http, ignoring proxy headers and TLS state.
+func TestOverlayHostFromRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		host string
+		want string
+	}{
+		{"tor onion", "abcdefghij234567.onion", "abcdefghij234567.onion"},
+		{"i2p b32", "abcdefghij234567.b32.i2p", "abcdefghij234567.b32.i2p"},
+		{"onion with port", "abcdefghij234567.onion:8080", "abcdefghij234567.onion"},
+		{"uppercase onion", "ABCDEF.ONION", "abcdef.onion"},
+		{"trailing dot i2p", "abcdef.b32.i2p.", "abcdef.b32.i2p"},
+		{"clearnet host", "example.com", ""},
+		{"empty host", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Host = tt.host
+			if got := OverlayHostFromRequest(req); got != tt.want {
+				t.Errorf("OverlayHostFromRequest(%q) = %q, want %q", tt.host, got, tt.want)
+			}
+		})
+	}
+
+	if got := OverlayHostFromRequest(nil); got != "" {
+		t.Errorf("OverlayHostFromRequest(nil) = %q, want empty", got)
+	}
+}
+
+func TestGetHostInfoOverlayIsAlwaysHTTP(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "abcdefghij234567.b32.i2p"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("X-Forwarded-Host", "proxy.example.com")
+
+	info := GetHostInfo(req)
+	if info.Protocol != "http" {
+		t.Errorf("Protocol = %q, want http", info.Protocol)
+	}
+	if info.Hostname != "abcdefghij234567.b32.i2p" {
+		t.Errorf("Hostname = %q, want the eepsite address", info.Hostname)
+	}
+	if info.FullHost != "http://abcdefghij234567.b32.i2p" {
+		t.Errorf("FullHost = %q, want http eepsite URL", info.FullHost)
+	}
+}
+
+func TestGetHostFromRequestOverlayBeatsProxyHeaders(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "abcdefghij234567.onion"
+	req.Header.Set("X-Forwarded-Host", "proxy.example.com")
+
+	if got := GetHostFromRequest(req); got != "abcdefghij234567.onion" {
+		t.Errorf("GetHostFromRequest() = %q, want the onion address", got)
+	}
+}

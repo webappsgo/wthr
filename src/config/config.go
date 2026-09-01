@@ -93,7 +93,9 @@ type ServerConfig struct {
 	Maintenance   MaintenanceConfig  `yaml:"maintenance"`
 	Notifications NotificationConfig `yaml:"notifications"`
 	Tor           TorConfig          `yaml:"tor"`
-	Features      FeatureConfig      `yaml:"features"`
+	// I2P holds the opt-in I2P eepsite settings per AI.md PART 32.2
+	I2P      I2PConfig     `yaml:"i2p"`
+	Features FeatureConfig `yaml:"features"`
 	// Security holds project-level at-rest encryption settings per AI.md PART 11
 	Security SecurityConfig `yaml:"security"`
 	// TrustedProxies gates which peers may set forwarded/real-IP headers per AI.md PART 5/12
@@ -313,6 +315,90 @@ type WebConfig struct {
 	SecurityTxt string `yaml:"security_txt"`
 	// Custom favicon URL (empty = use embedded default)
 	FaviconURL string `yaml:"favicon_url"`
+	// Generated robots.txt policy (AI crawler access control)
+	Robots RobotsConfig `yaml:"robots"`
+}
+
+// RobotsConfig represents the generated robots.txt policy per AI.md PART 14
+type RobotsConfig struct {
+	// Per-AI-crawler access control
+	AIBots AIBotsConfig `yaml:"ai_bots"`
+}
+
+// AIBotsConfig controls which AI crawlers may index the site per AI.md PART 14
+type AIBotsConfig struct {
+	// Applies to any recognized AI bot not listed individually in Bots: allow | deny
+	Default string `yaml:"default"`
+	// Per-bot overrides: allow | deny
+	Bots map[string]string `yaml:"bots"`
+}
+
+// RecognizedAIBots is the canonical AI crawler list from AI.md PART 14, in spec order
+var RecognizedAIBots = []string{
+	"GPTBot",
+	"ChatGPT-User",
+	"ClaudeBot",
+	"anthropic-ai",
+	"Claude-Web",
+	"CCBot",
+	"Google-Extended",
+	"Bytespider",
+	"PerplexityBot",
+	"Applebot-Extended",
+	"Amazonbot",
+	"Diffbot",
+	"FacebookBot",
+	"cohere-ai",
+}
+
+// DeniedAIBots returns the recognized AI crawlers that must render their own
+// "Disallow: /" stanza in robots.txt, in the canonical spec order.
+// AI.md PART 14: default posture is allow; an explicit per-bot value always
+// wins over ai_bots.default, and unknown values fall back to the default.
+func (c AIBotsConfig) DeniedAIBots() []string {
+	denyByDefault := strings.EqualFold(strings.TrimSpace(c.Default), "deny")
+
+	denied := make([]string, 0, len(RecognizedAIBots))
+	for _, bot := range RecognizedAIBots {
+		deny := denyByDefault
+		for name, value := range c.Bots {
+			if !strings.EqualFold(strings.TrimSpace(name), bot) {
+				continue
+			}
+			switch strings.ToLower(strings.TrimSpace(value)) {
+			case "deny":
+				deny = true
+			case "allow":
+				deny = false
+			}
+			break
+		}
+		if deny {
+			denied = append(denied, bot)
+		}
+	}
+	return denied
+}
+
+// AIBotStanzas renders the robots.txt stanzas for every denied AI crawler.
+// Returns an empty string when no bot is denied, so an all-allow policy adds
+// nothing to the generated file.
+func (c AIBotsConfig) AIBotStanzas() string {
+	denied := c.DeniedAIBots()
+	if len(denied) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("# AI crawlers denied by server policy\n")
+	for i, bot := range denied {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString("User-agent: " + bot + "\n")
+		b.WriteString("Disallow: /\n")
+	}
+	return b.String()
 }
 
 // UIConfig represents UI configuration per AI.md PART 4
@@ -334,6 +420,150 @@ type FeatureConfig struct {
 	MoonPhases    bool `yaml:"moon_phases"`
 	SevereWeather bool `yaml:"severe_weather"`
 	AuditLog      bool `yaml:"audit_log"`
+	// I2P mirrors server.i2p.enabled so feature-list surfaces can gate on it
+	// without reaching into the transport config per AI.md PART 32.2
+	I2P bool `yaml:"i2p"`
+}
+
+// I2PConfig holds I2P eepsite configuration per AI.md PART 32.2.
+// Unlike Tor (auto-enabled when the binary is found), I2P is strictly opt-in:
+// no provider is contacted and no port is allocated unless Enabled is true.
+type I2PConfig struct {
+	// OPT-IN: I2P eepsite is created only when Enabled is true
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// i2pd binary path (empty = auto-detect); a found binary selects Model A
+	Binary string `yaml:"binary" json:"binary"`
+	// SAM bridge address for Model B, used only when no i2pd binary is found
+	SAMAddress string `yaml:"sam_address" json:"sam_address"`
+	// Virtual port the eepsite listens on, 1-65535, default 80
+	VirtualPort int `yaml:"virtual_port" json:"virtual_port"`
+	// Inbound tunnel hop count, 0-7, default 3
+	InboundLength int `yaml:"inbound_length" json:"inbound_length"`
+	// Outbound tunnel hop count, 0-7, default 3
+	OutboundLength int `yaml:"outbound_length" json:"outbound_length"`
+	// Parallel inbound tunnels, 1-16, default 5
+	InboundQuantity int `yaml:"inbound_quantity" json:"inbound_quantity"`
+	// Parallel outbound tunnels, 1-16, default 5
+	OutboundQuantity int `yaml:"outbound_quantity" json:"outbound_quantity"`
+	// SAM/destination signature type, 7 = EdDSA-SHA512-Ed25519
+	SignatureType int `yaml:"signature_type" json:"signature_type"`
+	// Seconds to wait for the destination and tunnels to become ready, 30-600
+	BootstrapTimeout int `yaml:"bootstrap_timeout" json:"bootstrap_timeout"`
+}
+
+// DefaultI2PConfig returns the default (disabled) I2P configuration per AI.md PART 32.2
+func DefaultI2PConfig() I2PConfig {
+	return I2PConfig{
+		Enabled:          false,
+		Binary:           "",
+		SAMAddress:       "127.0.0.1:7656",
+		VirtualPort:      80,
+		InboundLength:    3,
+		OutboundLength:   3,
+		InboundQuantity:  5,
+		OutboundQuantity: 5,
+		SignatureType:    7,
+		BootstrapTimeout: 300,
+	}
+}
+
+// ValidationError describes a single rejected configuration field
+type ValidationError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+// Error implements the error interface so a single ValidationError can be
+// returned directly from update handlers
+func (e ValidationError) Error() string {
+	return e.Field + ": " + e.Message
+}
+
+// i2pSignatureTypes lists the destination signature types the eepsite accepts
+// per AI.md PART 32.2 (0 = DSA-SHA1 legacy, 7 = EdDSA-SHA512-Ed25519)
+var i2pSignatureTypes = []int{0, 7}
+
+// ValidateI2PConfig validates all I2P settings before saving per AI.md PART 32.2
+func ValidateI2PConfig(cfg *I2PConfig) []ValidationError {
+	var errs []ValidationError
+	if cfg == nil {
+		return []ValidationError{{Field: "i2p", Message: "configuration is missing"}}
+	}
+	if cfg.VirtualPort < 1 || cfg.VirtualPort > 65535 {
+		errs = append(errs, ValidationError{Field: "virtual_port", Message: "must be between 1 and 65535"})
+	}
+	if cfg.InboundLength < 0 || cfg.InboundLength > 7 {
+		errs = append(errs, ValidationError{Field: "inbound_length", Message: "must be between 0 and 7"})
+	}
+	if cfg.OutboundLength < 0 || cfg.OutboundLength > 7 {
+		errs = append(errs, ValidationError{Field: "outbound_length", Message: "must be between 0 and 7"})
+	}
+	if cfg.InboundQuantity < 1 || cfg.InboundQuantity > 16 {
+		errs = append(errs, ValidationError{Field: "inbound_quantity", Message: "must be between 1 and 16"})
+	}
+	if cfg.OutboundQuantity < 1 || cfg.OutboundQuantity > 16 {
+		errs = append(errs, ValidationError{Field: "outbound_quantity", Message: "must be between 1 and 16"})
+	}
+	validSignature := false
+	for _, allowed := range i2pSignatureTypes {
+		if cfg.SignatureType == allowed {
+			validSignature = true
+			break
+		}
+	}
+	if !validSignature {
+		errs = append(errs, ValidationError{Field: "signature_type", Message: "must be 0 or 7"})
+	}
+	if cfg.BootstrapTimeout < 30 || cfg.BootstrapTimeout > 600 {
+		errs = append(errs, ValidationError{Field: "bootstrap_timeout", Message: "must be between 30 and 600 seconds"})
+	}
+	if strings.TrimSpace(cfg.SAMAddress) != "" {
+		if _, _, err := net.SplitHostPort(strings.TrimSpace(cfg.SAMAddress)); err != nil {
+			errs = append(errs, ValidationError{Field: "sam_address", Message: "must be a host:port address"})
+		}
+	}
+	return errs
+}
+
+// NormalizeI2PConfig replaces out-of-range or empty I2P values with their
+// defaults. AI.md PART 5 forbids failing startup on a bad config value, so
+// every rejected field silently falls back instead of erroring.
+func NormalizeI2PConfig(cfg *I2PConfig) {
+	if cfg == nil {
+		return
+	}
+	defaults := DefaultI2PConfig()
+	if strings.TrimSpace(cfg.SAMAddress) == "" {
+		cfg.SAMAddress = defaults.SAMAddress
+	}
+	if cfg.VirtualPort < 1 || cfg.VirtualPort > 65535 {
+		cfg.VirtualPort = defaults.VirtualPort
+	}
+	if cfg.InboundLength < 0 || cfg.InboundLength > 7 {
+		cfg.InboundLength = defaults.InboundLength
+	}
+	if cfg.OutboundLength < 0 || cfg.OutboundLength > 7 {
+		cfg.OutboundLength = defaults.OutboundLength
+	}
+	if cfg.InboundQuantity < 1 || cfg.InboundQuantity > 16 {
+		cfg.InboundQuantity = defaults.InboundQuantity
+	}
+	if cfg.OutboundQuantity < 1 || cfg.OutboundQuantity > 16 {
+		cfg.OutboundQuantity = defaults.OutboundQuantity
+	}
+	validSignature := false
+	for _, allowed := range i2pSignatureTypes {
+		if cfg.SignatureType == allowed {
+			validSignature = true
+			break
+		}
+	}
+	if !validSignature {
+		cfg.SignatureType = defaults.SignatureType
+	}
+	if cfg.BootstrapTimeout < 30 || cfg.BootstrapTimeout > 600 {
+		cfg.BootstrapTimeout = defaults.BootstrapTimeout
+	}
 }
 
 // randomPort returns a random port in the 64000-64999 range per AI.md PART 4
@@ -633,12 +863,14 @@ func LoadConfig() (*AppConfig, error) {
 			Tor: TorConfig{
 				Enabled: false,
 			},
+			I2P: DefaultI2PConfig(),
 			Features: FeatureConfig{
 				Earthquakes:   true,
 				Hurricanes:    true,
 				MoonPhases:    true,
 				SevereWeather: true,
 				AuditLog:      true,
+				I2P:           false,
 			},
 			// AI.md PART 11: left empty here so the load path below can tell
 			// "missing from server.yml" apart from "explicitly present" and
@@ -686,6 +918,11 @@ func LoadConfig() (*AppConfig, error) {
 	if err := decoder.Decode(cfg); err != nil {
 		return cfg, fmt.Errorf("config error: %w (unknown fields are not allowed)", err)
 	}
+
+	// AI.md PART 5: an invalid config value warns and falls back to the
+	// default rather than failing startup, so I2P settings are normalized
+	// in place immediately after decoding.
+	NormalizeI2PConfig(&cfg.Server.I2P)
 
 	// AI.md PART 11: an existing server.yml from before this key existed
 	// (or one with the field blanked) must get a key generated ONCE and
@@ -841,6 +1078,79 @@ func UpdateWebRobotsTxt(content string) error {
 
 	cfg.Web.RobotsTxt = content
 	return SaveConfig(cfg)
+}
+
+// UpdateWebRobotsAIBots updates the AI crawler policy in server.yml.
+// Values other than "allow"/"deny" are rejected so an invalid admin submission
+// can never silently flip a bot's posture.
+func UpdateWebRobotsAIBots(defaultPolicy string, bots map[string]string) error {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return fmt.Errorf("global config not initialized")
+	}
+
+	normalized, err := normalizeAIBotPolicy(defaultPolicy)
+	if err != nil {
+		return fmt.Errorf("invalid ai_bots default: %w", err)
+	}
+
+	normalizedBots := make(map[string]string, len(bots))
+	for name, value := range bots {
+		canonical := ""
+		for _, bot := range RecognizedAIBots {
+			if strings.EqualFold(strings.TrimSpace(name), bot) {
+				canonical = bot
+				break
+			}
+		}
+		if canonical == "" {
+			return fmt.Errorf("unrecognized ai bot: %q", name)
+		}
+		policy, err := normalizeAIBotPolicy(value)
+		if err != nil {
+			return fmt.Errorf("invalid policy for %s: %w", canonical, err)
+		}
+		normalizedBots[canonical] = policy
+	}
+
+	cfg.Web.Robots.AIBots.Default = normalized
+	cfg.Web.Robots.AIBots.Bots = normalizedBots
+	return SaveConfig(cfg)
+}
+
+// UpdateI2PConfig validates and persists the I2P eepsite settings per AI.md PART 32.2.
+// It also mirrors the enabled flag into server.features.i2p so feature-list
+// surfaces can gate on a single value.
+func UpdateI2PConfig(next I2PConfig) []ValidationError {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return []ValidationError{{Field: "i2p", Message: "global config not initialized"}}
+	}
+
+	next.SAMAddress = strings.TrimSpace(next.SAMAddress)
+	next.Binary = strings.TrimSpace(next.Binary)
+	if errs := ValidateI2PConfig(&next); len(errs) > 0 {
+		return errs
+	}
+
+	cfg.Server.I2P = next
+	cfg.Server.Features.I2P = next.Enabled
+	if err := SaveConfig(cfg); err != nil {
+		return []ValidationError{{Field: "i2p", Message: err.Error()}}
+	}
+	return nil
+}
+
+// normalizeAIBotPolicy validates and lowercases an AI crawler policy value
+func normalizeAIBotPolicy(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "allow":
+		return "allow", nil
+	case "deny":
+		return "deny", nil
+	default:
+		return "", fmt.Errorf("must be allow or deny, got %q", value)
+	}
 }
 
 // UpdateWebSecurityTxt updates the security.txt content in server.yml
