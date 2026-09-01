@@ -650,29 +650,6 @@ func i2pProviderHealthy(service *I2PService) bool {
 	}
 }
 
-// monitorI2P monitors the I2P provider and restarts it if it dies. The server
-// binary keeps the eepsite running (mirrors monitorTor).
-func monitorI2P(ctx context.Context, service *I2PService, restartFunc func() (*I2PService, error)) {
-	ticker := time.NewTicker(i2pMonitorInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if service != nil && !i2pProviderHealthy(service) {
-				log.Println("I2P provider unresponsive, restarting...")
-				service.Close()
-				if newService, err := restartFunc(); err != nil {
-					log.Printf("Failed to restart I2P: %v", err)
-				} else {
-					service = newService
-				}
-			}
-		}
-	}
-}
-
 // I2PManager handles all I2P lifecycle operations. It stores NO backend port:
 // the dedicated port is allocated inside startDedicatedI2P, only when I2P is
 // enabled AND a provider is available.
@@ -686,12 +663,46 @@ type I2PManager struct {
 	backendPort int
 }
 
-// NewI2PManager creates a new I2P manager with the given configuration.
+// NewI2PManager creates a new I2P manager with the given configuration and
+// starts its background health monitor, which restarts an unresponsive
+// eepsite the same way the Tor hidden service is kept running - I2P is
+// opt-in, but once enabled it must never treat a provider crash as fatal to
+// the server (AI.md PART 32).
 func NewI2PManager(ctx context.Context, cfg *config.I2PConfig) *I2PManager {
-	return &I2PManager{
+	im := &I2PManager{
 		config:  cfg,
 		dataDir: filepath.Join(paths.GetDataDir(), "i2p"),
 		ctx:     ctx,
+	}
+	go im.monitorLoop(ctx)
+	return im
+}
+
+// monitorLoop periodically health-checks a running eepsite and restarts it
+// if it has died, until ctx is cancelled (process shutdown). Disabled or
+// not-yet-started managers are simply skipped each tick - no provider means
+// nothing to monitor.
+func (im *I2PManager) monitorLoop(ctx context.Context) {
+	ticker := time.NewTicker(i2pMonitorInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			im.mu.Lock()
+			needsRestart := im.config != nil && im.config.Enabled &&
+				im.service != nil && !i2pProviderHealthy(im.service)
+			if needsRestart {
+				log.Println("I2P provider unresponsive, restarting...")
+				im.service.Close()
+				im.service = nil
+				if err := im.startLocked(); err != nil {
+					log.Printf("Failed to restart I2P: %v", err)
+				}
+			}
+			im.mu.Unlock()
+		}
 	}
 }
 
