@@ -60,19 +60,17 @@ SOFTWARE.
 - **Attribution**: © OpenStreetMap contributors
 - **Usage**: Free with attribution and fair use policy
 
-### Cities Database
-- **Source**: OpenWeatherMap City List
-- **Repository**: https://github.com/webappsgo/citylist
-- **License**: CC BY-SA 4.0
-- **Records**: 209,579 cities worldwide
-- **Attribution**: City data compiled from OpenWeatherMap and OpenStreetMap
-
-### Countries Database
-- **Source**: REST Countries API
-- **Repository**: https://github.com/webappsgo/countries
-- **License**: MPL 2.0 (Mozilla Public License 2.0)
-- **Records**: 247 countries with timezones and metadata
-- **Attribution**: Country data from various open sources
+### Cities and Countries Database (GeoNames)
+- **Source**: GeoNames.org (`cities15000.txt`, `countryInfo.txt`, `admin1CodesASCII.txt`)
+- **Website**: https://www.geonames.org/
+- **License**: CC BY 4.0 (Creative Commons Attribution 4.0 International)
+- **Terms**: https://www.geonames.org/export/
+- **Records**: 34,133 cities (population >= 15,000) and 252 countries with timezone and admin1/state metadata
+- **Attribution**: Geographical data by GeoNames, licensed under CC BY 4.0
+- **Usage**: Vendored as static JSON (`src/server/service/data/countries.json`,
+  `src/server/service/data/cities.json`) and embedded into the binary via
+  `go:embed` (`src/server/service/location_enhancer.go`) — a one-time
+  transform of the raw GeoNames source files, not a live API dependency
 
 ## Design and Theme
 
@@ -438,4 +436,3 @@ go list -m all
 ```
 
 All dependencies in go.mod are licensed under permissive open-source licenses (MIT, BSD, Apache-2.0, ISC) compatible with this project's MIT license. No GPL/AGPL/LGPL dependencies are used.
-

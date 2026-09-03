@@ -374,3 +374,42 @@ before starting each item — do not rely on memory.
       workflow_dispatch) and `act --list -W docker-aio.yml` (1 job, push/
       workflow_dispatch only).
     Read: AI.md PART 27, PART 28, PART 30 (README source-of-truth), PART 34.
+
+178. RESOLVED (2026-09-03): app-breaking bug in
+    `src/server/service/location_enhancer.go` (city/country NAME search, used
+    for `GET /api/v1/locations/search` - distinct from the IP-based GeoIP
+    subsystem in `src/server/service/geoip.go`, unaffected) was fetching its
+    country/city datasets at runtime from two GitHub repos that never
+    existed (`webappsgo/countries`, `webappsgo/citylist`, and the pre-rename
+    `casapps/*` equivalents - all confirmed 404), causing
+    `/api/v1/locations/search` to silently fail for any query not already
+    resolvable by ZIP/coordinates. User chose "vendor a real static dataset"
+    over repointing to a different live source. Fix: transformed GeoNames.org
+    (`cities15000.txt`, `countryInfo.txt`, `admin1CodesASCII.txt`, CC BY 4.0)
+    into the project's exact `Country`/`City` schema, committed as
+    `src/server/service/data/{countries,cities}.json` (252 countries, 34,133
+    cities), embedded via `go:embed` (mirrors the `src/common/i18n` embed
+    pattern), and rewired `loadCountriesData`/`loadCitiesData` to read the
+    embedded files instead of making HTTP requests. Removed the now-dead
+    `http.Client`/`http.Transport` from `NewLocationEnhancer`.
+    `location_enhancer_test.go` rewritten to exercise the embedded-data path
+    (`fakeUpstreamTransport`/`httptest` mocks removed). `make test` passes in
+    Docker, 60.0% coverage. `LICENSE.md`'s stale/incorrect third-party entry
+    (wrong dead repos, wrong licenses CC BY-SA 4.0/MPL 2.0) replaced with the
+    correct GeoNames CC BY 4.0 attribution.
+
+179. TODO (deferred from item 178, 2026-09-03): no page on this project
+    currently shows a visible CC BY 4.0 (or any) data-source attribution
+    notice, even though AI.md PART 20 requires one, verbatim, on
+    `/server/about` for the IP-based GeoIP databases (DB-IP + NRO) once that
+    feature's databases are wired in, and the same "attribution is a license
+    condition, not a courtesy" principle now also applies to the
+    GeoNames-sourced location-name-search data (item 178) and the existing
+    Open-Meteo/OpenStreetMap Nominatim data sources (already CC BY 4.0/ODbL
+    per `LICENSE.md` but not shown anywhere in the UI). Build a single
+    `/server/about` "Data Sources" section (HTML + JSON, per
+    `src/server/handler/server_pages.go`'s `ShowAboutPage`/`GetAboutAPI`)
+    listing all active third-party data attributions together, rather than
+    adding them one at a time per feature. Read: AI.md PART 20 "License &
+    Attribution (NON-NEGOTIABLE)" for the exact required wording/placement
+    pattern to follow for each source.

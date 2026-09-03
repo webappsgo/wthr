@@ -1,37 +1,16 @@
 package service
 
 import (
-	"encoding/json"
 	"math"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 )
 
-// fakeUpstreamTransport rewrites every outgoing request to target the given
-// httptest server instead of the hardcoded GitHub raw-content host, so the
-// LocationEnhancer's loadCountriesData/loadCitiesData/Reload paths can be
-// exercised without any real network access. The original request path is
-// preserved so the test server can distinguish which dataset was requested.
-type fakeUpstreamTransport struct {
-	target *url.URL
-}
-
-func (f *fakeUpstreamTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = f.target.Scheme
-	req.URL.Host = f.target.Host
-	req.Host = f.target.Host
-	return http.DefaultTransport.RoundTrip(req)
-}
-
 // newTestLocationEnhancer builds a LocationEnhancer directly (bypassing
-// NewLocationEnhancer, which spawns a background goroutine that makes real
-// network calls) so tests can control the client and seed data explicitly.
+// NewLocationEnhancer, which spawns a background goroutine that loads the
+// embedded dataset) so tests can seed data explicitly.
 func newTestLocationEnhancer() *LocationEnhancer {
 	return &LocationEnhancer{
-		client:        &http.Client{},
 		countriesData: []Country{},
 		citiesData:    []City{},
 	}
@@ -568,83 +547,52 @@ func TestLocationEnhancer_FindCityByID(t *testing.T) {
 }
 
 // TestLocationEnhancer_Reload exercises loadCountriesData/loadCitiesData
-// through Reload() against a local httptest.Server (via a RoundTripper that
-// redirects the hardcoded upstream host), covering both the success path and
-// the upstream-failure error path. No real network access is made.
+// through Reload(), confirming both read from the embedded, vendored
+// GeoNames dataset (data/countries.json, data/cities.json) rather than any
+// network source, and populate real data with the expected shape.
 func TestLocationEnhancer_Reload(t *testing.T) {
-	t.Run("successful reload populates countries and cities", func(t *testing.T) {
-		countries := []Country{{Name: "Testland", CountryCode: "TL", Capital: "Test City", Timezones: []string{"UTC"}}}
-		cities := []City{{ID: 1, Name: "Test City", Country: "TL"}}
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			if strings.Contains(r.URL.Path, "countries") {
-				json.NewEncoder(w).Encode(countries)
-				return
-			}
-			json.NewEncoder(w).Encode(cities)
-		}))
-		defer server.Close()
-
-		target, err := url.Parse(server.URL)
-		if err != nil {
-			t.Fatalf("failed to parse test server URL: %v", err)
-		}
-
+	t.Run("reload populates countries and cities from embedded data", func(t *testing.T) {
 		le := newTestLocationEnhancer()
-		le.client = &http.Client{Transport: &fakeUpstreamTransport{target: target}}
 
 		if err := le.Reload(); err != nil {
 			t.Fatalf("Reload() unexpected error: %v", err)
 		}
 
-		if len(le.countriesData) != 1 || le.countriesData[0].CountryCode != "TL" {
-			t.Errorf("countriesData after Reload = %+v, want one Testland entry", le.countriesData)
+		if len(le.countriesData) == 0 {
+			t.Fatalf("countriesData after Reload() is empty, want vendored GeoNames entries")
 		}
-		if len(le.citiesData) != 1 || le.citiesData[0].Name != "Test City" {
-			t.Errorf("citiesData after Reload = %+v, want one Test City entry", le.citiesData)
-		}
-	})
-
-	t.Run("upstream failure on countries returns wrapped error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		defer server.Close()
-
-		target, err := url.Parse(server.URL)
-		if err != nil {
-			t.Fatalf("failed to parse test server URL: %v", err)
+		if len(le.citiesData) == 0 {
+			t.Fatalf("citiesData after Reload() is empty, want vendored GeoNames entries")
 		}
 
-		le := newTestLocationEnhancer()
-		le.client = &http.Client{Transport: &fakeUpstreamTransport{target: target}}
-
-		err = le.Reload()
-		if err == nil {
-			t.Fatalf("Reload() expected error on upstream 500, got nil")
+		found := false
+		for _, c := range le.countriesData {
+			if c.CountryCode == "US" {
+				found = true
+				if !strings.EqualFold(c.Name, "United States") {
+					t.Errorf("US country entry Name = %q, want United States", c.Name)
+				}
+				break
+			}
 		}
-		if !strings.Contains(err.Error(), "reload countries") {
-			t.Errorf("Reload() error = %v, want it to mention 'reload countries'", err)
+		if !found {
+			t.Errorf("countriesData missing expected US entry")
 		}
 	})
 
-	t.Run("malformed JSON response returns wrapped error", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("not json"))
-		}))
-		defer server.Close()
-
-		target, err := url.Parse(server.URL)
-		if err != nil {
-			t.Fatalf("failed to parse test server URL: %v", err)
-		}
-
+	t.Run("loadCountriesData is idempotent across repeated calls", func(t *testing.T) {
 		le := newTestLocationEnhancer()
-		le.client = &http.Client{Transport: &fakeUpstreamTransport{target: target}}
 
-		if err := le.Reload(); err == nil {
-			t.Errorf("Reload() expected error on malformed JSON, got nil")
+		if err := le.loadCountriesData(); err != nil {
+			t.Fatalf("loadCountriesData() unexpected error: %v", err)
+		}
+		firstLen := len(le.countriesData)
+
+		if err := le.loadCountriesData(); err != nil {
+			t.Fatalf("loadCountriesData() second call unexpected error: %v", err)
+		}
+		if len(le.countriesData) != firstLen {
+			t.Errorf("countriesData length changed across reloads: %d then %d", firstLen, len(le.countriesData))
 		}
 	})
 }

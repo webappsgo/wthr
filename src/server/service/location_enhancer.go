@@ -2,12 +2,11 @@ package service
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -15,10 +14,19 @@ import (
 	"github.com/webappsgo/wthr/src/common/display"
 )
 
-// LocationEnhancer enhances location data with external databases
+// locationDataFS embeds the vendored GeoNames country and city reference
+// data (CC BY 4.0, https://www.geonames.org/). Countries: countryInfo.txt.
+// Cities: cities15000.txt (population >= 15000) with admin1CodesASCII.txt
+// resolving admin1 codes to human-readable state/province names. See
+// LICENSE.md for the required attribution notice.
+//
+//go:embed data/*.json
+var locationDataFS embed.FS
+
+// LocationEnhancer enhances location data with the vendored GeoNames
+// reference databases (see LICENSE.md for attribution).
 type LocationEnhancer struct {
 	db             *sql.DB
-	client         *http.Client
 	countriesData  []Country
 	citiesData     []City
 	mu             sync.RWMutex
@@ -26,7 +34,7 @@ type LocationEnhancer struct {
 	onInitComplete func(countries, cities bool)
 }
 
-// Country represents country data from external database
+// Country represents country data from the vendored GeoNames dataset
 type Country struct {
 	Name        string   `json:"name"`
 	CountryCode string   `json:"country_code"`
@@ -35,7 +43,7 @@ type Country struct {
 	Population  int      `json:"population"`
 }
 
-// City represents city data from external database
+// City represents city data from the vendored GeoNames dataset
 type City struct {
 	ID      int    `json:"id"`
 	Name    string `json:"name"`
@@ -66,18 +74,8 @@ type EnhancedLocation struct {
 
 // NewLocationEnhancer creates a new location enhancer
 func NewLocationEnhancer(db *sql.DB) *LocationEnhancer {
-	transport := &http.Transport{
-		MaxIdleConns:        50,
-		MaxIdleConnsPerHost: 10,
-		IdleConnTimeout:     90 * time.Second,
-	}
-
 	le := &LocationEnhancer{
-		db: db,
-		client: &http.Client{
-			Transport: transport,
-			Timeout:   30 * time.Second,
-		},
+		db:            db,
 		countriesData: []Country{},
 		citiesData:    []City{},
 		initialized:   false,
@@ -147,19 +145,12 @@ func (le *LocationEnhancer) loadData() {
 	}()
 }
 
-// loadCountriesData loads country data from external source
+// loadCountriesData loads country data from the vendored, embedded GeoNames
+// dataset (data/countries.json). See LICENSE.md for attribution.
 func (le *LocationEnhancer) loadCountriesData() error {
-	url := "https://raw.githubusercontent.com/webappsgo/countries/refs/heads/main/countries.json"
-
-	resp, err := le.client.Get(url)
+	body, err := locationDataFS.ReadFile("data/countries.json")
 	if err != nil {
-		return fmt.Errorf("failed to fetch countries data: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read countries data: %w", err)
+		return fmt.Errorf("failed to read embedded countries data: %w", err)
 	}
 
 	var countries []Country
@@ -174,19 +165,12 @@ func (le *LocationEnhancer) loadCountriesData() error {
 	return nil
 }
 
-// loadCitiesData loads city data from external source
+// loadCitiesData loads city data from the vendored, embedded GeoNames
+// dataset (data/cities.json). See LICENSE.md for attribution.
 func (le *LocationEnhancer) loadCitiesData() error {
-	url := "https://raw.githubusercontent.com/webappsgo/citylist/refs/heads/main/src/data/citylist.json"
-
-	resp, err := le.client.Get(url)
+	body, err := locationDataFS.ReadFile("data/cities.json")
 	if err != nil {
-		return fmt.Errorf("failed to fetch cities data: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read cities data: %w", err)
+		return fmt.Errorf("failed to read embedded cities data: %w", err)
 	}
 
 	var cities []City
