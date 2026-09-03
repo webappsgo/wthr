@@ -344,13 +344,22 @@ before starting each item — do not rely on memory.
       outside file content (e.g. stale/unmerged Renovate PRs, dashboard
       state) that needs checking on the actual Renovate dashboard/PR list,
       not the config file.
-    - `.github/workflows/*.yml`: reviewed structure - all 5 required files
-      present (ci/release/beta/daily/docker.yml), every third-party action
-      SHA-pinned with a trailing version comment, release/beta/daily all
-      build the full 8-platform matrix, ci.yml enforces the 60% coverage
-      gate and has a concurrency group. No concrete "incomplete" content
-      found mechanically; if the complaint is about something specific
-      (a missing job, a missing check), needs the user to point at it or a
-      deeper line-by-line diff against `.claude/rules/cicd-rules.md`/AI.md
-      PART 28 requirements than this pass performed.
-    Read: AI.md PART 28, PART 30 (README source-of-truth), PART 34.
+    - `.github/workflows/*.yml` / `docker/*`: DONE this pass (corrected -
+      an earlier pass in this same triage wrongly called this compliant).
+      The actual gap: `docker/Dockerfile.dev` (a required root Docker file
+      per AI.md PART 27's directory listing and `.claude/rules/docker-rules.md`)
+      did not exist, and `docker.yml` had no job building/pushing the
+      `:devel` tag. Fixed: created `docker/Dockerfile.dev` (structurally
+      identical to `docker/Dockerfile`, `MODE=devel` baked in via `ENV`,
+      never in the production Dockerfile); added a `schedule: 0 4 * * *`
+      trigger to `docker.yml` plus a new `build-devel` job (builds
+      `docker/Dockerfile.dev`, tags `:devel` only, runs on schedule +
+      workflow_dispatch + every non-tag push); scoped `build-standard`/
+      `build-aio` to `if: github.event_name != 'schedule'` so they don't
+      also fire on the new trigger, and removed the `:devel` tag from
+      `build-standard`'s tag list (now owned by `build-devel`). Also fixed
+      `docker/docker-compose.dev.yml` to pull `:devel` instead of `:latest`,
+      per `dockerfile_conventions.md`'s Dev Compose section. Verified with
+      `act --list -W docker.yml` (3 jobs resolve correctly across push/
+      schedule/workflow_dispatch).
+    Read: AI.md PART 27, PART 28, PART 30 (README source-of-truth), PART 34.

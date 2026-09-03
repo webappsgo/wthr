@@ -12,7 +12,7 @@ x-logging: &default-logging
 
 services:
   wthr:
-    image: ghcr.io/webappsgo/wthr:latest
+    image: ghcr.io/webappsgo/wthr:devel
     container_name: wthr-dev
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
     restart: always
