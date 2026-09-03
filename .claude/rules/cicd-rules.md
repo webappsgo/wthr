@@ -46,7 +46,8 @@
 | `release.yml` | tag push (`v*`, `*.*.*`) | production release, 8-platform matrix |
 | `beta.yml` | push to `beta` | prerelease build |
 | `daily.yml` | daily 3am UTC + push to main/master | rolling `daily` tag, deletes previous release |
-| `docker.yml` | any branch push + version tags | standard (alpine) + `-aio` (debian, all-in-one) images to `ghcr.io` |
+| `docker.yml` | any branch push + version tags + daily schedule | standard (alpine) + devel images to `ghcr.io` |
+| `docker-aio.yml` | any branch push + version tags | all-in-one (debian, postgres+valkey+tor) image to `ghcr.io` |
 
 Config locations by provider:
 

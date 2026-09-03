@@ -344,22 +344,33 @@ before starting each item — do not rely on memory.
       outside file content (e.g. stale/unmerged Renovate PRs, dashboard
       state) that needs checking on the actual Renovate dashboard/PR list,
       not the config file.
-    - `.github/workflows/*.yml` / `docker/*`: DONE this pass (corrected -
-      an earlier pass in this same triage wrongly called this compliant).
-      The actual gap: `docker/Dockerfile.dev` (a required root Docker file
-      per AI.md PART 27's directory listing and `.claude/rules/docker-rules.md`)
-      did not exist, and `docker.yml` had no job building/pushing the
-      `:devel` tag. Fixed: created `docker/Dockerfile.dev` (structurally
-      identical to `docker/Dockerfile`, `MODE=devel` baked in via `ENV`,
-      never in the production Dockerfile); added a `schedule: 0 4 * * *`
-      trigger to `docker.yml` plus a new `build-devel` job (builds
-      `docker/Dockerfile.dev`, tags `:devel` only, runs on schedule +
-      workflow_dispatch + every non-tag push); scoped `build-standard`/
-      `build-aio` to `if: github.event_name != 'schedule'` so they don't
-      also fire on the new trigger, and removed the `:devel` tag from
-      `build-standard`'s tag list (now owned by `build-devel`). Also fixed
-      `docker/docker-compose.dev.yml` to pull `:devel` instead of `:latest`,
-      per `dockerfile_conventions.md`'s Dev Compose section. Verified with
-      `act --list -W docker.yml` (3 jobs resolve correctly across push/
-      schedule/workflow_dispatch).
+    - `.github/workflows/*.yml` / `docker/*`: DONE this pass (corrected
+      twice - two earlier passes in this same triage each wrongly called
+      this compliant). First gap found: `docker/Dockerfile.dev` (a required
+      root Docker file per AI.md PART 27's directory listing and
+      `.claude/rules/docker-rules.md`) did not exist, and `docker.yml` had
+      no job building/pushing the `:devel` tag. Fixed: created
+      `docker/Dockerfile.dev` (structurally identical to `docker/Dockerfile`,
+      `MODE=devel` baked in via `ENV`, never in the production Dockerfile);
+      added a `schedule: 0 4 * * *` trigger to `docker.yml` plus a new
+      `build-devel` job (builds `docker/Dockerfile.dev`, tags `:devel` only,
+      runs on schedule + workflow_dispatch + every non-tag push); scoped
+      `build-standard` to `if: github.event_name != 'schedule'`; removed the
+      `:devel` tag from `build-standard`'s tag list (now owned by
+      `build-devel`); fixed `docker/docker-compose.dev.yml` to pull `:devel`
+      instead of `:latest`. Second gap (found only after the user reported
+      the CI/CD files were STILL missing): AI.md PART 28 explicitly requires
+      `docker-aio.yml` as its own standalone workflow file - "the only image
+      type with its own dedicated workflow file" - but the AIO build had
+      been left as a `build-aio` job inside `docker.yml` instead. Fixed:
+      extracted it into a new `.github/workflows/docker-aio.yml` matching
+      spec (own triggers - push + workflow_dispatch, no schedule since no
+      `:devel-aio` tag exists; own `concurrency: group: docker-aio-${{
+      github.ref }}`; no cross-workflow `needs:`), and removed the
+      `build-aio` job from `docker.yml` (now exactly 2 jobs: `build-standard`,
+      `build-devel`). Updated `.claude/rules/cicd-rules.md`'s Required
+      Workflows table to list `docker.yml` and `docker-aio.yml` as separate
+      rows. Verified with `act --list -W docker.yml` (2 jobs, push/schedule/
+      workflow_dispatch) and `act --list -W docker-aio.yml` (1 job, push/
+      workflow_dispatch only).
     Read: AI.md PART 27, PART 28, PART 30 (README source-of-truth), PART 34.
