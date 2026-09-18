@@ -84,7 +84,8 @@ func TestListLocations(t *testing.T) {
 
 	t.Run("db error returns 500 without panicking", func(t *testing.T) {
 		h, db := newLocationTestHandler(t)
-		db.Close() // force the query to fail
+		// force the query to fail
+		db.Close()
 		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations")
 		r = setCurrentUser(r, 1)
 
@@ -141,7 +142,8 @@ func TestGetLocation(t *testing.T) {
 		h, db := newLocationTestHandler(t)
 		id := seedLocation(t, db, 2, "Not Yours", 1, 1)
 		r, w := newTestContext(http.MethodGet, "/api/v1/users/locations/x")
-		r = setCurrentUser(r, 1) // requesting as user 1, location belongs to user 2
+		// requesting as user 1, location belongs to user 2
+		r = setCurrentUser(r, 1)
 		r = setURLParam(r, "id", itoa(id))
 
 		h.GetLocation(w, r)

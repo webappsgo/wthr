@@ -183,9 +183,9 @@ func (m *UserModel) getDB() *sql.DB {
 	return database.GetUsersDB()
 }
 
-// Create creates a new user account
+// CreateUserAccount creates a new user account
 // Per AI.md PART 0: Uses Argon2id for password hashing
-func (m *UserModel) Create(username, email, password string, role ...string) (*User, error) {
+func (m *UserModel) CreateUserAccount(username, email, password string, role ...string) (*User, error) {
 	// Default role to "user" if not provided
 	userRole := "user"
 	if len(role) > 0 && role[0] != "" {
@@ -556,10 +556,10 @@ func (m *UserModel) CountUsers() (int, error) {
 	return count, nil
 }
 
-// Update updates a user's information
+// UpdateUserProfile updates a user's information
 // updated_at is bound as canonical UTC text on both branches so the value does
 // not depend on what CURRENT_TIMESTAMP means to the backend in use.
-func (m *UserModel) Update(id int64, username, email string, role ...string) error {
+func (m *UserModel) UpdateUserProfile(id int64, username, email string, role ...string) error {
 	// If role is provided, update it too
 	if len(role) > 0 && role[0] != "" {
 		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
@@ -685,8 +685,8 @@ func (m *UserModel) UnbanUser(id int64) error {
 	return nil
 }
 
-// Delete deletes a user account
-func (m *UserModel) Delete(id int64) error {
+// DeleteUserAccount deletes a user account
+func (m *UserModel) DeleteUserAccount(id int64) error {
 	// Delete user (cascades to sessions, preferences, etc.)
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `DELETE FROM user_accounts WHERE id = ?`, id)
 	if err != nil {

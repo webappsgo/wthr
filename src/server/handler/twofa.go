@@ -123,7 +123,10 @@ func (h *TwoFactorHandler) enableCurrentUserTwoFactor(user *model.User, secret s
 	recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
 	recoveryKeys, err := recoveryKeyModel.GenerateRecoveryKeys(int(user.ID))
 	if err != nil {
-		userModel.DisableTwoFactor(user.ID)
+		// Roll back activation so 2FA is never left on without usable recovery keys.
+		if disableErr := userModel.DisableTwoFactor(user.ID); disableErr != nil {
+			return nil, fmt.Errorf("failed to generate recovery keys and failed to roll back two-factor activation")
+		}
 		return nil, fmt.Errorf("failed to generate recovery keys")
 	}
 
@@ -148,7 +151,9 @@ func (h *TwoFactorHandler) disableCurrentUserTwoFactor(user *model.User, passwor
 	}
 
 	recoveryKeyModel := &model.RecoveryKeyModel{DB: h.DB}
-	recoveryKeyModel.DeleteAllForUser(int(user.ID))
+	if err := recoveryKeyModel.DeleteAllForUser(int(user.ID)); err != nil {
+		return fmt.Errorf("failed to remove recovery keys")
+	}
 	return nil
 }
 

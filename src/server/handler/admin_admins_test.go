@@ -69,7 +69,7 @@ func setAdminIDParam(r *http.Request, id string) *http.Request {
 // withAdminID stores admin_id on r's context, mirroring the reqctx key set
 // by the RequireAdminAuth middleware for authenticated admin requests.
 func withAdminID(r *http.Request, id int) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), "admin_id", id))
+	return r.WithContext(reqctx.SetValue(r.Context(), "admin_id", id))
 }
 
 // newAdminsTestHandler wires the global dual-DB (required since AdminModel
@@ -87,7 +87,7 @@ func newAdminsTestHandler(t *testing.T) (*AdminsHandler, *sql.DB) {
 // newAdminsTestAdmin creates a real admin row for tests that need one.
 func newAdminsTestAdmin(t *testing.T, username, password string) *models.Admin {
 	t.Helper()
-	admin, err := (&models.AdminModel{}).Create(username, username+"@example.com", password, false)
+	admin, err := (&models.AdminModel{}).CreateAdminAccount(username, username+"@example.com", password, false)
 	if err != nil {
 		t.Fatalf("failed to create test admin: %v", err)
 	}

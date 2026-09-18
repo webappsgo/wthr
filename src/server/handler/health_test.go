@@ -134,7 +134,8 @@ func TestReadinessCheck(t *testing.T) {
 		resetInitStatus(t)
 		SetInitStatus(true, true, true)
 		db := newTestDatabaseDB(t)
-		db.DB.Close() // force HealthCheck's "SELECT 1" to fail
+		// force HealthCheck's "SELECT 1" to fail
+		db.DB.Close()
 		r := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 		w := httptest.NewRecorder()
 
@@ -225,30 +226,14 @@ func TestFormatUptime(t *testing.T) {
 	}
 }
 
-// TestCheckmarkAndContains covers the tiny pure helpers used by
-// ServeLoadingPage's CLI-friendly output.
-func TestCheckmarkAndContains(t *testing.T) {
+// TestCheckmark covers the tiny pure helper used by ServeLoadingPage's
+// CLI-friendly output.
+func TestCheckmark(t *testing.T) {
 	if got := checkmark(true); got != "✓" {
 		t.Errorf("checkmark(true) = %q, want checkmark", got)
 	}
 	if got := checkmark(false); got != "⋯" {
 		t.Errorf("checkmark(false) = %q, want ellipsis", got)
-	}
-
-	tests := []struct {
-		s, substr string
-		want      bool
-	}{
-		{"curl/8.0", "curl", true},
-		{"Mozilla/5.0", "curl", false},
-		{"", "curl", false},
-		{"curl", "", true}, // empty substr trivially contained
-		{"cur", "curl", false},
-	}
-	for _, tt := range tests {
-		if got := contains(tt.s, tt.substr); got != tt.want {
-			t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-		}
 	}
 }
 
@@ -272,6 +257,10 @@ func TestAPIHealthCheck(t *testing.T) {
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		// AI.md PART 14 API negotiation: explicit Accept: application/json
+		// wins over the non-interactive-client (empty UA) default of plain
+		// text — a real JSON API client always sends this header.
+		r.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 
 		APIHealthCheck(db, time.Now())(w, r)
@@ -303,6 +292,10 @@ func TestAPIHealthCheck(t *testing.T) {
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		// AI.md PART 14 API negotiation: explicit Accept: application/json
+		// wins over the non-interactive-client (empty UA) default of plain
+		// text — a real JSON API client always sends this header.
+		r.Header.Set("Accept", "application/json")
 		w := httptest.NewRecorder()
 
 		APIHealthCheck(db, time.Now())(w, r)
@@ -382,8 +375,10 @@ func TestClusterCheckFromStatus(t *testing.T) {
 		status string
 		want   string
 	}{
+		// AI.md PART 13 / api-rules.md: checks.* is vague ok/error only,
+		// never a connection-status passthrough.
 		{"connected", "ok"},
-		{"degraded", "degraded"},
+		{"degraded", "error"},
 		{"disconnected", "error"},
 		{"", "error"},
 		{"bogus", "error"},
@@ -446,10 +441,11 @@ func TestPublicHealthStatusText(t *testing.T) {
 		status string
 		want   string
 	}{
+		// AI.md PART 13 canonical status-banner text table.
 		{"healthy", "All Systems Operational"},
-		{"degraded", "Service Degraded"},
-		{"maintenance", "Maintenance Mode"},
-		{"bogus", "Service Unavailable"},
+		{"degraded", "Degraded Performance"},
+		{"maintenance", "Maintenance in Progress"},
+		{"bogus", "Systems Unhealthy"},
 	}
 	for _, c := range cases {
 		if got := publicHealthStatusText(c.status); got != c.want {
@@ -526,7 +522,7 @@ func TestFormatPublicHealthText(t *testing.T) {
 		}
 	})
 
-	t.Run("minimal response omits optional fields", func(t *testing.T) {
+	t.Run("minimal response still includes required fields", func(t *testing.T) {
 		resp := publicHealthResponse{
 			Project: publicHealthProject{
 				Name:        "wthr",
@@ -538,8 +534,11 @@ func TestFormatPublicHealthText(t *testing.T) {
 
 		out := formatPublicHealthText(resp)
 
-		if strings.Contains(out, "project.tagline:") {
-			t.Errorf("expected no tagline line when Tagline is empty, got:\n%s", out)
+		// AI.md PART 13: ProjectInfo.Tagline has no `omitempty` and the
+		// canonical plaintext example always emits `project.tagline:`,
+		// even when the value is empty — this line is never omitted.
+		if !strings.Contains(out, "project.tagline:") {
+			t.Errorf("expected tagline line even when Tagline is empty, got:\n%s", out)
 		}
 		if !strings.Contains(out, "wthr") {
 			t.Errorf("expected project name in output, got:\n%s", out)

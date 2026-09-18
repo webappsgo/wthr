@@ -75,7 +75,7 @@ func TestUserModelCreateAndGet(t *testing.T) {
 	m := &UserModel{}
 
 	t.Run("create defaults role to user", func(t *testing.T) {
-		u, err := m.Create("alice", "alice@example.com", testUserPassword)
+		u, err := m.CreateUserAccount("alice", "alice@example.com", testUserPassword)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -94,7 +94,7 @@ func TestUserModelCreateAndGet(t *testing.T) {
 	})
 
 	t.Run("create with explicit role", func(t *testing.T) {
-		u, err := m.Create("bob", "bob@example.com", testUserPassword, "admin")
+		u, err := m.CreateUserAccount("bob", "bob@example.com", testUserPassword, "admin")
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -104,7 +104,7 @@ func TestUserModelCreateAndGet(t *testing.T) {
 	})
 
 	t.Run("get by id", func(t *testing.T) {
-		created, err := m.Create("carol", "carol@example.com", testUserPassword)
+		created, err := m.CreateUserAccount("carol", "carol@example.com", testUserPassword)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -206,10 +206,10 @@ func TestUserModelListAndCount(t *testing.T) {
 		}
 	})
 
-	if _, err := m.Create("u1", "u1@example.com", testUserPassword); err != nil {
+	if _, err := m.CreateUserAccount("u1", "u1@example.com", testUserPassword); err != nil {
 		t.Fatalf("Create u1: %v", err)
 	}
-	if _, err := m.Create("u2", "u2@example.com", testUserPassword, "admin"); err != nil {
+	if _, err := m.CreateUserAccount("u2", "u2@example.com", testUserPassword, "admin"); err != nil {
 		t.Fatalf("Create u2: %v", err)
 	}
 
@@ -277,13 +277,13 @@ func TestUserModelMutations(t *testing.T) {
 	newUserTestDB(t)
 	m := &UserModel{}
 
-	u, err := m.Create("dave", "dave@example.com", testUserPassword)
+	u, err := m.CreateUserAccount("dave", "dave@example.com", testUserPassword)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
 	t.Run("update username, email and role", func(t *testing.T) {
-		if err := m.Update(u.ID, "dave2", "dave2@example.com", "admin"); err != nil {
+		if err := m.UpdateUserProfile(u.ID, "dave2", "dave2@example.com", "admin"); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
 		got, err := m.GetByID(u.ID)
@@ -296,7 +296,7 @@ func TestUserModelMutations(t *testing.T) {
 	})
 
 	t.Run("update without role leaves role unchanged", func(t *testing.T) {
-		if err := m.Update(u.ID, "dave3", "dave3@example.com"); err != nil {
+		if err := m.UpdateUserProfile(u.ID, "dave3", "dave3@example.com"); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
 		got, err := m.GetByID(u.ID)
@@ -428,7 +428,7 @@ func TestUserModelMutations(t *testing.T) {
 	})
 
 	t.Run("delete removes the user", func(t *testing.T) {
-		if err := m.Delete(u.ID); err != nil {
+		if err := m.DeleteUserAccount(u.ID); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
 		if _, err := m.GetByID(u.ID); err == nil {
@@ -443,7 +443,7 @@ func TestUserModelVerifyCredentials(t *testing.T) {
 	newUserTestDB(t)
 	m := &UserModel{}
 
-	if _, err := m.Create("erin", "erin@example.com", testUserPassword); err != nil {
+	if _, err := m.CreateUserAccount("erin", "erin@example.com", testUserPassword); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -476,7 +476,7 @@ func TestUserModelVerifyCredentials(t *testing.T) {
 	})
 
 	t.Run("inactive account", func(t *testing.T) {
-		created, err := m.Create("frank", "frank@example.com", testUserPassword)
+		created, err := m.CreateUserAccount("frank", "frank@example.com", testUserPassword)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -489,7 +489,7 @@ func TestUserModelVerifyCredentials(t *testing.T) {
 	})
 
 	t.Run("banned account", func(t *testing.T) {
-		created, err := m.Create("gina", "gina@example.com", testUserPassword)
+		created, err := m.CreateUserAccount("gina", "gina@example.com", testUserPassword)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
@@ -670,7 +670,7 @@ func TestUserSessionModel(t *testing.T) {
 // hashing and preference-row creation happen exactly as in production).
 func m_createUser(t *testing.T, m *UserModel, username, email string) (*User, error) {
 	t.Helper()
-	return m.Create(username, email, testUserPassword)
+	return m.CreateUserAccount(username, email, testUserPassword)
 }
 
 // TestUserEmailVerificationModel covers create/get/mark-used lifecycle, the
@@ -1025,7 +1025,7 @@ func TestUserModelGetByUsernameFieldSubset(t *testing.T) {
 	newUserTestDB(t)
 	m := &UserModel{}
 
-	u, err := m.Create("ray", "ray@example.com", testUserPassword)
+	u, err := m.CreateUserAccount("ray", "ray@example.com", testUserPassword)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

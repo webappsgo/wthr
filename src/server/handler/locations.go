@@ -151,7 +151,7 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	location, err := locationModel.Create(int(user.ID), req.Name, req.Latitude, req.Longitude, req.Timezone)
+	location, err := locationModel.CreateSavedLocation(int(user.ID), req.Name, req.Latitude, req.Longitude, req.Timezone)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.locations.failed_to_create_location"))
 		return
@@ -226,7 +226,7 @@ func (h *LocationHandler) UpdateLocation(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Update location
-	if err := locationModel.Update(id, req.Name, req.Latitude, req.Longitude, req.Timezone, req.AlertsEnabled); err != nil {
+	if err := locationModel.UpdateSavedLocation(id, req.Name, req.Latitude, req.Longitude, req.Timezone, req.AlertsEnabled); err != nil {
 		InternalError(w, r, Translate(r, "errors.locations.failed_to_update_location"))
 		return
 	}
@@ -278,7 +278,7 @@ func (h *LocationHandler) DeleteLocation(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Delete location
-	if err := locationModel.Delete(id); err != nil {
+	if err := locationModel.DeleteSavedLocation(id); err != nil {
 		InternalError(w, r, Translate(r, "errors.locations.failed_to_delete_location"))
 		return
 	}

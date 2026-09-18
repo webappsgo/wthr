@@ -1,9 +1,10 @@
-// Tests for maintenance_backup.go per AI.md PART 25 (Maintenance) / PART 29 (Testing).
+// Tests for maintenance_backup.go per AI.md PART 22 (Backup & Restore) / PART 29 (Testing).
 //
 // MaintenanceBackupCommand only prompts for a password via term.ReadPassword
 // (which needs a real terminal fd, not fakeable via os.Stdin reassignment)
-// when no --password flag is supplied; every test here passes --password to
-// stay off that path. MaintenanceRestoreCommand's password prompt is only
+// when no --password flag is supplied AND backup encryption was configured
+// during setup; tests either pass --password or leave encryption unconfigured
+// to stay off that path. MaintenanceRestoreCommand's password prompt is only
 // reached for a ".enc" file with no --password, so non-.enc fixtures (or an
 // explicit --password) are used to stay off that path too; the
 // bufio.NewReader(os.Stdin) confirmation prompt IS faked via withStdin.
@@ -14,7 +15,33 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/config"
 )
+
+// TestBackupEncryptionConfigured verifies the AI.md PART 22 gate that decides
+// whether the CLI prompts for a backup encryption password.
+func TestBackupEncryptionConfigured(t *testing.T) {
+	previous := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(previous) })
+
+	config.SetGlobalConfig(nil)
+	if backupEncryptionConfigured() {
+		t.Error("backupEncryptionConfigured() = true with no loaded config, want false")
+	}
+
+	config.SetGlobalConfig(&config.AppConfig{})
+	if backupEncryptionConfigured() {
+		t.Error("backupEncryptionConfigured() = true with encryption unset, want false")
+	}
+
+	enabled := &config.AppConfig{}
+	enabled.Server.Maintenance.Backup.Encryption.Enabled = true
+	config.SetGlobalConfig(enabled)
+	if !backupEncryptionConfigured() {
+		t.Error("backupEncryptionConfigured() = false with encryption enabled, want true")
+	}
+}
 
 // TestMaintenanceRestoreCommand covers: no backup path argument, a backup
 // file that does not exist, declining the overwrite confirmation, and
@@ -157,6 +184,41 @@ func TestMaintenanceBackupCommand(t *testing.T) {
 		}
 		if !strings.HasSuffix(entries[0].Name(), ".tar.gz.enc") {
 			t.Errorf("backup file name = %q, want .tar.gz.enc suffix", entries[0].Name())
+		}
+	})
+
+	// Per AI.md PART 22 (CLI Backup with Encryption) the password prompt is
+	// reached only when encryption was configured during setup; an unconfigured
+	// server writes an unencrypted archive without prompting.
+	t.Run("unconfigured_encryption_skips_prompt", func(t *testing.T) {
+		dir := t.TempDir()
+		t.Setenv("CONFIG_DIR", filepath.Join(dir, "config"))
+		t.Setenv("DATA_DIR", filepath.Join(dir, "data"))
+
+		previous := config.GetGlobalConfig()
+		t.Cleanup(func() { config.SetGlobalConfig(previous) })
+		config.SetGlobalConfig(&config.AppConfig{})
+
+		var err error
+		out := captureStdout(t, func() {
+			err = MaintenanceBackupCommand(nil)
+		})
+		if err != nil {
+			t.Fatalf("MaintenanceBackupCommand() error = %v", err)
+		}
+		if strings.Contains(out, "Backup is encrypted") {
+			t.Errorf("output = %q, want an unencrypted backup", out)
+		}
+
+		entries, err := os.ReadDir(filepath.Join(dir, "data", "backups"))
+		if err != nil {
+			t.Fatalf("backup directory not created: %v", err)
+		}
+		if len(entries) != 1 {
+			t.Fatalf("backup directory has %d entries, want 1", len(entries))
+		}
+		if !strings.HasSuffix(entries[0].Name(), ".tar.gz") {
+			t.Errorf("backup file name = %q, want .tar.gz suffix", entries[0].Name())
 		}
 	})
 

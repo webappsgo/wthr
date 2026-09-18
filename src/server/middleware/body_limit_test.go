@@ -85,7 +85,8 @@ func TestBodySizeLimitMiddleware_RejectsAtReadTimeWithoutContentLength(t *testin
 
 	body := strings.Repeat("a", 500)
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
-	req.ContentLength = -1 // simulate unknown length (chunked)
+	// simulate unknown length (chunked)
+	req.ContentLength = -1
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)

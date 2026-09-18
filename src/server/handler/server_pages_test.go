@@ -166,7 +166,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", map[string]interface{}{
 			"name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
 		})
-		r = r.WithContext(reqctx.Set(r.Context(), "db", db))
+		r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
 
 		HandleContactFormSubmission(db, cfg)(w, r)
 
@@ -192,7 +192,7 @@ func TestSaveContactToDBMissingSchema(t *testing.T) {
 	t.Cleanup(func() { raw.Close() })
 
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/server/contact", nil)
-	r = r.WithContext(reqctx.Set(r.Context(), "db", &database.DB{DB: raw}))
+	r = r.WithContext(reqctx.SetValue(r.Context(), "db", &database.DB{DB: raw}))
 
 	err = saveContactToDB(r, "Ada", "ada@example.com", "Hello", "Test message")
 	if err == nil {
@@ -221,7 +221,7 @@ func TestGetSMTPService(t *testing.T) {
 
 	t.Run("wrong type in context returns nil", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/x", nil)
-		r = r.WithContext(reqctx.Set(r.Context(), "smtp", "not-a-service"))
+		r = r.WithContext(reqctx.SetValue(r.Context(), "smtp", "not-a-service"))
 		if got := GetSMTPService(r); got != nil {
 			t.Errorf("GetSMTPService() = %v, want nil", got)
 		}

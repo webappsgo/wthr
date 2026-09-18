@@ -11,11 +11,11 @@ func TestUserNotificationModel_GetUnreadDismissDelete(t *testing.T) {
 	defer db.Close()
 	model := &UserNotificationModel{DB: db}
 
-	a, err := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "A", "msg a", nil)
+	a, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "A", "msg a", nil)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	b, err := model.Create(1, NotificationTypeWarning, NotificationDisplayBanner, "B", "msg b", nil)
+	b, err := model.CreateUserNotification(1, NotificationTypeWarning, NotificationDisplayBanner, "B", "msg b", nil)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -72,13 +72,13 @@ func TestUserNotificationModel_GetUnreadDismissDelete(t *testing.T) {
 	})
 
 	t.Run("Delete wrong owner errors", func(t *testing.T) {
-		if err := model.Delete(b.ID, 999); err == nil {
+		if err := model.DeleteUserNotification(b.ID, 999); err == nil {
 			t.Error("Delete() expected error for wrong owner")
 		}
 	})
 
 	t.Run("Delete happy path", func(t *testing.T) {
-		if err := model.Delete(b.ID, 1); err != nil {
+		if err := model.DeleteUserNotification(b.ID, 1); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
 		if _, err := model.GetByID(b.ID); err == nil {
@@ -95,7 +95,7 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 	defer db.Close()
 	model := &AdminNotificationModel{DB: db}
 
-	created, err := model.Create(5, NotificationTypeError, NotificationDisplayCenter, "Admin Alert", "msg", &NotificationAction{Label: "View", URL: "/x"})
+	created, err := model.CreateAdminNotification(5, NotificationTypeError, NotificationDisplayCenter, "Admin Alert", "msg", &NotificationAction{Label: "View", URL: "/x"})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -165,7 +165,7 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 		}
 	})
 
-	second, err := model.Create(5, NotificationTypeInfo, NotificationDisplayToast, "Second", "msg", nil)
+	second, err := model.CreateAdminNotification(5, NotificationTypeInfo, NotificationDisplayToast, "Second", "msg", nil)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -196,13 +196,13 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 	})
 
 	t.Run("Delete wrong owner errors", func(t *testing.T) {
-		if err := model.Delete(created.ID, 999); err == nil {
+		if err := model.DeleteAdminNotification(created.ID, 999); err == nil {
 			t.Error("Delete() expected error for wrong owner")
 		}
 	})
 
 	t.Run("Delete happy path", func(t *testing.T) {
-		if err := model.Delete(created.ID, 5); err != nil {
+		if err := model.DeleteAdminNotification(created.ID, 5); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
 		if _, err := model.GetByID(created.ID); err == nil {
@@ -222,7 +222,7 @@ func TestAdminNotificationModel_FullLifecycle(t *testing.T) {
 
 	t.Run("EnforceLimit trims to newest N", func(t *testing.T) {
 		for i := 0; i < 5; i++ {
-			if _, err := model.Create(7, NotificationTypeInfo, NotificationDisplayToast, "n", "m", nil); err != nil {
+			if _, err := model.CreateAdminNotification(7, NotificationTypeInfo, NotificationDisplayToast, "n", "m", nil); err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
 		}

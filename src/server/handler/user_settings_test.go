@@ -50,7 +50,7 @@ func newUSTestRequest(t *testing.T, method, target string, body interface{}) (*h
 // withUSCurrentUser attaches an authenticated user to the request context,
 // the same key middleware.AuthMiddleware sets on a real request.
 func withUSCurrentUser(r *http.Request, id int64) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, &models.User{ID: id}))
+	return r.WithContext(reqctx.SetValue(r.Context(), middleware.UserContextKey, &models.User{ID: id}))
 }
 
 // withUSURLParam attaches a chi route param to the request context.

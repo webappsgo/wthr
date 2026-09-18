@@ -48,7 +48,7 @@ func TestDashboardHandler_ShowAdminPanel_WrongAdminIDType(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
 	c, w := newAPITestContext("/server/admin")
-	c = c.WithContext(reqctx.Set(c.Context(), "admin_id", "not-an-int"))
+	c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
 	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {

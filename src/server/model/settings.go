@@ -32,8 +32,8 @@ type SettingsModel struct {
 	DB *sql.DB
 }
 
-// Get retrieves a setting by key
-func (m *SettingsModel) Get(key string) (*Setting, error) {
+// GetSetting retrieves a setting by key
+func (m *SettingsModel) GetSetting(key string) (*Setting, error) {
 	setting := &Setting{}
 	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key = ?",
@@ -49,7 +49,7 @@ func (m *SettingsModel) Get(key string) (*Setting, error) {
 
 // GetString retrieves a setting value as string
 func (m *SettingsModel) GetString(key, defaultValue string) string {
-	setting, err := m.Get(key)
+	setting, err := m.GetSetting(key)
 	if err != nil {
 		return defaultValue
 	}
@@ -58,7 +58,7 @@ func (m *SettingsModel) GetString(key, defaultValue string) string {
 
 // GetInt retrieves a setting value as int
 func (m *SettingsModel) GetInt(key string, defaultValue int) int {
-	setting, err := m.Get(key)
+	setting, err := m.GetSetting(key)
 	if err != nil {
 		return defaultValue
 	}
@@ -72,7 +72,7 @@ func (m *SettingsModel) GetInt(key string, defaultValue int) int {
 
 // GetBool retrieves a setting value as bool
 func (m *SettingsModel) GetBool(key string, defaultValue bool) bool {
-	setting, err := m.Get(key)
+	setting, err := m.GetSetting(key)
 	if err != nil {
 		return defaultValue
 	}
@@ -82,7 +82,7 @@ func (m *SettingsModel) GetBool(key string, defaultValue bool) bool {
 
 // GetJSON retrieves a setting value as JSON
 func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
-	setting, err := m.Get(key)
+	setting, err := m.GetSetting(key)
 	if err != nil {
 		return err
 	}
@@ -90,8 +90,8 @@ func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
 	return json.Unmarshal([]byte(setting.Value), dest)
 }
 
-// Set creates or updates a setting
-func (m *SettingsModel) Set(key, value, settingType string) error {
+// SetSetting creates or updates a setting
+func (m *SettingsModel) SetSetting(key, value, settingType string) error {
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type)
 		VALUES (?, ?, ?)
@@ -114,12 +114,12 @@ func (m *SettingsModel) SetWithDescription(key, value, settingType, description 
 
 // SetString sets a string setting
 func (m *SettingsModel) SetString(key, value string) error {
-	return m.Set(key, value, "string")
+	return m.SetSetting(key, value, "string")
 }
 
 // SetInt sets an integer setting
 func (m *SettingsModel) SetInt(key string, value int) error {
-	return m.Set(key, fmt.Sprintf("%d", value), "number")
+	return m.SetSetting(key, fmt.Sprintf("%d", value), "number")
 }
 
 // SetBool sets a boolean setting
@@ -128,7 +128,7 @@ func (m *SettingsModel) SetBool(key string, value bool) error {
 	if value {
 		stringValue = "true"
 	}
-	return m.Set(key, stringValue, "boolean")
+	return m.SetSetting(key, stringValue, "boolean")
 }
 
 // SetJSON sets a JSON setting
@@ -137,11 +137,11 @@ func (m *SettingsModel) SetJSON(key string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	return m.Set(key, string(jsonBytes), "json")
+	return m.SetSetting(key, string(jsonBytes), "json")
 }
 
-// Delete removes a setting
-func (m *SettingsModel) Delete(key string) error {
+// DeleteSetting removes a setting
+func (m *SettingsModel) DeleteSetting(key string) error {
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
 	return err
 }
@@ -370,7 +370,7 @@ Sitemap: {app_url}/sitemap.xml`, Type: "text", Description: "robots.txt content 
 
 	for key, setting := range defaults {
 		// Only set if doesn't exist
-		_, err := m.Get(key)
+		_, err := m.GetSetting(key)
 		if err == sql.ErrNoRows {
 			if err := m.SetWithDescription(key, setting.Value, setting.Type, setting.Description); err != nil {
 				return fmt.Errorf("failed to set default %s: %w", key, err)

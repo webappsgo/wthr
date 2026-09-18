@@ -1,6 +1,6 @@
 {{define "page/two_factor.tmpl"}}
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -429,7 +429,8 @@ func TestSMTP_TestConnection(t *testing.T) {
 		if splitErr != nil {
 			t.Fatalf("split addr: %v", splitErr)
 		}
-		ln.Close() // free the port so the subsequent dial is refused
+		// free the port so the subsequent dial is refused
+		ln.Close()
 
 		svc := &SMTPService{}
 		err = svc.TestConnection(&SMTPConfig{Host: host, Port: port, UseTLS: false})

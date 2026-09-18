@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# Weather Service - Linux Installer with systemd service
+# wthr Weather Service - Linux Installer with systemd service
 
 set -e
 
@@ -38,7 +38,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo "🌤️  Weather Service - Linux Installer"
+echo "🌤️  wthr Weather Service - Linux Installer"
 echo ""
 
 # Check if running as root
@@ -103,7 +103,7 @@ chown -R "${SERVICE_USER}:${SERVICE_USER}" "/var/cache/webappsgo/wthr"
 echo "⚙️  Creating systemd service..."
 cat > /etc/systemd/system/wthr.service <<EOF
 [Unit]
-Description=Weather Service
+Description=wthr Weather Service
 After=network.target
 Documentation=https://github.com/${REPO}
 

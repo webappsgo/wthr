@@ -51,7 +51,7 @@ func (h *OIDCAuthHandler) StartLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg, err := h.OIDCService.GetProviderConfig(provider)
+	_, err := h.OIDCService.GetProviderConfig(provider)
 	if err != nil {
 		middleware.RenderHTML(w, r, http.StatusBadRequest, "page/oidc_redirect.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":    "OIDC Login",
@@ -96,7 +96,6 @@ func (h *OIDCAuthHandler) StartLogin(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: oidcStateCookiePrefix + provider, Value: state, MaxAge: oidcCookieMaxAge, Path: "/", Secure: secure, HttpOnly: true})
 	http.SetCookie(w, &http.Cookie{Name: oidcPKCECookiePrefix + provider, Value: codeVerifier, MaxAge: oidcCookieMaxAge, Path: "/", Secure: secure, HttpOnly: true})
 
-	_ = cfg // used via OIDCService internally
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
 

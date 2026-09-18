@@ -149,7 +149,7 @@ func (h *AdminSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Req
 
 	// Send success notification to admin (AI.md PART 18 - WebUI Notifications)
 	if h.NotificationService != nil && len(applied) > 0 {
-		adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
+		adminIDInterface, exists := reqctx.GetValue(r.Context(), "admin_id")
 		if exists {
 			adminID, ok := adminIDInterface.(int)
 			if ok {

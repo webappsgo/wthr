@@ -1447,7 +1447,7 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 	createdAt := now.UTC().Format("2006-01-02 15:04:05")
 
 	seedAdmin := func(username string, active bool) int64 {
-		admin, err := (&models.AdminModel{DB: ddb.Server}).Create(username, username+"@example.com", "password123", false)
+		admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount(username, username+"@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("create admin %q: %v", username, err)
 		}

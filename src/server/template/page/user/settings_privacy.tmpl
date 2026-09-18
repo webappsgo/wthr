@@ -8,6 +8,8 @@
         <p class="text-comment">{{t .server.Lang "settings_privacy_subtitle"}}</p>
     </div>
 
+    {{template "flash" .}}
+
     <!-- Settings Navigation -->
     <div class="settings-nav">
         <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
@@ -24,7 +26,7 @@
             <h2 class="profile-card-header-title">{{t .server.Lang "settings_profile_visibility_heading"}}</h2>
         </div>
         <div class="card-body">
-            <form id="privacySettingsForm">
+            <form id="privacySettingsForm" method="post" action="/users/settings/privacy">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="visibility-options">
@@ -51,7 +53,7 @@
 
                 <div class="toggle-group">
                     <label class="toggle-item">
-                        <input type="checkbox" id="showEmail">
+                        <input type="checkbox" id="showEmail" name="showEmail">
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_show_email_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_show_email_hint"}}</p>
@@ -59,7 +61,7 @@
                     </label>
 
                     <label class="toggle-item">
-                        <input type="checkbox" id="showActivity" checked>
+                        <input type="checkbox" id="showActivity" name="showActivity" checked>
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_show_activity_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_show_activity_hint"}}</p>
@@ -67,7 +69,7 @@
                     </label>
 
                     <label class="toggle-item">
-                        <input type="checkbox" id="showOrgs" checked>
+                        <input type="checkbox" id="showOrgs" name="showOrgs" checked>
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_show_orgs_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_show_orgs_hint"}}</p>
@@ -75,7 +77,7 @@
                     </label>
 
                     <label class="toggle-item">
-                        <input type="checkbox" id="searchable" checked>
+                        <input type="checkbox" id="searchable" name="searchable" checked>
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_searchable_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_searchable_hint"}}</p>
@@ -89,7 +91,7 @@
 
                 <div class="toggle-group">
                     <label class="toggle-item">
-                        <input type="checkbox" id="orgVisibility" checked>
+                        <input type="checkbox" id="orgVisibility" name="orgVisibility" checked>
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_org_visibility_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_org_visibility_hint"}}</p>
@@ -105,149 +107,6 @@
     </div>
 </div>
 
-<style>
-.settings-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: var(--bg-dark);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-.settings-nav-item {
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    color: var(--text);
-    text-decoration: none;
-    transition: background 0.2s;
-}
-.settings-nav-item:hover {
-    background: var(--bg);
-}
-.settings-nav-item.active {
-    background: var(--accent);
-    color: var(--bg);
-}
-.settings-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 1.5rem 0;
-}
-.section-title {
-    font-size: 1rem;
-    margin-bottom: 1rem;
-    color: var(--text);
-}
-.visibility-options {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.visibility-option {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-}
-.visibility-option:hover {
-    background: var(--bg-dark);
-}
-.visibility-option.selected {
-    border-color: var(--accent);
-    background: var(--bg-dark);
-}
-.visibility-option input[type="radio"] {
-    accent-color: var(--accent);
-    margin-top: 4px;
-}
-.visibility-content {
-    flex: 1;
-}
-.visibility-content p {
-    margin: 0.25rem 0 0 0;
-    font-size: 0.9rem;
-}
-.toggle-group {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.toggle-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    cursor: pointer;
-}
-.toggle-item input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
-    margin-top: 2px;
-}
-.toggle-content {
-    flex: 1;
-}
-.toggle-content strong {
-    display: block;
-    margin-bottom: 0.25rem;
-}
-.toggle-content p {
-    margin: 0;
-    font-size: 0.9rem;
-}
-</style>
-
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-// Update visibility option styling
-document.querySelectorAll('input[name="visibility"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        document.querySelectorAll('.visibility-option').forEach(opt => opt.classList.remove('selected'));
-        this.closest('.visibility-option').classList.add('selected');
-    });
-});
-
-// Save settings
-document.getElementById('privacySettingsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const data = {
-        privacy: {
-            visibility: document.querySelector('input[name="visibility"]:checked').value,
-            show_email: document.getElementById('showEmail').checked,
-            show_activity: document.getElementById('showActivity').checked,
-            show_orgs: document.getElementById('showOrgs').checked,
-            searchable: document.getElementById('searchable').checked,
-            org_visibility: document.getElementById('orgVisibility').checked
-        }
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/settings', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save settings');
-        }
-
-        Toast.success('Privacy settings saved!');
-    } catch (error) {
-        Toast.error('Failed to save settings: ' + error.message);
-    }
-});
-</script>
 
 {{template "footer" .}}
 </body>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -24,7 +25,7 @@
 
             <div class="setup-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 16.67%"></div>
+                    <div class="progress-fill progress-fill--step-1"></div>
                 </div>
                 <div class="progress-steps">
                     <span class="step active">{{t .server.Lang "setup_step_admin"}}</span>
@@ -75,6 +76,9 @@
                                id="use_random"
                                name="use_random"
                                value="true"
+                               data-toggle-target="#password-fields"
+                               data-toggle-invert="true"
+                               data-toggle-required="true"
                                checked>
                         <span>{{t .server.Lang "setup_admin_random_password_label"}}</span>
                     </label>
@@ -104,7 +108,7 @@
                     </div>
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_admin_submit_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup_admin_creating_button"}}">{{t .server.Lang "setup_admin_submit_button"}}</button>
             </form>
         </div>
 
@@ -115,35 +119,5 @@
         {{ end }}
     </div>
 
-    {{/* Progressive enhancement - form works without this */}}
-    <script>
-        (function() {
-            var useRandomCheckbox = document.getElementById('use_random');
-            var passwordFields = document.getElementById('password-fields');
-            var passwordInput = document.getElementById('password');
-            var confirmInput = document.getElementById('confirm_password');
-
-            function togglePasswordFields() {
-                if (useRandomCheckbox.checked) {
-                    passwordFields.classList.add('hidden');
-                    passwordInput.removeAttribute('required');
-                    confirmInput.removeAttribute('required');
-                } else {
-                    passwordFields.classList.remove('hidden');
-                    passwordInput.setAttribute('required', 'required');
-                    confirmInput.setAttribute('required', 'required');
-                }
-            }
-
-            useRandomCheckbox.addEventListener('change', togglePasswordFields);
-            togglePasswordFields();
-
-            document.getElementById('admin-form').addEventListener('submit', function(e) {
-                var btn = document.getElementById('submit-btn');
-                btn.disabled = true;
-                btn.textContent = '{{t .server.Lang "setup_admin_creating_button"}}';
-            });
-        })();
-    </script>
 </body>
 </html>

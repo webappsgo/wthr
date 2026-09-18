@@ -89,7 +89,7 @@ func buildI2PPageData(cfg *config.AppConfig) map[string]interface{} {
 // ShowAboutPage renders the about page with content negotiation (AI.md PART 14)
 func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.Get(r.Context(), "user")
+		user, _ := reqctx.GetValue(r.Context(), "user")
 
 		// Get server configuration
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
@@ -126,7 +126,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowPrivacyPage renders the privacy policy page with content negotiation (AI.md PART 14)
 func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.Get(r.Context(), "user")
+		user, _ := reqctx.GetValue(r.Context(), "user")
 
 		data := map[string]interface{}{
 			"user": user,
@@ -146,7 +146,7 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowContactPage renders the contact form page with content negotiation (AI.md PART 14)
 func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.Get(r.Context(), "user")
+		user, _ := reqctx.GetValue(r.Context(), "user")
 
 		data := map[string]interface{}{
 			"user": user,
@@ -167,7 +167,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowHelpPage renders the help & documentation page with content negotiation (AI.md PART 14)
 func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.Get(r.Context(), "user")
+		user, _ := reqctx.GetValue(r.Context(), "user")
 
 		data := map[string]interface{}{
 			"user": user,
@@ -189,7 +189,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowTermsPage renders the terms of service page with content negotiation (AI.md PART 16)
 func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.Get(r.Context(), "user")
+		user, _ := reqctx.GetValue(r.Context(), "user")
 
 		data := map[string]interface{}{
 			"user": user,
@@ -272,14 +272,17 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		hostInfo := util.GetHostInfo(r)
 		baseURL := hostInfo.ExampleURL
 
+		// AI.md PART 14: never hardcode the API version, resolve it from config
+		apiBase := config.GetGlobalConfig().GetAPIPath()
+
 		help := map[string]interface{}{
 			"title": "Help",
 			"getting_started": map[string]interface{}{
 				"description": "Get weather data with a single request",
 				"examples": []map[string]interface{}{
 					{"description": "Current weather for a city", "curl": "curl " + baseURL + "/London"},
-					{"description": "JSON API", "curl": "curl " + baseURL + "/api/v1/weather?location=London"},
-					{"description": "Forecast", "curl": "curl " + baseURL + "/api/v1/forecasts?location=Paris&days=5"},
+					{"description": "JSON API", "curl": "curl " + baseURL + apiBase + "/weather?location=London"},
+					{"description": "Forecast", "curl": "curl " + baseURL + apiBase + "/forecasts?location=Paris&days=5"},
 				},
 			},
 			"features": []map[string]interface{}{
@@ -398,7 +401,7 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 // saveContactToDB saves contact form submission to database when SMTP unavailable
 // Per AI.md PART 26: Graceful degradation when SMTP not configured
 func saveContactToDB(r *http.Request, name, email, subject, message string) error {
-	dbInterface, exists := reqctx.Get(r.Context(), "db")
+	dbInterface, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		return fmt.Errorf("database not available")
 	}
@@ -438,7 +441,7 @@ func saveContactToDB(r *http.Request, name, email, subject, message string) erro
 
 // GetSMTPService returns the SMTP service from context if available
 func GetSMTPService(r *http.Request) *service.SMTPService {
-	if smtp, exists := reqctx.Get(r.Context(), "smtp"); exists {
+	if smtp, exists := reqctx.GetValue(r.Context(), "smtp"); exists {
 		if smtpService, ok := smtp.(*service.SMTPService); ok {
 			return smtpService
 		}

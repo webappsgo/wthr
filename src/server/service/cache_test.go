@@ -174,7 +174,7 @@ func disabledManager() *CacheManager {
 // mistake a disabled cache for a real cache miss.
 func TestCache_DisabledManager_Get(t *testing.T) {
 	cm := disabledManager()
-	val, err := cm.Get("any-key")
+	val, err := cm.GetCachedValue("any-key")
 	if err == nil {
 		t.Error("Get() on disabled cache: err = nil, want error")
 	}
@@ -187,7 +187,7 @@ func TestCache_DisabledManager_Get(t *testing.T) {
 // inputs (empty string key) on a disabled manager.
 func TestCache_DisabledManager_Get_EmptyAndMissingKeys(t *testing.T) {
 	cm := disabledManager()
-	if _, err := cm.Get(""); err == nil {
+	if _, err := cm.GetCachedValue(""); err == nil {
 		t.Error("Get(\"\") on disabled cache: want error")
 	}
 }
@@ -211,7 +211,7 @@ func TestCache_DisabledManager_Set(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := cm.Set(tt.key, tt.val, tt.ttl); err != nil {
+			if err := cm.SetCachedValue(tt.key, tt.val, tt.ttl); err != nil {
 				t.Errorf("Set(%q, %q, %v) = %v, want nil (silent success when disabled)", tt.key, tt.val, tt.ttl, err)
 			}
 		})
@@ -224,10 +224,10 @@ func TestCache_DisabledManager_Set(t *testing.T) {
 func TestCache_DisabledManager_MutatingOpsAreNoOps(t *testing.T) {
 	cm := disabledManager()
 
-	if err := cm.Delete("k"); err != nil {
+	if err := cm.DeleteCachedValue("k"); err != nil {
 		t.Errorf("Delete() = %v, want nil", err)
 	}
-	if err := cm.Delete(""); err != nil {
+	if err := cm.DeleteCachedValue(""); err != nil {
 		t.Errorf("Delete(\"\") = %v, want nil", err)
 	}
 	if err := cm.DeletePattern("prefix:*"); err != nil {
@@ -349,13 +349,13 @@ func TestCache_DisabledManager_Concurrency(t *testing.T) {
 		go func(n int) {
 			defer wg.Done()
 			key := "key"
-			_, _ = cm.Get(key)
-			_ = cm.Set(key, "value", time.Minute)
+			_, _ = cm.GetCachedValue(key)
+			_ = cm.SetCachedValue(key, "value", time.Minute)
 			_, _ = cm.Exists(key)
 			_, _ = cm.TTL(key)
 			_, _ = cm.Increment(key)
 			_ = cm.Expire(key, time.Minute)
-			_ = cm.Delete(key)
+			_ = cm.DeleteCachedValue(key)
 			_ = cm.DeletePattern("key:*")
 			_, _ = cm.GetStats()
 			_ = cm.IsEnabled()

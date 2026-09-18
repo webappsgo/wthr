@@ -15,7 +15,8 @@ type SSLHandler struct {
 	certsDir  string
 	leService *service.LetsEncryptService
 	db        *sql.DB
-	httpsAddr string // Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
+	// Runtime-detected HTTPS address (e.g., "localhost:443" or "0.0.0.0:443")
+	httpsAddr string
 }
 
 // NewSSLHandler creates a new SSL handler
@@ -77,7 +78,7 @@ func (h *SSLHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := SSLStatus{
 		Certificate: certInfo,
-		NextCheck:   time.Now().Add(24 * time.Hour).Format("2006-01-02 15:04"),
+		NextCheck:   service.NextRenewalCheck(time.Now()).Format("2006-01-02 15:04"),
 		NextRenewal: calculateNextRenewal(r, certInfo.NotAfter),
 		LastRenewal: Translate(r, "admin.ssl.status.unknown"),
 		AutoRenewal: true,
@@ -87,7 +88,7 @@ func (h *SSLHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // ObtainCertificate obtains a new Let's Encrypt certificate
-// TEMPLATE.md Part 8: Full Let's Encrypt integration with all 3 challenge types
+// AI.md PART 15: Full Let's Encrypt integration with all 3 challenge types
 func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domain   string   `json:"domain" binding:"required"`
@@ -144,7 +145,7 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 }
 
 // RenewCertificate renews an existing certificate
-// TEMPLATE.md Part 8: Auto-renewal support
+// AI.md PART 15: Auto-renewal support
 func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domain        string `json:"domain" binding:"required"`
@@ -327,7 +328,7 @@ func (h *SSLHandler) RevokeCertificate(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartAutoRenewal starts automatic certificate renewal
-// TEMPLATE.md Part 8: Auto-renewal must be available
+// AI.md PART 15: Auto-renewal must be available
 func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Domains       []string `json:"domains" binding:"required"`
@@ -351,12 +352,12 @@ func (h *SSLHandler) StartAutoRenewal(w http.ResponseWriter, r *http.Request) {
 		"ok":            true,
 		"message":       Translate(r, "success.admin.ssl.auto_renewal_started"),
 		"domains":       request.Domains,
-		"checkInterval": "24 hours",
+		"checkInterval": "daily at 03:00",
 	})
 }
 
 // GetDNSRecords returns DNS records needed for DNS-01 challenge
-// TEMPLATE.md Part 8: DNS-01 challenge support
+// AI.md PART 15: DNS-01 challenge support
 func (h *SSLHandler) GetDNSRecords(w http.ResponseWriter, r *http.Request) {
 	// Check if Let's Encrypt service is initialized
 	if h.leService == nil {
@@ -364,8 +365,7 @@ func (h *SSLHandler) GetDNSRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records := h.leService.GetHTTP01Provider()
-	// Note: For DNS-01, we'd expose dns01Provider's GetDNSRecords() method
+	records := h.leService.GetPendingDNSRecords()
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,

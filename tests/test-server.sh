@@ -28,11 +28,15 @@ set -e
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# No Color
+NC='\033[0m'
 
-# Create temp directory for testing
-TEST_DIR="${TMPDIR:-/tmp}/wthr-test-$$"
-mkdir -p "$TEST_DIR"
+PROJECTNAME=$(basename "$(cd -- "$(dirname -- "$0")/.." && pwd)")
+PROJECTORG=$(basename "$(cd -- "$(dirname -- "$0")/../.." && pwd)")
+
+# AI.md PART 29: runtime/test data always lives under {TMPDIR}/{project_org}/{internal_name}-XXXXXX
+mkdir -p "${TMPDIR:-/tmp}/${PROJECTORG}"
+TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECTORG}/${PROJECTNAME}-XXXXXX")
 
 echo -e "${BLUE}🧪 Weather Service Test Server${NC}"
 echo -e "${BLUE}================================${NC}"
@@ -43,8 +47,9 @@ echo ""
 __cleanup() {
     echo ""
     echo -e "${YELLOW}🧹 Cleaning up...${NC}"
-    if [ -n "$SERVER_PID" ]; then
-        kill $SERVER_PID 2>/dev/null || true
+    if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+        kill "$SERVER_PID" 2>/dev/null || true
+        wait "$SERVER_PID" 2>/dev/null || true
     fi
     if [ "$KEEP_TEMP" != "1" ]; then
         rm -rf "$TEST_DIR"
@@ -56,10 +61,25 @@ __cleanup() {
 
 trap __cleanup EXIT INT TERM
 
-# Build if needed
-if [ ! -f "./wthr" ]; then
-    echo -e "${BLUE}🔨 Building binary...${NC}"
-    go build -o wthr ./src || {
+PROJECT_ROOT=$(cd -- "$(dirname -- "$0")/.." && pwd)
+BINARY="$PROJECT_ROOT/binaries/$PROJECTNAME"
+
+# AI.md PART 29: the host has no Go toolchain, every build runs in casjaysdev/go:latest
+if [ ! -x "$BINARY" ]; then
+    echo -e "${BLUE}🔨 Building binary in Docker...${NC}"
+    GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
+    GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$PROJECTNAME}"
+    mkdir -p "$GO_CACHE" "$GO_BUILD" "$PROJECT_ROOT/binaries"
+    docker run --rm \
+        --name "${PROJECTNAME}-testserver-$$" \
+        -v "$PROJECT_ROOT:/build" \
+        -v "$GO_CACHE:/usr/local/share/go/pkg/mod" \
+        -v "$GO_BUILD:/usr/local/share/go/cache" \
+        -w /build \
+        -e CGO_ENABLED=0 \
+        -e GOFLAGS=-buildvcs=false \
+        casjaysdev/go:latest \
+        go build -trimpath -ldflags '-s -w' -o "binaries/$PROJECTNAME" ./src || {
         echo -e "${YELLOW}❌ Build failed${NC}"
         exit 1
     }
@@ -68,7 +88,7 @@ fi
 # Start server with temp directory
 echo -e "${BLUE}🚀 Starting server...${NC}"
 PORT="${PORT:-3053}"
-./wthr \
+"$BINARY" \
     --port "$PORT" \
     --data "$TEST_DIR" \
     > "$TEST_DIR/server.log" 2>&1 &
@@ -90,7 +110,7 @@ done
 echo ""
 echo -e "${GREEN}🌤️  Server running at: ${YELLOW}http://localhost:$PORT${NC}"
 echo -e "${GREEN}📊 Health check: ${YELLOW}http://localhost:$PORT/server/healthz${NC}"
-echo -e "${GREEN}📝 API docs: ${YELLOW}http://localhost:$PORT/docs${NC}"
+echo -e "${GREEN}📝 API docs: ${YELLOW}http://localhost:$PORT/server/docs/swagger${NC}"
 echo -e "${GREEN}📁 Data directory: ${YELLOW}$TEST_DIR${NC}"
 echo -e "${GREEN}📋 Server log: ${YELLOW}$TEST_DIR/server.log${NC}"
 echo ""

@@ -94,16 +94,6 @@ func TestHTTP01Provider(t *testing.T) {
 	})
 }
 
-func TestTLSALPN01Provider(t *testing.T) {
-	p := NewTLSALPN01Provider()
-	if err := p.Present("example.com", "token", "keyauth"); err != nil {
-		t.Fatalf("Present returned error: %v", err)
-	}
-	if err := p.CleanUp("example.com", "token", "keyauth"); err != nil {
-		t.Fatalf("CleanUp returned error: %v", err)
-	}
-}
-
 func TestDNS01Provider(t *testing.T) {
 	p := NewDNS01Provider()
 
@@ -200,12 +190,12 @@ func TestLetsEncryptService_SaveAndLoadCertificate(t *testing.T) {
 		t.Fatalf("saveCertificate returned error: %v", err)
 	}
 
-	// Files should exist on disk with the sanitized domain name.
-	if _, err := os.Stat(filepath.Join(dir, "example.com.crt")); err != nil {
-		t.Errorf("expected cert file to exist: %v", err)
+	// AI.md PART 15: {config_dir}/ssl/letsencrypt/{fqdn}/{fullchain,privkey}.pem
+	if _, err := os.Stat(filepath.Join(dir, "example.com", "fullchain.pem")); err != nil {
+		t.Errorf("expected fullchain.pem to exist: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "example.com.key")); err != nil {
-		t.Errorf("expected key file to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(dir, "example.com", "privkey.pem")); err != nil {
+		t.Errorf("expected privkey.pem to exist: %v", err)
 	}
 
 	loaded, err := s.loadCertificate("example.com")
@@ -228,9 +218,40 @@ func TestLetsEncryptService_SaveCertificate_WildcardDomain(t *testing.T) {
 	if err := s.saveCertificate("*.example.com", cert); err != nil {
 		t.Fatalf("saveCertificate returned error: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "_wildcard_.example.com.crt")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "_wildcard_.example.com", "fullchain.pem")); err != nil {
 		t.Errorf("expected sanitized wildcard cert file to exist: %v", err)
 	}
+}
+
+func TestNextRenewalCheck(t *testing.T) {
+	loc := time.UTC
+
+	t.Run("before 03:00 same day", func(t *testing.T) {
+		now := time.Date(2026, 1, 2, 1, 30, 0, 0, loc)
+		got := NextRenewalCheck(now)
+		want := time.Date(2026, 1, 2, 3, 0, 0, 0, loc)
+		if !got.Equal(want) {
+			t.Errorf("NextRenewalCheck = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("after 03:00 rolls to next day", func(t *testing.T) {
+		now := time.Date(2026, 1, 2, 9, 0, 0, 0, loc)
+		got := NextRenewalCheck(now)
+		want := time.Date(2026, 1, 3, 3, 0, 0, 0, loc)
+		if !got.Equal(want) {
+			t.Errorf("NextRenewalCheck = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("exactly 03:00 rolls to next day", func(t *testing.T) {
+		now := time.Date(2026, 1, 2, 3, 0, 0, 0, loc)
+		got := NextRenewalCheck(now)
+		want := time.Date(2026, 1, 3, 3, 0, 0, 0, loc)
+		if !got.Equal(want) {
+			t.Errorf("NextRenewalCheck = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestLetsEncryptService_LoadCertificate_Missing(t *testing.T) {

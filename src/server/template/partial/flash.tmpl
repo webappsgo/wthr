@@ -1,0 +1,9 @@
+{{define "flash"}}
+{{if .flash}}
+<!-- AI.md PART 16: server-rendered one-shot flash, the no-JS feedback channel -->
+<div class="alert alert-{{.flash.Kind}} flash-alert" role="alert">
+    <span class="flash-alert-message">{{t .server.Lang .flash.Key}}</span>
+    <button type="button" class="flash-alert-dismiss" data-action="dismiss-flash" aria-label="{{t .server.Lang "flash_dismiss"}}" title="{{t .server.Lang "flash_dismiss"}}">&times;</button>
+</div>
+{{end}}
+{{end}}

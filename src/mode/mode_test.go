@@ -11,7 +11,9 @@ func TestSetAppMode(t *testing.T) {
 		expected AppMode
 	}{
 		{"development", Development},
+		{"devel", Development},
 		{"dev", Development},
+		{"debug", Debug},
 		{"production", Production},
 		{"prod", Production},
 		{"DEVELOPMENT", Development},
@@ -21,10 +23,19 @@ func TestSetAppMode(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		SetDebugEnabled(false)
 		SetAppMode(tt.input)
-		if Current() != tt.expected {
-			t.Errorf("SetAppMode(%q): got %v, want %v", tt.input, Current(), tt.expected)
+		if GetCurrentAppMode() != tt.expected {
+			t.Errorf("SetAppMode(%q): got %v, want %v", tt.input, GetCurrentAppMode(), tt.expected)
 		}
+	}
+}
+
+func TestSetAppModeDebugAliasEnablesDebug(t *testing.T) {
+	SetDebugEnabled(false)
+	SetAppMode("debug")
+	if !IsDebugEnabled() {
+		t.Error(`SetAppMode("debug") should default the debug flag on`)
 	}
 }
 
@@ -60,54 +71,87 @@ func TestSetDebugEnabled(t *testing.T) {
 	}
 }
 
-func TestModeString(t *testing.T) {
+func TestGetAppModeString(t *testing.T) {
 	SetAppMode("production")
 	SetDebugEnabled(false)
-	if ModeString() != "production" {
-		t.Errorf("ModeString() = %q, want %q", ModeString(), "production")
+	if GetAppModeString() != "production" {
+		t.Errorf("GetAppModeString() = %q, want %q", GetAppModeString(), "production")
 	}
 
 	SetDebugEnabled(true)
-	if ModeString() != "production [debugging]" {
-		t.Errorf("ModeString() = %q, want %q", ModeString(), "production [debugging]")
+	if GetAppModeString() != "production [debugging]" {
+		t.Errorf("GetAppModeString() = %q, want %q", GetAppModeString(), "production [debugging]")
 	}
 
 	SetAppMode("development")
 	SetDebugEnabled(false)
-	if ModeString() != "development" {
-		t.Errorf("ModeString() = %q, want %q", ModeString(), "development")
+	if GetAppModeString() != "development" {
+		t.Errorf("GetAppModeString() = %q, want %q", GetAppModeString(), "development")
 	}
 
 	SetDebugEnabled(true)
-	if ModeString() != "development [debugging]" {
-		t.Errorf("ModeString() = %q, want %q", ModeString(), "development [debugging]")
+	if GetAppModeString() != "development [debugging]" {
+		t.Errorf("GetAppModeString() = %q, want %q", GetAppModeString(), "development [debugging]")
+	}
+
+	if ModeString() != GetAppModeString() {
+		t.Errorf("ModeString() = %q, want %q", ModeString(), GetAppModeString())
 	}
 }
 
 func TestFromEnv(t *testing.T) {
 	// Save original env vars
-	origMode := os.Getenv("MODE")
-	origDebug := os.Getenv("DEBUG")
+	origMode, hadMode := os.LookupEnv("MODE")
+	origDebug, hadDebug := os.LookupEnv("DEBUG")
 	defer func() {
-		os.Setenv("MODE", origMode)
-		os.Setenv("DEBUG", origDebug)
+		restoreEnv(t, "MODE", origMode, hadMode)
+		restoreEnv(t, "DEBUG", origDebug, hadDebug)
 	}()
 
-	// Test MODE env var
-	os.Setenv("MODE", "development")
-	os.Setenv("DEBUG", "")
+	// MODE selects the mode
+	t.Setenv("MODE", "development")
+	os.Unsetenv("DEBUG")
+	SetDebugEnabled(false)
 	FromEnv()
 	if !IsAppModeDev() {
 		t.Error("FromEnv() should set development mode from MODE env var")
 	}
 
-	// Test DEBUG env var
-	os.Setenv("MODE", "production")
-	os.Setenv("DEBUG", "true")
+	// DEBUG enables debug independently of MODE
+	t.Setenv("MODE", "production")
+	t.Setenv("DEBUG", "true")
 	FromEnv()
 	if !IsDebugEnabled() {
 		t.Error("FromEnv() should enable debug from DEBUG env var")
 	}
+
+	// An explicit DEBUG=false wins over the MODE=debug default
+	t.Setenv("MODE", "debug")
+	t.Setenv("DEBUG", "false")
+	FromEnv()
+	if GetCurrentAppMode() != Debug {
+		t.Errorf("FromEnv(): got mode %v, want %v", GetCurrentAppMode(), Debug)
+	}
+	if IsDebugEnabled() {
+		t.Error("explicit DEBUG=false must override the MODE=debug default")
+	}
+
+	// An empty DEBUG is not an explicit value and leaves the alias default alone
+	t.Setenv("MODE", "debug")
+	t.Setenv("DEBUG", "")
+	FromEnv()
+	if !IsDebugEnabled() {
+		t.Error("empty DEBUG must not clear the MODE=debug default")
+	}
+}
+
+func restoreEnv(t *testing.T, key, value string, existed bool) {
+	t.Helper()
+	if existed {
+		os.Setenv(key, value)
+		return
+	}
+	os.Unsetenv(key)
 }
 
 func TestAppModeString(t *testing.T) {
@@ -117,6 +161,7 @@ func TestAppModeString(t *testing.T) {
 	}{
 		{Production, "production"},
 		{Development, "development"},
+		{Debug, "debug"},
 	}
 
 	for _, tt := range tests {

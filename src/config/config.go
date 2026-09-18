@@ -1,7 +1,6 @@
 package config
 
 import (
-	"bytes"
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
@@ -10,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -74,6 +74,9 @@ type ServerConfig struct {
 	AdminPath string `yaml:"admin_path"`
 	// AI.md: API version prefix (default: "v1")
 	APIVersion string `yaml:"api_version"`
+	// AI.md PART 12: URL path prefix for all routes when served under a
+	// subpath; reverse-proxy headers take precedence over this value
+	BaseURL string `yaml:"baseurl"`
 	// AI.md PART 13: optional root /healthz compatibility alias
 	Healthz HealthzConfig `yaml:"healthz"`
 	// AI.md PART 31: server output language ("auto" = detect from LANG/LC_ALL)
@@ -100,6 +103,88 @@ type ServerConfig struct {
 	Security SecurityConfig `yaml:"security"`
 	// TrustedProxies gates which peers may set forwarded/real-IP headers per AI.md PART 5/12
 	TrustedProxies TrustedProxiesConfig `yaml:"trusted_proxies"`
+	// AI.md PART 12: request size and timeout limits
+	Limits LimitsConfig `yaml:"limits"`
+	// AI.md PART 12: response compression
+	Compression CompressionConfig `yaml:"compression"`
+	// AI.md PART 12: admin and user session cookie settings
+	Session SessionConfig `yaml:"session"`
+	// AI.md PART 12: server language settings
+	I18n I18nConfig `yaml:"i18n"`
+	// AI.md PART 12: notification recipient roles
+	Contact ContactConfig `yaml:"contact"`
+	// AI.md PART 12: analytics platform settings
+	Tracking TrackingConfig `yaml:"tracking"`
+	// AI.md PART 12: privacy disclosure and consent banner settings
+	Privacy PrivacyConfig `yaml:"privacy"`
+	// AI.md PART 12: cache backend settings
+	Cache CacheConfig `yaml:"cache"`
+	// AI.md PART 21: Prometheus metrics exposition settings
+	Metrics MetricsConfig `yaml:"metrics"`
+}
+
+// MetricsConfig represents the Prometheus exposition settings per AI.md PART 21.
+// The endpoint is internal-only: it is never proxied to the public internet, and
+// bearer tokens gate each consuming service.
+type MetricsConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// Root aliases /metrics at the root of the route tree, which is what
+	// Prometheus scrapers expect by default.
+	Root MetricsRootConfig `yaml:"root"`
+	Auth MetricsAuthConfig `yaml:"auth"`
+	// IncludeSystem enables the CPU, memory, and disk metric families.
+	IncludeSystem bool `yaml:"include_system"`
+	// IncludeRuntime enables the Go runtime metric family.
+	IncludeRuntime bool `yaml:"include_runtime"`
+	// Loki bounds how much recent log the loki service returns.
+	Loki MetricsLokiConfig `yaml:"loki"`
+	// DurationBuckets are the histogram buckets for request duration in seconds.
+	DurationBuckets []float64 `yaml:"duration_buckets"`
+	// SizeBuckets are the histogram buckets for request and response size in bytes.
+	SizeBuckets []float64 `yaml:"size_buckets"`
+}
+
+// MetricsLokiConfig bounds the loki service response per AI.md PART 21.
+type MetricsLokiConfig struct {
+	MaxEntries int    `yaml:"max_entries"`
+	MaxAge     string `yaml:"max_age"`
+}
+
+// MetricsRootConfig controls the root /metrics alias per AI.md PART 21.
+type MetricsRootConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// MetricsAuthConfig holds the per-service bearer tokens that gate the metrics
+// endpoint. An empty token disables that service with a 403; AllowUnauthenticated
+// skips the check entirely and is only ever safe on a firewalled network.
+type MetricsAuthConfig struct {
+	AllowUnauthenticated bool              `yaml:"allow_unauthenticated"`
+	Tokens               map[string]string `yaml:"tokens"`
+}
+
+// DefaultMetricsConfig returns the AI.md PART 21 defaults.
+func DefaultMetricsConfig() MetricsConfig {
+	return MetricsConfig{
+		Enabled: true,
+		Root:    MetricsRootConfig{Enabled: true},
+		Auth: MetricsAuthConfig{
+			AllowUnauthenticated: false,
+			Tokens: map[string]string{
+				"prometheus": "",
+				"grafana":    "",
+				"loki":       "",
+			},
+		},
+		IncludeSystem:  true,
+		IncludeRuntime: true,
+		Loki: MetricsLokiConfig{
+			MaxEntries: 1000,
+			MaxAge:     "1h",
+		},
+		DurationBuckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		SizeBuckets:     []float64{100, 1000, 10000, 100000, 1000000, 10000000},
+	}
 }
 
 // TrustedProxiesConfig represents the trusted-proxy allow-list per AI.md PART 12.
@@ -242,15 +327,6 @@ type BackupEncryptionConfig struct {
 	// Optional password hint (e.g., "First pet's name + year")
 	Hint string `yaml:"hint"`
 	// Password is NEVER stored - derived on-demand
-}
-
-// RateLimitConfig represents rate limiting configuration per AI.md PART 4
-type RateLimitConfig struct {
-	Enabled bool `yaml:"enabled"`
-	// Requests per window
-	Requests int `yaml:"requests"`
-	// Window in seconds
-	Window int `yaml:"window"`
 }
 
 // HealthzConfig represents health endpoint configuration per AI.md PART 13
@@ -734,6 +810,8 @@ func LoadConfig() (*AppConfig, error) {
 			AdminPath: "admin",
 			// AI.md: API version prefix (default: "v1")
 			APIVersion: "v1",
+			// AI.md PART 12: serve from root unless a reverse proxy says otherwise
+			BaseURL: "/",
 			// AI.md PART 31: "auto" resolves from LC_ALL/LANG, falling back to English
 			Lang:      "auto",
 			User:      "{auto}",
@@ -822,11 +900,15 @@ func LoadConfig() (*AppConfig, error) {
 					},
 				},
 			},
-			RateLimit: RateLimitConfig{
-				Enabled:  true,
-				Requests: 120,
-				Window:   60,
-			},
+			RateLimit:   DefaultRateLimitConfig(),
+			Metrics:     DefaultMetricsConfig(),
+			Limits:      DefaultLimitsConfig(),
+			Compression: DefaultCompressionConfig(),
+			Session:     DefaultSessionConfig(),
+			I18n:        DefaultI18nConfig(),
+			Contact:     DefaultContactConfig(hostname),
+			Privacy:     DefaultPrivacyConfig(),
+			Cache:       DefaultCacheConfig(),
 			Database: DatabaseConfig{
 				Driver: "file",
 			},
@@ -911,18 +993,32 @@ func LoadConfig() (*AppConfig, error) {
 		return cfg, err
 	}
 
-	// Parse YAML with strict mode per AI.md PART 5
-	// Unknown keys are ERRORS, not silently ignored
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(cfg); err != nil {
-		return cfg, fmt.Errorf("config error: %w (unknown fields are not allowed)", err)
+	// AI.md PART 12: a malformed config file warns and falls back to the
+	// defaults rather than failing startup, so decoding targets a copy that is
+	// only adopted once the whole document parses cleanly.
+	parsed := *cfg
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not parse %s: %v (using defaults)\n", configPath, err)
+	} else {
+		*cfg = parsed
 	}
 
 	// AI.md PART 5: an invalid config value warns and falls back to the
 	// default rather than failing startup, so I2P settings are normalized
 	// in place immediately after decoding.
 	NormalizeI2PConfig(&cfg.Server.I2P)
+
+	// AI.md PART 12: every remaining value is validated the same way — an
+	// invalid setting is warned about and replaced with its default so the
+	// server always starts.
+	if validateConfig(cfg) {
+		// AI.md PART 4: the random 64xxx port is chosen once and persisted; a
+		// substituted port must be written back or the server would listen on a
+		// different port after every restart.
+		if err := SaveConfig(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Could not persist replaced port: %v\n", err)
+		}
+	}
 
 	// AI.md PART 11: an existing server.yml from before this key existed
 	// (or one with the field blanked) must get a key generated ONCE and
@@ -1138,6 +1234,52 @@ func UpdateI2PConfig(next I2PConfig) []ValidationError {
 	if err := SaveConfig(cfg); err != nil {
 		return []ValidationError{{Field: "i2p", Message: err.Error()}}
 	}
+	return nil
+}
+
+// UpdateMetricsConfig validates and persists the metrics settings per AI.md PART 21.
+// Invalid values are replaced with the documented defaults rather than rejected,
+// so an admin submission can never leave the metrics subsystem unconfigurable.
+func UpdateMetricsConfig(next MetricsConfig) []ValidationError {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return []ValidationError{{Field: "metrics", Message: "global config not initialized"}}
+	}
+
+	defaults := DefaultMetricsConfig()
+
+	if next.Loki.MaxEntries <= 0 {
+		next.Loki.MaxEntries = defaults.Loki.MaxEntries
+	}
+
+	next.Loki.MaxAge = strings.TrimSpace(next.Loki.MaxAge)
+	if next.Loki.MaxAge == "" {
+		next.Loki.MaxAge = defaults.Loki.MaxAge
+	} else if _, err := time.ParseDuration(next.Loki.MaxAge); err != nil {
+		return []ValidationError{{Field: "loki.max_age", Message: "must be a duration such as 1h or 30m"}}
+	}
+
+	if len(next.DurationBuckets) == 0 {
+		next.DurationBuckets = defaults.DurationBuckets
+	}
+	if len(next.SizeBuckets) == 0 {
+		next.SizeBuckets = defaults.SizeBuckets
+	}
+
+	if next.Auth.Tokens == nil {
+		next.Auth.Tokens = map[string]string{}
+	}
+	for service := range defaults.Auth.Tokens {
+		if _, present := next.Auth.Tokens[service]; !present {
+			next.Auth.Tokens[service] = ""
+		}
+	}
+
+	cfg.Server.Metrics = next
+	if err := SaveConfig(cfg); err != nil {
+		return []ValidationError{{Field: "metrics", Message: err.Error()}}
+	}
+
 	return nil
 }
 

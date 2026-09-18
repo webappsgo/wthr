@@ -156,7 +156,7 @@ func validateAuthUser(user *models.User) error {
 
 func createFullAuthSession(db *sql.DB, user *models.User) (*AuthLoginResponse, error) {
 	sessionModel := &models.SessionModel{DB: db}
-	session, err := sessionModel.Create(user.ID, authSessionTTLSeconds)
+	session, err := sessionModel.CreateSession(user.ID, authSessionTTLSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -196,7 +196,7 @@ func userHasPasskeys(db *sql.DB, userID int64) (bool, error) {
 
 func createPendingTwoFactorSession(db *sql.DB, userID int64) (*models.Session, error) {
 	sessionModel := &models.SessionModel{DB: db}
-	session, err := sessionModel.Create(userID, authPendingSessionTTLSeconds)
+	session, err := sessionModel.CreateSession(userID, authPendingSessionTTLSeconds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pending session: %w", err)
 	}
@@ -206,7 +206,7 @@ func createPendingTwoFactorSession(db *sql.DB, userID int64) (*models.Session, e
 		"requires_2fa":      true,
 		"temporary_session": true,
 	}); err != nil {
-		_ = sessionModel.Delete(session.ID)
+		_ = sessionModel.DeleteSession(session.ID)
 		return nil, fmt.Errorf("failed to store pending session: %w", err)
 	}
 
@@ -359,7 +359,7 @@ func CompleteAPIUserTwoFactor(db *sql.DB, req *API2FARequest, clientIP string) (
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
-	_ = sessionModel.Delete(pendingSession.ID)
+	_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	return response, nil
 }
@@ -386,7 +386,7 @@ func UseAPIUserRecoveryKey(db *sql.DB, req *APIRecoveryUseRequest, clientIP stri
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
-	_ = sessionModel.Delete(pendingSession.ID)
+	_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	return response, nil
 }
@@ -413,7 +413,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	}
 
 	userModel := &models.UserModel{DB: db}
-	user, err := userModel.Create(util.NormalizeUsername(req.Username), req.Email, req.Password, "user")
+	user, err := userModel.CreateUserAccount(util.NormalizeUsername(req.Username), req.Email, req.Password, "user")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
 			return nil, fmt.Errorf("username or email already exists")
@@ -448,7 +448,7 @@ func LogoutCurrentUserSession(db *sql.DB, session *models.Session) error {
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
-	if err := sessionModel.Delete(session.ID); err != nil {
+	if err := sessionModel.DeleteSession(session.ID); err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
@@ -461,7 +461,7 @@ func RefreshCurrentUserSession(db *sql.DB, session *models.Session, user *models
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
-	if err := sessionModel.Delete(session.ID); err != nil {
+	if err := sessionModel.DeleteSession(session.ID); err != nil {
 		return nil, fmt.Errorf("failed to refresh session")
 	}
 
@@ -742,7 +742,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 	}
 
 	userModel := &models.UserModel{DB: db}
-	user, err := userModel.Create(username, invite.Email, password, invite.Role)
+	user, err := userModel.CreateUserAccount(username, invite.Email, password, invite.Role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create account")
 	}
@@ -759,7 +759,7 @@ func CompleteAPIUserInvite(db *sql.DB, token string, username string, password s
 	}
 
 	sessionModel := &models.SessionModel{DB: db}
-	session, err := sessionModel.Create(user.ID, authSessionTTLSeconds)
+	session, err := sessionModel.CreateSession(user.ID, authSessionTTLSeconds)
 	if err != nil {
 		return &UserInviteCompletionResponse{
 			Message: "Account created. Please log in.",

@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# install-macos.sh - macOS installer for Weather Service
+# install-macos.sh - macOS installer for the wthr weather service
 # Installs as launchd service
 
 set -e
@@ -35,7 +35,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Weather Service Installer for macOS ===${NC}"
+echo -e "${GREEN}=== wthr Weather Service Installer for macOS ===${NC}"
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -54,17 +54,17 @@ echo "Architecture: $ARCH ($([ "$ARCH" = "arm64" ] && echo "Apple Silicon" || ec
 if [ "$EUID" -eq 0 ]; then
     IS_ROOT=true
     BIN_DIR="/usr/local/bin"
-    CONFIG_DIR="/Library/Application Support/Weather"
-    DATA_DIR="/Library/Application Support/Weather/data"
-    LOG_DIR="/Library/Logs/Weather"
+    CONFIG_DIR="/Library/Application Support/webappsgo/wthr"
+    DATA_DIR="/Library/Application Support/webappsgo/wthr/data"
+    LOG_DIR="/Library/Logs/webappsgo/wthr"
     PLIST_DIR="/Library/LaunchDaemons"
     PLIST_NAME="io.github.webappsgo.wthr.plist"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
-    CONFIG_DIR="$HOME/Library/Application Support/Weather"
-    DATA_DIR="$HOME/Library/Application Support/Weather/data"
-    LOG_DIR="$HOME/Library/Logs/Weather"
+    CONFIG_DIR="$HOME/Library/Application Support/webappsgo/wthr"
+    DATA_DIR="$HOME/Library/Application Support/webappsgo/wthr/data"
+    LOG_DIR="$HOME/Library/Logs/webappsgo/wthr"
     PLIST_DIR="$HOME/Library/LaunchAgents"
     PLIST_NAME="io.github.webappsgo.wthr.plist"
 fi

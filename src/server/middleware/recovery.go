@@ -18,7 +18,7 @@ type panicLogger interface {
 }
 
 // Recovery returns middleware that recovers from a panic in any downstream
-// handler, logs it, and returns a canonical INTERNAL_ERROR response instead
+// handler, logs it, and returns a canonical SERVER_ERROR response instead
 // of crashing the server or leaking a stack trace to the client. Equivalent
 // to gin.Recovery(), converted to the chi func(http.Handler) http.Handler
 // shape. Per AI.md PART 11, stack traces are never sent in the response body
@@ -54,13 +54,13 @@ func respondPanic(w http.ResponseWriter, r *http.Request, rec interface{}) {
 	if isTextRequest(r) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("INTERNAL_ERROR: " + message + "\n"))
+		_, _ = w.Write([]byte("SERVER_ERROR: " + message + "\n"))
 		return
 	}
 
 	body := map[string]interface{}{
 		"ok":      false,
-		"error":   "INTERNAL_ERROR",
+		"error":   "SERVER_ERROR",
 		"message": message,
 	}
 	if mode.IsDebugEnabled() {

@@ -102,10 +102,10 @@ func hashToken(rawToken string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Create creates a new session for a user and returns a Session whose ID is
+// CreateSession creates a new session for a user and returns a Session whose ID is
 // the raw bearer token (for placing in the HttpOnly cookie). Only the SHA-256
 // hash of the token is written to the database.
-func (m *SessionModel) Create(userID interface{}, sessionTimeout int) (*Session, error) {
+func (m *SessionModel) CreateSession(userID interface{}, sessionTimeout int) (*Session, error) {
 	var uid int64
 	switch v := userID.(type) {
 	case int:
@@ -186,7 +186,9 @@ func (m *SessionModel) GetByID(rawToken string) (*Session, error) {
 	// unlimited life.
 	expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
 	if !ok || !time.Now().UTC().Before(expiresAt) {
-		m.Delete(rawToken)
+		if delErr := m.DeleteSession(rawToken); delErr != nil {
+			return nil, fmt.Errorf("session expired, cleanup failed: %w", delErr)
+		}
 		return nil, fmt.Errorf("session expired")
 	}
 
@@ -228,8 +230,8 @@ func (m *SessionModel) Extend(rawToken string, sessionTimeout int) error {
 	return err
 }
 
-// Delete removes a single session by its raw bearer token.
-func (m *SessionModel) Delete(rawToken string) error {
+// DeleteSession removes a single session by its raw bearer token.
+func (m *SessionModel) DeleteSession(rawToken string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_sessions WHERE token_hash = ?", hashToken(rawToken))
 	return err
 }

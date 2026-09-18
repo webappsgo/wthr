@@ -39,9 +39,9 @@ func UserAgent() string {
 	return fmt.Sprintf("%s-cli/%s", projectName, Version)
 }
 
-// Get performs a GET request with cluster failover
+// GetResource performs a GET request with cluster failover
 // Per AI.md PART 33: Try primary, then cluster nodes on failure
-func (c *HTTPClient) Get(path string) (*http.Response, error) {
+func (c *HTTPClient) GetResource(path string) (*http.Response, error) {
 	return c.doWithFailover("GET", path, nil)
 }
 
@@ -167,7 +167,7 @@ func (c *HTTPClient) handleResponse(resp *http.Response) (*http.Response, error)
 
 // GetJSON performs a GET request and decodes JSON response
 func (c *HTTPClient) GetJSON(path string, result interface{}) error {
-	resp, err := c.Get(path)
+	resp, err := c.GetResource(path)
 	if err != nil {
 		return err
 	}

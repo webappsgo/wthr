@@ -9,8 +9,8 @@
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, August 13, 2026 19:24 EDT
 # @@File             :  docker.sh
-# @@Description      :  AI.md PART 29 full integration testing in a Docker Alpine container
-# @@Changelog        :  Bring script into CasjaysDev header and lint compliance
+# @@Description      :  AI.md PART 29 container testing in Docker with a route/header matrix
+# @@Changelog        :  Run the shared tests/lib/matrix.sh suite so Docker and Incus stay identical
 # @@TODO             :  none
 # @@Other            :  none
 # @@Resource         :  none
@@ -20,305 +20,66 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# AI.md PART 29: Full integration testing in Docker Alpine container
+# AI.md PART 29: Container testing in Docker; Incus (tests/incus.sh) is preferred when available
 set -euo pipefail
 
-# Detect project info
+if ! command -v docker >/dev/null 2>&1; then
+    echo "ERROR: docker not found. Install docker or use tests/incus.sh"
+    exit 1
+fi
+
 PROJECTNAME=$(basename "$PWD")
 PROJECTORG=$(basename "$(dirname "$PWD")")
+CONTAINER_NAME="test-${PROJECTNAME}-$$"
+SCRIPT_DIR=$(cd -- "$(dirname -- "$0")" && pwd)
 
-# Create temp directory for build (proper org/project structure per AI.md)
 mkdir -p "${TMPDIR:-/tmp}/${PROJECTORG}"
 BUILD_DIR=$(mktemp -d "${TMPDIR:-/tmp}/${PROJECTORG}/${PROJECTNAME}-XXXXXX")
-trap "rm -rf $BUILD_DIR" EXIT
+trap 'docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true; rm -rf "$BUILD_DIR"' EXIT
 
-echo "=== Building binaries in Docker ==="
+GO_CACHE="${GO_CACHE:-$HOME/go/pkg/mod}"
+GO_BUILD="${GO_BUILD:-$HOME/.cache/go-build/$PROJECTNAME}"
+mkdir -p "$GO_CACHE" "$GO_BUILD"
+
+echo "=== Building server and CLI binaries in Docker ==="
 docker run --rm \
-  -v "$(pwd):/build" \
+  --name "${PROJECTNAME}-dockerbuild-$$" \
+  -v "$PWD:/build" \
+  -v "$BUILD_DIR:/output" \
+  -v "$GO_CACHE:/usr/local/share/go/pkg/mod" \
+  -v "$GO_BUILD:/usr/local/share/go/cache" \
   -w /build \
   -e CGO_ENABLED=0 \
   -e GOFLAGS=-buildvcs=false \
   casjaysdev/go:latest sh -c "
-    go build -o /build/binaries/$PROJECTNAME ./src
-    go build -o /build/binaries/${PROJECTNAME}-cli ./src/client
+    set -e
+    go build -trimpath -ldflags '-s -w' -o /output/$PROJECTNAME ./src
+    go build -trimpath -ldflags '-s -w' -o /output/${PROJECTNAME}-cli ./src/client
+    if [ -d ./src/agent ]; then
+      go build -trimpath -ldflags '-s -w' -o /output/${PROJECTNAME}-agent ./src/agent
+    fi
   "
 
-# Copy binaries to temp dir
-cp binaries/$PROJECTNAME "$BUILD_DIR/"
-cp binaries/${PROJECTNAME}-cli "$BUILD_DIR/"
+cp "$SCRIPT_DIR/lib/matrix.sh" "$BUILD_DIR/matrix.sh"
+chmod +x "$BUILD_DIR/matrix.sh"
 
-echo "=== Testing in Docker (Alpine) ==="
+echo "=== Running route/header matrix in alpine:latest ==="
 docker run --rm \
-  -v "$BUILD_DIR:/app" \
-  alpine:latest sh -c "
+  --name "$CONTAINER_NAME" \
+  -v "$BUILD_DIR:/artifacts:ro" \
+  -e "PROJECTNAME=$PROJECTNAME" \
+  -e "PROJECTORG=$PROJECTORG" \
+  alpine:latest sh -c '
     set -e
-    mkdir -p /tmp/webappsgo
-    TEST_DIR=\$(mktemp -d /tmp/webappsgo/wthr-XXXXXX)
-    __cleanup() {
-        if [ -n \"\${SERVER_PID:-}\" ] && kill -0 \$SERVER_PID 2>/dev/null; then
-            kill \$SERVER_PID 2>/dev/null || true
-            wait \$SERVER_PID 2>/dev/null || true
-        fi
-        rm -rf \"\$TEST_DIR\"
-    }
-    trap __cleanup EXIT
-
-    # Install required tools per AI.md PART 29
-    apk add --no-cache curl bash file jq >/dev/null 2>&1
-
-    chmod +x /app/$PROJECTNAME /app/${PROJECTNAME}-cli
-
-    echo '=== Version Check ==='
-    /app/$PROJECTNAME --version
-    /app/${PROJECTNAME}-cli --version
-
-    echo '=== Help Check ==='
-    /app/$PROJECTNAME --help | head -5
-    /app/${PROJECTNAME}-cli --help | head -5
-
-    echo '=== Binary Info ==='
-    ls -lh /app/$PROJECTNAME /app/${PROJECTNAME}-cli
-    file /app/$PROJECTNAME
-    file /app/${PROJECTNAME}-cli
-
-    echo '=== Binary Rename Tests (AI.md PART 29) ==='
-    # Test server binary rename
-    cp /app/$PROJECTNAME /app/renamed-server
-    chmod +x /app/renamed-server
-    if /app/renamed-server --help 2>&1 | grep -q -- 'renamed-server'; then
-        echo '✓ Server binary rename works (--help shows actual name)'
-    else
-        echo '✗ FAILED: Server --help does not show renamed binary name'
-        exit 1
+    apk add --no-cache curl bash file jq >/dev/null
+    cp "/artifacts/$PROJECTNAME" "/artifacts/${PROJECTNAME}-cli" /usr/local/bin/
+    if [ -f "/artifacts/${PROJECTNAME}-agent" ]; then
+      cp "/artifacts/${PROJECTNAME}-agent" /usr/local/bin/
     fi
-
-    # Test CLI binary rename
-    cp /app/${PROJECTNAME}-cli /app/renamed-cli
-    chmod +x /app/renamed-cli
-    if /app/renamed-cli --help 2>&1 | grep -q -- 'renamed-cli'; then
-        echo '✓ CLI binary rename works (--help shows actual name)'
-    else
-        echo '✗ FAILED: CLI --help does not show renamed binary name'
-        exit 1
-    fi
-
-    echo '=== Starting Server for API Tests ==='
-    mkdir -p \"\$TEST_DIR/volumes/config\" \"\$TEST_DIR/volumes/data\" \"\$TEST_DIR/volumes/logs\" \"\$TEST_DIR/volumes/cache\" \"\$TEST_DIR/volumes/backup\"
-    /app/$PROJECTNAME --port 64580 --mode development \
-        --config \"\$TEST_DIR/volumes/config\" \
-        --data \"\$TEST_DIR/volumes/data\" \
-        --log \"\$TEST_DIR/volumes/logs\" \
-        --cache \"\$TEST_DIR/volumes/cache\" \
-        --backup \"\$TEST_DIR/volumes/backup\" &
-    SERVER_PID=\$!
-    sleep 5
-
-    # Check if server started
-    if ! kill -0 \$SERVER_PID 2>/dev/null; then
-        echo '✗ FAILED: Server did not start'
-        exit 1
-    fi
-    echo '✓ Server started on port 64580'
-
-    echo '=== Static File Tests (AI.md PART 16) ==='
-    # robots.txt
-    if curl -q -LSsf http://localhost:64580/robots.txt | grep -q -- 'User-agent'; then
-        echo '✓ /robots.txt returns valid content'
-    else
-        echo '✗ FAILED: /robots.txt'
-    fi
-
-    # security.txt
-    if curl -q -LSsf http://localhost:64580/.well-known/security.txt | grep -q -- 'Contact'; then
-        echo '✓ /.well-known/security.txt returns valid content'
-    else
-        echo '✗ FAILED: /.well-known/security.txt'
-    fi
-
-    # sitemap.xml
-    if curl -q -LSsf http://localhost:64580/sitemap.xml | grep -q -- 'urlset'; then
-        echo '✓ /sitemap.xml returns valid XML'
-    else
-        echo '✗ FAILED: /sitemap.xml'
-    fi
-
-    # favicon.ico
-    if curl -q -LSsf -o /dev/null http://localhost:64580/favicon.ico; then
-        echo '✓ /favicon.ico returns content'
-    else
-        echo '✗ FAILED: /favicon.ico'
-    fi
-
-    echo '=== Health Endpoint Tests (AI.md PART 13) ==='
-    # JSON response
-    HEALTH_JSON=\$(curl -q -LSsf http://localhost:64580/api/v1/server/healthz)
-    if echo \"\$HEALTH_JSON\" | jq -e '.status' >/dev/null 2>&1; then
-        echo '✓ /api/v1/server/healthz returns valid JSON with status field'
-    else
-        echo '✗ FAILED: /api/v1/server/healthz JSON format'
-    fi
-
-    # Check components field
-    if echo \"\$HEALTH_JSON\" | jq -e '.components' >/dev/null 2>&1; then
-        echo '✓ /api/v1/server/healthz has components field'
-    else
-        echo '✗ FAILED: /api/v1/server/healthz missing components'
-    fi
-
-    echo '=== Content Negotiation Tests (AI.md PART 29) ==='
-    # Test Accept: application/json
-    if curl -q -LSsf -H 'Accept: application/json' http://localhost:64580/api/v1/server/healthz | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ Accept: application/json returns JSON'
-    else
-        echo '✗ FAILED: Accept application/json'
-    fi
-
-    # Test Accept: text/plain
-    # A plain-text response must be non-empty and must not be a JSON document,
-    # matched with a POSIX case glob instead of forking echo into grep
-    PLAIN=\$(curl -q -LSsf -H 'Accept: text/plain' http://localhost:64580/api/v1/server/healthz)
-    case \"\$PLAIN\" in
-        ''|'{'*)
-            echo '✗ FAILED: Accept text/plain'
-            ;;
-        *)
-            echo '✓ Accept: text/plain returns plain text'
-            ;;
-    esac
-
-    # Test .txt extension
-    TXT=\$(curl -q -LSsf http://localhost:64580/api/v1/server/healthz.txt 2>/dev/null || echo '')
-    if [ -n \"\$TXT\" ]; then
-        echo '✓ .txt extension returns content'
-    else
-        echo '⚠ .txt extension not implemented (optional)'
-    fi
-
-    echo '=== Weather-Specific API Tests (IDEA.md) ==='
-    # Weather API
-    if curl -q -LSsf http://localhost:64580/api/v1/weather | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/weather returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/weather'
-    fi
-
-    # Moon phase API
-    if curl -q -LSsf http://localhost:64580/api/v1/moon | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/moon returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/moon'
-    fi
-
-    # Earthquakes API
-    if curl -q -LSsf http://localhost:64580/api/v1/earthquakes | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/earthquakes returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/earthquakes'
-    fi
-
-    # Hurricanes API
-    if curl -q -LSsf http://localhost:64580/api/v1/hurricanes | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/hurricanes returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/hurricanes'
-    fi
-
-    # Severe weather API
-    if curl -q -LSsf http://localhost:64580/api/v1/severe-weather | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/severe-weather returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/severe-weather'
-    fi
-
-    # Location search API (calls the live geocoding-api.open-meteo.com
-    # upstream, so this real-network assertion lives here in Phase 2
-    # rather than in *_test.go's Phase 1 toolchain gate — AI.md PART 29)
-    if curl -q -LSsf 'http://localhost:64580/api/v1/locations/search?q=London' | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/locations/search returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/locations/search'
-    fi
-
-    # Weather by coordinates (calls the live api.open-meteo.com upstream, so
-    # this real-network assertion lives here in Phase 2 rather than in
-    # *_test.go's Phase 1 toolchain gate — AI.md PART 29)
-    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?lat=40.7128&lon=-74.0060' | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/weather?lat=&lon= returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/weather?lat=&lon='
-    fi
-
-    # Weather by city ID (needs the live citylist download plus the live
-    # api.open-meteo.com upstream, so it is a Phase 2 assertion — AI.md PART 29)
-    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?city_id=5128581' | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/weather?city_id= returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/weather?city_id='
-    fi
-
-    # Weather for the nearest city to a coordinate pair (live citylist plus
-    # live weather upstream, Phase 2 only — AI.md PART 29)
-    if curl -q -LSsf 'http://localhost:64580/api/v1/weather?lat=40.7128&lon=-74.0060&nearest=true' | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/weather?nearest=true returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/weather?nearest=true'
-    fi
-
-    # Forecast by coordinates (calls the live api.open-meteo.com upstream, so
-    # this real-network assertion lives here in Phase 2 — AI.md PART 29)
-    if curl -q -LSsf 'http://localhost:64580/api/v1/weather/forecast?lat=40.7128&lon=-74.0060&days=7' | jq -e '.' >/dev/null 2>&1; then
-        echo '✓ /api/v1/weather/forecast returns JSON'
-    else
-        echo '✗ FAILED: /api/v1/weather/forecast'
-    fi
-
-    echo '=== Frontend Smart Detection Tests (AI.md PART 16) ==='
-    # Test homepage - CLI should get response
-    HOMEPAGE=\$(curl -q -LSsf http://localhost:64580/)
-    if [ -n \"\$HOMEPAGE\" ]; then
-        echo '✓ Frontend homepage works'
-    else
-        echo '✗ FAILED: Frontend homepage'
-    fi
-
-    # Test with Accept: text/html (browser simulation)
-    # Case-insensitive substring match via a POSIX case glob so the check
-    # stays fork-free instead of piping echo into grep
-    HTML=\$(curl -q -LSsf -H 'Accept: text/html' http://localhost:64580/)
-    case \"\$HTML\" in
-        *[Hh][Tt][Mm][Ll]*)
-            echo '✓ Accept: text/html returns HTML'
-            ;;
-        *)
-            echo '⚠ Accept: text/html (frontend may not implement)'
-            ;;
-    esac
-
-    echo '=== OpenAPI/GraphQL Endpoint Tests (AI.md PART 14) ==='
-    # OpenAPI
-    if curl -q -LSsf http://localhost:64580/openapi.json | jq -e '.openapi' >/dev/null 2>&1; then
-        echo '✓ /openapi.json returns valid OpenAPI spec'
-    else
-        echo '⚠ /openapi.json not available'
-    fi
-
-    # GraphQL endpoint exists
-    GRAPHQL=\$(curl -q -LSsf http://localhost:64580/graphql 2>/dev/null || echo '')
-    if [ -n \"\$GRAPHQL\" ]; then
-        echo '✓ /graphql endpoint exists'
-    else
-        echo '⚠ /graphql may require POST'
-    fi
-
-    echo '=== Stopping Server ==='
-    kill \$SERVER_PID 2>/dev/null || true
-    wait \$SERVER_PID 2>/dev/null || true
-
-    echo ''
-    echo '========================================='
-    echo '  All tests completed successfully!'
-    echo '========================================='
-"
+    cp /artifacts/matrix.sh /usr/local/bin/matrix.sh
+    chmod +x /usr/local/bin/matrix.sh "/usr/local/bin/$PROJECTNAME" "/usr/local/bin/${PROJECTNAME}-cli"
+    exec /usr/local/bin/matrix.sh "$PROJECTNAME" "$PROJECTORG"
+  '
 
 echo "Docker tests completed successfully"
 

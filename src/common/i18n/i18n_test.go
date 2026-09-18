@@ -443,6 +443,60 @@ func interpolationVars(s string) []string {
 //   - every locale has the same key set as en.json (no missing, no orphaned)
 //   - no empty string values in any locale
 //   - `{var}` interpolation placeholders match en.json for every shared key
+//
+// TestTranslateFormat covers AI.md PART 31's interpolation contract: named
+// {token} placeholders are replaced literally, unknown tokens are left intact,
+// and the translation is never treated as a fmt format string.
+func TestTranslateFormat(t *testing.T) {
+	i := &I18n{
+		translations: map[string]map[string]string{
+			"en": {
+				"greeting":   "Hello, {name}! You have {count} messages.",
+				"repeated":   "{name} and {name}",
+				"percent":    "Disk usage is 90% on {host}",
+				"untouched":  "Nothing to replace here",
+				"only_in_en": "English only: {who}",
+			},
+			"es": {
+				"greeting":  "¡Hola, {name}! Tienes {count} mensajes.",
+				"repeated":  "{name} y {name}",
+				"percent":   "El uso del disco es del 90% en {host}",
+				"untouched": "Nada que reemplazar aquí",
+			},
+		},
+		defaultLang:   "en",
+		supportedLang: []string{"en", "es"},
+	}
+
+	tests := []struct {
+		name string
+		lang string
+		key  string
+		args map[string]string
+		want string
+	}{
+		{"substitutes every token", "en", "greeting", map[string]string{"name": "Ada", "count": "3"}, "Hello, Ada! You have 3 messages."},
+		{"substitutes in the requested language", "es", "greeting", map[string]string{"name": "Ada", "count": "3"}, "¡Hola, Ada! Tienes 3 mensajes."},
+		{"replaces every occurrence of a token", "en", "repeated", map[string]string{"name": "Ada"}, "Ada and Ada"},
+		{"leaves unmatched tokens intact", "en", "greeting", map[string]string{"name": "Ada"}, "Hello, Ada! You have {count} messages."},
+		{"ignores args with no matching token", "en", "untouched", map[string]string{"name": "Ada"}, "Nothing to replace here"},
+		{"never treats the value as a format string", "en", "percent", map[string]string{"host": "srv1"}, "Disk usage is 90% on srv1"},
+		{"nil args returns the raw translation", "en", "greeting", nil, "Hello, {name}! You have {count} messages."},
+		{"falls back to the default language", "es", "only_in_en", map[string]string{"who": "Ada"}, "English only: Ada"},
+		{"unknown key returns the key itself", "en", "no.such.key", map[string]string{"name": "Ada"}, "no.such.key"},
+		{"unsupported language falls back to en", "de", "greeting", map[string]string{"name": "Ada", "count": "3"}, "Hello, Ada! You have 3 messages."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := i.TranslateFormat(tt.lang, tt.key, tt.args)
+			if got != tt.want {
+				t.Errorf("TranslateFormat(%q, %q, %v) = %q, want %q", tt.lang, tt.key, tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLocaleKeyParity(t *testing.T) {
 	locales := loadRealLocales(t)
 

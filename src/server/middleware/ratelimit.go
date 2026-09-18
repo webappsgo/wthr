@@ -140,7 +140,7 @@ func APIRateLimitMiddleware() func(http.Handler) http.Handler {
 		unauthLimited := wrapRateLimiter(apiUnauthLimiter, APIUnauthRequestsPerWindow, APIUnauthWindowDuration)(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if user is authenticated
-			_, exists := reqctx.Get(r.Context(), UserContextKey)
+			_, exists := reqctx.GetValue(r.Context(), UserContextKey)
 			if exists {
 				// Authenticated: 100 req/min
 				authLimited.ServeHTTP(w, r)

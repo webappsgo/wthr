@@ -130,7 +130,7 @@ func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create first admin account (always a super admin)
 	// Per TEMPLATE.md PART 0: Uses Argon2id for password hashing
-	admin, err := adminModel.Create(req.Username, req.Email, req.Password, true)
+	admin, err := adminModel.CreateAdminAccount(req.Username, req.Email, req.Password, true)
 	if err != nil {
 		log.Printf("[ERROR] "+"Failed to create admin: %v", err)
 		respondJSON(w, http.StatusInternalServerError, SetupWizardResponse{

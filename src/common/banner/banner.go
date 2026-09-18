@@ -11,13 +11,16 @@ import (
 
 // BannerConfig carries the data displayed in the startup banner.
 type BannerConfig struct {
-	AppName    string
-	Version    string
-	AppMode    string // "production" or "development"
-	Debug      bool
-	URLs       []string
-	ShowSetup  bool   // true on first run only
-	SetupToken string // first-run setup token
+	AppName string
+	Version string
+	// "production" or "development"
+	AppMode string
+	Debug   bool
+	URLs    []string
+	// true on first run only
+	ShowSetup bool
+	// first-run setup token
+	SetupToken string
 }
 
 // PrintStartupBanner prints a banner sized to the current terminal.

@@ -2,290 +2,291 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	dto "github.com/prometheus/client_model/go"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
-type MetricsHandler struct{}
+// tokenMask is what a configured metrics bearer token looks like over the admin
+// API. Submitting the mask back leaves the stored token untouched.
+const tokenMask = "xxxxx"
 
-func NewMetricsHandler() *MetricsHandler {
-	return &MetricsHandler{}
+// AdminMetricsHandler exposes the PART 21 metrics settings to the admin panel
+// and reports on the metric families the process actually registered. The
+// metric set itself is defined in code, so this surface configures and
+// inspects it rather than creating or deleting metrics.
+type AdminMetricsHandler struct {
+	gatherer prometheus.Gatherer
+	exposer  http.Handler
 }
 
-type MetricsConfig struct {
-	Enabled               bool   `json:"enabled"`
-	Path                  string `json:"path"`
-	Namespace             string `json:"namespace"`
-	Subsystem             string `json:"subsystem"`
-	IncludeGoMetrics      bool   `json:"includeGoMetrics"`
-	IncludeProcessMetrics bool   `json:"includeProcessMetrics"`
-}
-
-type CustomMetric struct {
-	Name string `json:"name"`
-	// counter, gauge, histogram, summary
-	Type   string   `json:"type"`
-	Help   string   `json:"help"`
-	Labels []string `json:"labels"`
-}
-
-// GetConfig returns the current metrics configuration
-func (h *MetricsHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
-	config := MetricsConfig{
-		Enabled:               true,
-		Path:                  "/metrics",
-		Namespace:             "wthr",
-		Subsystem:             "",
-		IncludeGoMetrics:      true,
-		IncludeProcessMetrics: true,
+// NewAdminMetricsHandler builds the admin metrics handler around the registry
+// the application collects into.
+func NewAdminMetricsHandler(gatherer prometheus.Gatherer) *AdminMetricsHandler {
+	if gatherer == nil {
+		gatherer = prometheus.DefaultGatherer
 	}
 
-	writeJSON(w, http.StatusOK, config)
+	return &AdminMetricsHandler{
+		gatherer: gatherer,
+		exposer: promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
+			EnableOpenMetrics: true,
+		}),
+	}
 }
 
-// UpdateConfig updates the metrics configuration
-func (h *MetricsHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
-	var config MetricsConfig
+// AdminMetricsSettings is the admin-facing view of server.metrics. Bearer
+// tokens are masked on read and preserved when the mask is submitted back.
+type AdminMetricsSettings struct {
+	Enabled              bool              `json:"enabled"`
+	RootAliasEnabled     bool              `json:"rootAliasEnabled"`
+	AllowUnauthenticated bool              `json:"allowUnauthenticated"`
+	Tokens               map[string]string `json:"tokens"`
+	IncludeSystem        bool              `json:"includeSystem"`
+	IncludeRuntime       bool              `json:"includeRuntime"`
+	LokiMaxEntries       int               `json:"lokiMaxEntries"`
+	LokiMaxAge           string            `json:"lokiMaxAge"`
+	DurationBuckets      []float64         `json:"durationBuckets"`
+	SizeBuckets          []float64         `json:"sizeBuckets"`
+}
 
-	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+// AdminMetricFamily describes one registered metric family for the admin panel.
+type AdminMetricFamily struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Help   string `json:"help"`
+	Series int    `json:"series"`
+}
+
+// GetMetricsSettings returns the live metrics configuration with tokens masked.
+func (h *AdminMetricsHandler) GetMetricsSettings(w http.ResponseWriter, r *http.Request) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		InternalError(w, r, Translate(r, "errors.admin.settings.failed_to_load_settings"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, adminMetricsSettingsFrom(cfg.Server.Metrics))
+}
+
+// UpdateMetricsSettings validates and persists the metrics configuration.
+func (h *AdminMetricsHandler) UpdateMetricsSettings(w http.ResponseWriter, r *http.Request) {
+	var submitted AdminMetricsSettings
+
+	if err := json.NewDecoder(r.Body).Decode(&submitted); err != nil {
 		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
 		return
 	}
 
-	// Validate path
-	if config.Path == "" {
-		config.Path = "/metrics"
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		InternalError(w, r, Translate(r, "errors.admin.settings.failed_to_load_settings"))
+		return
 	}
 
-	// In a real implementation, this would update the Prometheus registry
+	next := cfg.Server.Metrics
+	next.Enabled = submitted.Enabled
+	next.Root.Enabled = submitted.RootAliasEnabled
+	next.Auth.AllowUnauthenticated = submitted.AllowUnauthenticated
+	next.IncludeSystem = submitted.IncludeSystem
+	next.IncludeRuntime = submitted.IncludeRuntime
+	next.Loki.MaxEntries = submitted.LokiMaxEntries
+	next.Loki.MaxAge = strings.TrimSpace(submitted.LokiMaxAge)
+
+	if len(submitted.DurationBuckets) > 0 {
+		next.DurationBuckets = submitted.DurationBuckets
+	}
+	if len(submitted.SizeBuckets) > 0 {
+		next.SizeBuckets = submitted.SizeBuckets
+	}
+
+	next.Auth.Tokens = mergeMetricsTokens(cfg.Server.Metrics.Auth.Tokens, submitted.Tokens)
+
+	if errs := config.UpdateMetricsConfig(next); len(errs) > 0 {
+		BadRequest(w, r, errs[0].Message)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": Translate(r, "success.admin.metrics.metrics_configuration_updated_successfully"),
-		"config":  config,
+		"message":  Translate(r, "success.admin.metrics.metrics_configuration_updated_successfully"),
+		"settings": adminMetricsSettingsFrom(next),
 	})
 }
 
-// GetStats returns metrics statistics
-func (h *MetricsHandler) GetStats(w http.ResponseWriter, r *http.Request) {
-	stats := map[string]interface{}{
-		"total":   24,
-		"enabled": 20,
-		"custom":  3,
-		"builtin": 21,
-	}
-
-	writeJSON(w, http.StatusOK, stats)
-}
-
-// ListMetrics returns all available metrics
-func (h *MetricsHandler) ListMetrics(w http.ResponseWriter, r *http.Request) {
-	metrics := []map[string]interface{}{
-		{
-			"name":    "http_requests_total",
-			"type":    "counter",
-			"help":    "Total number of HTTP requests",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "http_request_duration_seconds",
-			"type":    "histogram",
-			"help":    "HTTP request duration in seconds",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "api_response_status",
-			"type":    "counter",
-			"help":    "API response status codes",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "db_queries_total",
-			"type":    "counter",
-			"help":    "Total number of database queries",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "cache_hits_total",
-			"type":    "counter",
-			"help":    "Total number of cache hits",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "active_connections",
-			"type":    "gauge",
-			"help":    "Number of active connections",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "task_execution_total",
-			"type":    "counter",
-			"help":    "Total number of task executions",
-			"enabled": true,
-			"builtin": true,
-		},
-		{
-			"name":    "email_sent_total",
-			"type":    "counter",
-			"help":    "Total number of emails sent",
-			"enabled": true,
-			"builtin": true,
-		},
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{"metrics": metrics})
-}
-
-// CreateMetric creates a custom metric
-func (h *MetricsHandler) CreateMetric(w http.ResponseWriter, r *http.Request) {
-	var metric CustomMetric
-
-	if err := json.NewDecoder(r.Body).Decode(&metric); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
+// GetMetricsStats reports how much the registry currently holds.
+func (h *AdminMetricsHandler) GetMetricsStats(w http.ResponseWriter, r *http.Request) {
+	families, err := h.gatherer.Gather()
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.metrics.failed_to_read_metrics"))
 		return
 	}
 
-	// Validate metric
-	if metric.Name == "" {
-		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_name_is_required"))
-		return
+	series := 0
+	byType := make(map[string]int)
+	for _, family := range families {
+		series += len(family.GetMetric())
+		byType[metricTypeName(family.GetType())]++
 	}
 
-	if metric.Type == "" {
-		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_type_is_required"))
-		return
-	}
-
-	validTypes := map[string]bool{
-		"counter":   true,
-		"gauge":     true,
-		"histogram": true,
-		"summary":   true,
-	}
-
-	if !validTypes[metric.Type] {
-		BadRequest(w, r, Translate(r, "errors.admin.metrics.invalid_metric_type"))
-		return
-	}
-
-	// In a real implementation, this would register the metric with Prometheus
-	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"message": Translate(r, "success.admin.metrics.custom_metric_created_successfully"),
-		"metric":  metric,
-	})
-}
-
-// DeleteMetric deletes a custom metric
-func (h *MetricsHandler) DeleteMetric(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-
-	if name == "" {
-		BadRequest(w, r, Translate(r, "errors.admin.metrics.metric_name_is_required"))
-		return
-	}
-
-	// In a real implementation, this would unregister the metric
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": Translate(r, "success.admin.metrics.custom_metric_deleted_successfully"),
-		"name":    name,
+		"families": len(families),
+		"series":   series,
+		"byType":   byType,
 	})
 }
 
-// ExportMetrics exports metrics in specified format
-func (h *MetricsHandler) ExportMetrics(w http.ResponseWriter, r *http.Request) {
-	format := r.URL.Query().Get("format")
+// ListRegisteredMetrics lists every metric family the process exports.
+func (h *AdminMetricsHandler) ListRegisteredMetrics(w http.ResponseWriter, r *http.Request) {
+	families, err := h.gatherer.Gather()
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.metrics.failed_to_read_metrics"))
+		return
+	}
 
-	switch format {
+	listed := make([]AdminMetricFamily, 0, len(families))
+	for _, family := range families {
+		listed = append(listed, AdminMetricFamily{
+			Name:   family.GetName(),
+			Type:   metricTypeName(family.GetType()),
+			Help:   family.GetHelp(),
+			Series: len(family.GetMetric()),
+		})
+	}
+
+	sort.Slice(listed, func(i, j int) bool { return listed[i].Name < listed[j].Name })
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"metrics": listed})
+}
+
+// ExportMetrics writes the live registry in the requested format. Prometheus
+// text is the default; openmetrics and json are opt-in via ?format=.
+func (h *AdminMetricsHandler) ExportMetrics(w http.ResponseWriter, r *http.Request) {
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format"))) {
 	case "json":
 		h.exportJSON(w, r)
 	case "openmetrics":
-		h.exportOpenMetrics(w, r)
+		// promhttp emits OpenMetrics when the client negotiates it
+		r.Header.Set("Accept", "application/openmetrics-text; version=1.0.0; charset=utf-8")
+		h.exposer.ServeHTTP(w, r)
 	default:
-		// Default to Prometheus format
-		h.exportPrometheus(w, r)
+		r.Header.Set("Accept", "text/plain; version=0.0.4; charset=utf-8")
+		h.exposer.ServeHTTP(w, r)
 	}
 }
 
-// Helper: Export in Prometheus format
-func (h *MetricsHandler) exportPrometheus(w http.ResponseWriter, r *http.Request) {
-	output := `# HELP wthr_http_requests_total Total number of HTTP requests
-# TYPE wthr_http_requests_total counter
-wthr_http_requests_total{method="GET",path="/api/v1/weather"} 1234
-wthr_http_requests_total{method="POST",path="/api/v1/server/admin/settings"} 56
-
-# HELP wthr_http_request_duration_seconds HTTP request duration in seconds
-# TYPE wthr_http_request_duration_seconds histogram
-wthr_http_request_duration_seconds_bucket{le="0.1"} 1000
-wthr_http_request_duration_seconds_bucket{le="0.5"} 1200
-wthr_http_request_duration_seconds_bucket{le="1"} 1250
-wthr_http_request_duration_seconds_bucket{le="+Inf"} 1260
-wthr_http_request_duration_seconds_sum 315.5
-wthr_http_request_duration_seconds_count 1260
-
-# HELP wthr_active_connections Number of active connections
-# TYPE wthr_active_connections gauge
-wthr_active_connections 42`
-
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, output)
-}
-
-// Helper: Export in JSON format
-func (h *MetricsHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
-	metrics := map[string]interface{}{
-		"http_requests_total": map[string]interface{}{
-			"type": "counter",
-			"values": []map[string]interface{}{
-				{"labels": map[string]string{"method": "GET", "path": "/api/v1/weather"}, "value": 1234},
-				{"labels": map[string]string{"method": "POST", "path": "/api/v1/server/admin/settings"}, "value": 56},
-			},
-		},
-		"active_connections": map[string]interface{}{
-			"type":  "gauge",
-			"value": 42,
-		},
-	}
-
-	writeJSON(w, http.StatusOK, metrics)
-}
-
-// Helper: Export in OpenMetrics format
-func (h *MetricsHandler) exportOpenMetrics(w http.ResponseWriter, r *http.Request) {
-	output := `# HELP wthr_http_requests Total number of HTTP requests
-# TYPE wthr_http_requests counter
-# UNIT wthr_http_requests requests
-wthr_http_requests_total{method="GET"} 1234
-wthr_http_requests_created{method="GET"} 1702598400
-# EOF`
-
-	w.Header().Set("Content-Type", "application/openmetrics-text; version=1.0.0; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, output)
-}
-
-// ToggleMetric enables or disables a metric
-func (h *MetricsHandler) ToggleMetric(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	var request struct {
-		Enabled bool `json:"enabled"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
+// exportJSON renders the gathered families as JSON for admin tooling that does
+// not parse the Prometheus text format.
+func (h *AdminMetricsHandler) exportJSON(w http.ResponseWriter, r *http.Request) {
+	families, err := h.gatherer.Gather()
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.admin.metrics.failed_to_read_metrics"))
 		return
 	}
 
-	// In a real implementation, this would enable/disable the metric
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": Translate(r, "success.admin.metrics.metric_updated_successfully"),
-		"name":    name,
-		"enabled": request.Enabled,
-	})
+	exported := make(map[string]interface{}, len(families))
+	for _, family := range families {
+		values := make([]map[string]interface{}, 0, len(family.GetMetric()))
+		for _, metric := range family.GetMetric() {
+			labels := make(map[string]string, len(metric.GetLabel()))
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+
+			values = append(values, map[string]interface{}{
+				"labels": labels,
+				"value":  metricValue(family.GetType(), metric),
+			})
+		}
+
+		exported[family.GetName()] = map[string]interface{}{
+			"type":   metricTypeName(family.GetType()),
+			"help":   family.GetHelp(),
+			"values": values,
+		}
+	}
+
+	writeJSON(w, http.StatusOK, exported)
+}
+
+// adminMetricsSettingsFrom converts stored config into the admin view, masking
+// every configured bearer token.
+func adminMetricsSettingsFrom(settings config.MetricsConfig) AdminMetricsSettings {
+	tokens := make(map[string]string, len(settings.Auth.Tokens))
+	for _, service := range []string{MetricServicePrometheus, MetricServiceGrafana, MetricServiceLoki} {
+		if settings.Auth.Tokens[service] != "" {
+			tokens[service] = tokenMask
+			continue
+		}
+		tokens[service] = ""
+	}
+
+	return AdminMetricsSettings{
+		Enabled:              settings.Enabled,
+		RootAliasEnabled:     settings.Root.Enabled,
+		AllowUnauthenticated: settings.Auth.AllowUnauthenticated,
+		Tokens:               tokens,
+		IncludeSystem:        settings.IncludeSystem,
+		IncludeRuntime:       settings.IncludeRuntime,
+		LokiMaxEntries:       settings.Loki.MaxEntries,
+		LokiMaxAge:           settings.Loki.MaxAge,
+		DurationBuckets:      settings.DurationBuckets,
+		SizeBuckets:          settings.SizeBuckets,
+	}
+}
+
+// mergeMetricsTokens keeps the stored token whenever the admin submits the mask
+// back unchanged, and clears it when an empty value is submitted.
+func mergeMetricsTokens(stored, submitted map[string]string) map[string]string {
+	merged := make(map[string]string, 3)
+	for _, service := range []string{MetricServicePrometheus, MetricServiceGrafana, MetricServiceLoki} {
+		value, present := submitted[service]
+		if !present || strings.TrimSpace(value) == tokenMask {
+			merged[service] = stored[service]
+			continue
+		}
+		merged[service] = strings.TrimSpace(value)
+	}
+
+	return merged
+}
+
+// metricTypeName maps the protobuf metric type onto the Prometheus type name.
+func metricTypeName(metricType dto.MetricType) string {
+	switch metricType {
+	case dto.MetricType_COUNTER:
+		return "counter"
+	case dto.MetricType_GAUGE:
+		return "gauge"
+	case dto.MetricType_HISTOGRAM:
+		return "histogram"
+	case dto.MetricType_SUMMARY:
+		return "summary"
+	case dto.MetricType_UNTYPED:
+		return "untyped"
+	default:
+		return "unknown"
+	}
+}
+
+// metricValue extracts the scalar an admin cares about for one series: the
+// sample value for counters and gauges, the observation count otherwise.
+func metricValue(metricType dto.MetricType, metric *dto.Metric) float64 {
+	switch metricType {
+	case dto.MetricType_COUNTER:
+		return metric.GetCounter().GetValue()
+	case dto.MetricType_GAUGE:
+		return metric.GetGauge().GetValue()
+	case dto.MetricType_HISTOGRAM:
+		return float64(metric.GetHistogram().GetSampleCount())
+	case dto.MetricType_SUMMARY:
+		return float64(metric.GetSummary().GetSampleCount())
+	default:
+		return metric.GetUntyped().GetValue()
+	}
 }

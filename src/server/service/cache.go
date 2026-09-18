@@ -88,8 +88,8 @@ func (cm *CacheManager) IsEnabled() bool {
 	return cm.enabled
 }
 
-// Get retrieves a value from cache
-func (cm *CacheManager) Get(key string) (string, error) {
+// GetCachedValue retrieves a value from cache
+func (cm *CacheManager) GetCachedValue(key string) (string, error) {
 	if !cm.enabled {
 		return "", fmt.Errorf("cache not enabled")
 	}
@@ -100,8 +100,8 @@ func (cm *CacheManager) Get(key string) (string, error) {
 	return cm.client.Get(ctx, key).Result()
 }
 
-// Set stores a value in cache with TTL
-func (cm *CacheManager) Set(key string, value string, ttl time.Duration) error {
+// SetCachedValue stores a value in cache with TTL
+func (cm *CacheManager) SetCachedValue(key string, value string, ttl time.Duration) error {
 	if !cm.enabled {
 		// Silently succeed if cache disabled
 		return nil
@@ -113,8 +113,8 @@ func (cm *CacheManager) Set(key string, value string, ttl time.Duration) error {
 	return cm.client.Set(ctx, key, value, ttl).Err()
 }
 
-// Delete removes a key from cache
-func (cm *CacheManager) Delete(key string) error {
+// DeleteCachedValue removes a key from cache
+func (cm *CacheManager) DeleteCachedValue(key string) error {
 	if !cm.enabled {
 		// Silently succeed if cache disabled
 		return nil
@@ -235,6 +235,15 @@ func (cm *CacheManager) Close() error {
 		return cm.client.Close()
 	}
 	return nil
+}
+
+// IsCacheHealthy reports whether the cache backend is reachable. A disabled
+// cache means the built-in memory cache is in use, which is always available.
+func (cm *CacheManager) IsCacheHealthy() bool {
+	if !cm.enabled {
+		return true
+	}
+	return cm.Ping() == nil
 }
 
 // Ping tests the cache connection

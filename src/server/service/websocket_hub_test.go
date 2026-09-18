@@ -10,8 +10,8 @@ import (
 
 func TestWebSocketHub_RegisterClient(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	userID := 1
 	client := &WebSocketClient{
@@ -41,8 +41,8 @@ func TestWebSocketHub_RegisterClient(t *testing.T) {
 
 func TestWebSocketHub_UnregisterClient(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	userID := 1
 	client := &WebSocketClient{
@@ -72,8 +72,8 @@ func TestWebSocketHub_UnregisterClient(t *testing.T) {
 
 func TestWebSocketHub_IsUserConnected(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	// User not connected
 	if hub.IsUserConnected(1) {
@@ -106,8 +106,8 @@ func TestWebSocketHub_IsUserConnected(t *testing.T) {
 
 func TestWebSocketHub_IsAdminConnected(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	// Admin not connected
 	if hub.IsAdminConnected(1) {
@@ -135,8 +135,8 @@ func TestWebSocketHub_IsAdminConnected(t *testing.T) {
 
 func TestWebSocketHub_BroadcastToUser(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	userID := 1
 	sendChan := make(chan []byte, 256)
@@ -198,8 +198,8 @@ func TestWebSocketHub_BroadcastToUser(t *testing.T) {
 
 func TestWebSocketHub_BroadcastToAdmin(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	adminID := 1
 	sendChan := make(chan []byte, 256)
@@ -248,8 +248,8 @@ func TestWebSocketHub_BroadcastToAdmin(t *testing.T) {
 
 func TestWebSocketHub_GetConnectionCount(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	initialCount := hub.GetConnectedCount()
 	if initialCount != 0 {
@@ -280,8 +280,8 @@ func TestWebSocketHub_GetConnectionCount(t *testing.T) {
 
 func TestWebSocketHub_MultipleUsersAndAdmins(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	// Register 2 users
 	for i := 1; i <= 2; i++ {
@@ -352,7 +352,7 @@ func TestClientIDForAdmin(t *testing.T) {
 
 func TestWebSocketHub_Stop(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
+	go hub.RunWebSocketHub()
 
 	// Register a client
 	userID := 1
@@ -369,7 +369,7 @@ func TestWebSocketHub_Stop(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Stop the hub
-	hub.Stop()
+	hub.StopWebSocketHub()
 
 	// Verify hub is stopped (this should not panic or hang)
 	// The hub should gracefully handle being stopped
@@ -380,8 +380,8 @@ func TestWebSocketHub_Stop(t *testing.T) {
 
 func TestWebSocketHub_BroadcastToNonExistentUser(t *testing.T) {
 	hub := NewWebSocketHub()
-	go hub.Run()
-	defer hub.Stop()
+	go hub.RunWebSocketHub()
+	defer hub.StopWebSocketHub()
 
 	// Create a test notification
 	// User that doesn't exist

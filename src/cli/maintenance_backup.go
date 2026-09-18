@@ -1,5 +1,5 @@
 // Package cli - maintenance command with backup/restore integration
-// Per AI.md PART 25 lines 22351-22649
+// Per AI.md PART 22 (Backup Command, Restore Command)
 package cli
 
 import (
@@ -12,11 +12,23 @@ import (
 
 	"github.com/webappsgo/wthr/src/backup"
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/path"
 	"golang.org/x/term"
 )
 
-// MaintenanceBackupCommand handles backup creation per AI.md PART 25 lines 22351-22467
+// backupEncryptionConfigured reports whether a backup encryption password was set
+// during setup per AI.md PART 22 (Encryption Setup). The password itself is never
+// stored, so only the enabled flag is consulted.
+func backupEncryptionConfigured() bool {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return false
+	}
+	return cfg.Server.Maintenance.Backup.Encryption.Enabled
+}
+
+// MaintenanceBackupCommand handles backup creation per AI.md PART 22 (Backup Command)
 func MaintenanceBackupCommand(args []string) error {
 	// Parse flags
 	var backupFile string
@@ -60,11 +72,10 @@ func MaintenanceBackupCommand(args []string) error {
 	// Create backup service
 	svc := backup.New(p.ConfigDir, p.DataDir)
 
-	// Prompt for password if encryption enabled and no password provided
-	// Per AI.md PART 25 line 22457: "Prompts for password"
-	if password == "" {
-		// Check if encryption is enabled in config
-		// For now, always prompt to allow encrypted backups
+	// Per AI.md PART 22 (CLI Backup with Encryption): the password prompt appears
+	// only when an encryption password was set during setup. With encryption
+	// unconfigured the backup is created unencrypted without prompting.
+	if password == "" && backupEncryptionConfigured() {
 		fmt.Print(T("cli.maintenance_backup.password_prompt"))
 		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 		fmt.Println()
@@ -77,7 +88,7 @@ func MaintenanceBackupCommand(args []string) error {
 	fmt.Printf(T("cli.maintenance_backup.creating")+"\n", display.Emoji("🔄", "->"))
 	fmt.Println()
 
-	// Create backup per AI.md PART 25
+	// Create backup per AI.md PART 22 (Backup Command)
 	opts := backup.BackupOptions{
 		ConfigDir:   p.ConfigDir,
 		DataDir:     p.DataDir,
@@ -89,7 +100,7 @@ func MaintenanceBackupCommand(args []string) error {
 		AppVersion:  Version,
 	}
 
-	backupPath, _, err := svc.Create(opts)
+	backupPath, _, err := svc.CreateBackupArchive(opts)
 	if err != nil {
 		return fmt.Errorf("backup failed: %w", err)
 	}
@@ -114,7 +125,7 @@ func MaintenanceBackupCommand(args []string) error {
 	return nil
 }
 
-// MaintenanceRestoreCommand handles backup restoration per AI.md PART 25 lines 22588-22649
+// MaintenanceRestoreCommand handles backup restoration per AI.md PART 22 (Restore Command)
 func MaintenanceRestoreCommand(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("restore requires a backup file path")
@@ -138,7 +149,7 @@ func MaintenanceRestoreCommand(args []string) error {
 
 	// Check if encrypted (has .enc extension)
 	if filepath.Ext(backupFile) == ".enc" && password == "" {
-		// Prompt for password per AI.md PART 25 line 22464
+		// Prompt for password per AI.md PART 22 (Restore Verification: decrypt test)
 		fmt.Print(T("cli.maintenance_backup.restore_password_prompt"))
 		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 		fmt.Println()
@@ -183,7 +194,7 @@ func MaintenanceRestoreCommand(args []string) error {
 	// Create backup service
 	svc := backup.New(p.ConfigDir, p.DataDir)
 
-	// Restore backup per AI.md PART 25
+	// Restore backup per AI.md PART 22 (Restore)
 	opts := backup.RestoreOptions{
 		BackupPath: backupFile,
 		Password:   password,

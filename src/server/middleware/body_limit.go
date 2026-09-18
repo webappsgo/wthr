@@ -2,7 +2,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net/http"
 )
 
@@ -29,13 +28,7 @@ func BodySizeLimitMiddleware(maxSize int64) func(http.Handler) http.Handler {
 
 			// Check Content-Length header if present
 			if r.ContentLength > maxSize {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusRequestEntityTooLarge)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error":  "Request body too large",
-					"code":   "BODY_TOO_LARGE",
-					"status": http.StatusRequestEntityTooLarge,
-				})
+				writeAPIError(w, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE", "Request body too large")
 				return
 			}
 

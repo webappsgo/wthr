@@ -22,14 +22,14 @@ func TestAdminPasskeyModel_CreateListCountDelete(t *testing.T) {
 		}
 	})
 
-	created, err := model.Create(adminID, "Admin Key", testCredential(1))
+	created, err := model.CreateAdminPasskey(adminID, "Admin Key", testCredential(1))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if created.AdminID != adminID {
 		t.Errorf("Create() AdminID = %d, want %d", created.AdminID, adminID)
 	}
-	if _, err := model.Create(adminID, "Second Admin Key", testCredential(2)); err != nil {
+	if _, err := model.CreateAdminPasskey(adminID, "Second Admin Key", testCredential(2)); err != nil {
 		t.Fatalf("Create() second key error = %v", err)
 	}
 

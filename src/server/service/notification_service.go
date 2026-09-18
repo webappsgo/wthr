@@ -56,7 +56,7 @@ func (s *NotificationService) SendUserNotification(userID int, notifType model.N
 	}
 
 	// Create notification
-	notif, err := s.UserNotif.Create(userID, notifType, display, title, message, action)
+	notif, err := s.UserNotif.CreateUserNotification(userID, notifType, display, title, message, action)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user notification: %w", err)
 	}
@@ -99,7 +99,7 @@ func (s *NotificationService) SendAdminNotification(adminID int, notifType model
 	}
 
 	// Create notification
-	notif, err := s.AdminNotif.Create(adminID, notifType, display, title, message, action)
+	notif, err := s.AdminNotif.CreateAdminNotification(adminID, notifType, display, title, message, action)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin notification: %w", err)
 	}
@@ -237,12 +237,12 @@ func (s *NotificationService) DismissAdminNotification(notifID string, adminID i
 
 // DeleteUserNotification deletes a user notification
 func (s *NotificationService) DeleteUserNotification(notifID string, userID int) error {
-	return s.UserNotif.Delete(notifID, userID)
+	return s.UserNotif.DeleteUserNotification(notifID, userID)
 }
 
 // DeleteAdminNotification deletes an admin notification
 func (s *NotificationService) DeleteAdminNotification(notifID string, adminID int) error {
-	return s.AdminNotif.Delete(notifID, adminID)
+	return s.AdminNotif.DeleteAdminNotification(notifID, adminID)
 }
 
 // GetUserStatistics returns notification statistics for a user

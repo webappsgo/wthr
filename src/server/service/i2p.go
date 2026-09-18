@@ -714,8 +714,8 @@ func (im *I2PManager) SetBackendPort(port int) {
 	im.backendPort = port
 }
 
-// Start initializes the eepsite if I2P is enabled and a provider is available.
-func (im *I2PManager) Start() error {
+// StartI2PManager initializes the eepsite if I2P is enabled and a provider is available.
+func (im *I2PManager) StartI2PManager() error {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	return im.startLocked()

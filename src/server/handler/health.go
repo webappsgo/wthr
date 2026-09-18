@@ -18,6 +18,7 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -37,7 +38,38 @@ var (
 	// I2PStatusGetter interface for getting I2P eepsite status (AI.md PART 32.2)
 	i2pStatusGetter I2PStatusProvider
 	i2pMutex        sync.RWMutex
+
+	// cacheStatusGetter reports reachability of an external cache backend
+	cacheStatusGetter CacheStatusProvider
+	cacheMutex        sync.RWMutex
 )
+
+// CacheStatusProvider is an interface for getting cache backend health.
+// When no provider is registered the built-in memory cache is in use, which
+// is always available per AI.md PART 12.
+type CacheStatusProvider interface {
+	IsCacheHealthy() bool
+}
+
+// SetCacheStatusProvider sets the global cache status provider
+func SetCacheStatusProvider(provider CacheStatusProvider) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+	cacheStatusGetter = provider
+}
+
+// getPublicCacheCheck returns the AI.md PART 13 cache check value ("ok" or "error")
+func getPublicCacheCheck() string {
+	cacheMutex.RLock()
+	defer cacheMutex.RUnlock()
+	if cacheStatusGetter == nil {
+		return "ok"
+	}
+	if cacheStatusGetter.IsCacheHealthy() {
+		return "ok"
+	}
+	return "error"
+}
 
 // TorStatusProvider is an interface for getting Tor service status
 type TorStatusProvider interface {
@@ -120,7 +152,7 @@ func GetInitStatus() *util.InitializationStatus {
 
 type publicHealthProject struct {
 	Name        string `json:"name"`
-	Tagline     string `json:"tagline,omitempty"`
+	Tagline     string `json:"tagline"`
 	Description string `json:"description"`
 }
 
@@ -132,8 +164,8 @@ type publicHealthBuild struct {
 type publicHealthCluster struct {
 	Enabled   bool     `json:"enabled"`
 	Status    string   `json:"status,omitempty"`
-	Primary   string   `json:"primary"`
-	Nodes     []string `json:"nodes"`
+	Primary   string   `json:"primary,omitempty"`
+	Nodes     []string `json:"nodes,omitempty"`
 	NodeCount int      `json:"node_count,omitempty"`
 	Role      string   `json:"role,omitempty"`
 }
@@ -155,11 +187,14 @@ type publicHealthI2P struct {
 	Provider string `json:"provider,omitempty"`
 }
 
+// publicHealthFeatures follows the AI.md PART 13 FeaturesInfo order: the
+// non-negotiable features first (Tor, I2P, GeoIP), then the project-specific
+// optional-PART features this project adopted.
 type publicHealthFeatures struct {
-	MultiUser bool            `json:"multi_user"`
 	Tor       publicHealthTor `json:"tor"`
 	I2P       publicHealthI2P `json:"i2p"`
 	GeoIP     bool            `json:"geoip"`
+	MultiUser bool            `json:"multi_user"`
 }
 
 type publicHealthChecks struct {
@@ -184,8 +219,11 @@ type publicHealthMaintenance struct {
 }
 
 type publicHealthResponse struct {
-	Project     publicHealthProject      `json:"project"`
-	Status      string                   `json:"status"`
+	Project        publicHealthProject `json:"project"`
+	Status         string              `json:"status"`
+	PendingRestart bool                `json:"pending_restart,omitempty"`
+	RestartReason  []string            `json:"restart_reason,omitempty"`
+
 	Version     string                   `json:"version"`
 	GoVersion   string                   `json:"go_version"`
 	Build       publicHealthBuild        `json:"build"`
@@ -211,14 +249,7 @@ func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, r)
 
-		switch {
-		case shouldRespondText(r):
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(statusCode)
-			_, _ = w.Write([]byte(formatPublicHealthText(response)))
-		case wantsExplicitJSON(r):
-			renderIndentedJSON(w, statusCode, response)
-		case util.IsBrowser(r):
+		renderHealthHTML := func() {
 			middleware.RenderHTML(w, r, statusCode, "page/healthz.tmpl", util.TemplateData(r, map[string]interface{}{
 				"title":               "Health Status",
 				"page":                "healthz",
@@ -226,10 +257,25 @@ func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 				"health_status_class": publicHealthStatusClass(response.Status),
 				"health_status_text":  publicHealthStatusText(response.Status),
 			}))
-		default:
+		}
+
+		// AI.md PART 14 frontend chain: Accept: text/html > Accept: text/plain >
+		// browser User-Agent > CLI/HTTP tool > default HTML
+		switch {
+		case shouldRespondText(r):
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.WriteHeader(statusCode)
 			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+		case wantsExplicitJSON(r), isOurCLIClient(r):
+			renderIndentedJSON(w, statusCode, response)
+		case util.IsBrowser(r), isTextBrowser(r):
+			renderHealthHTML()
+		case isHTTPTool(r):
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(statusCode)
+			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+		default:
+			renderHealthHTML()
 		}
 	}
 }
@@ -341,20 +387,11 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 	status := GetInitStatus()
 	uptime := time.Since(status.Started)
 
-	// Check if it's a console client (curl/wget) first: these tools also
-	// match WantsJSON's UA sniffing, which would otherwise make this
-	// ASCII-banner branch unreachable. Explicit JSON requests (Accept:
-	// application/json, ?format=json, or /api/ routes) still take
-	// priority and are handled below via WantsJSON.
-	userAgent := r.Header.Get("User-Agent")
-	isCurl := contains(userAgent, "curl") || contains(userAgent, "wget") || contains(userAgent, "HTTPie")
-	accept := r.Header.Get("Accept")
-	explicitJSON := strings.Contains(accept, "application/json") ||
-		r.URL.Query().Get("format") == "json" ||
-		strings.HasPrefix(r.URL.Path, "/api/")
+	// AI.md PART 14: an explicit JSON request outranks the console banner that
+	// non-interactive HTTP tools receive in place of HTML
+	isConsoleClient := isHTTPTool(r)
 
-	// Check if it's an API request (wants JSON)
-	if explicitJSON || (WantsJSON(r) && !isCurl) {
+	if wantsExplicitJSON(r) || strings.HasPrefix(r.URL.Path, "/api/") || (WantsJSON(r) && !isConsoleClient) {
 		RespondNegotiatedData(w, r, http.StatusServiceUnavailable, map[string]interface{}{
 			"status":  "Initializing",
 			"message": "Services are starting up. Please wait a moment.",
@@ -369,7 +406,7 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isCurl {
+	if isConsoleClient {
 		// Console-friendly ASCII output
 		output := fmt.Sprintf(`🚀 Weather - Starting Up
 
@@ -418,23 +455,21 @@ func checkmark(ready bool) string {
 	return "⋯"
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-// APIHealthCheck handles GET /api/{api_version}/server/healthz - same JSON as /server/healthz, always JSON.
+// APIHealthCheck handles GET /api/{api_version}/server/healthz with the same
+// payload as /server/healthz.
 func APIHealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response := buildPublicHealthResponse(db, startTime, r)
+
+		// AI.md PART 14 API chain: .txt extension > Accept: application/json >
+		// Accept: text/plain > non-interactive client > default JSON
+		if hasTextExtension(r) || (!wantsExplicitJSON(r) && (acceptsPlainText(r) || isHTTPTool(r))) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(statusCode)
+			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+			return
+		}
+
 		renderIndentedJSON(w, statusCode, response)
 	}
 }
@@ -528,7 +563,7 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		},
 		Checks: publicHealthChecks{
 			Database:  dbCheck,
-			Cache:     "ok",
+			Cache:     getPublicCacheCheck(),
 			Disk:      diskCheck,
 			Scheduler: schedulerCheck,
 			Cluster:   "",
@@ -552,6 +587,10 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		response.Checks.I2P = ""
 	}
 
+	pendingRestart, restartReasons := service.GetRestartRequired()
+	response.PendingRestart = pendingRestart
+	response.RestartReason = restartReasons
+
 	statusCode := http.StatusOK
 	switch {
 	case maintenanceMode:
@@ -565,15 +604,15 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 	case !IsInitialized() || dbCheck == "error":
 		response.Status = "unhealthy"
 		statusCode = http.StatusServiceUnavailable
-	case response.Checks.Disk == "degraded" ||
-		response.Checks.Disk == "error" ||
-		response.Checks.Scheduler == "degraded" ||
+	case response.Checks.Disk == "error" ||
 		response.Checks.Scheduler == "error" ||
-		response.Checks.Cluster == "degraded" ||
 		response.Checks.Cluster == "error" ||
+		response.Checks.Cache == "error" ||
 		response.Checks.Tor == "error" ||
 		response.Checks.I2P == "error":
 		response.Status = "degraded"
+	case pendingRestart:
+		response.Status = "restart_required"
 	}
 
 	return statusCode, response
@@ -583,7 +622,7 @@ func getPublicDiskCheck() string {
 	dataUsage := getDiskUsage(getDataDir())
 	logUsage := getDiskUsage(getLogDir())
 	if dataUsage.TotalBytes == 0 || logUsage.TotalBytes == 0 {
-		return "degraded"
+		return "error"
 	}
 
 	maxUsed := dataUsage.UsedPercent
@@ -591,27 +630,19 @@ func getPublicDiskCheck() string {
 		maxUsed = logUsage.UsedPercent
 	}
 
-	switch {
-	case maxUsed > 95:
+	if maxUsed > 95 {
 		return "error"
-	case maxUsed > 80:
-		return "degraded"
-	default:
-		return "ok"
 	}
+	return "ok"
 }
 
 func getPublicSchedulerCheck() string {
 	schedulerStatus := getSchedulerStatus()
 	status, _ := schedulerStatus["status"].(string)
-	switch status {
-	case "running":
+	if status == "running" {
 		return "ok"
-	case "unknown":
-		return "error"
-	default:
-		return "degraded"
 	}
+	return "error"
 }
 
 func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster {
@@ -640,14 +671,17 @@ func getPublicClusterInfo(db *database.DB, r *http.Request) publicHealthCluster 
 	if nodeCount > 0 {
 		cluster.Status = "connected"
 	} else {
-		cluster.Status = "degraded"
+		cluster.Status = "disconnected"
 	}
 
 	return cluster
 }
 
 func getPublicGeoIPStatus(db *database.DB) bool {
-	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
+	if db == nil {
+		return false
+	}
+	settingsModel := &models.SettingsModel{DB: db.DB}
 	return settingsModel.GetBool("geoip.enabled", true)
 }
 
@@ -732,19 +766,18 @@ func getPublicStats(db *database.DB) publicHealthStats {
 }
 
 func getMaintenanceMode(db *database.DB) bool {
-	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
+	if db == nil {
+		return false
+	}
+	settingsModel := &models.SettingsModel{DB: db.DB}
 	return settingsModel.GetBool("maintenance.mode", false)
 }
 
 func clusterCheckFromStatus(status string) string {
-	switch status {
-	case "connected":
+	if status == "connected" {
 		return "ok"
-	case "degraded":
-		return "degraded"
-	default:
-		return "error"
 	}
+	return "error"
 }
 
 func renderIndentedJSON(w http.ResponseWriter, status int, data interface{}) {
@@ -770,13 +803,16 @@ func formatPublicHealthText(health publicHealthResponse) string {
 
 	fmt.Fprintf(&out, "# 1. Project\n")
 	fmt.Fprintf(&out, "project.name: %s\n", health.Project.Name)
-	if health.Project.Tagline != "" {
-		fmt.Fprintf(&out, "project.tagline: %s\n", health.Project.Tagline)
-	}
+	fmt.Fprintf(&out, "project.tagline: %s\n", health.Project.Tagline)
 	fmt.Fprintf(&out, "project.description: %s\n\n", health.Project.Description)
 
 	fmt.Fprintf(&out, "# 2. Status\n")
-	fmt.Fprintf(&out, "status: %s\n\n", health.Status)
+	fmt.Fprintf(&out, "status: %s\n", health.Status)
+	fmt.Fprintf(&out, "pending_restart: %t\n", health.PendingRestart)
+	if len(health.RestartReason) > 0 {
+		fmt.Fprintf(&out, "restart_reason: %s\n", strings.Join(health.RestartReason, ", "))
+	}
+	fmt.Fprintf(&out, "\n")
 
 	fmt.Fprintf(&out, "# 3. Version & Build\n")
 	fmt.Fprintf(&out, "version: %s\n", health.Version)
@@ -796,21 +832,14 @@ func formatPublicHealthText(health publicHealthResponse) string {
 
 	fmt.Fprintf(&out, "# 5. Cluster\n")
 	fmt.Fprintf(&out, "cluster.enabled: %t\n", health.Cluster.Enabled)
-	if health.Cluster.Status != "" {
-		fmt.Fprintf(&out, "cluster.status: %s\n", health.Cluster.Status)
-	}
+	fmt.Fprintf(&out, "cluster.status: %s\n", health.Cluster.Status)
 	fmt.Fprintf(&out, "cluster.primary: %s\n", health.Cluster.Primary)
 	fmt.Fprintf(&out, "cluster.nodes: %s\n", strings.Join(health.Cluster.Nodes, ", "))
-	if health.Cluster.NodeCount > 0 {
-		fmt.Fprintf(&out, "cluster.node_count: %d\n", health.Cluster.NodeCount)
-	}
-	if health.Cluster.Role != "" {
-		fmt.Fprintf(&out, "cluster.role: %s\n", health.Cluster.Role)
-	}
+	fmt.Fprintf(&out, "cluster.node_count: %d\n", health.Cluster.NodeCount)
+	fmt.Fprintf(&out, "cluster.role: %s\n", health.Cluster.Role)
 	fmt.Fprintf(&out, "\n")
 
 	fmt.Fprintf(&out, "# 6. Features\n")
-	fmt.Fprintf(&out, "features.multi_user: %t\n", health.Features.MultiUser)
 	fmt.Fprintf(&out, "features.tor.enabled: %t\n", health.Features.Tor.Enabled)
 	fmt.Fprintf(&out, "features.tor.running: %t\n", health.Features.Tor.Running)
 	fmt.Fprintf(&out, "features.tor.status: %s\n", health.Features.Tor.Status)
@@ -820,7 +849,8 @@ func formatPublicHealthText(health publicHealthResponse) string {
 	fmt.Fprintf(&out, "features.i2p.status: %s\n", health.Features.I2P.Status)
 	fmt.Fprintf(&out, "features.i2p.hostname: %s\n", health.Features.I2P.Hostname)
 	fmt.Fprintf(&out, "features.i2p.provider: %s\n", health.Features.I2P.Provider)
-	fmt.Fprintf(&out, "features.geoip: %t\n\n", health.Features.GeoIP)
+	fmt.Fprintf(&out, "features.geoip: %t\n", health.Features.GeoIP)
+	fmt.Fprintf(&out, "features.multi_user: %t\n\n", health.Features.MultiUser)
 
 	fmt.Fprintf(&out, "# 7. Checks\n")
 	fmt.Fprintf(&out, "checks.database: %s\n", health.Checks.Database)
@@ -830,11 +860,11 @@ func formatPublicHealthText(health publicHealthResponse) string {
 	if health.Checks.Cluster != "" {
 		fmt.Fprintf(&out, "checks.cluster: %s\n", health.Checks.Cluster)
 	}
-	if health.Checks.I2P != "" {
-		fmt.Fprintf(&out, "checks.i2p: %s\n", health.Checks.I2P)
-	}
 	if health.Checks.Tor != "" {
 		fmt.Fprintf(&out, "checks.tor: %s\n", health.Checks.Tor)
+	}
+	if health.Checks.I2P != "" {
+		fmt.Fprintf(&out, "checks.i2p: %s\n", health.Checks.I2P)
 	}
 	fmt.Fprintf(&out, "\n")
 
@@ -850,7 +880,7 @@ func publicHealthStatusClass(status string) string {
 	switch status {
 	case "healthy":
 		return "status-ok"
-	case "degraded":
+	case "degraded", "restart_required":
 		return "status-warning"
 	default:
 		return "status-error"
@@ -862,10 +892,14 @@ func publicHealthStatusText(status string) string {
 	case "healthy":
 		return "All Systems Operational"
 	case "degraded":
-		return "Service Degraded"
+		return "Degraded Performance"
+	case "restart_required":
+		return "Restart Required"
 	case "maintenance":
-		return "Maintenance Mode"
+		return "Maintenance in Progress"
+	case "shutting_down":
+		return "Shutting Down"
 	default:
-		return "Service Unavailable"
+		return "Systems Unhealthy"
 	}
 }

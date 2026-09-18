@@ -212,16 +212,52 @@ func RespondPaginated(w http.ResponseWriter, r *http.Request, data interface{}, 
 // shouldRespondText checks if the request wants text response per AI.md PART 14
 // Supports both .txt extension and Accept: text/plain header
 func shouldRespondText(r *http.Request) bool {
-	// Check URL extension: /api/v1/weather.txt
-	path := r.URL.Path
-	ext := filepath.Ext(path)
-	if ext == ".txt" {
+	return hasTextExtension(r) || acceptsPlainText(r)
+}
+
+// hasTextExtension reports whether the route was requested with the .txt
+// extension, the highest-priority signal in the AI.md PART 14 API chain.
+func hasTextExtension(r *http.Request) bool {
+	return filepath.Ext(r.URL.Path) == ".txt"
+}
+
+// acceptsPlainText reports whether the client asked for text/plain via Accept.
+func acceptsPlainText(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("Accept"), "text/plain")
+}
+
+// isOurCLIClient reports whether the request came from this project's own CLI,
+// which per AI.md PART 14 always receives JSON and renders it itself.
+func isOurCLIClient(r *http.Request) bool {
+	return strings.HasPrefix(r.Header.Get("User-Agent"), "wthr-cli/")
+}
+
+// isTextBrowser reports whether the request came from a text-mode browser,
+// which per AI.md PART 14 receives regular no-JS HTML.
+func isTextBrowser(r *http.Request) bool {
+	ua := strings.ToLower(r.Header.Get("User-Agent"))
+	for _, name := range []string{"lynx", "w3m", "links", "elinks"} {
+		if strings.Contains(ua, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// isHTTPTool reports whether the request came from a non-interactive HTTP tool
+// (curl/wget/httpie or a client sending no User-Agent at all), which per
+// AI.md PART 14 receives plain text rather than HTML.
+func isHTTPTool(r *http.Request) bool {
+	ua := strings.ToLower(r.Header.Get("User-Agent"))
+	if ua == "" {
 		return true
 	}
-
-	// Check Accept header
-	accept := r.Header.Get("Accept")
-	return strings.Contains(accept, "text/plain")
+	for _, name := range []string{"curl", "wget", "httpie", "http/"} {
+		if strings.Contains(ua, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // WantsJSON checks if the request wants JSON response per AI.md PART 14
@@ -239,23 +275,19 @@ func WantsJSON(r *http.Request) bool {
 		return true
 	}
 
-	// Check if it's an API route (already JSON)
-	path := r.URL.Path
-	if strings.HasPrefix(path, "/api/") {
+	// This project's own CLI receives JSON and renders it itself
+	if isOurCLIClient(r) {
 		return true
 	}
 
-	// Check common CLI tools that prefer JSON
-	userAgent := strings.ToLower(r.Header.Get("User-Agent"))
-	if strings.Contains(userAgent, "curl") ||
-		strings.Contains(userAgent, "wget") ||
-		strings.Contains(userAgent, "httpie") {
-		// CLI tools: check if Accept header is not explicitly HTML
-		if !strings.Contains(accept, "text/html") {
-			return true
-		}
+	// API routes default to JSON once .txt, Accept: text/plain and
+	// non-interactive clients have been ruled out by shouldRespondText
+	if strings.HasPrefix(r.URL.Path, "/api/") && !isHTTPTool(r) {
+		return true
 	}
 
+	// Frontend routes never hand JSON to curl/wget/httpie — AI.md PART 14
+	// gives non-interactive HTTP tools formatted plain text instead
 	return false
 }
 
@@ -270,6 +302,14 @@ func NegotiateResponse(w http.ResponseWriter, r *http.Request, htmlTemplate stri
 		RespondData(w, r, data)
 		return
 	}
+	// AI.md PART 14: API routes are always JSON, never HTML — no template
+	// is ever registered for an /api/ path, so a non-interactive client
+	// (isHTTPTool) hitting an /api/ route must still get JSON here, not
+	// fall through to the HTML renderer below.
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		RespondNegotiatedData(w, r, http.StatusOK, data)
+		return
+	}
 	// Templates including the shared head/navbar/footer partials need the chrome keys.
 	// util.TemplateData merges caller keys last, so it is safe for already-wrapped data.
 	middleware.RenderHTML(w, r, http.StatusOK, htmlTemplate, util.TemplateData(r, data))
@@ -282,6 +322,14 @@ func NegotiateErrorResponse(w http.ResponseWriter, r *http.Request, status int, 
 		return
 	}
 	if WantsJSON(r) {
+		RespondError(w, r, status, errCode, message)
+		return
+	}
+	// AI.md PART 14: API routes are always JSON, never HTML — no template
+	// is ever registered for an /api/ path, so a non-interactive client
+	// (isHTTPTool) hitting an /api/ route must still get JSON here, not
+	// fall through to the HTML renderer below.
+	if strings.HasPrefix(r.URL.Path, "/api/") {
 		RespondError(w, r, status, errCode, message)
 		return
 	}

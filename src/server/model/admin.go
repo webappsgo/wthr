@@ -468,10 +468,10 @@ func (m *AdminModel) GetCount() (int, error) {
 	return count, nil
 }
 
-// Create creates a new admin account with Argon2id password hashing
+// CreateAdminAccount creates a new admin account with Argon2id password hashing
 // Per TEMPLATE.md PART 22: Admin accounts stored in server.db
 // AI.md PART 11: API tokens stored as SHA-256 hash, never plaintext
-func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool) (*Admin, error) {
+func (m *AdminModel) CreateAdminAccount(username, email, password string, isSuperAdmin bool) (*Admin, error) {
 	// Hash password using Argon2id (TEMPLATE.md PART 0 requirement)
 	passwordHash, err := HashPassword(password)
 	if err != nil {
@@ -536,8 +536,8 @@ func (m *AdminModel) Create(username, email, password string, isSuperAdmin bool)
 	return m.GetByID(id)
 }
 
-// Update updates an admin's information
-func (m *AdminModel) Update(id int64, username, email string, opts ...interface{}) error {
+// UpdateAdminAccount updates an admin's information
+func (m *AdminModel) UpdateAdminAccount(id int64, username, email string, opts ...interface{}) error {
 	// Support both Update(id, username, email) and Update(id, username, email, isSuperAdmin, isActive)
 	if len(opts) >= 2 {
 		// Full update with flags
@@ -634,9 +634,9 @@ func (m *AdminModel) RevokeAPIToken(id int64) error {
 	return nil
 }
 
-// Delete removes an admin account
+// DeleteAdminAccount removes an admin account
 // Per TEMPLATE.md PART 22: Cannot delete the last super admin
-func (m *AdminModel) Delete(id int64) error {
+func (m *AdminModel) DeleteAdminAccount(id int64) error {
 	// Check if this is the last super admin
 	var superAdminCount int
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `

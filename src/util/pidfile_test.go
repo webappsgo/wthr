@@ -21,7 +21,7 @@ func newTestPIDFile(t *testing.T) *PIDFile {
 // error when the PID file does not exist.
 func TestPIDFile_CheckNoFile(t *testing.T) {
 	pf := newTestPIDFile(t)
-	running, pid, err := pf.Check()
+	running, pid, err := pf.CheckStalePID()
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestPIDFile_CheckNoFile(t *testing.T) {
 func TestPIDFile_CreateAndCheck(t *testing.T) {
 	pf := newTestPIDFile(t)
 
-	if err := pf.Create(); err != nil {
+	if err := pf.CreatePIDFile(); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func TestPIDFile_CreateAndCheck(t *testing.T) {
 		t.Errorf("PID file contains %d, want %d", gotPID, os.Getpid())
 	}
 
-	running, pid, err := pf.Check()
+	running, pid, err := pf.CheckStalePID()
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -70,10 +70,10 @@ func TestPIDFile_CreateAndCheck(t *testing.T) {
 // overwrite a PID file for a still-running process.
 func TestPIDFile_CreateWhenAlreadyRunning(t *testing.T) {
 	pf := newTestPIDFile(t)
-	if err := pf.Create(); err != nil {
+	if err := pf.CreatePIDFile(); err != nil {
 		t.Fatalf("first Create: %v", err)
 	}
-	if err := pf.Create(); err == nil {
+	if err := pf.CreatePIDFile(); err == nil {
 		t.Error("second Create() while already running: err = nil, want error")
 	}
 }
@@ -82,7 +82,7 @@ func TestPIDFile_CreateWhenAlreadyRunning(t *testing.T) {
 // (no error when called again on a missing file).
 func TestPIDFile_Remove(t *testing.T) {
 	pf := newTestPIDFile(t)
-	if err := pf.Create(); err != nil {
+	if err := pf.CreatePIDFile(); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if err := pf.Remove(); err != nil {
@@ -108,7 +108,7 @@ func TestPIDFile_GetPID(t *testing.T) {
 
 	t.Run("valid_file", func(t *testing.T) {
 		pf := newTestPIDFile(t)
-		if err := pf.Create(); err != nil {
+		if err := pf.CreatePIDFile(); err != nil {
 			t.Fatalf("Create: %v", err)
 		}
 		pid, err := pf.GetPID()
@@ -147,7 +147,7 @@ func TestPIDFile_CheckStaleFile(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	running, _, err := pf.Check()
+	running, _, err := pf.CheckStalePID()
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}

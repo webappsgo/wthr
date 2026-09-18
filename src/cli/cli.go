@@ -18,6 +18,11 @@ var (
 	CGOEnabled = "0"
 )
 
+// PortEnvVar is the project-scoped listen-port environment variable named by
+// AI.md PART 8 ({PROJECT_NAME}_PORT). The project name is frozen here on
+// purpose - renaming the binary must not change the env var it reads.
+const PortEnvVar = "WTHR_PORT"
+
 // Command represents a CLI command
 type Command struct {
 	Name        string
@@ -37,7 +42,9 @@ type CLI struct {
 func NewCLI() *CLI {
 	return &CLI{
 		commands: make(map[string]*Command),
-		flags:    flag.NewFlagSet("wthr", flag.ExitOnError),
+		// AI.md PART 8: usage/error output must carry the actual (possibly
+		// renamed) binary name, never a hardcoded project name
+		flags: flag.NewFlagSet(filepath.Base(os.Args[0]), flag.ExitOnError),
 	}
 }
 
@@ -68,7 +75,7 @@ func (c *CLI) Parse(args []string) error {
 		debug          = c.flags.Bool("debug", false, "Enable debug mode (verbose logging, debug endpoints)")
 		colorMode      = c.flags.String("color", "auto", "Color output: auto, yes, no (default: auto, respects NO_COLOR)")
 		lang           = c.flags.String("lang", "", "Language for output: auto, en, es, zh, fr, ar, de, ja (default: auto)")
-		mode           = c.flags.String("mode", "", "Application mode: production or development")
+		mode           = c.flags.String("mode", "", "Application mode: production or development (aliases: prod, dev, devel, debug)")
 		configDir      = c.flags.String("config", "", "Configuration directory")
 		dataDir        = c.flags.String("data", "", "Data directory")
 		cacheDir       = c.flags.String("cache", "", "Cache directory")
@@ -76,7 +83,7 @@ func (c *CLI) Parse(args []string) error {
 		backupDir      = c.flags.String("backup", "", "Backup directory")
 		pidFile        = c.flags.String("pid", "", "PID file path")
 		address        = c.flags.String("address", "", "Listen address")
-		port           = c.flags.String("port", "", "Server port (deprecated, use --address)")
+		port           = c.flags.String("port", "", "Listen port (env: WTHR_PORT)")
 		baseURL        = c.flags.String("baseurl", "", "URL path prefix (default: /)")
 		daemon         = c.flags.Bool("daemon", false, "Daemonize (detach from terminal, Unix only)")
 		serviceCmd     = c.flags.String("service", "", "Service management: start, stop, restart, reload, --install, --uninstall")
@@ -107,6 +114,13 @@ func (c *CLI) Parse(args []string) error {
 		return nil
 	}
 
+	// Handle shell command (AI.md PART 8: Shell integration)
+	// Phase 1 immediate-exit flag - dispatched before the service, maintenance
+	// and update subcommand phases
+	if *shellCmd != "" {
+		return c.handleShellCommand(*shellCmd, c.flags.Args())
+	}
+
 	// Handle service command
 	if *serviceCmd != "" {
 		if cmd, ok := c.commands["service"]; ok {
@@ -131,11 +145,6 @@ func (c *CLI) Parse(args []string) error {
 		return fmt.Errorf("update command not registered")
 	}
 
-	// Handle shell command (AI.md PART 8: Shell integration)
-	if *shellCmd != "" {
-		return c.handleShellCommand(*shellCmd, c.flags.Args())
-	}
-
 	// Store flags for later access (AI.md PART 5: Environment Variables)
 	if *mode != "" {
 		os.Setenv("MODE", *mode)
@@ -143,8 +152,12 @@ func (c *CLI) Parse(args []string) error {
 	if *debug {
 		os.Setenv("DEBUG", "true")
 	}
+	// AI.md PART 8: --port falls back to the {PROJECT_NAME}_PORT env var
+	// before the generic PORT value, so precedence is flag > WTHR_PORT > PORT
 	if *port != "" {
 		os.Setenv("PORT", *port)
+	} else if envPort := os.Getenv(PortEnvVar); envPort != "" {
+		os.Setenv("PORT", envPort)
 	}
 	if *address != "" {
 		os.Setenv("LISTEN", *address)

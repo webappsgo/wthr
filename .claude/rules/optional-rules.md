@@ -20,6 +20,18 @@ PART 34/35/36 is declared in `IDEA.md` instead.
 Because PART 34 is active, all "NEVER/ALWAYS" rules below for Multi-User
 apply now. PART 35/36 rules are reference-only until adopted.
 
+### UNRESOLVED: registration modes (AI.md vs IDEA.md)
+
+AI.md PART 34 defines exactly two modes — `open` (default) and `private` —
+and states there is no "disabled" mode. IDEA.md line 280 instead declares
+"open/invite-only/disabled; default invite-only", and `src/config/config.go`
+implements four modes (`open`, `invite`, `admin_only`, `disabled`), defaulting
+to `invite` and demoting `private` to a legacy alias.
+
+There is no `SPEC.md`, so nothing formally overrides AI.md here. Until the
+owner decides which side is authoritative, do NOT unilaterally rewrite either
+the config or IDEA.md — the rules below state the AI.md position.
+
 ## CRITICAL - NEVER DO
 
 - NEVER let Server Admin (PART 17) view a user's full email, password,
@@ -42,9 +54,14 @@ apply now. PART 35/36 rules are reference-only until adopted.
   direct URL to non-owners — return 404, not 403 (don't leak existence).
   Exception: the user themselves, server admins (via admin panel only),
   and same-org members (username only).
-- NEVER let registration mode `disabled`/`invite`/`admin_only` leave
-  `/server/auth/register` reachable — must 404 when public self-registration
-  isn't allowed for the active mode.
+- NEVER leave `/server/auth/register` reachable in `private` mode — it must
+  404 when public self-registration is off.
+- NEVER add a `disabled`, `invite`, or `admin_only` registration mode —
+  AI.md PART 34 defines exactly two modes, `open` and `private`, and states
+  there is no "disabled" mode.
+- NEVER let registration mode gate login for existing users, profile
+  visibility, or the Server Admin's ability to invite/create users — admin
+  invite and direct create work in BOTH modes.
 - Org (PART 35, if ever adopted): NEVER let `server.orgs.creation.mode` be
   confused with per-org `visibility` — creation mode is server-level policy,
   visibility is per-org.
@@ -64,10 +81,11 @@ apply now. PART 35/36 rules are reference-only until adopted.
   2FA disable, suspend) with a required audit reason.
 - ALWAYS enforce case-insensitive uniqueness for username, email, and
   (if PART 35) org slug — store lowercase, compare lowercase.
-- ALWAYS respect the four registration modes consistently: `open`
-  (self-register + invite + admin-create), `invite` (admin invite only),
-  `admin_only` (admin creates + activation link only), `disabled`
-  (no new accounts, existing users can still log in).
+- ALWAYS respect the two registration modes consistently, set via
+  `users.registration.mode`: `open` (default — public self-register, plus
+  admin invite and admin direct-create) and `private` (no public form;
+  admin invite or admin direct-create only, user still sets their own
+  password via a one-time link).
 - ALWAYS validate emails/usernames per the RFC-5321/5322-based rules in
   AI.md PART 34 (length limits, allowed chars, no leading/trailing/
   consecutive dots).
@@ -88,8 +106,9 @@ apply now. PART 35/36 rules are reference-only until adopted.
 - Two account types: Server Admin (always required, PART 17) vs Regular
   User (optional, this PART). Admin auth is passkey-only; regular users use
   password auth (per IDEA.md decision — low-stakes feature).
-- Registration modes: `open` (default), `invite`, `admin_only`, `disabled` —
-  set via `users.registration.mode` in config.
+- Registration modes: `open` (default) and `private` — set via
+  `users.registration.mode` in config. These are the only two; the mode
+  controls only whether the public self-registration form is reachable.
 - Auth methods: password, TOTP 2FA, WebAuthn passkeys, OIDC/LDAP/SAML.
 - Recovery keys: 10 keys, format `{8-hex}-{4-hex}`, generated once when
   2FA/passkey enabled, SHA-256 hashed, single-use, case-insensitive.

@@ -3,7 +3,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"path"
@@ -148,11 +147,7 @@ func PathSecurityMiddleware() func(http.Handler) http.Handler {
 			if strings.Contains(original, "..") ||
 				strings.Contains(rawPath, "..") ||
 				strings.Contains(strings.ToLower(rawPath), "%2e") {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": "Bad Request",
-				})
+				writeAPIError(w, http.StatusBadRequest, "BAD_REQUEST", "Invalid request format")
 				return
 			}
 

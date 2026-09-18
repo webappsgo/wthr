@@ -1,6 +1,6 @@
 {{define "page/passkey.tmpl"}}
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="auth-container">
@@ -30,105 +31,16 @@
             </div>
         </div>
     </div>
-    <script>
-    const I18N = {
-        unsupportedBrowser: '{{t .server.Lang "passkey_js_unsupported_browser"}}',
-        failedStart: '{{t .server.Lang "passkey_js_failed_start"}}',
-        touchPrompt: '{{t .server.Lang "passkey_js_touch_prompt"}}',
-        cancelled: '{{t .server.Lang "passkey_js_cancelled"}}',
-        failedVerify: '{{t .server.Lang "passkey_js_failed_verify"}}',
-        successRedirecting: '{{t .server.Lang "passkey_js_success_redirecting"}}',
-        failedGeneric: '{{t .server.Lang "passkey_js_failed_generic"}}'
-    };
-
-    function bufferToBase64url(buffer) {
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        for (const byte of bytes) binary += String.fromCharCode(byte);
-        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-    }
-
-    function base64urlToBuffer(base64url) {
-        const padded = (base64url + '==='.slice((base64url.length + 3) % 4)).replace(/-/g, '+').replace(/_/g, '/');
-        const binary = atob(padded);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        return bytes.buffer;
-    }
-
-    function normalizeRequestOptions(options) {
-        const publicKey = options.publicKey || options;
-        publicKey.challenge = base64urlToBuffer(publicKey.challenge);
-        if (Array.isArray(publicKey.allowCredentials)) {
-            publicKey.allowCredentials = publicKey.allowCredentials.map((credential) => ({
-                ...credential,
-                id: base64urlToBuffer(credential.id),
-            }));
+    <script type="application/json" id="passkey-login-data">
+        {
+            "unsupportedBrowser": "{{t .server.Lang "passkey_js_unsupported_browser"}}",
+            "failedStart": "{{t .server.Lang "passkey_js_failed_start"}}",
+            "touchPrompt": "{{t .server.Lang "passkey_js_touch_prompt"}}",
+            "cancelled": "{{t .server.Lang "passkey_js_cancelled"}}",
+            "failedVerify": "{{t .server.Lang "passkey_js_failed_verify"}}",
+            "successRedirecting": "{{t .server.Lang "passkey_js_success_redirecting"}}",
+            "failedGeneric": "{{t .server.Lang "passkey_js_failed_generic"}}"
         }
-        return publicKey;
-    }
-
-    function serializeAssertion(assertion) {
-        return {
-            id: assertion.id,
-            rawId: bufferToBase64url(assertion.rawId),
-            type: assertion.type,
-            response: {
-                authenticatorData: bufferToBase64url(assertion.response.authenticatorData),
-                clientDataJSON: bufferToBase64url(assertion.response.clientDataJSON),
-                signature: bufferToBase64url(assertion.response.signature),
-                userHandle: assertion.response.userHandle ? bufferToBase64url(assertion.response.userHandle) : null,
-            },
-        };
-    }
-
-    async function startPasskeyLogin() {
-        const status = document.getElementById('passkeyStatus');
-        if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
-            status.className = 'alert alert-error';
-            status.textContent = I18N.unsupportedBrowser;
-            return;
-        }
-
-        try {
-            const challengeResponse = await fetch('/api/v1/server/auth/passkey/challenge', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: '{}',
-            });
-            const challengePayload = await challengeResponse.json();
-            if (!challengeResponse.ok || !challengePayload.ok) {
-                throw new Error(challengePayload.error || I18N.failedStart);
-            }
-
-            status.textContent = I18N.touchPrompt;
-            const credential = await navigator.credentials.get({
-                publicKey: normalizeRequestOptions(challengePayload.options),
-            });
-            if (!credential) {
-                throw new Error(I18N.cancelled);
-            }
-
-            const verifyResponse = await fetch('/api/v1/server/auth/passkey/verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(serializeAssertion(credential)),
-            });
-            const verifyPayload = await verifyResponse.json();
-            if (!verifyResponse.ok || !verifyPayload.ok) {
-                throw new Error(verifyPayload.error || I18N.failedVerify);
-            }
-
-            status.className = 'alert alert-success';
-            status.textContent = I18N.successRedirecting;
-            window.location.href = '/users/dashboard';
-        } catch (error) {
-            status.className = 'alert alert-error';
-            status.textContent = error.message || I18N.failedGeneric;
-        }
-    }
-
-    startPasskeyLogin();
     </script>
 </body>
 </html>

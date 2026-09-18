@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-// UsernameBlocklist contains reserved usernames per AI.md PART 22
+// UsernameBlocklist contains reserved usernames per AI.md PART 34
 // This list prevents users from registering common system usernames, admin terms,
 // and potentially confusing identifiers
 var UsernameBlocklist = []string{

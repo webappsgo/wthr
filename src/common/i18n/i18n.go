@@ -113,6 +113,19 @@ func (i *I18n) T(lang, key string) string {
 	return key
 }
 
+// TranslateFormat translates a key and substitutes named {token} placeholders
+// with the supplied values.
+// AI.md PART 31: interpolation is LITERAL string replacement — a translation is
+// never used as a fmt format string, so %s/%d verbs and positional {0} tokens
+// are not supported by design.
+func (i *I18n) TranslateFormat(lang, key string, args map[string]string) string {
+	text := i.T(lang, key)
+	for name, value := range args {
+		text = strings.ReplaceAll(text, "{"+name+"}", value)
+	}
+	return text
+}
+
 // ParseAcceptLanguage parses the Accept-Language header and returns the best match
 // Header format: "en-US,en;q=0.9,es;q=0.8"
 func (i *I18n) ParseAcceptLanguage(header string) string {
@@ -139,7 +152,10 @@ func (i *I18n) ParseAcceptLanguage(header string) string {
 		q := 1.0
 		if len(parts) > 1 {
 			if strings.HasPrefix(parts[1], "q=") {
-				fmt.Sscanf(parts[1], "q=%f", &q)
+				// A malformed q-value leaves q at its RFC 9110 default of 1.0.
+				if _, err := fmt.Sscanf(parts[1], "q=%f", &q); err != nil {
+					q = 1.0
+				}
 			}
 		}
 
@@ -158,7 +174,8 @@ func (i *I18n) IsSupported(lang string) bool {
 	return i.isSupported(lang)
 }
 
-// isSupported checks if a language is supported (internal, no lock).
+// isSupported checks if a language is supported. Callers must not already hold
+// i.mu — this takes the read lock itself.
 func (i *I18n) isSupported(lang string) bool {
 	i.mu.RLock()
 	defer i.mu.RUnlock()

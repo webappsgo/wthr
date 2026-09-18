@@ -112,12 +112,12 @@ func TestUserNotificationHandlers_Dismiss_Unauthorized(t *testing.T) {
 }
 
 // TestUserNotificationHandlers_Delete_Unauthorized verifies the same
-// "user_id" guard on Delete.
+// "user_id" guard on DeleteUserNotification.
 func TestUserNotificationHandlers_Delete_Unauthorized(t *testing.T) {
 	h := &UserNotificationHandlers{}
 	c, w := newAPITestContext("/api/v1/users/notifications/1")
 
-	h.Delete(w, c)
+	h.DeleteUserNotification(w, c)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d: %s", w.Code, w.Body.String())

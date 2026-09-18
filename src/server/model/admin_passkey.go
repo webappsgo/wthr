@@ -253,7 +253,7 @@ func (m *AdminPasskeyModel) ListCredentialsByAdminID(adminID int64) ([]webauthn.
 	return credentials, nil
 }
 
-func (m *AdminPasskeyModel) Create(adminID int64, name string, credential *webauthn.Credential) (*AdminPasskey, error) {
+func (m *AdminPasskeyModel) CreateAdminPasskey(adminID int64, name string, credential *webauthn.Credential) (*AdminPasskey, error) {
 	if err := m.ensurePasskeySchema(); err != nil {
 		return nil, err
 	}

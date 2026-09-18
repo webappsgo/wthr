@@ -146,7 +146,7 @@ func (s *AdminInviteService) AcceptInvite(token, username, password string) (*mo
 	}
 
 	// Create admin account
-	admin, err := s.AdminModel.Create(normalizedUsername, invite.InvitedEmail, password, false)
+	admin, err := s.AdminModel.CreateAdminAccount(normalizedUsername, invite.InvitedEmail, password, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create admin account: %w", err)
 	}

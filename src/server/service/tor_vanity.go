@@ -44,9 +44,9 @@ func NewVanityGenerator() *VanityGenerator {
 	}
 }
 
-// Start begins generating a vanity address with the given prefix
+// StartVanityGeneration begins generating a vanity address with the given prefix
 // Prefix must be 1-6 characters, valid base32 chars only (a-z, 2-7)
-func (vg *VanityGenerator) Start(prefix string) error {
+func (vg *VanityGenerator) StartVanityGeneration(prefix string) error {
 	vg.mu.Lock()
 	defer vg.mu.Unlock()
 

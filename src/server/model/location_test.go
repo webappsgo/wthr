@@ -24,7 +24,7 @@ func TestLocationModel_CreateAndGetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			created, err := model.Create(int(userID), tt.name, tt.latitude, tt.longitude, tt.timezone)
+			created, err := model.CreateSavedLocation(int(userID), tt.name, tt.latitude, tt.longitude, tt.timezone)
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -76,13 +76,13 @@ func TestLocationModel_GetByUserID(t *testing.T) {
 		}
 	})
 
-	if _, err := model.Create(int(userA), "Home", 1, 1, "UTC"); err != nil {
+	if _, err := model.CreateSavedLocation(int(userA), "Home", 1, 1, "UTC"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := model.Create(int(userA), "Work", 2, 2, "UTC"); err != nil {
+	if _, err := model.CreateSavedLocation(int(userA), "Work", 2, 2, "UTC"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := model.Create(int(userB), "Other", 3, 3, "UTC"); err != nil {
+	if _, err := model.CreateSavedLocation(int(userB), "Other", 3, 3, "UTC"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -109,12 +109,12 @@ func TestLocationModel_Update(t *testing.T) {
 	userID := insertTestUser(t, db, "loc-upd", "loc-upd@example.com")
 	model := &LocationModel{DB: db}
 
-	created, err := model.Create(int(userID), "Original", 1, 1, "UTC")
+	created, err := model.CreateSavedLocation(int(userID), "Original", 1, 1, "UTC")
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	if err := model.Update(created.ID, "Updated", 9.9, 8.8, "Europe/Paris", false); err != nil {
+	if err := model.UpdateSavedLocation(created.ID, "Updated", 9.9, 8.8, "Europe/Paris", false); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 
@@ -136,7 +136,7 @@ func TestLocationModel_ToggleAlerts(t *testing.T) {
 	userID := insertTestUser(t, db, "loc-toggle", "loc-toggle@example.com")
 	model := &LocationModel{DB: db}
 
-	created, err := model.Create(int(userID), "Toggle", 1, 1, "UTC")
+	created, err := model.CreateSavedLocation(int(userID), "Toggle", 1, 1, "UTC")
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -180,11 +180,11 @@ func TestLocationModel_DeleteAndCount(t *testing.T) {
 		t.Errorf("Count() = %d, want 0", count)
 	}
 
-	first, err := model.Create(int(userID), "First", 1, 1, "UTC")
+	first, err := model.CreateSavedLocation(int(userID), "First", 1, 1, "UTC")
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := model.Create(int(userID), "Second", 2, 2, "UTC"); err != nil {
+	if _, err := model.CreateSavedLocation(int(userID), "Second", 2, 2, "UTC"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -196,7 +196,7 @@ func TestLocationModel_DeleteAndCount(t *testing.T) {
 		t.Errorf("Count() = %d, want 2", count)
 	}
 
-	if err := model.Delete(first.ID); err != nil {
+	if err := model.DeleteSavedLocation(first.ID); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
 	if _, err := model.GetByID(first.ID); err == nil {
@@ -212,7 +212,7 @@ func TestLocationModel_DeleteAndCount(t *testing.T) {
 	}
 
 	t.Run("delete non-existent is a no-op", func(t *testing.T) {
-		if err := model.Delete(999999); err != nil {
+		if err := model.DeleteSavedLocation(999999); err != nil {
 			t.Errorf("Delete() of missing row should not error, got %v", err)
 		}
 	})

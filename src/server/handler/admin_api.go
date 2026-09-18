@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func SaveWebSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get database from context
-	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+	if _, exists := reqctx.GetValue(r.Context(), "db"); !exists {
 		InternalError(w, r, "Database connection not available")
 		return
 	}
@@ -80,7 +81,7 @@ func SaveSecuritySettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get database from context
-	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+	if _, exists := reqctx.GetValue(r.Context(), "db"); !exists {
 		InternalError(w, r, "Database connection not available")
 		return
 	}
@@ -112,7 +113,7 @@ func SaveSecuritySettings(w http.ResponseWriter, r *http.Request) {
 
 // TestDatabaseConnection tests the database connection
 func TestDatabaseConnection(w http.ResponseWriter, r *http.Request) {
-	db, exists := reqctx.Get(r.Context(), "db")
+	db, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		InternalError(w, r, "Database connection not available")
 		return
@@ -133,7 +134,7 @@ func TestDatabaseConnection(w http.ResponseWriter, r *http.Request) {
 
 // OptimizeDatabase optimizes the database
 func OptimizeDatabase(w http.ResponseWriter, r *http.Request) {
-	db, exists := reqctx.Get(r.Context(), "db")
+	db, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		InternalError(w, r, "Database connection not available")
 		return
@@ -155,7 +156,7 @@ func OptimizeDatabase(w http.ResponseWriter, r *http.Request) {
 // ClearCache clears the application cache
 func ClearCache(w http.ResponseWriter, r *http.Request) {
 	// Get cache manager from context
-	cacheInterface, exists := reqctx.Get(r.Context(), "cache")
+	cacheInterface, exists := reqctx.GetValue(r.Context(), "cache")
 	if !exists {
 		RespondSuccess(w, r, "Cache not configured (running without cache)")
 		return
@@ -178,7 +179,7 @@ func ClearCache(w http.ResponseWriter, r *http.Request) {
 
 // VacuumDatabase performs database vacuum operation
 func VacuumDatabase(w http.ResponseWriter, r *http.Request) {
-	db, exists := reqctx.Get(r.Context(), "db")
+	db, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		InternalError(w, r, "Database connection not available")
 		return
@@ -280,7 +281,7 @@ func CreateBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc := backup.New(configDir, dataDir)
-	backupPath, deleted, err := svc.Create(backup.BackupOptions{
+	backupPath, deleted, err := svc.CreateBackupArchive(backup.BackupOptions{
 		ConfigDir:   configDir,
 		DataDir:     dataDir,
 		Password:    password,
@@ -534,9 +535,9 @@ func DeleteBackup(w http.ResponseWriter, r *http.Request) {
 // rather than silently discarding an operator's prior choice.
 func backupRetentionFromSettings(settings *model.SettingsModel) backup.RetentionConfig {
 	maxBackups := backupLegacyRetentionDefault
-	if _, err := settings.Get("backup.retention.max_backups"); err == nil {
+	if _, err := settings.GetSetting("backup.retention.max_backups"); err == nil {
 		maxBackups = settings.GetInt("backup.retention.max_backups", backupLegacyRetentionDefault)
-	} else if _, err := settings.Get("backup.retention"); err == nil {
+	} else if _, err := settings.GetSetting("backup.retention"); err == nil {
 		maxBackups = settings.GetInt("backup.retention", backupLegacyRetentionDefault)
 	}
 
@@ -689,7 +690,7 @@ func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []strin
 	if len(deleted) == 0 {
 		return
 	}
-	dbHandle, exists := reqctx.Get(r.Context(), "db")
+	dbHandle, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		return
 	}
@@ -726,12 +727,14 @@ func logBackupRetentionAudit(r *http.Request, backupPath string, deleted []strin
 		r.UserAgent(),
 	)
 	if err != nil {
-		_ = err // Non-fatal: the backup itself already completed.
+		// Non-fatal: the backup itself already completed. The audit trail
+		// still must not lose the failure silently, so record it with context.
+		log.Printf("audit log write failed: action=backup_created file=%s error=%v", filepath.Base(backupPath), err)
 	}
 }
 
 func adminSettingsModel(r *http.Request) (*model.SettingsModel, error) {
-	db, exists := reqctx.Get(r.Context(), "db")
+	db, exists := reqctx.GetValue(r.Context(), "db")
 	if !exists {
 		return nil, fmt.Errorf("database connection not available")
 	}
@@ -751,7 +754,7 @@ func SaveDatabaseSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get database from context
-	if _, exists := reqctx.Get(r.Context(), "db"); !exists {
+	if _, exists := reqctx.GetValue(r.Context(), "db"); !exists {
 		InternalError(w, r, "Database connection not available")
 		return
 	}

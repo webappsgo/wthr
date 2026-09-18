@@ -407,7 +407,7 @@ func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *htt
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
-	passkey, err := passkeyModel.Create(user.ID, state.Name, credential)
+	passkey, err := passkeyModel.CreateUserPasskey(user.ID, state.Name, credential)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
 		return
@@ -674,7 +674,7 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 		}
 
 		sessionModel := &models.SessionModel{DB: h.DB}
-		_ = sessionModel.Delete(pendingSession.ID)
+		_ = sessionModel.DeleteSession(pendingSession.ID)
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey session"})
 		return

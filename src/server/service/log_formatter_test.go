@@ -422,8 +422,8 @@ func TestLogFormatter_ExtractLogEntry(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/v1/weather/Chicago?x=1", nil)
 		req.Header.Set("Referer", "https://ref.example/")
 		req.Header.Set("User-Agent", "test-agent/1.0")
-		ctx := reqctx.Set(req.Context(), "request_id", "req-xyz")
-		ctx = reqctx.Set(ctx, "username", "dave")
+		ctx := reqctx.SetValue(req.Context(), "request_id", "req-xyz")
+		ctx = reqctx.SetValue(ctx, "username", "dave")
 		req = req.WithContext(ctx)
 
 		start := time.Now().Add(-50 * time.Millisecond)

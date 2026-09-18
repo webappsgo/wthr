@@ -521,7 +521,7 @@ func TestBackupServiceCreateAndVerify(t *testing.T) {
 			}
 
 			svc := New(configDir, dataDir)
-			outPath, _, err := svc.Create(BackupOptions{
+			outPath, _, err := svc.CreateBackupArchive(BackupOptions{
 				ConfigDir:  configDir,
 				DataDir:    dataDir,
 				Password:   tt.password,
@@ -571,7 +571,7 @@ func TestCreateKindFilenames(t *testing.T) {
 			}
 
 			svc := New(configDir, dataDir)
-			outPath, _, err := svc.Create(BackupOptions{
+			outPath, _, err := svc.CreateBackupArchive(BackupOptions{
 				ConfigDir:  configDir,
 				DataDir:    dataDir,
 				Kind:       tt.kind,
@@ -613,12 +613,12 @@ func TestCreateIncrementalReplacesInPlace(t *testing.T) {
 		AppVersion: "0.0.1-test",
 	}
 
-	firstPath, _, err := svc.Create(opts)
+	firstPath, _, err := svc.CreateBackupArchive(opts)
 	if err != nil {
 		t.Fatalf("first Create() error = %v", err)
 	}
 
-	secondPath, _, err := svc.Create(opts)
+	secondPath, _, err := svc.CreateBackupArchive(opts)
 	if err != nil {
 		t.Fatalf("second Create() error = %v", err)
 	}

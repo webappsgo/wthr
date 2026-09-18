@@ -338,7 +338,9 @@ users:
 	}
 }
 
-func TestLoadConfig_UnknownFieldRejected(t *testing.T) {
+// AI.md PART 12: an unknown key is not a startup failure - the known keys
+// still apply and the rest of the config falls back to its defaults.
+func TestLoadConfig_UnknownFieldIgnored(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server.yml")
 	yamlContent := `
@@ -354,13 +356,18 @@ not_a_real_field: true
 	os.Setenv("CONFIG_DIR", dir)
 	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
 
-	_, err := LoadConfig()
-	if err == nil {
-		t.Fatal("LoadConfig() expected error for unknown field, got nil")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() unexpected error: %v", err)
+	}
+	if cfg.Server.FQDN != "weather.example.com" {
+		t.Errorf("LoadConfig() FQDN = %q, want weather.example.com", cfg.Server.FQDN)
 	}
 }
 
-func TestLoadConfig_MalformedYAML(t *testing.T) {
+// AI.md PART 12: "Never crash on config - server must start with sane
+// defaults." A file that cannot be parsed warns and yields the defaults.
+func TestLoadConfig_MalformedYAMLFallsBackToDefaults(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "server.yml")
 	// Invalid YAML: mismatched indentation / broken mapping.
@@ -373,9 +380,15 @@ func TestLoadConfig_MalformedYAML(t *testing.T) {
 	os.Setenv("CONFIG_DIR", dir)
 	t.Cleanup(func() { os.Setenv("CONFIG_DIR", oldConfigDir) })
 
-	_, err := LoadConfig()
-	if err == nil {
-		t.Fatal("LoadConfig() expected error for malformed YAML, got nil")
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() must not fail on malformed YAML, got: %v", err)
+	}
+	if cfg.Server.AdminPath != "admin" {
+		t.Errorf("LoadConfig() admin_path = %q, want the default admin", cfg.Server.AdminPath)
+	}
+	if cfg.Server.Cache.Type != "memory" {
+		t.Errorf("LoadConfig() cache.type = %q, want the default memory", cfg.Server.Cache.Type)
 	}
 }
 

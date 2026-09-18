@@ -57,15 +57,15 @@ func newAPIRequest(t *testing.T, method, target string, body interface{}) (*http
 }
 
 // setUserIDContext / setAdminIDContext mirror exactly what notification_api.go
-// reads (reqctx.Get(r.Context(), "user_id") / reqctx.Get(r.Context(),
+// reads (reqctx.GetValue(r.Context(), "user_id") / reqctx.GetValue(r.Context(),
 // "admin_id")) so the success paths are reachable; see the
 // context-key-mismatch subtest below for what real middleware actually sets.
 func setUserIDContext(r *http.Request, id int) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), "user_id", id))
+	return r.WithContext(reqctx.SetValue(r.Context(), "user_id", id))
 }
 
 func setAdminIDContext(r *http.Request, id int) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), "admin_id", id))
+	return r.WithContext(reqctx.SetValue(r.Context(), "admin_id", id))
 }
 
 // GetUserNotifications covers the success path (service call reaches the
@@ -101,7 +101,7 @@ func TestNotificationAPIHandlers_GetUserNotifications(t *testing.T) {
 // This directly demonstrates BUG #7: real auth middleware (see
 // src/server/middleware/auth.go) stores the authenticated user under
 // middleware.UserContextKey ("user"), and never calls
-// reqctx.Set(ctx, "user_id", ...) anywhere in production code. A genuinely
+// reqctx.SetValue(ctx, "user_id", ...) anywhere in production code. A genuinely
 // authenticated request therefore still gets 401 from every user-facing
 // notification API endpoint.
 func TestNotificationAPIHandlers_GetUserNotifications_RealMiddlewareContextKeyMismatch(t *testing.T) {
@@ -110,7 +110,7 @@ func TestNotificationAPIHandlers_GetUserNotifications_RealMiddlewareContextKeyMi
 
 	// Mirrors what real auth middleware actually does: sets "user" to a
 	// value, never "user_id" to an int.
-	r = r.WithContext(reqctx.Set(r.Context(), "user", struct{ ID int }{ID: 1}))
+	r = r.WithContext(reqctx.SetValue(r.Context(), "user", struct{ ID int }{ID: 1}))
 
 	h.GetUserNotifications(w, r)
 

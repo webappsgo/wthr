@@ -1,17 +1,20 @@
-// Package backup implements backup and restore functionality per AI.md PART 25
-// AI.md Reference: Lines 22349-22750
+// Package backup implements backup and restore functionality per AI.md PART 22
+// (Backup & Restore Command).
 package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io"
 	"log"
 	"os"
@@ -20,9 +23,13 @@ import (
 	"time"
 
 	"golang.org/x/crypto/argon2"
+	_ "modernc.org/sqlite"
 )
 
-// Manifest represents backup metadata per AI.md PART 25 line 22390
+// manifestEntryName is the archive member holding the backup manifest
+const manifestEntryName = "manifest.json"
+
+// Manifest represents backup metadata per AI.md PART 22 (Backup Format)
 type Manifest struct {
 	Version          string    `json:"version"`
 	CreatedAt        time.Time `json:"created_at"`
@@ -55,7 +62,7 @@ const (
 	KindHourlyIncremental = "hourly_incremental"
 )
 
-// BackupOptions configures backup creation per AI.md PART 25
+// BackupOptions configures backup creation per AI.md PART 22
 type BackupOptions struct {
 	ConfigDir   string
 	DataDir     string
@@ -74,7 +81,7 @@ type BackupOptions struct {
 	Retention *RetentionConfig
 }
 
-// BackupService handles backup operations per AI.md PART 25
+// BackupService handles backup operations per AI.md PART 22
 type BackupService struct {
 	configDir string
 	dataDir   string
@@ -88,12 +95,12 @@ func New(configDir, dataDir string) *BackupService {
 	}
 }
 
-// Create creates a new backup per AI.md PART 25 lines 22351-22542
+// CreateBackupArchive creates a new backup per AI.md PART 22 (Backup & Restore)
 // Follows complete backup workflow with verification and cleanup.
 // The second return value lists backup filenames deleted by the tiered
 // retention sweep (AI.md PART 22's "backup.retention_cleanup" audit event) -
 // callers with DB access log it, callers without (the CLI) may discard it.
-func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
+func (s *BackupService) CreateBackupArchive(opts BackupOptions) (string, []string, error) {
 	// Set defaults
 	if opts.ConfigDir == "" {
 		opts.ConfigDir = s.configDir
@@ -125,7 +132,7 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		case KindHourlyIncremental:
 			filename = "wthr-hourly" + ext
 		default:
-			// Manual/CLI/API backups per AI.md PART 22 line 22386:
+			// Manual/CLI/API backups per AI.md PART 22 (Backup Files Created):
 			// wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
 			filename = fmt.Sprintf("wthr_backup_%s%s", time.Now().Format("2006-01-02_150405"), ext)
 		}
@@ -138,13 +145,13 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		return "", nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	// Collect files to backup per AI.md PART 25 lines 22357-22367
+	// Collect files to backup per AI.md PART 22 (Backup Contents)
 	files, err := s.collectFiles(opts)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to collect files: %w", err)
 	}
 
-	// Create manifest per AI.md PART 25 lines 22390-22408
+	// Create manifest per AI.md PART 22 (Backup Format)
 	manifest := Manifest{
 		Version:    "1.0.0",
 		CreatedAt:  time.Now(),
@@ -154,21 +161,19 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		Encrypted:  opts.Password != "",
 	}
 	if manifest.Encrypted {
-		// Per AI.md PART 25 line 22416
+		// Per AI.md PART 22 (Encryption)
 		manifest.EncryptionMethod = "AES-256-GCM"
 	}
 
-	// Create tar.gz archive in memory per AI.md PART 25 line 22425
+	// Create tar.gz archive in memory per AI.md PART 22 (Backup Format)
 	// "Unencrypted archive never touches disk"
-	archiveData, checksumStr, err := s.createArchive(opts.ConfigDir, opts.DataDir, files, manifest)
+	// createArchive embeds the content checksum in the archived manifest itself
+	archiveData, _, err := s.createArchive(opts.ConfigDir, opts.DataDir, files, manifest)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create archive: %w", err)
 	}
 
-	// Update manifest with checksum
-	manifest.Checksum = checksumStr
-
-	// Encrypt if password provided per AI.md PART 25 lines 22410-22427
+	// Encrypt if password provided per AI.md PART 22 (Encryption)
 	var finalData []byte
 	if opts.Password != "" {
 		encrypted, err := s.encrypt(archiveData, opts.Password)
@@ -185,10 +190,10 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 		return "", nil, fmt.Errorf("failed to write backup file: %w", err)
 	}
 
-	// Verify backup per AI.md PART 25 lines 22544-22556
+	// Verify backup per AI.md PART 22 (Verification)
 	// "Every backup is verified immediately after creation"
 	if err := s.Verify(opts.OutputPath, opts.Password); err != nil {
-		// Delete failed backup per AI.md PART 25 line 22539
+		// Delete failed backup per AI.md PART 22 (Verification)
 		os.Remove(opts.OutputPath)
 		return "", nil, fmt.Errorf("backup verification failed: %w", err)
 	}
@@ -209,41 +214,41 @@ func (s *BackupService) Create(opts BackupOptions) (string, []string, error) {
 	return opts.OutputPath, deleted, nil
 }
 
-// collectFiles identifies files to include in backup per AI.md PART 25 lines 22357-22367
+// collectFiles identifies files to include in backup per AI.md PART 22 (Backup Contents)
 func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 	var files []string
 
-	// server.yml - Always included per AI.md PART 25 line 22361
+	// server.yml - Always included per AI.md PART 22 (Backup Contents)
 	serverYML := filepath.Join(opts.ConfigDir, "server.yml")
 	if _, err := os.Stat(serverYML); err == nil {
 		files = append(files, "server.yml")
 	}
 
-	// server.db - Always included per AI.md PART 25 line 22362
+	// server.db - Always included per AI.md PART 22 (Backup Contents)
 	serverDB := filepath.Join(opts.DataDir, "db", "server.db")
 	if _, err := os.Stat(serverDB); err == nil {
 		files = append(files, "db/server.db")
 	}
 
-	// users.db - If exists per AI.md PART 25 line 22363
+	// users.db - If exists per AI.md PART 22 (Backup Contents)
 	usersDB := filepath.Join(opts.DataDir, "db", "users.db")
 	if _, err := os.Stat(usersDB); err == nil {
 		files = append(files, "db/users.db")
 	}
 
-	// Custom templates - If exists per AI.md PART 25 line 22364
+	// Custom templates - If exists per AI.md PART 22 (Backup Contents)
 	templatesDir := filepath.Join(opts.ConfigDir, "template")
 	if _, err := os.Stat(templatesDir); err == nil {
 		files = append(files, "template/")
 	}
 
-	// Custom themes - If exists per AI.md PART 25 line 22365
-	themesDir := filepath.Join(opts.ConfigDir, "themes")
-	if _, err := os.Stat(themesDir); err == nil {
-		files = append(files, "themes/")
+	// Custom themes - If exists per AI.md PART 22 Backup Contents
+	themeDir := filepath.Join(opts.ConfigDir, "theme")
+	if _, err := os.Stat(themeDir); err == nil {
+		files = append(files, "theme/")
 	}
 
-	// SSL certificates - Optional per AI.md PART 25 line 22366
+	// SSL certificates - Optional per AI.md PART 22 (Backup Contents)
 	if opts.IncludeSSL {
 		sslDir := filepath.Join(opts.ConfigDir, "ssl")
 		if _, err := os.Stat(sslDir); err == nil {
@@ -251,7 +256,7 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 		}
 	}
 
-	// Data files - Optional per AI.md PART 25 line 22367
+	// Data files - Optional per AI.md PART 22 (Backup Contents)
 	if opts.IncludeData {
 		files = append(files, "data/")
 	}
@@ -260,9 +265,9 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 }
 
 // createArchive creates tar.gz archive and returns data + checksum
-// Per AI.md PART 25 lines 22383-22408
+// Per AI.md PART 22 (Backup Format)
 func (s *BackupService) createArchive(configDir, dataDir string, files []string, manifest Manifest) ([]byte, string, error) {
-	// Create in-memory buffer (unencrypted archive never touches disk per AI.md PART 25 line 22425)
+	// Create in-memory buffer (unencrypted archive never touches disk per AI.md PART 22 (Backup Format))
 	var buf []byte
 	writer := &memoryWriter{data: buf}
 
@@ -274,29 +279,15 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 	tarWriter := tar.NewWriter(gzWriter)
 	defer tarWriter.Close()
 
-	// Add manifest.json first
-	manifestData, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to marshal manifest: %w", err)
-	}
-
-	if err := tarWriter.WriteHeader(&tar.Header{
-		Name:    "manifest.json",
-		Size:    int64(len(manifestData)),
-		Mode:    0600,
-		ModTime: time.Now(),
-	}); err != nil {
-		return nil, "", err
-	}
-	if _, err := tarWriter.Write(manifestData); err != nil {
-		return nil, "", err
-	}
+	// Hash every archived member as it is written so the manifest can carry a
+	// checksum that Verify recomputes from the archive itself
+	contentHasher := sha256.New()
 
 	// Add each file/directory
 	for _, file := range files {
 		var sourcePath string
 		if file == "server.yml" || strings.HasPrefix(file, "template/") ||
-			strings.HasPrefix(file, "themes/") || strings.HasPrefix(file, "ssl/") {
+			strings.HasPrefix(file, "theme/") || strings.HasPrefix(file, "ssl/") {
 			sourcePath = filepath.Join(configDir, file)
 		} else {
 			sourcePath = filepath.Join(dataDir, file)
@@ -307,9 +298,31 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 			continue
 		}
 
-		if err := s.addToArchive(tarWriter, sourcePath, file); err != nil {
+		if err := s.addToArchive(tarWriter, contentHasher, sourcePath, file); err != nil {
 			return nil, "", fmt.Errorf("failed to add %s: %w", file, err)
 		}
+	}
+
+	// The manifest is written last so it can carry the checksum of everything
+	// that precedes it per AI.md PART 22 (Verification: checksum matches manifest)
+	checksumStr := fmt.Sprintf("sha256:%s", hex.EncodeToString(contentHasher.Sum(nil)))
+	manifest.Checksum = checksumStr
+
+	manifestData, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Name:    manifestEntryName,
+		Size:    int64(len(manifestData)),
+		Mode:    0600,
+		ModTime: time.Now(),
+	}); err != nil {
+		return nil, "", err
+	}
+	if _, err := tarWriter.Write(manifestData); err != nil {
+		return nil, "", err
 	}
 
 	// Close writers to flush
@@ -320,15 +333,12 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 		return nil, "", err
 	}
 
-	// Calculate checksum per AI.md PART 25 line 22406
-	checksum := sha256.Sum256(writer.data)
-	checksumStr := fmt.Sprintf("sha256:%s", hex.EncodeToString(checksum[:]))
-
 	return writer.data, checksumStr, nil
 }
 
-// addToArchive adds file or directory to tar archive recursively
-func (s *BackupService) addToArchive(tw *tar.Writer, sourcePath, archivePath string) error {
+// addToArchive adds file or directory to tar archive recursively, feeding every
+// member path and byte into hasher so the manifest checksum covers the content
+func (s *BackupService) addToArchive(tw *tar.Writer, hasher hash.Hash, sourcePath, archivePath string) error {
 	info, err := os.Stat(sourcePath)
 	if err != nil {
 		return err
@@ -347,6 +357,7 @@ func (s *BackupService) addToArchive(tw *tar.Writer, sourcePath, archivePath str
 			tarPath := filepath.Join(archivePath, relPath)
 
 			if info.IsDir() {
+				hashArchiveMember(hasher, tarPath+"/")
 				return tw.WriteHeader(&tar.Header{
 					Name:     tarPath + "/",
 					Mode:     int64(info.Mode()),
@@ -372,7 +383,8 @@ func (s *BackupService) addToArchive(tw *tar.Writer, sourcePath, archivePath str
 			}
 			defer file.Close()
 
-			_, err = io.Copy(tw, file)
+			hashArchiveMember(hasher, tarPath)
+			_, err = io.Copy(io.MultiWriter(tw, hasher), file)
 			return err
 		})
 	}
@@ -395,8 +407,15 @@ func (s *BackupService) addToArchive(tw *tar.Writer, sourcePath, archivePath str
 		return err
 	}
 
-	_, err = io.Copy(tw, file)
+	hashArchiveMember(hasher, archivePath)
+	_, err = io.Copy(io.MultiWriter(tw, hasher), file)
 	return err
+}
+
+// hashArchiveMember mixes a member path into the running content hash so a
+// renamed or reordered entry changes the manifest checksum
+func hashArchiveMember(hasher hash.Hash, name string) {
+	_, _ = io.WriteString(hasher, name+"\n")
 }
 
 // memoryWriter implements io.Writer for in-memory buffer
@@ -409,19 +428,19 @@ func (w *memoryWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// encrypt encrypts data with AES-256-GCM per AI.md PART 25 lines 22410-22427
+// encrypt encrypts data with AES-256-GCM per AI.md PART 22 (Encryption)
 func (s *BackupService) encrypt(data []byte, password string) ([]byte, error) {
-	// Generate salt for key derivation per AI.md PART 25 line 22417
+	// Generate salt for key derivation per AI.md PART 22 (Encryption)
 	salt := make([]byte, 32)
 	if _, err := rand.Read(salt); err != nil {
 		return nil, err
 	}
 
-	// Derive key using Argon2id per AI.md PART 25 line 22417
+	// Derive key using Argon2id per AI.md PART 22 (Encryption)
 	// Parameters: time=1, memory=64MB, threads=4, keyLen=32 (256 bits)
 	key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
 
-	// Create AES-256-GCM cipher per AI.md PART 25 line 22416
+	// Create AES-256-GCM cipher per AI.md PART 22 (Encryption)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -450,15 +469,15 @@ func (s *BackupService) encrypt(data []byte, password string) ([]byte, error) {
 	return result, nil
 }
 
-// Verify verifies backup integrity per AI.md PART 25 lines 22544-22556
+// Verify verifies backup integrity per AI.md PART 22 (Verification)
 func (s *BackupService) Verify(backupPath, password string) error {
-	// File exists check per AI.md PART 25 line 22550
+	// File exists check per AI.md PART 22 (Verification)
 	info, err := os.Stat(backupPath)
 	if err != nil {
 		return fmt.Errorf("backup file does not exist: %w", err)
 	}
 
-	// Size > 0 check per AI.md PART 25 line 22551
+	// Size > 0 check per AI.md PART 22 (Verification)
 	if info.Size() == 0 {
 		return fmt.Errorf("backup file is empty")
 	}
@@ -469,19 +488,177 @@ func (s *BackupService) Verify(backupPath, password string) error {
 		return fmt.Errorf("failed to read backup: %w", err)
 	}
 
-	// Decrypt test if encrypted per AI.md PART 25 line 22553
-	if filepath.Ext(backupPath) == ".enc" || password != "" {
+	// Decrypt test if encrypted per AI.md PART 22 (Verification: decrypt test).
+	// Encryption is keyed off the .enc extension alone: a password supplied for
+	// a plaintext archive must not turn into a bogus decrypt failure.
+	if filepath.Ext(backupPath) == ".enc" {
 		if password == "" {
 			return fmt.Errorf("backup is encrypted but no password provided")
 		}
 
-		_, err := s.decrypt(data, password)
-		if err != nil {
-			return fmt.Errorf("decryption failed (wrong password?): %w", err)
+		plaintext, decErr := s.decrypt(data, password)
+		if decErr != nil {
+			return fmt.Errorf("decryption failed (wrong password?): %w", decErr)
+		}
+		data = plaintext
+	}
+
+	// Extract every member to a temp dir, recompute the content checksum and
+	// parse the manifest per AI.md PART 22 (Verification)
+	extractDir, err := verifyTempDir()
+	if err != nil {
+		return fmt.Errorf("failed to create verification directory: %w", err)
+	}
+	defer os.RemoveAll(extractDir)
+
+	manifest, contentChecksum, err := extractArchive(data, extractDir)
+	if err != nil {
+		return err
+	}
+
+	if manifest == nil {
+		return fmt.Errorf("backup manifest is missing")
+	}
+
+	if manifest.Checksum != "" && manifest.Checksum != contentChecksum {
+		return fmt.Errorf("checksum mismatch: manifest %s, archive %s", manifest.Checksum, contentChecksum)
+	}
+
+	// Database integrity per AI.md PART 22 (Verification: database integrity)
+	return verifyDatabases(extractDir)
+}
+
+// verifyTempDir creates the org/project scoped temp directory used to test
+// extract a backup, never a bare /tmp path
+func verifyTempDir() (string, error) {
+	base := filepath.Join(os.TempDir(), "webappsgo")
+	if err := os.MkdirAll(base, 0700); err != nil {
+		return "", err
+	}
+
+	return os.MkdirTemp(base, "wthr-verify-*")
+}
+
+// extractArchive expands a gzip tar backup into destDir, returning the parsed
+// manifest and the recomputed content checksum of every non-manifest member
+func extractArchive(data []byte, destDir string) (*Manifest, string, error) {
+	gzReader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", fmt.Errorf("backup is not a valid gzip archive: %w", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	contentHasher := sha256.New()
+
+	var manifest *Manifest
+	for {
+		header, readErr := tarReader.Next()
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return nil, "", fmt.Errorf("backup archive is corrupt: %w", readErr)
+		}
+
+		// Reject traversal and special members before touching the filesystem
+		target, pathErr := safeExtractPath(destDir, header.Name)
+		if pathErr != nil {
+			return nil, "", pathErr
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if header.Name != manifestEntryName {
+				hashArchiveMember(contentHasher, header.Name)
+			}
+			if mkErr := os.MkdirAll(target, 0700); mkErr != nil {
+				return nil, "", mkErr
+			}
+		case tar.TypeReg:
+			if mkErr := os.MkdirAll(filepath.Dir(target), 0700); mkErr != nil {
+				return nil, "", mkErr
+			}
+
+			out, createErr := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+			if createErr != nil {
+				return nil, "", createErr
+			}
+
+			var writer io.Writer = out
+			if header.Name != manifestEntryName {
+				hashArchiveMember(contentHasher, header.Name)
+				writer = io.MultiWriter(out, contentHasher)
+			}
+
+			if _, copyErr := io.Copy(writer, tarReader); copyErr != nil {
+				out.Close()
+				return nil, "", fmt.Errorf("failed to extract %s: %w", header.Name, copyErr)
+			}
+			out.Close()
+
+			if header.Name == manifestEntryName {
+				manifestData, readManifestErr := os.ReadFile(target)
+				if readManifestErr != nil {
+					return nil, "", readManifestErr
+				}
+
+				parsed := &Manifest{}
+				if jsonErr := json.Unmarshal(manifestData, parsed); jsonErr != nil {
+					return nil, "", fmt.Errorf("manifest is not readable: %w", jsonErr)
+				}
+				manifest = parsed
+			}
+		default:
+			return nil, "", fmt.Errorf("backup contains an unsupported entry type for %s", header.Name)
 		}
 	}
 
-	return nil
+	return manifest, fmt.Sprintf("sha256:%s", hex.EncodeToString(contentHasher.Sum(nil))), nil
+}
+
+// safeExtractPath resolves an archive member against destDir and rejects any
+// path that would escape it
+func safeExtractPath(destDir, name string) (string, error) {
+	if strings.Contains(name, "\x00") {
+		return "", fmt.Errorf("backup contains an invalid entry name")
+	}
+
+	cleaned := filepath.Clean(filepath.Join(destDir, name))
+	if cleaned != destDir && !strings.HasPrefix(cleaned, destDir+string(os.PathSeparator)) {
+		return "", fmt.Errorf("backup entry %s escapes the extraction directory", name)
+	}
+
+	return cleaned, nil
+}
+
+// verifyDatabases runs a SQLite integrity check over every extracted database
+// so a corrupt db can never be counted as a good backup
+func verifyDatabases(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || filepath.Ext(path) != ".db" {
+			return nil
+		}
+
+		db, openErr := sql.Open("sqlite", path)
+		if openErr != nil {
+			return fmt.Errorf("failed to open %s: %w", filepath.Base(path), openErr)
+		}
+		defer db.Close()
+
+		var result string
+		if queryErr := db.QueryRow("PRAGMA integrity_check").Scan(&result); queryErr != nil {
+			return fmt.Errorf("integrity check failed for %s: %w", filepath.Base(path), queryErr)
+		}
+		if result != "ok" {
+			return fmt.Errorf("integrity check failed for %s: %s", filepath.Base(path), result)
+		}
+
+		return nil
+	})
 }
 
 // decrypt decrypts AES-256-GCM encrypted data

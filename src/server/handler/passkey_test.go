@@ -38,7 +38,7 @@ func withPasskeyHost(r *http.Request) *http.Request {
 // withPasskeyUser attaches an authenticated user to the request context,
 // the same key middleware.AuthMiddleware sets on a real request.
 func withPasskeyUser(r *http.Request, user *models.User) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, user))
+	return r.WithContext(reqctx.SetValue(r.Context(), middleware.UserContextKey, user))
 }
 
 // withPasskeyURLParam attaches a chi route param to the request context.

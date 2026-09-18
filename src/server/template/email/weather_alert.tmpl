@@ -1,0 +1,54 @@
+Subject: {severity_emoji} Weather Alert: {event} - {area}
+---
+{severity_emoji} WEATHER ALERT
+
+This alert was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+
+────────────────────────────────────────────────────────────────────────
+EVENT: {event}
+────────────────────────────────────────────────────────────────────────
+
+  Area:     {area}
+  Severity: {severity}
+  Urgency:  {urgency}
+  Source:   {source}
+
+  Effective: {effective}
+  Expires:   {expires}
+
+────────────────────────────────────────────────────────────────────────
+DESCRIPTION
+────────────────────────────────────────────────────────────────────────
+
+{description}
+
+────────────────────────────────────────────────────────────────────────
+INSTRUCTIONS
+────────────────────────────────────────────────────────────────────────
+
+{instructions}
+
+────────────────────────────────────────────────────────────────────────
+
+View full alert details:
+{app_url}/severe-weather/{alert_id}
+
+View all active alerts:
+{app_url}/severe-weather
+
+Manage your alert subscriptions:
+{app_url}/settings/notifications
+
+────────────────────────────────────────────────────────────────────────
+
+This is an automated weather alert notification. You received this
+because you are subscribed to weather alerts for {area}.
+
+To unsubscribe from these alerts:
+{app_url}/alerts/unsubscribe?token={unsubscribe_token}
+
+--
+{app_name}
+{app_url}

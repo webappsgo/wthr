@@ -48,7 +48,7 @@ func newAdminInviteTestService(db *sql.DB) *AdminInviteService {
 func seedInviterAdmin(t *testing.T, db *sql.DB) int64 {
 	t.Helper()
 	am := &models.AdminModel{DB: db}
-	admin, err := am.Create("inviter", "inviter@example.com", "correct-horse-battery-staple", true)
+	admin, err := am.CreateAdminAccount("inviter", "inviter@example.com", "correct-horse-battery-staple", true)
 	if err != nil {
 		t.Fatalf("seed inviter admin: %v", err)
 	}

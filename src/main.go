@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 
 	"github.com/webappsgo/wthr/src/cli"
@@ -96,6 +97,25 @@ func registerHealthRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, f
 	r.Get("/api/healthz", api)
 	if rootAliasEnabled {
 		r.Get("/healthz", frontend)
+	}
+}
+
+// registerMetricsRoutes mounts the canonical metrics routes per AI.md PART 21
+// /server/metrics is the canonical route and defaults to the prometheus service,
+// /server/metrics/{service} selects prometheus, grafana, or loki, the API paths
+// mount the SAME handler, and the root /metrics alias is mounted only when
+// server.metrics.root.enabled is true
+// Aliases are always direct handler mappings, never redirects
+func registerMetricsRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, serve http.HandlerFunc) {
+	r.Get("/server/metrics", serve)
+	r.Get("/server/metrics/{service}", serve)
+	r.Get(apiPath+"/server/metrics", serve)
+	r.Get(apiPath+"/server/metrics/{service}", serve)
+	r.Get("/api/metrics", serve)
+	r.Get("/api/metrics/{service}", serve)
+	if rootAliasEnabled {
+		r.Get("/metrics", serve)
+		r.Get("/metrics/{service}", serve)
 	}
 }
 
@@ -224,7 +244,7 @@ func main() {
 	fmt.Printf("%s Running in mode: %s\n", display.Emoji("🔒", "*"), mode.ModeString())
 
 	// Initialize Prometheus metrics (AI.md PART 21 - NON-NEGOTIABLE)
-	metric.Init(Version, CommitID, BuildDate)
+	metric.InitMetricsAppInfo(Version, CommitID, BuildDate)
 
 	// Get OS-appropriate directory paths
 	dirPaths, err := util.GetDirectoryPaths()
@@ -481,19 +501,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Application mode (development/production/debug) is already resolved by
-	// mode.FromEnv() earlier in main() per AI.md PART 6 --mode/MODE precedence;
-	// this redundant envMode/gin.SetMode switch has been removed.
-
 	// Create chi router
 	r := chi.NewRouter()
 
-	// NOTE: gin's r.SetTrustedProxies([]string{...}) has no chi/project
-	// equivalent, so this call is dropped rather than translated. The
-	// project's AI.md PART 5/12 trusted-proxies gate is now implemented as
-	// server.trusted_proxies (src/config) + util.TrustedGetClientIP
-	// (src/util/trusted_proxies.go), which all call sites use instead of
-	// the unguarded util.GetClientIP. See TODO.AI.md item 171.
+	// The AI.md PART 5/12 trusted-proxies gate is implemented as
+	// server.trusted_proxies (src/config) plus util.TrustedGetClientIP
+	// (src/util/trusted_proxies.go), which every call site uses instead of
+	// the unguarded util.GetClientIP.
 
 	// AI.md PART 5: Middleware order - security first!
 	// 1. URL normalization (FIRST - normalize before anything else)
@@ -552,20 +566,18 @@ func main() {
 
 	// Path normalization handled by middleware.URLNormalizeMiddleware() and middleware.PathSecurityMiddleware()
 
-	// Serve embedded static files from server package
-	staticSubFS, err := server.GetStaticSubFS()
-	if err != nil {
-		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
-		log.Printf("Failed to get static subdirectory: %v", err)
-		os.Exit(1)
-	}
-	staticFileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS)))
-	r.Handle("/static/*", staticFileServer)
+	// Forward-declared so the middleware closures below (registered before any
+	// route, per chi's "all middlewares must be defined before routes on a
+	// mux" constraint) can close over them by reference; both are assigned
+	// further down, before any request can actually reach the closures.
+	var i18nService *i18n.I18n
+	var tmpl *template.Template
+	var templateFuncs template.FuncMap
 
 	// Initialize i18n service (TEMPLATE.md PART 29 - NON-NEGOTIABLE)
 	// AI.md PART 31 server chain: --lang > server.yml lang > LC_ALL/LANG > en
 	serverLang := config.ResolveLanguage(cfg)
-	i18nService, err := i18n.NewI18n(localesFS, serverLang)
+	i18nService, err = i18n.NewI18n(localesFS, serverLang)
 	if err != nil {
 		// General startup failure — embedded locale corruption (AI.md PART 8: exit code 1).
 		log.Printf("Failed to initialize i18n: %v", err)
@@ -620,11 +632,63 @@ func main() {
 				lang = "en"
 			}
 
-			ctx := reqctx.Set(r.Context(), "lang", lang)
-			ctx = reqctx.Set(ctx, "i18n", i18nService)
+			ctx := reqctx.SetValue(r.Context(), "lang", lang)
+			ctx = reqctx.SetValue(ctx, "i18n", i18nService)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
+
+	// Initialization check middleware - show loading page if not ready.
+	// Relocated here (from its original position, thousands of lines and many
+	// route registrations later) — chi requires all r.Use() calls on the root
+	// mux to precede every r.Handle()/r.Get()/etc. registered on it.
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/health") || strings.HasPrefix(r.URL.Path, "/server/healthz") || strings.HasPrefix(r.URL.Path, "/api") || strings.HasPrefix(r.URL.Path, "/debug") || strings.Contains(r.URL.Path, ".") {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if !handler.IsInitialized() {
+				handler.ServeLoadingPage(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
+	// Debug-mode live template reload — registered here (before any route) for
+	// the same chi mux-ordering reason as the middlewares above. templateFuncs
+	// is defined further below (needs i18nService, already assigned above);
+	// this closure only reads templateFuncs/tmpl when a request comes in, long
+	// after both are set, so the forward reference is safe.
+	debugTemplateReloadEnabled := false
+	if mode.IsDebugEnabled() {
+		if _, statErr := os.Stat("src/server/template"); statErr == nil {
+			debugTemplateReloadEnabled = true
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					t := template.New("").Funcs(templateFuncs)
+					patterns := []string{"src/server/template/*.tmpl", "src/server/template/*/*.tmpl", "src/server/template/*/*/*.tmpl"}
+					for _, pattern := range patterns {
+						t, _ = t.ParseGlob(pattern)
+					}
+					tmpl = t
+					middleware.SetHTMLTemplates(tmpl)
+					next.ServeHTTP(w, r)
+				})
+			})
+		}
+	}
+
+	// Serve embedded static files from server package
+	staticSubFS, err := server.GetStaticSubFS()
+	if err != nil {
+		// General startup failure — embedded asset corruption (AI.md PART 8: exit code 1).
+		log.Printf("Failed to get static subdirectory: %v", err)
+		os.Exit(1)
+	}
+	staticFileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS)))
+	r.Handle("/static/*", staticFileServer)
 
 	// Load embedded templates with custom functions from server package
 	// Get embedded templates filesystem
@@ -658,7 +722,7 @@ func main() {
 	}
 
 	// Create template function map with i18n support
-	templateFuncs := template.FuncMap{
+	templateFuncs = template.FuncMap{
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
 		"nextTheme": server.NextTheme,
@@ -685,7 +749,7 @@ func main() {
 	}
 
 	// Parse all templates - wrap those without {{define}} in a define block to preserve full path names
-	tmpl := template.New("").Funcs(templateFuncs)
+	tmpl = template.New("").Funcs(templateFuncs)
 	for _, path := range templatePaths {
 		content, err := fs.ReadFile(templatesSubFS, path)
 		if err != nil {
@@ -721,30 +785,12 @@ func main() {
 		_ = tmpl.ExecuteTemplate(w, name, data)
 	}
 
-	// Live reload templates in debug mode (loads from filesystem if available)
+	// Live reload templates in debug mode (loads from filesystem if available).
+	// The actual r.Use() registration already happened earlier (before any
+	// route), per chi's mux-ordering constraint — this block only logs which
+	// mode is active, using the decision made there (debugTemplateReloadEnabled).
 	if mode.IsDebugEnabled() {
-		if _, err := os.Stat("src/server/template"); err == nil {
-			r.Use(func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					// Try to reload from filesystem in debug mode
-					t := template.New("").Funcs(templateFuncs)
-					// Load all templates including subdirectories
-					// Note: This loads from filesystem, so paths are relative to src/server/template/
-					patterns := []string{
-						"src/server/template/*.tmpl",
-						"src/server/template/*/*.tmpl",
-						"src/server/template/*/*/*.tmpl",
-					}
-					for _, pattern := range patterns {
-						t, _ = t.ParseGlob(pattern)
-					}
-					// Need to rename templates to remove "src/server/template/" prefix for consistency
-					// This is a bit hacky but necessary for live reload
-					tmpl = t
-					middleware.SetHTMLTemplates(tmpl)
-					next.ServeHTTP(w, r)
-				})
-			})
+		if debugTemplateReloadEnabled {
 			fmt.Printf("%s Live reload enabled for templates (using filesystem)\n", display.Emoji("🔄", "->"))
 		} else {
 			fmt.Printf("%s Using embedded templates (no filesystem template found)\n", display.Emoji("📦", "*"))
@@ -1032,7 +1078,7 @@ func main() {
 	}
 
 	// Start the scheduler
-	taskScheduler.Start()
+	taskScheduler.StartScheduler()
 
 	// Schedule WebUI notification cleanup tasks (TEMPLATE.md Part 25)
 	// Note: NotificationCleaner will be initialized after NotificationService is created
@@ -1086,7 +1132,7 @@ func main() {
 	// Initialize WebSocket Hub for real-time notifications (TEMPLATE.md Part 25)
 	wsHub := service.NewWebSocketHub()
 	// Start hub in goroutine
-	go wsHub.Run()
+	go wsHub.RunWebSocketHub()
 
 	// Initialize Notification Service (TEMPLATE.md Part 25 - WebUI Notifications)
 	notificationService := &service.NotificationService{
@@ -1246,8 +1292,8 @@ func main() {
 	httpsAddr := fmt.Sprintf("127.0.0.1:%d", httpsPortInt)
 	sslHandler := handler.NewSSLHandler(sslCertsDir, db.DB, httpsAddr)
 
-	// Create metrics handler
-	metricsConfigHandler := handler.NewMetricsHandler()
+	// Create the admin metrics handler over the process registry
+	metricsConfigHandler := handler.NewAdminMetricsHandler(prometheus.DefaultGatherer)
 
 	// Create logging handler
 	loggingHandler := handler.NewLoggingHandler(dirPaths.Log)
@@ -1293,8 +1339,28 @@ func main() {
 	r.Get("/health/ready", handler.ReadinessCheck(db, startTime))
 	r.Get("/health/full", handler.FullHealthCheck(db, startTime))
 
-	// Prometheus metrics endpoint (TEMPLATE.md required - optional auth)
-	r.Get("/metrics", handler.PrometheusMetrics())
+	// Metrics endpoints (AI.md PART 21) - internal only, per-service bearer tokens
+	prometheusMetricsHandler := handler.NewMetricsHandler(cfg.Server.Metrics, dirPaths.Log)
+	registerMetricsRoutes(r, cfg.GetAPIPath(), prometheusMetricsHandler.RootAliasEnabled(),
+		prometheusMetricsHandler.ServeMetricsService)
+
+	// A service with no configured token is disabled; record why once, in the log
+	// file only, and never record the token values themselves
+	if cfg.Server.Metrics.Enabled && !cfg.Server.Metrics.Auth.AllowUnauthenticated {
+		for _, service := range []string{handler.MetricServicePrometheus, handler.MetricServiceGrafana, handler.MetricServiceLoki} {
+			if cfg.Server.Metrics.Auth.Tokens[service] == "" {
+				appLogger.Server("Metrics service %s disabled: no bearer token configured", service)
+			}
+		}
+	}
+
+	// System and Go runtime metric collection (AI.md PART 21)
+	var systemCollector *metric.SystemCollector
+	if cfg.Server.Metrics.Enabled && (cfg.Server.Metrics.IncludeSystem || cfg.Server.Metrics.IncludeRuntime) {
+		systemCollector = metric.NewSystemCollector(dirPaths.Data, metric.DefaultCollectInterval,
+			cfg.Server.Metrics.IncludeSystem, cfg.Server.Metrics.IncludeRuntime)
+		systemCollector.StartSystemCollector()
+	}
 
 	// security.txt endpoint (RFC 9116 - TEMPLATE.md PART 25)
 	r.Get("/.well-known/security.txt", adminWebHandler.ServeSecurityTxt)
@@ -1729,7 +1795,7 @@ func main() {
 		}
 
 		userModel := &model.UserModel{DB: db.DB}
-		user, err := userModel.Create(username, invite.Email, req.Password, invite.Role)
+		user, err := userModel.CreateUserAccount(username, invite.Email, req.Password, invite.Role)
 		if err != nil {
 			renderUserInvitePage(w, r, http.StatusBadRequest, map[string]interface{}{
 				"code":       token,
@@ -1769,7 +1835,7 @@ func main() {
 		}
 
 		sessionModel := &model.SessionModel{DB: db.DB}
-		session, err := sessionModel.Create(user.ID, 2592000)
+		session, err := sessionModel.CreateSession(user.ID, 2592000)
 		if err != nil {
 			renderUserInvitePage(w, r, http.StatusInternalServerError, map[string]interface{}{
 				"code":       token,
@@ -2630,7 +2696,7 @@ func main() {
 		adminSelfAPI.Use(handler.RequireAdminSelfAPI())
 
 		getCurrentAdmin := func(w http.ResponseWriter, req *http.Request) (*model.Admin, bool) {
-			adminValue, exists := reqctx.Get(req.Context(), "admin")
+			adminValue, exists := reqctx.GetValue(req.Context(), "admin")
 			if !exists {
 				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
 				return nil, false
@@ -2965,7 +3031,7 @@ func main() {
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
-				if err := settingsModel.Set("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
+				if err := settingsModel.SetSetting("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
@@ -2998,7 +3064,7 @@ func main() {
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
-				if err := settingsModel.Set("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
+				if err := settingsModel.SetSetting("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
@@ -3035,7 +3101,7 @@ func main() {
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
-				if err := settingsModel.Set("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
+				if err := settingsModel.SetSetting("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
@@ -3059,7 +3125,7 @@ func main() {
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
-				if err := settingsModel.Set("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
+				if err := settingsModel.SetSetting("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
 					return
 				}
@@ -3157,7 +3223,7 @@ func main() {
 				return
 			}
 
-			if err := adminModel.Update(admin.ID, username, email); err != nil {
+			if err := adminModel.UpdateAdminAccount(admin.ID, username, email); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update profile"})
 				return
 			}
@@ -3491,7 +3557,7 @@ func main() {
 				return
 			}
 
-			if err := adminModel.Delete(id); err != nil {
+			if err := adminModel.DeleteAdminAccount(id); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
 				return
 			}
@@ -3538,7 +3604,7 @@ func main() {
 				}
 			}
 
-			if err := adminModel.Update(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, false); err != nil {
+			if err := adminModel.UpdateAdminAccount(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, false); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to disable admin"})
 				return
 			}
@@ -3558,7 +3624,7 @@ func main() {
 				return
 			}
 
-			if err := adminModel.Update(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, true); err != nil {
+			if err := adminModel.UpdateAdminAccount(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, true); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to enable admin"})
 				return
 			}
@@ -3679,7 +3745,7 @@ func main() {
 		{
 			i2pAPI.Get("/", i2pAdminHandler.GetStatus)
 			i2pAPI.Patch("/", i2pAdminHandler.UpdateSettings)
-			i2pAPI.Post("/validate", i2pAdminHandler.Validate)
+			i2pAPI.Post("/validate", i2pAdminHandler.ValidateI2PConfig)
 			i2pAPI.Post("/regenerate", i2pAdminHandler.Regenerate)
 			i2pAPI.Post("/restart", i2pAdminHandler.Restart)
 		}
@@ -3747,14 +3813,11 @@ func main() {
 		metricsAPI := chi.NewRouter()
 		adminAPI.Mount("/config/metrics", metricsAPI)
 		{
-			metricsAPI.Get("/config", metricsConfigHandler.GetConfig)
-			metricsAPI.Put("/config", metricsConfigHandler.UpdateConfig)
-			metricsAPI.Get("/stats", metricsConfigHandler.GetStats)
-			metricsAPI.Get("/list", metricsConfigHandler.ListMetrics)
-			metricsAPI.Post("/custom", metricsConfigHandler.CreateMetric)
-			metricsAPI.Delete("/custom/{name}", metricsConfigHandler.DeleteMetric)
+			metricsAPI.Get("/config", metricsConfigHandler.GetMetricsSettings)
+			metricsAPI.Put("/config", metricsConfigHandler.UpdateMetricsSettings)
+			metricsAPI.Get("/stats", metricsConfigHandler.GetMetricsStats)
+			metricsAPI.Get("/list", metricsConfigHandler.ListRegisteredMetrics)
 			metricsAPI.Get("/export", metricsConfigHandler.ExportMetrics)
-			metricsAPI.Put("/toggle/{name}", metricsConfigHandler.ToggleMetric)
 		}
 
 		// Advanced logging formats under /server/
@@ -3999,29 +4062,6 @@ JSON API:
 	// OLD: /api/earthquakes and /api/hurricanes redirects removed
 	// Use versioned endpoints: /api/{api_version}/earthquakes and /api/{api_version}/hurricanes
 
-	// Initialization check middleware - show loading page if not ready
-	r.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip for health checks, API routes, and static files
-			if strings.HasPrefix(r.URL.Path, "/health") ||
-				strings.HasPrefix(r.URL.Path, "/server/healthz") ||
-				strings.HasPrefix(r.URL.Path, "/api") ||
-				strings.HasPrefix(r.URL.Path, "/debug") ||
-				strings.Contains(r.URL.Path, ".") {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			// Show loading page if not initialized
-			if !handler.IsInitialized() {
-				handler.ServeLoadingPage(w, r)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	})
-
 	// Theme toggle (AI.md PART 16 Theme Switching) - POST form, works without JS
 	r.Post("/theme", server.SetThemeHandler)
 
@@ -4107,7 +4147,7 @@ JSON API:
 	}()
 
 	// Start Tor hidden service after HTTP server starts
-	if err := torService.Start(httpPortInt); err != nil {
+	if err := torService.StartTorService(httpPortInt); err != nil {
 		log.Printf("Failed to start Tor hidden service: %v", err)
 		fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
@@ -4117,7 +4157,7 @@ JSON API:
 	// A missing provider is a warning, never fatal.
 	if i2pManager != nil {
 		i2pManager.SetBackendPort(httpPortInt)
-		if err := i2pManager.Start(); err != nil {
+		if err := i2pManager.StartI2PManager(); err != nil {
 			log.Printf("Failed to start I2P eepsite: %v", err)
 			fmt.Printf("%s Failed to start I2P eepsite: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		}
@@ -4125,7 +4165,7 @@ JSON API:
 
 	// Start config file watcher for live reload
 	if configWatcher != nil {
-		if err := configWatcher.Start(); err != nil {
+		if err := configWatcher.StartConfigWatcher(); err != nil {
 			log.Printf("Failed to start config watcher: %v", err)
 			fmt.Printf("%s Failed to start config watcher: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 		}
@@ -4190,10 +4230,15 @@ JSON API:
 			log.Println("INFO: Received shutdown signal, shutting down gracefully...")
 
 			// Stop scheduler
-			taskScheduler.Stop()
+			taskScheduler.StopScheduler()
+
+			// Stop system metric collection (AI.md PART 21)
+			if systemCollector != nil {
+				systemCollector.StopSystemCollector()
+			}
 
 			// Stop Tor service
-			if err := torService.Stop(); err != nil {
+			if err := torService.StopTorService(); err != nil {
 				log.Printf("Tor shutdown error: %v", err)
 				fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 			}
@@ -4208,7 +4253,7 @@ JSON API:
 
 			// Stop config watcher
 			if configWatcher != nil {
-				if err := configWatcher.Stop(); err != nil {
+				if err := configWatcher.StopConfigWatcher(); err != nil {
 					log.Printf("Config watcher shutdown error: %v", err)
 					fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
@@ -4241,10 +4286,15 @@ JSON API:
 				log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
 
 				// Stop scheduler
-				taskScheduler.Stop()
+				taskScheduler.StopScheduler()
+
+				// Stop system metric collection (AI.md PART 21)
+				if systemCollector != nil {
+					systemCollector.StopSystemCollector()
+				}
 
 				// Stop Tor service
-				if err := torService.Stop(); err != nil {
+				if err := torService.StopTorService(); err != nil {
 					log.Printf("Tor shutdown error: %v", err)
 					fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 				}
@@ -4259,7 +4309,7 @@ JSON API:
 
 				// Stop config watcher
 				if configWatcher != nil {
-					if err := configWatcher.Stop(); err != nil {
+					if err := configWatcher.StopConfigWatcher(); err != nil {
 						log.Printf("Config watcher shutdown error: %v", err)
 						fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 					}

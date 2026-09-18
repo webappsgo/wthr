@@ -19,7 +19,7 @@ func newPasskeyTestUser(t *testing.T, usersDB *sql.DB, username, password string
 	// struct's injected DB field, so the global dual-DB must be wired for
 	// these calls to hit this in-memory database instead of nil-panicking.
 	setGlobalTestDualDB(t, usersDB, usersDB)
-	user, err := (&models.UserModel{DB: usersDB}).Create(username, username+"@example.com", password, "user")
+	user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount(username, username+"@example.com", password, "user")
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)
 	}

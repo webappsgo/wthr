@@ -222,7 +222,7 @@ func TestTorAdminHandler_GetVanityStatus(t *testing.T) {
 
 	t.Run("started returns full status fields", func(t *testing.T) {
 		h := newTorTestHandler(t)
-		if err := h.vanityGenerator.Start("ab"); err != nil {
+		if err := h.vanityGenerator.StartVanityGeneration("ab"); err != nil {
 			t.Fatalf("start: %v", err)
 		}
 		defer h.vanityGenerator.Cancel()
@@ -254,7 +254,7 @@ func TestTorAdminHandler_CancelVanity(t *testing.T) {
 
 	t.Run("running generation cancels successfully", func(t *testing.T) {
 		h := newTorTestHandler(t)
-		if err := h.vanityGenerator.Start("ab"); err != nil {
+		if err := h.vanityGenerator.StartVanityGeneration("ab"); err != nil {
 			t.Fatalf("start: %v", err)
 		}
 		c, w := newTestContext(http.MethodPost, "/admin/tor/vanity/cancel")

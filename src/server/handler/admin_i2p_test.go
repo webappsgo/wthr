@@ -161,7 +161,7 @@ func TestI2PAdminHandler_ValidateAcceptsDefaults(t *testing.T) {
 	h := newI2PTestHandler(t)
 	body := config.DefaultI2PConfig()
 	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/i2p/validate", body)
-	h.Validate(w, c)
+	h.ValidateI2PConfig(w, c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
@@ -566,7 +566,7 @@ func TestI2PAdminHandler_ValidateFormSubmission(t *testing.T) {
 	t.Run("valid values", func(t *testing.T) {
 		req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p/validate", "enabled=true&inbound_length=3&outbound_length=3")
 		rec := httptest.NewRecorder()
-		h.Validate(rec, req)
+		h.ValidateI2PConfig(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 		}
@@ -575,7 +575,7 @@ func TestI2PAdminHandler_ValidateFormSubmission(t *testing.T) {
 	t.Run("rejected values", func(t *testing.T) {
 		req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p/validate", "enabled=true&inbound_length=abc")
 		rec := httptest.NewRecorder()
-		h.Validate(rec, req)
+		h.ValidateI2PConfig(rec, req)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
 		}

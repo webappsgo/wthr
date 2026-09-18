@@ -7,6 +7,21 @@
   'use strict';
 
   // ============================================
+  // API PATHS
+  // ============================================
+
+  // Rendered by partial/head.tmpl as a JSON data island; CSP forbids inline executable script.
+  (function readApiPaths() {
+    const el = document.getElementById('api-paths-data');
+    if (!el) return;
+    try {
+      window.API_PATHS = JSON.parse(el.textContent);
+    } catch (err) {
+      console.error('Failed to parse api-paths-data:', err);
+    }
+  })();
+
+  // ============================================
   // UTILITY FUNCTIONS
   // ============================================
 
@@ -17,6 +32,15 @@
     dispatchEvent: function(eventName, detail = {}) {
       const event = new CustomEvent(eventName, { detail, bubbles: true });
       document.dispatchEvent(event);
+    },
+
+    /**
+     * Escape a string for safe interpolation into an HTML fragment
+     */
+    escapeHtml: function(text) {
+      const div = document.createElement('div');
+      div.textContent = text == null ? '' : String(text);
+      return div.innerHTML;
     },
 
     /**
@@ -748,6 +772,69 @@
   // ============================================
 
   document.addEventListener('DOMContentLoaded', function() {
+    // Language selector: delegated so no inline onchange is needed (CSP blocks inline handlers)
+    document.addEventListener('change', function(e) {
+      const select = e.target.closest('select[data-action="switch-language"]');
+      if (!select) return;
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', select.value);
+      window.location.assign(url.toString());
+    });
+
+    // A checkbox that shows/hides another element, optionally toggling `required`
+    // on the fields inside it. data-toggle-invert means "checked hides the target".
+    function applyCheckboxToggle(box) {
+      const target = document.querySelector(box.dataset.toggleTarget);
+      if (!target) return;
+      const invert = box.dataset.toggleInvert === 'true';
+      const visible = invert ? !box.checked : box.checked;
+      target.classList.toggle('hidden', !visible);
+      if (box.dataset.toggleRequired === 'true') {
+        target.querySelectorAll('input, select, textarea').forEach(function(field) {
+          if (visible) {
+            field.setAttribute('required', 'required');
+          } else {
+            field.removeAttribute('required');
+          }
+        });
+      }
+    }
+    document.querySelectorAll('input[type="checkbox"][data-toggle-target]').forEach(applyCheckboxToggle);
+
+    // A checkbox that gates another control (e.g. "I saved my token" -> enable Continue)
+    function applyCheckboxGate(box) {
+      const target = document.querySelector(box.dataset.enables);
+      if (target) target.disabled = !box.checked;
+    }
+    document.querySelectorAll('input[type="checkbox"][data-enables]').forEach(applyCheckboxGate);
+
+    document.addEventListener('change', function(e) {
+      const box = e.target.closest('input[type="checkbox"]');
+      if (!box) return;
+      if (box.dataset.toggleTarget) applyCheckboxToggle(box);
+      if (box.dataset.enables) applyCheckboxGate(box);
+    });
+
+    // Confirmation fields validate against their partner natively so the browser
+    // blocks submission and :user-invalid styling applies - no alert() needed.
+    document.addEventListener('input', function(e) {
+      const field = e.target.closest('input[data-match-with]');
+      if (!field) return;
+      const partner = document.querySelector(field.dataset.matchWith);
+      if (!partner) return;
+      field.setCustomValidity(field.value === partner.value ? '' : (field.dataset.mismatchMessage || 'Values do not match'));
+    });
+
+    // PART 16: submit buttons disable immediately and show a loading label
+    document.addEventListener('submit', function(e) {
+      const form = e.target;
+      if (e.defaultPrevented) return;
+      const btn = form.querySelector('button[type="submit"][data-loading-label]');
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = btn.dataset.loadingLabel;
+    });
+
     // Close dropdowns when clicking outside
     document.addEventListener('click', function(e) {
       if (!e.target.closest('.profile-avatar') && !e.target.closest('.notification-bell') && !e.target.closest('.dropdown')) {
@@ -897,6 +984,13 @@
   if (document.querySelector('.notification-bell')) {
     Notifications.startPolling();
   }
+
+  // Pages whose data goes stale opt in with <body data-auto-refresh-seconds="N">
+  (function autoRefreshPage() {
+    const seconds = parseInt(document.body.dataset.autoRefreshSeconds, 10);
+    if (!seconds || seconds <= 0) return;
+    setTimeout(function() { window.location.reload(); }, seconds * 1000);
+  })();
 
   // ============================================
   // ADMIN PANEL (AI.md PART 18)
@@ -2217,10 +2311,10 @@
       const result = document.getElementById('test-result');
       result.className = 'alert alert-' + (type === 'success' ? 'success' : 'danger');
       result.textContent = message;
-      result.style.display = 'block';
+      result.classList.remove('d-none');
 
       setTimeout(function() {
-        result.style.display = 'none';
+        result.classList.add('d-none');
       }, 5000);
     },
 
@@ -2461,75 +2555,204 @@
       document.getElementById(tab.dataset.tab).classList.add('active');
     },
 
+    /**
+     * Base path of the admin metrics API, derived from the rendered payload.
+     */
+    apiBase: function() {
+      return AdminMetricsPage.getData().adminApiPath + '/server/metrics';
+    },
+
+    /**
+     * Populate the live registry counters from the /stats endpoint.
+     */
     loadStats: function() {
-      fetch(AdminMetricsPage.getData().adminApiPath + '/server/metrics/stats')
+      fetch(AdminMetricsPage.apiBase() + '/stats')
         .then(function(response) { return response.json(); })
         .then(function(data) {
-          document.getElementById('totalMetrics').textContent = data.total || 0;
-          document.getElementById('enabledMetrics').textContent = data.enabled || 0;
-          document.getElementById('customMetrics').textContent = data.custom || 0;
+          document.getElementById('totalMetrics').textContent = data.families || 0;
+          document.getElementById('seriesMetrics').textContent = data.series || 0;
         })
-        .catch(function(error) {
-          console.error('Failed to load stats:', error);
+        .catch(function() {
+          AdminMetricsPage.showError(AdminMetricsPage.getData().msgLoadError);
         });
     },
 
+    /**
+     * Load the stored metrics settings into the form. Configured tokens come
+     * back masked, so submitting the mask unchanged preserves the stored value.
+     */
+    loadSettings: function() {
+      fetch(AdminMetricsPage.apiBase() + '/config')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          const tokens = data.tokens || {};
+
+          document.getElementById('metricsEnabled').checked = !!data.enabled;
+          document.getElementById('rootAliasEnabled').checked = !!data.rootAliasEnabled;
+          document.getElementById('allowUnauthenticated').checked = !!data.allowUnauthenticated;
+          document.getElementById('includeSystem').checked = !!data.includeSystem;
+          document.getElementById('includeRuntime').checked = !!data.includeRuntime;
+          document.getElementById('lokiMaxEntries').value = data.lokiMaxEntries || 0;
+          document.getElementById('lokiMaxAge').value = data.lokiMaxAge || '';
+          document.getElementById('tokenPrometheus').value = tokens.prometheus || '';
+          document.getElementById('tokenGrafana').value = tokens.grafana || '';
+          document.getElementById('tokenLoki').value = tokens.loki || '';
+
+          AdminMetricsPage.renderIntegration(!!data.rootAliasEnabled);
+        })
+        .catch(function() {
+          AdminMetricsPage.showError(AdminMetricsPage.getData().msgLoadError);
+        });
+    },
+
+    /**
+     * Show the scrape target using the host the admin is already browsing,
+     * never a hardcoded loopback or placeholder address.
+     */
+    renderIntegration: function(rootAliasEnabled) {
+      const path = rootAliasEnabled ? '/metrics' : AdminMetricsPage.getData().apiPath + '/server/metrics';
+      const endpoint = window.location.origin + path;
+
+      document.getElementById('metricsEndpointDisplay').textContent = endpoint;
+      document.getElementById('scrapeConfigDisplay').textContent =
+        'scrape_configs:\n' +
+        '  - job_name: wthr\n' +
+        '    metrics_path: ' + path + '\n' +
+        '    scheme: ' + window.location.protocol.replace(':', '') + '\n' +
+        '    static_configs:\n' +
+        '      - targets: [' + window.location.host + ']';
+    },
+
+    /**
+     * Render the live registry contents into the registered-metrics table.
+     */
+    loadRegistered: function() {
+      fetch(AdminMetricsPage.apiBase() + '/list')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          const body = document.getElementById('registeredMetricsBody');
+          const metrics = data.metrics || [];
+
+          body.textContent = '';
+
+          if (metrics.length === 0) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 4;
+            cell.className = 'text-center text-muted p-3';
+            cell.textContent = AdminMetricsPage.getData().registeredEmpty;
+            row.appendChild(cell);
+            body.appendChild(row);
+            return;
+          }
+
+          metrics.forEach(function(metric) {
+            const row = document.createElement('tr');
+            [metric.name, metric.type, metric.series, metric.help].forEach(function(value) {
+              const cell = document.createElement('td');
+              cell.textContent = value === undefined || value === null ? '' : String(value);
+              row.appendChild(cell);
+            });
+            body.appendChild(row);
+          });
+        })
+        .catch(function() {
+          AdminMetricsPage.showError(AdminMetricsPage.getData().msgLoadError);
+        });
+    },
+
+    /**
+     * Persist the metrics settings. Token fields left at their masked value
+     * are sent back unchanged and the server keeps the stored secret.
+     */
     saveConfig: function(e) {
       e.preventDefault();
 
-      const config = {
-        enabled: document.getElementById('prometheusEnabled').checked,
-        path: document.getElementById('metricsPath').value,
-        namespace: document.getElementById('namespace').value,
-        subsystem: document.getElementById('subsystem').value,
-        includeGoMetrics: document.getElementById('includeGoMetrics').checked,
-        includeProcessMetrics: document.getElementById('includeProcessMetrics').checked
+      const form = e.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const savingLabel = submitBtn ? submitBtn.dataset.labelSaving : '';
+      const savedLabel = submitBtn ? submitBtn.dataset.labelSave : '';
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        if (savingLabel) submitBtn.textContent = savingLabel;
+      }
+
+      const settings = {
+        enabled: document.getElementById('metricsEnabled').checked,
+        rootAliasEnabled: document.getElementById('rootAliasEnabled').checked,
+        allowUnauthenticated: document.getElementById('allowUnauthenticated').checked,
+        includeSystem: document.getElementById('includeSystem').checked,
+        includeRuntime: document.getElementById('includeRuntime').checked,
+        lokiMaxEntries: parseInt(document.getElementById('lokiMaxEntries').value, 10) || 0,
+        lokiMaxAge: document.getElementById('lokiMaxAge').value,
+        tokens: {
+          prometheus: document.getElementById('tokenPrometheus').value,
+          grafana: document.getElementById('tokenGrafana').value,
+          loki: document.getElementById('tokenLoki').value
+        }
       };
 
-      fetch(AdminMetricsPage.getData().adminApiPath + '/server/metrics/config', {
+      fetch(AdminMetricsPage.apiBase() + '/config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': AdminMetricsPage.getData().csrfToken
+        },
+        body: JSON.stringify(settings)
       })
         .then(function(response) {
-          if (!response.ok) throw new Error('Failed to save configuration');
-          AdminMetricsPage.showSuccess('Prometheus configuration saved successfully!');
+          if (!response.ok) throw new Error('save failed');
+          AdminMetricsPage.showSuccess(form.dataset.msgSaved);
+          AdminMetricsPage.loadSettings();
         })
-        .catch(function(error) {
-          AdminMetricsPage.showError('Failed to save configuration: ' + error.message);
+        .catch(function() {
+          AdminMetricsPage.showError(form.dataset.msgError);
+        })
+        .finally(function() {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            if (savedLabel) submitBtn.textContent = savedLabel;
+          }
         });
     },
 
-    testEndpoint: function() {
-      fetch('/metrics')
+    /**
+     * Verify the admin export endpoint responds, which exercises the same
+     * gatherer the public exposition endpoint uses without needing a token.
+     */
+    testEndpoint: function(e) {
+      const button = e.target;
+
+      fetch(AdminMetricsPage.apiBase() + '/export')
         .then(function(response) {
-          return response.text().then(function(text) {
-            if (response.ok) {
-              AdminMetricsPage.showSuccess('Prometheus endpoint is working! Check browser console for output.');
-              console.log('Metrics output:', text);
-            } else {
-              AdminMetricsPage.showError('Endpoint returned error: ' + response.status);
-            }
-          });
+          if (response.ok) {
+            AdminMetricsPage.showSuccess(button.dataset.msgSuccess);
+          } else {
+            AdminMetricsPage.showError(button.dataset.msgError);
+          }
         })
-        .catch(function(error) {
-          AdminMetricsPage.showError('Failed to test endpoint: ' + error.message);
+        .catch(function() {
+          AdminMetricsPage.showError(button.dataset.msgError);
         });
     },
 
-    exportPrometheus: function() {
-      fetch('/metrics')
-        .then(function(response) { return response.text(); })
+    /**
+     * Fetch one export format into the preview pane.
+     */
+    exportFormat: function(format) {
+      const query = format ? '?format=' + encodeURIComponent(format) : '';
+
+      fetch(AdminMetricsPage.apiBase() + '/export' + query)
+        .then(function(response) {
+          if (!response.ok) throw new Error('export failed');
+          return response.text();
+        })
         .then(function(text) {
           document.getElementById('exportPreview').textContent = text;
-        });
-    },
-
-    exportJson: function() {
-      fetch(AdminMetricsPage.getData().adminApiPath + '/server/metrics/export?format=json')
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-          document.getElementById('exportPreview').textContent = JSON.stringify(data, null, 2);
+        })
+        .catch(function() {
+          AdminMetricsPage.showError(AdminMetricsPage.getData().msgExportError);
         });
     },
 
@@ -2556,10 +2779,19 @@
 
       document.getElementById('prometheusForm').addEventListener('submit', AdminMetricsPage.saveConfig);
       document.getElementById('testPrometheusBtn').addEventListener('click', AdminMetricsPage.testEndpoint);
-      document.getElementById('exportPrometheusBtn').addEventListener('click', AdminMetricsPage.exportPrometheus);
-      document.getElementById('exportJsonBtn').addEventListener('click', AdminMetricsPage.exportJson);
+      document.getElementById('exportPrometheusBtn').addEventListener('click', function() {
+        AdminMetricsPage.exportFormat('');
+      });
+      document.getElementById('exportJsonBtn').addEventListener('click', function() {
+        AdminMetricsPage.exportFormat('json');
+      });
+      document.getElementById('exportOpenMetricsBtn').addEventListener('click', function() {
+        AdminMetricsPage.exportFormat('openmetrics');
+      });
 
       AdminMetricsPage.loadStats();
+      AdminMetricsPage.loadSettings();
+      AdminMetricsPage.loadRegistered();
     }
   };
 
@@ -2821,7 +3053,7 @@
       const preview = document.getElementById(taskId + '_preview');
       if (!preview) return;
       if (!expr || expr.trim() === '') {
-        preview.style.display = 'none';
+        preview.classList.add('hidden');
         return;
       }
 
@@ -2846,7 +3078,7 @@
       }
 
       preview.innerHTML = '<div class="cron-preview-title">Next Run:</div><div class="cron-preview-times">' + description + '</div>';
-      preview.style.display = 'block';
+      preview.classList.remove('hidden');
     },
 
     showSuccess: function(msg) {
@@ -4586,24 +4818,24 @@
         document.getElementById('qrCodeContainer').innerHTML = `<img src="${data.qr_code}" alt="QR Code">`;
         document.getElementById('manualSecret').value = data.secret;
 
-        document.getElementById('setup2FAModal').style.display = 'flex';
-        document.getElementById('setupStep1').style.display = 'block';
-        document.getElementById('setupStep2').style.display = 'none';
-        document.getElementById('setupStep3').style.display = 'none';
+        document.getElementById('setup2FAModal').classList.add('active');
+        document.getElementById('setupStep1').classList.remove('d-none');
+        document.getElementById('setupStep2').classList.add('d-none');
+        document.getElementById('setupStep3').classList.add('d-none');
       } catch (error) {
         Toast.error('Failed to setup 2FA: ' + error.message);
       }
     },
 
     nextSetupStep: function() {
-      document.getElementById('setupStep1').style.display = 'none';
-      document.getElementById('setupStep2').style.display = 'block';
+      document.getElementById('setupStep1').classList.add('d-none');
+      document.getElementById('setupStep2').classList.remove('d-none');
       document.getElementById('verificationCode').focus();
     },
 
     prevSetupStep: function() {
-      document.getElementById('setupStep2').style.display = 'none';
-      document.getElementById('setupStep1').style.display = 'block';
+      document.getElementById('setupStep2').classList.add('d-none');
+      document.getElementById('setupStep1').classList.remove('d-none');
     },
 
     registerPasskey: async function() {
@@ -4650,10 +4882,10 @@
         if (finishPayload.recovery_keys) {
           SecurityPage.recoveryKeysList = finishPayload.recovery_keys;
           document.getElementById('recoveryKeysContainer').innerHTML = SecurityPage.recoveryKeysList.map((key) => `<div class="recovery-key">${key}</div>`).join('');
-          document.getElementById('setup2FAModal').style.display = 'flex';
-          document.getElementById('setupStep1').style.display = 'none';
-          document.getElementById('setupStep2').style.display = 'none';
-          document.getElementById('setupStep3').style.display = 'block';
+          document.getElementById('setup2FAModal').classList.add('active');
+          document.getElementById('setupStep1').classList.add('d-none');
+          document.getElementById('setupStep2').classList.add('d-none');
+          document.getElementById('setupStep3').classList.remove('d-none');
         } else {
           window.location.reload();
         }
@@ -4663,7 +4895,8 @@
     },
 
     deletePasskey: async function(passkeyID, name) {
-      if (!confirm(`Delete passkey "${name}"?`)) {
+      const confirmed = await showConfirm(`Delete passkey "${Utils.escapeHtml(name)}"?`, 'Delete Passkey');
+      if (!confirmed) {
         return;
       }
 
@@ -4709,23 +4942,23 @@
     },
 
     closeSetupModal: function() {
-      document.getElementById('setup2FAModal').style.display = 'none';
+      document.getElementById('setup2FAModal').classList.remove('active');
       document.getElementById('verificationCode').value = '';
       SecurityPage.setup2FASecret = '';
       SecurityPage.recoveryKeysList = [];
     },
 
     disable2FA: function() {
-      document.getElementById('disable2FAModal').style.display = 'flex';
+      document.getElementById('disable2FAModal').classList.add('active');
     },
 
     closeDisableModal: function() {
-      document.getElementById('disable2FAModal').style.display = 'none';
+      document.getElementById('disable2FAModal').classList.remove('active');
       document.getElementById('disablePassword').value = '';
     },
 
     regenerateRecoveryKeys: async function() {
-      const code = prompt('Enter your authenticator code to regenerate recovery keys:');
+      const code = await showPrompt('Enter your authenticator code to regenerate recovery keys:', '', 'Regenerate Recovery Keys');
       if (!code) return;
 
       try {
@@ -4744,10 +4977,10 @@
         SecurityPage.recoveryKeysList = data.recovery_keys;
 
         SecurityPage.displayRecoveryKeys(SecurityPage.recoveryKeysList);
-        document.getElementById('setup2FAModal').style.display = 'flex';
-        document.getElementById('setupStep1').style.display = 'none';
-        document.getElementById('setupStep2').style.display = 'none';
-        document.getElementById('setupStep3').style.display = 'block';
+        document.getElementById('setup2FAModal').classList.add('active');
+        document.getElementById('setupStep1').classList.add('d-none');
+        document.getElementById('setupStep2').classList.add('d-none');
+        document.getElementById('setupStep3').classList.remove('d-none');
       } catch (error) {
         Toast.error('Failed to regenerate recovery keys: ' + error.message);
       }
@@ -4782,8 +5015,8 @@
 
           SecurityPage.displayRecoveryKeys(SecurityPage.recoveryKeysList);
 
-          document.getElementById('setupStep2').style.display = 'none';
-          document.getElementById('setupStep3').style.display = 'block';
+          document.getElementById('setupStep2').classList.add('d-none');
+          document.getElementById('setupStep3').classList.remove('d-none');
         } catch (error) {
           Toast.error('Verification failed: ' + error.message);
         }
@@ -4830,16 +5063,16 @@
     },
 
     showNewModal: function() {
-      document.getElementById('newTokenModal').style.display = 'flex';
+      document.getElementById('newTokenModal').classList.add('active');
     },
 
     closeNewModal: function() {
-      document.getElementById('newTokenModal').style.display = 'none';
+      document.getElementById('newTokenModal').classList.remove('active');
       document.getElementById('newTokenForm').reset();
     },
 
     closeCreatedModal: function() {
-      document.getElementById('tokenCreatedModal').style.display = 'none';
+      document.getElementById('tokenCreatedModal').classList.remove('active');
       window.location.reload();
     },
 
@@ -4901,7 +5134,7 @@
 
           SettingsTokensPage.closeNewModal();
           document.getElementById('createdToken').value = result.token;
-          document.getElementById('tokenCreatedModal').style.display = 'flex';
+          document.getElementById('tokenCreatedModal').classList.add('active');
         } catch (error) {
           Toast.error('Failed to create token: ' + error.message);
         }
@@ -6934,7 +7167,585 @@
     }
   };
 
+  const SetupTokenPage = {
+    strings: null,
+
+    getStrings: function() {
+      if (!SetupTokenPage.strings) {
+        const el = document.getElementById('setup-token-data');
+        SetupTokenPage.strings = el ? JSON.parse(el.textContent) : {};
+      }
+      return SetupTokenPage.strings;
+    },
+
+    showError: function(errorMsg, text) {
+      errorMsg.textContent = text;
+      errorMsg.classList.add('edit-error-message');
+    },
+
+    submit: function(form) {
+      const strings = SetupTokenPage.getStrings();
+      const submitBtn = form.querySelector('#submit-btn');
+      const errorMsg = document.getElementById('error-message');
+      const token = form.querySelector('#setup_token').value.trim().toLowerCase();
+
+      errorMsg.classList.remove('edit-error-message');
+
+      if (!/^[a-f0-9]{32}$/.test(token)) {
+        SetupTokenPage.showError(errorMsg, strings.invalidFormat);
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = strings.verifying;
+
+      const restore = function(text) {
+        SetupTokenPage.showError(errorMsg, text);
+        submitBtn.disabled = false;
+        submitBtn.textContent = strings.continueLabel;
+      };
+
+      fetch(window.location.pathname.replace(/\/$/, '') + '/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setup_token: token })
+      })
+        .then(function(response) {
+          return response.json().then(function(result) {
+            if (response.ok) {
+              window.location.href = result.redirect;
+            } else {
+              restore(result.error || strings.invalidToken);
+            }
+          });
+        })
+        .catch(function() {
+          restore(strings.networkError);
+        });
+    },
+
+    init: function() {
+      const form = document.getElementById('token-form');
+      if (!form || !document.getElementById('setup-token-data')) return;
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        SetupTokenPage.submit(form);
+      });
+    }
+  };
+
+  const LoginPage = {
+    strings: null,
+
+    getStrings: function() {
+      if (!LoginPage.strings) {
+        const el = document.getElementById('login-data');
+        LoginPage.strings = el ? JSON.parse(el.textContent) : {};
+      }
+      return LoginPage.strings;
+    },
+
+    init: function() {
+      const toggleLink = document.getElementById('toggleRecoveryKey');
+      const input = document.getElementById('two_factor_code');
+      const label = document.getElementById('twoFactorLabel');
+      const flag = document.getElementById('use_recovery_key');
+      if (!toggleLink || !input || !label || !flag) return;
+
+      const strings = LoginPage.getStrings();
+      let usingRecoveryKey = false;
+
+      toggleLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        usingRecoveryKey = !usingRecoveryKey;
+
+        if (usingRecoveryKey) {
+          label.textContent = strings.recoveryKeyLabel;
+          input.placeholder = strings.recoveryKeyPlaceholder;
+          input.maxLength = 19;
+          toggleLink.textContent = strings.useAuthenticatorCodeLink;
+          flag.value = 'true';
+        } else {
+          label.textContent = strings.twoFactorCodeLabel;
+          input.placeholder = strings.twoFactorCodePlaceholder;
+          input.maxLength = 6;
+          toggleLink.textContent = strings.useRecoveryKeyLink;
+          flag.value = 'false';
+        }
+
+        input.value = '';
+        input.focus();
+      });
+    }
+  };
+
+  const IndexPage = {
+    strings: null,
+
+    unitsParam: function() {
+      const units = document.getElementById('units-select').value;
+      return units !== 'imperial' ? '?units=' + encodeURIComponent(units) : '';
+    },
+
+    showError: function(node) {
+      const form = document.querySelector('form');
+      form.parentNode.insertBefore(node, form.nextSibling);
+      setTimeout(function() { node.remove(); }, 6000);
+    },
+
+    getPosition: function(options) {
+      return new Promise(function(resolve, reject) {
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+    },
+
+    locate: function() {
+      const strings = IndexPage.strings;
+      const button = document.getElementById('location-btn');
+      if (!button) return;
+
+      const originalText = button.textContent;
+      button.textContent = '📍 ' + strings.getting;
+      button.disabled = true;
+
+      if (!navigator.geolocation) {
+        IndexPage.ipFallback(button, originalText);
+        return;
+      }
+
+      const forceRefresh = button.dataset.forceRefresh === 'true';
+      button.dataset.forceRefresh = 'false';
+      button.textContent = '📍 ' + strings.gps;
+
+      IndexPage.getPosition({
+        timeout: forceRefresh ? 30000 : 20000,
+        enableHighAccuracy: true,
+        maximumAge: forceRefresh ? 0 : 60000
+      })
+        .then(function(position) {
+          if (position.coords.accuracy > 1000) {
+            button.textContent = '📍 ' + strings.lowAccuracy;
+          }
+          return position;
+        })
+        .catch(function() {
+          button.textContent = '📍 ' + strings.locating;
+          return IndexPage.getPosition({
+            timeout: 12000,
+            enableHighAccuracy: false,
+            maximumAge: 600000
+          });
+        })
+        .then(function(position) {
+          const lat = position.coords.latitude.toFixed(4);
+          const lon = position.coords.longitude.toFixed(4);
+          button.textContent = '📍 ' + strings.found;
+          const target = window.location.origin + '/' + lat + ',' + lon + IndexPage.unitsParam();
+          setTimeout(function() { window.location.href = target; }, 500);
+        })
+        .catch(function() {
+          IndexPage.ipFallback(button, originalText);
+        });
+    },
+
+    ipFallback: function(button, originalText) {
+      const strings = IndexPage.strings;
+      button.textContent = '📍 ' + strings.ipLocation;
+
+      fetch('/debug/ip')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (!data.location || !data.location.value) throw new Error(strings.locationUnavailable);
+          const target = window.location.origin + '/' +
+            data.location.value.replace(/ /g, '+') + IndexPage.unitsParam();
+          button.textContent = '📍 ' + strings.found;
+          setTimeout(function() { window.location.href = target; }, 800);
+        })
+        .catch(function() {
+          button.textContent = originalText;
+          button.disabled = false;
+
+          const input = document.querySelector('input[name="location"]');
+          const current = (input && input.value) || strings.approximateLocation;
+          const notice = document.createElement('div');
+          notice.className = 'js-error-display-orange';
+          notice.innerHTML = '📍 ' + Utils.escapeHtml(strings.locationNotAvailable) + '<br>' +
+            Utils.escapeHtml(strings.locationPrefilled) + ' <strong>' + Utils.escapeHtml(current) + '</strong>';
+          IndexPage.showError(notice);
+        });
+    },
+
+    hideAutocomplete: function() {
+      document.getElementById('autocomplete-dropdown').classList.remove('show');
+    },
+
+    showAutocomplete: function(results) {
+      const dropdown = document.getElementById('autocomplete-dropdown');
+      dropdown.innerHTML = '';
+
+      results.forEach(function(result) {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML =
+          '<div class="city-name">' + Utils.escapeHtml(result.shortName || result.name) + '</div>' +
+          '<div class="location-details">' + Utils.escapeHtml(result.fullName) + '</div>';
+
+        item.addEventListener('click', function() {
+          document.getElementById('location-input').value = result.shortName || result.name;
+          IndexPage.hideAutocomplete();
+          const coords = result.latitude.toFixed(4) + ',' + result.longitude.toFixed(4);
+          window.location.href = window.location.origin + '/' + coords + IndexPage.unitsParam();
+        });
+
+        dropdown.appendChild(item);
+      });
+
+      dropdown.classList.add('show');
+    },
+
+    searchLocations: function(query) {
+      const base = (window.API_PATHS && window.API_PATHS.base) || '/api/v1';
+      fetch(base + '/search?q=' + encodeURIComponent(query))
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data.results && data.results.length > 0) {
+            IndexPage.showAutocomplete(data.results);
+          } else {
+            IndexPage.hideAutocomplete();
+          }
+        })
+        .catch(function() {
+          IndexPage.hideAutocomplete();
+        });
+    },
+
+    bindForm: function(locationInput, weatherForm) {
+      weatherForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const location = locationInput.value.trim().replace(/ /g, '+');
+        window.location.href = window.location.origin + '/' + location + IndexPage.unitsParam();
+      });
+
+      let autocompleteTimeout;
+      locationInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        clearTimeout(autocompleteTimeout);
+        if (query.length < 3) {
+          IndexPage.hideAutocomplete();
+          return;
+        }
+        autocompleteTimeout = setTimeout(function() {
+          IndexPage.searchLocations(query);
+        }, 300);
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('#location-input') && !e.target.closest('#autocomplete-dropdown')) {
+          IndexPage.hideAutocomplete();
+        }
+      });
+    },
+
+    bindLocationButton: function(locationBtn) {
+      let lastTap = 0;
+      let tapTimeout;
+
+      locationBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const now = Date.now();
+        const tapLength = now - lastTap;
+        clearTimeout(tapTimeout);
+
+        if (tapLength < 500 && tapLength > 0) {
+          this.dataset.forceRefresh = 'true';
+          this.textContent = '🔄 ' + IndexPage.strings.forceRefresh;
+          IndexPage.locate();
+        } else {
+          tapTimeout = setTimeout(IndexPage.locate, 250);
+        }
+
+        lastTap = now;
+      });
+
+      locationBtn.title = IndexPage.strings.locationBtnTooltip;
+    },
+
+    init: function() {
+      const data = document.getElementById('index-data');
+      const weatherForm = document.getElementById('weather-form');
+      const locationInput = document.getElementById('location-input');
+      if (!data || !weatherForm || !locationInput) return;
+
+      IndexPage.strings = JSON.parse(data.textContent);
+
+      if (!locationInput.value) locationInput.focus();
+      IndexPage.bindForm(locationInput, weatherForm);
+
+      const locationBtn = document.getElementById('location-btn');
+      if (locationBtn) IndexPage.bindLocationButton(locationBtn);
+    }
+  };
+
+  const MoonPage = {
+    strings: null,
+
+    unitsParam: function() {
+      const units = document.getElementById('moon-units-select').value;
+      return units !== 'imperial' ? '?units=' + encodeURIComponent(units) : '';
+    },
+
+    navigate: function(path) {
+      window.location.href = window.location.origin + '/moon/' + path + MoonPage.unitsParam();
+    },
+
+    hideAutocomplete: function() {
+      const dropdown = document.getElementById('moon-autocomplete-dropdown');
+      if (!dropdown) return;
+      dropdown.classList.remove('autocomplete-dropdown-visible');
+      dropdown.innerHTML = '';
+    },
+
+    showAutocomplete: function(results) {
+      const dropdown = document.getElementById('moon-autocomplete-dropdown');
+      dropdown.innerHTML = '';
+
+      results.forEach(function(result) {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        const region = result.admin1 ? result.admin1 + ', ' : '';
+        item.innerHTML =
+          '<span class="autocomplete-item city-name">' + Utils.escapeHtml(result.name) + '</span>' +
+          '<span class="autocomplete-item location-details">' +
+          Utils.escapeHtml(region + result.countryCode) + '</span>';
+
+        item.addEventListener('click', function() {
+          MoonPage.hideAutocomplete();
+          MoonPage.navigate(result.latitude.toFixed(4) + ',' + result.longitude.toFixed(4));
+        });
+
+        dropdown.appendChild(item);
+      });
+
+      dropdown.classList.add('autocomplete-dropdown-visible');
+    },
+
+    searchLocations: function(query) {
+      fetch(MoonPage.strings.apiPath + '/search?q=' + encodeURIComponent(query))
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data.results && data.results.length > 0) {
+            MoonPage.showAutocomplete(data.results);
+          } else {
+            MoonPage.hideAutocomplete();
+          }
+        })
+        .catch(function() {
+          MoonPage.hideAutocomplete();
+        });
+    },
+
+    locate: function(button) {
+      const strings = MoonPage.strings;
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = '📍 ' + strings.gettingLocation;
+
+      new Promise(function(resolve, reject) {
+        if (!navigator.geolocation) {
+          reject(new Error('unsupported'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 10000,
+          enableHighAccuracy: true
+        });
+      })
+        .then(function(position) {
+          button.textContent = '📍 ' + strings.foundLocation;
+          const coords = position.coords.latitude.toFixed(4) + ',' + position.coords.longitude.toFixed(4);
+          setTimeout(function() { MoonPage.navigate(coords); }, 500);
+        })
+        .catch(function() {
+          fetch('/debug/ip')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+              if (!data.location || !data.location.value) throw new Error('no location');
+              button.textContent = '📍 ' + strings.foundLocation;
+              const detected = data.location.value.replace(/ /g, '+');
+              setTimeout(function() { MoonPage.navigate(detected); }, 500);
+            })
+            .catch(function() {
+              button.textContent = originalText;
+              button.disabled = false;
+              showAlert(strings.locationError);
+            });
+        });
+    },
+
+    init: function() {
+      const data = document.getElementById('moon-data');
+      if (!data) return;
+
+      MoonPage.strings = JSON.parse(data.textContent);
+
+      const moonForm = document.getElementById('moon-form');
+      const locationInput = document.getElementById('moon-location-input');
+      const locationBtn = document.getElementById('moon-location-btn');
+
+      if (moonForm) {
+        moonForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const location = locationInput.value.trim();
+          if (!location) {
+            window.location.href = window.location.origin + '/moon';
+            return;
+          }
+          MoonPage.navigate(location.replace(/ /g, '+'));
+        });
+      }
+
+      if (locationBtn) {
+        locationBtn.addEventListener('click', function() {
+          MoonPage.locate(this);
+        });
+      }
+
+      if (locationInput) {
+        let autocompleteTimeout;
+        locationInput.addEventListener('input', function(e) {
+          clearTimeout(autocompleteTimeout);
+          const query = e.target.value.trim();
+          if (query.length < 2) {
+            MoonPage.hideAutocomplete();
+            return;
+          }
+          autocompleteTimeout = setTimeout(function() {
+            MoonPage.searchLocations(query);
+          }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+          if (!e.target.closest('#moon-location-input') && !e.target.closest('#moon-autocomplete-dropdown')) {
+            MoonPage.hideAutocomplete();
+          }
+        });
+      }
+    }
+  };
+
+  const PasskeyLoginPage = {
+    normalizeRequestOptions: function(options) {
+      const publicKey = options.publicKey || options;
+      publicKey.challenge = AdminPasskeyLoginPage.base64urlToBuffer(publicKey.challenge);
+      if (Array.isArray(publicKey.allowCredentials)) {
+        publicKey.allowCredentials = publicKey.allowCredentials.map(function(credential) {
+          return Object.assign({}, credential, {
+            id: AdminPasskeyLoginPage.base64urlToBuffer(credential.id)
+          });
+        });
+      }
+      return publicKey;
+    },
+
+    serializeAssertion: function(assertion) {
+      const encode = AdminPasskeyLoginPage.bufferToBase64url;
+      return {
+        id: assertion.id,
+        rawId: encode(assertion.rawId),
+        type: assertion.type,
+        response: {
+          authenticatorData: encode(assertion.response.authenticatorData),
+          clientDataJSON: encode(assertion.response.clientDataJSON),
+          signature: encode(assertion.response.signature),
+          userHandle: assertion.response.userHandle ? encode(assertion.response.userHandle) : null
+        }
+      };
+    },
+
+    start: function(status, strings) {
+      if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
+        status.className = 'alert alert-error';
+        status.textContent = strings.unsupportedBrowser;
+        return;
+      }
+
+      fetch('/api/v1/server/auth/passkey/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+      })
+        .then(function(response) {
+          return response.json().then(function(payload) {
+            if (!response.ok || !payload.ok) throw new Error(payload.error || strings.failedStart);
+            status.textContent = strings.touchPrompt;
+            return navigator.credentials.get({
+              publicKey: PasskeyLoginPage.normalizeRequestOptions(payload.options)
+            });
+          });
+        })
+        .then(function(credential) {
+          if (!credential) throw new Error(strings.cancelled);
+          return fetch('/api/v1/server/auth/passkey/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(PasskeyLoginPage.serializeAssertion(credential))
+          });
+        })
+        .then(function(response) {
+          return response.json().then(function(payload) {
+            if (!response.ok || !payload.ok) throw new Error(payload.error || strings.failedVerify);
+            status.className = 'alert alert-success';
+            status.textContent = strings.successRedirecting;
+            window.location.href = '/users/dashboard';
+          });
+        })
+        .catch(function(error) {
+          status.className = 'alert alert-error';
+          status.textContent = error.message || strings.failedGeneric;
+        });
+    },
+
+    init: function() {
+      const status = document.getElementById('passkeyStatus');
+      const data = document.getElementById('passkey-login-data');
+      if (!status || !data) return;
+      PasskeyLoginPage.start(status, JSON.parse(data.textContent));
+    }
+  };
+
+  const RegisterPage = {
+    init: function() {
+      const password = document.getElementById('password');
+      const bar = document.getElementById('strengthBar');
+      const indicator = document.getElementById('password-strength-indicator');
+      const data = document.getElementById('register-data');
+      if (!password || !bar || !indicator || !data) return;
+
+      const strings = JSON.parse(data.textContent);
+
+      password.addEventListener('input', function() {
+        const value = password.value;
+        let strength = 0;
+        if (value.length >= 8) strength++;
+        if (/[a-z]/.test(value) && /[A-Z]/.test(value)) strength++;
+        if (/[0-9]/.test(value)) strength++;
+        if (/[^a-zA-Z0-9]/.test(value)) strength++;
+
+        const level = strength <= 1 ? 'weak' : (strength <= 3 ? 'medium' : 'strong');
+        bar.className = 'password-strength-bar ' + level;
+        bar.setAttribute('aria-valuenow', strength);
+        indicator.textContent = strings[level];
+      });
+    }
+  };
+
   document.addEventListener('DOMContentLoaded', function() {
+    IndexPage.init();
+    MoonPage.init();
+    RegisterPage.init();
+    LoginPage.init();
+    PasskeyLoginPage.init();
+    SetupTokenPage.init();
     AdminSettingsPage.init();
     AdminDatabasePage.init();
     AdminBackupPage.init();
@@ -7150,6 +7961,12 @@
         case 'alert-dismiss': {
           const alertEl = btn.closest('.alert');
           if (alertEl) Alert.dismiss(alertEl.id);
+          break;
+        }
+        // Server-rendered flash markup carries no id, so remove the node directly.
+        case 'dismiss-flash': {
+          const flashEl = btn.closest('.flash-alert');
+          if (flashEl) flashEl.remove();
           break;
         }
         case 'dialog-alert-ok': {

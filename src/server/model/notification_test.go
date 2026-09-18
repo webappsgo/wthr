@@ -99,7 +99,7 @@ func TestUserNotificationModel_Create(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			notif, err := model.Create(tt.userID, tt.notifType, tt.display, tt.title, tt.message, tt.action)
+			notif, err := model.CreateUserNotification(tt.userID, tt.notifType, tt.display, tt.title, tt.message, tt.action)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Create() error = %v, wantErr %v", err, tt.wantErr)
@@ -146,7 +146,7 @@ func TestUserNotificationModel_GetByID(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	// Create a test notification
-	created, err := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
+	created, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
 	if err != nil {
 		t.Fatalf("Failed to create test notification: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestUserNotificationModel_MarkAsRead(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	// Create a test notification
-	created, err := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
+	created, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
 	if err != nil {
 		t.Fatalf("Failed to create test notification: %v", err)
 	}
@@ -231,9 +231,9 @@ func TestUserNotificationModel_GetUnreadCount(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	// Create multiple notifications
-	_, _ = model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test 1", "Message 1", nil)
-	_, _ = model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test 2", "Message 2", nil)
-	created3, _ := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test 3", "Message 3", nil)
+	_, _ = model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test 1", "Message 1", nil)
+	_, _ = model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test 2", "Message 2", nil)
+	created3, _ := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test 3", "Message 3", nil)
 
 	// Mark one as read
 	_ = model.MarkAsRead(created3.ID, 1)
@@ -256,7 +256,7 @@ func TestUserNotificationModel_CleanupExpired(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	// Create a notification and manually set it as expired
-	_, err := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
+	_, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
 	if err != nil {
 		t.Fatalf("Failed to create test notification: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestUserNotificationModel_EnforceLimit(t *testing.T) {
 
 	// Create 5 notifications
 	for i := 1; i <= 5; i++ {
-		_, err := model.Create(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
+		_, err := model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayToast, "Test", "Test message", nil)
 		if err != nil {
 			t.Fatalf("Failed to create notification %d: %v", i, err)
 		}
@@ -409,7 +409,7 @@ func TestAdminNotificationModel_Create(t *testing.T) {
 
 	model := &AdminNotificationModel{DB: db}
 
-	notif, err := model.Create(1, NotificationTypeSuccess, NotificationDisplayToast, "Admin Test", "Admin message", nil)
+	notif, err := model.CreateAdminNotification(1, NotificationTypeSuccess, NotificationDisplayToast, "Admin Test", "Admin message", nil)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -432,9 +432,9 @@ func TestUserNotificationModel_GetStatistics(t *testing.T) {
 	model := &UserNotificationModel{DB: db}
 
 	// Create notifications of different types
-	_, _ = model.Create(1, NotificationTypeSuccess, NotificationDisplayToast, "Success", "Message", nil)
-	_, _ = model.Create(1, NotificationTypeInfo, NotificationDisplayBanner, "Info", "Message", nil)
-	created3, _ := model.Create(1, NotificationTypeWarning, NotificationDisplayCenter, "Warning", "Message", nil)
+	_, _ = model.CreateUserNotification(1, NotificationTypeSuccess, NotificationDisplayToast, "Success", "Message", nil)
+	_, _ = model.CreateUserNotification(1, NotificationTypeInfo, NotificationDisplayBanner, "Info", "Message", nil)
+	created3, _ := model.CreateUserNotification(1, NotificationTypeWarning, NotificationDisplayCenter, "Warning", "Message", nil)
 
 	// Mark one as read
 	_ = model.MarkAsRead(created3.ID, 1)

@@ -58,7 +58,7 @@ type GeoIPService struct {
 	cacheTime    map[string]int64
 }
 
-// Database URLs from sapics/ip-location-db (SPEC Section 16)
+// Database URLs from sapics/ip-location-db (AI.md PART 20)
 const (
 	cityIPv4URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv4.mmdb"
 	cityIPv6URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv6.mmdb"

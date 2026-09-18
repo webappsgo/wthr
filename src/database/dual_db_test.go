@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ func memDSN(prefix string) string {
 
 // TestInitServerDB_NewDatabase exercises initServerDB directly against an
 // in-memory DSN (avoids real disk files) and verifies pool settings, schema
-// creation, and initial schema_version insertion.
+// creation, and idempotent schema updates.
 func TestInitServerDB_NewDatabase(t *testing.T) {
 	db, err := initServerDB(memDSN("initserver"))
 	if err != nil {
@@ -25,16 +26,8 @@ func TestInitServerDB_NewDatabase(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	stats := db.Stats()
-	if stats.MaxOpenConnections != 10 {
-		t.Errorf("MaxOpenConnections = %d, want 10", stats.MaxOpenConnections)
-	}
-
-	var version int
-	if err := db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&version); err != nil {
-		t.Fatalf("query schema_version: %v", err)
-	}
-	if version != ServerSchemaVersion {
-		t.Errorf("schema_version = %d, want %d", version, ServerSchemaVersion)
+	if stats.MaxOpenConnections != poolMaxOpen {
+		t.Errorf("MaxOpenConnections = %d, want %d", stats.MaxOpenConnections, poolMaxOpen)
 	}
 
 	// server_admin_credentials must exist from ServerSchema.
@@ -60,16 +53,8 @@ func TestInitUsersDB_NewDatabase(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	stats := db.Stats()
-	if stats.MaxOpenConnections != 10 {
-		t.Errorf("MaxOpenConnections = %d, want 10", stats.MaxOpenConnections)
-	}
-
-	var version int
-	if err := db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM schema_version").Scan(&version); err != nil {
-		t.Fatalf("query schema_version: %v", err)
-	}
-	if version != UsersSchemaVersion {
-		t.Errorf("schema_version = %d, want %d", version, UsersSchemaVersion)
+	if stats.MaxOpenConnections != poolMaxOpen {
+		t.Errorf("MaxOpenConnections = %d, want %d", stats.MaxOpenConnections, poolMaxOpen)
 	}
 
 	// A brand-new DB's user_sessions table already has token_hash (base
@@ -86,92 +71,83 @@ func TestInitUsersDB_InvalidPath(t *testing.T) {
 	}
 }
 
-// TestMigrateUsersDB_V6AddsDataColumn seeds a pre-v6 user_sessions table
-// (no data column) and verifies the migration adds it, and that running the
-// same migration again is a no-op (idempotent, no duplicate-column error).
-func TestMigrateUsersDB_V6AddsDataColumn(t *testing.T) {
-	db := newSchemaDB(t, "migv6")
+// TestApplySchemaUpdates_AddsMissingColumns seeds a legacy users schema whose
+// user_sessions table predates the data and token_hash columns, then verifies
+// applySchemaUpdates brings it forward and is safe to run again.
+func TestApplySchemaUpdates_AddsMissingColumns(t *testing.T) {
+	db := newSchemaDB(t, "schemaupdates")
 
 	if _, err := db.Exec(`
 		CREATE TABLE user_sessions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			user_id INTEGER NOT NULL,
-			token_hash TEXT NOT NULL
-		)
-	`); err != nil {
-		t.Fatalf("create v5 user_sessions: %v", err)
-	}
-
-	if err := migrateUsersDB(db.DB, 5); err != nil {
-		t.Fatalf("migrateUsersDB(fromVersion=5): %v", err)
-	}
-	if _, err := db.Exec("SELECT data FROM user_sessions LIMIT 0"); err != nil {
-		t.Errorf("user_sessions.data missing after v6 migration: %v", err)
-	}
-
-	// Running again from the same "fromVersion" must not error (idempotency).
-	if err := migrateUsersDB(db.DB, 5); err != nil {
-		t.Errorf("migrateUsersDB run twice: %v", err)
-	}
-}
-
-// TestMigrateUsersDB_V7RenamesSessionID exercises the v7 migration: old rows
-// are deleted, session_id is renamed to token_hash, and the unique index is
-// created. Running it twice must not error.
-func TestMigrateUsersDB_V7RenamesSessionID(t *testing.T) {
-	db := newSchemaDB(t, "migv7")
-
-	if _, err := db.Exec(`
-		CREATE TABLE user_sessions (
+			session_id TEXT NOT NULL
+		);
+		CREATE TABLE user_invites (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
-			session_id TEXT NOT NULL,
-			data TEXT
-		)
+			code TEXT UNIQUE NOT NULL
+		);
 	`); err != nil {
-		t.Fatalf("create v6 user_sessions: %v", err)
-	}
-	if _, err := db.Exec("CREATE INDEX idx_sessions_id ON user_sessions(session_id)"); err != nil {
-		t.Fatalf("create old index: %v", err)
-	}
-	if _, err := db.Exec("INSERT INTO user_sessions (user_id, session_id) VALUES (1, 'rawtoken123')"); err != nil {
-		t.Fatalf("seed old session row: %v", err)
+		t.Fatalf("create legacy users schema: %v", err)
 	}
 
-	if err := migrateUsersDB(db.DB, 6); err != nil {
-		t.Fatalf("migrateUsersDB(fromVersion=6): %v", err)
+	if err := applySchemaUpdates(db.DB, usersSchemaUpdates); err != nil {
+		t.Fatalf("applySchemaUpdates: %v", err)
 	}
 
-	// Old raw-token rows must have been purged.
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM user_sessions").Scan(&count); err != nil {
-		t.Fatalf("count sessions: %v", err)
+	for _, column := range []string{"data", "token_hash"} {
+		if _, err := db.Exec("SELECT " + column + " FROM user_sessions LIMIT 0"); err != nil {
+			t.Errorf("user_sessions.%s missing after schema updates: %v", column, err)
+		}
 	}
-	if count != 0 {
-		t.Errorf("user_sessions count after v7 migration = %d, want 0 (old raw-token rows must be purged)", count)
-	}
-	if _, err := db.Exec("SELECT token_hash FROM user_sessions LIMIT 0"); err != nil {
-		t.Errorf("token_hash column missing after v7 migration: %v", err)
+	for _, column := range []string{"username", "role"} {
+		if _, err := db.Exec("SELECT " + column + " FROM user_invites LIMIT 0"); err != nil {
+			t.Errorf("user_invites.%s missing after schema updates: %v", column, err)
+		}
 	}
 
-	// Running the migration again from the same fromVersion must not error.
-	if err := migrateUsersDB(db.DB, 6); err != nil {
-		t.Errorf("migrateUsersDB run twice: %v", err)
+	// AI.md PART 10: schema updates run on every startup, so a second pass
+	// must be a no-op rather than a duplicate-column failure.
+	if err := applySchemaUpdates(db.DB, usersSchemaUpdates); err != nil {
+		t.Errorf("applySchemaUpdates run twice: %v", err)
 	}
 }
 
-// TestMigrateUsersDB_FromZeroRunsBothSteps verifies that migrating from a
-// version below both thresholds (e.g. 0) chains v6 and v7 without error
-// against a schema that already has token_hash (simulating the base schema).
-func TestMigrateUsersDB_FromZeroRunsBothSteps(t *testing.T) {
-	db := newSchemaDB(t, "migzero")
+// TestApplySchemaUpdates_CurrentSchemaIsNoOp verifies the update list is a
+// no-op against the base schema, which already declares every column it adds.
+func TestApplySchemaUpdates_CurrentSchemaIsNoOp(t *testing.T) {
+	db := newSchemaDB(t, "schemaupdatescurrent")
 
 	if _, err := db.Exec(UsersSchema); err != nil {
 		t.Fatalf("create base schema: %v", err)
 	}
 
-	if err := migrateUsersDB(db.DB, 0); err != nil {
-		t.Fatalf("migrateUsersDB(fromVersion=0) against already-current schema: %v", err)
+	if err := applySchemaUpdates(db.DB, usersSchemaUpdates); err != nil {
+		t.Fatalf("applySchemaUpdates against current schema: %v", err)
+	}
+	if err := applySchemaUpdates(db.DB, serverSchemaUpdates); err != nil {
+		t.Fatalf("applySchemaUpdates(serverSchemaUpdates): %v", err)
+	}
+}
+
+// TestIsColumnExistsError covers each driver phrasing the helper must treat as
+// "already applied" and confirms unrelated errors still propagate.
+func TestIsColumnExistsError(t *testing.T) {
+	cases := []struct {
+		err  error
+		want bool
+	}{
+		{nil, false},
+		{errors.New("duplicate column name: data"), true},
+		{errors.New("column \"data\" of relation \"user_sessions\" already exists"), true},
+		{errors.New("Duplicate key name 'idx_sessions_hash'"), true},
+		{errors.New("no such table: user_sessions"), false},
+	}
+
+	for _, tc := range cases {
+		if got := isColumnExistsError(tc.err); got != tc.want {
+			t.Errorf("isColumnExistsError(%v) = %v, want %v", tc.err, got, tc.want)
+		}
 	}
 }
 

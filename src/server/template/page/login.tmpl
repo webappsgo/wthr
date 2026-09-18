@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -91,56 +92,17 @@
         </div>
     </div>
 
-    <script>
-        const I18N = {
-            twoFactorCodeLabel: '{{t .server.Lang "login_2fa_code_label"}}',
-            recoveryKeyLabel: '{{t .server.Lang "login_recovery_key_label"}}',
-            twoFactorCodePlaceholder: '{{t .server.Lang "login_2fa_code_placeholder_short"}}',
-            recoveryKeyPlaceholder: '{{t .server.Lang "login_recovery_key_placeholder"}}',
-            useRecoveryKeyLink: '{{t .server.Lang "login_use_recovery_key_link"}}',
-            useAuthenticatorCodeLink: '{{t .server.Lang "login_use_authenticator_code_link"}}'
-        };
-
-        // Auto-focus appropriate field
-        {{if .require_2fa}}
-        document.getElementById('two_factor_code').focus();
-        {{else}}
-        document.getElementById('identifier').focus();
-        {{end}}
-
-        {{if .require_2fa}}
-        // Toggle between TOTP code and recovery key
-        const toggleLink = document.getElementById('toggleRecoveryKey');
-        const twoFactorInput = document.getElementById('two_factor_code');
-        const twoFactorLabel = document.getElementById('twoFactorLabel');
-        const useRecoveryKeyInput = document.getElementById('use_recovery_key');
-        let usingRecoveryKey = false;
-
-        toggleLink.addEventListener('click', function(e) {
-            e.preventDefault();
-            usingRecoveryKey = !usingRecoveryKey;
-
-            if (usingRecoveryKey) {
-                twoFactorLabel.textContent = I18N.recoveryKeyLabel;
-                twoFactorInput.placeholder = I18N.recoveryKeyPlaceholder;
-                twoFactorInput.maxLength = 19;
-                toggleLink.textContent = I18N.useAuthenticatorCodeLink;
-                useRecoveryKeyInput.value = 'true';
-            } else {
-                twoFactorLabel.textContent = I18N.twoFactorCodeLabel;
-                twoFactorInput.placeholder = I18N.twoFactorCodePlaceholder;
-                twoFactorInput.maxLength = 6;
-                toggleLink.textContent = I18N.useRecoveryKeyLink;
-                useRecoveryKeyInput.value = 'false';
-            }
-
-            twoFactorInput.value = '';
-            twoFactorInput.focus();
-        });
-        {{end}}
-
-        // HTML5 form validation handles empty fields automatically via 'required' attribute
-        // No JavaScript validation needed - compliant with TEMPLATE.md lines 770, 1009-1018
+    {{if .require_2fa}}
+    <script type="application/json" id="login-data">
+        {
+            "twoFactorCodeLabel": "{{t .server.Lang "login_2fa_code_label"}}",
+            "recoveryKeyLabel": "{{t .server.Lang "login_recovery_key_label"}}",
+            "twoFactorCodePlaceholder": "{{t .server.Lang "login_2fa_code_placeholder_short"}}",
+            "recoveryKeyPlaceholder": "{{t .server.Lang "login_recovery_key_placeholder"}}",
+            "useRecoveryKeyLink": "{{t .server.Lang "login_use_recovery_key_link"}}",
+            "useAuthenticatorCodeLink": "{{t .server.Lang "login_use_authenticator_code_link"}}"
+        }
     </script>
+    {{end}}
 </body>
 </html>

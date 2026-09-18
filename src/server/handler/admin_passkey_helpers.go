@@ -196,7 +196,7 @@ func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pa
 	}
 
 	passkeyModel := &models.AdminPasskeyModel{DB: db}
-	passkey, err := passkeyModel.Create(admin.ID, state.Name, credential)
+	passkey, err := passkeyModel.CreateAdminPasskey(admin.ID, state.Name, credential)
 	if err != nil {
 		return nil, err
 	}

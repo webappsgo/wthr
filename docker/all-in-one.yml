@@ -1,4 +1,4 @@
-# weather - All-in-One (app + embedded DB)
+# wthr - All-in-One (app + embedded DB)
 # nginx proxy address - http://172.17.0.1:64580
 # Usage: docker compose -f all-in-one.yml up -d
 
@@ -38,5 +38,5 @@ services:
 
 networks:
   wthr:
-    name: weather
+    name: wthr
     external: false

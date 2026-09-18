@@ -180,7 +180,7 @@ func TestTor_Stop_NilTor(t *testing.T) {
 		monitorStop:    make(chan struct{}),
 		isRunning:      false,
 	}
-	if err := ts.Stop(); err != nil {
+	if err := ts.StopTorService(); err != nil {
 		t.Fatalf("Stop() with nil tor = %v, want nil", err)
 	}
 	// The monitor channel must remain open (Stop returned before closing it).
@@ -191,7 +191,7 @@ func TestTor_Stop_NilTor(t *testing.T) {
 	}
 
 	// Idempotent: calling Stop() again is still a no-op, no panic.
-	if err := ts.Stop(); err != nil {
+	if err := ts.StopTorService(); err != nil {
 		t.Fatalf("second Stop() call = %v, want nil", err)
 	}
 }

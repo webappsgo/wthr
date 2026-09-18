@@ -61,7 +61,8 @@ func TestNewFailoverManager_HealthyPrimary(t *testing.T) {
 func TestFailoverManager_ExecFailureTripsReadOnly(t *testing.T) {
 	primary := openMemDB(t, "fo_exec_primary")
 	cache := openMemDB(t, "fo_exec_cache")
-	primary.Close() // force every primary op to fail
+	// force every primary op to fail
+	primary.Close()
 
 	fm := NewFailoverManager(primary, cache)
 	defer fm.Close()

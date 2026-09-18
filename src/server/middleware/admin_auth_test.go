@@ -57,7 +57,7 @@ func setAdminTestRenderer(t *testing.T) {
 // { c.Set("db", db); c.Next() }) stub.
 func withDB(db *sql.DB, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := reqctx.Set(r.Context(), "db", db)
+		ctx := reqctx.SetValue(r.Context(), "db", db)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -176,7 +176,7 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	}
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got, exists := reqctx.Get(r.Context(), "admin_id")
+		got, exists := reqctx.GetValue(r.Context(), "admin_id")
 		if !exists {
 			t.Error("admin_id not set in context for a valid session")
 		} else if got.(int) != int(adminID) {

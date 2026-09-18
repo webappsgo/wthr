@@ -268,12 +268,12 @@ func TestScheduler_StartStop(t *testing.T) {
 			t.Fatalf("AddTask() error: %v", err)
 		}
 
-		s.Start()
+		s.StartScheduler()
 
 		select {
 		case <-ran:
 		case <-time.After(5 * time.Second):
-			s.Stop()
+			s.StopScheduler()
 			t.Fatal("timed out waiting for the ticker-driven task to fire")
 		}
 
@@ -313,7 +313,7 @@ func TestScheduler_StartStop(t *testing.T) {
 			t.Error("scheduler should report running while its loop goroutine is active")
 		}
 
-		s.Stop()
+		s.StopScheduler()
 
 		s.mu.RLock()
 		running = s.running
@@ -325,14 +325,14 @@ func TestScheduler_StartStop(t *testing.T) {
 
 	t.Run("calling start twice does not replace the running ticker/loop", func(t *testing.T) {
 		s := NewScheduler(nil)
-		s.Start()
-		defer s.Stop()
+		s.StartScheduler()
+		defer s.StopScheduler()
 
 		s.mu.RLock()
 		firstTicker := s.ticker
 		s.mu.RUnlock()
 
-		s.Start()
+		s.StartScheduler()
 
 		s.mu.RLock()
 		secondTicker := s.ticker
@@ -345,15 +345,15 @@ func TestScheduler_StartStop(t *testing.T) {
 
 	t.Run("stop before any start is a safe no-op", func(t *testing.T) {
 		s := NewScheduler(nil)
-		s.Stop()
+		s.StopScheduler()
 	})
 
 	t.Run("stop after start then a second stop is a safe no-op", func(t *testing.T) {
 		s := NewScheduler(nil)
-		s.Start()
-		s.Stop()
+		s.StartScheduler()
+		s.StopScheduler()
 		// Must not panic or block on a second close of already-closed channels.
-		s.Stop()
+		s.StopScheduler()
 	})
 }
 
@@ -389,7 +389,8 @@ const testLockSchedule = "0 2 * * *"
 
 func TestScheduler_AcquireTaskLock(t *testing.T) {
 	t.Run("non-global task always acquires without touching the DB", func(t *testing.T) {
-		s := NewScheduler(nil) // no DB wired up at all
+		// no DB wired up at all
+		s := NewScheduler(nil)
 		if !s.acquireTaskLock("some-local-only-task", testLockSchedule) {
 			t.Error("expected non-global task lock to always succeed")
 		}

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -19,7 +20,7 @@
 
             <div class="setup-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 50%"></div>
+                    <div class="progress-fill progress-fill--step-3"></div>
                 </div>
                 <div class="progress-steps">
                     <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
@@ -89,7 +90,7 @@
                     </select>
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_server_config_continue_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup_security_saving_button"}}">{{t .server.Lang "setup_server_config_continue_button"}}</button>
             </form>
 
             <div class="setup-skip">
@@ -104,12 +105,5 @@
         {{ end }}
     </div>
 
-    <script>
-        document.getElementById('server-form').addEventListener('submit', function(e) {
-            var btn = document.getElementById('submit-btn');
-            btn.disabled = true;
-            btn.textContent = '{{t .server.Lang "setup_security_saving_button"}}';
-        });
-    </script>
 </body>
 </html>

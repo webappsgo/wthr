@@ -13,16 +13,16 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 	model := &SettingsModel{DB: serverDB}
 
 	t.Run("Get missing key errors", func(t *testing.T) {
-		if _, err := model.Get("missing.key"); err == nil {
+		if _, err := model.GetSetting("missing.key"); err == nil {
 			t.Error("Get() expected error for missing key")
 		}
 	})
 
 	t.Run("Set and Get round trip", func(t *testing.T) {
-		if err := model.Set("server.title", "Weather App", "string"); err != nil {
+		if err := model.SetSetting("server.title", "Weather App", "string"); err != nil {
 			t.Fatalf("Set() error = %v", err)
 		}
-		got, err := model.Get("server.title")
+		got, err := model.GetSetting("server.title")
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
@@ -32,13 +32,13 @@ func TestSettingsModel_GetSetFamily(t *testing.T) {
 	})
 
 	t.Run("Set upserts existing key", func(t *testing.T) {
-		if err := model.Set("server.title", "First", "string"); err != nil {
+		if err := model.SetSetting("server.title", "First", "string"); err != nil {
 			t.Fatalf("Set() error = %v", err)
 		}
-		if err := model.Set("server.title", "Second", "string"); err != nil {
+		if err := model.SetSetting("server.title", "Second", "string"); err != nil {
 			t.Fatalf("Set() error = %v", err)
 		}
-		got, err := model.Get("server.title")
+		got, err := model.GetSetting("server.title")
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
@@ -200,7 +200,7 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		if err := model.Delete("mail.host"); err != nil {
+		if err := model.DeleteSetting("mail.host"); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
 		list, err := model.List()
@@ -213,7 +213,7 @@ func TestSettingsModel_ListDeleteFamily(t *testing.T) {
 	})
 
 	t.Run("Delete non-existent is a no-op", func(t *testing.T) {
-		if err := model.Delete("does.not.exist"); err != nil {
+		if err := model.DeleteSetting("does.not.exist"); err != nil {
 			t.Errorf("Delete() of missing key should not error, got %v", err)
 		}
 	})
@@ -231,7 +231,7 @@ func TestSettingsModel_InitializeDefaults(t *testing.T) {
 		t.Fatalf("InitializeDefaults() error = %v", err)
 	}
 
-	got, err := model.Get("backup.location")
+	got, err := model.GetSetting("backup.location")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -239,7 +239,7 @@ func TestSettingsModel_InitializeDefaults(t *testing.T) {
 		t.Errorf("backup.location = %q, want %q", got.Value, "/custom/backups")
 	}
 
-	title, err := model.Get("server.title")
+	title, err := model.GetSetting("server.title")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -254,7 +254,7 @@ func TestSettingsModel_InitializeDefaults(t *testing.T) {
 		if err := model.InitializeDefaults("/custom/backups"); err != nil {
 			t.Fatalf("InitializeDefaults() second run error = %v", err)
 		}
-		got, err := model.Get("server.title")
+		got, err := model.GetSetting("server.title")
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}

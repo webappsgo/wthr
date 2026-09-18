@@ -69,9 +69,9 @@ func GetUserTokenPrefix(token string) string {
 	return GetTokenPrefix(token)
 }
 
-// Create creates a new API token for a user
+// CreateAPIToken creates a new API token for a user
 // AI.md PART 11: Store SHA-256 hash, return full token only once
-func (m *TokenModel) Create(userID int, name string) (*APIToken, error) {
+func (m *TokenModel) CreateAPIToken(userID int, name string) (*APIToken, error) {
 	token, err := GenerateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -113,18 +113,28 @@ func (m *TokenModel) GetByToken(token string) (*APIToken, error) {
 
 	apiToken := &APIToken{}
 	var lastUsed sql.NullTime
+	var expiresAt sql.NullTime
 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
-		SELECT id, user_id, token_prefix, name, created_at, last_used_at
+		SELECT id, user_id, token_prefix, name, created_at, last_used_at, expires_at
 		FROM user_tokens WHERE token_hash = ?
 	`, tokenHash).Scan(&apiToken.ID, &apiToken.UserID, &apiToken.TokenPrefix, &apiToken.Name,
-		&apiToken.CreatedAt, &lastUsed)
+		&apiToken.CreatedAt, &lastUsed, &expiresAt)
 
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("token not found")
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	// An expired token must never authenticate a request. Rows with a NULL
+	// expires_at never expire, per the AI.md PART 11 token schema.
+	if expiresAt.Valid {
+		apiToken.ExpiresAt = expiresAt
+		if !time.Now().Before(expiresAt.Time) {
+			return nil, fmt.Errorf("token expired")
+		}
 	}
 
 	if lastUsed.Valid {
@@ -172,8 +182,8 @@ func (m *TokenModel) UpdateLastUsed(tokenID int) error {
 	return err
 }
 
-// Delete deletes a token
-func (m *TokenModel) Delete(id int) error {
+// DeleteAPIToken deletes a token
+func (m *TokenModel) DeleteAPIToken(id int) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_tokens WHERE id = ?", id)
 	return err
 }

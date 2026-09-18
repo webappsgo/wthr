@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -44,10 +43,10 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 						if err == nil {
 							// Update last used timestamp asynchronously
 							go tokenModel.UpdateLastUsed(apiToken.ID)
-							ctx := reqctx.Set(r.Context(), UserContextKey, user)
+							ctx := reqctx.SetValue(r.Context(), UserContextKey, user)
 							// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-							ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
-							ctx = reqctx.Set(ctx, "auth_method", "api_token")
+							ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
+							ctx = reqctx.SetValue(ctx, "auth_method", "api_token")
 							r = r.WithContext(ctx)
 							next.ServeHTTP(w, r)
 							return
@@ -64,11 +63,11 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 				if err == nil {
 					user, err = userModel.GetByID(int64(session.UserID))
 					if err == nil {
-						ctx := reqctx.Set(r.Context(), UserContextKey, user)
+						ctx := reqctx.SetValue(r.Context(), UserContextKey, user)
 						// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-						ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
-						ctx = reqctx.Set(ctx, SessionContextKey, session)
-						ctx = reqctx.Set(ctx, "auth_method", "session")
+						ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
+						ctx = reqctx.SetValue(ctx, SessionContextKey, session)
+						ctx = reqctx.SetValue(ctx, "auth_method", "session")
 						r = r.WithContext(ctx)
 						next.ServeHTTP(w, r)
 						return
@@ -85,11 +84,7 @@ func AuthMiddleware(db *sql.DB, required bool) func(http.Handler) http.Handler {
 					return
 				}
 
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": "Authentication required",
-				})
+				writeAPIError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 				return
 			}
 
@@ -113,23 +108,15 @@ func OptionalAuth(db *sql.DB) func(http.Handler) http.Handler {
 func RequireAdmin() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userInterface, exists := reqctx.Get(r.Context(), UserContextKey)
+			userInterface, exists := reqctx.GetValue(r.Context(), UserContextKey)
 			if !exists {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": "Authentication required",
-				})
+				writeAPIError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 				return
 			}
 
 			user, ok := userInterface.(*model.User)
 			if !ok || user.Role != "admin" {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusForbidden)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": "Admin access required",
-				})
+				writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "Admin access required")
 				return
 			}
 
@@ -140,7 +127,7 @@ func RequireAdmin() func(http.Handler) http.Handler {
 
 // GetCurrentUser retrieves the current user from context
 func GetCurrentUser(r *http.Request) (*model.User, bool) {
-	userInterface, exists := reqctx.Get(r.Context(), UserContextKey)
+	userInterface, exists := reqctx.GetValue(r.Context(), UserContextKey)
 	if !exists {
 		return nil, false
 	}
@@ -151,7 +138,7 @@ func GetCurrentUser(r *http.Request) (*model.User, bool) {
 
 // GetCurrentSession retrieves the current session from context
 func GetCurrentSession(r *http.Request) (*model.Session, bool) {
-	sessionInterface, exists := reqctx.Get(r.Context(), SessionContextKey)
+	sessionInterface, exists := reqctx.GetValue(r.Context(), SessionContextKey)
 	if !exists {
 		return nil, false
 	}
@@ -206,8 +193,8 @@ func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 			if ok && user.Role == "admin" {
 				// Admin accessing non-admin route - treat as guest/anonymous
 				// Clear user and session context so they appear as unauthenticated
-				ctx := reqctx.Set(r.Context(), UserContextKey, nil)
-				ctx = reqctx.Set(ctx, SessionContextKey, nil)
+				ctx := reqctx.SetValue(r.Context(), UserContextKey, nil)
+				ctx = reqctx.SetValue(ctx, SessionContextKey, nil)
 				r = r.WithContext(ctx)
 			}
 
@@ -248,11 +235,7 @@ func BlockAdminFromUserRoutes() func(http.Handler) http.Handler {
 				}
 
 				// Return error for API requests
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusForbidden)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": "Admin users cannot access user routes. Please use /admin routes instead.",
-				})
+				writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "Admin users cannot access user routes. Please use the admin routes instead.")
 				return
 			}
 

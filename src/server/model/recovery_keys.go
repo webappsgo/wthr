@@ -62,7 +62,8 @@ func (m *RecoveryKeyModel) GenerateRecoveryKeys(userID int) ([]string, error) {
 		formatted := h[0:8] + "-" + h[8:12]
 		keys[i] = formatted
 
-		keyHash := HashAPIToken(formatted) // SHA-256 per AI.md PART 34
+		// SHA-256 per AI.md PART 34
+		keyHash := HashAPIToken(formatted)
 
 		_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 			INSERT INTO recovery_keys (user_id, key_hash, created_at)

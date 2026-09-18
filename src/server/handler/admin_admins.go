@@ -88,7 +88,7 @@ func (h *AdminsHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get current admin ID from session (set by RequireAdminAuth middleware)
-	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDInterface, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
@@ -210,7 +210,7 @@ func (h *AdminsHandler) UpdateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AdminModel.Update(id, request.Username, request.Email); err != nil {
+	if err := h.AdminModel.UpdateAdminAccount(id, request.Username, request.Email); err != nil {
 		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.admin.admins.failed_to_update_admin"), map[string]interface{}{
 			"details": err.Error(),
 		})
@@ -234,7 +234,7 @@ func (h *AdminsHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// Prevent deletion of self (basic protection)
 	// Get current admin ID from session (set by RequireAdminAuth middleware)
-	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDInterface, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return
@@ -245,7 +245,7 @@ func (h *AdminsHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AdminModel.Delete(id); err != nil {
+	if err := h.AdminModel.DeleteAdminAccount(id); err != nil {
 		BadRequest(w, r, Translate(r, "errors.admin.admins.failed_to_delete_admin"), map[string]interface{}{
 			"details": err.Error(),
 		})
@@ -288,7 +288,7 @@ func (h *AdminsHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	// Verify current password before allowing change (security requirement)
 	// Get current admin from session
-	adminIDInterface, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDInterface, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.admin.admins.not_authenticated"))
 		return

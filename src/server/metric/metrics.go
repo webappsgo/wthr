@@ -3,7 +3,13 @@
 package metric
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
+	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -231,42 +237,6 @@ var (
 		},
 	)
 
-	// System metrics
-	SystemMemoryUsed = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "wthr_system_memory_used_bytes",
-			Help: "System memory used in bytes",
-		},
-	)
-
-	SystemMemoryTotal = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "wthr_system_memory_total_bytes",
-			Help: "System memory total in bytes",
-		},
-	)
-
-	SystemGoroutines = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "wthr_system_goroutines",
-			Help: "Number of goroutines",
-		},
-	)
-
-	SystemGCPauseTotal = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "wthr_system_gc_pause_total_seconds",
-			Help: "Total GC pause time in seconds",
-		},
-	)
-
-	SystemGCRuns = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "wthr_system_gc_runs_total",
-			Help: "Total number of GC runs",
-		},
-	)
-
 	// Weather-specific business metrics
 	WeatherRequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -299,50 +269,29 @@ var (
 )
 
 var (
-	initOnce      sync.Once
-	startTime     time.Time
-	lastGCRuns    uint32
-	lastGCPauseNs uint64
+	initOnce  sync.Once
+	startTime time.Time
 )
 
-// Init initializes application info metrics
-func Init(version, commit, buildDate string) {
+// InitMetricsAppInfo initializes application info metrics
+func InitMetricsAppInfo(version, commit, buildDate string) {
 	initOnce.Do(func() {
 		startTime = time.Now()
 		AppInfo.WithLabelValues(version, commit, buildDate, runtime.Version()).Set(1)
 		AppStartTime.SetToCurrentTime()
 
-		// Start background goroutine to update uptime and system metrics
-		go updateMetrics()
+		go updateUptime()
 	})
 }
 
-// updateMetrics periodically updates uptime and system metrics
-func updateMetrics() {
+// updateUptime periodically refreshes the uptime gauge. System and Go runtime
+// metrics are collected separately by SystemCollector (system.go).
+func updateUptime() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// Update uptime
 		AppUptime.Set(time.Since(startTime).Seconds())
-
-		// Update system metrics
-		var m runtime.MemStats
-		runtime.ReadMemStats(&m)
-
-		SystemMemoryUsed.Set(float64(m.Alloc))
-		SystemMemoryTotal.Set(float64(m.Sys))
-		SystemGoroutines.Set(float64(runtime.NumGoroutine()))
-
-		// Update GC metrics (only count new runs/pause)
-		if m.NumGC > lastGCRuns {
-			SystemGCRuns.Add(float64(m.NumGC - lastGCRuns))
-			lastGCRuns = m.NumGC
-		}
-		if m.PauseTotalNs > lastGCPauseNs {
-			SystemGCPauseTotal.Add(float64(m.PauseTotalNs-lastGCPauseNs) / 1e9)
-			lastGCPauseNs = m.PauseTotalNs
-		}
 	}
 }
 
@@ -351,7 +300,38 @@ func RecordDBQuery(operation, table string, duration time.Duration, err error) {
 	DBQueriesTotal.WithLabelValues(operation, table).Inc()
 	DBQueryDuration.WithLabelValues(operation, table).Observe(duration.Seconds())
 	if err != nil {
-		DBErrors.WithLabelValues(operation, "query_error").Inc()
+		DBErrors.WithLabelValues(operation, ClassifyDBError(err)).Inc()
+	}
+}
+
+// ClassifyDBError maps a database error onto the fixed error_type label set
+// AI.md PART 21 defines for wthr_db_errors_total: connection, timeout,
+// constraint, duplicate, other. Drivers report these as free-form text, so the
+// message is matched rather than the concrete error type.
+func ClassifyDBError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
+		return "timeout"
+	}
+	if errors.Is(err, sql.ErrConnDone) || errors.Is(err, driver.ErrBadConn) {
+		return "connection"
+	}
+
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "duplicate") || strings.Contains(msg, "unique constraint") || strings.Contains(msg, "unique index"):
+		return "duplicate"
+	case strings.Contains(msg, "constraint"):
+		return "constraint"
+	case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded") || strings.Contains(msg, "context canceled"):
+		return "timeout"
+	case strings.Contains(msg, "connection") || strings.Contains(msg, "no such host") || strings.Contains(msg, "dial ") || strings.Contains(msg, "broken pipe") || strings.Contains(msg, "database is closed"):
+		return "connection"
+	default:
+		return "other"
 	}
 }
 

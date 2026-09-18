@@ -3,19 +3,17 @@ package handler
 import (
 	"net/http"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-// NOTE: Manual OpenAPI spec handlers removed per TEMPLATE.md requirements
-// TEMPLATE.md Rule: "NEVER manually edit OpenAPI JSON" - specs must be auto-generated only
-// All OpenAPI specs are now auto-generated from swag annotations and embedded in binary
+// NOTE: Manual OpenAPI spec handlers removed per AI.md PART 14
+// AI.md PART 14 rule: never manually edit generated OpenAPI JSON - it is
+// build-time generated from swag annotations and embedded in the binary
 
 // GetSwaggerUIAuto returns the auto-generated Swagger UI using swaggo/http-swagger
-// Serves Swagger UI at /openapi (TEMPLATE.md compliant)
+// Serves Swagger UI at /openapi per AI.md PART 14
 func GetSwaggerUIAuto() http.HandlerFunc {
-	// Custom Dracula theme configuration
-	// TEMPLATE.md: Swagger UI must match site theme (Dracula dark)
+	// Swagger UI inherits the shared theme system per AI.md PART 16
 	return httpSwagger.Handler(
 		// Relative URL for the JSON spec
 		httpSwagger.URL("doc.json"),
@@ -23,13 +21,4 @@ func GetSwaggerUIAuto() http.HandlerFunc {
 		httpSwagger.DeepLinking(true),
 		httpSwagger.PersistAuthorization(true),
 	)
-}
-
-// PrometheusMetrics returns Prometheus-compatible metrics using the official client
-// per AI.md PART 21: METRICS (NON-NEGOTIABLE)
-func PrometheusMetrics() http.HandlerFunc {
-	h := promhttp.Handler()
-	return func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
-	}
 }

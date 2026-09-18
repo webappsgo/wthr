@@ -184,7 +184,7 @@ func TestAdminModelCreateAndGet(t *testing.T) {
 	newAdminTestDB(t)
 	m := &AdminModel{}
 
-	admin, err := m.Create("alice", "alice@example.com", testAdminPassword, true)
+	admin, err := m.CreateAdminAccount("alice", "alice@example.com", testAdminPassword, true)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -282,13 +282,13 @@ func TestAdminModelCreateAndGet(t *testing.T) {
 func TestAdminModelUpdate(t *testing.T) {
 	newAdminTestDB(t)
 	m := &AdminModel{}
-	admin, err := m.Create("bob", "bob@example.com", testAdminPassword, false)
+	admin, err := m.CreateAdminAccount("bob", "bob@example.com", testAdminPassword, false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
 	t.Run("simple update", func(t *testing.T) {
-		if err := m.Update(admin.ID, "bobby", "bobby@example.com"); err != nil {
+		if err := m.UpdateAdminAccount(admin.ID, "bobby", "bobby@example.com"); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
 		got, err := m.GetByID(admin.ID)
@@ -301,7 +301,7 @@ func TestAdminModelUpdate(t *testing.T) {
 	})
 
 	t.Run("full update with flags", func(t *testing.T) {
-		if err := m.Update(admin.ID, "bobby2", "bobby2@example.com", true, false); err != nil {
+		if err := m.UpdateAdminAccount(admin.ID, "bobby2", "bobby2@example.com", true, false); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
 		got, err := m.GetByID(admin.ID)
@@ -349,7 +349,7 @@ func TestAdminModelUpdate(t *testing.T) {
 func TestAdminModelVerifyCredentials(t *testing.T) {
 	newAdminTestDB(t)
 	m := &AdminModel{}
-	admin, err := m.Create("carol", "carol@example.com", testAdminPassword, false)
+	admin, err := m.CreateAdminAccount("carol", "carol@example.com", testAdminPassword, false)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -387,7 +387,7 @@ func TestAdminModelVerifyCredentials(t *testing.T) {
 	})
 
 	t.Run("disabled account", func(t *testing.T) {
-		if err := m.Update(admin.ID, "carol", "carol@example.com", false, false); err != nil {
+		if err := m.UpdateAdminAccount(admin.ID, "carol", "carol@example.com", false, false); err != nil {
 			t.Fatalf("Update: %v", err)
 		}
 		if _, err := m.VerifyCredentials("carol", testAdminPassword); err == nil {
@@ -403,25 +403,25 @@ func TestAdminModelDelete(t *testing.T) {
 	m := &AdminModel{}
 
 	t.Run("cannot delete last super admin", func(t *testing.T) {
-		admin, err := m.Create("sole-super", "sole-super@example.com", testAdminPassword, true)
+		admin, err := m.CreateAdminAccount("sole-super", "sole-super@example.com", testAdminPassword, true)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		if err := m.Delete(admin.ID); err == nil {
+		if err := m.DeleteAdminAccount(admin.ID); err == nil {
 			t.Fatal("expected error deleting the last super admin")
 		}
 	})
 
 	t.Run("can delete super admin when another exists", func(t *testing.T) {
-		a1, err := m.Create("super-1", "super-1@example.com", testAdminPassword, true)
+		a1, err := m.CreateAdminAccount("super-1", "super-1@example.com", testAdminPassword, true)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		_, err = m.Create("super-2", "super-2@example.com", testAdminPassword, true)
+		_, err = m.CreateAdminAccount("super-2", "super-2@example.com", testAdminPassword, true)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		if err := m.Delete(a1.ID); err != nil {
+		if err := m.DeleteAdminAccount(a1.ID); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
 		if _, err := m.GetByID(a1.ID); err == nil {
@@ -430,17 +430,17 @@ func TestAdminModelDelete(t *testing.T) {
 	})
 
 	t.Run("can delete regular admin", func(t *testing.T) {
-		a, err := m.Create("regular", "regular@example.com", testAdminPassword, false)
+		a, err := m.CreateAdminAccount("regular", "regular@example.com", testAdminPassword, false)
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		if err := m.Delete(a.ID); err != nil {
+		if err := m.DeleteAdminAccount(a.ID); err != nil {
 			t.Fatalf("Delete: %v", err)
 		}
 	})
 
 	t.Run("delete unknown id errors", func(t *testing.T) {
-		if err := m.Delete(999999); err == nil {
+		if err := m.DeleteAdminAccount(999999); err == nil {
 			t.Fatal("expected error deleting unknown admin id")
 		}
 	})
@@ -450,7 +450,7 @@ func TestAdminModelDelete(t *testing.T) {
 func TestAdminInviteModel(t *testing.T) {
 	newAdminTestDB(t)
 	adminModel := &AdminModel{}
-	inviter, err := adminModel.Create("inviter", "inviter@example.com", testAdminPassword, true)
+	inviter, err := adminModel.CreateAdminAccount("inviter", "inviter@example.com", testAdminPassword, true)
 	if err != nil {
 		t.Fatalf("Create inviter: %v", err)
 	}
@@ -556,7 +556,7 @@ func TestAdminInviteModel(t *testing.T) {
 func TestAdminSessionModel(t *testing.T) {
 	newAdminTestDB(t)
 	adminModel := &AdminModel{}
-	admin, err := adminModel.Create("sessuser", "sessuser@example.com", testAdminPassword, true)
+	admin, err := adminModel.CreateAdminAccount("sessuser", "sessuser@example.com", testAdminPassword, true)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

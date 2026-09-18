@@ -1,0 +1,27 @@
+Subject: SSL Renewal Failed - {app_name}
+---
+Hello Administrator,
+
+The SSL certificate for {app_name} could not be renewed.
+
+**Failure details:**
+- Domain: {fqdn}
+- Error: {error}
+- Current certificate expires in: {expires_in} days
+- Expiry date: {expiry_date}
+- Next automatic retry: {next_retry}
+
+Your site is still serving HTTPS with the existing certificate. It will keep working until the expiry date above, after which visitors will see certificate warnings.
+
+**What to check:**
+- Port 80 and port 443 are reachable from the internet for the ACME challenge.
+- DNS for {fqdn} still points at this server.
+- If you use a DNS-01 challenge, the provider credentials are still valid.
+
+Renewal will be retried automatically at the time shown above. No action is required if the underlying problem resolves itself before then.
+
+Thank you for using {app_name}.
+
+---
+This is an automated message from {app_name}. Please do not reply to this email.
+{app_url}

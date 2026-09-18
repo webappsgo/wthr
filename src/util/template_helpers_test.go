@@ -40,7 +40,7 @@ func newTemplateDataRequest() *http.Request {
 // withValue returns a copy of r whose context carries key/value, mirroring
 // the gin.Context.Set semantics the tests previously exercised.
 func withValue(r *http.Request, key string, value interface{}) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), key, value))
+	return r.WithContext(reqctx.SetValue(r.Context(), key, value))
 }
 
 type fakeLangInfoProvider struct {

@@ -312,7 +312,7 @@ func (m *UserPasskeyModel) ListCredentialsByUserID(userID int64) ([]webauthn.Cre
 	return credentials, nil
 }
 
-func (m *UserPasskeyModel) Create(userID int64, name string, credential *webauthn.Credential) (*UserPasskey, error) {
+func (m *UserPasskeyModel) CreateUserPasskey(userID int64, name string, credential *webauthn.Credential) (*UserPasskey, error) {
 	if err := m.ensurePasskeySchema(); err != nil {
 		return nil, err
 	}

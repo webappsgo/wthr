@@ -66,7 +66,7 @@ func TestHTTPClientGet(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	resp, err := client.Get("/test")
+	resp, err := client.GetResource("/test")
 	if err != nil {
 		t.Fatalf("Get() failed: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestHTTPClientAuthError(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected error for 401 response")
 	}
@@ -169,7 +169,7 @@ func TestHTTPClientForbiddenError(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected error for 403 response")
 	}
@@ -203,7 +203,7 @@ func TestHTTPClientNotFoundError(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected error for 404 response")
 	}
@@ -238,7 +238,7 @@ func TestHTTPClientServerError(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected error for 500 response")
 	}
@@ -267,7 +267,7 @@ func TestHTTPClientConnectionError(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected connection error")
 	}
@@ -304,7 +304,7 @@ func TestHTTPClientTimeout(t *testing.T) {
 	client.HTTPClient.Timeout = 1 * time.Second
 
 	// Make request
-	_, err := client.Get("/test")
+	_, err := client.GetResource("/test")
 	if err == nil {
 		t.Fatal("Expected timeout error")
 	}
@@ -379,7 +379,7 @@ func TestHTTPClientNoToken(t *testing.T) {
 	client := NewHTTPClient(config)
 
 	// Make request
-	resp, err := client.Get("/test")
+	resp, err := client.GetResource("/test")
 	if err != nil {
 		t.Fatalf("Get() failed: %v", err)
 	}

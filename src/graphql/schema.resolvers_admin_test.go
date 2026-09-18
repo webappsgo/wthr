@@ -244,7 +244,7 @@ func TestMutationResolver_AdminInviteServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	inviter, err := (&models.AdminModel{DB: ddb.Server}).Create("inviteradmin2", "inviteradmin2@example.com", "password123", true)
+	inviter, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("inviteradmin2", "inviteradmin2@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed inviter admin: %v", err)
 	}
@@ -314,7 +314,7 @@ func TestMutationResolver_AdminDeleteServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	primary, err := (&models.AdminModel{DB: ddb.Server}).Create("primaryadmin", "primaryadmin@example.com", "password123", true)
+	primary, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("primaryadmin", "primaryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed primary admin: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestMutationResolver_AdminDeleteServerAdmin(t *testing.T) {
 	})
 
 	t.Run("primary admin account cannot be deleted", func(t *testing.T) {
-		second, err := (&models.AdminModel{DB: ddb.Server}).Create("seconddeleter", "seconddeleter@example.com", "password123", true)
+		second, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("seconddeleter", "seconddeleter@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed second admin: %v", err)
 		}
@@ -378,11 +378,11 @@ func TestMutationResolver_AdminDeleteServerAdmin(t *testing.T) {
 	})
 
 	t.Run("cannot delete the last active super admin", func(t *testing.T) {
-		soleSuperAdmin, err := (&models.AdminModel{DB: ddb.Server}).Create("solesuper", "solesuper@example.com", "password123", true)
+		soleSuperAdmin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("solesuper", "solesuper@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed sole super admin: %v", err)
 		}
-		nonSuperCaller, err := (&models.AdminModel{DB: ddb.Server}).Create("nonsupercaller", "nonsupercaller@example.com", "password123", false)
+		nonSuperCaller, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("nonsupercaller", "nonsupercaller@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("seed non-super caller admin: %v", err)
 		}
@@ -399,7 +399,7 @@ func TestMutationResolver_AdminDeleteServerAdmin(t *testing.T) {
 			if other.ID == soleSuperAdmin.ID || !other.IsSuperAdmin || !other.IsActive {
 				continue
 			}
-			if err := (&models.AdminModel{DB: ddb.Server}).Update(other.ID, other.Username, other.Email, other.IsSuperAdmin, false); err != nil {
+			if err := (&models.AdminModel{DB: ddb.Server}).UpdateAdminAccount(other.ID, other.Username, other.Email, other.IsSuperAdmin, false); err != nil {
 				t.Fatalf("deactivate other super admin %d: %v", other.ID, err)
 			}
 		}
@@ -417,7 +417,7 @@ func TestMutationResolver_AdminDeleteServerAdmin(t *testing.T) {
 	})
 
 	t.Run("happy path deletes a non-super, non-primary, non-self admin", func(t *testing.T) {
-		target, err := (&models.AdminModel{DB: ddb.Server}).Create("deletablesub", "deletablesub@example.com", "password123", false)
+		target, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("deletablesub", "deletablesub@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("seed deletable admin: %v", err)
 		}
@@ -482,7 +482,7 @@ func TestMutationResolver_AdminGenerateToken(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("tokenadmin", "tokenadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("tokenadmin", "tokenadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -525,7 +525,7 @@ func TestMutationResolver_AdminRevokeToken(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("revoketokenadmin", "revoketokenadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("revoketokenadmin", "revoketokenadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	primary, err := (&models.AdminModel{DB: ddb.Server}).Create("primarydisabler", "primarydisabler@example.com", "password123", true)
+	primary, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("primarydisabler", "primarydisabler@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed primary admin: %v", err)
 	}
@@ -611,7 +611,7 @@ func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
 	})
 
 	t.Run("primary admin account cannot be disabled", func(t *testing.T) {
-		second, err := (&models.AdminModel{DB: ddb.Server}).Create("seconddisabler", "seconddisabler@example.com", "password123", true)
+		second, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("seconddisabler", "seconddisabler@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed second admin: %v", err)
 		}
@@ -643,11 +643,11 @@ func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
 	})
 
 	t.Run("cannot disable the last active super admin", func(t *testing.T) {
-		soleSuperAdmin, err := (&models.AdminModel{DB: ddb.Server}).Create("solesuperdisable", "solesuperdisable@example.com", "password123", true)
+		soleSuperAdmin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("solesuperdisable", "solesuperdisable@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed sole super admin: %v", err)
 		}
-		nonSuperCaller, err := (&models.AdminModel{DB: ddb.Server}).Create("nonsupercallerdisable", "nonsupercallerdisable@example.com", "password123", false)
+		nonSuperCaller, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("nonsupercallerdisable", "nonsupercallerdisable@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("seed non-super caller admin: %v", err)
 		}
@@ -664,7 +664,7 @@ func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
 			if other.ID == soleSuperAdmin.ID || !other.IsSuperAdmin || !other.IsActive {
 				continue
 			}
-			if err := (&models.AdminModel{DB: ddb.Server}).Update(other.ID, other.Username, other.Email, other.IsSuperAdmin, false); err != nil {
+			if err := (&models.AdminModel{DB: ddb.Server}).UpdateAdminAccount(other.ID, other.Username, other.Email, other.IsSuperAdmin, false); err != nil {
 				t.Fatalf("deactivate other super admin %d: %v", other.ID, err)
 			}
 		}
@@ -682,7 +682,7 @@ func TestMutationResolver_AdminDisableServerAdmin(t *testing.T) {
 	})
 
 	t.Run("happy path disables a non-super, non-primary, non-self admin", func(t *testing.T) {
-		target, err := (&models.AdminModel{DB: ddb.Server}).Create("disablablesub", "disablablesub@example.com", "password123", false)
+		target, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("disablablesub", "disablablesub@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("seed disable-able admin: %v", err)
 		}
@@ -711,7 +711,7 @@ func TestMutationResolver_AdminEnableServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	m := &mutationResolver{&Resolver{ServerDB: ddb.Server}}
 
-	primary, err := (&models.AdminModel{DB: ddb.Server}).Create("primaryenabler", "primaryenabler@example.com", "password123", true)
+	primary, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("primaryenabler", "primaryenabler@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed primary admin: %v", err)
 	}
@@ -746,11 +746,11 @@ func TestMutationResolver_AdminEnableServerAdmin(t *testing.T) {
 	})
 
 	t.Run("happy path enables a disabled admin, including re-enabling your own account", func(t *testing.T) {
-		target, err := (&models.AdminModel{DB: ddb.Server}).Create("enablablesub", "enablablesub@example.com", "password123", false)
+		target, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("enablablesub", "enablablesub@example.com", "password123", false)
 		if err != nil {
 			t.Fatalf("seed enable-able admin: %v", err)
 		}
-		if err := (&models.AdminModel{DB: ddb.Server}).Update(target.ID, target.Username, target.Email, target.IsSuperAdmin, false); err != nil {
+		if err := (&models.AdminModel{DB: ddb.Server}).UpdateAdminAccount(target.ID, target.Username, target.Email, target.IsSuperAdmin, false); err != nil {
 			t.Fatalf("disable target admin: %v", err)
 		}
 

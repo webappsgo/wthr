@@ -26,7 +26,7 @@ func TestTorVanity_Start_ValidatesPrefixLength(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vg := NewVanityGenerator()
-			err := vg.Start(tt.prefix)
+			err := vg.StartVanityGeneration(tt.prefix)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Start(%q) error = %v, wantErr %v", tt.prefix, err, tt.wantErr)
 			}
@@ -62,7 +62,7 @@ func TestTorVanity_Start_ValidatesPrefixCharacters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vg := NewVanityGenerator()
-			err := vg.Start(tt.prefix)
+			err := vg.StartVanityGeneration(tt.prefix)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Start(%q) error = %v, wantErr %v", tt.prefix, err, tt.wantErr)
 			}
@@ -81,7 +81,7 @@ func TestTorVanity_Start_RejectsConcurrentRun(t *testing.T) {
 	vg := NewVanityGenerator()
 	// Use an unlikely-to-match-fast prefix so the first run stays "running"
 	// long enough for the second Start call to observe it.
-	if err := vg.Start("zzzzzz"); err != nil {
+	if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 		t.Fatalf("first Start unexpected error: %v", err)
 	}
 	defer func() {
@@ -89,7 +89,7 @@ func TestTorVanity_Start_RejectsConcurrentRun(t *testing.T) {
 		vg.Wait()
 	}()
 
-	if err := vg.Start("aaaaaa"); err == nil {
+	if err := vg.StartVanityGeneration("aaaaaa"); err == nil {
 		t.Fatal("expected error when starting while another generation is running")
 	}
 }
@@ -108,7 +108,7 @@ func TestTorVanity_Cancel_NoGenerationInProgress(t *testing.T) {
 // must be false (set by the ctx.Done() branch of generate()).
 func TestTorVanity_Cancel_StopsRunningGeneration(t *testing.T) {
 	vg := NewVanityGenerator()
-	if err := vg.Start("zzzzzz"); err != nil {
+	if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 		t.Fatalf("Start unexpected error: %v", err)
 	}
 
@@ -142,7 +142,7 @@ func TestTorVanity_Cancel_StopsRunningGeneration(t *testing.T) {
 // to cancel), not panic on a nil/expired context.
 func TestTorVanity_Cancel_Idempotency(t *testing.T) {
 	vg := NewVanityGenerator()
-	if err := vg.Start("zzzzzz"); err != nil {
+	if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 		t.Fatalf("Start unexpected error: %v", err)
 	}
 	if err := vg.Cancel(); err != nil {
@@ -170,7 +170,7 @@ func TestTorVanity_GetStatus_NilBeforeStart(t *testing.T) {
 // preventing data races on the caller's read.
 func TestTorVanity_GetStatus_ReturnsCopy(t *testing.T) {
 	vg := NewVanityGenerator()
-	if err := vg.Start("zzzzzz"); err != nil {
+	if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 		t.Fatalf("Start unexpected error: %v", err)
 	}
 	defer func() {
@@ -214,7 +214,7 @@ func TestTorVanity_GetKeys_ErrorPaths(t *testing.T) {
 
 	t.Run("generation still running", func(t *testing.T) {
 		vg := NewVanityGenerator()
-		if err := vg.Start("zzzzzz"); err != nil {
+		if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 			t.Fatalf("Start unexpected error: %v", err)
 		}
 		defer func() {
@@ -230,7 +230,7 @@ func TestTorVanity_GetKeys_ErrorPaths(t *testing.T) {
 
 	t.Run("cancelled without a match", func(t *testing.T) {
 		vg := NewVanityGenerator()
-		if err := vg.Start("zzzzzz"); err != nil {
+		if err := vg.StartVanityGeneration("zzzzzz"); err != nil {
 			t.Fatalf("Start unexpected error: %v", err)
 		}
 		vg.Cancel()

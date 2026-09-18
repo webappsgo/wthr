@@ -31,7 +31,7 @@ func AccessLogger(logger *util.Logger) func(http.Handler) http.Handler {
 			userAgent := r.UserAgent()
 
 			username := ""
-			if user, exists := reqctx.Get(r.Context(), UserContextKey); exists {
+			if user, exists := reqctx.GetValue(r.Context(), UserContextKey); exists {
 				if u, ok := user.(*model.User); ok && u != nil {
 					username = u.Username
 				}
@@ -57,7 +57,7 @@ func AccessLoggerWithFormat(logger *util.Logger, formatter *service.LogFormatter
 
 			entry := service.ExtractLogEntry(r, start, ww.Status(), ww.BytesWritten())
 
-			if user, exists := reqctx.Get(r.Context(), UserContextKey); exists {
+			if user, exists := reqctx.GetValue(r.Context(), UserContextKey); exists {
 				if u, ok := user.(*model.User); ok && u != nil {
 					entry.Username = u.Username
 				}

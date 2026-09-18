@@ -20,13 +20,14 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# install-linux.sh - Distro-agnostic installer for Weather Service
+# install-linux.sh - Distro-agnostic installer for the wthr weather service
 # Supports: systemd, OpenRC, init.d, runit
 # Auto-detects: architecture, init system, package manager
 
 set -e
 
 PROJECTNAME="wthr"
+ORGNAME="webappsgo"
 GITHUB_REPO="webappsgo/wthr"
 VERSION="latest"
 
@@ -36,7 +37,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== Weather Service Installer ===${NC}"
+echo -e "${GREEN}=== wthr Weather Service Installer ===${NC}"
 
 # Detect architecture
 ARCH=$(uname -m)
@@ -55,15 +56,15 @@ echo "Architecture: $ARCH"
 if [ "$EUID" -eq 0 ]; then
     IS_ROOT=true
     BIN_DIR="/usr/local/bin"
-    CONFIG_DIR="/etc/${PROJECTNAME}"
-    DATA_DIR="/var/lib/${PROJECTNAME}"
-    LOG_DIR="/var/log/${PROJECTNAME}"
+    CONFIG_DIR="/etc/${ORGNAME}/${PROJECTNAME}"
+    DATA_DIR="/var/lib/${ORGNAME}/${PROJECTNAME}"
+    LOG_DIR="/var/log/${ORGNAME}/${PROJECTNAME}"
 else
     IS_ROOT=false
     BIN_DIR="$HOME/.local/bin"
-    CONFIG_DIR="$HOME/.config/${PROJECTNAME}"
-    DATA_DIR="$HOME/.local/share/${PROJECTNAME}"
-    LOG_DIR="$HOME/.local/state/${PROJECTNAME}"
+    CONFIG_DIR="$HOME/.config/${ORGNAME}/${PROJECTNAME}"
+    DATA_DIR="$HOME/.local/share/${ORGNAME}/${PROJECTNAME}"
+    LOG_DIR="$HOME/.local/log/${ORGNAME}/${PROJECTNAME}"
 fi
 
 echo "Install mode: $([ "$IS_ROOT" = true ] && echo "System (root)" || echo "User")"
@@ -112,7 +113,7 @@ case $INIT_SYSTEM in
         if [ "$IS_ROOT" = true ]; then
             cat > /etc/systemd/system/${PROJECTNAME}.service << EOF
 [Unit]
-Description=Weather API Service
+Description=wthr Weather Service
 After=network.target
 
 [Service]
@@ -147,7 +148,7 @@ EOF
             mkdir -p ~/.config/systemd/user
             cat > ~/.config/systemd/user/${PROJECTNAME}.service << EOF
 [Unit]
-Description=Weather API Service
+Description=wthr Weather Service
 After=network.target
 
 [Service]
@@ -181,7 +182,7 @@ EOF
             cat > /etc/init.d/${PROJECTNAME} << EOF
 #!/sbin/openrc-run
 
-name="Weather Service"
+name="wthr"
 command="${BIN_DIR}/${PROJECTNAME}"
 command_background=true
 pidfile="/run/${PROJECTNAME}.pid"
@@ -220,11 +221,11 @@ EOF
 # Required-Stop:     \$network \$remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Weather API Service
+# Short-Description: wthr Weather Service
 ### END INIT INFO
 
 DAEMON=${BIN_DIR}/${PROJECTNAME}
-PIDFILE=/var/run/${PROJECTNAME}.pid
+PIDFILE=/var/run/${ORGNAME}/${PROJECTNAME}.pid
 
 export CONFIG_DIR="${CONFIG_DIR}"
 export DATA_DIR="${DATA_DIR}"

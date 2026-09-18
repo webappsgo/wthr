@@ -189,8 +189,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 					"requires_passkey":   true,
 					"session_token":      pendingToken,
 					"redirect":           adminPath,
-					"challenge_endpoint": "/api/v1/server/auth/admin/passkey/challenge",
-					"verify_endpoint":    "/api/v1/server/auth/admin/passkey/verify",
+					"challenge_endpoint": cfg.GetAPIPath() + "/server/auth/admin/passkey/challenge",
+					"verify_endpoint":    cfg.GetAPIPath() + "/server/auth/admin/passkey/verify",
 				})
 			} else {
 				// Non-JSON callers (HTML form login) get redirected to a
@@ -333,7 +333,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Create user session
 	sessionModel := &model.SessionModel{DB: h.DB}
-	session, err := sessionModel.Create(user.ID, sessionTimeout)
+	session, err := sessionModel.CreateSession(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(w, r, http.StatusInternalServerError, "Failed to create session")
 		return
@@ -432,7 +432,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	role := "user"
 
 	// Create user
-	user, err := userModel.Create(username, req.Email, req.Password, role)
+	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, role)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			respondWithError(w, r, http.StatusBadRequest, "Unable to complete registration. [Forgot credentials?](/server/auth/password/forgot)")
@@ -475,7 +475,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	// Auto-login after registration
 	sessionModel := &model.SessionModel{DB: h.DB}
-	session, err := sessionModel.Create(user.ID, sessionTimeout)
+	session, err := sessionModel.CreateSession(user.ID, sessionTimeout)
 	if err != nil {
 		respondWithError(w, r, http.StatusInternalServerError, "User created but failed to login")
 		return
@@ -523,7 +523,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	session, exists := middleware.GetCurrentSession(r)
 	if exists {
 		sessionModel := &model.SessionModel{DB: h.DB}
-		sessionModel.Delete(session.ID)
+		sessionModel.DeleteSession(session.ID)
 	}
 
 	// Clear session cookie

@@ -57,7 +57,7 @@ func RequestID() func(http.Handler) http.Handler {
 			}
 
 			// Store request ID in context for use in handlers and logging
-			ctx := reqctx.Set(r.Context(), RequestIDKey, requestID)
+			ctx := reqctx.SetValue(r.Context(), RequestIDKey, requestID)
 
 			// Add request ID to response headers
 			// Use standard X-Request-ID header for response

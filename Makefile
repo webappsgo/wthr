@@ -5,22 +5,24 @@ PROJECTORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^
 # Version precedence: release.txt > env/default fallback
 VERSION ?= $(shell cat release.txt 2>/dev/null || echo "devel")
 
-# Build info — ISO 8601 / RFC 3339 UTC
-BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-COMMIT_ID := $(shell git rev-parse --short HEAD 2>/dev/null || echo "N/A")
+# Build info — BUILD_EPOCH is the single captured time source; BUILD_DATE is derived from it
+BUILD_EPOCH := $(shell date -u +%s)
+BUILD_DATE := $(shell date -u -d @$(BUILD_EPOCH) +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r $(BUILD_EPOCH) +"%Y-%m-%dT%H:%M:%SZ")
+COMMIT_ID := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo "N/A")
 
 # Official site URL (OPTIONAL - never guess or assume)
 # Sources (in order of precedence):
 #   1. File: site.txt in project root (single line, URL only)
-#   2. Environment variable: OFFICIALSITE=https://example.com
+#   2. Environment variable: OFFICIAL_SITE=https://example.com
 #   3. Empty (self-hosted projects - users must use --server flag)
 # NEVER infer from project name, domain, or any other source
-OFFICIALSITE := $(shell [ -f site.txt ] && cat site.txt || echo "${OFFICIALSITE:-}")
+OFFICIALSITE := $(shell [ -f site.txt ] && cat site.txt || echo "$${OFFICIAL_SITE:-}")
 
 # Linker flags to embed build info
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
 	-X 'main.CommitID=$(COMMIT_ID)' \
+	-X 'main.BuildEpoch=$(BUILD_EPOCH)' \
 	-X 'main.BuildDate=$(BUILD_DATE)' \
 	-X 'main.OfficialSite=$(OFFICIALSITE)'
 
@@ -39,8 +41,14 @@ PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 win
 
 # Docker - Set REGISTRY based on your platform (ghcr.io, registry.gitlab.com, git.example.com)
 REGISTRY ?= ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+
+# Resource caps keep one build from starving concurrent builds on the same host
+DOCKER_MEM  ?= 4g
+DOCKER_CPUS ?= 2
+
 GO_DOCKER := docker run --rm \
 	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
 	-v $(GO_BUILD):/usr/local/share/go/cache \
@@ -200,7 +208,9 @@ docker:
 		--platform linux/amd64,linux/arm64 \
 		--build-arg VERSION="$(VERSION)" \
 		--build-arg BUILD_DATE="$(BUILD_DATE)" \
+		--build-arg BUILD_EPOCH="$(BUILD_EPOCH)" \
 		--build-arg COMMIT_ID="$(COMMIT_ID)" \
+		--build-arg OFFICIAL_SITE="$(OFFICIALSITE)" \
 		-t $(REGISTRY):$(VERSION) \
 		-t $(REGISTRY):latest \
 		.
@@ -247,7 +257,7 @@ dev:
 			$(GO_DOCKER) go build -o $$BUILD_DIR/$(PROJECTNAME)-agent ./src/agent && \
 			echo "Built: $$BUILD_DIR/$(PROJECTNAME)-agent"; \
 		fi && \
-		echo "Test:  docker run --rm -it --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
+		echo "Test:  docker run --rm --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
 
 # =============================================================================
 # CLEAN - Remove build artifacts

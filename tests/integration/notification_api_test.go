@@ -43,7 +43,7 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 
 	// Create WebSocket hub and notification service
 	wsHub := service.NewWebSocketHub()
-	go wsHub.Run()
+	go wsHub.RunWebSocketHub()
 
 	notificationService := &service.NotificationService{
 		UserDB:     userDB,
@@ -66,7 +66,8 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 	// User notification routes
 	user := chi.NewRouter()
 	r.Mount("/api/v1/users/notifications", user)
-	user.Use(mockAuthMiddleware(1, false)) // Mock user ID = 1
+	// Mock user ID = 1
+	user.Use(mockAuthMiddleware(1, false))
 	user.Get("/", notificationAPIHandler.GetUserNotifications)
 	user.Get("/unread", notificationAPIHandler.GetUserUnreadNotifications)
 	user.Get("/count", notificationAPIHandler.GetUserUnreadCount)
@@ -81,7 +82,8 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 	// Admin notification routes
 	admin := chi.NewRouter()
 	r.Mount("/api/v1/admin/notifications", admin)
-	admin.Use(mockAuthMiddleware(1, true)) // Mock admin ID = 1
+	// Mock admin ID = 1
+	admin.Use(mockAuthMiddleware(1, true))
 	admin.Get("/", notificationAPIHandler.GetAdminNotifications)
 	admin.Get("/unread", notificationAPIHandler.GetAdminUnreadNotifications)
 	admin.Get("/count", notificationAPIHandler.GetAdminUnreadCount)
@@ -95,7 +97,7 @@ func setupNotificationAPITest(t *testing.T) (chi.Router, *sql.DB, *sql.DB, *serv
 	admin.Post("/send", notificationAPIHandler.SendTestNotification)
 
 	cleanup := func() {
-		wsHub.Stop()
+		wsHub.StopWebSocketHub()
 		// Note: We don't close databases here since other code might reference the global
 		// The databases use in-memory mode so they'll be garbage collected
 	}
@@ -121,9 +123,9 @@ func mockAuthMiddleware(id int, isAdmin bool) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			if isAdmin {
-				ctx = reqctx.Set(ctx, "admin_id", id)
+				ctx = reqctx.SetValue(ctx, "admin_id", id)
 			} else {
-				ctx = reqctx.Set(ctx, "user_id", id)
+				ctx = reqctx.SetValue(ctx, "user_id", id)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

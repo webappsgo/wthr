@@ -2,12 +2,6 @@ package database
 
 // UsersSchema contains all user-related tables per TEMPLATE.md PART 31
 const UsersSchema = `
--- Schema version tracking
-CREATE TABLE IF NOT EXISTS schema_version (
-	version INTEGER PRIMARY KEY,
-	applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- User Accounts table (regular users only, NO admins)
 -- Per AI.md PART 34: Multi-user support with profile fields
 CREATE TABLE IF NOT EXISTS user_accounts (
@@ -373,5 +367,3 @@ CREATE INDEX IF NOT EXISTS idx_activity_user ON user_activity_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_type ON user_activity_log(activity_type);
 CREATE INDEX IF NOT EXISTS idx_activity_created ON user_activity_log(created_at);
 `
-
-const UsersSchemaVersion = 7

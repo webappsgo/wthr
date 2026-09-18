@@ -1,5 +1,6 @@
-// Package scheduler - automated backup task per AI.md PART 27
-// AI.md Reference: Lines 24088-24250, specifically line 24182-24188
+// Package scheduler - automated backup task per AI.md PART 19 (Built-in Tasks:
+// backup_hourly) implementing the backup behavior defined in AI.md PART 22
+// (Backup Files Created).
 package scheduler
 
 import (
@@ -10,7 +11,7 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 )
 
-// BackupHourlyTask performs automated hourly incremental backups per AI.md PART 19 line 27050
+// BackupHourlyTask performs automated hourly incremental backups per AI.md PART 19 (Built-in Tasks: backup_hourly)
 // Schedule: @hourly (disabled by default)
 // Creates: {projectname}-hourly.tar.gz[.enc] (single file, replaced each hour)
 func BackupHourlyTask(configDir, dataDir string) func() error {
@@ -21,7 +22,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 		svc := backup.New(configDir, dataDir)
 
 		// Create hourly backup with specific filename
-		// Per AI.md PART 19 line 27053-27054: Always 1 file (replaced each hour)
+		// Per AI.md PART 22 (Backup Files Created): always 1 file, replaced each hour
 		opts := backup.BackupOptions{
 			ConfigDir:   configDir,
 			DataDir:     dataDir,
@@ -35,7 +36,7 @@ func BackupHourlyTask(configDir, dataDir string) func() error {
 			Retention:   systemBackupRetention(),
 		}
 
-		backupPath, deleted, err := svc.Create(opts)
+		backupPath, deleted, err := svc.CreateBackupArchive(opts)
 		if err != nil {
 			log.Printf("ERROR: Hourly backup failed: %v", err)
 			return fmt.Errorf("hourly backup failed: %w", err)

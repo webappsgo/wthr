@@ -29,7 +29,7 @@ func NewAdminWebHandler(db *database.DB) *AdminWebHandler {
 // GET /admin/server/web
 func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
-	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return

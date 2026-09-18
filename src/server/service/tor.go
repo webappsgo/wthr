@@ -55,8 +55,8 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 	}
 }
 
-// Start initializes and starts the Tor hidden service
-func (ts *TorService) Start(httpPort int) error {
+// StartTorService initializes and starts the Tor hidden service
+func (ts *TorService) StartTorService(httpPort int) error {
 	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Check if Tor is enabled
@@ -98,7 +98,7 @@ func (ts *TorService) Start(httpPort int) error {
 	defer readyCancel()
 
 	if err := t.EnableNetwork(readyCtx, true); err != nil {
-		ts.Stop()
+		ts.StopTorService()
 		return fmt.Errorf("failed to enable Tor network: %w", err)
 	}
 
@@ -115,7 +115,7 @@ func (ts *TorService) Start(httpPort int) error {
 		Version3:    true,
 	})
 	if err != nil {
-		ts.Stop()
+		ts.StopTorService()
 		return fmt.Errorf("failed to create hidden service: %w", err)
 	}
 	ts.onionService = onionService
@@ -132,12 +132,12 @@ func (ts *TorService) Start(httpPort int) error {
 	ts.mu.Unlock()
 
 	// Save .onion address to database
-	if err := settingsModel.Set("tor.onion_address", onionAddr, "string"); err != nil {
+	if err := settingsModel.SetSetting("tor.onion_address", onionAddr, "string"); err != nil {
 		log.Printf("WARNING: Failed to save .onion address to database: %v", err)
 	}
 
 	// Save Tor data directory path
-	if err := settingsModel.Set("tor.data_dir", ts.dataDir, "string"); err != nil {
+	if err := settingsModel.SetSetting("tor.data_dir", ts.dataDir, "string"); err != nil {
 		log.Printf("WARNING: Failed to save Tor data directory: %v", err)
 	}
 
@@ -151,8 +151,8 @@ func (ts *TorService) Start(httpPort int) error {
 	return nil
 }
 
-// Stop shuts down the Tor service gracefully
-func (ts *TorService) Stop() error {
+// StopTorService shuts down the Tor service gracefully
+func (ts *TorService) StopTorService() error {
 	if ts.tor == nil {
 		return nil
 	}
@@ -223,7 +223,7 @@ func (ts *TorService) RegenerateAddress(httpPort int) error {
 	log.Println("INFO: Regenerating Tor .onion address...")
 
 	// Stop current service
-	if err := ts.Stop(); err != nil {
+	if err := ts.StopTorService(); err != nil {
 		return fmt.Errorf("failed to stop Tor service: %w", err)
 	}
 
@@ -234,7 +234,7 @@ func (ts *TorService) RegenerateAddress(httpPort int) error {
 	}
 
 	// Restart with new keys
-	return ts.Start(httpPort)
+	return ts.StartTorService(httpPort)
 }
 
 // monitorHealth runs periodic health checks on the Tor service

@@ -58,8 +58,8 @@ func NewWebSocketHub() *WebSocketHub {
 	}
 }
 
-// Run starts the WebSocket hub (run in goroutine)
-func (h *WebSocketHub) Run() {
+// RunWebSocketHub starts the WebSocket hub (run in goroutine)
+func (h *WebSocketHub) RunWebSocketHub() {
 	// Ping ticker (every 30 seconds)
 	pingTicker := time.NewTicker(30 * time.Second)
 	defer pingTicker.Stop()
@@ -101,8 +101,8 @@ func (h *WebSocketHub) Run() {
 	}
 }
 
-// Stop stops the WebSocket hub
-func (h *WebSocketHub) Stop() {
+// StopWebSocketHub stops the WebSocket hub
+func (h *WebSocketHub) StopWebSocketHub() {
 	close(h.done)
 
 	// Close all client connections

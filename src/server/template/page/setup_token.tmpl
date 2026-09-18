@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>">
 </head>
 <body>
@@ -54,50 +55,14 @@
         </div>
     </div>
 
-    <script>
-        document.getElementById('token-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const submitBtn = document.getElementById('submit-btn');
-            const errorMsg = document.getElementById('error-message');
-            const token = document.getElementById('setup_token').value.trim().toLowerCase();
-
-            errorMsg.classList.remove('edit-error-message');
-
-            // Validate token format
-            if (!/^[a-f0-9]{32}$/.test(token)) {
-                errorMsg.textContent = '{{t .server.Lang "setup_token_invalid_format_error"}}';
-                errorMsg.classList.add('edit-error-message');
-                return;
-            }
-
-            submitBtn.disabled = true;
-            submitBtn.textContent = '{{t .server.Lang "setup_token_verifying_button"}}';
-
-            try {
-                const response = await fetch(window.location.pathname.replace(/\/$/, '') + '/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ setup_token: token })
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    window.location.href = result.redirect;
-                } else {
-                    errorMsg.textContent = result.error || '{{t .server.Lang "setup_token_invalid_token_error"}}';
-                    errorMsg.classList.add('edit-error-message');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = '{{t .server.Lang "setup_token_continue_button"}}';
-                }
-            } catch (error) {
-                errorMsg.textContent = '{{t .server.Lang "setup_token_network_error"}}';
-                errorMsg.classList.add('edit-error-message');
-                submitBtn.disabled = false;
-                submitBtn.textContent = '{{t .server.Lang "setup_token_continue_button"}}';
-            }
-        });
+    <script type="application/json" id="setup-token-data">
+        {
+            "invalidFormat": "{{t .server.Lang "setup_token_invalid_format_error"}}",
+            "verifying": "{{t .server.Lang "setup_token_verifying_button"}}",
+            "invalidToken": "{{t .server.Lang "setup_token_invalid_token_error"}}",
+            "networkError": "{{t .server.Lang "setup_token_network_error"}}",
+            "continueLabel": "{{t .server.Lang "setup_token_continue_button"}}"
+        }
     </script>
 </body>
 </html>

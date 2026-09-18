@@ -175,8 +175,8 @@ type UserNotificationModel struct {
 	DB *sql.DB
 }
 
-// Create creates a new user notification
-func (m *UserNotificationModel) Create(userID int, notifType NotificationType, display NotificationDisplay, title, message string, action *NotificationAction) (*Notification, error) {
+// CreateUserNotification creates a new user notification
+func (m *UserNotificationModel) CreateUserNotification(userID int, notifType NotificationType, display NotificationDisplay, title, message string, action *NotificationAction) (*Notification, error) {
 	// Generate ULID
 	id := ulid.Make().String()
 
@@ -353,8 +353,8 @@ func (m *UserNotificationModel) Dismiss(id string, userID int) error {
 	return nil
 }
 
-// Delete deletes a notification
-func (m *UserNotificationModel) Delete(id string, userID int) error {
+// DeleteUserNotification deletes a notification
+func (m *UserNotificationModel) DeleteUserNotification(id string, userID int) error {
 	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM user_notifications WHERE id = ? AND user_id = ?", id, userID)
 	if err != nil {
 		return err
@@ -494,8 +494,8 @@ type AdminNotificationModel struct {
 	DB *sql.DB
 }
 
-// Create creates a new admin notification
-func (m *AdminNotificationModel) Create(adminID int, notifType NotificationType, display NotificationDisplay, title, message string, action *NotificationAction) (*Notification, error) {
+// CreateUserNotification creates a new admin notification
+func (m *AdminNotificationModel) CreateAdminNotification(adminID int, notifType NotificationType, display NotificationDisplay, title, message string, action *NotificationAction) (*Notification, error) {
 	// Generate ULID
 	id := ulid.Make().String()
 
@@ -667,8 +667,8 @@ func (m *AdminNotificationModel) Dismiss(id string, adminID int) error {
 	return nil
 }
 
-// Delete deletes a notification
-func (m *AdminNotificationModel) Delete(id string, adminID int) error {
+// DeleteUserNotification deletes a notification
+func (m *AdminNotificationModel) DeleteAdminNotification(id string, adminID int) error {
 	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM server_admin_notifications WHERE id = ? AND admin_id = ?", id, adminID)
 	if err != nil {
 		return err

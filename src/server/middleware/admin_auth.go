@@ -103,7 +103,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			}
 
 			// Valid session - store admin_id in context for handlers
-			ctx := reqctx.Set(r.Context(), "admin_id", adminID)
+			ctx := reqctx.SetValue(r.Context(), "admin_id", adminID)
 			r = r.WithContext(ctx)
 
 			// Session valid - continue to admin panel
@@ -121,7 +121,7 @@ func GetVersion() string {
 
 // GetDB returns the database connection from context (helper for middleware)
 func GetDB(r *http.Request) *sql.DB {
-	if db, exists := reqctx.Get(r.Context(), "db"); exists {
+	if db, exists := reqctx.GetValue(r.Context(), "db"); exists {
 		if sqlDB, ok := db.(*sql.DB); ok {
 			return sqlDB
 		}

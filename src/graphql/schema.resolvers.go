@@ -896,7 +896,7 @@ func (r *mutationResolver) AdminUpdateUser(ctx context.Context, id string, usern
 		updatedRole = strings.TrimSpace(*role)
 	}
 
-	if err := userModel.Update(userID, updatedUsername, updatedEmail, updatedRole); err != nil {
+	if err := userModel.UpdateUserProfile(userID, updatedUsername, updatedEmail, updatedRole); err != nil {
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 
@@ -925,7 +925,7 @@ func (r *mutationResolver) AdminDeleteUser(ctx context.Context, id string) (*Gen
 	if _, err := userModel.GetByID(userID); err != nil {
 		return &GenericResponse{Success: false, Message: "User not found"}, nil
 	}
-	if err := userModel.Delete(userID); err != nil {
+	if err := userModel.DeleteUserAccount(userID); err != nil {
 		return &GenericResponse{Success: false, Message: fmt.Sprintf("Failed to delete user: %v", err)}, nil
 	}
 
@@ -1061,7 +1061,7 @@ func (r *mutationResolver) AdminDeleteServerAdmin(ctx context.Context, id string
 		}
 	}
 
-	if err := adminModel.Delete(adminID); err != nil {
+	if err := adminModel.DeleteAdminAccount(adminID); err != nil {
 		return nil, fmt.Errorf("failed to delete admin: %w", err)
 	}
 
@@ -1107,7 +1107,7 @@ func (r *mutationResolver) AdminDisableServerAdmin(ctx context.Context, id strin
 		}
 	}
 
-	if err := adminModel.Update(admin.ID, admin.Username, admin.Email, admin.IsSuperAdmin, false); err != nil {
+	if err := adminModel.UpdateAdminAccount(admin.ID, admin.Username, admin.Email, admin.IsSuperAdmin, false); err != nil {
 		return nil, fmt.Errorf("failed to disable admin: %w", err)
 	}
 
@@ -1132,7 +1132,7 @@ func (r *mutationResolver) AdminEnableServerAdmin(ctx context.Context, id string
 		return &GenericResponse{Success: false, Message: "Admin not found"}, nil
 	}
 
-	if err := adminModel.Update(admin.ID, admin.Username, admin.Email, admin.IsSuperAdmin, true); err != nil {
+	if err := adminModel.UpdateAdminAccount(admin.ID, admin.Username, admin.Email, admin.IsSuperAdmin, true); err != nil {
 		return nil, fmt.Errorf("failed to enable admin: %w", err)
 	}
 

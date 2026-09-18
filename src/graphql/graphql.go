@@ -107,9 +107,9 @@ func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
 		ctx = context.WithValue(ctx, ctxKeyRequestUserAgent, userAgent)
 	}
 
-	if userValue, exists := reqctx.Get(r.Context(), middleware.UserContextKey); exists {
+	if userValue, exists := reqctx.GetValue(r.Context(), middleware.UserContextKey); exists {
 		if user, ok := userValue.(*models.User); ok && user != nil {
-			if sessionValue, sessionExists := reqctx.Get(r.Context(), middleware.SessionContextKey); sessionExists {
+			if sessionValue, sessionExists := reqctx.GetValue(r.Context(), middleware.SessionContextKey); sessionExists {
 				if session, ok := sessionValue.(*models.Session); ok && session != nil {
 					return withGraphQLUserSessionContext(ctx, user, session), nil
 				}
@@ -118,7 +118,7 @@ func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
 		}
 	}
 
-	if adminIDValue, exists := reqctx.Get(r.Context(), "admin_id"); exists {
+	if adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id"); exists {
 		if adminID, ok := adminIDValue.(int); ok && adminID > 0 {
 			return withGraphQLAdminContext(ctx, adminID)
 		}

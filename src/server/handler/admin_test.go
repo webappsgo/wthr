@@ -38,7 +38,7 @@ func setURLParam(r *http.Request, key, value string) *http.Request {
 // tests that need to simulate both a well-typed and a mistyped "admin_id"
 // (see TestAdminHandler_ShowSettingsPage_RedirectBranches).
 func withReqCtxValue(r *http.Request, key string, value interface{}) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), key, value))
+	return r.WithContext(reqctx.SetValue(r.Context(), key, value))
 }
 
 // newAdminTestHandler wires an AdminHandler against fresh in-memory
@@ -60,7 +60,7 @@ func newAdminTestHandler(t *testing.T) (*AdminHandler, *sql.DB, *sql.DB) {
 func TestAdminHandler_ListUsers(t *testing.T) {
 	t.Run("success returns seeded users", func(t *testing.T) {
 		h, _, usersDB := newAdminTestHandler(t)
-		if _, err := (&models.UserModel{DB: usersDB}).Create("alice", "alice@example.com", "password123", "user"); err != nil {
+		if _, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("alice", "alice@example.com", "password123", "user"); err != nil {
 			t.Fatalf("seed user: %v", err)
 		}
 
@@ -252,7 +252,7 @@ func TestAdminHandler_DeleteUser_NoCurrentUser_PanicsInsteadOf401(t *testing.T) 
 func TestAdminHandler_UpdateUserPassword(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		h, _, usersDB := newAdminTestHandler(t)
-		user, err := (&models.UserModel{DB: usersDB}).Create("carol", "carol@example.com", "password123", "user")
+		user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("carol", "carol@example.com", "password123", "user")
 		if err != nil {
 			t.Fatalf("seed user: %v", err)
 		}
@@ -344,7 +344,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 // token lifecycle (matches real UsersSchema).
 func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
-	user, err := (&models.UserModel{DB: usersDB}).Create("dave", "dave@example.com", "password123", "user")
+	user, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("dave", "dave@example.com", "password123", "user")
 	if err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
@@ -418,11 +418,11 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 	h, _, usersDB := newAdminTestHandler(t)
 
 	userModel := &models.UserModel{DB: usersDB}
-	frank, err := userModel.Create("frank", "frank@example.com", "password123", "user")
+	frank, err := userModel.CreateUserAccount("frank", "frank@example.com", "password123", "user")
 	if err != nil {
 		t.Fatalf("seed user frank: %v", err)
 	}
-	grace, err := userModel.Create("grace", "grace@example.com", "password123", "user")
+	grace, err := userModel.CreateUserAccount("grace", "grace@example.com", "password123", "user")
 	if err != nil {
 		t.Fatalf("seed user grace: %v", err)
 	}
@@ -596,7 +596,7 @@ func TestAdminHandler_GetTasksStats_Success(t *testing.T) {
 // users) system stats aggregation.
 func TestAdminHandler_GetSystemStats_Success(t *testing.T) {
 	h, _, usersDB := newAdminTestHandler(t)
-	if _, err := (&models.UserModel{DB: usersDB}).Create("erin", "erin@example.com", "password123", "user"); err != nil {
+	if _, err := (&models.UserModel{DB: usersDB}).CreateUserAccount("erin", "erin@example.com", "password123", "user"); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 

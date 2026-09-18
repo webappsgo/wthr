@@ -151,58 +151,117 @@ func TestCleanupExpiredNotifications(t *testing.T) {
 }
 
 func TestEnforceLimits(t *testing.T) {
-	// EnforceLimits is currently a no-op (see notification_cleanup.go comments:
-	// "This would need to get all user IDs and admin IDs from the database...
-	// For now, we'll just log that the task ran"). This test documents the
-	// current always-nil behavior; it is not exercising real limit enforcement
-	// because none exists yet at this layer.
-	cleaner, _, _ := newTestNotificationCleaner(t)
-	if err := cleaner.EnforceLimits(); err != nil {
-		t.Errorf("EnforceLimits() = %v, want nil", err)
-	}
+	t.Run("no notifications is a no-op success", func(t *testing.T) {
+		cleaner, _, _ := newTestNotificationCleaner(t)
+		if err := cleaner.EnforceLimits(); err != nil {
+			t.Errorf("EnforceLimits() = %v, want nil", err)
+		}
+	})
+
+	t.Run("trims each recipient down to the retention cap", func(t *testing.T) {
+		cleaner, userDB, serverDB := newTestNotificationCleaner(t)
+
+		active := time.Now().Add(1 * time.Hour)
+		overflow := maxNotificationsPerRecipient + 5
+		for i := 0; i < overflow; i++ {
+			insertNotification(t, userDB, "user_notifications", "id", "user_id", fmt.Sprintf("u%d", i), 1, active)
+			insertNotification(t, serverDB, "server_admin_notifications", "id", "admin_id", fmt.Sprintf("a%d", i), 1, active)
+		}
+		// A second recipient must be trimmed independently, not skipped.
+		insertNotification(t, userDB, "user_notifications", "id", "user_id", "other", 2, active)
+
+		if err := cleaner.EnforceLimits(); err != nil {
+			t.Fatalf("EnforceLimits() error: %v", err)
+		}
+
+		var user1, user2, admin1 int
+		if err := userDB.QueryRow("SELECT COUNT(*) FROM user_notifications WHERE user_id = 1").Scan(&user1); err != nil {
+			t.Fatalf("count user 1: %v", err)
+		}
+		if err := userDB.QueryRow("SELECT COUNT(*) FROM user_notifications WHERE user_id = 2").Scan(&user2); err != nil {
+			t.Fatalf("count user 2: %v", err)
+		}
+		if err := serverDB.QueryRow("SELECT COUNT(*) FROM server_admin_notifications WHERE admin_id = 1").Scan(&admin1); err != nil {
+			t.Fatalf("count admin 1: %v", err)
+		}
+
+		if user1 != maxNotificationsPerRecipient {
+			t.Errorf("user 1 notifications = %d, want %d", user1, maxNotificationsPerRecipient)
+		}
+		if admin1 != maxNotificationsPerRecipient {
+			t.Errorf("admin 1 notifications = %d, want %d", admin1, maxNotificationsPerRecipient)
+		}
+		if user2 != 1 {
+			t.Errorf("user 2 notifications = %d, want 1 (under the cap, must be untouched)", user2)
+		}
+	})
 }
 
 // --- ScheduleNotificationCleanup / ScheduleNotificationLimitEnforcement --------------
 //
-// Both schedulers are exercised only for their synchronous, non-blocking half
-// (delay calculation, logging, launching the background goroutine). The
-// goroutine's post-Sleep body (which calls cleaner.CleanupExpiredNotifications()/
-// EnforceLimits() and then loops on a 24h ticker) is intentionally never
-// reached in-test: the target time is picked far enough in the future that
-// the real time.Sleep cannot elapse before the test process exits.
+// Both register their job with the built-in scheduler (AI.md PART 19 allows no
+// other scheduling mechanism), so the assertions cover registration under the
+// expected task id rather than any goroutine/ticker behavior.
 
-func TestScheduleNotificationCleanup_ReturnsImmediately(t *testing.T) {
+func TestScheduleNotificationCleanup_RegistersTask(t *testing.T) {
 	s := NewScheduler(nil)
 	cleaner, _, _ := newTestNotificationCleaner(t)
-	target := time.Now().Add(12 * time.Hour).Format("15:04")
 
-	finished := make(chan struct{})
-	go func() {
-		s.ScheduleNotificationCleanup(cleaner, target)
-		close(finished)
-	}()
+	s.ScheduleNotificationCleanup(cleaner, "02:00")
 
-	select {
-	case <-finished:
-	case <-time.After(2 * time.Second):
-		t.Fatal("ScheduleNotificationCleanup() blocked instead of returning after launching its background goroutine")
+	task, ok := s.tasks[notificationCleanupTaskName]
+	if !ok {
+		t.Fatalf("task %q was not registered with the scheduler", notificationCleanupTaskName)
+	}
+	if task.Schedule != "0 2 * * *" {
+		t.Errorf("schedule = %q, want %q", task.Schedule, "0 2 * * *")
 	}
 }
 
-func TestScheduleNotificationLimitEnforcement_ReturnsImmediately(t *testing.T) {
+func TestScheduleNotificationLimitEnforcement_RegistersTask(t *testing.T) {
 	s := NewScheduler(nil)
 	cleaner, _, _ := newTestNotificationCleaner(t)
-	target := time.Now().Add(12 * time.Hour).Format("15:04")
 
-	finished := make(chan struct{})
-	go func() {
-		s.ScheduleNotificationLimitEnforcement(cleaner, target)
-		close(finished)
-	}()
+	s.ScheduleNotificationLimitEnforcement(cleaner, "03:30")
 
-	select {
-	case <-finished:
-	case <-time.After(2 * time.Second):
-		t.Fatal("ScheduleNotificationLimitEnforcement() blocked instead of returning after launching its background goroutine")
+	task, ok := s.tasks[notificationLimitTaskName]
+	if !ok {
+		t.Fatalf("task %q was not registered with the scheduler", notificationLimitTaskName)
+	}
+	if task.Schedule != "30 3 * * *" {
+		t.Errorf("schedule = %q, want %q", task.Schedule, "30 3 * * *")
+	}
+}
+
+func TestDailyCronFromClockTime(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{in: "02:00", want: "0 2 * * *"},
+		{in: "23:59", want: "59 23 * * *"},
+		{in: "0:05", want: "5 0 * * *"},
+		{in: "24:00", wantErr: true},
+		{in: "12:60", wantErr: true},
+		{in: "1200", wantErr: true},
+		{in: "ab:cd", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		got, err := dailyCronFromClockTime(tc.in)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("dailyCronFromClockTime(%q) = %q, want error", tc.in, got)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("dailyCronFromClockTime(%q) error: %v", tc.in, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("dailyCronFromClockTime(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }

@@ -230,9 +230,9 @@ func (h *I2PAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// Validate checks the submitted settings without saving them
+// ValidateI2PConfig checks the submitted settings without saving them
 // POST /api/{api_version}/server/{admin_path}/config/i2p/validate
-func (h *I2PAdminHandler) Validate(w http.ResponseWriter, r *http.Request) {
+func (h *I2PAdminHandler) ValidateI2PConfig(w http.ResponseWriter, r *http.Request) {
 	next, err := h.decodeI2PConfig(r)
 	if err != nil {
 		RespondError(w, r, http.StatusBadRequest, ErrBadRequest, Translate(r, "errors.invalid_request"))

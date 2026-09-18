@@ -8,6 +8,8 @@
         <p class="text-comment">{{t .server.Lang "settings_appearance_subtitle"}}</p>
     </div>
 
+    {{template "flash" .}}
+
     <!-- Settings Navigation -->
     <div class="settings-nav">
         <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
@@ -24,13 +26,13 @@
             <h2 class="profile-card-header-title">{{t .server.Lang "settings_theme_heading"}}</h2>
         </div>
         <div class="card-body">
-            <form id="appearanceSettingsForm">
+            <form id="appearanceSettingsForm" method="post" action="/users/settings/appearance">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="theme-options">
                     <label class="theme-option {{if eq .preferences.Theme "dark"}}selected{{end}}">
                         <input type="radio" name="theme" value="dark" {{if eq .preferences.Theme "dark"}}checked{{end}}>
-                        <div class="theme-preview theme-dark">
+                        <div class="theme-preview theme-preview--dark">
                             <div class="theme-icon">&#127769;</div>
                             <span>{{t .server.Lang "settings_theme_dark"}}</span>
                         </div>
@@ -38,7 +40,7 @@
 
                     <label class="theme-option {{if eq .preferences.Theme "light"}}selected{{end}}">
                         <input type="radio" name="theme" value="light" {{if eq .preferences.Theme "light"}}checked{{end}}>
-                        <div class="theme-preview theme-light">
+                        <div class="theme-preview theme-preview--light">
                             <div class="theme-icon">&#9728;</div>
                             <span>{{t .server.Lang "settings_theme_light"}}</span>
                         </div>
@@ -46,7 +48,7 @@
 
                     <label class="theme-option {{if eq .preferences.Theme "auto"}}selected{{end}}">
                         <input type="radio" name="theme" value="auto" {{if eq .preferences.Theme "auto"}}checked{{end}}>
-                        <div class="theme-preview theme-auto">
+                        <div class="theme-preview theme-preview--auto">
                             <div class="theme-icon">&#128187;</div>
                             <span>{{t .server.Lang "settings_theme_auto"}}</span>
                         </div>
@@ -77,7 +79,7 @@
                 <h3 class="section-title">{{t .server.Lang "settings_accessibility_heading"}}</h3>
                 <div class="toggle-group">
                     <label class="toggle-item">
-                        <input type="checkbox" id="reduceMotion">
+                        <input type="checkbox" id="reduceMotion" name="reduceMotion">
                         <div class="toggle-content">
                             <strong>{{t .server.Lang "settings_reduce_motion_label"}}</strong>
                             <p class="text-comment">{{t .server.Lang "settings_reduce_motion_hint"}}</p>
@@ -93,188 +95,6 @@
     </div>
 </div>
 
-<style>
-.settings-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: var(--bg-dark);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-.settings-nav-item {
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    color: var(--text);
-    text-decoration: none;
-    transition: background 0.2s;
-}
-.settings-nav-item:hover {
-    background: var(--bg);
-}
-.settings-nav-item.active {
-    background: var(--accent);
-    color: var(--bg);
-}
-.settings-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 1.5rem 0;
-}
-.section-title {
-    font-size: 1rem;
-    margin-bottom: 1rem;
-    color: var(--text);
-}
-.theme-options {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-.theme-option {
-    cursor: pointer;
-}
-.theme-option input[type="radio"] {
-    display: none;
-}
-.theme-preview {
-    width: 100px;
-    height: 100px;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid var(--border);
-    transition: border-color 0.2s, transform 0.2s;
-}
-.theme-option.selected .theme-preview,
-.theme-preview:hover {
-    border-color: var(--accent);
-    transform: scale(1.05);
-}
-.theme-dark {
-    background: #282a36;
-    color: #f8f8f2;
-}
-.theme-light {
-    background: #f8f8f2;
-    color: #282a36;
-}
-.theme-auto {
-    background: linear-gradient(135deg, #282a36 50%, #f8f8f2 50%);
-    color: #50fa7b;
-}
-.theme-icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-}
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-.radio-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-}
-.radio-label input[type="radio"] {
-    accent-color: var(--accent);
-}
-.toggle-group {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-.toggle-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    cursor: pointer;
-}
-.toggle-item input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
-    margin-top: 2px;
-}
-.toggle-content {
-    flex: 1;
-}
-.toggle-content strong {
-    display: block;
-    margin-bottom: 0.25rem;
-}
-.toggle-content p {
-    margin: 0;
-    font-size: 0.9rem;
-}
-.margin-y-sm {
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-</style>
-
-<script>
-// Path variables - SPEC compliant (AI.md PART 13)
-const API_PATH = '{{.api_path}}';
-
-// Update theme option styling
-document.querySelectorAll('input[name="theme"]').forEach(radio => {
-    radio.addEventListener('change', function() {
-        document.querySelectorAll('.theme-option').forEach(opt => opt.classList.remove('selected'));
-        this.closest('.theme-option').classList.add('selected');
-    });
-});
-
-// Save settings
-document.getElementById('appearanceSettingsForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-
-    const data = {
-        appearance: {
-            theme: document.querySelector('input[name="theme"]:checked').value,
-            font_size: document.querySelector('input[name="fontSize"]:checked').value,
-            reduce_motion: document.getElementById('reduceMotion').checked
-        }
-    };
-
-    try {
-        const response = await fetch(API_PATH + '/users/settings', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save settings');
-        }
-
-        Toast.success('Appearance settings saved!');
-
-        // Apply theme immediately
-        const theme = document.querySelector('input[name="theme"]:checked').value;
-        applyTheme(theme);
-    } catch (error) {
-        Toast.error('Failed to save settings: ' + error.message);
-    }
-});
-
-function applyTheme(theme) {
-    if (theme === 'auto') {
-        // Use system preference
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    } else {
-        document.documentElement.setAttribute('data-theme', theme);
-    }
-}
-</script>
 
 {{template "footer" .}}
 </body>

@@ -1,0 +1,48 @@
+Subject: {severity_emoji} Alert Updated: {event} - {area}
+---
+{severity_emoji} WEATHER ALERT UPDATED
+
+This alert was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+
+────────────────────────────────────────────────────────────────────────
+ALERT UPDATE: {event}
+────────────────────────────────────────────────────────────────────────
+
+The following weather alert has been UPDATED:
+
+  Area:     {area}
+  Severity: {severity}
+  Urgency:  {urgency}
+  Source:   {source}
+
+  Effective: {effective}
+  Expires:   {expires}
+
+────────────────────────────────────────────────────────────────────────
+UPDATED DESCRIPTION
+────────────────────────────────────────────────────────────────────────
+
+{description}
+
+────────────────────────────────────────────────────────────────────────
+INSTRUCTIONS
+────────────────────────────────────────────────────────────────────────
+
+{instructions}
+
+────────────────────────────────────────────────────────────────────────
+
+View full alert details:
+{app_url}/severe-weather/{alert_id}
+
+Manage your alert subscriptions:
+{app_url}/settings/notifications
+
+To unsubscribe:
+{app_url}/alerts/unsubscribe?token={unsubscribe_token}
+
+--
+{app_name}
+{app_url}

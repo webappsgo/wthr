@@ -52,7 +52,7 @@ func setOpenRegistrationConfig(t *testing.T) {
 
 func seedGraphQLUser(t *testing.T, ddb *database.DualDB, username, email, password string) *models.User {
 	t.Helper()
-	user, err := (&models.UserModel{DB: ddb.Users}).Create(username, email, password, "user")
+	user, err := (&models.UserModel{DB: ddb.Users}).CreateUserAccount(username, email, password, "user")
 	if err != nil {
 		t.Fatalf("seed user %q: %v", username, err)
 	}
@@ -65,7 +65,7 @@ func seedGraphQLUser(t *testing.T, ddb *database.DualDB, username, email, passwo
 func seedPendingTwoFactorSession(t *testing.T, ddb *database.DualDB, userID int64) string {
 	t.Helper()
 	sessionModel := &models.SessionModel{DB: ddb.Users}
-	session, err := sessionModel.Create(userID, 900)
+	session, err := sessionModel.CreateSession(userID, 900)
 	if err != nil {
 		t.Fatalf("create pending session: %v", err)
 	}
@@ -429,7 +429,7 @@ func TestMutationResolver_ResetUserPassword(t *testing.T) {
 		`, user.ID, models.HashAPIToken("valid-tok"), time.Now(), time.Now().Add(1*time.Hour)); err != nil {
 			t.Fatalf("seed valid reset: %v", err)
 		}
-		session, err := (&models.SessionModel{DB: ddb.Users}).Create(user.ID, 900)
+		session, err := (&models.SessionModel{DB: ddb.Users}).CreateSession(user.ID, 900)
 		if err != nil {
 			t.Fatalf("seed session: %v", err)
 		}
@@ -602,7 +602,7 @@ func TestMutationResolver_CompleteServerInvite(t *testing.T) {
 
 	// server_admin_invites.invited_by is FK-enforced against
 	// server_admin_credentials(id), so a real inviter admin must exist first.
-	inviter, err := (&models.AdminModel{DB: ddb.Server}).Create("inviteradmin", "inviter@example.com", "password123", true)
+	inviter, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("inviteradmin", "inviter@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed inviter admin: %v", err)
 	}

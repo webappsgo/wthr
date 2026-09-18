@@ -230,7 +230,7 @@ func TestTokenAuthMiddleware_UserTokenValidatesAgainstRealSchema(t *testing.T) {
 
 	var gotAuthType interface{}
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotAuthType, _ = reqctx.Get(r.Context(), "auth_type")
+		gotAuthType, _ = reqctx.GetValue(r.Context(), "auth_type")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
@@ -272,7 +272,7 @@ func TestRequireAdminToken(t *testing.T) {
 			setAuthType := func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					if tt.setAuth {
-						r = r.WithContext(reqctx.Set(r.Context(), "auth_type", tt.authType))
+						r = r.WithContext(reqctx.SetValue(r.Context(), "auth_type", tt.authType))
 					}
 					next.ServeHTTP(w, r)
 				})

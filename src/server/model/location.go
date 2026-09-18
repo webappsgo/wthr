@@ -27,8 +27,8 @@ type LocationModel struct {
 	DB *sql.DB
 }
 
-// Create creates a new saved location
-func (m *LocationModel) Create(userID int, name string, latitude, longitude float64, timezone string) (*SavedLocation, error) {
+// CreateSavedLocation creates a new saved location
+func (m *LocationModel) CreateSavedLocation(userID int, name string, latitude, longitude float64, timezone string) (*SavedLocation, error) {
 	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		INSERT INTO user_saved_locations (user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -101,8 +101,8 @@ func (m *LocationModel) GetByUserID(userID int) ([]*SavedLocation, error) {
 	return locations, nil
 }
 
-// Update updates a location
-func (m *LocationModel) Update(id int, name string, latitude, longitude float64, timezone string, alertsEnabled bool) error {
+// UpdateSavedLocation updates a location
+func (m *LocationModel) UpdateSavedLocation(id int, name string, latitude, longitude float64, timezone string, alertsEnabled bool) error {
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
 		UPDATE user_saved_locations
 		SET name = ?, latitude = ?, longitude = ?, timezone = ?, alerts_enabled = ?, updated_at = ?
@@ -120,8 +120,8 @@ func (m *LocationModel) ToggleAlerts(id int, enabled bool) error {
 	return err
 }
 
-// Delete deletes a location
-func (m *LocationModel) Delete(id int) error {
+// DeleteSavedLocation deletes a location
+func (m *LocationModel) DeleteSavedLocation(id int) error {
 	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM user_saved_locations WHERE id = ?", id)
 	return err
 }

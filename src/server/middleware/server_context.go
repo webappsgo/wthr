@@ -63,7 +63,7 @@ func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Han
 			description := settingsModel.GetString("server.description", "A comprehensive platform for weather forecasts, moon phases, earthquakes, and hurricane tracking.")
 
 			// Get user language from i18n middleware
-			lang, exists := reqctx.Get(r.Context(), "lang")
+			lang, exists := reqctx.GetValue(r.Context(), "lang")
 			if !exists {
 				lang = "en"
 			}
@@ -112,7 +112,7 @@ func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Han
 			}
 
 			// Add to request context for handlers to use
-			ctx := reqctx.Set(r.Context(), "server", serverCtx)
+			ctx := reqctx.SetValue(r.Context(), "server", serverCtx)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -121,7 +121,7 @@ func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Han
 
 // GetServerContext retrieves server context from the request context
 func GetServerContext(ctx context.Context) (ServerContext, bool) {
-	serverCtx, exists := reqctx.Get(ctx, "server")
+	serverCtx, exists := reqctx.GetValue(ctx, "server")
 	if !exists {
 		return ServerContext{
 			Title:       "Weather",

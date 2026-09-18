@@ -249,9 +249,9 @@ func TestShouldRespondText(t *testing.T) {
 }
 
 // TestWantsJSON exercises each independent trigger (Accept header, ?format=json,
-// /api/ prefix, CLI user agents) and the precedence between them, particularly
-// the case that matters most for correctness: a curl request that explicitly
-// asks for HTML must not be silently upgraded to JSON.
+// /api/ prefix, this project's own CLI) and the precedence between them,
+// including the AI.md PART 14 rule that non-interactive HTTP tools receive
+// plain text rather than JSON.
 func TestWantsJSON(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -262,10 +262,12 @@ func TestWantsJSON(t *testing.T) {
 	}{
 		{"explicit accept json", "/dashboard", "application/json", "", true},
 		{"format query param", "/dashboard?format=json", "", "", true},
-		{"api prefix always json", "/api/v1/weather", "", "Mozilla/5.0", true},
-		{"curl default", "/dashboard", "", "curl/8.0", true},
-		{"wget default", "/dashboard", "", "Wget/1.21", true},
-		{"httpie default", "/dashboard", "", "HTTPie/3.2", true},
+		{"api prefix defaults to json", "/api/v1/weather", "", "Mozilla/5.0", true},
+		{"our cli always json", "/dashboard", "", "wthr-cli/1.0", true},
+		{"curl gets text not json", "/dashboard", "", "curl/8.0", false},
+		{"wget gets text not json", "/dashboard", "", "Wget/1.21", false},
+		{"httpie gets text not json", "/dashboard", "", "HTTPie/3.2", false},
+		{"curl on api route gets text", "/api/v1/weather", "", "curl/8.0", false},
 		{"curl explicitly wants html", "/dashboard", "text/html", "curl/8.0", false},
 		{"plain browser request", "/dashboard", "text/html", "Mozilla/5.0", false},
 		{"no headers at all", "/dashboard", "", "", false},

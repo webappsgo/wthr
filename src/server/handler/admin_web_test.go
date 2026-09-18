@@ -54,7 +54,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 
 	t.Run("non-int admin_id", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/server/admin/config/web")
-		c = c.WithContext(reqctx.Set(c.Context(), "admin_id", "not-an-int"))
+		c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
 			t.Fatalf("status = %d, want 302", w.Code)

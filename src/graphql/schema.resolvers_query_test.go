@@ -360,7 +360,7 @@ func TestQueryResolver_ValidateServerInvite(t *testing.T) {
 	})
 
 	t.Run("happy path returns masked email", func(t *testing.T) {
-		inviter, err := (&models.AdminModel{DB: ddb.Server}).Create("srvinviteradmin", "srvinviteradmin@example.com", "password123", true)
+		inviter, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("srvinviteradmin", "srvinviteradmin@example.com", "password123", true)
 		if err != nil {
 			t.Fatalf("seed inviting admin: %v", err)
 		}
@@ -441,7 +441,7 @@ func TestQueryResolver_AdminServerAdmins(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("overviewadmin", "overviewadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("overviewadmin", "overviewadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -463,11 +463,11 @@ func TestQueryResolver_AdminServerAdmin(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
-	self, err := (&models.AdminModel{DB: ddb.Server}).Create("selfadmin", "selfadmin@example.com", "password123", true)
+	self, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("selfadmin", "selfadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed self admin: %v", err)
 	}
-	other, err := (&models.AdminModel{DB: ddb.Server}).Create("otheradmin", "otheradmin@example.com", "password123", true)
+	other, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("otheradmin", "otheradmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed other admin: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestQueryResolver_AdminTokens(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("tokenqryadmin", "tokenqryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("tokenqryadmin", "tokenqryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -824,7 +824,7 @@ func TestQueryResolver_AdminPasskeys(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("passkeyqryadmin", "passkeyqryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("passkeyqryadmin", "passkeyqryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}
@@ -848,7 +848,7 @@ func TestQueryResolver_AdminPasskeys_ChecksUserRole(t *testing.T) {
 	ddb := newAuthMutationTestDB(t)
 	q := &queryResolver{&Resolver{ServerDB: ddb.Server}}
 
-	admin, err := (&models.AdminModel{DB: ddb.Server}).Create("roleasymmetryadmin", "roleasymmetryadmin@example.com", "password123", true)
+	admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("roleasymmetryadmin", "roleasymmetryadmin@example.com", "password123", true)
 	if err != nil {
 		t.Fatalf("seed admin: %v", err)
 	}

@@ -8,8 +8,8 @@
 # @@ReadME           :  {scriptname --help | README.md}
 # @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
 # @@Created          :  Thursday, August 13, 2026 19:24 EDT
-# @@File             :  weather-runit-run
-# @@Description      :  runit run script for the wthr weather service, installed to /etc/sv/weather/run
+# @@File             :  wthr-runit-run
+# @@Description      :  runit run script for the wthr weather service, installed to /etc/sv/wthr/run
 # @@Changelog        :  Bring script into CasjaysDev header and lint compliance
 # @@TODO             :  none
 # @@Other            :  none
@@ -20,10 +20,10 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# runit run script for weather service
-# Installed to /etc/sv/weather/run
+# runit run script for wthr service
+# Installed to /etc/sv/wthr/run
 
 exec 2>&1
-exec chpst -u weather:weather /usr/local/bin/weather
+exec chpst -u wthr:wthr /usr/local/bin/wthr
 
 # ex: ts=2 sw=2 et filetype=sh

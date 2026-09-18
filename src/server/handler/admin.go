@@ -60,7 +60,7 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
-	user, err := userModel.Create(username, req.Email, req.Password, req.Role)
+	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, req.Role)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_create_user"))
 		return
@@ -108,7 +108,7 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
-	if err := userModel.Update(id, username, req.Email, req.Role); err != nil {
+	if err := userModel.UpdateUserProfile(id, username, req.Email, req.Role); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_update_user"))
 		return
 	}
@@ -135,7 +135,7 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userModel := &model.UserModel{DB: h.DB}
-	if err := userModel.Delete(id); err != nil {
+	if err := userModel.DeleteUserAccount(id); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_delete_user"))
 		return
 	}
@@ -354,7 +354,7 @@ func (h *AdminHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
-	token, err := tokenModel.Create(req.UserID, req.Name)
+	token, err := tokenModel.CreateAPIToken(req.UserID, req.Name)
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_generate_token"))
 		return
@@ -374,7 +374,7 @@ func (h *AdminHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenModel := &model.TokenModel{DB: h.DB}
-	if err := tokenModel.Delete(id); err != nil {
+	if err := tokenModel.DeleteAPIToken(id); err != nil {
 		InternalError(w, r, Translate(r, "errors.admin.core.failed_to_revoke_token"))
 		return
 	}
@@ -709,7 +709,7 @@ func (h *AdminHandler) seedScheduledTasks() {
 
 // ShowSettingsPage renders the admin settings page
 func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) {
-	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return

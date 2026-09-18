@@ -378,14 +378,14 @@ func TestHandleLogout(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "logoutuser", "logout@example.com", "supersecret1")
 		sessionModel := &models.SessionModel{DB: usersDB}
-		session, err := sessionModel.Create(uid, 3600)
+		session, err := sessionModel.CreateSession(uid, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
 
 		r, w := newTestContext(http.MethodPost, "/server/auth/logout")
 		r.Header.Set("Accept", "application/json")
-		ctx := reqctx.Set(r.Context(), middleware.SessionContextKey, session)
+		ctx := reqctx.SetValue(r.Context(), middleware.SessionContextKey, session)
 		r = r.WithContext(ctx)
 		h.HandleLogout(w, r)
 

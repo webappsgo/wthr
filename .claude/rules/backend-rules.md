@@ -1,4 +1,4 @@
-# Backend, Security & Tor Rules (PART 9, 10, 11, 32)
+# Backend, Security & Overlay Network Rules (PART 9, 10, 11, 32)
 
 ⚠️ **These rules are NON-NEGOTIABLE. Violations are bugs.** ⚠️
 
@@ -19,6 +19,9 @@
 - Never use the default Tor ports (9050/9051) or a hardcoded control port — always `127.0.0.1:auto`.
 - Never use system Tor — the server binary starts/owns/stops its own dedicated Tor process, isolated data dir.
 - Never let Tor failures stop the server from starting — Tor is optional, best-effort, non-blocking (missing binary = INFO log, not error).
+- Never auto-enable I2P — the eepsite is opt-in (`server.i2p.enabled: false` by default); never allocate its port or write `tunnels.conf` when disabled.
+- Never reconfigure or take over a system i2pd router, and never use I2P for outbound requests, relaying, or client proxying — eepsite hosting only.
+- Never serve an overlay address (`.onion`/`.b32.i2p`) over HTTPS, with HSTS, or behind an upgrade redirect — the address is the identity.
 - Never truncate or modify audit.log entries after write — append-only, rotation is the only removal path.
 
 ## CRITICAL - ALWAYS DO
@@ -45,6 +48,8 @@
 - Auto-detect the Tor binary (never require a config flag) and, if found, always start the hidden service — v3 onion address via ADD_ONION, `HiddenServiceVersion 3`.
 - Run the Tor process as a child of the server process, inheriting the dropped-privilege user — never a separate user/group.
 - Keep Tor console output silent during normal bootstrap; show the onion address once on success; show errors always.
+- When I2P is enabled, resolve the provider in order (i2pd binary → SAMv3 bridge → disable with a WARN), and only then allocate the dedicated loopback backend port.
+- Persist the I2P destination key under `{data_dir}/i2p/site/` (0700 dir, 0600 key) so the `.b32.i2p` address survives restarts.
 
 ## Error Handling & Caching (PART 9)
 
@@ -77,7 +82,16 @@
 - Archive extraction (if implemented): reject path traversal, symlinks/special files, enforce size/count limits and compression-bomb protection.
 - Private file delivery (if implemented): always re-check authz per request (never rely on obscure URLs), force `Content-Disposition: attachment` for active MIME types (html/xhtml/svg/xml).
 
-## Tor Hidden Service (PART 32)
+## Overlay Networks — Tor & I2P (PART 32)
+
+PART 32 has two halves: **32.1 Tor Hidden Service** (REQUIRED, auto-enabled
+whenever the `tor` binary is found, no toggle) and **32.2 I2P Eepsite**
+(OPTIONAL, opt-in, default off). Both serve the app at an `http://` address
+that is itself the cryptographic identity — never HTTPS, never HSTS, never an
+upgrade redirect. Each allocates its dedicated backend port only after a
+provider is confirmed available: no provider → no port, no generated config.
+
+### PART 32.1 — Tor Hidden Service (required)
 
 - Uses `github.com/cretz/bine` (pure Go, `CGO_ENABLED=0` compatible) — never an embedded/CGO Tor.
 - Hidden service is always-on if the Tor binary is found — no enable/disable config flag exists.
@@ -86,5 +100,35 @@
 - Control connection is always `127.0.0.1:auto` (TCP), `SafeLogging` enabled to scrub sensitive info from Tor's own logs.
 - On graceful server shutdown, terminate the dedicated Tor child process; on crash, WARN and attempt restart — never treat Tor failure as fatal to the server.
 - The `.onion` address, if `expose: true`, is Tier-2 public-safe info and can appear in `/api/autodiscover`.
+
+### PART 32.2 — I2P Eepsite (optional, opt-in)
+
+- OPT-IN, default off — the deliberate difference from Tor. No eepsite, no
+  port, no `tunnels.conf`, no SAM session unless `server.i2p.enabled: true`
+  (`I2P_ENABLED=true` / `--i2p`) AND a provider is available.
+- One capability only: server-side `.b32.i2p` eepsite hosting. NEVER used for
+  outbound anonymized requests (that is Tor's job), floodfill/relay, or
+  SOCKS/HTTP client proxying.
+- Two providers, selected in order: **Model A — i2pd (preferred)**, a
+  dedicated app-owned i2pd child process with `tunnels.conf` regenerated every
+  startup; **Model B — external SAMv3 bridge** (`127.0.0.1:7656` default),
+  raw SAMv3 over `net.Conn`, `STREAM FORWARD` to the backend port. Neither
+  available → WARN and skip, never an error (mirrors Tor's missing-binary path).
+- NEVER reconfigure a system i2pd — Model A spawns and owns its own process;
+  Model B only owns the SAM session, never the external router.
+- NO PROXY-protocol header for I2P — unlike Tor, the eepsite backend is a
+  plain loopback listener; `go-proxyproto` is not used there.
+- Directories are fixed, never configurable: config `{config_dir}/i2p/`, data
+  `{data_dir}/i2p/`, destination key `{data_dir}/i2p/site/` (0700 dirs, 0600
+  keys), log `{log_dir}/i2pd.log` (Model A only).
+- Destination identity persists so the `.b32.i2p` address survives restarts;
+  `tunnels.conf` is derived state, regenerated each run. Address is computed
+  as `base32(sha256(destination)) + ".b32.i2p"` with stdlib only — no new
+  dependency for either model.
+- Defaults: `virtual_port: 80`, inbound/outbound length 3 (0-7), inbound/
+  outbound quantity 5 (1-16), `signature_type: 7` (EdDSA-SHA512-Ed25519),
+  `bootstrap_timeout` 300s (30-600s).
+- A `.b32.i2p` request is trusted for FQDN resolution exactly like `.onion` —
+  no reverse-proxy header or IP check applies.
 
 For complete details, see AI.md PART 9, 10, 11, 32

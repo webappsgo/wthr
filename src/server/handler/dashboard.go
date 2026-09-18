@@ -51,7 +51,7 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 
 // ShowAdminPanel renders the admin panel
 func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
-	adminIDValue, exists := reqctx.Get(r.Context(), "admin_id")
+	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		http.Redirect(w, r, "/server/admin", http.StatusFound)
 		return

@@ -3,6 +3,10 @@
 package metric
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"runtime"
 	"sync"
 	"testing"
@@ -37,24 +41,24 @@ func toFloat64(m prometheus.Metric) float64 {
 // error-path branch that adds an extra DBErrors increment.
 func TestRecordDBQuery(t *testing.T) {
 	tests := []struct {
-		name      string
-		operation string
-		table     string
-		duration  time.Duration
-		err       error
-		wantErr   bool
+		name          string
+		operation     string
+		table         string
+		duration      time.Duration
+		err           error
+		wantErrorType string
 	}{
-		{"success", "select", "users", 10 * time.Millisecond, nil, false},
-		{"error", "insert", "sessions", 5 * time.Millisecond, errDBFail, true},
-		{"zero duration", "delete", "tokens", 0, nil, false},
+		{"success", "select", "users", 10 * time.Millisecond, nil, ""},
+		{"error", "insert", "sessions", 5 * time.Millisecond, errDBFail, "other"},
+		{"zero duration", "delete", "tokens", 0, nil, ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			beforeQueries := toFloat64(DBQueriesTotal.WithLabelValues(tt.operation, tt.table))
 			var beforeErrors float64
-			if tt.wantErr {
-				beforeErrors = toFloat64(DBErrors.WithLabelValues(tt.operation, "query_error"))
+			if tt.wantErrorType != "" {
+				beforeErrors = toFloat64(DBErrors.WithLabelValues(tt.operation, tt.wantErrorType))
 			}
 
 			RecordDBQuery(tt.operation, tt.table, tt.duration, tt.err)
@@ -64,8 +68,8 @@ func TestRecordDBQuery(t *testing.T) {
 				t.Errorf("DBQueriesTotal = %v, want %v", afterQueries, beforeQueries+1)
 			}
 
-			if tt.wantErr {
-				afterErrors := toFloat64(DBErrors.WithLabelValues(tt.operation, "query_error"))
+			if tt.wantErrorType != "" {
+				afterErrors := toFloat64(DBErrors.WithLabelValues(tt.operation, tt.wantErrorType))
 				if afterErrors != beforeErrors+1 {
 					t.Errorf("DBErrors = %v, want %v (error path must increment DBErrors)", afterErrors, beforeErrors+1)
 				}
@@ -216,7 +220,7 @@ func TestInit_Idempotent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			Init("1.2.3", "abcdef", "2026-01-01T00:00:00Z")
+			InitMetricsAppInfo("1.2.3", "abcdef", "2026-01-01T00:00:00Z")
 		}()
 	}
 	wg.Wait()
@@ -254,18 +258,129 @@ func TestPrometheusTextFormat(t *testing.T) {
 	}
 }
 
-// TestRecordDBQuery_ErrorTypeAlwaysQueryError documents current behavior:
-// RecordDBQuery hardcodes the DBErrors "error_type" label to "query_error"
-// regardless of the actual error, so distinct errors are indistinguishable
-// in the error_type label. This is a coverage/behavior gap, not something
-// this test suite can fix (would require a signature change).
-func TestRecordDBQuery_ErrorTypeAlwaysQueryError(t *testing.T) {
-	op := "update_error_type_check"
-	RecordDBQuery(op, "t1", time.Millisecond, &testError{"timeout"})
-	RecordDBQuery(op, "t1", time.Millisecond, &testError{"constraint violation"})
+// TestClassifyDBError covers the fixed error_type label set AI.md PART 21
+// defines for wthr_db_errors_total: connection, timeout, constraint,
+// duplicate, other.
+func TestClassifyDBError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"nil", nil, ""},
+		{"context deadline", context.DeadlineExceeded, "timeout"},
+		{"connection done", sql.ErrConnDone, "connection"},
+		{"bad conn", driver.ErrBadConn, "connection"},
+		{"wrapped deadline", fmt.Errorf("query failed: %w", context.DeadlineExceeded), "timeout"},
+		{"duplicate key", &testError{"ERROR: duplicate key value violates unique constraint"}, "duplicate"},
+		{"unique index", &testError{"UNIQUE index violation on users.email"}, "duplicate"},
+		{"foreign key constraint", &testError{"FOREIGN KEY constraint failed"}, "constraint"},
+		{"timeout text", &testError{"i/o timeout"}, "timeout"},
+		{"dial failure", &testError{"dial tcp 10.0.0.1:5432: connect: refused"}, "connection"},
+		{"database closed", &testError{"sql: database is closed"}, "connection"},
+		{"unknown", &testError{"syntax error at or near SELECT"}, "other"},
+	}
 
-	got := toFloat64(DBErrors.WithLabelValues(op, "query_error"))
-	if got != 2 {
-		t.Errorf("DBErrors(%q, query_error) = %v, want 2 (both distinct errors collapse into the same error_type label)", op, got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ClassifyDBError(tt.err); got != tt.want {
+				t.Errorf("ClassifyDBError(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRecordDBQuery_ErrorTypeLabel proves distinct errors land on distinct
+// error_type series rather than collapsing into one.
+func TestRecordDBQuery_ErrorTypeLabel(t *testing.T) {
+	op := "update_error_type_check"
+	RecordDBQuery(op, "t1", time.Millisecond, &testError{"i/o timeout"})
+	RecordDBQuery(op, "t1", time.Millisecond, &testError{"CHECK constraint failed"})
+
+	if got := toFloat64(DBErrors.WithLabelValues(op, "timeout")); got != 1 {
+		t.Errorf("DBErrors(%q, timeout) = %v, want 1", op, got)
+	}
+	if got := toFloat64(DBErrors.WithLabelValues(op, "constraint")); got != 1 {
+		t.Errorf("DBErrors(%q, constraint) = %v, want 1", op, got)
+	}
+}
+
+// TestSystemCollector_RuntimeGating verifies include_runtime is honored: with
+// it off the Go runtime gauges stay untouched, with it on they are populated.
+func TestSystemCollector_RuntimeGating(t *testing.T) {
+	GoGoroutines.Set(0)
+
+	NewSystemCollector("", 0, false, false).CollectOnce()
+	if got := toFloat64(GoGoroutines); got != 0 {
+		t.Errorf("GoGoroutines = %v, want 0 when include_runtime is false", got)
+	}
+
+	NewSystemCollector("", 0, false, true).CollectOnce()
+	if got := toFloat64(GoGoroutines); got <= 0 {
+		t.Errorf("GoGoroutines = %v, want > 0 when include_runtime is true", got)
+	}
+}
+
+// TestSystemCollector_GCCountersUseDeltas verifies the GC counters advance by
+// the delta between passes; MemStats totals are cumulative, so re-adding them
+// on every pass would multiply-count on a monotonic Prometheus counter.
+func TestSystemCollector_GCCountersUseDeltas(t *testing.T) {
+	c := NewSystemCollector("", 0, false, true)
+	c.CollectOnce()
+	afterFirst := toFloat64(GoGCRuns)
+
+	runtime.GC()
+	c.CollectOnce()
+	afterSecond := toFloat64(GoGCRuns)
+
+	if afterSecond < afterFirst {
+		t.Fatalf("GoGCRuns went backwards: %v then %v", afterFirst, afterSecond)
+	}
+	if delta := afterSecond - afterFirst; delta < 1 {
+		t.Errorf("GoGCRuns delta = %v, want >= 1 after a forced GC", delta)
+	}
+
+	// A third pass with no intervening GC must not re-add the cumulative total.
+	before := toFloat64(GoGCPauseTotal)
+	c.CollectOnce()
+	if got := toFloat64(GoGCPauseTotal); got != before {
+		t.Errorf("GoGCPauseTotal = %v, want %v (cumulative total must not be re-added)", got, before)
+	}
+}
+
+// TestSystemCollector_StopIsIdempotent verifies StopSystemCollector can be
+// called more than once without panicking on a double channel close.
+func TestSystemCollector_StopIsIdempotent(t *testing.T) {
+	c := NewSystemCollector("", 10*time.Millisecond, false, false)
+	c.StartSystemCollector()
+	c.StopSystemCollector()
+	c.StopSystemCollector()
+}
+
+// TestSystemCollector_DiskMetrics verifies disk gauges are populated for a real
+// path when include_system is on, and that an empty dataDir records nothing.
+func TestSystemCollector_DiskMetrics(t *testing.T) {
+	dir := t.TempDir()
+	stat, err := readDiskUsage(dir)
+	if err != nil {
+		t.Skipf("disk statistics unavailable on this platform: %v", err)
+	}
+	if stat.total == 0 {
+		t.Fatal("readDiskUsage returned total = 0 with no error")
+	}
+
+	NewSystemCollector(dir, 0, true, false).CollectOnce()
+
+	if got := toFloat64(SystemDiskTotal.WithLabelValues(dir)); got != float64(stat.total) {
+		t.Errorf("SystemDiskTotal(%q) = %v, want %v", dir, got, float64(stat.total))
+	}
+	if got := toFloat64(SystemDiskUsage.WithLabelValues(dir)); got < 0 || got > 100 {
+		t.Errorf("SystemDiskUsage(%q) = %v, want a percentage in [0,100]", dir, got)
+	}
+
+	// An empty dataDir must not create a series for the empty label.
+	NewSystemCollector("", 0, true, false).CollectOnce()
+	if got := toFloat64(SystemDiskTotal.WithLabelValues("")); got != 0 {
+		t.Errorf("SystemDiskTotal(\"\") = %v, want 0 (empty dataDir disables disk metrics)", got)
 	}
 }

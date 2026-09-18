@@ -3,6 +3,7 @@ package model
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestGenerateToken_FormatAndUniqueness verifies the usr_ prefix, hex body
@@ -47,7 +48,7 @@ func TestTokenModel_CreateAndGetByToken(t *testing.T) {
 	userID := insertTestUser(t, db, "tok-user", "tok-user@example.com")
 	model := &TokenModel{DB: db}
 
-	created, err := model.Create(int(userID), "CI Key")
+	created, err := model.CreateAPIToken(int(userID), "CI Key")
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -89,6 +90,65 @@ func TestTokenModel_CreateAndGetByToken(t *testing.T) {
 	})
 }
 
+// TestTokenModel_GetByToken_Expiry verifies AI.md PART 11: a token whose
+// expires_at has passed must never authenticate, while a NULL expires_at
+// means "never expires" and still resolves.
+func TestTokenModel_GetByToken_Expiry(t *testing.T) {
+	db := newModelUsersDB(t)
+	setModelGlobalDualDB(t, nil, db)
+	userID := insertTestUser(t, db, "tok-exp", "tok-exp@example.com")
+	model := &TokenModel{DB: db}
+
+	setExpiry := func(t *testing.T, id int, at time.Time) {
+		t.Helper()
+		if _, err := db.Exec("UPDATE user_tokens SET expires_at = ? WHERE id = ?", at, id); err != nil {
+			t.Fatalf("set expires_at: %v", err)
+		}
+	}
+
+	t.Run("expired token rejected", func(t *testing.T) {
+		created, err := model.CreateAPIToken(int(userID), "Expired")
+		if err != nil {
+			t.Fatalf("CreateAPIToken() error = %v", err)
+		}
+		setExpiry(t, created.ID, time.Now().Add(-time.Hour))
+
+		if _, err := model.GetByToken(created.Token); err == nil {
+			t.Error("GetByToken() accepted an expired token, want an error")
+		}
+	})
+
+	t.Run("future expiry accepted", func(t *testing.T) {
+		created, err := model.CreateAPIToken(int(userID), "Future")
+		if err != nil {
+			t.Fatalf("CreateAPIToken() error = %v", err)
+		}
+		setExpiry(t, created.ID, time.Now().Add(time.Hour))
+
+		got, err := model.GetByToken(created.Token)
+		if err != nil {
+			t.Fatalf("GetByToken() error = %v", err)
+		}
+		if !got.ExpiresAt.Valid {
+			t.Error("GetByToken() did not populate ExpiresAt for a token with an expiry")
+		}
+	})
+
+	t.Run("null expiry never expires", func(t *testing.T) {
+		created, err := model.CreateAPIToken(int(userID), "Never")
+		if err != nil {
+			t.Fatalf("CreateAPIToken() error = %v", err)
+		}
+		got, err := model.GetByToken(created.Token)
+		if err != nil {
+			t.Fatalf("GetByToken() error = %v", err)
+		}
+		if got.ExpiresAt.Valid {
+			t.Error("GetByToken() ExpiresAt should be NULL for a token created without an expiry")
+		}
+	})
+}
+
 // TestTokenModel_GetByUserID covers listing (empty and multiple, newest
 // first per ORDER BY created_at DESC).
 func TestTokenModel_GetByUserID(t *testing.T) {
@@ -107,10 +167,10 @@ func TestTokenModel_GetByUserID(t *testing.T) {
 		}
 	})
 
-	if _, err := model.Create(int(userID), "First"); err != nil {
+	if _, err := model.CreateAPIToken(int(userID), "First"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := model.Create(int(userID), "Second"); err != nil {
+	if _, err := model.CreateAPIToken(int(userID), "Second"); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -133,7 +193,7 @@ func TestTokenModel_UpdateLastUsedAndDelete(t *testing.T) {
 	userID := insertTestUser(t, db, "tok-del", "tok-del@example.com")
 	model := &TokenModel{DB: db}
 
-	created, err := model.Create(int(userID), "Key")
+	created, err := model.CreateAPIToken(int(userID), "Key")
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -152,7 +212,7 @@ func TestTokenModel_UpdateLastUsedAndDelete(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		if err := model.Delete(created.ID); err != nil {
+		if err := model.DeleteAPIToken(created.ID); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
 		if _, err := model.GetByToken(created.Token); err == nil {
@@ -161,7 +221,7 @@ func TestTokenModel_UpdateLastUsedAndDelete(t *testing.T) {
 	})
 
 	t.Run("DeleteByUserID", func(t *testing.T) {
-		second, err := model.Create(int(userID), "Second")
+		second, err := model.CreateAPIToken(int(userID), "Second")
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}

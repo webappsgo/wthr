@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,7 +19,7 @@
 
             <div class="setup-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 33.33%"></div>
+                    <div class="progress-fill progress-fill--step-2"></div>
                 </div>
                 <div class="progress-steps">
                     <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
@@ -51,7 +51,7 @@
 
             <div class="form-group checkbox-confirm">
                 <label class="checkbox-label">
-                    <input type="checkbox" id="token-copied" required>
+                    <input type="checkbox" id="token-copied" data-enables="#submit-btn" required>
                     <span>{{t .server.Lang "setup_api_token_confirm_checkbox"}}</span>
                 </label>
             </div>
@@ -71,10 +71,5 @@
     </div>
 
     <script src="/static/js/app.js" defer></script>
-    <script>
-        document.getElementById('token-copied').addEventListener('change', function() {
-            document.getElementById('submit-btn').disabled = !this.checked;
-        });
-    </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -202,175 +202,12 @@
 
     </div>
 
-    <script>
-        // Path variables - SPEC compliant (AI.md PART 13)
-        const API_PATH = '{{.api_path}}';
-
-        const I18N = {
-            gettingLocation: '{{t .server.Lang "moon_js_getting_location"}}',
-            foundLocation: '{{t .server.Lang "moon_js_found_location"}}',
-            locationError: '{{t .server.Lang "moon_js_location_error"}}'
-        };
-
-        // Form handling for moon page
-        document.addEventListener('DOMContentLoaded', function() {
-            const moonForm = document.getElementById('moon-form');
-            const locationInput = document.getElementById('moon-location-input');
-            const unitsSelect = document.getElementById('moon-units-select');
-            const locationBtn = document.getElementById('moon-location-btn');
-
-            // Handle form submission
-            if (moonForm) {
-                moonForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    const location = locationInput.value.trim();
-                    const units = unitsSelect.value;
-
-                    if (!location) {
-                        window.location.href = `${window.location.origin}/moon`;
-                        return;
-                    }
-
-                    const cleanLocation = location.replace(/ /g, '+');
-                    const unitsParam = units !== 'imperial' ? `?units=${units}` : '';
-                    window.location.href = `${window.location.origin}/moon/${cleanLocation}${unitsParam}`;
-                });
-            }
-
-            // Handle My Location button
-            if (locationBtn) {
-                locationBtn.addEventListener('click', async function() {
-                    const originalText = this.textContent;
-                    this.disabled = true;
-                    this.textContent = `📍 ${I18N.gettingLocation}`;
-
-                    try {
-                        const position = await new Promise((resolve, reject) => {
-                            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                                timeout: 10000,
-                                enableHighAccuracy: true
-                            });
-                        });
-
-                        const lat = position.coords.latitude.toFixed(4);
-                        const lon = position.coords.longitude.toFixed(4);
-                        const units = unitsSelect.value;
-                        const unitsParam = units !== 'imperial' ? `?units=${units}` : '';
-
-                        this.textContent = `📍 ${I18N.foundLocation}`;
-                        setTimeout(() => {
-                            window.location.href = `${window.location.origin}/moon/${lat},${lon}${unitsParam}`;
-                        }, 500);
-                    } catch (error) {
-                        // Fallback to IP detection
-                        fetch('/debug/ip')
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.location && data.location.value) {
-                                    const detectedLocation = data.location.value.replace(/ /g, '+');
-                                    const units = unitsSelect.value;
-                                    const unitsParam = units !== 'imperial' ? `?units=${units}` : '';
-                                    this.textContent = `📍 ${I18N.foundLocation}`;
-                                    setTimeout(() => {
-                                        window.location.href = `${window.location.origin}/moon/${detectedLocation}${unitsParam}`;
-                                    }, 500);
-                                } else {
-                                    throw new Error('No location');
-                                }
-                            })
-                            .catch(() => {
-                                this.textContent = originalText;
-                                this.disabled = false;
-                                showAlert(I18N.locationError);
-                            });
-                    }
-                });
-            }
-
-            // Autocomplete functionality for moon page
-            let autocompleteTimeout;
-            if (locationInput) {
-                locationInput.addEventListener('input', function(e) {
-                    clearTimeout(autocompleteTimeout);
-                    const query = e.target.value.trim();
-                    if (query.length < 2) {
-                        hideMoonAutocomplete();
-                        return;
-                    }
-                    autocompleteTimeout = setTimeout(() => {
-                        searchMoonLocations(query);
-                    }, 300);
-                });
-
-                // Hide autocomplete when clicking outside
-                document.addEventListener('click', function(e) {
-                    if (!e.target.closest('#moon-location-input') && !e.target.closest('#moon-autocomplete-dropdown')) {
-                        hideMoonAutocomplete();
-                    }
-                });
-            }
-        });
-
-        function searchMoonLocations(query) {
-            fetch(`${API_PATH}/search?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.results && data.results.length > 0) {
-                        showMoonAutocomplete(data.results);
-                    } else {
-                        hideMoonAutocomplete();
-                    }
-                })
-                .catch(err => {
-                    console.error('Autocomplete error:', err);
-                    hideMoonAutocomplete();
-                });
-        }
-
-        function showMoonAutocomplete(results) {
-            const dropdown = document.getElementById('moon-autocomplete-dropdown');
-            dropdown.innerHTML = '';
-
-            results.forEach(result => { // Show all results (scrollable dropdown)
-                const item = document.createElement('div');
-                item.className = 'autocomplete-item';
-
-                const locationName = result.admin1
-                    ? `${result.name}, ${result.admin1}, ${result.countryCode}`
-                    : `${result.name}, ${result.countryCode}`;
-
-                item.innerHTML = `
-                    <span class="autocomplete-item city-name">${result.name}</span>
-                    <span class="autocomplete-item location-details">${result.admin1 ? result.admin1 + ', ' : ''}${result.countryCode}</span>
-                `;
-
-                item.addEventListener('click', function() {
-                    const units = document.getElementById('moon-units-select').value;
-                    // Use coordinates for navigation (more accurate)
-                    const coords = `${result.latitude.toFixed(4)},${result.longitude.toFixed(4)}`;
-                    const unitsParam = units !== 'imperial' ? `?units=${units}` : '';
-                    const newUrl = `${window.location.origin}/moon/${coords}${unitsParam}`;
-                    hideMoonAutocomplete();
-                    window.location.href = newUrl;
-                });
-
-                dropdown.appendChild(item);
-            });
-
-            dropdown.classList.add('autocomplete-dropdown-visible');
-        }
-
-        function hideMoonAutocomplete() {
-            const dropdown = document.getElementById('moon-autocomplete-dropdown');
-            if (dropdown) {
-                dropdown.classList.remove('autocomplete-dropdown-visible');
-                dropdown.innerHTML = '';
-            }
-        }
-
-        // Initialize notification polling
-        if (typeof Notifications !== 'undefined') {
-            Notifications.startPolling(30000);
+    <script type="application/json" id="moon-data">
+        {
+            "apiPath": "{{.api_path}}",
+            "gettingLocation": "{{t .server.Lang "moon_js_getting_location"}}",
+            "foundLocation": "{{t .server.Lang "moon_js_found_location"}}",
+            "locationError": "{{t .server.Lang "moon_js_location_error"}}"
         }
     </script>
 

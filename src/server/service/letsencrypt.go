@@ -23,7 +23,7 @@ import (
 )
 
 // LetsEncryptService manages Let's Encrypt certificates
-// TEMPLATE.md Part 8: Built-in Let's Encrypt support with all 3 challenge types
+// AI.md PART 15: built-in Let's Encrypt support with all 3 challenge types
 type LetsEncryptService struct {
 	client      *lego.Client
 	user        *LEUser
@@ -33,9 +33,9 @@ type LetsEncryptService struct {
 	mu          sync.RWMutex
 
 	// Challenge providers
-	http01Provider    *HTTP01Provider
-	tlsalpn01Provider *TLSALPN01Provider
-	dns01Provider     *DNS01Provider
+	// TLS-ALPN-01 uses lego's own provider server, so no local type is needed.
+	http01Provider *HTTP01Provider
+	dns01Provider  *DNS01Provider
 }
 
 // LEUser represents a Let's Encrypt user account
@@ -71,7 +71,7 @@ func GetGlobalHTTP01Provider() *HTTP01Provider {
 }
 
 // HTTP01Provider implements HTTP-01 challenge
-// TEMPLATE.md Part 8: HTTP-01 challenge support
+// AI.md PART 15: HTTP-01 challenge support
 type HTTP01Provider struct {
 	mu     sync.RWMutex
 	tokens map[string]string
@@ -107,38 +107,9 @@ func (p *HTTP01Provider) GetKeyAuth(token string) (string, bool) {
 	return keyAuth, ok
 }
 
-// TLSALPN01Provider implements TLS-ALPN-01 challenge
-// TEMPLATE.md Part 8: TLS-ALPN-01 challenge support
-type TLSALPN01Provider struct {
-	mu    sync.RWMutex
-	certs map[string]*certificate.Resource
-}
-
-func NewTLSALPN01Provider() *TLSALPN01Provider {
-	return &TLSALPN01Provider{
-		certs: make(map[string]*certificate.Resource),
-	}
-}
-
-// Present implements the challenge.Provider interface
-func (p *TLSALPN01Provider) Present(domain, token, keyAuth string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	// Store challenge certificate
-	// In a real implementation, this would create a self-signed cert with the challenge
-	return nil
-}
-
-// CleanUp implements the challenge.Provider interface
-func (p *TLSALPN01Provider) CleanUp(domain, token, keyAuth string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	delete(p.certs, domain)
-	return nil
-}
-
-// DNS01Provider implements DNS-01 challenge
-// TEMPLATE.md Part 8: DNS-01 challenge support
+// DNS01Provider implements the manual DNS-01 mode: it records the TXT values the
+// operator must publish themselves. It is used only when no lego DNS provider is
+// configured (AI.md PART 15 DNS-01 Provider Configuration).
 type DNS01Provider struct {
 	mu      sync.RWMutex
 	records map[string]string
@@ -157,10 +128,6 @@ func (p *DNS01Provider) Present(domain, token, keyAuth string) error {
 
 	info := dns01.GetChallengeInfo(domain, keyAuth)
 	p.records[info.EffectiveFQDN] = info.Value
-
-	// In a real implementation, this would create DNS TXT records via DNS provider API
-	// Examples: Cloudflare, Route53, DigitalOcean, etc.
-	// For now, we store the record and expect manual DNS configuration
 
 	return nil
 }
@@ -243,14 +210,13 @@ func NewLetsEncryptService(email, certsDir string, staging bool) (*LetsEncryptSe
 		user:      user,
 		certsDir:  certsDir,
 		autoRenew: true,
-		// AI.md PART 21 line 5227: Renew 7 days before expiry
+		// AI.md PART 15: renew app-managed certificates 7 days before expiry
 		renewalDays: 7,
 	}
 
 	// Initialize challenge providers (reuse the global HTTP-01 provider so the gin
 	// route handler at /.well-known/acme-challenge/ can serve the responses).
 	service.http01Provider = globalHTTP01Provider
-	service.tlsalpn01Provider = NewTLSALPN01Provider()
 	service.dns01Provider = NewDNS01Provider()
 
 	return service, nil
@@ -276,7 +242,6 @@ func (s *LetsEncryptService) SetupChallenges(challengeType string) error {
 		}
 
 	case "dns-01":
-		// DNS-01 challenge
 		if err := s.client.Challenge.SetDNS01Provider(s.dns01Provider); err != nil {
 			return fmt.Errorf("failed to setup DNS-01: %w", err)
 		}
@@ -373,7 +338,7 @@ func (s *LetsEncryptService) RevokeCertificate(domain string) error {
 }
 
 // CheckRenewal checks if a certificate needs renewal
-// TEMPLATE.md Part 8: Auto-renewal system
+// AI.md PART 15: auto-renewal system
 func (s *LetsEncryptService) CheckRenewal(domain string) (bool, int, error) {
 	cert, err := s.loadCertificate(domain)
 	if err != nil {
@@ -400,15 +365,26 @@ func (s *LetsEncryptService) CheckRenewal(domain string) (bool, int, error) {
 	return needsRenewal, daysRemaining, nil
 }
 
+// NextRenewalCheck returns the next 03:00 local time strictly after now.
+// AI.md PART 15: the ssl_renewal check runs daily at 03:00, not on an
+// arbitrary offset from process start.
+func NextRenewalCheck(now time.Time) time.Time {
+	next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, now.Location())
+	if !next.After(now) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next
+}
+
 // StartAutoRenewal starts the auto-renewal background service
-// TEMPLATE.md Part 8: Auto-renewal must run automatically
+// AI.md PART 15: check daily at 03:00, renew 7 days before expiry
 func (s *LetsEncryptService) StartAutoRenewal(domains []string, challengeType string) {
 	go func() {
-		// Check daily
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
+		for {
+			timer := time.NewTimer(time.Until(NextRenewalCheck(time.Now())))
+			<-timer.C
+			timer.Stop()
 
-		for range ticker.C {
 			for _, domain := range domains {
 				needsRenewal, daysRemaining, err := s.CheckRenewal(domain)
 				if err != nil {
@@ -434,10 +410,27 @@ func (s *LetsEncryptService) GetHTTP01Provider() *HTTP01Provider {
 	return s.http01Provider
 }
 
+// GetPendingDNSRecords returns the TXT records the operator must publish when running
+// DNS-01 in manual mode. It is empty when a lego DNS provider handles the records.
+func (s *LetsEncryptService) GetPendingDNSRecords() map[string]string {
+	return s.dns01Provider.GetDNSRecords()
+}
+
+// Helper: Per-domain certificate directory
+// AI.md PART 15: app-managed certificates live in {config_dir}/ssl/letsencrypt/{fqdn}/,
+// mirroring the certbot layout, with fullchain.pem and privkey.pem inside.
+func (s *LetsEncryptService) certPaths(domain string) (certPath, keyPath, dir string) {
+	dir = filepath.Join(s.certsDir, sanitizeDomain(domain))
+	return filepath.Join(dir, "fullchain.pem"), filepath.Join(dir, "privkey.pem"), dir
+}
+
 // Helper: Save certificate to disk
 func (s *LetsEncryptService) saveCertificate(domain string, cert *certificate.Resource) error {
-	certPath := filepath.Join(s.certsDir, sanitizeDomain(domain)+".crt")
-	keyPath := filepath.Join(s.certsDir, sanitizeDomain(domain)+".key")
+	certPath, keyPath, dir := s.certPaths(domain)
+
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
 
 	// Save certificate
 	if err := os.WriteFile(certPath, cert.Certificate, 0600); err != nil {
@@ -454,8 +447,7 @@ func (s *LetsEncryptService) saveCertificate(domain string, cert *certificate.Re
 
 // Helper: Load certificate from disk
 func (s *LetsEncryptService) loadCertificate(domain string) (*certificate.Resource, error) {
-	certPath := filepath.Join(s.certsDir, sanitizeDomain(domain)+".crt")
-	keyPath := filepath.Join(s.certsDir, sanitizeDomain(domain)+".key")
+	certPath, keyPath, _ := s.certPaths(domain)
 
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {

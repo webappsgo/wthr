@@ -67,7 +67,7 @@ const unreadNotificationPredicate = " AND read = 0 AND dismissed = 0"
 // reject unauthenticated requests instead of silently scoping them to
 // user_id=0.
 func authedUserID(r *http.Request) (int, bool) {
-	val, exists := reqctx.Get(r.Context(), "user_id")
+	val, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		return 0, false
 	}
@@ -349,7 +349,7 @@ func (h *NotificationHandler) CreateNotification(userID int, notifType, title, m
 	}
 
 	notificationModel := &model.UserNotificationModel{DB: h.DB}
-	_, err := notificationModel.Create(userID, model.NotificationType(notifType),
+	_, err := notificationModel.CreateUserNotification(userID, model.NotificationType(notifType),
 		model.NotificationDisplayToast, title, message, action)
 
 	return err

@@ -54,12 +54,12 @@ func countRows(t *testing.T, db *sql.DB, table string) int {
 func TestInjectedHandle_UserModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 
-	if _, err := (&UserModel{DB: global}).Create("alice", "global@example.com", "GlobalPassw0rd!"); err != nil {
+	if _, err := (&UserModel{DB: global}).CreateUserAccount("alice", "global@example.com", "GlobalPassw0rd!"); err != nil {
 		t.Fatalf("seed global user: %v", err)
 	}
 
 	model := &UserModel{DB: injected}
-	if _, err := model.Create("alice", "injected@example.com", "InjectedPassw0rd!"); err != nil {
+	if _, err := model.CreateUserAccount("alice", "injected@example.com", "InjectedPassw0rd!"); err != nil {
 		t.Fatalf("create injected user: %v", err)
 	}
 
@@ -106,12 +106,12 @@ func TestInjectedHandle_SessionModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "cookie-user", "cookie-user@example.com")
 
-	if _, err := (&SessionModel{DB: global}).Create(userID, 3600); err != nil {
+	if _, err := (&SessionModel{DB: global}).CreateSession(userID, 3600); err != nil {
 		t.Fatalf("seed global session: %v", err)
 	}
 
 	model := &SessionModel{DB: injected}
-	created, err := model.Create(userID, 3600)
+	created, err := model.CreateSession(userID, 3600)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -130,12 +130,12 @@ func TestInjectedHandle_TokenModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalUsersDBs(t)
 	userID := insertTestUser(t, injected, "token-user", "token-user@example.com")
 
-	if _, err := (&TokenModel{DB: global}).Create(int(userID), "global-token"); err != nil {
+	if _, err := (&TokenModel{DB: global}).CreateAPIToken(int(userID), "global-token"); err != nil {
 		t.Fatalf("seed global token: %v", err)
 	}
 
 	model := &TokenModel{DB: injected}
-	if _, err := model.Create(int(userID), "injected-token"); err != nil {
+	if _, err := model.CreateAPIToken(int(userID), "injected-token"); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -300,15 +300,15 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 	userID := insertTestUser(t, injected, "passkey-user", "passkey-user@example.com")
 
 	globalModel := &UserPasskeyModel{DB: global}
-	if _, err := globalModel.Create(userID, "global-1", testCredential(1)); err != nil {
+	if _, err := globalModel.CreateUserPasskey(userID, "global-1", testCredential(1)); err != nil {
 		t.Fatalf("seed global passkey 1: %v", err)
 	}
-	if _, err := globalModel.Create(userID, "global-2", testCredential(2)); err != nil {
+	if _, err := globalModel.CreateUserPasskey(userID, "global-2", testCredential(2)); err != nil {
 		t.Fatalf("seed global passkey 2: %v", err)
 	}
 
 	model := &UserPasskeyModel{DB: injected}
-	if _, err := model.Create(userID, "injected-1", testCredential(3)); err != nil {
+	if _, err := model.CreateUserPasskey(userID, "injected-1", testCredential(3)); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -326,12 +326,12 @@ func TestInjectedHandle_UserPasskeyModel(t *testing.T) {
 func TestInjectedHandle_AdminModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalServerDBs(t)
 
-	if _, err := (&AdminModel{DB: global}).Create("root", "global@example.com", "GlobalPassw0rd!", true); err != nil {
+	if _, err := (&AdminModel{DB: global}).CreateAdminAccount("root", "global@example.com", "GlobalPassw0rd!", true); err != nil {
 		t.Fatalf("seed global admin: %v", err)
 	}
 
 	model := &AdminModel{DB: injected}
-	if _, err := model.Create("root", "injected@example.com", "InjectedPassw0rd!", true); err != nil {
+	if _, err := model.CreateAdminAccount("root", "injected@example.com", "InjectedPassw0rd!", true); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -400,15 +400,15 @@ func TestInjectedHandle_AdminPasskeyModel(t *testing.T) {
 	injected, global := newInjectedAndGlobalServerDBs(t)
 
 	globalModel := &AdminPasskeyModel{DB: global}
-	if _, err := globalModel.Create(1, "global-1", testCredential(1)); err != nil {
+	if _, err := globalModel.CreateAdminPasskey(1, "global-1", testCredential(1)); err != nil {
 		t.Fatalf("seed global admin passkey 1: %v", err)
 	}
-	if _, err := globalModel.Create(1, "global-2", testCredential(2)); err != nil {
+	if _, err := globalModel.CreateAdminPasskey(1, "global-2", testCredential(2)); err != nil {
 		t.Fatalf("seed global admin passkey 2: %v", err)
 	}
 
 	model := &AdminPasskeyModel{DB: injected}
-	if _, err := model.Create(1, "injected-1", testCredential(3)); err != nil {
+	if _, err := model.CreateAdminPasskey(1, "injected-1", testCredential(3)); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -497,7 +497,7 @@ func TestSettingsModelUsesInjectedServerDB(t *testing.T) {
 	// resolves the global server handle on its own.
 	model := &SettingsModel{DB: serverDB}
 
-	if err := model.Set("unit.test.key", "from-server-db", "string"); err != nil {
+	if err := model.SetSetting("unit.test.key", "from-server-db", "string"); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 
@@ -509,7 +509,7 @@ func TestSettingsModelUsesInjectedServerDB(t *testing.T) {
 		t.Errorf("stored value = %q, want %q", stored, "from-server-db")
 	}
 
-	setting, err := model.Get("unit.test.key")
+	setting, err := model.GetSetting("unit.test.key")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}

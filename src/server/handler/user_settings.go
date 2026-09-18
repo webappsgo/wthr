@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -44,11 +45,15 @@ func (h *UserSettingsHandler) ShowAccountSettings(w http.ResponseWriter, r *http
 		return
 	}
 
+	prefs, _ := h.getOrCreatePreferences(user.ID)
+
 	NegotiateResponse(w, r, "page/user/settings.tmpl", util.TemplateData(r, map[string]interface{}{
 		"title":       Translate(r, "user.settings.account_settings"),
 		"page":        "settings",
 		"settingsTab": "account",
 		"user":        user,
+		"preferences": prefs,
+		"flash":       TakeFlash(w, r),
 	}))
 }
 
@@ -70,6 +75,7 @@ func (h *UserSettingsHandler) ShowPrivacySettings(w http.ResponseWriter, r *http
 		"settingsTab": "privacy",
 		"user":        user,
 		"preferences": prefs,
+		"flash":       TakeFlash(w, r),
 	}))
 }
 
@@ -91,6 +97,7 @@ func (h *UserSettingsHandler) ShowNotificationSettings(w http.ResponseWriter, r 
 		"settingsTab": "notifications",
 		"user":        user,
 		"preferences": prefs,
+		"flash":       TakeFlash(w, r),
 	}))
 }
 
@@ -112,6 +119,7 @@ func (h *UserSettingsHandler) ShowAppearanceSettings(w http.ResponseWriter, r *h
 		"settingsTab": "appearance",
 		"user":        user,
 		"preferences": prefs,
+		"flash":       TakeFlash(w, r),
 	}))
 }
 
@@ -133,7 +141,120 @@ func (h *UserSettingsHandler) ShowTokensSettings(w http.ResponseWriter, r *http.
 		"settingsTab": "tokens",
 		"user":        user,
 		"tokens":      tokens,
+		"flash":       TakeFlash(w, r),
 	}))
+}
+
+// flashResult stores the outcome of a settings write as a one-shot flash and
+// redirects back to the originating page, so the form works without JavaScript.
+func flashResult(w http.ResponseWriter, r *http.Request, err error, target string) {
+	if err != nil {
+		SetFlash(w, r, "error", "flash_settings_save_failed")
+	} else {
+		SetFlash(w, r, "success", "flash_settings_saved")
+	}
+
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// PostAccountSettings saves the account settings form.
+// Route: POST /users/settings
+func (h *UserSettingsHandler) PostAccountSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
+	if !ok {
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
+		return
+	}
+
+	settings := &AccountSettings{
+		DisplayName: strings.TrimSpace(r.FormValue("displayName")),
+		Bio:         strings.TrimSpace(r.FormValue("bio")),
+		Location:    strings.TrimSpace(r.FormValue("location")),
+		Website:     strings.TrimSpace(r.FormValue("website")),
+		Timezone:    strings.TrimSpace(r.FormValue("timezone")),
+		Language:    strings.TrimSpace(r.FormValue("language")),
+		DateFormat:  strings.TrimSpace(r.FormValue("dateFormat")),
+		TimeFormat:  strings.TrimSpace(r.FormValue("timeFormat")),
+	}
+
+	flashResult(w, r, h.updateAccountSettings(user.ID, settings), "/users/settings")
+}
+
+// PostPrivacySettings saves the privacy settings form.
+// Route: POST /users/settings/privacy
+func (h *UserSettingsHandler) PostPrivacySettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
+	if !ok {
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
+		return
+	}
+
+	settings := &PrivacySettings{
+		Visibility:    strings.TrimSpace(r.FormValue("visibility")),
+		ShowEmail:     formChecked(r, "showEmail"),
+		ShowActivity:  formChecked(r, "showActivity"),
+		ShowOrgs:      formChecked(r, "showOrgs"),
+		Searchable:    formChecked(r, "searchable"),
+		OrgVisibility: formChecked(r, "orgVisibility"),
+	}
+
+	flashResult(w, r, h.updatePrivacySettings(user.ID, settings), "/users/settings/privacy")
+}
+
+// PostNotificationSettings saves the notification settings form.
+// Route: POST /users/settings/notifications
+func (h *UserSettingsHandler) PostNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
+	if !ok {
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
+		return
+	}
+
+	settings := &NotificationSettings{
+		EmailSecurity: true,
+		EmailMentions: formChecked(r, "emailMentions"),
+		EmailUpdates:  formChecked(r, "emailUpdates"),
+		EmailDigest:   strings.TrimSpace(r.FormValue("emailDigest")),
+		PushEnabled:   formChecked(r, "pushEnabled"),
+		PushMentions:  formChecked(r, "pushMentions"),
+	}
+
+	flashResult(w, r, h.updateNotificationSettings(user.ID, settings), "/users/settings/notifications")
+}
+
+// PostAppearanceSettings saves the appearance settings form.
+// Route: POST /users/settings/appearance
+func (h *UserSettingsHandler) PostAppearanceSettings(w http.ResponseWriter, r *http.Request) {
+	user, ok := middleware.GetCurrentUser(r)
+	if !ok {
+		http.Redirect(w, r, "/server/auth/login", http.StatusFound)
+		return
+	}
+
+	settings := &AppearanceSettings{
+		Theme:        strings.TrimSpace(r.FormValue("theme")),
+		FontSize:     strings.TrimSpace(r.FormValue("fontSize")),
+		ReduceMotion: formChecked(r, "reduceMotion"),
+	}
+
+	err := h.updateAppearanceSettings(user.ID, settings)
+	if err == nil {
+		// Keep the guest-facing theme cookie aligned so the next render is correct without JS.
+		server.SetThemeCookie(w, r, settings.Theme)
+	}
+
+	flashResult(w, r, err, "/users/settings/appearance")
+}
+
+// formChecked reports whether an HTML checkbox was submitted as checked.
+// An unchecked box sends nothing at all, so absence means false.
+func formChecked(r *http.Request, name string) bool {
+	value := r.FormValue(name)
+	if value == "" {
+		return false
+	}
+
+	return config.IsTruthy(value) || value == "on"
 }
 
 // UserSettingsResponse represents the full user settings response
@@ -757,7 +878,7 @@ func (h *UserSettingsHandler) ListSessions(w http.ResponseWriter, r *http.Reques
 	// The middleware stores the Session struct under SessionContextKey ("session").
 	// Session.ID is the raw bearer token; we hash it to compare against stored hashes.
 	var currentTokenHash string
-	if sessionVal, ok := reqctx.Get(r.Context(), middleware.SessionContextKey); ok {
+	if sessionVal, ok := reqctx.GetValue(r.Context(), middleware.SessionContextKey); ok {
 		if sess, ok := sessionVal.(*models.Session); ok && sess != nil {
 			h := sha256.Sum256([]byte(sess.ID))
 			currentTokenHash = hex.EncodeToString(h[:])

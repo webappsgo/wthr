@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,8 +50,9 @@ func logAdminPasskeyAudit(db *sql.DB, action string, adminID, passkeyID int64, p
 		userAgent,
 	)
 	if err != nil {
-		// Non-fatal: the passkey operation already completed.
-		_ = err
+		// Non-fatal: the passkey operation already completed. The audit trail
+		// still must not lose the failure silently, so record it with context.
+		log.Printf("audit log write failed: action=%s admin_id=%d passkey_id=%d error=%v", action, adminID, passkeyID, err)
 	}
 }
 
@@ -71,7 +73,7 @@ func NewAdminPasskeyHandler(db *sql.DB) *AdminPasskeyHandler {
 }
 
 func (h *AdminPasskeyHandler) loadAdminFromContext(r *http.Request) (*models.Admin, bool) {
-	value, exists := reqctx.Get(r.Context(), "admin_id")
+	value, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		return nil, false
 	}

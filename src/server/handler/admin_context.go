@@ -23,7 +23,7 @@ const adminUsernameKey = "admin_username"
 // non-admin alike) — the "lang" reqctx key is populated by the shared i18n
 // middleware in main.go for all requests, not just admin routes.
 func Lang(r *http.Request) string {
-	if value, ok := reqctx.Get(r.Context(), "lang"); ok {
+	if value, ok := reqctx.GetValue(r.Context(), "lang"); ok {
 		if lang, ok := value.(string); ok && lang != "" {
 			return lang
 		}
@@ -60,19 +60,19 @@ func AdminTranslate(r *http.Request, key string) string {
 // server database on every call (net/http's immutable *http.Request context
 // cannot be memoized the way gin.Context.Set could).
 func AdminUsername(r *http.Request) string {
-	if value, ok := reqctx.Get(r.Context(), adminUsernameKey); ok {
+	if value, ok := reqctx.GetValue(r.Context(), adminUsernameKey); ok {
 		if username, ok := value.(string); ok && username != "" {
 			return username
 		}
 	}
 
-	if value, ok := reqctx.Get(r.Context(), "admin"); ok {
+	if value, ok := reqctx.GetValue(r.Context(), "admin"); ok {
 		if admin, ok := value.(*model.Admin); ok && admin != nil && admin.Username != "" {
 			return admin.Username
 		}
 	}
 
-	adminID, ok := reqctx.Get(r.Context(), "admin_id")
+	adminID, ok := reqctx.GetValue(r.Context(), "admin_id")
 	if !ok {
 		return ""
 	}

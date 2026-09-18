@@ -2,7 +2,7 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 <!DOCTYPE html>
-<html lang="{{$lang}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{$lang}}" dir="{{if eq $lang "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,109 +10,32 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/admin.css">
-    <style>
-        body {
-            background: var(--color-bg, #0f1117);
-            color: var(--color-text, #e2e8f0);
-            font-family: system-ui, -apple-system, sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 1rem;
-        }
-        .passkey-card {
-            background: var(--color-surface, #1a1f2e);
-            border: 1px solid var(--color-border, #2d3748);
-            border-radius: 12px;
-            padding: 2.5rem;
-            max-width: 440px;
-            width: 100%;
-            text-align: center;
-        }
-        .passkey-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        h1 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin: 0 0 0.5rem;
-            color: var(--color-heading, #f7fafc);
-        }
-        .subtitle {
-            color: var(--color-muted, #a0aec0);
-            font-size: 0.95rem;
-            margin-bottom: 2rem;
-        }
-        .status-box {
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            text-align: left;
-        }
-        .status-info {
-            background: rgba(66, 153, 225, 0.1);
-            border: 1px solid rgba(66, 153, 225, 0.3);
-            color: #63b3ed;
-        }
-        .status-success {
-            background: rgba(72, 187, 120, 0.1);
-            border: 1px solid rgba(72, 187, 120, 0.3);
-            color: #68d391;
-        }
-        .status-error {
-            background: rgba(245, 101, 101, 0.1);
-            border: 1px solid rgba(245, 101, 101, 0.3);
-            color: #fc8181;
-        }
-        .spinner {
-            display: inline-block;
-            width: 1em;
-            height: 1em;
-            border: 2px solid currentColor;
-            border-right-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.75s linear infinite;
-            vertical-align: middle;
-            margin-right: 0.4em;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .back-link {
-            display: inline-block;
-            margin-top: 0.5rem;
-            color: var(--color-link, #63b3ed);
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        .back-link:hover { text-decoration: underline; }
-        .inline-link {
-            color: inherit;
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
-    <div class="passkey-card">
-        <div class="passkey-icon">🔑</div>
-        <h1>{{t $lang "admin.passkey_login.heading"}}</h1>
-        <p class="subtitle">{{t $lang "admin.passkey_login.subtitle"}}</p>
+    <main id="main-content" class="auth-container">
+        <div class="auth-card">
+            <div class="auth-icon" aria-hidden="true">🔑</div>
+            <h1>{{t $lang "admin.passkey_login.heading"}}</h1>
+            <p class="auth-subtitle">{{t $lang "admin.passkey_login.subtitle"}}</p>
 
-        {{if .error}}
-        <div class="status-box status-error">{{.error}}</div>
-        <a href="/server/auth/login" class="back-link">← {{t $lang "admin.passkey_login.back_link"}}</a>
-        {{else}}
-        <div id="passkeyStatus" class="status-box status-info">
-            <span class="spinner"></span> {{t $lang "admin.passkey_login.starting_status"}}
+            {{if .error}}
+            <div class="alert alert-error" role="alert">{{.error}}</div>
+            <div class="auth-links">
+                <a href="/server/auth/login">← {{t $lang "admin.passkey_login.back_link"}}</a>
+            </div>
+            {{else}}
+            <div id="passkeyStatus" class="alert alert-info" role="status" aria-live="polite">
+                <span class="spinner spinner-sm" aria-hidden="true"></span> {{t $lang "admin.passkey_login.starting_status"}}
+            </div>
+            <div class="auth-links">
+                <a href="/server/auth/login">← {{t $lang "admin.passkey_login.back_link"}}</a>
+            </div>
+
+            <script type="application/json" id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</script>
+            <script src="/static/js/app.js"></script>
+            {{end}}
         </div>
-        <a href="/server/auth/login" class="back-link">← {{t $lang "admin.passkey_login.back_link"}}</a>
-
-        <script type="application/json" id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</script>
-        <script src="/static/js/app.js"></script>
-        {{end}}
-    </div>
+    </main>
 </body>
 </html>
 {{end}}

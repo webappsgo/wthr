@@ -167,7 +167,7 @@
                                 <label for="toastDurationSuccess" class="form-label">{{t .server.Lang "profile_success_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationSuccess" min="1" max="60" value="5"
-                                           class="flex-1" oninput="updateDurationLabel('success', this.value)">
+                                           class="flex-1">
                                     <span id="durationLabelSuccess" class="duration-label-success">5s</span>
                                 </div>
                                 <small class="text-comment">{{t .server.Lang "profile_success_duration_hint"}}</small>
@@ -177,7 +177,7 @@
                                 <label for="toastDurationInfo" class="form-label">{{t .server.Lang "profile_info_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationInfo" min="1" max="60" value="5"
-                                           class="flex-1" oninput="updateDurationLabel('info', this.value)">
+                                           class="flex-1">
                                     <span id="durationLabelInfo" class="duration-label-info">5s</span>
                                 </div>
                                 <small class="text-comment">{{t .server.Lang "profile_info_duration_hint"}}</small>
@@ -187,7 +187,7 @@
                                 <label for="toastDurationWarning" class="form-label">{{t .server.Lang "profile_warning_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationWarning" min="1" max="60" value="10"
-                                           class="flex-1" oninput="updateDurationLabel('warning', this.value)">
+                                           class="flex-1">
                                     <span id="durationLabelWarning" class="duration-label-warning">10s</span>
                                 </div>
                                 <small class="text-comment">{{t .server.Lang "profile_warning_duration_hint"}}</small>

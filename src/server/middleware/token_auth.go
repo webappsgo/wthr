@@ -1,9 +1,8 @@
-// Package middleware provides token validation per TEMPLATE.md PART 11
+// Package middleware provides token validation per AI.md PART 11
 package middleware
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,20 +11,26 @@ import (
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
-// TokenType represents the type of API token per TEMPLATE.md PART 11
+// TokenType represents the type of API token per AI.md PART 11
 type TokenType int
 
 const (
-	TokenTypeUnknown    TokenType = iota
-	TokenTypeAdmin                // adm_
-	TokenTypeUser                 // usr_
-	TokenTypeOrg                  // org_
-	TokenTypeAdminAgent           // adm_agt_
-	TokenTypeUserAgent            // usr_agt_
-	TokenTypeOrgAgent             // org_agt_
+	TokenTypeUnknown TokenType = iota
+	// adm_
+	TokenTypeAdmin
+	// usr_
+	TokenTypeUser
+	// org_
+	TokenTypeOrg
+	// adm_agt_
+	TokenTypeAdminAgent
+	// usr_agt_
+	TokenTypeUserAgent
+	// org_agt_
+	TokenTypeOrgAgent
 )
 
-// DetectTokenType determines the token type from prefix per TEMPLATE.md PART 11
+// DetectTokenType determines the token type from prefix per AI.md PART 11
 func DetectTokenType(token string) TokenType {
 	// Check compound agent prefixes first (longer prefixes)
 	if strings.HasPrefix(token, model.PrefixAdminAgt) {
@@ -52,7 +57,7 @@ func DetectTokenType(token string) TokenType {
 	return TokenTypeUnknown
 }
 
-// ValidateTokenPrefix validates token has correct prefix per TEMPLATE.md PART 11
+// ValidateTokenPrefix validates token has correct prefix per AI.md PART 11
 func ValidateTokenPrefix(token string) error {
 	tokenType := DetectTokenType(token)
 	if tokenType == TokenTypeUnknown {
@@ -61,31 +66,21 @@ func ValidateTokenPrefix(token string) error {
 	return nil
 }
 
-// writeTokenAuthError writes the non-canonical {"ok":false,"error":"<message>"}
-// body TokenAuthMiddleware has always used, preserved verbatim (this shape
-// predates the canonical {"ok","error":CODE,"message"} response format and is
-// not upgraded here — a mechanical framework conversion must not change it).
-func writeTokenAuthError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "error": message})
-}
-
-// TokenAuthMiddleware validates API tokens with proper prefixes per TEMPLATE.md PART 11
+// TokenAuthMiddleware validates API tokens with proper prefixes per AI.md PART 11
 func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Extract token from Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				writeTokenAuthError(w, 401, "missing authorization header")
+				writeAPIError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 				return
 			}
 
 			// Parse Bearer token
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				writeTokenAuthError(w, 401, "invalid authorization format")
+				writeAPIError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Authentication required")
 				return
 			}
 
@@ -93,7 +88,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 
 			// Validate token prefix
 			if err := ValidateTokenPrefix(token); err != nil {
-				writeTokenAuthError(w, 401, err.Error())
+				writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 				return
 			}
 
@@ -108,19 +103,19 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 				adminModel := &model.AdminModel{DB: serverDB}
 				admin, err := adminModel.GetByAPIToken(token)
 				if err != nil {
-					writeTokenAuthError(w, 401, "invalid admin token")
+					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 					return
 				}
-				ctx = reqctx.Set(ctx, "admin", admin)
-				ctx = reqctx.Set(ctx, "db", serverDB)
-				ctx = reqctx.Set(ctx, "auth_type", AuthTypeAdminToken)
+				ctx = reqctx.SetValue(ctx, "admin", admin)
+				ctx = reqctx.SetValue(ctx, "db", serverDB)
+				ctx = reqctx.SetValue(ctx, "auth_type", AuthTypeAdminToken)
 
 			case TokenTypeUser:
 				// Validate user token (usr_) using new token model
 				tokenModelV2 := &model.TokenModelV2{DB: usersDB}
 				validatedToken, err := tokenModelV2.ValidateToken(token)
 				if err != nil {
-					writeTokenAuthError(w, 401, "invalid user token")
+					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 					return
 				}
 
@@ -128,25 +123,25 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 				userModel := &model.UserModel{DB: usersDB}
 				user, err := userModel.GetByID(validatedToken.OwnerID)
 				if err != nil {
-					writeTokenAuthError(w, 401, "user not found")
+					writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 					return
 				}
 
 				// Update last used timestamp
 				go tokenModelV2.UpdateLastUsed(validatedToken.ID)
 
-				ctx = reqctx.Set(ctx, UserContextKey, user)
+				ctx = reqctx.SetValue(ctx, UserContextKey, user)
 				// Handlers read the numeric id via reqctx.GetInt(UserIDContextKey); model.User.ID is int64, which GetInt cannot assert
-				ctx = reqctx.Set(ctx, UserIDContextKey, int(user.ID))
-				ctx = reqctx.Set(ctx, "token", validatedToken)
-				ctx = reqctx.Set(ctx, "auth_type", "user_token")
+				ctx = reqctx.SetValue(ctx, UserIDContextKey, int(user.ID))
+				ctx = reqctx.SetValue(ctx, "token", validatedToken)
+				ctx = reqctx.SetValue(ctx, "auth_type", "user_token")
 
 			case TokenTypeAdminAgent, TokenTypeUserAgent, TokenTypeOrgAgent, TokenTypeOrg:
-				writeTokenAuthError(w, 401, "invalid or expired token")
+				writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 				return
 
 			default:
-				writeTokenAuthError(w, 401, "unknown token type")
+				writeAPIError(w, http.StatusUnauthorized, "TOKEN_INVALID", "Invalid token")
 				return
 			}
 
@@ -168,15 +163,9 @@ const AuthTypeAdminToken = "admin_token"
 func RequireAdminToken() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authType, exists := reqctx.Get(r.Context(), "auth_type")
+			authType, exists := reqctx.GetValue(r.Context(), "auth_type")
 			if !exists || authType != AuthTypeAdminToken {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(403)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
-					"ok":      false,
-					"error":   "FORBIDDEN",
-					"message": "Admin access required",
-				})
+				writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "Admin access required")
 				return
 			}
 

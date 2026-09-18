@@ -88,7 +88,7 @@ func i2pTemplateInfo() map[string]interface{} {
 // TemplateData enriches template data with server context, user info, and i18n data.
 func TemplateData(r *http.Request, data map[string]interface{}) map[string]interface{} {
 	// Get server context from the request context (set by middleware)
-	serverCtxInterface, exists := reqctx.Get(r.Context(), "server")
+	serverCtxInterface, exists := reqctx.GetValue(r.Context(), "server")
 
 	var serverCtx interface{}
 	if !exists {
@@ -107,7 +107,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	}
 
 	// Get user context from the request context (set by auth middleware)
-	userCtxInterface, userExists := reqctx.Get(r.Context(), "user")
+	userCtxInterface, userExists := reqctx.GetValue(r.Context(), "user")
 	var userCtx interface{}
 	if !userExists {
 		// Fallback to empty user (guest)
@@ -121,7 +121,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 
 	// Get CSRF token from context (set by CSRF middleware)
 	// Per AI.md line 14803: "All forms include hidden CSRF token field"
-	csrfToken, _ := reqctx.Get(r.Context(), "csrf_token")
+	csrfToken, _ := reqctx.GetValue(r.Context(), "csrf_token")
 	if csrfToken == nil {
 		csrfToken = ""
 	}
@@ -156,7 +156,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 
 	// Get active language from i18n middleware (per AI.md PART 31 fallback chain)
 	lang := "en"
-	if l, ok := reqctx.Get(r.Context(), "lang"); ok {
+	if l, ok := reqctx.GetValue(r.Context(), "lang"); ok {
 		if s, ok := l.(string); ok && s != "" {
 			lang = s
 		}
@@ -164,7 +164,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 
 	// Get available languages for language selector UI (per AI.md PART 31)
 	var availableLangs []LanguageInfo
-	if i18n, ok := reqctx.Get(r.Context(), "i18n"); ok {
+	if i18n, ok := reqctx.GetValue(r.Context(), "i18n"); ok {
 		if svc, ok := i18n.(langInfoProvider); ok {
 			availableLangs = svc.GetLanguageInfos()
 		}

@@ -15,7 +15,7 @@ import (
 func newAdminPasskeyTestAdmin(t *testing.T, serverDB *sql.DB, username, password string) *models.Admin {
 	t.Helper()
 	setGlobalTestDualDB(t, serverDB, serverDB)
-	admin, err := (&models.AdminModel{}).Create(username, username+"@example.com", password, false)
+	admin, err := (&models.AdminModel{}).CreateAdminAccount(username, username+"@example.com", password, false)
 	if err != nil {
 		t.Fatalf("failed to create test admin: %v", err)
 	}

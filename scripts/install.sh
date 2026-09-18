@@ -20,7 +20,7 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# Weather Service Installer
+# wthr Weather Service Installer
 # Detects OS and architecture, downloads the appropriate binary
 
 set -e
@@ -34,9 +34,10 @@ BINARY_NAME="wthr"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# No Color
+NC='\033[0m'
 
-echo "🌤️  Weather Service Installer"
+echo "🌤️  wthr Weather Service Installer"
 echo ""
 
 # Detect OS

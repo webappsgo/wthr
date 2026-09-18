@@ -252,7 +252,7 @@ func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEn
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: db}
-	passkey, err := passkeyModel.Create(user.ID, state.Name, credential)
+	passkey, err := passkeyModel.CreateUserPasskey(user.ID, state.Name, credential)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +459,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 		}
 
 		sessionModel := &models.SessionModel{DB: db}
-		_ = sessionModel.Delete(pendingSession.ID)
+		_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	default:
 		return nil, fmt.Errorf("invalid passkey session")

@@ -45,7 +45,7 @@ func TestSessionModel_CreateAndGetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sess, err := model.Create(tt.userID, 3600)
+			sess, err := model.CreateSession(tt.userID, 3600)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Create() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -84,7 +84,7 @@ func TestSessionModel_GetByID_Expired(t *testing.T) {
 	userID := insertTestUser(t, db, "sess-exp", "sess-exp@example.com")
 	model := &SessionModel{DB: db}
 
-	sess, err := model.Create(int(userID), -1)
+	sess, err := model.CreateSession(int(userID), -1)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSessionModel_UpdateDataAndExtend(t *testing.T) {
 	userID := insertTestUser(t, db, "sess-data", "sess-data@example.com")
 	model := &SessionModel{DB: db}
 
-	sess, err := model.Create(int(userID), 3600)
+	sess, err := model.CreateSession(int(userID), 3600)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -151,17 +151,17 @@ func TestSessionModel_DeleteAndCleanup(t *testing.T) {
 	userID := insertTestUser(t, db, "sess-cleanup", "sess-cleanup@example.com")
 	model := &SessionModel{DB: db}
 
-	sess1, err := model.Create(int(userID), 3600)
+	sess1, err := model.CreateSession(int(userID), 3600)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	sess2, err := model.Create(int(userID), 3600)
+	sess2, err := model.CreateSession(int(userID), 3600)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
 	t.Run("Delete", func(t *testing.T) {
-		if err := model.Delete(sess1.ID); err != nil {
+		if err := model.DeleteSession(sess1.ID); err != nil {
 			t.Fatalf("Delete() error = %v", err)
 		}
 		if _, err := model.GetByID(sess1.ID); err == nil {
@@ -179,7 +179,7 @@ func TestSessionModel_DeleteAndCleanup(t *testing.T) {
 	})
 
 	t.Run("CleanupExpired", func(t *testing.T) {
-		expiredSess, err := model.Create(int(userID), -10)
+		expiredSess, err := model.CreateSession(int(userID), -10)
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -19,6 +20,49 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// Avatar validation failures are sentinel errors so HTTP callers can map them
+// to a 400 and to a translation key. Comparing err.Error() text instead would
+// silently degrade to a 500 the moment the wording changes, and would put an
+// untranslated English string in the response body.
+var (
+	// ErrAvatarInvalidType is returned when avatar type is not gravatar or url.
+	ErrAvatarInvalidType = errors.New("avatar type must be one of: gravatar, url")
+	// ErrAvatarURLRequired is returned when the url avatar type has no URL.
+	ErrAvatarURLRequired = errors.New("url is required for url avatar type")
+	// ErrAvatarURLNotHTTPS is returned when an external avatar URL is not HTTPS.
+	ErrAvatarURLNotHTTPS = errors.New("avatar url must use HTTPS")
+	// ErrAvatarURLSVG is returned when an external avatar URL points at an SVG.
+	ErrAvatarURLSVG = errors.New("avatar url must point to a raster image, not an SVG")
+	// ErrAvatarNoFile is returned when an upload carries no file.
+	ErrAvatarNoFile = errors.New("no file uploaded")
+	// ErrAvatarTooLarge is returned when an uploaded avatar exceeds 2 MB.
+	ErrAvatarTooLarge = errors.New("file too large (max 2MB)")
+	// ErrAvatarInvalidImage is returned when an uploaded avatar is not an allowed raster image.
+	ErrAvatarInvalidImage = errors.New("invalid image type")
+)
+
+// avatarErrorKeys maps each avatar validation sentinel to its translation key.
+var avatarErrorKeys = map[error]string{
+	ErrAvatarInvalidType:  "errors.user.public.avatar_invalid_type",
+	ErrAvatarURLRequired:  "errors.user.public.avatar_url_required",
+	ErrAvatarURLNotHTTPS:  "errors.user.public.avatar_url_must_be_https",
+	ErrAvatarURLSVG:       "errors.user.public.avatar_url_must_not_be_svg",
+	ErrAvatarNoFile:       "errors.user.public.no_file_uploaded",
+	ErrAvatarTooLarge:     "errors.user.public.avatar_file_too_large",
+	ErrAvatarInvalidImage: "errors.user.public.avatar_invalid_image_type",
+}
+
+// avatarValidationKey returns the translation key for an avatar validation
+// failure, and false when err is not a validation failure at all.
+func avatarValidationKey(err error) (string, bool) {
+	for sentinel, key := range avatarErrorKeys {
+		if errors.Is(err, sentinel) {
+			return key, true
+		}
+	}
+	return "", false
+}
 
 // UserPublicHandler handles public user profiles and avatars
 type UserPublicHandler struct {
@@ -254,15 +298,15 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 	}
 
 	if req.Type != "gravatar" && req.Type != "url" {
-		return fmt.Errorf("avatar type must be one of: gravatar, url")
+		return ErrAvatarInvalidType
 	}
 
 	if req.Type == "url" {
 		if strings.TrimSpace(req.URL) == "" {
-			return fmt.Errorf("url is required for url avatar type")
+			return ErrAvatarURLRequired
 		}
 		if !strings.HasPrefix(req.URL, "https://") {
-			return fmt.Errorf("avatar url must use HTTPS")
+			return ErrAvatarURLNotHTTPS
 		}
 		// PART 34 bars externally-linked SVG avatars for the same
 		// active-content reason uploads are barred. The URL is never fetched
@@ -272,7 +316,7 @@ func (h *UserPublicHandler) updateCurrentUserAvatar(userID int64, req *UpdateAva
 		// "?v=1" suffix cannot hide the extension.
 		urlPath, _, _ := strings.Cut(req.URL, "?")
 		if strings.HasSuffix(strings.ToLower(urlPath), ".svg") {
-			return fmt.Errorf("avatar url must point to a raster image, not an SVG")
+			return ErrAvatarURLSVG
 		}
 	}
 
@@ -306,11 +350,11 @@ func (h *UserPublicHandler) resetCurrentUserAvatar(userID int64) error {
 
 func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *AvatarUploadRequest) error {
 	if upload == nil {
-		return fmt.Errorf("no file uploaded")
+		return ErrAvatarNoFile
 	}
 
 	if upload.Size > 2*1024*1024 {
-		return fmt.Errorf("file too large (max 2MB)")
+		return ErrAvatarTooLarge
 	}
 
 	contentType := strings.TrimSpace(upload.ContentType)
@@ -330,7 +374,7 @@ func (h *UserPublicHandler) uploadCurrentUserAvatar(userID int64, upload *Avatar
 		"image/vnd.microsoft.icon": true,
 	}
 	if !allowedTypes[contentType] {
-		return fmt.Errorf("invalid image type")
+		return ErrAvatarInvalidImage
 	}
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/user_%d.%s", userID, getExtension(contentType))
@@ -403,8 +447,8 @@ func (h *UserPublicHandler) UpdateAvatarSettings(w http.ResponseWriter, r *http.
 
 	response, err := UpdateCurrentUserAvatar(h.DB, user.ID, &req)
 	if err != nil {
-		if err.Error() == "avatar type must be one of: gravatar, url" || err.Error() == "URL is required for url avatar type" || err.Error() == "avatar URL must use HTTPS" {
-			BadRequest(w, r, err.Error())
+		if key, ok := avatarValidationKey(err); ok {
+			BadRequest(w, r, Translate(r, key))
 			return
 		}
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_update_avatar"))
@@ -475,14 +519,12 @@ func (h *UserPublicHandler) UploadAvatar(w http.ResponseWriter, r *http.Request)
 		ContentType: header.Header.Get("Content-Type"),
 	})
 	if err != nil {
-		switch err.Error() {
-		case "No file uploaded", "File too large (max 2MB)", "Invalid image type":
-			BadRequest(w, r, err.Error())
-			return
-		default:
-			InternalError(w, r, Translate(r, "errors.user.public.failed_to_save_avatar"))
+		if key, ok := avatarValidationKey(err); ok {
+			BadRequest(w, r, Translate(r, key))
 			return
 		}
+		InternalError(w, r, Translate(r, "errors.user.public.failed_to_save_avatar"))
+		return
 	}
 
 	writeJSON(w, http.StatusOK, response)
@@ -615,14 +657,34 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		NewEmail        string `json:"new_email" binding:"required,email"`
 		CurrentPassword string `json:"current_password" binding:"required"`
+		TwoFactorCode   string `json:"two_factor_code,omitempty"`
 	}
 	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
+	// PART 34 stores and compares email case-insensitively, so the address is
+	// normalized before it is used for the uniqueness check or the write.
+	// Comparing the raw input would let "Foo@Bar.com" claim an address already
+	// held as "foo@bar.com".
+	newEmail := util.NormalizeEmail(req.NewEmail)
+	if err := util.ValidateEmail(newEmail); err != nil {
+		BadRequest(w, r, Translate(r, "errors.user.public.invalid_email_format"))
+		return
+	}
+	if err := util.ValidateEmailWithBlocklist(newEmail); err != nil {
+		BadRequest(w, r, Translate(r, "errors.user.public.email_address_not_allowed"))
+		return
+	}
+
 	// Verify current password before allowing email change
 	var passwordHash string
-	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT password_hash FROM user_accounts WHERE id = ?`, user.ID).Scan(&passwordHash); err != nil {
+	var twoFactorEnabled bool
+	var twoFactorSecret sql.NullString
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect,
+		`SELECT password_hash, two_factor_enabled, two_factor_secret FROM user_accounts WHERE id = ?`,
+		user.ID,
+	).Scan(&passwordHash, &twoFactorEnabled, &twoFactorSecret); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
 		return
 	}
@@ -632,9 +694,29 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// PART 34: the account email is the security email, so changing it requires
+	// current password AND 2FA when 2FA is enabled - a stolen session alone must
+	// not be able to redirect password resets to an attacker's mailbox.
+	if twoFactorEnabled {
+		if strings.TrimSpace(req.TwoFactorCode) == "" {
+			Unauthorized(w, r, Translate(r, "errors.user.public.two_factor_code_required"))
+			return
+		}
+		secret, decryptErr := models.DecryptTwoFactorSecret(twoFactorSecret.String)
+		if decryptErr != nil {
+			InternalError(w, r, Translate(r, "errors.user.public.failed_to_verify_credentials"))
+			return
+		}
+		codeValid, verifyErr := util.VerifyTOTP(secret, strings.TrimSpace(req.TwoFactorCode))
+		if verifyErr != nil || !codeValid {
+			Unauthorized(w, r, Translate(r, "errors.user.public.invalid_two_factor_code"))
+			return
+		}
+	}
+
 	// Check the new email is not already in use
 	var existing int64
-	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, req.NewEmail, user.ID).Scan(&existing)
+	_ = database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `SELECT id FROM user_accounts WHERE email = ? AND id != ?`, newEmail, user.ID).Scan(&existing)
 	if existing != 0 {
 		Conflict(w, r, Translate(r, "errors.user.public.email_address_is_already_in_use"))
 		return
@@ -646,7 +728,7 @@ func (h *UserPublicHandler) ChangeEmail(w http.ResponseWriter, r *http.Request) 
 	// MySQL and SQL Server than it does on SQLite.
 	if _, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite,
 		`UPDATE user_accounts SET email = ?, email_verified = 0, updated_at = ? WHERE id = ?`,
-		req.NewEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
+		newEmail, dbtime.FormatSQLTimestamp(time.Now()), user.ID,
 	); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_update_email"))
 		return
@@ -693,7 +775,7 @@ func (h *UserPublicHandler) DeleteAccount(w http.ResponseWriter, r *http.Request
 
 	// Delete the account (cascades to sessions, preferences, locations, etc.)
 	userModel := &models.UserModel{DB: h.DB}
-	if err := userModel.Delete(user.ID); err != nil {
+	if err := userModel.DeleteUserAccount(user.ID); err != nil {
 		InternalError(w, r, Translate(r, "errors.user.public.failed_to_delete_account"))
 		return
 	}

@@ -20,14 +20,14 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# install-bsd.sh - BSD installer for Weather Service
+# install-bsd.sh - BSD installer for the wthr weather service
 # Supports: FreeBSD, OpenBSD, NetBSD with rc.d
 
 PROJECTNAME="wthr"
 GITHUB_REPO="webappsgo/wthr"
 VERSION="latest"
 
-echo "=== Weather Service Installer for BSD ==="
+echo "=== wthr Weather Service Installer for BSD ==="
 
 # Detect architecture
 ARCH=$(uname -m)

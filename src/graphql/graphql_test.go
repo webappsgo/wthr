@@ -289,7 +289,7 @@ func TestBuildGraphQLAdminSessionContext_ExpiryIsJudgedByInstantNotText(t *testi
 		t.Run(tc.name, func(t *testing.T) {
 			ddb := newGraphQLTimestampTestDB(t)
 
-			admin, err := (&models.AdminModel{DB: ddb.Server}).Create("sessionadmin", "sessionadmin@example.com", "password123", true)
+			admin, err := (&models.AdminModel{DB: ddb.Server}).CreateAdminAccount("sessionadmin", "sessionadmin@example.com", "password123", true)
 			if err != nil {
 				t.Fatalf("create admin: %v", err)
 			}

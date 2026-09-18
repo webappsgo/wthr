@@ -26,21 +26,68 @@ SOFTWARE.
 
 ## Go Dependencies
 
-### Gin Web Framework
-- **License**: MIT
-- **Copyright**: 2014 Manuel Martínez-Almeida and Gin contributors
-- **Website**: https://gin-gonic.com/
-- **Repository**: https://github.com/gin-gonic/gin
+This software includes the following third-party Go libraries:
 
-### Gin Contrib - CORS
-- **License**: MIT
-- **Copyright**: 2016 Gin-Gonic contributors
-- **Repository**: https://github.com/gin-contrib/cors
+| Library | Version | License | Copyright |
+|---------|---------|---------|-----------|
+| github.com/99designs/gqlgen | v0.17.60 | MIT | 2016 Adam Scarr |
+| github.com/charmbracelet/bubbletea | v1.3.10 | MIT | 2020-2023 Charmbracelet, Inc. |
+| github.com/charmbracelet/lipgloss | v1.1.0 | MIT | 2021-2023 Charmbracelet, Inc. |
+| github.com/coreos/go-oidc/v3 | v3.11.0 | Apache-2.0 | 2014 CoreOS, Inc. |
+| github.com/cretz/bine | v0.2.0 | MIT | 2018 Chad Retz |
+| github.com/fsnotify/fsnotify | v1.9.0 | BSD-3-Clause | 2012 The Go Authors, 2012-2019 fsnotify Authors |
+| github.com/go-acme/lego/v4 | v4.34.0 | MIT | 2015-2017 Sebastian Erhart |
+| github.com/go-chi/chi/v5 | v5.3.2 | MIT | 2015-present Peter Kieltyka, Google Inc. |
+| github.com/go-chi/httprate | v0.15.0 | MIT | 2020-present Peter Kieltyka |
+| github.com/go-ldap/ldap/v3 | v3.4.13 | MIT | 2011-2015 Michael Mitton and contributors |
+| github.com/go-playground/validator/v10 | v10.23.0 | MIT | 2015 Dean Karn |
+| github.com/go-sql-driver/mysql | v1.9.3 | MPL-2.0 | 2012 The Go-MySQL-Driver Authors |
+| github.com/go-webauthn/webauthn | v0.11.2 | BSD-3-Clause | 2019 Duo Labs |
+| github.com/google/uuid | v1.6.0 | BSD-3-Clause | 2009,2014 Google Inc. |
+| github.com/gorilla/websocket | v1.5.3 | BSD-3-Clause | 2023 The Gorilla Authors |
+| github.com/jackc/pgx/v5 | v5.9.2 | MIT | 2013-2021 Jack Christensen |
+| github.com/microsoft/go-mssqldb | v1.9.3 | BSD-3-Clause | 2012 The Go Authors, 2021 Microsoft Corporation |
+| github.com/oklog/ulid/v2 | v2.1.0 | Apache-2.0 | 2016 The Oklog Authors |
+| github.com/oschwald/maxminddb-golang | v1.13.1 | ISC | 2015 Gregory J. Oschwald |
+| github.com/patrickmn/go-cache | v2.1.0 | MIT | 2012-2019 Patrick Mylund Nielsen and the go-cache contributors |
+| github.com/pquerna/otp | v1.5.0 | Apache-2.0 | 2014 Paul Querna |
+| github.com/prometheus/client_golang | v1.22.0 | Apache-2.0 | 2012-2015 The Prometheus Authors |
+| github.com/prometheus/client_model | v0.6.2 | Apache-2.0 | 2012-2015 The Prometheus Authors |
+| github.com/redis/go-redis/v9 | v9.14.0 | BSD-2-Clause | 2013 The github.com/redis/go-redis Authors |
+| github.com/rs/cors | v1.11.1 | MIT | 2014 Olivier Poitrey |
+| github.com/swaggo/http-swagger/v2 | v2.0.2 | MIT | 2017 Swaggo |
+| github.com/vektah/gqlparser/v2 | v2.5.22 | MIT | 2018 Adam Scarr |
+| golang.org/x/crypto | v0.55.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/net | v0.57.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/oauth2 | v0.36.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/sys | v0.47.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/term | v0.45.0 | BSD-3-Clause | 2009 The Go Authors |
+| golang.org/x/text | v0.41.0 | BSD-3-Clause | 2009 The Go Authors |
+| gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 | 2006-2011 Kirill Simonov, 2011-2019 Canonical Ltd. |
+| modernc.org/sqlite | v1.39.0 | BSD-3-Clause | 2017 The Sqlite Authors |
 
-### Gin Contrib - Secure
-- **License**: MIT
-- **Copyright**: 2015 Gin-Gonic contributors
-- **Repository**: https://github.com/gin-contrib/secure
+Full license texts: https://spdx.org/licenses/
+
+### BSD-3-Clause non-endorsement clause
+
+The following libraries are BSD-3-Clause licensed: `github.com/fsnotify/fsnotify`,
+`github.com/go-webauthn/webauthn`, `github.com/google/uuid`,
+`github.com/gorilla/websocket`, `github.com/microsoft/go-mssqldb`,
+`golang.org/x/crypto`, `golang.org/x/net`, `golang.org/x/oauth2`,
+`golang.org/x/sys`, `golang.org/x/term`, `golang.org/x/text`, and
+`modernc.org/sqlite`. For each of them:
+
+Neither the name of the copyright holder nor the names of its contributors
+may be used to endorse or promote products derived from this software
+without specific prior written permission.
+
+Full license: https://spdx.org/licenses/BSD-3-Clause.html
+
+### MPL-2.0 notice
+
+`github.com/go-sql-driver/mysql` is licensed under the Mozilla Public License
+2.0. The source form of that library is available from its repository, and the
+full license text is available at https://mozilla.org/MPL/2.0/.
 
 ## Data Sources
 
@@ -213,38 +260,6 @@ go list -m -json all
 ## Embedded Third-Party Licenses
 
 This software includes the following open-source libraries. Full license texts are provided below as required by their respective licenses.
-
----
-
-### github.com/gin-gonic/gin v1.11.0
-
-**Copyright:** 2014 Manuel Martínez-Almeida
-**License:** MIT License
-**Repository:** https://github.com/gin-gonic/gin
-
-```
-MIT License
-
-Copyright (c) 2014 Manuel Martínez-Almeida
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
 
 ---
 

@@ -32,13 +32,17 @@ func NewConfigWatcher(configPath string, reloadFunc func(*config.AppConfig) erro
 	}, nil
 }
 
-// Start begins watching the config file for changes
-func (cw *ConfigWatcher) Start() error {
+// StartConfigWatcher begins watching the config file for changes
+func (cw *ConfigWatcher) StartConfigWatcher() error {
 	// Add config file to watcher
 	configDir := filepath.Dir(cw.configPath)
 	if err := cw.watcher.Add(configDir); err != nil {
 		return err
 	}
+
+	// Capture the settings the process actually bound so a later reload can
+	// tell live-applicable changes from restart-required ones
+	RecordBootSettings(config.GetGlobalConfig())
 
 	log.Printf("INFO: Watching for config file changes: %s", cw.configPath)
 
@@ -83,6 +87,12 @@ func (cw *ConfigWatcher) Start() error {
 							return
 						}
 
+						EvaluateRestartRequired(newCfg)
+						if pending, reasons := GetRestartRequired(); pending {
+							log.Printf("WARNING: Configuration reloaded, but a restart is required to apply: %v", reasons)
+							return
+						}
+
 						log.Println("OK: Configuration reloaded successfully (live reload - no restart needed)")
 					})
 				}
@@ -103,8 +113,8 @@ func (cw *ConfigWatcher) Start() error {
 	return nil
 }
 
-// Stop stops the config file watcher
-func (cw *ConfigWatcher) Stop() error {
+// StopConfigWatcher stops the config file watcher
+func (cw *ConfigWatcher) StopConfigWatcher() error {
 	close(cw.stopChan)
 	return cw.watcher.Close()
 }

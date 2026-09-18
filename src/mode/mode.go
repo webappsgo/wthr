@@ -1,3 +1,5 @@
+// Package mode resolves and exposes the application execution mode and the
+// independent debug flag per AI.md PART 6.
 package mode
 
 import (
@@ -21,6 +23,8 @@ const (
 	Production AppMode = iota
 	// Development mode - relaxed security, verbose logging
 	Development
+	// Debug mode - development behavior with the debug flag defaulted on
+	Debug
 )
 
 // String returns the string representation of the mode
@@ -28,6 +32,8 @@ func (m AppMode) String() string {
 	switch m {
 	case Development:
 		return "development"
+	case Debug:
+		return "debug"
 	default:
 		return "production"
 	}
@@ -35,23 +41,28 @@ func (m AppMode) String() string {
 
 // SetAppMode sets the application mode
 func SetAppMode(m string) {
-	switch strings.ToLower(m) {
-	case "dev", "development":
+	switch strings.ToLower(strings.TrimSpace(m)) {
+	case "dev", "devel", "development":
 		currentMode = Development
+	case "debug":
+		// Debug mode defaults the debug flag on; an explicit --debug flag or
+		// DEBUG env var evaluated afterwards still wins
+		currentMode = Debug
+		SetDebugEnabled(true)
 	default:
 		currentMode = Production
 	}
-	updateProfilingSettings()
+	updateAppModeProfilingSettings()
 }
 
 // SetDebugEnabled enables or disables debug mode
 func SetDebugEnabled(enabled bool) {
 	debugEnabled = enabled
-	updateProfilingSettings()
+	updateAppModeProfilingSettings()
 }
 
-// updateProfilingSettings enables/disables profiling based on debug flag
-func updateProfilingSettings() {
+// updateAppModeProfilingSettings enables/disables profiling based on debug flag
+func updateAppModeProfilingSettings() {
 	if debugEnabled {
 		// Enable profiling when debug is on
 		runtime.SetBlockProfileRate(1)
@@ -63,8 +74,8 @@ func updateProfilingSettings() {
 	}
 }
 
-// Current returns the current mode
-func Current() AppMode {
+// GetCurrentAppMode returns the current application mode
+func GetCurrentAppMode() AppMode {
 	return currentMode
 }
 
@@ -83,8 +94,8 @@ func IsDebugEnabled() bool {
 	return debugEnabled
 }
 
-// ModeString returns mode string with debug suffix if enabled
-func ModeString() string {
+// GetAppModeString returns mode string with debug suffix if enabled
+func GetAppModeString() string {
 	s := currentMode.String()
 	if debugEnabled {
 		s += " [debugging]"
@@ -92,13 +103,20 @@ func ModeString() string {
 	return s
 }
 
-// FromEnv sets mode and debug from environment variables
-// AI.md PART 5: Environment Variables
+// ModeString returns mode string with debug suffix if enabled.
+// Callers should use GetAppModeString, which is the name AI.md PART 6 defines.
+func ModeString() string {
+	return GetAppModeString()
+}
+
+// FromEnv sets mode and debug from environment variables per AI.md PART 6.
+// An explicitly set DEBUG env var always wins over the MODE=debug default, so
+// MODE=debug DEBUG=false runs debug mode with the /debug/* endpoints off.
 func FromEnv() {
 	if m := os.Getenv("MODE"); m != "" {
 		SetAppMode(m)
 	}
-	if config.IsTruthy(os.Getenv("DEBUG")) {
-		SetDebugEnabled(true)
+	if d, ok := os.LookupEnv("DEBUG"); ok && d != "" {
+		SetDebugEnabled(config.IsTruthy(d))
 	}
 }

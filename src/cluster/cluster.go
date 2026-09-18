@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // The timestamp helpers below are thin aliases over src/common/dbtime, the
@@ -61,10 +61,11 @@ type Node struct {
 // ClusterManager manages cluster operations
 // TEMPLATE.md PART 23: Cluster support with heartbeat, primary election, config sync
 type ClusterManager struct {
-	mu            sync.RWMutex
-	db            *sql.DB
-	nodeID        string
-	nodeAddress   string // Runtime-detected node address (host:port)
+	mu     sync.RWMutex
+	db     *sql.DB
+	nodeID string
+	// Runtime-detected node address (host:port)
+	nodeAddress   string
 	currentState  NodeState
 	nodes         map[string]*Node
 	heartbeatTick *time.Ticker
@@ -86,16 +87,16 @@ func NewClusterManager(db *sql.DB, nodeID, nodeAddress string, enabled bool) *Cl
 	}
 }
 
-// Start initializes and starts the cluster manager
+// StartClusterManager initializes and starts the cluster manager
 // TEMPLATE.md PART 23: Starts heartbeat, election, and config sync processes
-func (cm *ClusterManager) Start() error {
+func (cm *ClusterManager) StartClusterManager() error {
 	if !cm.enabled {
-		log.Println("[INFO] Cluster mode disabled - running in standalone mode")
+		util.LogInfo("Cluster mode disabled - running in standalone mode")
 		cm.currentState = NodeStatePrimary
 		return nil
 	}
 
-	log.Println("[INFO] Starting cluster manager...")
+	util.LogInfo("Starting cluster manager...")
 
 	// Initialize cluster tables
 	if err := cm.initializeClusterTables(); err != nil {
@@ -113,20 +114,20 @@ func (cm *ClusterManager) Start() error {
 
 	// Perform initial election
 	if err := cm.electPrimary(); err != nil {
-		log.Printf("[WARN] Initial election failed: %v", err)
+		util.LogWarn("Initial election failed: %v", err)
 	}
 
-	log.Printf("[INFO] Cluster manager started (Node ID: %s, State: %s)", cm.nodeID, cm.currentState)
+	util.LogInfo("Cluster manager started (Node ID: %s, State: %s)", cm.nodeID, cm.currentState)
 	return nil
 }
 
-// Stop stops the cluster manager
-func (cm *ClusterManager) Stop() {
+// StopClusterManager stops the cluster manager
+func (cm *ClusterManager) StopClusterManager() {
 	if !cm.enabled {
 		return
 	}
 
-	log.Println("[INFO] Stopping cluster manager...")
+	util.LogInfo("Stopping cluster manager...")
 	close(cm.stopChan)
 
 	if cm.heartbeatTick != nil {
@@ -158,12 +159,12 @@ func (cm *ClusterManager) heartbeatLoop() {
 		select {
 		case <-cm.heartbeatTick.C:
 			if err := cm.sendHeartbeat(); err != nil {
-				log.Printf("[WARN] Heartbeat failed: %v", err)
+				util.LogWarn("Heartbeat failed: %v", err)
 			}
 
 			// Check cluster health and trigger election if needed
 			if err := cm.checkClusterHealth(); err != nil {
-				log.Printf("[WARN] Cluster health check failed: %v", err)
+				util.LogWarn("Cluster health check failed: %v", err)
 			}
 
 		case <-cm.stopChan:
@@ -216,7 +217,7 @@ func (cm *ClusterManager) checkClusterHealth() error {
 
 	if err == sql.ErrNoRows || !primaryHealthy {
 		// No primary or primary is dead - trigger election
-		log.Println("[INFO] Primary node unavailable - triggering election")
+		util.LogInfo("Primary node unavailable - triggering election")
 		return cm.electPrimary()
 	}
 
@@ -342,10 +343,10 @@ func (cm *ClusterManager) electPrimary() error {
 	// Update local state
 	if newPrimary == cm.nodeID {
 		cm.currentState = NodeStatePrimary
-		log.Printf("[INFO] Elected as PRIMARY node")
+		util.LogInfo("Elected as PRIMARY node")
 	} else {
 		cm.currentState = NodeStateSecondary
-		log.Printf("[INFO] Running as SECONDARY node (Primary: %s)", newPrimary)
+		util.LogInfo("Running as SECONDARY node (Primary: %s)", newPrimary)
 	}
 
 	return nil
@@ -409,7 +410,7 @@ func (cm *ClusterManager) pullConfigFromPrimary() error {
 	}
 
 	if syncCount > 0 {
-		log.Printf("[INFO] Config sync: Synced %d settings from primary %s", syncCount, primaryAddress)
+		util.LogInfo("Config sync: Synced %d settings from primary %s", syncCount, primaryAddress)
 	}
 
 	return nil
@@ -466,7 +467,7 @@ func (cm *ClusterManager) pushConfigToSecondaries() error {
 	}
 
 	if configCount > 0 {
-		log.Printf("[INFO] Config sync: Broadcasting %d settings to %d secondary node(s)", configCount, len(secondaries))
+		util.LogInfo("Config sync: Broadcasting %d settings to %d secondary node(s)", configCount, len(secondaries))
 	}
 
 	// In a real HTTP-based cluster, we would POST to each secondary's /cluster/config endpoint

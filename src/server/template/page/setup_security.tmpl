@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="login-container">
@@ -19,7 +20,7 @@
 
             <div class="setup-progress">
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 66.67%"></div>
+                    <div class="progress-fill progress-fill--step-4"></div>
                 </div>
                 <div class="progress-steps">
                     <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
@@ -58,7 +59,11 @@
                            id="backup_password_confirm"
                            name="backup_password_confirm"
                            class="form-input"
+                           data-match-with="#backup_password"
+                           data-mismatch-message="{{t .server.Lang "setup_security_password_mismatch_alert"}}"
+                           aria-describedby="backup_password_confirm-error"
                            placeholder="{{t .server.Lang "reset_password_confirm_password_placeholder"}}">
+                    <span id="backup_password_confirm-error" class="field-error" role="alert">{{t .server.Lang "setup_security_password_mismatch_alert"}}</span>
                 </div>
 
                 <div class="form-group">
@@ -66,7 +71,8 @@
                         <input type="checkbox"
                                id="enable_2fa"
                                name="enable_2fa"
-                               value="true">
+                               value="true"
+                               data-toggle-target="#totp-setup">
                         <span>{{t .server.Lang "setup_security_enable_2fa_label"}}</span>
                     </label>
                     <small class="form-hint">{{t .server.Lang "setup_security_enable_2fa_hint"}}</small>
@@ -94,7 +100,7 @@
                     {{ end }}
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login">{{t .server.Lang "setup_security_continue_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup_security_saving_button"}}">{{t .server.Lang "setup_security_continue_button"}}</button>
             </form>
 
             <div class="setup-skip">
@@ -109,28 +115,5 @@
         {{ end }}
     </div>
 
-    <script>
-        document.getElementById('enable_2fa').addEventListener('change', function() {
-            var totpSetup = document.getElementById('totp-setup');
-            if (this.checked) {
-                totpSetup.classList.remove('hidden');
-            } else {
-                totpSetup.classList.add('hidden');
-            }
-        });
-
-        document.getElementById('security-form').addEventListener('submit', function(e) {
-            var backupPwd = document.getElementById('backup_password').value;
-            var backupConfirm = document.getElementById('backup_password_confirm').value;
-            if (backupPwd && backupPwd !== backupConfirm) {
-                e.preventDefault();
-                alert('{{t .server.Lang "setup_security_password_mismatch_alert"}}');
-                return false;
-            }
-            var btn = document.getElementById('submit-btn');
-            btn.disabled = true;
-            btn.textContent = '{{t .server.Lang "setup_security_saving_button"}}';
-        });
-    </script>
 </body>
 </html>

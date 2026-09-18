@@ -1,6 +1,6 @@
 {{define "head"}}
 <!DOCTYPE html>
-<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -51,16 +51,14 @@
     <!-- AI.md PART 16: theme class is rendered server-side on <html> above from -->
     <!-- the theme cookie/DB preference - zero JS required, no flash of wrong theme -->
     <!-- Global API paths for JavaScript (AI.md PART 13) -->
-    <script>
-    (function() {
-        // Global API paths - available to all JavaScript
-        window.API_PATHS = {
-            base: '{{.api_path}}',
-            admin: '{{.admin_api_path}}',
-            notifications: '{{.api_path}}/users/notifications',
-            adminNotifications: '{{if .admin_self_api_path}}{{.admin_self_api_path}}{{else}}{{.admin_api_path}}{{end}}/notifications'
-        };
-    })();
+    <!-- Data island, not executable JS: CSP forbids inline <script> without a nonce -->
+    <script type="application/json" id="api-paths-data">
+    {
+      "base": "{{.api_path}}",
+      "admin": "{{.admin_api_path}}",
+      "notifications": "{{.api_path}}/users/notifications",
+      "adminNotifications": "{{if .admin_self_api_path}}{{.admin_self_api_path}}{{else}}{{.admin_api_path}}{{end}}/notifications"
+    }
     </script>
 
     <link rel="stylesheet" href="/static/css/common.css">
@@ -75,4 +73,5 @@
 <body>
 <!-- Accessibility: skip link must be the first focusable element inside <body> -->
 <a href="#main-content" class="skip-link">{{t .server.Lang "aria_skip_to_main"}}</a>
+<a href="#navigation" class="skip-link">{{t .server.Lang "aria_skip_to_nav"}}</a>
 {{end}}

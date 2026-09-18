@@ -1,0 +1,34 @@
+Subject: Alert Expired: {event} - {area}
+---
+WEATHER ALERT EXPIRED
+
+This notice was sent to: {recipient_email}
+Account: {recipient_username}
+From: {app_name} ({fqdn})
+
+────────────────────────────────────────────────────────────────────────
+ALERT EXPIRED: {event}
+────────────────────────────────────────────────────────────────────────
+
+The following weather alert has EXPIRED and is no longer in effect:
+
+  Area:     {area}
+  Event:    {event}
+  Source:   {source}
+  Expired:  {expires}
+
+────────────────────────────────────────────────────────────────────────
+
+This alert is no longer active. Continue to monitor conditions and
+check for new alerts at:
+{app_url}/severe-weather
+
+Manage your alert subscriptions:
+{app_url}/settings/notifications
+
+To unsubscribe:
+{app_url}/alerts/unsubscribe?token={unsubscribe_token}
+
+--
+{app_name}
+{app_url}

@@ -49,7 +49,8 @@ func (h *MoonHandler) GetMoonData(lat, lon float64, date time.Time) *service.Moo
 func (h *MoonHandler) HandleMoonAPI(w http.ResponseWriter, r *http.Request) {
 	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
-		return // Error already sent
+		// Error already sent
+		return
 	}
 
 	// Calculate moon data using astronomical algorithms
@@ -105,7 +106,8 @@ func (h *MoonHandler) HandleMoonAPI(w http.ResponseWriter, r *http.Request) {
 func (h *MoonHandler) HandleMoonCalendarAPI(w http.ResponseWriter, r *http.Request) {
 	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
-		return // Error already sent
+		// Error already sent
+		return
 	}
 
 	// Get year and month parameters
@@ -178,7 +180,8 @@ func (h *MoonHandler) HandleMoonCalendarAPI(w http.ResponseWriter, r *http.Reque
 func (h *MoonHandler) HandleSunAPI(w http.ResponseWriter, r *http.Request) {
 	coords, enhanced, err := h.getLocationFromRequest(w, r)
 	if err != nil {
-		return // Error already sent
+		// Error already sent
+		return
 	}
 
 	// Get optional date parameter

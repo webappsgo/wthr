@@ -3,6 +3,7 @@ package util
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -183,4 +184,24 @@ func TrustedGetClientIP(r *http.Request) string {
 	}
 
 	return GetClientIP(r)
+}
+
+// TrustedIsHTTPS reports whether the request reached the server over TLS,
+// honoring X-Forwarded-Proto/X-Forwarded-Ssl only when the immediate TCP peer
+// passes the trusted_proxies gate (AI.md PART 5/12). Without the gate any peer
+// could forge an HTTPS request and pin a two-year HSTS policy on the host.
+func TrustedIsHTTPS(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	if !isTrustedPeer(r.RemoteAddr) {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Ssl")), "on")
 }

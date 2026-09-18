@@ -9,11 +9,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
 
-// APIHandler handles JSON API routes (/api/v1/*)
+// APIHandler handles JSON API routes under the configured /api/{api_version} prefix
 type APIHandler struct {
 	weatherService   *service.WeatherService
 	locationEnhancer *service.LocationEnhancer
@@ -697,31 +698,33 @@ func (h *APIHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// GetDocsJSON returns API documentation in JSON format (GET /api/v1/docs)
+// GetDocsJSON returns API documentation in JSON format (GET /api/{api_version}/docs)
 func (h *APIHandler) GetDocsJSON(w http.ResponseWriter, r *http.Request) {
 	hostInfo := util.GetHostInfo(r)
 
+	// AI.md PART 14: never hardcode the API version, resolve it from config
+	apiBase := config.GetGlobalConfig().GetAPIPath()
+
 	RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
 		"service":     "Weather API",
-		"version":     "2.0.0",
+		"version":     config.GetGlobalConfig().GetAPIVersion(),
 		"description": "Free weather API with no API key required",
 		"base_url":    hostInfo.FullHost,
 		"endpoints": map[string]interface{}{
 			"weather": map[string]interface{}{
-				"GET /api/v1/weather":           "Get weather for current location (IP-based)",
-				"GET /api/v1/weather/:location": "Get weather for specific location",
+				"GET " + apiBase + "/weather":            "Get weather for current location (IP-based)",
+				"GET " + apiBase + "/weather/{location}": "Get weather for specific location",
 			},
-			"forecast": map[string]interface{}{
-				"GET /api/v1/forecast":           "Get forecast for current location (IP-based)",
-				"GET /api/v1/forecast/:location": "Get forecast for specific location",
+			"forecasts": map[string]interface{}{
+				"GET " + apiBase + "/forecasts":            "Get forecast for current location (IP-based)",
+				"GET " + apiBase + "/forecasts/{location}": "Get forecast for specific location",
 			},
-			"location": map[string]interface{}{
-				"GET /api/v1/location": "Get current location from IP",
-				"GET /api/v1/search":   "Search for locations by name",
+			"locations": map[string]interface{}{
+				"GET " + apiBase + "/weather/locations": "Get current location from IP",
 			},
 			"utility": map[string]interface{}{
-				"GET /api/v1/ip":   "Get client IP address",
-				"GET /api/v1/docs": "API documentation (JSON)",
+				"GET " + apiBase + "/ip":   "Get client IP address",
+				"GET " + apiBase + "/docs": "API documentation (JSON)",
 			},
 		},
 		"parameters": map[string]interface{}{
@@ -731,10 +734,10 @@ func (h *APIHandler) GetDocsJSON(w http.ResponseWriter, r *http.Request) {
 			"q":        "Search query for location search",
 		},
 		"examples": []string{
-			hostInfo.FullHost + "/api/v1/weather?location=London",
-			hostInfo.FullHost + "/api/v1/forecast?location=Paris&days=5",
-			hostInfo.FullHost + "/api/v1/search?q=New+York",
-			hostInfo.FullHost + "/api/v1/ip",
+			hostInfo.FullHost + apiBase + "/weather?location=London",
+			hostInfo.FullHost + apiBase + "/forecasts?location=Paris&days=5",
+			hostInfo.FullHost + apiBase + "/locations/search?q=New+York",
+			hostInfo.FullHost + apiBase + "/ip",
 		},
 	})
 }

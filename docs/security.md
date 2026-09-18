@@ -10,8 +10,8 @@ the `server.db` database; the authenticator private key never leaves the device.
 
 | Flow | Description |
 |------|-------------|
-| **Register** | Navigate to `/admin/` → complete passkey ceremony → passkey bound to your device |
-| **Login** | Navigate to `/admin/` → browser prompts for passkey → session created (30-day cookie) |
+| **Register** | Navigate to `/server/admin` → complete passkey ceremony → passkey bound to your device |
+| **Login** | Navigate to `/server/admin` → browser prompts for passkey → session created (30-day cookie) |
 | **Revoke** | Admin panel → Administrators → Manage Passkeys → remove a passkey |
 
 ### User Authentication
@@ -22,7 +22,7 @@ cookie. Users may also configure passkeys for passwordless login.
 | Parameter | Value |
 |-----------|-------|
 | Hash algorithm | Argon2id |
-| Time cost | 1 iteration |
+| Time cost | 3 iterations |
 | Memory cost | 64 MB |
 | Parallelism | 4 threads |
 | Hash length | 32 bytes |
@@ -52,15 +52,18 @@ user-facing flows.
 
 ## Rate Limiting
 
-All endpoints are rate-limited. Anonymous traffic is limited more strictly than authenticated
-traffic.
+All endpoints are rate-limited with a per-IP sliding window. The defaults below live under
+`server.rate_limit` in `server.yml` and are editable from the admin panel.
 
-| Tier | Limit |
-|------|-------|
-| Anonymous | 20 requests / minute |
-| Authenticated user | 100 requests / minute |
-| Server Admin | Unlimited |
-| Auth endpoints (login, register, reset) | 10 requests / 15 minutes with exponential backoff |
+| Bucket | Default limit |
+|--------|---------------|
+| Read (GET and other safe methods) | 120 requests / minute |
+| Write (POST, PUT, PATCH, DELETE) | 10 requests / minute |
+| Health endpoints | 120 requests / minute |
+| Global burst across all buckets | 240 requests / minute |
+| Login | 5 attempts / 15 minutes |
+| Password reset | 3 requests / hour |
+| Registration | 5 requests / hour |
 
 Exceeding the limit returns **HTTP 429 Too Many Requests** with a `Retry-After` header.
 
@@ -71,8 +74,11 @@ Exceeding the limit returns **HTTP 429 Too Many Requests** with a `Retry-After` 
 When a `server.domain` is configured (non-localhost), wthr automatically obtains and renews a
 TLS certificate via Let's Encrypt (ACME HTTP-01 challenge). HTTP traffic is redirected to HTTPS.
 
-Certificates are stored in `{data_dir}/certs/`. Manual certificate paths can be set in
-`server.yml` under `ssl.cert_file` and `ssl.key_file`.
+Certificates obtained by wthr are stored in `{config_dir}/ssl/letsencrypt/{fqdn}/` as
+`fullchain.pem` and `privkey.pem`, and are renewed automatically 7 days before expiry.
+Self-signed and operator-supplied certificates live in `{config_dir}/ssl/local/{fqdn}/`
+as `cert.pem` and `key.pem` and are never auto-renewed. Explicit certificate paths can be
+set in `server.yml` under `ssl.cert_file` and `ssl.key_file`.
 
 ---
 

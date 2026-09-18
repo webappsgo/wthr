@@ -128,7 +128,7 @@ func TestMutationResolver_ToggleLocationAlerts(t *testing.T) {
 
 func seedGraphQLNotification(t *testing.T, ddb *database.DualDB, userID int64) *models.Notification {
 	t.Helper()
-	notification, err := (&models.UserNotificationModel{DB: ddb.Users}).Create(
+	notification, err := (&models.UserNotificationModel{DB: ddb.Users}).CreateUserNotification(
 		int(userID),
 		models.NotificationTypeInfo,
 		models.NotificationDisplayToast,

@@ -1,5 +1,5 @@
 // Package backup implements backup and retention logic per AI.md PART 22
-// (Backup Retention, lines 36207-36500).
+// (Backup Retention).
 package backup
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 // RetentionConfig controls which backups the tiered pruning sweep keeps per
-// AI.md PART 22's retention settings table (lines 36211-36217).
+// AI.md PART 22's retention settings table.
 type RetentionConfig struct {
 	// MaxBackups is the number of daily full backups to keep (default 1,
 	// minimum 1 - invalid values are normalized to the default).
@@ -52,7 +52,7 @@ func isFalseyRetentionValue(s string) bool {
 // Normalize substitutes the spec default for any invalid setting and returns
 // warnings for both invalid values and values that exceed the recommended
 // thresholds, matching AI.md PART 22's "warn, don't error - server must
-// start" validation rule (lines 36364-36388). Warnings never block startup or
+// start" validation rule. Warnings never block startup or
 // a save - the caller logs/returns them, the corrected config is what runs.
 func (r RetentionConfig) Normalize() (RetentionConfig, []string) {
 	var warnings []string
@@ -149,7 +149,7 @@ func ParseMaxTotalSizeBytes(spec string, volumeTotalBytes int64) (int64, error) 
 // that is subject to count-based tiered retention: the date-only scheduled
 // daily full (wthr_backup_YYYY-MM-DD.tar.gz[.enc]) and the timestamped
 // manual/CLI/API backup (wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]), per
-// AI.md PART 22's "Backup Files Created" table (lines 36453-36471). The date
+// AI.md PART 22's "Backup Files Created" table. The date
 // comes from the filename, not the file's mtime, so classification survives
 // a restore or a copy that changes mtimes.
 var backupNamePattern = regexp.MustCompile(`^wthr_backup_(\d{4})-(\d{2})-(\d{2})(?:_\d{6})?\.tar\.gz(\.enc)?$`)
@@ -278,7 +278,7 @@ func CountBackups(backupDir string) (int, error) {
 }
 
 // applyRetention prunes backupDir per AI.md PART 22's tiered retention
-// algorithm (lines 36481-36498): a backup can satisfy yearly, monthly,
+// algorithm: a backup can satisfy yearly, monthly,
 // weekly, and daily tiers simultaneously, so each tier independently keeps
 // its newest N candidates and a backup survives if any tier keeps it.
 // Unmarked backups are deleted, oldest first. If retention.MaxTotalSize

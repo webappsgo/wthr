@@ -132,8 +132,8 @@ func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
 		// Mirrors what auth.go's AuthMiddleware sets on a successfully
 		// authenticated request: both the user object and its numeric id.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := reqctx.Set(r.Context(), UserContextKey, "some-authenticated-user")
-			ctx = reqctx.Set(ctx, UserIDContextKey, 7)
+			ctx := reqctx.SetValue(r.Context(), UserContextKey, "some-authenticated-user")
+			ctx = reqctx.SetValue(ctx, UserIDContextKey, 7)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})

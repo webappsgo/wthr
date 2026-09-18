@@ -1,4 +1,4 @@
-# install-windows.ps1 - Windows installer for Weather Service
+# install-windows.ps1 - Windows installer for the wthr weather service
 # Requires: PowerShell 5.0+, Administrator privileges for service installation
 # Installs as Windows Service using NSSM
 
@@ -8,12 +8,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectName = "Weather"
-$ProjectNameLower = "weather"
+$ProjectName = "wthr"
+$ProjectNameLower = "wthr"
+$OrgName = "webappsgo"
 $GitHubRepo = "webappsgo/wthr"
 $Version = "latest"
 
-Write-Host "=== Weather Service Installer for Windows ===" -ForegroundColor Green
+Write-Host "=== wthr Weather Service Installer for Windows ===" -ForegroundColor Green
 
 # Detect architecture
 $Arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
@@ -31,16 +32,16 @@ if (-not $UserInstall -and -not $IsAdmin) {
 # Determine installation paths
 if ($UserInstall -or -not $IsAdmin) {
     $InstallMode = "User"
-    $BinDir = "$env:LOCALAPPDATA\Programs\$ProjectName"
-    $ConfigDir = "$env:APPDATA\$ProjectName\config"
-    $DataDir = "$env:APPDATA\$ProjectName\data"
-    $LogDir = "$env:APPDATA\$ProjectName\logs"
+    $BinDir = "$env:LOCALAPPDATA\Programs\$OrgName\$ProjectName"
+    $ConfigDir = "$env:APPDATA\$OrgName\$ProjectName"
+    $DataDir = "$env:APPDATA\$OrgName\$ProjectName\data"
+    $LogDir = "$env:APPDATA\$OrgName\$ProjectName\logs"
 } else {
     $InstallMode = "System"
-    $BinDir = "$env:ProgramFiles\$ProjectName"
-    $ConfigDir = "$env:ProgramData\$ProjectName\config"
-    $DataDir = "$env:ProgramData\$ProjectName\data"
-    $LogDir = "$env:ProgramData\$ProjectName\logs"
+    $BinDir = "$env:ProgramFiles\$OrgName\$ProjectName"
+    $ConfigDir = "$env:ProgramData\$OrgName\$ProjectName"
+    $DataDir = "$env:ProgramData\$OrgName\$ProjectName\data"
+    $LogDir = "$env:ProgramData\$OrgName\$ProjectName\logs"
 }
 
 Write-Host "Install mode: $InstallMode"
@@ -112,7 +113,7 @@ if (-not $UserInstall -and $IsAdmin) {
     & $NssmPath set $ProjectName AppRotateFiles 1
     & $NssmPath set $ProjectName AppRotateBytes 10485760  # 10MB
     & $NssmPath set $ProjectName AppEnvironmentExtra "PORT=80" "CONFIG_DIR=$ConfigDir" "DATA_DIR=$DataDir" "LOG_DIR=$LogDir"
-    & $NssmPath set $ProjectName DisplayName "Weather Service"
+    & $NssmPath set $ProjectName DisplayName "wthr Weather Service"
     & $NssmPath set $ProjectName Description "Production-grade weather API service"
     & $NssmPath set $ProjectName Start SERVICE_AUTO_START
 

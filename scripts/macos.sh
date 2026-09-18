@@ -20,14 +20,14 @@
 # - - - - - - - - - - - - - - - - - - - - - - - -
 # shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2090,SC2115,SC2120,SC2155,SC2199,SC2229,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - -
-# Weather Service - macOS Installer with LaunchAgent
+# wthr Weather Service - macOS Installer with LaunchAgent
 
 set -e
 
 VERSION="${VERSION:-latest}"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-DATA_DIR="${DATA_DIR:-$HOME/Library/Application Support/Weather}"
-CONFIG_DIR="${CONFIG_DIR:-$HOME/Library/Application Support/Weather/config}"
+DATA_DIR="${DATA_DIR:-$HOME/Library/Application Support/webappsgo/wthr}"
+CONFIG_DIR="${CONFIG_DIR:-$HOME/Library/Application Support/webappsgo/wthr/config}"
 REPO="webappsgo/wthr"
 BINARY_NAME="weather"
 
@@ -37,7 +37,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo "🌤️  Weather Service - macOS Installer"
+echo "🌤️  wthr Weather Service - macOS Installer"
 echo ""
 
 # Detect architecture

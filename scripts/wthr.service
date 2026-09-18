@@ -1,16 +1,16 @@
 [Unit]
-Description=Weather Service
+Description=wthr Weather Service
 After=network.target
 Documentation=https://github.com/webappsgo/wthr
 
 [Service]
 Type=simple
-User=weather
-Group=weather
-WorkingDirectory=/var/lib/weather
+User=wthr
+Group=wthr
+WorkingDirectory=/var/lib/webappsgo/wthr
 
-# Application runs from /usr/local/bin/weather (installed by package manager or make install)
-ExecStart=/usr/local/bin/weather
+# Application runs from /usr/local/bin/wthr (installed by package manager or scripts/install.sh)
+ExecStart=/usr/local/bin/wthr
 
 # Restart policy
 Restart=on-failure
@@ -19,14 +19,14 @@ RestartSec=5s
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=weather
+SyslogIdentifier=wthr
 
 # Security hardening
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/weather /var/log/weather /etc/weather /var/cache/weather
+ReadWritePaths=/var/lib/webappsgo/wthr /var/log/webappsgo/wthr /etc/webappsgo/wthr /var/cache/webappsgo/wthr
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictRealtime=true

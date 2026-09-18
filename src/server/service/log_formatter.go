@@ -422,14 +422,14 @@ func ExtractLogEntry(r *http.Request, startTime time.Time, statusCode int, bytes
 	}
 
 	// Extract request ID if available
-	if requestID, exists := reqctx.Get(r.Context(), "request_id"); exists {
+	if requestID, exists := reqctx.GetValue(r.Context(), "request_id"); exists {
 		if rid, ok := requestID.(string); ok {
 			entry.RequestID = rid
 		}
 	}
 
 	// Extract username if authenticated
-	if username, exists := reqctx.Get(r.Context(), "username"); exists {
+	if username, exists := reqctx.GetValue(r.Context(), "username"); exists {
 		if uname, ok := username.(string); ok {
 			entry.Username = uname
 		}

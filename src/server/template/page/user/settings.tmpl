@@ -8,6 +8,8 @@
         <p class="text-comment">{{t .server.Lang "profile_subtitle"}}</p>
     </div>
 
+    {{template "flash" .}}
+
     <!-- Settings Navigation -->
     <div class="settings-nav">
         <a href="/users/settings" class="settings-nav-item active">{{t .server.Lang "settings_nav_account"}}</a>
@@ -24,30 +26,30 @@
             <h2 class="profile-card-header-title">{{t .server.Lang "settings_profile_information"}}</h2>
         </div>
         <div class="card-body">
-            <form id="accountSettingsForm">
+            <form id="accountSettingsForm" method="post" action="/users/settings">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
                     <label for="displayName" class="form-label">{{t .server.Lang "profile_display_name_label"}}</label>
-                    <input type="text" id="displayName" class="form-input" value="{{.user.DisplayName}}" placeholder="{{.user.Username}}">
+                    <input type="text" id="displayName" name="displayName" class="form-input" value="{{.user.DisplayName}}" placeholder="{{.user.Username}}">
                     <small class="text-comment">{{t .server.Lang "settings_display_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="bio" class="form-label">{{t .server.Lang "settings_bio_label"}}</label>
-                    <textarea id="bio" class="form-input" rows="3" maxlength="500" placeholder="{{t .server.Lang "settings_bio_placeholder"}}">{{.user.Bio}}</textarea>
+                    <textarea id="bio" name="bio" class="form-input" rows="3" maxlength="500" placeholder="{{t .server.Lang "settings_bio_placeholder"}}">{{.user.Bio}}</textarea>
                     <small class="text-comment"><span id="bioCount">{{len .user.Bio}}</span>{{t .server.Lang "settings_bio_char_count_suffix"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="location" class="form-label">{{t .server.Lang "settings_location_label"}}</label>
-                    <input type="text" id="location" class="form-input" value="{{.user.Location}}" placeholder="San Francisco, CA">
+                    <input type="text" id="location" name="location" class="form-input" value="{{.user.Location}}" placeholder="San Francisco, CA">
                     <small class="text-comment">{{t .server.Lang "settings_location_hint"}}</small>
                 </div>
 
                 <div class="form-group">
                     <label for="website" class="form-label">{{t .server.Lang "settings_website_label"}}</label>
-                    <input type="url" id="website" class="form-input" value="{{.user.Website}}" placeholder="https://example.com">
+                    <input type="url" id="website" name="website" class="form-input" value="{{.user.Website}}" placeholder="https://example.com">
                     <small class="text-comment">{{t .server.Lang "settings_website_hint"}}</small>
                 </div>
 
@@ -56,7 +58,7 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="timezone" class="form-label">{{t .server.Lang "settings_timezone_label"}}</label>
-                        <select id="timezone" class="form-input">
+                        <select id="timezone" name="timezone" class="form-input">
                             <option value="UTC" {{if eq .user.Timezone "UTC"}}selected{{end}}>UTC</option>
                             <option value="America/New_York" {{if eq .user.Timezone "America/New_York"}}selected{{end}}>America/New_York (UTC-5)</option>
                             <option value="America/Chicago" {{if eq .user.Timezone "America/Chicago"}}selected{{end}}>America/Chicago (UTC-6)</option>
@@ -73,7 +75,7 @@
 
                     <div class="form-group">
                         <label for="language" class="form-label">{{t .server.Lang "settings_language_label"}}</label>
-                        <select id="language" class="form-input">
+                        <select id="language" name="language" class="form-input">
                             <option value="en" {{if eq .user.Language "en"}}selected{{end}}>{{t .server.Lang "lang_english"}}</option>
                             <option value="es" {{if eq .user.Language "es"}}selected{{end}}>{{t .server.Lang "lang_spanish"}}</option>
                             <option value="fr" {{if eq .user.Language "fr"}}selected{{end}}>{{t .server.Lang "lang_french"}}</option>
@@ -125,52 +127,6 @@
         </div>
     </div>
 </div>
-
-<style>
-.settings-nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: var(--bg-dark);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-.settings-nav-item {
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    color: var(--text);
-    text-decoration: none;
-    transition: background 0.2s;
-}
-.settings-nav-item:hover {
-    background: var(--bg);
-}
-.settings-nav-item.active {
-    background: var(--accent);
-    color: var(--bg);
-}
-.settings-divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 1.5rem 0;
-}
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-.radio-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-}
-.radio-label input[type="radio"] {
-    accent-color: var(--accent);
-}
-</style>
 
 <script type="application/json" id="settings-data">
 {"apiPath": "{{.api_path}}"}

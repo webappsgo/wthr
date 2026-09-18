@@ -119,13 +119,13 @@ func TestAuthMiddleware_ValidSessionCookieAuthenticates(t *testing.T) {
 	usersDB := openAuthTestUsersDB(t)
 
 	userModel := &models.UserModel{DB: usersDB}
-	user, err := userModel.Create("alice", "alice@example.com", "correct horse battery staple")
+	user, err := userModel.CreateUserAccount("alice", "alice@example.com", "correct horse battery staple")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
 	sessionModel := &models.SessionModel{DB: usersDB}
-	session, err := sessionModel.Create(user.ID, 3600)
+	session, err := sessionModel.CreateSession(user.ID, 3600)
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestRequireAdmin(t *testing.T) {
 		{
 			name: "regular user role",
 			setContext: func(r *http.Request) *http.Request {
-				ctx := reqctx.Set(r.Context(), UserContextKey, &models.User{ID: 1, Username: "bob", Role: "user"})
+				ctx := reqctx.SetValue(r.Context(), UserContextKey, &models.User{ID: 1, Username: "bob", Role: "user"})
 				return r.WithContext(ctx)
 			},
 			wantStatus: http.StatusForbidden,
@@ -198,7 +198,7 @@ func TestRequireAdmin(t *testing.T) {
 		{
 			name: "admin role",
 			setContext: func(r *http.Request) *http.Request {
-				ctx := reqctx.Set(r.Context(), UserContextKey, &models.User{ID: 2, Username: "root", Role: "admin"})
+				ctx := reqctx.SetValue(r.Context(), UserContextKey, &models.User{ID: 2, Username: "root", Role: "admin"})
 				return r.WithContext(ctx)
 			},
 			wantStatus: http.StatusOK,
@@ -229,13 +229,13 @@ func TestIsAdmin(t *testing.T) {
 		t.Error("IsAdmin() = true, want false with no user in context")
 	}
 
-	ctx := reqctx.Set(req.Context(), UserContextKey, &models.User{ID: 1, Role: "user"})
+	ctx := reqctx.SetValue(req.Context(), UserContextKey, &models.User{ID: 1, Role: "user"})
 	req = req.WithContext(ctx)
 	if IsAdmin(req) {
 		t.Error("IsAdmin() = true, want false for a regular-role user")
 	}
 
-	ctx = reqctx.Set(req.Context(), UserContextKey, &models.User{ID: 2, Role: "admin"})
+	ctx = reqctx.SetValue(req.Context(), UserContextKey, &models.User{ID: 2, Role: "admin"})
 	req = req.WithContext(ctx)
 	if !IsAdmin(req) {
 		t.Error("IsAdmin() = false, want true for an admin-role user")
@@ -253,8 +253,8 @@ func TestIsAdmin(t *testing.T) {
 // with a nil value, and IsAuthenticated (which only checks existence, not
 // type) incorrectly kept reporting true for a "cleared" admin.
 //
-// reqctx.Get closes this gap by design: reqctx.Set(ctx, key, nil) followed
-// by reqctx.Get(ctx, key) reports ok=false, because reqctx treats a nil
+// reqctx.Get closes this gap by design: reqctx.SetValue(ctx, key, nil) followed
+// by reqctx.GetValue(ctx, key) reports ok=false, because reqctx treats a nil
 // stored value as absent (see reqctx.Get). So the same c.Set(key, nil)-style
 // clear that used to leave gin's Context reporting "exists" now correctly
 // reports "absent" under reqctx, and this test passes without any change to
@@ -271,7 +271,7 @@ func TestRestrictAdminToAdminRoutes_ClearsAdminContextOnNonAdminRoute(t *testing
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/weather/today", nil)
-	ctx := reqctx.Set(req.Context(), UserContextKey, &models.User{ID: 1, Role: "admin"})
+	ctx := reqctx.SetValue(req.Context(), UserContextKey, &models.User{ID: 1, Role: "admin"})
 	req = req.WithContext(ctx)
 	handler.ServeHTTP(w, req)
 
@@ -294,7 +294,7 @@ func TestRestrictAdminToAdminRoutes_ExemptsAPIRoutes(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/weather", nil)
-	ctx := reqctx.Set(req.Context(), UserContextKey, &models.User{ID: 1, Role: "admin"})
+	ctx := reqctx.SetValue(req.Context(), UserContextKey, &models.User{ID: 1, Role: "admin"})
 	req = req.WithContext(ctx)
 	handler.ServeHTTP(w, req)
 
@@ -327,7 +327,7 @@ func TestBlockAdminFromUserRoutes(t *testing.T) {
 			w := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			req.Header.Set("Accept", tt.accept)
-			ctx := reqctx.Set(req.Context(), UserContextKey, &models.User{ID: 1, Role: tt.role})
+			ctx := reqctx.SetValue(req.Context(), UserContextKey, &models.User{ID: 1, Role: tt.role})
 			req = req.WithContext(ctx)
 			handler.ServeHTTP(w, req)
 

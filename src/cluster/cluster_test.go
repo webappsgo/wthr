@@ -45,7 +45,7 @@ func TestStart_Disabled(t *testing.T) {
 	db := newTestDB(t)
 	cm := NewClusterManager(db, "node-1", "127.0.0.1:8080", false)
 
-	if err := cm.Start(); err != nil {
+	if err := cm.StartClusterManager(); err != nil {
 		t.Fatalf("Start() error = %v, want nil in standalone mode", err)
 	}
 	if !cm.IsPrimary() {
@@ -63,7 +63,7 @@ func TestStart_Disabled(t *testing.T) {
 	}
 
 	// Stop() must not panic or block when never actually started (enabled=false).
-	cm.Stop()
+	cm.StopClusterManager()
 }
 
 // TestInitializeClusterTables_Idempotent verifies calling it twice does not

@@ -82,7 +82,7 @@ func TestAccessLogger_UsernameNeverPopulatedForRealAuthenticatedUser(t *testing.
 	// Mirrors exactly what auth.go / token_auth.go set: a *model.User,
 	// not a map[string]interface{}.
 	setUser := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := reqctx.Set(r.Context(), UserContextKey, &model.User{ID: 1, Username: "alice"})
+		ctx := reqctx.SetValue(r.Context(), UserContextKey, &model.User{ID: 1, Username: "alice"})
 		r = r.WithContext(ctx)
 		accessLogger.ServeHTTP(w, r)
 	})

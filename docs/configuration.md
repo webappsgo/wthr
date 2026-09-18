@@ -1,6 +1,6 @@
 # Configuration
 
-Weather generates its configuration at runtime with sane defaults and keeps the live configuration in OS-specific directories, not in the repository.
+wthr generates its configuration at runtime with sane defaults and keeps the live configuration in OS-specific directories, not in the repository.
 
 ## Configuration Files
 
@@ -132,12 +132,37 @@ email:
   smtp:
     host: smtp.example.com
     port: 587
-    username: weather@example.com
+    username: wthr@example.com
+```
+
+### Metrics
+
+The metrics endpoint is internal only and every service is gated by its own bearer token. An empty
+token disables that service. See [Integrations](integrations.md) for the full route list and a
+Prometheus scrape example.
+
+```yaml
+server:
+  metrics:
+    enabled: true
+    root:
+      enabled: true
+    auth:
+      allow_unauthenticated: false
+      tokens:
+        prometheus: ""
+        grafana: ""
+        loki: ""
+    include_system: true
+    include_runtime: true
+    loki:
+      max_entries: 1000
+      max_age: 1h
 ```
 
 ## Paths
 
-Weather separates configuration, data, and logs:
+wthr separates configuration, data, and logs:
 
 | Type | Location |
 |------|----------|

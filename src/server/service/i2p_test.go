@@ -638,7 +638,7 @@ func TestI2P_ManagerDisabledState(t *testing.T) {
 // not an error state.
 func TestI2P_ManagerStartDisabled(t *testing.T) {
 	im := NewI2PManager(context.Background(), &config.I2PConfig{Enabled: false})
-	err := im.Start()
+	err := im.StartI2PManager()
 	if err == nil {
 		t.Fatal("Start() on a disabled config = nil, want an error")
 	}
@@ -1027,7 +1027,7 @@ func TestI2P_ManagerStartNoProvider(t *testing.T) {
 		t.Errorf("backendPort = %d, want 41234", im.backendPort)
 	}
 
-	err := im.Start()
+	err := im.StartI2PManager()
 	if err == nil {
 		t.Fatal("Start() with no provider = nil, want an error")
 	}

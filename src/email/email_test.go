@@ -43,18 +43,23 @@ func fakeSMTPServer(t *testing.T, handleConn func(r *bufio.Reader, w *bufio.Writ
 func smtpSuccessScript(recipients int) func(r *bufio.Reader, w *bufio.Writer) {
 	return func(r *bufio.Reader, w *bufio.Writer) {
 		writeLine(w, "220 fake.local ESMTP ready")
-		readLine(r) // EHLO
+		// EHLO
+		readLine(r)
 		writeLine(w, "250-fake.local Hello")
 		writeLine(w, "250 AUTH PLAIN")
-		readLine(r) // AUTH PLAIN ...
+		// AUTH PLAIN ...
+		readLine(r)
 		writeLine(w, "235 2.7.0 Authentication successful")
-		readLine(r) // MAIL FROM
+		// MAIL FROM
+		readLine(r)
 		writeLine(w, "250 2.1.0 OK")
 		for i := 0; i < recipients; i++ {
-			readLine(r) // RCPT TO
+			// RCPT TO
+			readLine(r)
 			writeLine(w, "250 2.1.5 OK")
 		}
-		readLine(r) // DATA
+		// DATA
+		readLine(r)
 		writeLine(w, "354 Start mail input")
 		for {
 			line, err := r.ReadString('\n')
@@ -63,7 +68,8 @@ func smtpSuccessScript(recipients int) func(r *bufio.Reader, w *bufio.Writer) {
 			}
 		}
 		writeLine(w, "250 2.0.0 OK: queued")
-		readLine(r) // QUIT
+		// QUIT
+		readLine(r)
 		writeLine(w, "221 2.0.0 Bye")
 	}
 }
@@ -73,12 +79,15 @@ func smtpSuccessScript(recipients int) func(r *bufio.Reader, w *bufio.Writer) {
 func smtpRejectSenderScript() func(r *bufio.Reader, w *bufio.Writer) {
 	return func(r *bufio.Reader, w *bufio.Writer) {
 		writeLine(w, "220 fake.local ESMTP ready")
-		readLine(r) // EHLO
+		// EHLO
+		readLine(r)
 		writeLine(w, "250-fake.local Hello")
 		writeLine(w, "250 AUTH PLAIN")
-		readLine(r) // AUTH PLAIN ...
+		// AUTH PLAIN ...
+		readLine(r)
 		writeLine(w, "235 2.7.0 Authentication successful")
-		readLine(r) // MAIL FROM
+		// MAIL FROM
+		readLine(r)
 		writeLine(w, "550 5.1.0 sender rejected")
 	}
 }

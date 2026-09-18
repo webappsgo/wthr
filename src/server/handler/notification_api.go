@@ -83,7 +83,7 @@ func NewNotificationAPIHandlers(notificationService *service.NotificationService
 // GetUserNotifications returns all notifications for the authenticated user
 // GET /{api_version}/users/notifications
 func (h *NotificationAPIHandlers) GetUserNotifications(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -126,7 +126,7 @@ func (h *NotificationAPIHandlers) GetUserNotifications(w http.ResponseWriter, r 
 // GetUserUnreadNotifications returns unread notifications for the authenticated user
 // GET /{api_version}/users/notifications/unread
 func (h *NotificationAPIHandlers) GetUserUnreadNotifications(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -152,7 +152,7 @@ func (h *NotificationAPIHandlers) GetUserUnreadNotifications(w http.ResponseWrit
 // GetUserUnreadCount returns the count of unread notifications
 // GET /{api_version}/users/notifications/count
 func (h *NotificationAPIHandlers) GetUserUnreadCount(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -177,7 +177,7 @@ func (h *NotificationAPIHandlers) GetUserUnreadCount(w http.ResponseWriter, r *h
 // GetUserNotificationStats returns notification statistics
 // GET /{api_version}/users/notifications/stats
 func (h *NotificationAPIHandlers) GetUserNotificationStats(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -200,7 +200,7 @@ func (h *NotificationAPIHandlers) GetUserNotificationStats(w http.ResponseWriter
 // MarkUserNotificationRead marks a notification as read
 // PATCH /{api_version}/users/notifications/{id}/read
 func (h *NotificationAPIHandlers) MarkUserNotificationRead(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -231,7 +231,7 @@ func (h *NotificationAPIHandlers) MarkUserNotificationRead(w http.ResponseWriter
 // MarkAllUserNotificationsRead marks all notifications as read
 // PATCH /{api_version}/users/notifications/read
 func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -254,7 +254,7 @@ func (h *NotificationAPIHandlers) MarkAllUserNotificationsRead(w http.ResponseWr
 // DismissUserNotification dismisses a notification
 // PATCH /{api_version}/users/notifications/{id}/dismiss
 func (h *NotificationAPIHandlers) DismissUserNotification(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -285,7 +285,7 @@ func (h *NotificationAPIHandlers) DismissUserNotification(w http.ResponseWriter,
 // DeleteUserNotification deletes a notification
 // DELETE /{api_version}/users/notifications/{id}
 func (h *NotificationAPIHandlers) DeleteUserNotification(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -316,7 +316,7 @@ func (h *NotificationAPIHandlers) DeleteUserNotification(w http.ResponseWriter, 
 // GetUserNotificationPreferences returns notification preferences
 // GET /{api_version}/users/notifications/preferences
 func (h *NotificationAPIHandlers) GetUserNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -339,7 +339,7 @@ func (h *NotificationAPIHandlers) GetUserNotificationPreferences(w http.Response
 // UpdateUserNotificationPreferences updates notification preferences
 // PATCH /{api_version}/users/notifications/preferences
 func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	userIDVal, exists := reqctx.Get(r.Context(), "user_id")
+	userIDVal, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -378,7 +378,7 @@ func (h *NotificationAPIHandlers) UpdateUserNotificationPreferences(w http.Respo
 // GetAdminNotifications returns all notifications for the authenticated admin
 // GET /{api_version}/admin/notifications
 func (h *NotificationAPIHandlers) GetAdminNotifications(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -416,7 +416,7 @@ func (h *NotificationAPIHandlers) GetAdminNotifications(w http.ResponseWriter, r
 // GetAdminUnreadNotifications returns unread notifications for the authenticated admin
 // GET /{api_version}/admin/notifications/unread
 func (h *NotificationAPIHandlers) GetAdminUnreadNotifications(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -437,7 +437,7 @@ func (h *NotificationAPIHandlers) GetAdminUnreadNotifications(w http.ResponseWri
 // GetAdminUnreadCount returns the count of unread notifications
 // GET /{api_version}/admin/notifications/count
 func (h *NotificationAPIHandlers) GetAdminUnreadCount(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -457,7 +457,7 @@ func (h *NotificationAPIHandlers) GetAdminUnreadCount(w http.ResponseWriter, r *
 // GetAdminNotificationStats returns notification statistics
 // GET /{api_version}/admin/notifications/stats
 func (h *NotificationAPIHandlers) GetAdminNotificationStats(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -475,7 +475,7 @@ func (h *NotificationAPIHandlers) GetAdminNotificationStats(w http.ResponseWrite
 // MarkAdminNotificationRead marks a notification as read
 // PATCH /{api_version}/admin/notifications/{id}/read
 func (h *NotificationAPIHandlers) MarkAdminNotificationRead(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -501,7 +501,7 @@ func (h *NotificationAPIHandlers) MarkAdminNotificationRead(w http.ResponseWrite
 // MarkAllAdminNotificationsRead marks all notifications as read
 // PATCH /{api_version}/admin/notifications/read
 func (h *NotificationAPIHandlers) MarkAllAdminNotificationsRead(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -519,7 +519,7 @@ func (h *NotificationAPIHandlers) MarkAllAdminNotificationsRead(w http.ResponseW
 // DismissAdminNotification dismisses a notification
 // PATCH /{api_version}/admin/notifications/{id}/dismiss
 func (h *NotificationAPIHandlers) DismissAdminNotification(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -545,7 +545,7 @@ func (h *NotificationAPIHandlers) DismissAdminNotification(w http.ResponseWriter
 // DeleteAdminNotification deletes a notification
 // DELETE /{api_version}/admin/notifications/{id}
 func (h *NotificationAPIHandlers) DeleteAdminNotification(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -571,7 +571,7 @@ func (h *NotificationAPIHandlers) DeleteAdminNotification(w http.ResponseWriter,
 // GetAdminNotificationPreferences returns notification preferences
 // GET /{api_version}/admin/notifications/preferences
 func (h *NotificationAPIHandlers) GetAdminNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -589,7 +589,7 @@ func (h *NotificationAPIHandlers) GetAdminNotificationPreferences(w http.Respons
 // UpdateAdminNotificationPreferences updates notification preferences
 // PATCH /{api_version}/admin/notifications/preferences
 func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -621,7 +621,7 @@ func (h *NotificationAPIHandlers) UpdateAdminNotificationPreferences(w http.Resp
 // SendTestNotification sends a test notification to the authenticated admin
 // POST /{api_version}/admin/notifications/send
 func (h *NotificationAPIHandlers) SendTestNotification(w http.ResponseWriter, r *http.Request) {
-	adminID, exists := reqctx.Get(r.Context(), "admin_id")
+	adminID, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
 		Unauthorized(w, r, "unauthorized")
 		return
@@ -694,8 +694,8 @@ func (h *NotificationAPIHandlers) SendTestNotification(w http.ResponseWriter, r 
 // GET /ws/notifications
 func (h *NotificationAPIHandlers) HandleWebSocketConnection(w http.ResponseWriter, r *http.Request) {
 	// Check if user or admin is authenticated
-	userIDRaw, userExists := reqctx.Get(r.Context(), "user_id")
-	adminIDRaw, adminExists := reqctx.Get(r.Context(), "admin_id")
+	userIDRaw, userExists := reqctx.GetValue(r.Context(), "user_id")
+	adminIDRaw, adminExists := reqctx.GetValue(r.Context(), "admin_id")
 
 	if !userExists && !adminExists {
 		Unauthorized(w, r, "unauthorized")

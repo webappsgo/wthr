@@ -34,10 +34,10 @@ func NewPIDFile(dataDir string) *PIDFile {
 	return &PIDFile{Path: pidPath}
 }
 
-// Check verifies if a PID file exists and if the process is still running
+// CheckStalePID verifies if a PID file exists and if the process is still running
 // Returns: (isRunning bool, pid int, err error)
 // Per TEMPLATE.md PART 6 lines 3474-3548: Implement stale PID detection
-func (p *PIDFile) Check() (bool, int, error) {
+func (p *PIDFile) CheckStalePID() (bool, int, error) {
 	// Check if PID file exists
 	data, err := os.ReadFile(p.Path)
 	if os.IsNotExist(err) {
@@ -78,10 +78,10 @@ func (p *PIDFile) Check() (bool, int, error) {
 	return true, pid, nil
 }
 
-// Create creates a PID file with the current process ID
-func (p *PIDFile) Create() error {
+// CreatePIDFile creates a PID file with the current process ID
+func (p *PIDFile) CreatePIDFile() error {
 	// Check if already running
-	isRunning, existingPID, err := p.Check()
+	isRunning, existingPID, err := p.CheckStalePID()
 	if err != nil {
 		return err
 	}

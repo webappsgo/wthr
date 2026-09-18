@@ -23,11 +23,14 @@ Weather Service is a production-grade weather API providing global weather forec
     ```bash
     docker run -d \
       --name wthr \
-      -p 64580:80 \
+      -p 172.17.0.1:64580:80 \
       -v ./volumes/config:/config:z \
       -v ./volumes/data:/data:z \
       ghcr.io/webappsgo/wthr:latest
     ```
+
+    The published port is bound to the Docker bridge address so a reverse
+    proxy fronts the service instead of exposing it on every interface.
 
 === "Binary Installation"
 
@@ -48,22 +51,32 @@ Weather Service is a production-grade weather API providing global weather forec
       wthr:
         image: ghcr.io/webappsgo/wthr:latest
         ports:
-          - "64580:80"
+          - "172.17.0.1:64580:80"
         volumes:
           - ./volumes/config:/config:z
           - ./volumes/data:/data:z
         restart: unless-stopped
     ```
 
-## Next Steps
+## Documentation
 
-- [Installation Guide](installation.md) - Detailed installation instructions
-- [Configuration](configuration.md) - Configure the weather service
-- [API Reference](api.md) - Use the RESTful JSON API
+- [Installation](installation.md) - Detailed installation instructions
+- [Configuration](configuration.md) - Every configuration option
+- [API Reference](api.md) - REST API, OpenAPI/Swagger UI, GraphQL
+- [CLI](cli.md) - The `wthr-cli` client
 - [Admin Panel](admin.md) - Manage the server via web UI
+- [Security](security.md) - Authentication, public endpoints, and reporting
+- [Integrations](integrations.md) - External identity and discovery endpoints
+- [Development](development.md) - Building, testing, and contributing
 
 ## Links
 
 - [GitHub Repository](https://github.com/webappsgo/wthr)
 - [Docker Images](https://ghcr.io/webappsgo/wthr)
 - [Report Issues](https://github.com/webappsgo/wthr/issues)
+- Swagger UI - `/openapi` on your running server
+- GraphQL Playground - `/graphql` on your running server
+
+## License
+
+MIT - see [LICENSE.md](https://github.com/webappsgo/wthr/blob/main/LICENSE.md).

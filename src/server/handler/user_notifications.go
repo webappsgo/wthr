@@ -28,7 +28,7 @@ func NewUserNotificationHandlers(notificationService *service.NotificationServic
 // GET /{api_version}/users/notifications
 func (h *UserNotificationHandlers) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated user ID from context
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -69,7 +69,7 @@ func (h *UserNotificationHandlers) GetNotifications(w http.ResponseWriter, r *ht
 // GetUnreadNotifications returns unread notifications for the authenticated user
 // GET /{api_version}/users/notifications/unread
 func (h *UserNotificationHandlers) GetUnreadNotifications(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -90,7 +90,7 @@ func (h *UserNotificationHandlers) GetUnreadNotifications(w http.ResponseWriter,
 // GetUnreadCount returns the count of unread notifications
 // GET /{api_version}/users/notifications/count
 func (h *UserNotificationHandlers) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -110,7 +110,7 @@ func (h *UserNotificationHandlers) GetUnreadCount(w http.ResponseWriter, r *http
 // GetStatistics returns notification statistics for the authenticated user
 // GET /{api_version}/users/notifications/stats
 func (h *UserNotificationHandlers) GetStatistics(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -128,7 +128,7 @@ func (h *UserNotificationHandlers) GetStatistics(w http.ResponseWriter, r *http.
 // MarkAsRead marks a notification as read
 // PATCH /{api_version}/users/notifications/{id}/read
 func (h *UserNotificationHandlers) MarkAsRead(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -155,7 +155,7 @@ func (h *UserNotificationHandlers) MarkAsRead(w http.ResponseWriter, r *http.Req
 // MarkAllAsRead marks all notifications as read
 // PATCH /{api_version}/users/notifications/read
 func (h *UserNotificationHandlers) MarkAllAsRead(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -175,7 +175,7 @@ func (h *UserNotificationHandlers) MarkAllAsRead(w http.ResponseWriter, r *http.
 // Dismiss dismisses a notification
 // PATCH /{api_version}/users/notifications/{id}/dismiss
 func (h *UserNotificationHandlers) Dismiss(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -199,10 +199,10 @@ func (h *UserNotificationHandlers) Dismiss(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// Delete deletes a notification
+// DeleteUserNotification deletes a notification
 // DELETE /{api_version}/users/notifications/{id}
-func (h *UserNotificationHandlers) Delete(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+func (h *UserNotificationHandlers) DeleteUserNotification(w http.ResponseWriter, r *http.Request) {
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -229,7 +229,7 @@ func (h *UserNotificationHandlers) Delete(w http.ResponseWriter, r *http.Request
 // GetPreferences returns notification preferences for the authenticated user
 // GET /{api_version}/users/notifications/preferences
 func (h *UserNotificationHandlers) GetPreferences(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -247,7 +247,7 @@ func (h *UserNotificationHandlers) GetPreferences(w http.ResponseWriter, r *http
 // UpdatePreferences updates notification preferences for the authenticated user
 // PATCH /{api_version}/users/notifications/preferences
 func (h *UserNotificationHandlers) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
-	userID, exists := reqctx.Get(r.Context(), "user_id")
+	userID, exists := reqctx.GetValue(r.Context(), "user_id")
 	if !exists {
 		Unauthorized(w, r, Translate(r, "errors.notifications.core.unauthorized"))
 		return
@@ -299,7 +299,7 @@ func RegisterUserNotificationRoutes(router chi.Router, handlers *UserNotificatio
 
 		// Dismiss and delete
 		notifications.Patch("/{id}/dismiss", handlers.Dismiss)
-		notifications.Delete("/{id}", handlers.Delete)
+		notifications.Delete("/{id}", handlers.DeleteUserNotification)
 
 		// Preferences
 		notifications.Get("/preferences", handlers.GetPreferences)

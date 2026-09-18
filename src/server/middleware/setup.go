@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"html/template"
 	"net/http"
 	"strings"
@@ -177,9 +176,7 @@ func BlockSetupAfterAdminExists(cfg *config.AppConfig) func(http.Handler) http.H
 			var count int
 			err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&count)
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				w.WriteHeader(http.StatusInternalServerError)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{"error": "Database error"})
+				writeAPIError(w, http.StatusInternalServerError, "SERVER_ERROR", "Internal server error")
 				return
 			}
 

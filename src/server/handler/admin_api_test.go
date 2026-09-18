@@ -35,7 +35,7 @@ func adminAPIContextWithDB(t *testing.T, method, target string, body interface{}
 	} else {
 		r, w = newTestRequestPlain(method, target)
 	}
-	r = r.WithContext(reqctx.Set(r.Context(), "db", db))
+	r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
 	return db, r, w
 }
 
@@ -235,7 +235,7 @@ func TestClearCache(t *testing.T) {
 
 	t.Run("wrong type in context still succeeds (not enabled)", func(t *testing.T) {
 		r, w := newTestRequestPlain(http.MethodPost, "/admin/cache/clear")
-		r = r.WithContext(reqctx.Set(r.Context(), "cache", "not-a-cache-manager"))
+		r = r.WithContext(reqctx.SetValue(r.Context(), "cache", "not-a-cache-manager"))
 		ClearCache(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -525,7 +525,7 @@ func TestBackupSchedule(t *testing.T) {
 		}
 
 		readReq, readRec := newTestRequestPlain(http.MethodGet, "/admin/config/backup/schedule")
-		readReq = readReq.WithContext(reqctx.Set(readReq.Context(), "db", db))
+		readReq = readReq.WithContext(reqctx.SetValue(readReq.Context(), "db", db))
 		GetBackupSchedule(readRec, readReq)
 		var schedule struct {
 			Enabled   bool `json:"enabled"`

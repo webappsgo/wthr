@@ -277,8 +277,9 @@ func TestSecurityTxt_UpdateConfig_Empty(t *testing.T) {
 // expiring soon (<30d), and far in the future.
 func TestSecurityTxt_CheckExpiry(t *testing.T) {
 	tests := []struct {
-		name           string
-		seed           string // empty means do not seed
+		name string
+		// empty means do not seed
+		seed           string
 		wantNeedsRenew bool
 	}{
 		{"unset", "", true},

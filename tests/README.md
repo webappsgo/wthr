@@ -26,8 +26,12 @@ Comprehensive test suite for the Weather Service including unit tests, integrati
 ```
 tests/
 ├── README.md                           # This file
-├── run_tests.sh                        # Main test runner
-├── test-server.sh                      # Isolated test server
+├── run_tests.sh                        # Phase 2 entrypoint (Incus preferred, Docker fallback)
+├── incus.sh                            # Phase 2 in Incus (debian/trixie, full systemd)
+├── docker.sh                           # Phase 2 in Docker (alpine:latest)
+├── test-server.sh                      # Isolated manual dev server
+├── lib/
+│   └── matrix.sh                       # Shared in-container route/header/auth/CLI matrix
 ├── unit/                               # Unit tests
 │   ├── services/
 │   │   ├── location_enhancer_test.go  # Location service tests
@@ -35,7 +39,8 @@ tests/
 │   └── handlers/
 │       └── auth_test.go               # Authentication tests
 ├── integration/                        # Integration tests
-│   └── api_test.go                    # API endpoint tests
+│   ├── api_test.go                    # API endpoint tests
+│   └── notification_api_test.go       # Notification API tests
 └── e2e/                               # End-to-end tests
     └── setup_flow_test.go             # Complete setup flow
 
@@ -43,32 +48,46 @@ tests/
 
 ## Test Scripts
 
-### `run_tests.sh` - Main Test Runner
+### `run_tests.sh` - Phase 2 Entrypoint
 
-Runs the complete test suite with options for coverage and verbosity.
+Dispatches the Phase 2 binary-validation suite: Incus when `incus` is available
+(preferred, full systemd), otherwise Docker. It takes no options and exits
+non-zero when neither runtime is present.
 
 **Usage:**
 ```bash
-# Run all tests
 ./tests/run_tests.sh
-
-# With coverage report (generates coverage.html)
-./tests/run_tests.sh --coverage
-
-# With verbose output
-./tests/run_tests.sh -v
-
-# Run benchmarks
-./tests/run_tests.sh --bench
-
-# Combine options
-./tests/run_tests.sh -c -v
 ```
 
-**Options:**
-- `-c, --coverage` - Generate coverage report
-- `-v, --verbose` - Verbose test output
-- `-b, --bench` - Run benchmarks
+Phase 1 (`go test` plus the 60% coverage gate) is a separate concern and runs
+via `make test`, not through this script.
+
+### `lib/matrix.sh` - Shared Container Matrix
+
+Both `incus.sh` and `docker.sh` build the binaries in `casjaysdev/go:latest`,
+push this one script into the test container, and run it with
+`matrix.sh {project_name} {project_org}`. Keeping the matrix in a single file is
+what stops the Incus and Docker suites from drifting apart. It covers version
+and `--help` output, binary-rename behaviour for the server and the CLI, the
+setup-token → verify-token → create-admin → API-token flow, unauthenticated
+rejection, invalid-credential rejection, the public/user/admin frontend and API
+route matrices with every applicable `Accept` header, the `.txt` extension
+endpoints, and CLI commands run against the live server. It counts failures and
+exits non-zero if any check fails.
+
+It also runs the two PART 31 matrices:
+
+- **Accessibility** — for one representative page per layout family (public,
+  auth, user, admin) it verifies that a skip link exists and is the first
+  focusable element, that every `<img>` carries an `alt` attribute, that every
+  visible form control is labelled (`<label for>`, `aria-label`, or
+  `aria-labelledby`), that the page has exactly one `<h1>` and skips no heading
+  level, and that the banner, navigation, main, and contentinfo landmarks are
+  all present.
+- **Language and direction** — every supported language (`en`, `es`, `zh`,
+  `fr`, `ar`, `de`, `ja`) is requested via `?lang=`, `<html lang>` must match,
+  Arabic must render `dir="rtl"` and no other language may, and an unsupported
+  `?lang=` must silently fall back to English instead of erroring.
 
 ### `test-server.sh` - Isolated Test Server
 
@@ -100,14 +119,10 @@ KEEP_TEMP=1 PORT=3053 ./tests/test-server.sh
 
 ### Unit Tests
 
+`make test` is the whole of Phase 1: it runs `go test` inside
+`casjaysdev/go:latest`, reports coverage, and fails below the 60% gate.
+
 ```bash
-# All unit tests
-make test
-
-# Quick containerized unit test pass
-make test
-
-# With coverage
 make test
 ```
 
@@ -156,40 +171,19 @@ curl -q -LSsf "http://localhost:3053/api/v1/weather?lat=40.7128&lon=-74.0060&nea
 
 ## Coverage Reports
 
-```bash
-# Generate coverage report
-./tests/run_tests.sh --coverage
-
-# View in browser
-open coverage.html  # macOS
-xdg-open coverage.html  # Linux
-start coverage.html  # Windows
-```
-
-## Benchmarking
+`make test` prints the per-package coverage and the total, and fails the build
+below 60%. Coverage artifacts are written to a temp directory outside the
+project tree, never into the repository.
 
 ```bash
-# Run benchmarks
-./tests/run_tests.sh --bench
-
-# Use the scripted test entrypoint
-./tests/run_tests.sh --bench
+make test
 ```
 
 ## Continuous Integration
 
-The test suite is designed to work with CI/CD pipelines:
-
-```yaml
-# Example: GitHub Actions
-- name: Run tests
-  run: ./tests/run_tests.sh --coverage
-
-- name: Upload coverage
-  uses: codecov/codecov-action@v3
-  with:
-    files: ./coverage.out
-```
+CI runs the same two phases with explicit commands rather than Makefile
+targets, inside the `casjaysdev/go:latest` job container. See
+`.github/workflows/ci.yml` for the authoritative steps.
 
 ## Writing New Tests
 
@@ -260,17 +254,14 @@ func TestMyFunction(t *testing.T) {
 PORT=3054 ./tests/test-server.sh
 ```
 
-### Coverage report not generating
-```bash
-# Ensure you have write permissions
-./tests/run_tests.sh --coverage
-ls -la coverage.out coverage.html
-```
+### Neither Incus nor Docker available
+`run_tests.sh` exits non-zero when neither runtime is installed. Install
+`incus` (preferred) or `docker` — there is no host-toolchain fallback, because
+the host is never expected to have Go installed.
 
 ## Notes
 
 - Test server uses isolated temp directories
 - No pollution of your working directory
-- All tests run in-memory databases
-- Coverage reports saved to `coverage.html`
-- Tests require Go 1.21 or higher
+- Every build and test runs in a container, never on the host
+- Coverage artifacts are written outside the project tree

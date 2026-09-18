@@ -1,5 +1,5 @@
 {{define "navbar"}}
-<nav class="navbar" role="navigation" aria-label="Main navigation">
+<nav id="navigation" class="navbar" role="navigation" aria-label="Main navigation">
     <div class="navbar-container">
         <!-- Zone A: Brand Logo -->
         <a href="/" class="navbar-brand" aria-label="{{.server.Title}} home page" title="Go to home page">
@@ -23,7 +23,7 @@
                 <select
                     aria-label="{{t .lang "common.select_language"}}"
                     title="{{t .lang "common.select_language"}}"
-                    onchange="window.location.search='?lang='+this.value"
+                    data-action="switch-language"
                     class="lang-select">
                     {{range .available_languages}}
                     <option value="{{.Code}}" {{if eq .Code $.lang}}selected{{end}}>{{.NativeName}}</option>
@@ -158,14 +158,4 @@
         <a href="/server/preferences" class="mobile-menu-item" role="menuitem" title="{{t .lang "preferences.description"}}">{{t .lang "nav.preferences"}}</a>
     </div>
 </nav>
-
-<script>
-    // Initialize notifications on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        if (typeof Notifications !== 'undefined') {
-            Notifications.fetch();
-            Notifications.startPolling(60000);
-        }
-    });
-</script>
 {{end}}

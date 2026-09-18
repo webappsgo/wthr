@@ -8,10 +8,10 @@
     </div>
 
     <div class="admin-page-container wide">
-        <div class="admin-alert admin-alert-success" id="successAlert" role="alert"></div>
-        <div class="admin-alert admin-alert-error" id="errorAlert" role="alert"></div>
+        <div class="admin-alert admin-alert-success" id="successAlert" role="status" aria-live="polite"></div>
+        <div class="admin-alert admin-alert-error" id="errorAlert" role="alert" aria-live="assertive"></div>
 
-        <!-- Metrics Statistics -->
+        <!-- Live registry statistics -->
         <div class="admin-page-card">
             <h2>📈 {{t $lang "admin.metrics.current_heading"}}</h2>
             <div class="stats-grid">
@@ -20,12 +20,8 @@
                     <div class="stat-label">{{t $lang "admin.metrics.total_label"}}</div>
                 </div>
                 <div class="stat-box">
-                    <div class="stat-value" id="enabledMetrics">0</div>
-                    <div class="stat-label">{{t $lang "admin.metrics.enabled_label"}}</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-value" id="customMetrics">0</div>
-                    <div class="stat-label">{{t $lang "admin.metrics.custom_label"}}</div>
+                    <div class="stat-value" id="seriesMetrics">0</div>
+                    <div class="stat-label">{{t $lang "admin.metrics.series_label"}}</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-value" id="exportFormats">3</div>
@@ -36,60 +32,89 @@
 
         <!-- Tabs -->
         <div class="admin-tabs">
-            <button class="admin-tab active" data-tab="prometheus">{{t $lang "admin.metrics.tab_prometheus"}}</button>
-            <button class="admin-tab" data-tab="builtin">{{t $lang "admin.metrics.tab_builtin"}}</button>
-            <button class="admin-tab" data-tab="custom">{{t $lang "admin.metrics.tab_custom"}}</button>
+            <button class="admin-tab active" data-tab="settings">{{t $lang "admin.metrics.tab_settings"}}</button>
+            <button class="admin-tab" data-tab="registered">{{t $lang "admin.metrics.tab_registered"}}</button>
             <button class="admin-tab" data-tab="export">{{t $lang "admin.metrics.tab_export"}}</button>
         </div>
 
-        <!-- Prometheus Tab -->
-        <div class="admin-tab-content active" id="prometheus">
+        <!-- Settings Tab -->
+        <div class="admin-tab-content active" id="settings">
             <div class="metrics-grid">
                 <div class="admin-page-card">
                     <h2>⚙️ {{t $lang "admin.metrics.prometheus_config_heading"}}</h2>
-                    <form id="prometheusForm">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="prometheusForm"
+                          data-msg-saved="{{t $lang "admin.common.settings_saved"}}"
+                          data-msg-error="{{t $lang "admin.common.settings_save_error"}}">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="prometheusEnabled" checked>
+                                <input type="checkbox" id="metricsEnabled">
                                 {{t $lang "admin.metrics.enable_prometheus_label"}}
                             </label>
                             <small>{{t $lang "admin.metrics.enable_prometheus_hint"}}</small>
                         </div>
 
                         <div class="form-group">
-                            <label for="metricsPath">{{t $lang "admin.metrics.metrics_path_label"}}</label>
-                            <input type="text" id="metricsPath" value="/metrics">
-                            <small>{{t $lang "admin.metrics.metrics_path_hint"}}</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="namespace">{{t $lang "admin.metrics.namespace_label"}}</label>
-                            <input type="text" id="namespace" value="wthr" placeholder="wthr">
-                            <small>{{t $lang "admin.metrics.namespace_hint"}}</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="subsystem">{{t $lang "admin.metrics.subsystem_label"}}</label>
-                            <input type="text" id="subsystem" placeholder="api">
-                            <small>{{t $lang "admin.metrics.subsystem_hint"}}</small>
+                            <label>
+                                <input type="checkbox" id="rootAliasEnabled">
+                                {{t $lang "admin.metrics.root_alias_label"}}
+                            </label>
+                            <small>{{t $lang "admin.metrics.root_alias_hint"}}</small>
                         </div>
 
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="includeGoMetrics" checked>
-                                {{t $lang "admin.metrics.include_go_metrics_label"}}
+                                <input type="checkbox" id="includeSystem">
+                                {{t $lang "admin.metrics.include_system_label"}}
                             </label>
                         </div>
 
                         <div class="form-group">
                             <label>
-                                <input type="checkbox" id="includeProcessMetrics" checked>
-                                {{t $lang "admin.metrics.include_process_metrics_label"}}
+                                <input type="checkbox" id="includeRuntime">
+                                {{t $lang "admin.metrics.include_runtime_label"}}
                             </label>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">💾 {{t $lang "admin.metrics.save_config_action"}}</button>
+                        <div class="form-group">
+                            <label for="lokiMaxEntries">{{t $lang "admin.metrics.loki_max_entries_label"}}</label>
+                            <input type="number" id="lokiMaxEntries" min="1" step="1" value="1000">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="lokiMaxAge">{{t $lang "admin.metrics.loki_max_age_label"}}</label>
+                            <input type="text" id="lokiMaxAge" placeholder="1h" value="1h">
+                        </div>
+
+                        <h3 class="mt-3 mb-2">{{t $lang "admin.metrics.tokens_heading"}}</h3>
+                        <p><small>{{t $lang "admin.metrics.token_hint"}}</small></p>
+
+                        <div class="form-group">
+                            <label for="tokenPrometheus">{{t $lang "admin.metrics.token_prometheus_label"}}</label>
+                            <input type="text" id="tokenPrometheus" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tokenGrafana">{{t $lang "admin.metrics.token_grafana_label"}}</label>
+                            <input type="text" id="tokenGrafana" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tokenLoki">{{t $lang "admin.metrics.token_loki_label"}}</label>
+                            <input type="text" id="tokenLoki" autocomplete="off">
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="allowUnauthenticated">
+                                {{t $lang "admin.metrics.allow_unauthenticated_label"}}
+                            </label>
+                            <small>{{t $lang "admin.metrics.allow_unauthenticated_hint"}}</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary"
+                                data-label-save="💾 {{t $lang "admin.metrics.save_config_action"}}"
+                                data-label-saving="{{t $lang "admin.common.saving"}}">💾 {{t $lang "admin.metrics.save_config_action"}}</button>
                     </form>
                 </div>
 
@@ -97,164 +122,43 @@
                     <h2>🔗 {{t $lang "admin.metrics.integration_heading"}}</h2>
                     <div class="form-group">
                         <label>{{t $lang "admin.metrics.metrics_endpoint_label"}}</label>
-                        <div class="code-block" class="mt-1">http://localhost:3000/metrics</div>
+                        <div class="code-block mt-1" id="metricsEndpointDisplay"></div>
                     </div>
 
                     <div class="form-group">
                         <label>{{t $lang "admin.metrics.prometheus_config_label"}}</label>
-                        <div class="code-block">scrape_configs:
-  - job_name: 'weather'
-    static_configs:
-      - targets: ['localhost:3000']
-    metrics_path: '/metrics'
-    scrape_interval: 15s</div>
+                        <div class="code-block" id="scrapeConfigDisplay"></div>
                     </div>
 
                     <div class="btn-group">
-                        <button class="btn btn-success" id="testPrometheusBtn">🧪 {{t $lang "admin.metrics.test_endpoint_action"}}</button>
-                        <button class="btn btn-secondary" id="downloadConfigBtn">📥 {{t $lang "admin.metrics.download_config_action"}}</button>
+                        <button class="btn btn-success" id="testPrometheusBtn"
+                                data-msg-success="{{t $lang "admin.metrics.test_success"}}"
+                                data-msg-error="{{t $lang "admin.metrics.test_error"}}">🧪 {{t $lang "admin.metrics.test_endpoint_action"}}</button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Built-in Metrics Tab -->
-        <div class="admin-tab-content" id="builtin">
+        <!-- Registered Metrics Tab -->
+        <div class="admin-tab-content" id="registered">
             <div class="admin-page-card">
-                <h2>📊 {{t $lang "admin.metrics.builtin_heading"}}</h2>
-                <div id="builtinMetrics">
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.http_request_count_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.http_request_count_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="http_requests">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.http_request_duration_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.http_request_duration_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="http_duration">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.api_response_status_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.api_response_status_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="api_status">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.database_queries_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.database_queries_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="db_queries">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.cache_hit_rate_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.cache_hit_rate_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="cache_hits">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.active_connections_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.active_connections_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="connections">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.task_execution_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.task_execution_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="tasks">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="metric-item">
-                        <div class="metric-info">
-                            <h3>{{t $lang "admin.metrics.email_notifications_title"}}</h3>
-                            <p>{{t $lang "admin.metrics.email_notifications_desc"}}</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked data-metric="emails">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Custom Metrics Tab -->
-        <div class="admin-tab-content" id="custom">
-            <div class="admin-page-card">
-                <h2>➕ {{t $lang "admin.metrics.add_custom_heading"}}</h2>
-                <form id="customMetricForm">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-                    <div class="grid">
-                        <div class="form-group">
-                            <label for="metricName">{{t $lang "admin.metrics.metric_name_label"}}</label>
-                            <input type="text" id="metricName" placeholder="wthr_custom_metric" required>
-                            <small>{{t $lang "admin.metrics.metric_name_hint"}}</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="metricType">{{t $lang "admin.metrics.metric_type_label"}}</label>
-                            <select id="metricType">
-                                <option value="counter">{{t $lang "admin.metrics.type_counter"}}</option>
-                                <option value="gauge">{{t $lang "admin.metrics.type_gauge"}}</option>
-                                <option value="histogram">{{t $lang "admin.metrics.type_histogram"}}</option>
-                                <option value="summary">{{t $lang "admin.metrics.type_summary"}}</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="metricHelp">{{t $lang "admin.metrics.metric_desc_label"}}</label>
-                        <input type="text" id="metricHelp" placeholder="{{t $lang "admin.metrics.metric_desc_placeholder"}}" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="metricLabels">{{t $lang "admin.metrics.metric_labels_label"}}</label>
-                        <input type="text" id="metricLabels" placeholder="method,path,status">
-                        <small>{{t $lang "admin.metrics.metric_labels_hint"}}</small>
-                    </div>
-
-                    <button type="submit" class="btn btn-success">➕ {{t $lang "admin.metrics.add_metric_action"}}</button>
-                </form>
-
-                <h3 class="mt-3 mb-2">{{t $lang "admin.metrics.custom_list_heading"}}</h3>
-                <div id="customMetricsList">
-                    <p class="text-center text-muted p-3">{{t $lang "admin.metrics.no_custom_metrics"}}</p>
+                <h2>📊 {{t $lang "admin.metrics.registered_heading"}}</h2>
+                <div class="table-responsive">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{{t $lang "admin.metrics.col_name"}}</th>
+                                <th scope="col">{{t $lang "admin.metrics.col_type"}}</th>
+                                <th scope="col">{{t $lang "admin.metrics.col_series"}}</th>
+                                <th scope="col">{{t $lang "admin.metrics.col_help"}}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registeredMetricsBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted p-3">{{t $lang "admin.metrics.registered_empty"}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -284,27 +188,10 @@
                     </div>
                 </div>
             </div>
-
-            <div class="admin-page-card">
-                <h2>🔗 {{t $lang "admin.metrics.external_links_heading"}}</h2>
-                <div class="form-group">
-                    <label for="grafanaUrl">{{t $lang "admin.metrics.grafana_url_label"}}</label>
-                    <input type="text" id="grafanaUrl" placeholder="http://grafana.example.com/dashboard/weather">
-                    <small>{{t $lang "admin.metrics.grafana_url_hint"}}</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="prometheusUrl">{{t $lang "admin.metrics.prometheus_url_label"}}</label>
-                    <input type="text" id="prometheusUrl" placeholder="http://prometheus.example.com:9090">
-                    <small>{{t $lang "admin.metrics.prometheus_url_hint"}}</small>
-                </div>
-
-                <button class="btn btn-primary" id="saveLinksBtn">💾 {{t $lang "admin.metrics.save_links_action"}}</button>
-            </div>
         </div>
     </div>
 
-    <script type="application/json" id="admin-metrics-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
+    <script type="application/json" id="admin-metrics-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "msgLoadError": {{t $lang "admin.metrics.load_error"}}, "msgExportError": {{t $lang "admin.metrics.export_error"}}, "registeredEmpty": {{t $lang "admin.metrics.registered_empty"}}}</script>
     <script src="/static/js/app.js"></script>
 {{template "admin_footer" .}}
 {{end}}

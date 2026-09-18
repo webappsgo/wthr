@@ -277,7 +277,7 @@ func TestSessionWritersAgreeOnLayout(t *testing.T) {
 
 	userID := insertTestUser(t, db, "layout-user", "layout@example.com")
 
-	if _, err := (&SessionModel{DB: db}).Create(userID, 3600); err != nil {
+	if _, err := (&SessionModel{DB: db}).CreateSession(userID, 3600); err != nil {
 		t.Fatalf("SessionModel.Create: %v", err)
 	}
 	if _, err := (&UserSessionModel{DB: db}).CreateSession(userID, "127.0.0.1", "test-agent", time.Hour); err != nil {

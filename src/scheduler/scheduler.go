@@ -15,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,8 +37,9 @@ import (
 // Task represents a scheduled task
 // AI.md PART 19: Scheduler uses cron expressions, not intervals
 type Task struct {
-	Name     string
-	Schedule string // Cron expression: "0 2 * * *", "@hourly", "@every 5m"
+	Name string
+	// Cron expression: "0 2 * * *", "@hourly", "@every 5m"
+	Schedule string
 	Fn       func() error
 	schedule Schedule
 	nextRun  time.Time
@@ -44,7 +47,9 @@ type Task struct {
 	enabled bool
 	// Last execution time
 	lastRun *time.Time
-	mu      sync.Mutex
+	// Consecutive failed attempts already retried, drives retryDelays
+	retryCount int
+	mu         sync.Mutex
 }
 
 // Global tasks that should only run on one node in cluster mode
@@ -57,7 +62,30 @@ var globalTasks = map[string]bool{
 	"backup-daily":          true,
 	"backup-hourly":         true,
 	"update-geoip-database": true,
+	"update-check":          true,
 }
+
+// retryDelays is AI.md PART 19's retry policy: max_retries 3, retry_delay 5m,
+// exponential backoff. A run that fails is re-attempted after 5m, then 10m,
+// then 20m; after the third retry the task waits for its next scheduled
+// occurrence like any other.
+var retryDelays = []time.Duration{5 * time.Minute, 10 * time.Minute, 20 * time.Minute}
+
+// defaultCatchUpWindow is AI.md PART 19's scheduler.catch_up_window default: an
+// occurrence missed while the process was down is executed at startup only if
+// it fell inside this window.
+const defaultCatchUpWindow = 1 * time.Hour
+
+// maxCatchUpScan bounds the walk used to find the most recent occurrence inside
+// the catch-up window. A schedule that fires more often than the scan can cover
+// (e.g. "@every 1s") is one that never needs catching up, so stopping early
+// costs nothing.
+const maxCatchUpScan = 512
+
+// shutdownDrainTimeout is how long Stop waits for in-flight task executions
+// before force-releasing this node's locks. AI.md PART 19: "Wait for running
+// tasks to complete (max 30 seconds)".
+const shutdownDrainTimeout = 30 * time.Second
 
 // LockTimeout is how long a lock is valid before auto-release (5 minutes per AI.md)
 const LockTimeout = 5 * time.Minute
@@ -79,6 +107,13 @@ type Scheduler struct {
 	nodeID  string
 	mu      sync.RWMutex
 	running bool
+	// Tracks in-flight task executions so shutdown can drain them
+	inFlight sync.WaitGroup
+	// Names of tasks currently executing on this node, for interrupted-task marking
+	active   map[string]bool
+	activeMu sync.Mutex
+	// AI.md PART 19 scheduler.catch_up_window
+	catchUpWindow time.Duration
 }
 
 // NewScheduler creates a new scheduler instance backed by a built-in
@@ -91,10 +126,23 @@ func NewScheduler(db *sql.DB) *Scheduler {
 	}
 
 	return &Scheduler{
-		tasks:  make(map[string]*Task),
-		db:     db,
-		nodeID: nodeID,
+		tasks:         make(map[string]*Task),
+		active:        make(map[string]bool),
+		db:            db,
+		nodeID:        nodeID,
+		catchUpWindow: defaultCatchUpWindow,
 	}
+}
+
+// SetCatchUpWindow overrides how far back startup looks for occurrences that
+// were missed while the process was down. A window of zero disables catch-up.
+func (s *Scheduler) SetCatchUpWindow(window time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if window < 0 {
+		window = 0
+	}
+	s.catchUpWindow = window
 }
 
 // getNodeID returns a unique identifier for this node
@@ -128,8 +176,39 @@ func (s *Scheduler) AddTask(name string, schedule string, fn func() error) error
 	}
 
 	s.tasks[name] = task
+	s.ensureTaskStateRow(task)
 
 	return nil
+}
+
+// ensureTaskStateRow creates the task's server_scheduler_state row if it does
+// not exist yet, so every later state write has a target. Existing rows keep
+// their counters and only have their schedule/next_run refreshed.
+func (s *Scheduler) ensureTaskStateRow(task *Task) {
+	if s.db == nil {
+		return
+	}
+
+	nextRun := ""
+	if !task.nextRun.IsZero() {
+		nextRun = dbtime.FormatSQLTimestamp(task.nextRun)
+	}
+
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO server_scheduler_state (task_id, task_name, schedule, next_run)
+		 VALUES (?, ?, ?, ?)`,
+		task.Name, task.Name, task.Schedule, nextRun,
+	); err != nil {
+		log.Printf("WARN: Failed to create scheduler state row for task '%s': %v", task.Name, err)
+		return
+	}
+
+	if _, err := s.db.Exec(
+		"UPDATE server_scheduler_state SET task_name = ?, schedule = ?, next_run = ? WHERE task_id = ?",
+		task.Name, task.Schedule, nextRun, task.Name,
+	); err != nil {
+		log.Printf("WARN: Failed to refresh scheduler state row for task '%s': %v", task.Name, err)
+	}
 }
 
 // AddTaskInterval adds a task with a time.Duration interval (convenience method)
@@ -139,9 +218,9 @@ func (s *Scheduler) AddTaskInterval(name string, interval time.Duration, fn func
 	return s.AddTask(name, schedule, fn)
 }
 
-// Start starts the scheduler's ticker loop
+// StartScheduler starts the scheduler's ticker loop
 // AI.md PART 19: "Use Go's time/ticker - No external cron libraries required"
-func (s *Scheduler) Start() {
+func (s *Scheduler) StartScheduler() {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -154,9 +233,107 @@ func (s *Scheduler) Start() {
 	taskCount := len(s.tasks)
 	s.mu.Unlock()
 
+	// AI.md PART 19 Startup Behavior: load state, replay occurrences missed
+	// while the process was down, then start the loop.
+	s.runMissedTasks()
+
 	go s.run()
 
 	log.Printf("INFO: Task manager has started (%d scheduled tasks)", taskCount)
+}
+
+// runMissedTasks replays every occurrence that fell due while the process was
+// down, provided it lies inside catchUpWindow. AI.md PART 19 requires the
+// replay to happen "in order of original scheduled time", so the queue is
+// executed sequentially on one goroutine rather than fanned out.
+func (s *Scheduler) runMissedTasks() {
+	s.mu.RLock()
+	window := s.catchUpWindow
+	candidates := make([]*Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		candidates = append(candidates, task)
+	}
+	s.mu.RUnlock()
+
+	if window <= 0 {
+		return
+	}
+
+	type missedRun struct {
+		task *Task
+		due  time.Time
+	}
+
+	now := time.Now()
+	missed := make([]missedRun, 0)
+
+	for _, task := range candidates {
+		task.mu.Lock()
+		enabled := task.enabled
+		sched := task.schedule
+		task.mu.Unlock()
+
+		if !enabled || sched == nil {
+			continue
+		}
+
+		due, ok := latestOccurrenceBefore(sched, now, window)
+		if !ok {
+			continue
+		}
+
+		// A missing history row means the task has never run on this database,
+		// so there is nothing to catch up on - a first-ever run belongs on the
+		// task's own schedule, not at startup.
+		lastRun, err := s.GetLastTaskRun(task.Name)
+		if err != nil || lastRun == nil {
+			continue
+		}
+		if !lastRun.StartTime.Before(due) {
+			continue
+		}
+
+		missed = append(missed, missedRun{task: task, due: due})
+	}
+
+	if len(missed) == 0 {
+		return
+	}
+
+	sort.SliceStable(missed, func(i, j int) bool {
+		return missed[i].due.Before(missed[j].due)
+	})
+
+	s.inFlight.Add(1)
+	go func() {
+		defer s.inFlight.Done()
+		for _, run := range missed {
+			log.Printf("INFO: Catch-up: running task '%s' missed at %s", run.task.Name, run.due.UTC().Format(time.RFC3339))
+			s.executeTask(run.task)
+		}
+	}()
+}
+
+// latestOccurrenceBefore returns the most recent time sched fired at or before
+// now, searching back at most window. Schedules are only queryable forwards, so
+// the walk starts at the far edge of the window and steps forward; a schedule
+// that fails to advance ends the walk rather than looping forever.
+func latestOccurrenceBefore(sched Schedule, now time.Time, window time.Duration) (time.Time, bool) {
+	cursor := now.Add(-window)
+	var latest time.Time
+	found := false
+
+	for i := 0; i < maxCatchUpScan; i++ {
+		next := sched.Next(cursor)
+		if !next.After(cursor) || next.After(now) {
+			break
+		}
+		latest = next
+		found = true
+		cursor = next
+	}
+
+	return latest, found
 }
 
 // run is the scheduler's main loop, driven by a time.Ticker.
@@ -189,14 +366,19 @@ func (s *Scheduler) runDueTasks(now time.Time) {
 	s.mu.RUnlock()
 
 	for _, task := range due {
-		go s.executeTask(task)
+		s.inFlight.Add(1)
+		go func(t *Task) {
+			defer s.inFlight.Done()
+			s.executeTask(t)
+		}(task)
 	}
 }
 
-// Stop stops the scheduler's ticker loop, waiting for the loop goroutine to
-// exit. Running task executions are not forcibly cancelled - they complete
-// on their own goroutines per AI.md PART 19's graceful-shutdown requirement.
-func (s *Scheduler) Stop() {
+// StopScheduler stops the scheduler's ticker loop and drains in-flight task
+// executions per AI.md PART 19's Shutdown Behavior: stop dispatching, wait up
+// to 30 seconds for running tasks, then release this node's locks - force-
+// releasing and marking still-running tasks for retry if the wait timed out.
+func (s *Scheduler) StopScheduler() {
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
@@ -209,9 +391,72 @@ func (s *Scheduler) Stop() {
 	s.running = false
 	s.mu.Unlock()
 
-	<-stopped // Wait for the loop goroutine to exit
+	// Wait for the loop goroutine to exit
+	<-stopped
+
+	drained := make(chan struct{})
+	go func() {
+		s.inFlight.Wait()
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+		s.releaseNodeLocks()
+	case <-time.After(shutdownDrainTimeout):
+		interrupted := s.activeTaskNames()
+		log.Printf("WARN: Scheduler shutdown timed out after %v with %d task(s) still running", shutdownDrainTimeout, len(interrupted))
+		s.markTasksInterrupted(interrupted)
+		s.releaseNodeLocks()
+	}
 
 	log.Println("OK: Scheduler stopped")
+}
+
+// activeTaskNames returns the names of the tasks currently executing on this node.
+func (s *Scheduler) activeTaskNames() []string {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+
+	names := make([]string, 0, len(s.active))
+	for name := range s.active {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// releaseNodeLocks clears every scheduler lock still held by this node so a
+// restart (or another cluster node) can pick the tasks up immediately.
+func (s *Scheduler) releaseNodeLocks() {
+	if s.db == nil {
+		return
+	}
+
+	if _, err := s.db.Exec(
+		"UPDATE server_scheduler_state SET locked_by = NULL, locked_at = NULL WHERE locked_by = ?",
+		s.nodeID,
+	); err != nil {
+		log.Printf("WARN: Failed to release scheduler locks for node %s: %v", s.nodeID, err)
+	}
+}
+
+// markTasksInterrupted records tasks that were still running when the shutdown
+// drain timed out, so their state reflects the interruption and the next start
+// retries them instead of reporting a stale success.
+func (s *Scheduler) markTasksInterrupted(names []string) {
+	if s.db == nil || len(names) == 0 {
+		return
+	}
+
+	for _, name := range names {
+		if _, err := s.db.Exec(
+			"UPDATE server_scheduler_state SET last_status = ?, last_error = ?, fail_count = fail_count + 1 WHERE task_id = ?",
+			"interrupted", "interrupted by server shutdown", name,
+		); err != nil {
+			log.Printf("WARN: Failed to mark task '%s' interrupted: %v", name, err)
+		}
+	}
 }
 
 // isGlobalTask returns true if this task should only run on one node
@@ -362,8 +607,11 @@ func (s *Scheduler) executeTask(task *Task) {
 	}
 	defer s.releaseTaskLock(task.Name)
 
+	s.markActive(task.Name, true)
+	defer s.markActive(task.Name, false)
+
 	start := time.Now()
-	err := task.Fn()
+	err := runTaskFn(task)
 	end := time.Now()
 	elapsed := end.Sub(start)
 
@@ -378,14 +626,113 @@ func (s *Scheduler) executeTask(task *Task) {
 		log.Printf("OK: Task '%s' completed in %v", task.Name, elapsed)
 	}
 
+	// AI.md PART 19 retry policy - a failed run is re-attempted before its next
+	// scheduled occurrence, up to max_retries times.
+	s.applyRetryPolicy(task, end, err)
+
 	// Log to audit if enabled
 	s.logTaskExecution(task.Name, elapsed, err)
+
+	// AI.md PART 19 Implementation Requirement 2: all scheduler state lives in
+	// server.db and survives restarts.
+	s.persistTaskState(task, end, err)
 
 	// Record in database last, so that once this row becomes visible to a
 	// caller polling GetLastTaskRun, every side effect of the run has
 	// already completed - avoids a caller tearing down the DB (e.g. test
 	// cleanup) while logTaskExecution is still in flight.
 	s.RecordTaskRun(task.Name, start, end, err)
+}
+
+// runTaskFn invokes a task's function inside its own panic/recover boundary.
+// AI.md PART 19: a panicking task MUST be logged and marked failed for that run
+// while the scheduler loop keeps running and still fires the next occurrence.
+func runTaskFn(task *Task) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("ERROR: Task '%s' panicked: %v\n%s", task.Name, r, debug.Stack())
+			err = fmt.Errorf("task panicked: %v", r)
+		}
+	}()
+
+	return task.Fn()
+}
+
+// markActive records whether a task is currently executing on this node, so
+// shutdown can name the tasks it interrupted.
+func (s *Scheduler) markActive(taskName string, active bool) {
+	s.activeMu.Lock()
+	defer s.activeMu.Unlock()
+
+	if active {
+		s.active[taskName] = true
+		return
+	}
+	delete(s.active, taskName)
+}
+
+// applyRetryPolicy advances a failed task's next run to the retry delay for its
+// current attempt (5m, then 10m, then 20m). Once max_retries is exhausted, or
+// when the run succeeded, the task falls back to its normal schedule.
+func (s *Scheduler) applyRetryPolicy(task *Task, end time.Time, runErr error) {
+	task.mu.Lock()
+	defer task.mu.Unlock()
+
+	if runErr == nil {
+		task.retryCount = 0
+		return
+	}
+
+	if task.retryCount >= len(retryDelays) {
+		task.retryCount = 0
+		return
+	}
+
+	retryAt := end.Add(retryDelays[task.retryCount])
+	task.retryCount++
+
+	// Never push a run later than its own schedule would have placed it.
+	if task.nextRun.IsZero() || retryAt.Before(task.nextRun) {
+		task.nextRun = retryAt
+		log.Printf("INFO: Task '%s' retry %d/%d scheduled for %s", task.Name, task.retryCount, len(retryDelays), retryAt.UTC().Format(time.RFC3339))
+	}
+}
+
+// persistTaskState writes the outcome of a run into server_scheduler_state so
+// the admin panel, health endpoint, and a restarted process all see real
+// last_run/last_status/next_run/run_count/fail_count values.
+func (s *Scheduler) persistTaskState(task *Task, end time.Time, runErr error) {
+	if s.db == nil {
+		return
+	}
+
+	task.mu.Lock()
+	nextRun := task.nextRun
+	task.mu.Unlock()
+
+	status := "success"
+	errText := ""
+	failIncrement := 0
+	if runErr != nil {
+		status = "failed"
+		errText = runErr.Error()
+		failIncrement = 1
+	}
+
+	nextRunText := ""
+	if !nextRun.IsZero() {
+		nextRunText = dbtime.FormatSQLTimestamp(nextRun)
+	}
+
+	if _, err := s.db.Exec(
+		`UPDATE server_scheduler_state
+		 SET last_run = ?, last_status = ?, last_error = ?, next_run = ?,
+		     run_count = run_count + 1, fail_count = fail_count + ?
+		 WHERE task_id = ?`,
+		dbtime.FormatSQLTimestamp(end), status, errText, nextRunText, failIncrement, task.Name,
+	); err != nil {
+		log.Printf("WARN: Failed to persist scheduler state for task '%s': %v", task.Name, err)
+	}
 }
 
 // logTaskExecution logs task execution to audit log
@@ -665,7 +1012,7 @@ func createNotification(userID int, notifType model.NotificationType, title, mes
 	// severity as a toast; weather alerts follow the same mapping.
 	action := &model.NotificationAction{Label: actionLabel, URL: link}
 
-	if _, err := notifications.Create(userID, notifType, model.NotificationDisplayToast, title, message, action); err != nil {
+	if _, err := notifications.CreateUserNotification(userID, notifType, model.NotificationDisplayToast, title, message, action); err != nil {
 		log.Printf("WARNING: Failed to create notification: %v", err)
 	}
 }
@@ -687,7 +1034,7 @@ func CreateSystemBackup(db *sql.DB) error {
 		return fmt.Errorf("failed to get default paths for backup")
 	}
 
-	// Create backup service per AI.md PART 25
+	// Create backup service per AI.md PART 22 (Backup Command)
 	svc := backup.New(p.ConfigDir, p.DataDir)
 
 	// AI.md PART 22 Backup Creation Flow step 2: abort (log
@@ -723,7 +1070,7 @@ func CreateSystemBackup(db *sql.DB) error {
 	}
 
 	log.Println("INFO: Starting automated backup...")
-	backupPath, deleted, err := svc.Create(fullOpts)
+	backupPath, deleted, err := svc.CreateBackupArchive(fullOpts)
 	if err != nil {
 		log.Printf("ERROR: Automated backup failed: %v", err)
 		return fmt.Errorf("backup failed: %w", err)
@@ -739,7 +1086,7 @@ func CreateSystemBackup(db *sql.DB) error {
 	dailyOpts.OutputPath = ""
 	dailyOpts.Kind = backup.KindDailyIncremental
 
-	dailyPath, dailyDeleted, dailyErr := svc.Create(dailyOpts)
+	dailyPath, dailyDeleted, dailyErr := svc.CreateBackupArchive(dailyOpts)
 	if dailyErr != nil {
 		log.Printf("ERROR: Daily incremental backup failed: %v", dailyErr)
 		return fmt.Errorf("daily incremental backup failed: %w", dailyErr)
@@ -1443,7 +1790,7 @@ func UpdateCVEDatabase() error {
 }
 
 // ClusterHeartbeat sends a heartbeat to indicate this node is alive
-// AI.md PART 19 line 24792: cluster.heartbeat every 30 seconds (cluster mode only)
+// AI.md PART 19 (Built-in Tasks): cluster_heartbeat every 30 seconds (cluster mode only)
 func ClusterHeartbeat(nodeID string) error {
 	// Check if cluster mode is enabled
 	var clusterEnabled string

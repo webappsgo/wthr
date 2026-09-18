@@ -1,4 +1,4 @@
-// Tests for maintenance.go per AI.md PART 25 (Maintenance) / PART 29 (Testing)
+// Tests for maintenance.go per AI.md PART 22 (Backup & Restore) / PART 29 (Testing)
 package cli
 
 import (

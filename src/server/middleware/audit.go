@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -91,7 +90,7 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 				// failure to record one is itself a security event and belongs in
 				// the log at full detail (console and log files are the audience
 				// allowed to see internal errors).
-				log.Printf("audit: failed to record admin action %q on %q by %s %q from %s: %v",
+				util.LogError("audit: failed to record admin action %q on %q by %s %q from %s: %v",
 					action, resource, actorType, actorID, clientIP, err)
 			}
 		})

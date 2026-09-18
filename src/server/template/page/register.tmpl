@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/css/common.css">
     <link rel="stylesheet" href="/static/css/components.css">
     <link rel="stylesheet" href="/static/css/public.css">
+    <script src="/static/js/app.js" defer></script>
 </head>
 <body>
     <div class="register-container">
@@ -80,11 +81,14 @@
                        id="confirm_password"
                        name="confirm_password"
                        required
+                       data-match-with="#password"
+                       data-mismatch-message="{{t .server.Lang "register_js_passwords_no_match"}}"
                        aria-label="{{t .server.Lang "register_confirm_password_label"}}"
                        aria-required="true"
-                       aria-describedby="password-match-help"
+                       aria-describedby="password-match-help confirm_password-error"
                        title="{{t .server.Lang "register_confirm_password_title"}}">
                 <small id="password-match-help" class="sr-only">{{t .server.Lang "register_password_match_help"}}</small>
+                <span id="confirm_password-error" class="field-error" role="alert">{{t .server.Lang "register_js_passwords_no_match"}}</span>
             </div>
 
             <button type="submit"
@@ -104,74 +108,12 @@
         </div>
     </div>
 
-    <script>
-        const I18N = {
-            passwordStrengthWeak: '{{t .server.Lang "register_js_strength_weak"}}',
-            passwordStrengthMedium: '{{t .server.Lang "register_js_strength_medium"}}',
-            passwordStrengthStrong: '{{t .server.Lang "register_js_strength_strong"}}',
-            passwordTooShort: '{{t .server.Lang "register_js_password_too_short"}}',
-            passwordsDoNotMatch: '{{t .server.Lang "register_js_passwords_no_match"}}'
-        };
-
-        const passwordInput = document.getElementById('password');
-        const confirmInput = document.getElementById('confirm_password');
-        const strengthBar = document.getElementById('strengthBar');
-        const form = document.getElementById('registerForm');
-
-        // Password strength checker
-        passwordInput.addEventListener('input', function() {
-            const password = this.value;
-            let strength = 0;
-            const strengthIndicator = document.getElementById('password-strength-indicator');
-
-            if (password.length >= 8) strength++;
-            if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength++;
-            if (password.match(/[0-9]/)) strength++;
-            if (password.match(/[^a-zA-Z0-9]/)) strength++;
-
-            strengthBar.className = 'password-strength-bar';
-            strengthBar.setAttribute('aria-valuenow', strength);
-
-            if (strength <= 1) {
-                strengthBar.classList.add('weak');
-                strengthIndicator.textContent = I18N.passwordStrengthWeak;
-            } else if (strength <= 3) {
-                strengthBar.classList.add('medium');
-                strengthIndicator.textContent = I18N.passwordStrengthMedium;
-            } else {
-                strengthBar.classList.add('strong');
-                strengthIndicator.textContent = I18N.passwordStrengthStrong;
-            }
-        });
-
-        // Form validation
-        form.addEventListener('submit', function(e) {
-            const password = passwordInput.value;
-            const confirm = confirmInput.value;
-
-            if (password.length < 8) {
-                e.preventDefault();
-                showAlert(I18N.passwordTooShort);
-                return;
-            }
-
-            if (password !== confirm) {
-                e.preventDefault();
-                showAlert(I18N.passwordsDoNotMatch);
-                return;
-            }
-        });
-
-        // Match confirmation password visual feedback
-        confirmInput.addEventListener('input', function() {
-            if (this.value && this.value !== passwordInput.value) {
-                this.classList.add('register-password-mismatch');
-                this.classList.remove('register-password-match');
-            } else {
-                this.classList.remove('register-password-mismatch');
-                this.classList.add('register-password-match');
-            }
-        });
+    <script type="application/json" id="register-data">
+        {
+            "weak": "{{t .server.Lang "register_js_strength_weak"}}",
+            "medium": "{{t .server.Lang "register_js_strength_medium"}}",
+            "strong": "{{t .server.Lang "register_js_strength_strong"}}"
+        }
     </script>
 </body>
 </html>

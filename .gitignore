@@ -1,5 +1,4 @@
 # gitignore created on 04/28/26 at 22:03
-# Disable reminder in prompt
 ignoredirmessage
 
 # ignore .build_failed files

@@ -31,7 +31,7 @@ func TestConfigWatcher_NewConfigWatcher_Success(t *testing.T) {
 	if cw.configPath != cfgPath {
 		t.Errorf("configPath = %q, want %q", cw.configPath, cfgPath)
 	}
-	if err := cw.Stop(); err != nil {
+	if err := cw.StopConfigWatcher(); err != nil {
 		t.Errorf("Stop() unexpected error: %v", err)
 	}
 }
@@ -50,7 +50,7 @@ func TestConfigWatcher_NewConfigWatcher_NilReloadFunc(t *testing.T) {
 	if cw.reloadFunc != nil {
 		t.Error("expected reloadFunc to remain nil")
 	}
-	if err := cw.Stop(); err != nil {
+	if err := cw.StopConfigWatcher(); err != nil {
 		t.Errorf("Stop() unexpected error: %v", err)
 	}
 }
@@ -69,10 +69,10 @@ func TestConfigWatcher_Start_ValidDir(t *testing.T) {
 		t.Fatalf("NewConfigWatcher() unexpected error: %v", err)
 	}
 
-	if err := cw.Start(); err != nil {
+	if err := cw.StartConfigWatcher(); err != nil {
 		t.Fatalf("Start() unexpected error: %v", err)
 	}
-	if err := cw.Stop(); err != nil {
+	if err := cw.StopConfigWatcher(); err != nil {
 		t.Errorf("Stop() unexpected error: %v", err)
 	}
 }
@@ -87,9 +87,9 @@ func TestConfigWatcher_Start_MissingDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfigWatcher() unexpected error: %v", err)
 	}
-	defer cw.Stop()
+	defer cw.StopConfigWatcher()
 
-	if err := cw.Start(); err == nil {
+	if err := cw.StartConfigWatcher(); err == nil {
 		t.Fatal("expected Start() to fail for a nonexistent config directory, got nil")
 	}
 }
@@ -113,10 +113,10 @@ func TestConfigWatcher_UnrelatedFileWrite_NoTrigger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfigWatcher() unexpected error: %v", err)
 	}
-	if err := cw.Start(); err != nil {
+	if err := cw.StartConfigWatcher(); err != nil {
 		t.Fatalf("Start() unexpected error: %v", err)
 	}
-	defer cw.Stop()
+	defer cw.StopConfigWatcher()
 
 	if err := os.WriteFile(otherPath, []byte("noise"), 0o644); err != nil {
 		t.Fatalf("write unrelated file: %v", err)
@@ -156,7 +156,7 @@ func TestConfigWatcher_ConfigFileWrite_DoesNotPanic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConfigWatcher() unexpected error: %v", err)
 	}
-	if err := cw.Start(); err != nil {
+	if err := cw.StartConfigWatcher(); err != nil {
 		t.Fatalf("Start() unexpected error: %v", err)
 	}
 
@@ -167,7 +167,7 @@ func TestConfigWatcher_ConfigFileWrite_DoesNotPanic(t *testing.T) {
 	// Wait past the debounce window with margin for the reload attempt to run.
 	time.Sleep(800 * time.Millisecond)
 
-	if err := cw.Stop(); err != nil {
+	if err := cw.StopConfigWatcher(); err != nil {
 		t.Errorf("Stop() unexpected error: %v", err)
 	}
 

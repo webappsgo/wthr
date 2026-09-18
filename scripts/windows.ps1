@@ -1,16 +1,16 @@
-# Weather Service - Windows Installer
+# wthr Weather Service - Windows Installer
 # PowerShell installation script with Windows Service support
 
 param(
     [string]$Version = "latest",
-    [string]$InstallDir = "$env:ProgramFiles\Weather",
-    [string]$DataDir = "$env:ProgramData\Weather",
+    [string]$InstallDir = "$env:ProgramFiles\webappsgo\wthr",
+    [string]$DataDir = "$env:ProgramData\webappsgo\wthr",
     [switch]$InstallService
 )
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "🌤️  Weather Service - Windows Installer" -ForegroundColor Cyan
+Write-Host "🌤️  wthr Weather Service - Windows Installer" -ForegroundColor Cyan
 Write-Host ""
 
 # Detect architecture
@@ -100,13 +100,13 @@ try {
 
         # Create NSSM configuration (if NSSM is available)
         if (Get-Command nssm -ErrorAction SilentlyContinue) {
-            nssm install Weather "$DestFile"
-            nssm set Weather AppDirectory "$DataDir"
-            nssm set Weather AppEnvironmentExtra "PORT=3000" "DATABASE_PATH=$DataDir\weather.db" "GIN_MODE=release"
-            nssm set Weather Description "Weather Service - Beautiful weather API"
-            nssm set Weather Start SERVICE_AUTO_START
+            nssm install wthr "$DestFile"
+            nssm set wthr AppDirectory "$DataDir"
+            nssm set wthr AppEnvironmentExtra "DATA_DIR=$DataDir" "MODE=production"
+            nssm set wthr Description "wthr Weather Service"
+            nssm set wthr Start SERVICE_AUTO_START
 
-            Write-Host "✓ Service installed. Start with: nssm start Weather" -ForegroundColor Green
+            Write-Host "✓ Service installed. Start with: nssm start wthr" -ForegroundColor Green
         } else {
             Write-Host "⚠️  NSSM not found. To install as a service:" -ForegroundColor Yellow
             Write-Host "   1. Install NSSM: choco install nssm"

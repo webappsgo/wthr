@@ -43,7 +43,7 @@ func (h *TorAdminHandler) EnableService(httpPort int) (map[string]interface{}, e
 	if err := h.settingsModel.SetBool("tor.enabled", true); err != nil {
 		return nil, fmt.Errorf("failed to update settings: %w", err)
 	}
-	if err := h.torService.Start(httpPort); err != nil {
+	if err := h.torService.StartTorService(httpPort); err != nil {
 		return nil, fmt.Errorf("failed to start Tor: %w", err)
 	}
 	return h.torService.GetStatus(), nil
@@ -53,7 +53,7 @@ func (h *TorAdminHandler) DisableService() error {
 	if err := h.settingsModel.SetBool("tor.enabled", false); err != nil {
 		return fmt.Errorf("failed to update settings: %w", err)
 	}
-	if err := h.torService.Stop(); err != nil {
+	if err := h.torService.StopTorService(); err != nil {
 		return fmt.Errorf("failed to stop Tor: %w", err)
 	}
 	return nil
@@ -71,7 +71,7 @@ func (h *TorAdminHandler) GetVanityGenerationStatus() *service.VanityGenerationS
 }
 
 func (h *TorAdminHandler) StartVanityGeneration(prefix string) error {
-	if err := h.vanityGenerator.Start(prefix); err != nil {
+	if err := h.vanityGenerator.StartVanityGeneration(prefix); err != nil {
 		return fmt.Errorf("failed to start generation: %w", err)
 	}
 	go h.monitorVanityGeneration()
@@ -156,7 +156,7 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Start Tor service
-	if err := h.torService.Start(httpPort); err != nil {
+	if err := h.torService.StartTorService(httpPort); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "TOR_START_FAILED",
@@ -188,7 +188,7 @@ func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stop Tor service
-	if err := h.torService.Stop(); err != nil {
+	if err := h.torService.StopTorService(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "TOR_STOP_FAILED",
@@ -288,7 +288,7 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.vanityGenerator.Start(req.Prefix); err != nil {
+	if err := h.vanityGenerator.StartVanityGeneration(req.Prefix); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "GENERATION_FAILED",

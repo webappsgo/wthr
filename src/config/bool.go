@@ -6,7 +6,7 @@ import (
 )
 
 // Truthy values (case-insensitive)
-// AI.md PART 4: Boolean Handling
+// AI.md PART 5: Boolean Handling
 var truthyValues = map[string]bool{
 	"1": true, "y": true, "t": true,
 	"yes": true, "true": true, "on": true, "ok": true,

@@ -30,11 +30,11 @@ func newUserPublicTestHandler(t *testing.T) (*UserPublicHandler, *sql.DB) {
 	return NewUserPublicHandler(usersDB), usersDB
 }
 
-// seedPublicUser creates a user via UserModel.Create (real Argon2id hashing)
-// and returns it.
+// seedPublicUser creates a user via UserModel.CreateUserAccount (real Argon2id
+// hashing) and returns it.
 func seedPublicUser(t *testing.T, usersDB *sql.DB, username, email, password string) *models.User {
 	t.Helper()
-	u, err := (&models.UserModel{DB: usersDB}).Create(username, email, password, "user")
+	u, err := (&models.UserModel{DB: usersDB}).CreateUserAccount(username, email, password, "user")
 	if err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
@@ -520,23 +520,18 @@ func TestUserPublicHandler_UpdateAvatarSettings(t *testing.T) {
 		}
 	})
 
-	// NOTE: UpdateAvatarSettings compares err.Error() against capitalized
-	// strings ("URL is required for url avatar type", "avatar URL must use
-	// HTTPS") but updateCurrentUserAvatar actually returns the lowercase
-	// forms ("url is required for url avatar type", "avatar url must use
-	// HTTPS"). The comparison never matches, so these validation errors
-	// fall through to the generic 500 branch instead of 400. This is a
-	// pre-existing production bug (case-mismatch in the error-string
-	// switch); documented here rather than fixed, since fixing production
-	// code is out of scope for this test-only change. See final report.
-	t.Run("url type without https falls through to 500 (case-mismatch bug)", func(t *testing.T) {
+	// AI.md PART 9: validation failures map to BAD_REQUEST -> 400.
+	// avatarValidationKey compares via errors.Is against the ErrAvatar*
+	// sentinels (see the var block above), not err.Error() text, so an
+	// insecure URL correctly reaches the 400 branch.
+	t.Run("url type without https returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "updavatar3", "updavatar3@example.com", "password123")
 		r, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/users/avatar", map[string]interface{}{"type": "url", "url": "http://insecure.example.com/a.png"})
 		r = setAdminCurrentUser(r, u.ID)
 		h.UpdateAvatarSettings(w, r)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500 (documents case-mismatch bug in UpdateAvatarSettings error switch); body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 
@@ -637,24 +632,18 @@ func TestUserPublicHandler_UploadAvatar(t *testing.T) {
 		}
 	})
 
-	// NOTE: UploadAvatar's error switch compares err.Error() against
-	// capitalized strings ("No file uploaded", "File too large (max 2MB)",
-	// "Invalid image type") but uploadCurrentUserAvatar returns lowercase
-	// forms ("no file uploaded", "file too large (max 2MB)", "invalid image
-	// type"). None of the switch cases ever match, so every validation
-	// error from uploadCurrentUserAvatar falls through to the generic 500
-	// branch instead of 400. This is a pre-existing production bug
-	// (case-mismatch in the error-string switch); documented here rather
-	// than fixed, since fixing production code is out of scope for this
-	// test-only change. See final report.
-	t.Run("invalid content type falls through to 500 (case-mismatch bug)", func(t *testing.T) {
+	// AI.md PART 9: validation failures map to BAD_REQUEST -> 400.
+	// uploadCurrentUserAvatar returns the ErrAvatarInvalidImage sentinel for
+	// a disallowed content type, and avatarValidationKey compares via
+	// errors.Is, so this correctly reaches the 400 branch.
+	t.Run("invalid content type returns 400", func(t *testing.T) {
 		h, usersDB := newUserPublicTestHandler(t)
 		u := seedPublicUser(t, usersDB, "uploadbadtype", "uploadbadtype@example.com", "password123")
 		r, w := newMultipartAvatarContext(t, "avatar.txt", "text/plain", []byte("not an image"))
 		r = setAdminCurrentUser(r, u.ID)
 		h.UploadAvatar(w, r)
-		if w.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500 (documents case-mismatch bug in UploadAvatar error switch); body=%s", w.Code, w.Body.String())
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
 		}
 	})
 }
@@ -859,6 +848,115 @@ func TestUserPublicHandler_ChangeEmail(t *testing.T) {
 			t.Fatalf("email_verified = true, want false after email change")
 		}
 	})
+
+	t.Run("mixed case address is stored lowercase", func(t *testing.T) {
+		h, usersDB := newUserPublicTestHandler(t)
+		u := seedPublicUser(t, usersDB, "ce6", "ce6@example.com", "password123")
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+			"new_email":        "CE6-New@Example.COM",
+			"current_password": "password123",
+		})
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+
+		var email string
+		if err := usersDB.QueryRow(`SELECT email FROM user_accounts WHERE id = ?`, u.ID).Scan(&email); err != nil {
+			t.Fatalf("query updated user: %v", err)
+		}
+		if email != "ce6-new@example.com" {
+			t.Fatalf("email = %q, want ce6-new@example.com", email)
+		}
+	})
+
+	t.Run("case-insensitive collision returns 409", func(t *testing.T) {
+		h, usersDB := newUserPublicTestHandler(t)
+		seedPublicUser(t, usersDB, "ce7other", "taken-ce7@example.com", "password123")
+		u := seedPublicUser(t, usersDB, "ce7", "ce7@example.com", "password123")
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+			"new_email":        "Taken-CE7@Example.com",
+			"current_password": "password123",
+		})
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
+		if w.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	// util.ValidateEmailWithBlocklist blocks disposable email domains (AI.md
+	// PART 33's optional blocklist), not local-part patterns — the username
+	// blocklist (AI.md PART 34) is a separate check scoped to the `username`
+	// field, never applied to the email address.
+	t.Run("disposable domain returns 400", func(t *testing.T) {
+		h, usersDB := newUserPublicTestHandler(t)
+		u := seedPublicUser(t, usersDB, "ce8", "ce8@example.com", "password123")
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+			"new_email":        "someone@mailinator.com",
+			"current_password": "password123",
+		})
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("two factor enabled without code returns 401", func(t *testing.T) {
+		h, usersDB := newUserPublicTestHandler(t)
+		u := seedPublicUser(t, usersDB, "ce9", "ce9@example.com", "password123")
+		if _, err := usersDB.Exec(`UPDATE user_accounts SET two_factor_enabled = 1 WHERE id = ?`, u.ID); err != nil {
+			t.Fatalf("enable 2fa: %v", err)
+		}
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/email", map[string]interface{}{
+			"new_email":        "ce9-new@example.com",
+			"current_password": "password123",
+		})
+		r = setAdminCurrentUser(r, u.ID)
+		h.ChangeEmail(w, r)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
+		}
+
+		var email string
+		if err := usersDB.QueryRow(`SELECT email FROM user_accounts WHERE id = ?`, u.ID).Scan(&email); err != nil {
+			t.Fatalf("query user: %v", err)
+		}
+		if email != "ce9@example.com" {
+			t.Fatalf("email = %q, want unchanged ce9@example.com", email)
+		}
+	})
+}
+
+func TestAvatarValidationKey(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		wantOK bool
+	}{
+		{"invalid type", ErrAvatarInvalidType, true},
+		{"url required", ErrAvatarURLRequired, true},
+		{"url not https", ErrAvatarURLNotHTTPS, true},
+		{"url svg", ErrAvatarURLSVG, true},
+		{"no file", ErrAvatarNoFile, true},
+		{"too large", ErrAvatarTooLarge, true},
+		{"invalid image", ErrAvatarInvalidImage, true},
+		{"unrelated error", sql.ErrConnDone, false},
+		{"nil error", nil, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key, ok := avatarValidationKey(tc.err)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if ok && key == "" {
+				t.Fatalf("translation key is empty for %v", tc.err)
+			}
+		})
+	}
 }
 
 func TestUserPublicHandler_DeleteAccount(t *testing.T) {

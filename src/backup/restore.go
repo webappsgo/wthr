@@ -1,4 +1,4 @@
-// Package backup - restore functionality per AI.md PART 25 lines 22588-22649
+// Package backup - restore functionality per AI.md PART 22 (Restore)
 package backup
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/webappsgo/wthr/src/util"
 )
 
-// RestoreOptions configures backup restoration per AI.md PART 25
+// RestoreOptions configures backup restoration per AI.md PART 22
 type RestoreOptions struct {
 	BackupPath string
 	Password   string
@@ -24,7 +24,9 @@ type RestoreOptions struct {
 	Force      bool
 }
 
-// Restore restores from a backup file per AI.md PART 25 lines 22588-22649
+// Restore restores from a backup file per AI.md PART 22 (Restore Verification,
+// Restore Behavior). Verification runs first and a failure aborts the restore
+// before anything on disk is touched.
 func (s *BackupService) Restore(opts RestoreOptions) error {
 	// Set defaults
 	if opts.ConfigDir == "" {
@@ -34,13 +36,20 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 		opts.DataDir = s.dataDir
 	}
 
+	// Per AI.md PART 22 Restore Verification: "Only proceed with restore if ALL
+	// verification checks pass." Verify covers file exists/readable, format,
+	// decrypt test, checksum vs manifest, manifest parse and database integrity.
+	if err := s.Verify(opts.BackupPath, opts.Password); err != nil {
+		return fmt.Errorf("backup verification failed, restore aborted: %w", err)
+	}
+
 	// Read backup file
 	data, err := os.ReadFile(opts.BackupPath)
 	if err != nil {
 		return fmt.Errorf("failed to read backup: %w", err)
 	}
 
-	// Decrypt if encrypted per AI.md PART 25 line 22463
+	// Decrypt if encrypted per AI.md PART 22 (Encryption)
 	if filepath.Ext(opts.BackupPath) == ".enc" {
 		if opts.Password == "" {
 			return fmt.Errorf("backup is encrypted, password required")
@@ -52,13 +61,13 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 		data = decrypted
 	}
 
-	// Extract manifest per AI.md PART 25 line 22554
+	// Extract manifest per AI.md PART 22 (Verification)
 	manifest, err := s.extractManifest(data)
 	if err != nil {
 		return fmt.Errorf("failed to extract manifest: %w", err)
 	}
 
-	// Version check per AI.md PART 25 line 22600
+	// Version check per AI.md PART 22 (Restore Behavior)
 	// Warning shown but proceed with schema updates if needed
 	fmt.Printf("Restoring backup created at %s (version %s)\n",
 		manifest.CreatedAt.Format("2006-01-02 15:04:05"),
@@ -164,10 +173,10 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 			continue
 		}
 
-		// Determine destination path per AI.md PART 25 backup contents
+		// Determine destination path per AI.md PART 22 backup contents
 		var destPath string
 		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "template/") ||
-			strings.HasPrefix(header.Name, "themes/") || strings.HasPrefix(header.Name, "ssl/") {
+			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") {
 			destPath = filepath.Join(configDir, header.Name)
 		} else {
 			destPath = filepath.Join(dataDir, header.Name)
@@ -186,7 +195,7 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 			return err
 		}
 
-		// Extract file per AI.md PART 25 line 22596
+		// Extract file per AI.md PART 22 (Restore Behavior)
 		// "Overwrites current config and database"
 		outFile, err := os.Create(destPath)
 		if err != nil {

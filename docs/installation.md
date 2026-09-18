@@ -44,7 +44,7 @@ sudo mv wthr-linux-amd64 /usr/local/bin/wthr
 wthr
 ```
 
-On first run, Weather generates `server.yml` in `{config_dir}` and creates its data/log directories automatically.
+On first run, wthr generates `server.yml` in `{config_dir}` and creates its data/log directories automatically.
 
 ## Service Installation
 

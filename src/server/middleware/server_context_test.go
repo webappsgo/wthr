@@ -100,7 +100,7 @@ func TestInjectServerContext_UsesStoredSettingsAndUpstreamLang(t *testing.T) {
 
 	setLang := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := reqctx.Set(r.Context(), "lang", "fr")
+			ctx := reqctx.SetValue(r.Context(), "lang", "fr")
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

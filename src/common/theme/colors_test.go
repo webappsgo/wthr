@@ -8,7 +8,8 @@ func TestGetThemePalette(t *testing.T) {
 	tests := []struct {
 		name      string
 		themeMode string
-		want      *ThemePalette // nil means "either dark or light is acceptable"
+		// nil means "either dark or light is acceptable"
+		want *ThemePalette
 	}{
 		{"dark", "dark", &ThemePaletteDark},
 		{"light", "light", &ThemePaletteLight},
@@ -82,7 +83,8 @@ func TestGetTerminalPalette(t *testing.T) {
 	tests := []struct {
 		name      string
 		themeMode string
-		want      *TerminalPalette // nil means "either dark or light is acceptable"
+		// nil means "either dark or light is acceptable"
+		want *TerminalPalette
 	}{
 		{"dark", "dark", &TerminalPaletteDark},
 		{"light", "light", &TerminalPaletteLight},

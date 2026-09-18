@@ -145,7 +145,8 @@ func TestTUIModelSelectMenuItem(t *testing.T) {
 		config := DefaultConfig()
 		config.Location = "Denver"
 		m := newTUIModel(config)
-		m.cursor = 0 // current
+		// current
+		m.cursor = 0
 
 		updated, cmd := m.selectMenuItem()
 		tm := updated.(tuiModel)
@@ -162,7 +163,8 @@ func TestTUIModelSelectMenuItem(t *testing.T) {
 
 	t.Run("history selects input view with empty input", func(t *testing.T) {
 		m := newTUIModel(DefaultConfig())
-		m.cursor = 4 // history
+		// history
+		m.cursor = 4
 		updated, _ := m.selectMenuItem()
 		tm := updated.(tuiModel)
 		if tm.view != viewInput {
@@ -175,7 +177,8 @@ func TestTUIModelSelectMenuItem(t *testing.T) {
 
 	t.Run("earthquakes fetches directly without input", func(t *testing.T) {
 		m := newTUIModel(DefaultConfig())
-		m.cursor = 5 // earthquakes
+		// earthquakes
+		m.cursor = 5
 		updated, cmd := m.selectMenuItem()
 		tm := updated.(tuiModel)
 		if !tm.loading {

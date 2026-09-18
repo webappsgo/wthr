@@ -47,8 +47,8 @@ func TestRecovery_JSONResponse(t *testing.T) {
 	if body["ok"] != false {
 		t.Errorf("body[ok] = %v, want false", body["ok"])
 	}
-	if body["error"] != "INTERNAL_ERROR" {
-		t.Errorf("body[error] = %v, want INTERNAL_ERROR", body["error"])
+	if body["error"] != "SERVER_ERROR" {
+		t.Errorf("body[error] = %v, want SERVER_ERROR", body["error"])
 	}
 	if _, hasStack := body["stack"]; hasStack {
 		t.Error("response leaked a stack trace field")
@@ -71,8 +71,8 @@ func TestRecovery_TextResponse(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusInternalServerError)
 	}
-	if !strings.Contains(w.Body.String(), "INTERNAL_ERROR") {
-		t.Errorf("text body = %q, want it to mention INTERNAL_ERROR", w.Body.String())
+	if !strings.Contains(w.Body.String(), "SERVER_ERROR") {
+		t.Errorf("text body = %q, want it to mention SERVER_ERROR", w.Body.String())
 	}
 }
 

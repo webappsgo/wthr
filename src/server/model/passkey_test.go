@@ -126,7 +126,7 @@ func TestUserPasskeyModel_CreateListCountDelete(t *testing.T) {
 		}
 	})
 
-	created, err := model.Create(userID, "My Key", testCredential(1))
+	created, err := model.CreateUserPasskey(userID, "My Key", testCredential(1))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -136,7 +136,7 @@ func TestUserPasskeyModel_CreateListCountDelete(t *testing.T) {
 	if created.Name != "My Key" {
 		t.Errorf("Create() name = %q, want %q", created.Name, "My Key")
 	}
-	if _, err := model.Create(userID, "Second Key", testCredential(2)); err != nil {
+	if _, err := model.CreateUserPasskey(userID, "Second Key", testCredential(2)); err != nil {
 		t.Fatalf("Create() second key error = %v", err)
 	}
 

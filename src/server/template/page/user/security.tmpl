@@ -120,10 +120,10 @@
 </div>
 
 <!-- 2FA Setup Modal -->
-<div id="setup2FAModal" class="modal d-none">
-    <div class="modal-content">
+<div id="setup2FAModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="setup2FATitle">
+    <div class="modal modal-md">
         <div class="modal-header">
-            <h3>{{t .server.Lang "security_enable_2fa"}}</h3>
+            <h3 id="setup2FATitle" class="modal-title">{{t .server.Lang "security_enable_2fa"}}</h3>
             <button class="modal-close" data-action="close-setup-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
@@ -171,10 +171,10 @@
 </div>
 
 <!-- Disable 2FA Modal -->
-<div id="disable2FAModal" class="modal d-none">
-    <div class="modal-content">
+<div id="disable2FAModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="disable2FATitle">
+    <div class="modal">
         <div class="modal-header">
-            <h3>{{t .server.Lang "security_disable_2fa"}}</h3>
+            <h3 id="disable2FATitle" class="modal-title">{{t .server.Lang "security_disable_2fa"}}</h3>
             <button class="modal-close" data-action="close-disable-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
@@ -194,66 +194,6 @@
         </div>
     </div>
 </div>
-
-<style>
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-.modal-content {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    max-width: 600px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-.modal-header {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-comment);
-}
-.modal-body {
-    padding: 1.5rem;
-}
-#qrCodeContainer img {
-    max-width: 200px;
-    border: 2px solid var(--border);
-    border-radius: 8px;
-}
-#recoveryKeysContainer {
-    background: var(--bg-dark);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1rem;
-    font-family: monospace;
-    font-size: 0.9rem;
-}
-.recovery-key {
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    background: var(--bg);
-    border-radius: 4px;
-}
-</style>
 
 <script type="application/json" id="security-data">
 {"apiPath": "{{.api_path}}"}

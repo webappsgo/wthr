@@ -52,13 +52,13 @@ func newAuthAPITestRequest(t *testing.T, method, target string, body interface{}
 // withAuthAPISession attaches an authenticated session to the request
 // context, the same key middleware.AuthMiddleware sets on a real request.
 func withAuthAPISession(r *http.Request, session *models.Session) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), middleware.SessionContextKey, session))
+	return r.WithContext(reqctx.SetValue(r.Context(), middleware.SessionContextKey, session))
 }
 
 // withAuthAPIUser attaches an authenticated user to the request context,
 // the same key middleware.AuthMiddleware sets on a real request.
 func withAuthAPIUser(r *http.Request, user *models.User) *http.Request {
-	return r.WithContext(reqctx.Set(r.Context(), middleware.UserContextKey, user))
+	return r.WithContext(reqctx.SetValue(r.Context(), middleware.UserContextKey, user))
 }
 
 // withAuthAPIURLParam attaches a chi route param to the request context.
@@ -260,7 +260,7 @@ func TestHandleAPILogout(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "logoutuser", "logoutuser@example.com", "correcthorse123")
 		sessionModel := &models.SessionModel{DB: h.DB}
-		session, err := sessionModel.Create(userID, 3600)
+		session, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
@@ -408,7 +408,7 @@ func TestHandleAPIRefresh(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "refreshuser", "refreshuser@example.com", "correcthorse123")
 		sessionModel := &models.SessionModel{DB: h.DB}
-		session, err := sessionModel.Create(userID, 3600)
+		session, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}
@@ -551,7 +551,7 @@ func TestHandleAPIPasswordReset(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		userID := seedAuthUser(t, h.DB, "resetuser", "resetuser@example.com", "oldpassword1")
 		sessionModel := &models.SessionModel{DB: h.DB}
-		oldSession, err := sessionModel.Create(userID, 3600)
+		oldSession, err := sessionModel.CreateSession(userID, 3600)
 		if err != nil {
 			t.Fatalf("create session: %v", err)
 		}

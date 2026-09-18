@@ -102,18 +102,62 @@ connections receive global alert broadcasts.
 
 ## Prometheus Metrics
 
-wthr exposes Prometheus-compatible metrics at `/metrics`. Scrape authentication can be configured
-in the admin panel or `server.yml`.
+wthr exposes Prometheus text-exposition metrics, prefixed `wthr_`. The endpoint is **internal
+only** — block it at your firewall, reverse proxy, or NetworkPolicy and never expose it to the
+public internet.
+
+The same handler is mounted at every one of these paths (no redirects):
+
+| Path | Notes |
+|------|-------|
+| `/metrics` | Root alias, gated by `server.metrics.root.enabled` (default `true`) |
+| `/server/metrics` | Frontend route tree |
+| `/api/v1/server/metrics` | Versioned API route |
+| `/api/metrics` | Unversioned API alias |
+
+Each path also accepts a trailing service segment — `/metrics/prometheus`, `/metrics/grafana`,
+`/metrics/loki` — selecting which consumer the request is authenticated as.
+
+Access is gated by a **per-service bearer token**, sent in the `Authorization` header only
+(query-string tokens are forbidden). A service whose token is empty is disabled and answers `403`
+with an empty body. Tokens are compared in constant time, never logged, and always displayed
+masked as `xxxxx` in the admin panel and API responses.
+
+Configure the tokens under `server.metrics.auth.tokens` in `server.yml`, or in the admin panel at
+`/server/{admin_path}/config/metrics`:
+
+```yaml
+server:
+  metrics:
+    enabled: true
+    root:
+      enabled: true
+    auth:
+      allow_unauthenticated: false
+      tokens:
+        prometheus: your-prometheus-token
+        grafana: your-grafana-token
+        loki: your-loki-token
+    include_system: true
+    include_runtime: true
+    loki:
+      max_entries: 1000
+      max_age: 1h
+```
+
+`allow_unauthenticated: true` turns off the token check for every service. It exists only for
+deployments where the endpoint is already unreachable from outside, and defaults to `false`.
 
 Example `prometheus.yml` scrape config:
 
 ```yaml
 scrape_configs:
   - job_name: wthr
+    metrics_path: /metrics/prometheus
     static_configs:
       - targets: ['your-wthr-instance.example.com']
-    # If scrape auth is enabled:
-    # bearer_token: your-scrape-token
+    authorization:
+      credentials: your-prometheus-token
 ```
 
 ---

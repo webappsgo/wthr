@@ -2,12 +2,6 @@ package database
 
 // ServerSchema contains all server infrastructure tables per TEMPLATE.md PART 31
 const ServerSchema = `
--- Schema version tracking
-CREATE TABLE IF NOT EXISTS schema_version (
-	version INTEGER PRIMARY KEY,
-	applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Admin Credentials table (admins are NOT in users table)
 -- AI.md PART 11: API tokens stored as SHA-256 hash, never plaintext
 CREATE TABLE IF NOT EXISTS server_admin_credentials (
@@ -485,5 +479,3 @@ CREATE INDEX IF NOT EXISTS idx_cve_alerts_severity ON server_cve_alerts(severity
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_published ON server_cve_alerts(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_acknowledged ON server_cve_alerts(acknowledged);
 `
-
-const ServerSchemaVersion = 8
