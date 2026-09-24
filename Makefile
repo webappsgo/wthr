@@ -22,7 +22,7 @@ OFFICIALSITE := $(shell [ -f site.txt ] && cat site.txt || echo "$${OFFICIAL_SIT
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
 	-X 'main.CommitID=$(COMMIT_ID)' \
-	-X 'main.BuildEpoch=$(BUILD_EPOCH)' \
+	-X 'github.com/webappsgo/wthr/src/cli.BuildEpoch=$(BUILD_EPOCH)' \
 	-X 'main.BuildDate=$(BUILD_DATE)' \
 	-X 'main.OfficialSite=$(OFFICIALSITE)'
 
