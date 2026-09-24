@@ -184,3 +184,104 @@ func TestTrustedGetClientIP_UntrustedPeerNoPort(t *testing.T) {
 		t.Errorf("TrustedGetClientIP() = %q, want raw RemoteAddr fallback", got)
 	}
 }
+
+func TestTrustedGetHostFromRequest_OverlayBypassesGate(t *testing.T) {
+	withTestConfig(t, &config.AppConfig{})
+
+	tests := []struct {
+		name string
+		host string
+		want string
+	}{
+		{"onion", "test123.onion", "test123.onion"},
+		{"onion_uppercase", "test.ONION", "test.onion"},
+		{"i2p", "test123.b32.i2p", "test123.b32.i2p"},
+		{"i2p_uppercase", "TEST.B32.I2P", "test.b32.i2p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r.RemoteAddr = "203.0.113.9:54321"
+			r.Host = tt.host
+			r.Header.Set("X-Forwarded-Host", "forged.example.com")
+
+			got := TrustedGetHostFromRequest(r)
+			if got != tt.want {
+				t.Errorf("TrustedGetHostFromRequest() = %q, want %q (overlay should bypass gate)", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrustedGetHostFromRequest_TrustedPeerHonorsHeaders(t *testing.T) {
+	withTestConfig(t, &config.AppConfig{})
+
+	tests := []struct {
+		name   string
+		remote string
+		header string
+		value  string
+		want   string
+	}{
+		{"x_forwarded_host", "127.0.0.1:54321", "X-Forwarded-Host", "proxy.example.com", "proxy.example.com"},
+		{"x_forwarded_host_with_port", "127.0.0.1:54321", "X-Forwarded-Host", "proxy.example.com:8080", "proxy.example.com"},
+		{"x_real_host", "127.0.0.1:54321", "X-Real-Host", "real.example.com", "real.example.com"},
+		{"x_original_host", "127.0.0.1:54321", "X-Original-Host", "original.example.com", "original.example.com"},
+		{"x_forwarded_host_priority", "127.0.0.1:54321", "X-Forwarded-Host", "first.example.com", "first.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r.RemoteAddr = tt.remote
+			r.Host = "localhost:8080"
+			r.Header.Set(tt.header, tt.value)
+
+			got := TrustedGetHostFromRequest(r)
+			if got != tt.want {
+				t.Errorf("TrustedGetHostFromRequest() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTrustedGetHostFromRequest_UntrustedPeerIgnoresHeaders(t *testing.T) {
+	withTestConfig(t, &config.AppConfig{})
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "203.0.113.9:54321"
+	r.Host = "localhost"
+	r.Header.Set("X-Forwarded-Host", "forged.example.com")
+	r.Header.Set("X-Real-Host", "forged2.example.com")
+	r.Header.Set("X-Original-Host", "forged3.example.com")
+
+	got := TrustedGetHostFromRequest(r)
+	if got == "forged.example.com" || got == "forged2.example.com" || got == "forged3.example.com" {
+		t.Errorf("TrustedGetHostFromRequest() = %q, should ignore headers from untrusted peer", got)
+	}
+}
+
+func TestTrustedGetHostFromRequest_NilRequest(t *testing.T) {
+	withTestConfig(t, &config.AppConfig{})
+
+	got := TrustedGetHostFromRequest(nil)
+	if got != "" {
+		t.Errorf("TrustedGetHostFromRequest(nil) = %q, want empty string", got)
+	}
+}
+
+func TestTrustedGetHostFromRequest_TrustedPeerHeaderPriority(t *testing.T) {
+	withTestConfig(t, &config.AppConfig{})
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.RemoteAddr = "127.0.0.1:54321"
+	r.Host = "localhost:8080"
+	r.Header.Set("X-Forwarded-Host", "primary.example.com")
+	r.Header.Set("X-Real-Host", "secondary.example.com")
+	r.Header.Set("X-Original-Host", "tertiary.example.com")
+
+	got := TrustedGetHostFromRequest(r)
+	want := "primary.example.com"
+	if got != want {
+		t.Errorf("TrustedGetHostFromRequest() = %q, want %q (should use X-Forwarded-Host first)", got, want)
+	}
+}

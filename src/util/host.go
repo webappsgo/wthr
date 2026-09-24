@@ -43,18 +43,14 @@ func GetHostInfo(r *http.Request) *HostInfo {
 		}
 	}
 
-	// Detect protocol from headers or TLS
-	protocol := r.Header.Get("X-Forwarded-Proto")
-	if protocol == "" {
-		if r.TLS != nil {
-			protocol = "https"
-		} else {
-			protocol = "http"
-		}
+	// Detect protocol from headers (gated on trusted_proxies) or TLS
+	protocol := "http"
+	if TrustedIsHTTPS(r) {
+		protocol = "https"
 	}
 
-	// Get hostname from request (reverse proxy headers first)
-	hostname := GetHostFromRequest(r)
+	// Get hostname from request (reverse proxy headers gated on trusted_proxies)
+	hostname := TrustedGetHostFromRequest(r)
 
 	// Build full host URL
 	fullHost := fmt.Sprintf("%s://%s", protocol, hostname)

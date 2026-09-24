@@ -127,16 +127,14 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	}
 
 	// Get current URL for OpenGraph per AI.md PART 16
-	// Resolved via GetHostFromRequest/X-Forwarded-Proto instead of raw r.Host/r.TLS
-	// so overlay networks and reverse-proxy headers are honored consistently with
-	// every other host/proto resolution in this codebase (GetHostInfo, BannerListenURL)
+	// Resolved via TrustedGetHostFromRequest/TrustedIsHTTPS (gated on trusted_proxies)
+	// so overlay networks and reverse-proxy headers from trusted peers are honored
+	// consistently with every other host/proto resolution (GetHostInfo, BannerListenURL)
 	scheme := "http"
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	} else if r.TLS != nil {
+	if TrustedIsHTTPS(r) {
 		scheme = "https"
 	}
-	currentURL := scheme + "://" + GetHostFromRequest(r) + r.URL.Path
+	currentURL := scheme + "://" + TrustedGetHostFromRequest(r) + r.URL.Path
 
 	// Compute the per-route robots directive per AI.md PART 16 "Robots Directive"
 	// Only explicitly allow-listed public routes are indexable; everything else fails closed

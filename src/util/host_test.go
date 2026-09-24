@@ -50,9 +50,13 @@ func TestGetHostFromRequest(t *testing.T) {
 }
 
 // TestGetHostInfo verifies protocol detection and derived fields.
+// Note: GetHostInfo now uses TrustedGetHostFromRequest and TrustedIsHTTPS,
+// which honor X-Forwarded-* headers only from trusted peers (loopback/private).
+// These tests use loopback (127.0.0.1) as the peer, which is always trusted.
 func TestGetHostInfo(t *testing.T) {
 	t.Run("http_default", func(t *testing.T) {
 		r := newTestRequest(http.MethodGet, "/", map[string]string{"X-Forwarded-Host": "example.com"})
+		r.RemoteAddr = "127.0.0.1:12345"
 		info := GetHostInfo(r)
 		if info.Protocol != "http" {
 			t.Errorf("Protocol = %q, want http", info.Protocol)
@@ -73,6 +77,7 @@ func TestGetHostInfo(t *testing.T) {
 			"X-Forwarded-Proto": "https",
 			"X-Forwarded-Host":  "example.com",
 		})
+		r.RemoteAddr = "127.0.0.1:12345"
 		info := GetHostInfo(r)
 		if info.Protocol != "https" {
 			t.Errorf("Protocol = %q, want https", info.Protocol)

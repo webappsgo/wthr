@@ -205,3 +205,39 @@ func TrustedIsHTTPS(r *http.Request) bool {
 	}
 	return strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Ssl")), "on")
 }
+
+// TrustedGetHostFromRequest resolves the hostname, honoring
+// X-Forwarded-Host/X-Real-Host/X-Original-Host headers only when the immediate
+// TCP peer (r.RemoteAddr) passes the trusted_proxies gate (AI.md PART 5/12).
+// Untrusted peers' host headers are dropped and GetFQDN() is used directly —
+// an attacker reaching the binary without going through a trusted proxy cannot
+// forge the apparent hostname, preventing header-injection attacks on redirects,
+// CORS origin validation, and user-visible links.
+// Tor and I2P overlay networks bypass the gate entirely (priority 0, per PART 32).
+func TrustedGetHostFromRequest(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+
+	// Overlay networks (Tor/I2P) win over every proxy header, with no trust check
+	// (AI.md PART 12/32: overlay detection is priority 0).
+	if overlay := OverlayHostFromRequest(r); overlay != "" {
+		return overlay
+	}
+
+	// Only honor X-Forwarded-Host/X-Real-Host/X-Original-Host from trusted peers.
+	if isTrustedPeer(r.RemoteAddr) {
+		for _, header := range []string{"X-Forwarded-Host", "X-Real-Host", "X-Original-Host"} {
+			if host := r.Header.Get(header); host != "" {
+				// Strip port if present.
+				if h, _, err := net.SplitHostPort(host); err == nil {
+					return h
+				}
+				return host
+			}
+		}
+	}
+
+	// Fall back to static FQDN resolution when untrusted or headers empty.
+	return GetFQDN()
+}
