@@ -5,7 +5,8 @@ package cli
 import (
 	"fmt"
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 // replaceBinary replaces the running binary. Windows refuses to overwrite a
@@ -25,8 +26,8 @@ func replaceBinary(currentPath, newBinaryPath string) error {
 		return fmt.Errorf("failed to move new binary: %w", err)
 	}
 
-	if oldPathPtr, err := syscall.UTF16PtrFromString(oldPath); err == nil {
-		syscall.MoveFileEx(oldPathPtr, nil, syscall.MOVEFILE_DELAY_UNTIL_REBOOT)
+	if oldPathPtr, err := windows.UTF16PtrFromString(oldPath); err == nil {
+		windows.MoveFileEx(oldPathPtr, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
 	}
 
 	return nil

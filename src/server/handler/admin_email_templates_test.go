@@ -183,3 +183,93 @@ func TestEmailTemplateHandler_ListTemplates(t *testing.T) {
 		t.Errorf("expected non-.tmpl file to be excluded, got: %s", body)
 	}
 }
+
+// TestEmailTemplateHandler_GetTemplate_Success verifies a valid template is
+// retrieved and returned with parsed subject/body.
+func TestEmailTemplateHandler_GetTemplate_Success(t *testing.T) {
+	dir := t.TempDir()
+	emailDir := filepath.Join(dir, "email")
+	if err := os.MkdirAll(emailDir, 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+	content := "Subject: Hello\n---\nHello world"
+	if err := os.WriteFile(filepath.Join(emailDir, "welcome.tmpl"), []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write fixture template: %v", err)
+	}
+
+	h := &EmailTemplateHandler{templatesDir: dir}
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/admin/config/email-templates/welcome",
+		nil, map[string]string{"name": "welcome"})
+
+	h.GetTemplate(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var resp EmailTemplate
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Subject != "Hello" {
+		t.Errorf("Subject = %q, want %q", resp.Subject, "Hello")
+	}
+	if resp.Body != "Hello world" {
+		t.Errorf("Body = %q, want %q", resp.Body, "Hello world")
+	}
+}
+
+// TestEmailTemplateHandler_ExportTemplate verifies a template is exported
+// as JSON with the correct subject and body.
+func TestEmailTemplateHandler_ExportTemplate(t *testing.T) {
+	dir := t.TempDir()
+	emailDir := filepath.Join(dir, "email")
+	if err := os.MkdirAll(emailDir, 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(emailDir, "test.tmpl"), []byte("Subject: Test\n---\nBody"), 0644); err != nil {
+		t.Fatalf("failed to write fixture: %v", err)
+	}
+
+	h := &EmailTemplateHandler{templatesDir: dir}
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/admin/config/email-templates/test/export",
+		nil, map[string]string{"name": "test"})
+
+	h.ExportTemplate(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	contentDisposition := w.Header().Get("Content-Disposition")
+	if !strings.Contains(contentDisposition, "test.json") {
+		t.Errorf("Content-Disposition = %q, want filename test.json", contentDisposition)
+	}
+}
+
+// TestEmailTemplateHandler_ImportTemplate verifies a JSON template is imported
+// correctly and written to disk.
+func TestEmailTemplateHandler_ImportTemplate(t *testing.T) {
+	dir := t.TempDir()
+	emailDir := filepath.Join(dir, "email")
+	if err := os.MkdirAll(emailDir, 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+
+	h := &EmailTemplateHandler{templatesDir: dir}
+	template := EmailTemplate{Subject: "Imported", Body: "Imported body"}
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/admin/config/email-templates/test/import",
+		template, map[string]string{"name": "test"})
+
+	h.ImportTemplate(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	written, err := os.ReadFile(filepath.Join(emailDir, "test.tmpl"))
+	if err != nil {
+		t.Fatalf("failed to read imported template: %v", err)
+	}
+	if !strings.Contains(string(written), "Subject: Imported") || !strings.Contains(string(written), "Imported body") {
+		t.Errorf("unexpected template content: %s", written)
+	}
+}
