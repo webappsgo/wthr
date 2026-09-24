@@ -11,10 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/display"
-	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/util"
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
 )
@@ -60,8 +59,16 @@ func MaintenanceCommand(args []string) error {
 		return verifySystem()
 
 	case "admin-recovery", "setup":
+		// AI.md PART 8: Setup token authentication for authorized setup operations
 		// AI.md PART 22: sole recovery path for a lost admin password/token
-		return adminRecoverySetup()
+		token := ""
+		for _, arg := range remainingArgs {
+			if strings.HasPrefix(arg, "--token=") {
+				token = strings.TrimPrefix(arg, "--token=")
+				break
+			}
+		}
+		return adminRecoverySetup(token)
 
 	case "update":
 		return updateServerConfig()
@@ -256,7 +263,7 @@ func updateYAMLKey(yaml, key, value string) string {
 }
 
 // adminRecoverySetup allows recovery of admin access after restore or lockout
-func adminRecoverySetup() error {
+func adminRecoverySetup(setupToken string) error {
 	fmt.Printf(T("cli.maintenance.admin_recovery_title")+"\n", display.Emoji("🔧", "*"))
 	fmt.Println(T("cli.maintenance.admin_recovery_description"))
 	fmt.Println()
@@ -265,6 +272,10 @@ func adminRecoverySetup() error {
 	dataDir := os.Getenv("DATA_DIR")
 	if dataDir == "" {
 		dataDir = "/var/lib/webappsgo/wthr"
+	}
+	configDir := os.Getenv("CONFIG_DIR")
+	if configDir == "" {
+		configDir = "/etc/webappsgo/wthr"
 	}
 
 	// Connect to server.db
@@ -283,80 +294,117 @@ func adminRecoverySetup() error {
 	}
 	defer db.Close()
 
-	// Prompt for new admin credentials
-	fmt.Print(T("cli.maintenance.prompt_username"))
-	var username string
-	fmt.Scanln(&username)
-	if username == "" {
-		username = "admin"
-	}
-
-	fmt.Print(T("cli.maintenance.prompt_password"))
-	var password string
-	fmt.Scanln(&password)
-	if password == "" {
-		return fmt.Errorf("password cannot be empty")
-	}
-
-	fmt.Print(T("cli.maintenance.prompt_confirm_password"))
-	var confirmPassword string
-	fmt.Scanln(&confirmPassword)
-	if password != confirmPassword {
-		return fmt.Errorf("passwords do not match")
-	}
-
-	// Hash password with Argon2id (AI.md PART 3 requirement)
-	passwordHash, err := hashPasswordArgon2id(password)
+	// Check if database is empty (first-run)
+	var adminCount int
+	err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM server_admin_credentials").Scan(&adminCount)
 	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
+		return fmt.Errorf("failed to check admin accounts: %w", err)
 	}
 
-	// Timestamps are bound as canonical UTC text so the value matches what
-	// CURRENT_TIMESTAMP writes and stays portable across SQLite, PostgreSQL and
-	// MySQL — a bound time.Time would be serialized in the host's local zone.
-	now := dbtime.FormatSQLTimestamp(time.Now())
+	// AI.md PART 8: Setup authorization flow
+	// Check authorization in order:
+	// 1. Is database empty (no admins exist)?
+	// 2. Is user root/admin?
+	// 3. Is valid setup token provided (--token=XXX)?
+	// 4. NO authorization → Reject with helpful error
 
-	// Update or create admin account in server_admin_credentials, the live table
-	// created by database.ServerSchema. The legacy "admin_credentials" table
-	// belonged to the removed single-database schema and no longer exists.
-	// First, try to update existing admin
-	result, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-		UPDATE server_admin_credentials
-		SET username = ?, password_hash = ?, updated_at = ?
-		WHERE id = 1
-	`, username, passwordHash, now)
+	isFirstRun := adminCount == 0
+	isRoot := os.Geteuid() == 0
+	hasValidToken := false
 
-	if err != nil {
-		return fmt.Errorf("failed to update admin credentials: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check update result: %w", err)
-	}
-
-	// If no rows updated, insert new admin
-	if rowsAffected == 0 {
-		// server_admin_credentials.email is NOT NULL UNIQUE, so a recovery insert
-		// must supply one; the setup wizard lets the admin change it afterwards.
-		email := config.DefaultEmailAddress(username, config.GetGlobalConfig())
-
-		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-			INSERT INTO server_admin_credentials (id, username, email, password_hash, is_super_admin, is_active, created_at, updated_at)
-			VALUES (1, ?, ?, ?, 1, 1, ?, ?)
-		`, username, email, passwordHash, now, now)
-
+	if setupToken != "" {
+		// Validate the provided token
+		valid, err := util.ValidateSetupToken(configDir, setupToken)
 		if err != nil {
-			return fmt.Errorf("failed to create admin credentials: %w", err)
+			fmt.Printf("\n"+T("cli.maintenance.invalid_token")+"\n", display.Emoji("❌", "[FAIL]"))
+			fmt.Println(T("cli.maintenance.token_error"), err.Error())
+			return fmt.Errorf("invalid setup token")
 		}
-		fmt.Printf("\n"+T("cli.maintenance.admin_created")+"\n", display.Emoji("✓", "[OK]"))
-	} else {
-		fmt.Printf("\n"+T("cli.maintenance.admin_updated")+"\n", display.Emoji("✓", "[OK]"))
+		hasValidToken = valid
 	}
 
-	fmt.Printf(T("cli.maintenance.username_line")+"\n", username)
-	fmt.Printf("\n"+T("cli.maintenance.restart_login_warning")+"\n", display.Emoji("⚠️", "WARNING:"))
-	fmt.Println(T("cli.maintenance.systemctl_restart_hint"))
+	// Determine authorization status
+	if !isFirstRun && !isRoot && !hasValidToken {
+		// No authorization
+		fmt.Printf("\n"+T("cli.maintenance.setup_denied")+"\n", display.Emoji("❌", "[FAIL]"))
+		fmt.Println("\nSetup already completed. To reconfigure:")
+		fmt.Println("1. Use existing admin credentials via WebUI")
+		fmt.Println("2. Run as root: sudo wthr --maintenance setup")
+		fmt.Println("3. Use setup token shown at first-run (if you saved it)")
+		return fmt.Errorf("setup authorization required")
+	}
+
+	// Handle first-run: generate and display setup token
+	if isFirstRun {
+		token, err := util.GenerateSetupToken()
+		if err != nil {
+			return fmt.Errorf("failed to generate setup token: %w", err)
+		}
+
+		if err := util.SaveSetupToken(configDir, token); err != nil {
+			return fmt.Errorf("failed to save setup token: %w", err)
+		}
+
+		fmt.Printf(T("cli.maintenance.first_run_detected")+"\n", display.Emoji("🔑", "[KEY]"))
+		fmt.Println("\n" + T("cli.maintenance.setup_token_instructions"))
+		fmt.Printf("\n  %s\n\n", token)
+		fmt.Println(T("cli.maintenance.setup_token_warning"))
+		fmt.Println("\n" + T("cli.maintenance.setup_token_note") + "\n")
+
+		return nil
+	}
+
+	// Handle root recovery: regenerate token with confirmation
+	if isRoot && !hasValidToken {
+		fmt.Printf(T("cli.maintenance.root_recovery_title")+"\n\n", display.Emoji("🔐", "[AUTH]"))
+		fmt.Print(T("cli.maintenance.confirm_token_regen"))
+		var confirm string
+		fmt.Scanln(&confirm)
+
+		if !strings.EqualFold(strings.TrimSpace(confirm), "yes") && !strings.EqualFold(strings.TrimSpace(confirm), "y") {
+			fmt.Println(T("cli.maintenance.operation_cancelled"))
+			return nil
+		}
+
+		token, err := util.GenerateSetupToken()
+		if err != nil {
+			return fmt.Errorf("failed to generate setup token: %w", err)
+		}
+
+		if err := util.SaveSetupToken(configDir, token); err != nil {
+			return fmt.Errorf("failed to save setup token: %w", err)
+		}
+
+		fmt.Printf("\n"+T("cli.maintenance.new_setup_token")+"\n", display.Emoji("🔑", "[KEY]"))
+		fmt.Printf("\n  %s\n\n", token)
+		fmt.Println(T("cli.maintenance.setup_token_warning"))
+
+		return nil
+	}
+
+	// If we reach here, token is valid or it's first-run or root is running
+	// The setup token has been validated (hasValidToken) or it's first-run or root
+	// For token-based or root recovery, display the token for next use
+	if hasValidToken || isRoot {
+		// Regenerate token for root, or use existing for token-based
+		if isRoot {
+			token, err := util.GenerateSetupToken()
+			if err != nil {
+				return fmt.Errorf("failed to generate setup token: %w", err)
+			}
+
+			if err := util.SaveSetupToken(configDir, token); err != nil {
+				return fmt.Errorf("failed to save setup token: %w", err)
+			}
+
+			fmt.Printf("\n"+T("cli.maintenance.new_setup_token")+"\n", display.Emoji("🔑", "[KEY]"))
+			fmt.Printf("\n  %s\n\n", token)
+			fmt.Println(T("cli.maintenance.setup_token_warning"))
+		} else {
+			fmt.Printf("\n"+T("cli.maintenance.setup_authorized")+"\n", display.Emoji("✓", "[OK]"))
+			fmt.Println(T("cli.maintenance.token_accepted"))
+		}
+	}
 
 	return nil
 }

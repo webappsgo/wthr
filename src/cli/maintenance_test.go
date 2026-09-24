@@ -7,9 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/database"
 	_ "modernc.org/sqlite"
 )
@@ -521,75 +519,19 @@ func TestUpdateServerConfig_Success(t *testing.T) {
 func TestAdminRecoverySetup_MissingDatabase(t *testing.T) {
 	t.Setenv("DATA_DIR", t.TempDir())
 
-	err := adminRecoverySetup()
+	err := adminRecoverySetup("")
 	if err == nil {
-		t.Fatal("adminRecoverySetup() with no server.db = nil, want error")
+		t.Fatal("adminRecoverySetup(\"\") with no server.db = nil, want error")
 	}
 	if !strings.Contains(err.Error(), "server database not found") {
 		t.Errorf("error = %q, want substring %q", err.Error(), "server database not found")
 	}
 }
 
-// TestAdminRecoverySetup_OpenFails covers the failure path once openDatabase
-// succeeds (see TestOpenDatabase_Succeeds): server.db opens fine, so
-// adminRecoverySetup proceeds to prompt for credentials on stdin; with no
-// input available in the test, the username prompt defaults to "admin" and
-// the password prompt reads empty, which adminRecoverySetup rejects.
-func TestAdminRecoverySetup_OpenFails(t *testing.T) {
-	dataDir := t.TempDir()
-	dbDir := filepath.Join(dataDir, "db")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	// sql.Open is lazy and never creates the file on disk by itself; the
-	// os.Stat existence check in adminRecoverySetup needs a real file here.
-	if err := os.WriteFile(filepath.Join(dbDir, "server.db"), nil, 0644); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-
-	t.Setenv("DATA_DIR", dataDir)
-
-	err := adminRecoverySetup()
-	if err == nil {
-		t.Fatal("adminRecoverySetup() = nil, want error (no stdin input available)")
-	}
-	if !strings.Contains(err.Error(), "password cannot be empty") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "password cannot be empty")
-	}
-}
-
-// TestAdminRecoverySetup_PasswordMismatch covers the confirmation-mismatch
-// path: a non-empty password whose confirmation differs.
-func TestAdminRecoverySetup_PasswordMismatch(t *testing.T) {
-	dataDir := t.TempDir()
-	dbDir := filepath.Join(dataDir, "db")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dbDir, "server.db"), nil, 0644); err != nil {
-		t.Fatalf("setup: %v", err)
-	}
-	t.Setenv("DATA_DIR", dataDir)
-
-	var err error
-	captureStdout(t, func() {
-		withStdin(t, "admin\nhunter2\ndifferent\n", func() {
-			err = adminRecoverySetup()
-		})
-	})
-	if err == nil {
-		t.Fatal("adminRecoverySetup() with mismatched confirmation = nil, want error")
-	}
-	if !strings.Contains(err.Error(), "passwords do not match") {
-		t.Errorf("error = %q, want substring %q", err.Error(), "passwords do not match")
-	}
-}
-
-// TestAdminRecoverySetup_CreatesAndUpdates covers the two success branches
-// against the real server_admin_credentials table from database.ServerSchema:
-// inserting a brand-new row when none exists (the id=1 UPDATE affects zero
-// rows), then updating that same row on a second run.
-func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
+// TestAdminRecoverySetup_FirstRun covers the first-run path (no admins exist):
+// adminRecoverySetup should display a setup token and return without prompting.
+// Per AI.md PART 22, the actual credential creation happens via WebUI wizard.
+func TestAdminRecoverySetup_FirstRun(t *testing.T) {
 	dataDir := t.TempDir()
 	dbDir := filepath.Join(dataDir, "db")
 	if err := os.MkdirAll(dbDir, 0755); err != nil {
@@ -600,61 +542,63 @@ func TestAdminRecoverySetup_CreatesAndUpdates(t *testing.T) {
 
 	t.Setenv("DATA_DIR", dataDir)
 
-	var err1 error
-	out1 := captureStdout(t, func() {
-		withStdin(t, "newadmin\nhunter2\nhunter2\n", func() {
-			err1 = adminRecoverySetup()
-		})
+	var err error
+	output := captureStdout(t, func() {
+		err = adminRecoverySetup("")
 	})
-	if err1 != nil {
-		t.Fatalf("adminRecoverySetup() first run error = %v, want nil", err1)
+	if err != nil {
+		t.Fatalf("adminRecoverySetup(\"\") first-run = %v, want nil", err)
 	}
-	if !strings.Contains(out1, "New admin account created") {
-		t.Errorf("first run output = %q, want it to report account creation", out1)
+	if !strings.Contains(output, "First-run detected") {
+		t.Errorf("output = %q, want it to indicate first-run", output)
 	}
-	if !strings.Contains(out1, "Username: newadmin") {
-		t.Errorf("first run output = %q, want it to echo the username", out1)
+	if !strings.Contains(output, "Setup token") {
+		t.Errorf("output = %q, want setup token displayed", output)
+	}
+}
+
+// TestAdminRecoverySetup_FirstRun_ShowsToken verifies that on first-run (empty database),
+// adminRecoverySetup displays a unique setup token without database modification.
+// Per AI.md PART 22, the actual credential setup happens via WebUI wizard with the token.
+func TestAdminRecoverySetup_FirstRun_ShowsToken(t *testing.T) {
+	dataDir := t.TempDir()
+	dbDir := filepath.Join(dataDir, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	dbPath := filepath.Join(dbDir, "server.db")
+	applySchema(t, dbPath, database.ServerSchema)
+
+	t.Setenv("DATA_DIR", dataDir)
+
+	var err error
+	out := captureStdout(t, func() {
+		err = adminRecoverySetup("")
+	})
+	if err != nil {
+		t.Fatalf("adminRecoverySetup(\"\") first-run error = %v, want nil", err)
 	}
 
+	// Verify token is shown
+	if !strings.Contains(out, "First-run detected") {
+		t.Errorf("output missing first-run indicator")
+	}
+	if !strings.Contains(out, "Setup token") {
+		t.Errorf("output missing setup token header")
+	}
+
+	// Verify no admin account was created (setup only shows token; WebUI creates account)
 	verifyDB, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		t.Fatalf("verify open: %v", err)
+		t.Fatalf("verify DB open: %v", err)
 	}
+	defer verifyDB.Close()
+
 	var count int
-	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM server_admin_credentials WHERE id = 1 AND username = ?", "newadmin").Scan(&count); err != nil {
+	if err := verifyDB.QueryRow("SELECT COUNT(*) FROM server_admin_credentials").Scan(&count); err != nil {
 		t.Fatalf("verify query: %v", err)
 	}
-	// updated_at must be readable as a canonical UTC timestamp, proving the
-	// recovery write bound dbtime-formatted text rather than a raw time.Time.
-	// The column is CAST to TEXT so modernc.org/sqlite's decltype-driven
-	// DATETIME auto-parsing (which would hand back a time.Time and cause
-	// database/sql to reformat it as RFC3339 on Scan into *string) does not
-	// mask the actual stored text.
-	var updatedAt string
-	if err := verifyDB.QueryRow("SELECT CAST(updated_at AS TEXT) FROM server_admin_credentials WHERE id = 1").Scan(&updatedAt); err != nil {
-		t.Fatalf("verify timestamp query: %v", err)
-	}
-	verifyDB.Close()
-	if count != 1 {
-		t.Fatalf("server_admin_credentials row not created as expected, count = %d", count)
-	}
-	if _, err := time.Parse(dbtime.SQLTimestampLayout, updatedAt); err != nil {
-		t.Errorf("updated_at = %q, want %q layout", updatedAt, dbtime.SQLTimestampLayout)
-	}
-
-	var err2 error
-	out2 := captureStdout(t, func() {
-		withStdin(t, "rotated\nnewpass\nnewpass\n", func() {
-			err2 = adminRecoverySetup()
-		})
-	})
-	if err2 != nil {
-		t.Fatalf("adminRecoverySetup() second run error = %v, want nil", err2)
-	}
-	if !strings.Contains(out2, "Admin account updated") {
-		t.Errorf("second run output = %q, want it to report an update (not a create)", out2)
-	}
-	if !strings.Contains(out2, "Username: rotated") {
-		t.Errorf("second run output = %q, want it to echo the rotated username", out2)
+	if count != 0 {
+		t.Errorf("admin account count = %d, want 0 (setup only shows token, doesn't create account)", count)
 	}
 }

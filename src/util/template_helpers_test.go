@@ -182,3 +182,71 @@ func TestTemplateData_HTTPSScheme(t *testing.T) {
 		t.Errorf("current_url = %v, want https://example.com/path", got["current_url"])
 	}
 }
+
+// TestSafeRedirectPath verifies open-redirect protection for form redirects.
+func TestSafeRedirectPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		candidate string
+		want      string
+	}{
+		// Valid same-site redirects
+		{"root_only", "/", "/"},
+		{"simple_path", "/settings", "/settings"},
+		{"nested_path", "/users/profile", "/users/profile"},
+		{"with_query", "/settings?tab=privacy", "/settings?tab=privacy"},
+		{"with_fragment", "/users#top", "/users#top"},
+
+		// Invalid: Open redirect attempts
+		{"empty", "", ""},
+		{"protocol_relative", "//evil.com", ""},
+		{"backslash_relative", "/\\evil.com", ""},
+		{"double_slash", "//", ""},
+		{"no_leading_slash", "settings", ""},
+		{"external_url", "https://evil.com", ""},
+		{"mailto", "mailto:test@example.com", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SafeRedirectPath(tt.candidate)
+			if got != tt.want {
+				t.Errorf("SafeRedirectPath(%q) = %q, want %q", tt.candidate, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSetI2PLinkProvider verifies the I2P provider registration.
+func TestSetI2PLinkProvider(t *testing.T) {
+	// Test setting a provider
+	provider := func() (string, bool) {
+		return "abc123.b32.i2p", true
+	}
+	SetI2PLinkProvider(provider)
+
+	// Test clearing the provider
+	SetI2PLinkProvider(nil)
+
+	// Verify i2pTemplateInfo reflects cleared provider
+	info := i2pTemplateInfo()
+	if info == nil {
+		t.Fatal("i2pTemplateInfo should not return nil")
+	}
+	if show, ok := info["Show"].(bool); !ok || show {
+		t.Errorf("i2pTemplateInfo()[\"Show\"] = %v, want false when provider is nil", show)
+	}
+
+	// Re-register to verify it works with a real provider
+	SetI2PLinkProvider(provider)
+	info = i2pTemplateInfo()
+	if show, ok := info["Show"].(bool); !ok || !show {
+		t.Errorf("i2pTemplateInfo()[\"Show\"] = %v, want true when provider exists", show)
+	}
+	if addr, ok := info["Address"].(string); !ok || addr != "abc123.b32.i2p" {
+		t.Errorf("i2pTemplateInfo()[\"Address\"] = %v, want abc123.b32.i2p", addr)
+	}
+
+	// Cleanup
+	SetI2PLinkProvider(nil)
+}
