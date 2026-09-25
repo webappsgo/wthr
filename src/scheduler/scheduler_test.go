@@ -934,7 +934,7 @@ func TestCleanupOldSessions(t *testing.T) {
 		seedColumn{name: "token_hash", value: func(id int64) interface{} { return fmt.Sprintf("session-hash-%d", id) }},
 	)
 
-	if err := CleanupOldSessions(nil); err != nil {
+	if err := CleanupOldSessions(); err != nil {
 		t.Fatalf("CleanupOldSessions() error: %v", err)
 	}
 
@@ -971,7 +971,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 			seedColumn{name: "action", value: func(id int64) interface{} { return fmt.Sprintf("task-%d", id) }},
 		)
 
-		if err := CleanupOldAuditLogs(nil); err != nil {
+		if err := CleanupOldAuditLogs(); err != nil {
 			t.Fatalf("CleanupOldAuditLogs() error: %v", err)
 		}
 
@@ -1002,7 +1002,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 			seedColumn{name: "action", value: func(id int64) interface{} { return fmt.Sprintf("task-cfg-%d", id) }},
 		)
 
-		if err := CleanupOldAuditLogs(nil); err != nil {
+		if err := CleanupOldAuditLogs(); err != nil {
 			t.Fatalf("CleanupOldAuditLogs() error: %v", err)
 		}
 
@@ -1065,7 +1065,7 @@ func TestCleanupExpiredTokens(t *testing.T) {
 		seedUserToken(t, usersDB, fixture.id, fixture.value)
 	}
 
-	if err := CleanupExpiredTokens(nil); err != nil {
+	if err := CleanupExpiredTokens(); err != nil {
 		t.Fatalf("CleanupExpiredTokens() error: %v", err)
 	}
 
@@ -1085,7 +1085,7 @@ func TestCleanupRateLimitCounters(t *testing.T) {
 		seedColumn{name: "endpoint", value: func(int64) interface{} { return "/api/v1/weather" }},
 	)
 
-	if err := CleanupRateLimitCounters(nil); err != nil {
+	if err := CleanupRateLimitCounters(); err != nil {
 		t.Fatalf("CleanupRateLimitCounters() error: %v", err)
 	}
 
@@ -1139,7 +1139,7 @@ func TestCreateSystemBackup_DisabledSkipsSilently(t *testing.T) {
 	newSchedulerTestDBs(t)
 	// No 'backup.enabled' row at all -> Scan errors -> function returns nil without
 	// touching the filesystem or real paths.GetDefaultPaths() location.
-	if err := CreateSystemBackup(nil); err != nil {
+	if err := CreateSystemBackup(); err != nil {
 		t.Errorf("CreateSystemBackup() with backups disabled = %v, want nil", err)
 	}
 }
@@ -1629,6 +1629,77 @@ func TestLogBackupDailyUpdatedAudit(t *testing.T) {
 		}
 		if details["filename"] != "wthr-daily.tar.gz.enc" {
 			t.Errorf("details.filename = %v, want %q", details["filename"], "wthr-daily.tar.gz.enc")
+		}
+	})
+}
+
+// TestScheduler_ServerStateOnServerDB proves the scheduler's persistent state
+// lives in the database that actually declares server_scheduler_state.
+// AI.md PART 19: "Persistent State | Task state survives restarts (stored in
+// server.db)". newSchedulerTestDBs applies database.ServerSchema to the server
+// handle and database.UsersSchema to the users handle, so passing the server
+// handle must produce working state rows while the users handle must not.
+func TestScheduler_ServerStateOnServerDB(t *testing.T) {
+	serverDB, usersDB := newSchedulerTestDBs(t)
+
+	t.Run("state row created on server DB", func(t *testing.T) {
+		s := NewScheduler(serverDB)
+		if err := s.AddTask("regression-task", "@daily", func() error { return nil }); err != nil {
+			t.Fatalf("AddTask: %v", err)
+		}
+
+		var schedule, nextRun string
+		if err := serverDB.QueryRow(
+			"SELECT schedule, next_run FROM server_scheduler_state WHERE task_id = ?",
+			"regression-task",
+		).Scan(&schedule, &nextRun); err != nil {
+			t.Fatalf("expected a server_scheduler_state row on the server DB: %v", err)
+		}
+		if schedule != "@daily" {
+			t.Errorf("schedule = %q, want %q", schedule, "@daily")
+		}
+		if nextRun == "" {
+			t.Error("next_run is empty, want a scheduled timestamp")
+		}
+	})
+
+	t.Run("run outcome persisted on server DB", func(t *testing.T) {
+		s := NewScheduler(serverDB)
+		if err := s.AddTask("persist-task", "@hourly", func() error { return nil }); err != nil {
+			t.Fatalf("AddTask: %v", err)
+		}
+
+		s.persistTaskState(s.tasks["persist-task"], time.Now(), nil)
+
+		var lastStatus string
+		var runCount, failCount int
+		if err := serverDB.QueryRow(
+			"SELECT last_status, run_count, fail_count FROM server_scheduler_state WHERE task_id = ?",
+			"persist-task",
+		).Scan(&lastStatus, &runCount, &failCount); err != nil {
+			t.Fatalf("expected the run outcome to be persisted: %v", err)
+		}
+		if lastStatus != "success" {
+			t.Errorf("last_status = %q, want %q", lastStatus, "success")
+		}
+		if runCount != 1 {
+			t.Errorf("run_count = %d, want 1", runCount)
+		}
+		if failCount != 0 {
+			t.Errorf("fail_count = %d, want 0", failCount)
+		}
+	})
+
+	t.Run("users DB has no scheduler state table", func(t *testing.T) {
+		var name string
+		err := usersDB.QueryRow(
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'server_scheduler_state'",
+		).Scan(&name)
+		if err == nil {
+			t.Fatal("users DB unexpectedly declares server_scheduler_state")
+		}
+		if err != sql.ErrNoRows {
+			t.Fatalf("unexpected error querying sqlite_master: %v", err)
 		}
 	})
 }

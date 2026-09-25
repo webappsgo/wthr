@@ -994,7 +994,9 @@ func main() {
 	}
 
 	// Initialize scheduler for periodic tasks
-	taskScheduler := scheduler.NewScheduler(db.DB)
+	// AI.md PART 19: task state persists in server.db, so the scheduler must hold
+	// the server handle - the users handle created above has no server_* tables.
+	taskScheduler := scheduler.NewScheduler(dualDB.Server)
 
 	// Register log rotation task - AI.md PART 19: daily at midnight
 	taskScheduler.AddTask("rotate-logs", "0 0 * * *", func() error {
@@ -1003,20 +1005,20 @@ func main() {
 
 	// Register cleanup tasks - AI.md PART 19: session cleanup every 15 minutes
 	taskScheduler.AddTask("cleanup-sessions", "@every 15m", func() error {
-		return scheduler.CleanupOldSessions(db.DB)
+		return scheduler.CleanupOldSessions()
 	})
 
 	// AI.md PART 19: token cleanup every 15 minutes
 	taskScheduler.AddTask("cleanup-tokens", "@every 15m", func() error {
-		return scheduler.CleanupExpiredTokens(db.DB)
+		return scheduler.CleanupExpiredTokens()
 	})
 
 	taskScheduler.AddTask("cleanup-rate-limits", "@hourly", func() error {
-		return scheduler.CleanupRateLimitCounters(db.DB)
+		return scheduler.CleanupRateLimitCounters()
 	})
 
 	taskScheduler.AddTask("cleanup-audit-logs", "@daily", func() error {
-		return scheduler.CleanupOldAuditLogs(db.DB)
+		return scheduler.CleanupOldAuditLogs()
 	})
 
 	// Register weather alert checks - run every 5 minutes per IDEA.md
@@ -1054,7 +1056,7 @@ func main() {
 
 	// AI.md PART 19: backup daily at 02:00
 	taskScheduler.AddTask("backup-daily", "0 2 * * *", func() error {
-		return scheduler.CreateSystemBackup(db.DB)
+		return scheduler.CreateSystemBackup()
 	})
 
 	// AI.md PART 19 line 27050: backup_hourly - hourly incremental (disabled by default)

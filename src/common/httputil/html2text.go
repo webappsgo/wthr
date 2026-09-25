@@ -21,6 +21,34 @@ var scriptStylePattern = regexp.MustCompile(`(?is)<(script|style)\b[^>]*>.*?</\s
 // tagPattern matches any HTML tag and is used by the parse-error fallback.
 var tagPattern = regexp.MustCompile(`(?s)<[^>]*>`)
 
+// sanitizeTerminalText strips terminal control characters from text extracted
+// out of rendered HTML. Content served to curl/wget/httpie is terminal output,
+// so an unescaped ESC/BEL/DEL byte in a page (a title, a link target, a table
+// cell) would otherwise let page content repaint the user's screen, clear it,
+// or retitle their terminal. Tab and newline both become a plain space (a
+// literal tab jumps the cursor, a source newline can forge a converter-looking
+// banner or table border) and carriage return is dropped (it returns the
+// cursor to the start of the line and overwrites it). Every remaining
+// structural newline in the output is written by the converter itself —
+// the <br> case, the block rules, wordWrap — never copied from page content.
+// Printable Unicode, including every non-Latin locale this project ships,
+// passes through unchanged.
+func sanitizeTerminalText(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\n', '\t':
+			return ' '
+		}
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		if r >= 0x80 && r <= 0x9f {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 // HTML2TextConverter converts rendered HTML to terminal-friendly text per
 // AI.md PART 14. Non-interactive HTTP tools (curl, wget, httpie) receive this
 // output so a terminal dump stays readable. Interactive-only elements
@@ -49,7 +77,7 @@ func convertNode(buf *strings.Builder, n *html.Node, width, indent int) {
 	case html.ElementNode:
 		convertElement(buf, n, width, indent)
 	case html.TextNode:
-		text := strings.TrimSpace(n.Data)
+		text := strings.TrimSpace(sanitizeTerminalText(n.Data))
 		if text != "" {
 			buf.WriteString(text)
 		}
@@ -84,7 +112,7 @@ func convertElement(buf *strings.Builder, n *html.Node, width, indent int) {
 	case "ol":
 		convertList(buf, n, width, indent, true)
 	case "a":
-		href := getAttr(n, "href")
+		href := sanitizeTerminalText(getAttr(n, "href"))
 		buf.WriteString(getTextContent(n) + " [" + href + "]")
 	case "strong", "b":
 		buf.WriteString("*" + getTextContent(n) + "*")
@@ -230,7 +258,7 @@ func getTextContent(n *html.Node) string {
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
 		if node.Type == html.TextNode {
-			if text := strings.TrimSpace(node.Data); text != "" {
+			if text := strings.TrimSpace(sanitizeTerminalText(node.Data)); text != "" {
 				parts = append(parts, text)
 			}
 			return
@@ -259,7 +287,7 @@ func getPreformattedText(n *html.Node) string {
 	walk = func(node *html.Node) {
 		switch node.Type {
 		case html.TextNode:
-			sb.WriteString(node.Data)
+			sb.WriteString(sanitizeTerminalText(node.Data))
 			return
 		case html.ElementNode:
 			switch node.Data {
@@ -366,5 +394,5 @@ func collapseBlankLines(s string) string {
 func stripTags(s string) string {
 	cleaned := scriptStylePattern.ReplaceAllString(s, " ")
 	cleaned = tagPattern.ReplaceAllString(cleaned, " ")
-	return collapseBlankLines(strings.Join(strings.Fields(cleaned), " "))
+	return collapseBlankLines(sanitizeTerminalText(strings.Join(strings.Fields(cleaned), " ")))
 }

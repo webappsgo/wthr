@@ -442,3 +442,28 @@ before starting each item — do not rely on memory.
     `TestUpdateAdminNavStateIgnoresQueryParams` in
     `src/server/handler/admin_nav_state_test.go` locks that in. Read:
     AI.md PART 17.
+
+186. FIXED (2026-09-25): `sanitizeTerminalText`
+    (`src/common/httputil/html2text.go`) strips every C0 control, DEL, and
+    the C1 range from text extracted out of rendered HTML, because content
+    served to curl/wget/httpie is terminal output: an unescaped ESC/BEL/DEL
+    byte in a page (a title, a link target, a table cell) would otherwise
+    let page content repaint the user's screen, clear it, or retitle their
+    terminal. Tab and newline both collapse to a space and carriage return
+    is dropped, so page content can neither jump the cursor, overwrite a
+    line, nor forge converter layout (a fake `===` banner, a fake `|`
+    table border) with no escape byte at all. Every structural newline in
+    the output is now written by the converter itself — the `br` case, the
+    block rules, `wordWrap` — never copied from page content, which is
+    why `getPreformattedText` no longer preserves a raw source newline.
+    Printable Unicode passes through unchanged, so all seven shipped
+    locales are unaffected. Covered by `TestSanitizeTerminalText`,
+    `TestHTML2TextConverter_StripsTerminalControlCharacters` (all five
+    extraction points plus the `stripTags` fallback, and a table-alignment
+    assertion that proves the sanitized-cell width math still holds), and
+    the `source newlines cannot forge layout` subtest.
+    `TestHTML2TextConverter_BlockquotePreHrBr` was updated to use `<br>`
+    rather than a raw source newline for its two `pre` lines, since that
+    is the converter-generated break the implementation now relies on.
+    Read: AI.md PART 14 ("HTTP tools (curl, wget) -> Formatted text
+    (`HTML2TextConverter()`)").

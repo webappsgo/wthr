@@ -87,9 +87,11 @@ func TestHTML2TextConverter_Table(t *testing.T) {
 }
 
 // TestHTML2TextConverter_BlockquotePreHrBr verifies the remaining block rules.
+// The <pre> and blockquote line breaks come from <br>, which the converter
+// emits itself; a raw newline inside the text is flattened to a space by
+// sanitizeTerminalText so page content cannot forge its own line structure.
 func TestHTML2TextConverter_BlockquotePreHrBr(t *testing.T) {
-	out := HTML2TextConverter(`<hr><blockquote>quoted</blockquote><pre>line1
-line2</pre><p>a<br>b</p>`, 10)
+	out := HTML2TextConverter(`<hr><blockquote>quoted</blockquote><pre>line1<br>line2</pre><p>a<br>b</p>`, 10)
 
 	for _, want := range []string{strings.Repeat("─", 10), "│ quoted", "    line1", "    line2", "a\nb"} {
 		if !strings.Contains(out, want) {
@@ -164,5 +166,128 @@ func TestCollapseBlankLines(t *testing.T) {
 	got := collapseBlankLines("a   \n\n\n\nb\n\n\n")
 	if got != "a\n\nb\n" {
 		t.Errorf("collapseBlankLines = %q, want %q", got, "a\n\nb\n")
+	}
+}
+
+// TestSanitizeTerminalText verifies the control-character filter keeps the
+// converter's own formatting characters and every printable rune, and drops
+// C0 controls, DEL, and the C1 range.
+func TestSanitizeTerminalText(t *testing.T) {
+	t.Run("drops control characters", func(t *testing.T) {
+		// The ESC introducer is removed, so the "[31m" that followed it is
+		// inert text rather than a live SGR sequence, and the trailing ESC
+		// is what actually would have left the terminal in a modified state.
+		got := sanitizeTerminalText("a\x1b[31mb\x07c\x7fd\x00e\x1b")
+		if got != "a[31mbcde" {
+			t.Errorf("sanitizeTerminalText = %q, want %q", got, "a[31mbcde")
+		}
+	})
+
+	t.Run("drops C1 controls", func(t *testing.T) {
+		got := sanitizeTerminalText("a\u0085b\u009bc")
+		if got != "abc" {
+			t.Errorf("sanitizeTerminalText = %q, want %q", got, "abc")
+		}
+	})
+
+	t.Run("spaces tab and newline, drops carriage return", func(t *testing.T) {
+		got := sanitizeTerminalText("a\nb\tc\rd")
+		if got != "a b cd" {
+			t.Errorf("sanitizeTerminalText = %q, want %q", got, "a b cd")
+		}
+	})
+
+	t.Run("keeps non-latin locales intact", func(t *testing.T) {
+		// Every locale this project ships must survive the filter unchanged.
+		for _, s := range []string{"não", "für", "löschen", "日本語", "العربية", "Español", "English"} {
+			if got := sanitizeTerminalText(s); got != s {
+				t.Errorf("sanitizeTerminalText(%q) = %q, want it unchanged", s, got)
+			}
+		}
+	})
+}
+
+// TestHTML2TextConverter_StripsTerminalControlCharacters verifies that page
+// content cannot repaint a terminal served by curl/wget/httpie. Every
+// extraction point is exercised: heading, paragraph, link href, pre block,
+// table cell, and the stripTags parse-error fallback.
+func TestHTML2TextConverter_StripsTerminalControlCharacters(t *testing.T) {
+	const dangerous = "\x1b[31m\x1b]2;pwned\x07\x7b"
+
+	t.Run("headings and paragraphs", func(t *testing.T) {
+		out := HTML2TextConverter("<h1>"+dangerous+"Title</h1><p>"+dangerous+"Body</p>", 40)
+		assertNoControlChars(t, out)
+		if !strings.Contains(out, "TITLE") || !strings.Contains(out, "Body") {
+			t.Errorf("sanitizing dropped real text, got:\n%q", out)
+		}
+	})
+
+	t.Run("link href", func(t *testing.T) {
+		out := HTML2TextConverter(`<a href="https://example.com/`+dangerous+`">link</a>`, 40)
+		assertNoControlChars(t, out)
+		if !strings.Contains(out, "https://example.com/") {
+			t.Errorf("link href lost its safe prefix, got:\n%q", out)
+		}
+	})
+
+	t.Run("preformatted block", func(t *testing.T) {
+		out := HTML2TextConverter("<pre>"+dangerous+"line\n</pre>", 40)
+		assertNoControlChars(t, out)
+		if !strings.Contains(out, "line") {
+			t.Errorf("pre block lost its safe text, got:\n%q", out)
+		}
+	})
+
+	t.Run("table cell", func(t *testing.T) {
+		out := HTML2TextConverter(
+			"<table><tr><th>"+dangerous+"Head</th></tr><tr><td>Cell</td></tr></table>", 40)
+		assertNoControlChars(t, out)
+		if !strings.Contains(out, "Head") || !strings.Contains(out, "Cell") {
+			t.Errorf("table lost its safe text, got:\n%q", out)
+		}
+		// Column alignment is computed from sanitized cell text, so every
+		// data row must be the same rune width as the border above it.
+		var want int
+		for _, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+			switch {
+			case strings.HasPrefix(line, "┌"):
+				want = len([]rune(line))
+			case strings.HasPrefix(line, "│"):
+				if got := len([]rune(line)); got != want {
+					t.Errorf("table row width = %d, want %d, line: %q", got, want, line)
+				}
+			}
+		}
+	})
+
+	t.Run("stripTags fallback", func(t *testing.T) {
+		assertNoControlChars(t, stripTags("<div>"+dangerous+"text</div>"))
+	})
+
+	t.Run("source newlines cannot forge layout", func(t *testing.T) {
+		// A raw newline inside the text is page content, not converter
+		// formatting, so it must not let a <pre> block or table cell
+		// fabricate a converter-drawn banner or border line.
+		out := HTML2TextConverter("<pre>harmless\n"+strings.Repeat("═", 40)+"</pre>", 40)
+		assertNoControlChars(t, out)
+		if strings.Contains(out, "harmless\n"+strings.Repeat("═", 40)) {
+			t.Errorf("a source newline forged converter layout, got:\n%q", out)
+		}
+	})
+}
+
+// assertNoControlChars fails t if s carries any terminal control character
+// other than newline, carriage return, or tab.
+func assertNoControlChars(t *testing.T, s string) {
+	t.Helper()
+	for _, r := range s {
+		switch r {
+		case '\n', '\r', '\t':
+			continue
+		}
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			t.Errorf("output still carries control character %U in %q", r, s)
+			return
+		}
 	}
 }

@@ -796,7 +796,7 @@ func (s *Scheduler) GetTaskStatus() []map[string]interface{} {
 // the local zone, and canonical UTC text), so the expiry test runs in Go
 // against a UTC cutoff instead of SQLite's datetime('now') - comparing those
 // mixed layouts as text deleted sessions that had not actually expired.
-func CleanupOldSessions(db *sql.DB) error {
+func CleanupOldSessions() error {
 	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_sessions", "id", "expires_at", time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to cleanup sessions: %w", err)
@@ -810,7 +810,7 @@ func CleanupOldSessions(db *sql.DB) error {
 }
 
 // CleanupOldAuditLogs removes audit logs older than retention period
-func CleanupOldAuditLogs(db *sql.DB) error {
+func CleanupOldAuditLogs() error {
 	// Get retention days from settings. Key matches the one the admin panel
 	// reads/writes (handler/admin.go "scheduler_cleanup_audit_logs_days" ->
 	// "scheduler.cleanup_audit_logs_days") - a prior mismatched key here
@@ -1019,7 +1019,7 @@ func createNotification(userID int, notifType model.NotificationType, title, mes
 
 // CreateSystemBackup creates a backup of the database
 // AI.md PART 19/25: backup_daily task - creates verified backups
-func CreateSystemBackup(db *sql.DB) error {
+func CreateSystemBackup() error {
 	// Get backup settings
 	var backupEnabled string
 	err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'backup.enabled'").Scan(&backupEnabled)
@@ -1302,7 +1302,7 @@ func systemBackupRetention() *backup.RetentionConfig {
 // token whose expires_at was stored in a different layout or timezone than
 // SQLite's datetime('now') is never deleted early. Rows with a NULL expires_at
 // never expire and are always left in place.
-func CleanupExpiredTokens(db *sql.DB) error {
+func CleanupExpiredTokens() error {
 	now := time.Now().UTC()
 
 	rowsAffected, err := deleteRowsWithTimestampBefore(database.GetUsersDB(), "user_tokens", "id", "expires_at", now)
@@ -1496,7 +1496,7 @@ func CheckTorHealth() error {
 // The 1-hour cutoff is computed in Go and each window_start is compared as a
 // UTC instant (see CleanupOldSessions), so counters inside the current window
 // are never dropped because of a layout or timezone mismatch.
-func CleanupRateLimitCounters(db *sql.DB) error {
+func CleanupRateLimitCounters() error {
 	// Reset hourly counters that are older than 1 hour
 	cutoff := time.Now().UTC().Add(-1 * time.Hour)
 
