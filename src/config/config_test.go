@@ -414,8 +414,8 @@ func TestLoadConfig_DefaultsWhenNoFileFound(t *testing.T) {
 	if cfg.Server.AdminPath != "admin" {
 		t.Errorf("LoadConfig() default AdminPath = %q, want admin", cfg.Server.AdminPath)
 	}
-	if cfg.Users.Registration.Mode != "invite" {
-		t.Errorf("LoadConfig() default registration mode = %q, want invite", cfg.Users.Registration.Mode)
+	if cfg.Users.Registration.Mode != "open" {
+		t.Errorf("LoadConfig() default registration mode = %q, want open", cfg.Users.Registration.Mode)
 	}
 
 	created := filepath.Join(dir, ".config", "webappsgo", "wthr", "server.yml")
@@ -549,15 +549,15 @@ func TestGetRegistrationMode(t *testing.T) {
 		cfg  *AppConfig
 		want string
 	}{
-		{"nil config defaults to invite", nil, "invite"},
-		{"unset mode defaults to invite", &AppConfig{}, "invite"},
-		{"unknown value defaults to invite", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "bogus"}}}, "invite"},
-		{"legacy public normalizes to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "public"}}}, "open"},
-		{"legacy private normalizes to invite", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "private"}}}, "invite"},
+		{"nil config defaults to open", nil, "open"},
+		{"unset mode defaults to open", &AppConfig{}, "open"},
+		{"unknown value defaults to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "bogus"}}}, "open"},
 		{"canonical open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "open"}}}, "open"},
-		{"canonical invite", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "invite"}}}, "invite"},
-		{"canonical admin_only", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "admin_only"}}}, "admin_only"},
-		{"canonical disabled", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "disabled"}}}, "disabled"},
+		{"canonical private", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "private"}}}, "private"},
+		{"undefined invite falls back to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "invite"}}}, "open"},
+		{"undefined disabled falls back to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "disabled"}}}, "open"},
+		{"undefined admin_only falls back to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "admin_only"}}}, "open"},
+		{"legacy public falls back to open", &AppConfig{Users: UsersConfig{Registration: RegistrationConfig{Mode: "public"}}}, "open"},
 	}
 
 	for _, tt := range tests {
@@ -594,18 +594,17 @@ func TestGetUserInviteExpirationDays(t *testing.T) {
 
 func TestRegistrationModeQueries(t *testing.T) {
 	tests := []struct {
-		mode           string
-		wantOpen       bool
-		wantInviteOnly bool
-		wantAdminOnly  bool
-		wantDisabled   bool
+		mode         string
+		wantOpen     bool
+		wantPrivate  bool
 	}{
-		{"open", true, false, false, false},
-		{"invite", false, true, false, false},
-		{"admin_only", false, false, true, false},
-		{"disabled", false, false, false, true},
-		{"public", true, false, false, false},
-		{"private", false, true, false, false},
+		{"open", true, false},
+		{"private", false, true},
+		{"invite", true, false},
+		{"admin_only", true, false},
+		{"disabled", true, false},
+		{"public", true, false},
+		{"", true, false},
 	}
 
 	for _, tt := range tests {
@@ -615,20 +614,8 @@ func TestRegistrationModeQueries(t *testing.T) {
 			if got := IsRegistrationOpen(); got != tt.wantOpen {
 				t.Errorf("IsRegistrationOpen() = %v, want %v", got, tt.wantOpen)
 			}
-			if got := IsRegistrationPublic(); got != tt.wantOpen {
-				t.Errorf("IsRegistrationPublic() = %v, want %v", got, tt.wantOpen)
-			}
-			if got := IsRegistrationInviteOnly(); got != tt.wantInviteOnly {
-				t.Errorf("IsRegistrationInviteOnly() = %v, want %v", got, tt.wantInviteOnly)
-			}
-			if got := IsRegistrationPrivate(); got != tt.wantInviteOnly {
-				t.Errorf("IsRegistrationPrivate() = %v, want %v", got, tt.wantInviteOnly)
-			}
-			if got := IsRegistrationAdminOnly(); got != tt.wantAdminOnly {
-				t.Errorf("IsRegistrationAdminOnly() = %v, want %v", got, tt.wantAdminOnly)
-			}
-			if got := IsRegistrationDisabled(); got != tt.wantDisabled {
-				t.Errorf("IsRegistrationDisabled() = %v, want %v", got, tt.wantDisabled)
+			if got := IsRegistrationPrivate(); got != tt.wantPrivate {
+				t.Errorf("IsRegistrationPrivate() = %v, want %v", got, tt.wantPrivate)
 			}
 		})
 	}

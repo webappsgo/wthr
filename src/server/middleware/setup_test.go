@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
@@ -71,10 +73,12 @@ func openSetupTestServerDB(t *testing.T) *sql.DB {
 
 func seedSetupAdmin(t *testing.T, db *sql.DB) {
 	t.Helper()
+	// Bound through dbtime rather than left to CURRENT_TIMESTAMP so the fixture
+	// uses the same writer convention as production code.
 	if _, err := db.Exec(`
 		INSERT INTO server_admin_credentials (username, email, password_hash, created_at)
-		VALUES ('root', 'root@example.com', 'x', CURRENT_TIMESTAMP)
-	`); err != nil {
+		VALUES (?, ?, ?, ?)
+	`, "root", "root@example.com", "x", dbtime.FormatSQLTimestamp(time.Now())); err != nil {
 		t.Fatalf("seed admin credential: %v", err)
 	}
 }
@@ -167,7 +171,7 @@ func TestSetupTokenRequired_NoAdminNoTokenFileShows503(t *testing.T) {
 	cfg := testAppConfig()
 	removeSetupToken(t)
 
-	SetHTMLTemplates(template.Must(template.New("error.tmpl").Parse("error stub {{.error}}")))
+	SetHTMLTemplates(template.Must(template.New("page/error.tmpl").Parse("error stub {{.error}}|{{.message}}")))
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("wrapped handler reached, want the 503 error page instead")
 		w.WriteHeader(http.StatusOK)
@@ -177,6 +181,12 @@ func TestSetupTokenRequired_NoAdminNoTokenFileShows503(t *testing.T) {
 
 	if w.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want 503 when no admin exists and no setup token file is present", w.Code)
+	}
+	// setupTranslate returns the raw key when no global i18n instance is
+	// registered, and the English value when one is (either shape is correct).
+	body := w.Body.String()
+	if !strings.Contains(body, "errors.setup.incomplete") && !strings.Contains(body, "Server setup incomplete") {
+		t.Errorf("body = %q, want the setup-incomplete key or its English translation", body)
 	}
 }
 
@@ -198,6 +208,31 @@ func TestSetupTokenRequired_NoAdminTokenFileUnverifiedShowsForm(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200 (token entry form)", w.Code)
+	}
+}
+
+// TestSetupTokenRequired_NoAdminAdminSubPathRedirectsToRoot verifies that
+// before setup, the token entry form is served only at the admin root and
+// every other admin sub-path redirects there, so an unauthenticated
+// /server/admin/dashboard never returns the form with a 200.
+func TestSetupTokenRequired_NoAdminAdminSubPathRedirectsToRoot(t *testing.T) {
+	openSetupTestServerDB(t)
+	cfg := testAppConfig()
+	writeSetupToken(t)
+
+	SetHTMLTemplates(template.Must(template.New("admin/setup_token.tmpl").Parse("token form stub")))
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("wrapped handler reached, want a redirect to the admin root instead")
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/server/admin/dashboard", nil)
+	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
+
+	if w.Code != http.StatusFound {
+		t.Errorf("status = %d, want 302 for an admin sub-path before setup", w.Code)
+	}
+	if loc := w.Header().Get("Location"); loc != "/server/admin" {
+		t.Errorf("Location = %q, want %q", loc, "/server/admin")
 	}
 }
 

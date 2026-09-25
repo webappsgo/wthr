@@ -32,10 +32,26 @@ type SettingsModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the server.db handle this model was constructed with. The only
+// table SettingsModel touches (server_config) is declared in
+// database.ServerSchema, so the injected handle is the correct database for
+// every query below.
+// Fallback: when the injected handle is nil (unit tests, or construction
+// before the global dual DB is wired) the process-global server handle is used
+// instead, so a nil handle degrades to the previous behavior rather than
+// panicking.
+func (m *SettingsModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetServerDB()
+}
+
 // GetSetting retrieves a setting by key
 func (m *SettingsModel) GetSetting(key string) (*Setting, error) {
 	setting := &Setting{}
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key = ?",
 		key,
 	).Scan(&setting.Key, &setting.Value, &setting.Type)
@@ -92,7 +108,7 @@ func (m *SettingsModel) GetJSON(key string, dest interface{}) error {
 
 // SetSetting creates or updates a setting
 func (m *SettingsModel) SetSetting(key, value, settingType string) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type)
 		VALUES (?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?
@@ -103,7 +119,7 @@ func (m *SettingsModel) SetSetting(key, value, settingType string) error {
 
 // SetWithDescription sets a setting with description
 func (m *SettingsModel) SetWithDescription(key, value, settingType, description string) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO server_config (key, value, type, description)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = ?, type = ?, description = ?
@@ -142,13 +158,13 @@ func (m *SettingsModel) SetJSON(key string, value interface{}) error {
 
 // DeleteSetting removes a setting
 func (m *SettingsModel) DeleteSetting(key string) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM server_config WHERE key = ?", key)
 	return err
 }
 
 // List returns all settings
 func (m *SettingsModel) List() ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, "SELECT key, value, type FROM server_config ORDER BY key")
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, "SELECT key, value, type FROM server_config ORDER BY key")
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +184,7 @@ func (m *SettingsModel) List() ([]*Setting, error) {
 
 // ListByPrefix returns all settings with a specific prefix
 func (m *SettingsModel) ListByPrefix(prefix string) ([]*Setting, error) {
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect,
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect,
 		"SELECT key, value, type FROM server_config WHERE key LIKE ? ORDER BY key",
 		prefix+"%",
 	)

@@ -182,9 +182,9 @@ func TestHandleAPILogin(t *testing.T) {
 }
 
 // TestHandleAPIRegister covers the created-account happy path and the
-// registration-disabled 404 gate.
+// 404 gate when multi-user mode is off.
 func TestHandleAPIRegister(t *testing.T) {
-	t.Run("registration disabled returns 404", func(t *testing.T) {
+	t.Run("multi-user disabled returns 404", func(t *testing.T) {
 		h := newAuthAPITestHandler(t)
 		config.SetGlobalConfig(&config.AppConfig{})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })

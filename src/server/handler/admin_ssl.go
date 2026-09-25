@@ -3,7 +3,6 @@ package handler
 import (
 	"crypto/tls"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -244,8 +243,7 @@ func (h *SSLHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		EmailNotifications bool `json:"emailNotifications"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
+	if !DecodeAndValidate(w, r, &settings) {
 		return
 	}
 

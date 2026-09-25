@@ -277,7 +277,9 @@ All external API responses are validated before use. Network calls have 30-secon
 
 ### User account rules (Multi-User — PART 34 REQUIRED)
 
-- Registration: configurable (open/invite-only/disabled); default invite-only
+- Registration: configurable (open/private); default open. Per AI.md PART 34 the
+  mode controls only whether the public self-registration form is reachable —
+  admin invite and direct admin create work in both modes
 - Email verification required before account activation
 - Save up to 10 locations per user
 - Subscribe to alerts for saved locations

@@ -11,6 +11,14 @@ import (
 func GenerateServerYML(configDir string) error {
 	configPath := filepath.Join(configDir, "server.yml")
 
+	// An existing server.yml is the operator's source of truth (Single Instance
+	// mode) and must never be clobbered by the first-run defaults.
+	if _, err := os.Stat(configPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check server.yml: %w", err)
+	}
+
 	serverYML := `# Weather Configuration
 # This file is auto-generated from database settings
 # Edit via admin panel at /admin/settings

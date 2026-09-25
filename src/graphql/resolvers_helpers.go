@@ -909,7 +909,7 @@ func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context,
 		return "", fmt.Errorf("channel %q testing requires a recipient", typeArg)
 	}
 
-	smtpService := service.NewSMTPService(r.ServerDB)
+	smtpService := service.SharedSMTPService(r.ServerDB)
 	if err := smtpService.LoadConfig(); err != nil {
 		return "", fmt.Errorf("failed to load SMTP configuration: %w", err)
 	}

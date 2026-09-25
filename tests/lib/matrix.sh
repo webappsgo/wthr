@@ -41,6 +41,12 @@ __cleanup() {
         kill "$SERVER_PID" >/dev/null 2>&1 || true
         wait "$SERVER_PID" >/dev/null 2>&1 || true
     fi
+    cp "$TEST_DIR/server.log" /matrix-logs/stdout-server.log 2>/dev/null || true
+    # The app's own logs include a server.log of the same name; copy each one
+    # under an app- prefix so it cannot overwrite the stdout capture above.
+    for app_log in "$TEST_DIR/volumes/logs/"*; do
+        cp "$app_log" "/matrix-logs/app-$(basename "$app_log")" 2>/dev/null || true
+    done
     rm -rf "$TEST_DIR"
 }
 trap __cleanup EXIT
@@ -82,6 +88,7 @@ __request() {
 
     if ! curl -q -LSsf -X "$method" -D "$hdr" -o "$body" -H "Accept: $accept" "$@" "${BASE_URL}${path}" >/dev/null; then
         __fail "$label :: curl transport failed"
+        grep -i -- '^X-RateLimit\|^Retry-After\|^HTTP/' "$hdr" >&2 2>/dev/null || true
         return
     fi
 
@@ -156,6 +163,33 @@ __bootstrap_server() {
         "$TEST_DIR/volumes/logs" \
         "$TEST_DIR/volumes/cache" \
         "$TEST_DIR/volumes/backup"
+
+    # AI.md PART 12 keeps the production rate limits (read 120/min, write
+    # 10/min, global burst 240/min), but the route/header matrix deliberately
+    # drives hundreds of requests through a single loopback IP, so the sliding
+    # window would 429 the suite itself. Raise the read/write/health/global
+    # budgets here; the auth-specific limits (login/password-reset/
+    # registration) stay at spec values so their own assertions still
+    # exercise real throttling.
+    cat >"$TEST_DIR/volumes/config/server.yml" <<'EOF'
+server:
+  rate_limit:
+    read:
+      requests: 100000
+      window: 60
+    write:
+      requests: 100000
+      window: 60
+    health:
+      requests: 100000
+      window: 60
+    global_burst: 100000
+users:
+  # The suite's "Creating regular user" step POSTs /server/auth/register,
+  # which 404s unless self-registration is open (AI.md PART 34 default is open).
+  registration:
+    mode: open
+EOF
 
     COLUMNS=120 "/usr/local/bin/$PROJECTNAME" \
         --mode development \
@@ -254,7 +288,7 @@ __check_user_login() {
     local body="$TEST_DIR/login.body"
 
     curl -q -LSs -D "$hdr" -o "$body" -c "$USER_COOKIE" -b "$USER_COOKIE" \
-        --data-urlencode "username=matrixuser" \
+        --data-urlencode "identifier=matrixuser" \
         --data-urlencode "password=MatrixPassword123!" \
         "$BASE_URL/server/auth/login" >/dev/null
     case "$(__http_code "$hdr")" in
@@ -264,7 +298,7 @@ __check_user_login() {
 
     curl -q -LSs -D "$hdr" -o "$body" \
         -H "Accept: application/json" \
-        --data-urlencode "username=matrixuser" \
+        --data-urlencode "identifier=matrixuser" \
         --data-urlencode "password=WrongPassword000!" \
         "$BASE_URL/server/auth/login" >/dev/null
     case "$(__http_code "$hdr")" in
@@ -277,22 +311,25 @@ __check_unauth_protection() {
     local hdr="$TEST_DIR/protected.headers"
     local body="$TEST_DIR/protected.body"
 
-    curl -q -LSs -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/users" >/dev/null
+    # These checks assert the unauthenticated rejection status, so redirects
+    # must NOT be followed (-L would collapse the 302 into the login page's
+    # 200 and __http_code reads the last status line in the chain).
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/users" >/dev/null
     if [ "$(__http_code "$hdr")" != "302" ]; then
         __fail "unauth html /users :: expected 302 redirect"
     fi
 
-    curl -q -LSs -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/users" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/users" >/dev/null
     if [ "$(__http_code "$hdr")" != "401" ]; then
         __fail "unauth api /api/v1/users :: expected 401"
     fi
 
-    curl -q -LSs -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/admin/config/users" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/admin/config/users" >/dev/null
     if [ "$(__http_code "$hdr")" != "401" ]; then
         __fail "unauth api /api/v1/server/admin/config/users :: expected 401"
     fi
 
-    curl -q -LSs -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/admin/dashboard" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/admin/dashboard" >/dev/null
     case "$(__http_code "$hdr")" in
         302 | 401 | 403) ;;
         *) __fail "unauth html /server/admin/dashboard :: expected 302/401/403, got $(__http_code "$hdr")" ;;

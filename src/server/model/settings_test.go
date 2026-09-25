@@ -263,3 +263,31 @@ func TestSettingsModel_InitializeDefaults(t *testing.T) {
 		}
 	})
 }
+
+// TestSettingsModel_NilDBFallsBackToGlobal proves a SettingsModel built with a
+// nil DB handle degrades to the process-global server database instead of
+// panicking, matching the getDB contract every sibling model already follows.
+func TestSettingsModel_NilDBFallsBackToGlobal(t *testing.T) {
+	global := newModelServerDB(t)
+	setModelGlobalDualDB(t, global, nil)
+	model := &SettingsModel{}
+
+	if err := model.SetString("server.title", "Fallback Title"); err != nil {
+		t.Fatalf("SetString() error = %v", err)
+	}
+	if got := model.GetString("server.title", "Weather"); got != "Fallback Title" {
+		t.Errorf("GetString() = %q, want %q", got, "Fallback Title")
+	}
+	if got := model.GetString("missing.key", "fallback"); got != "fallback" {
+		t.Errorf("GetString() default = %q, want %q", got, "fallback")
+	}
+	if _, err := model.List(); err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if _, err := model.ListByPrefix("server."); err != nil {
+		t.Fatalf("ListByPrefix() error = %v", err)
+	}
+	if err := model.DeleteSetting("server.title"); err != nil {
+		t.Fatalf("DeleteSetting() error = %v", err)
+	}
+}

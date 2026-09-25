@@ -831,7 +831,7 @@ func (m *UserModel) Count() (int, error) {
 func (m *UserModel) CountByRole(role string) (int, error) {
 	query := `SELECT COUNT(*) FROM user_accounts WHERE role = ?`
 	var count int
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, query, role).Scan(&count)
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, query, role).Scan(&count)
 	return count, err
 }
 

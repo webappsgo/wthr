@@ -3,11 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"path/filepath"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -217,7 +218,13 @@ func shouldRespondText(r *http.Request) bool {
 
 // hasTextExtension reports whether the route was requested with the .txt
 // extension, the highest-priority signal in the AI.md PART 14 API chain.
+// URLNormalizeMiddleware strips that suffix before the handler runs, so the
+// recorded signal in the request context is authoritative when present; the
+// path is only consulted for requests that never passed through middleware.
 func hasTextExtension(r *http.Request) bool {
+	if requested, ok := reqctx.GetValue(r.Context(), middleware.TextRequestKey); ok {
+		return requested.(bool)
+	}
 	return filepath.Ext(r.URL.Path) == ".txt"
 }
 

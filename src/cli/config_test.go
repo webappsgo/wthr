@@ -9,7 +9,7 @@ import (
 )
 
 // TestGenerateServerYML covers a normal write (file created, contains the
-// expected top-level sections and default values), overwrite of an
+// expected top-level sections and default values), preservation of an
 // existing file, and the error path when the target directory does not
 // exist.
 func TestGenerateServerYML(t *testing.T) {
@@ -39,7 +39,7 @@ func TestGenerateServerYML(t *testing.T) {
 		}
 	})
 
-	t.Run("overwrites_existing_file", func(t *testing.T) {
+	t.Run("preserves_existing_file", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "server.yml")
 		if err := os.WriteFile(path, []byte("stale: true"), 0644); err != nil {
@@ -52,10 +52,10 @@ func TestGenerateServerYML(t *testing.T) {
 
 		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("server.yml missing after regenerate: %v", err)
+			t.Fatalf("server.yml missing after generate: %v", err)
 		}
-		if strings.Contains(string(data), "stale: true") {
-			t.Error("server.yml still contains stale content after regenerate")
+		if string(data) != "stale: true" {
+			t.Errorf("server.yml was overwritten, got %q, want %q", string(data), "stale: true")
 		}
 	})
 

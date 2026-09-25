@@ -51,7 +51,7 @@
     </a>
   </header>
   <div class="admin-body">
-    <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}">
+    <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}" data-nav-state-url="{{$ap}}/config/nav-state" data-nav-state-csrf="{{.csrf_token}}">
       <ul class="nav-root">
         <li>
           <a class="nav-link nav-link--top{{if eq $page "admin"}} is-active{{end}}" href="{{$ap}}"{{if eq $page "admin"}} aria-current="page"{{end}}>
@@ -60,8 +60,8 @@
           </a>
         </li>
       </ul>
-      <details class="nav-section" data-nav-section="server" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="server"{{if index $.admin_nav_open "server"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128421;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.server"}}</span>
         </summary>
@@ -80,8 +80,8 @@
           <li><a class="nav-link{{if eq $page "info"}} is-active{{end}}" href="{{$ap}}/config/info"{{if eq $page "info"}} aria-current="page"{{end}}>{{t $lang "admin.nav.info"}}</a></li>
         </ul>
       </details>
-      <details class="nav-section" data-nav-section="security" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="security"{{if index $.admin_nav_open "security"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128274;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.security"}}</span>
         </summary>
@@ -92,8 +92,8 @@
           <li><a class="nav-link{{if eq $page "firewall"}} is-active{{end}}" href="{{$ap}}/config/security/firewall"{{if eq $page "firewall"}} aria-current="page"{{end}}>{{t $lang "admin.nav.firewall"}}</a></li>
         </ul>
       </details>
-      <details class="nav-section" data-nav-section="network" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="network"{{if index $.admin_nav_open "network"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#127760;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.network"}}</span>
         </summary>
@@ -105,8 +105,8 @@
         </ul>
       </details>
       {{- /* AI.md PART 34 is active for this project, so Users is always shown. */}}
-      <details class="nav-section" data-nav-section="users" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="users"{{if index $.admin_nav_open "users"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128101;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.users"}}</span>
         </summary>
@@ -118,8 +118,8 @@
       </details>
       {{- /* AI.md PART 10 cluster section: only rendered when cluster mode is on. */}}
       {{if .cluster_enabled}}
-      <details class="nav-section" data-nav-section="cluster" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="cluster"{{if index $.admin_nav_open "cluster"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#128225;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.cluster"}}</span>
         </summary>
@@ -129,8 +129,8 @@
         </ul>
       </details>
       {{end}}
-      <details class="nav-section" data-nav-section="help" open>
-        <summary class="nav-section__header">
+      <details class="nav-section" data-nav-section="help"{{if index $.admin_nav_open "help"}} open{{end}}>
+        <summary class="nav-section__header" data-action="toggle-nav-section">
           <span class="nav-section__icon" aria-hidden="true">&#10067;</span>
           <span class="nav-section__text">{{t $lang "admin.nav.help"}}</span>
         </summary>

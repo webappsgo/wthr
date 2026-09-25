@@ -3,81 +3,50 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/admin" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
     <div class="content-header">
         <h1>{{t $lang "admin.email_editor.title"}}</h1>
     </div>
 
-    <div class="admin-page-container wide">
-        <div class="admin-alert admin-alert-success" id="successAlert" role="alert"></div>
-        <div class="admin-alert admin-alert-error" id="errorAlert" role="alert"></div>
+    {{template "flash" .}}
 
+    <div class="admin-page-container wide">
         <div class="info-box">
             <h4>{{t $lang "admin.email_editor.info_heading"}}</h4>
             <p>{{t $lang "admin.email_editor.info_body"}}</p>
         </div>
 
         <div class="editor-layout">
-            <!-- Template List -->
             <div class="template-list" role="navigation" aria-label="{{t $lang "admin.email_editor.nav_aria"}}">
                 <h2>{{t $lang "admin.email_editor.templates_heading"}}</h2>
-                <div class="template-item active" data-template="welcome" tabindex="0" role="button" aria-pressed="true">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_welcome_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_welcome_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="password_reset" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_password_reset_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_password_reset_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="backup_complete" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_backup_complete_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_backup_complete_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="backup_failed" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_backup_failed_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_backup_failed_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="ssl_expiring" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_ssl_expiring_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_ssl_expiring_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="ssl_renewed" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_ssl_renewed_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_ssl_renewed_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="login_alert" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_login_alert_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_login_alert_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="security_alert" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_security_alert_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_security_alert_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="scheduler_error" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_scheduler_error_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_scheduler_error_desc"}}</span>
-                </div>
-                <div class="template-item" data-template="test" tabindex="0" role="button" aria-pressed="false">
-                    <span class="template-name">{{t $lang "admin.email_editor.tpl_test_name"}}</span>
-                    <span class="template-desc">{{t $lang "admin.email_editor.tpl_test_desc"}}</span>
-                </div>
+                {{if not .templates}}
+                <p class="empty-state__message">{{t $lang "admin.email_editor.templates_empty"}}</p>
+                {{else}}
+                {{range .templates}}
+                <a class="template-item{{if eq .Name $.selected}} active{{end}}" data-template="{{.Name}}" href="{{$ap}}/config/email/templates?template={{.Name}}"{{if eq .Name $.selected}} aria-current="true"{{end}}>
+                    <span class="template-name">{{t $lang (printf "admin.email_editor.tpl_%s_name" .Name)}}</span>
+                    <span class="template-desc">{{t $lang (printf "admin.email_editor.tpl_%s_desc" .Name)}}</span>
+                </a>
+                {{end}}
+                {{end}}
             </div>
 
-            <!-- Editor Panel -->
+            {{if .current}}
             <div class="editor-panel">
-                <h2>
-                    <span id="editorTitle">{{t $lang "admin.email_editor.edit_heading"}}</span>
-                </h2>
+                <h2><span id="editorTitle">{{t $lang "admin.email_editor.edit_heading"}}</span></h2>
 
-                <form id="templateForm">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <form id="templateForm" class="admin-form" method="post" action="{{$ap}}/config/email/templates" enctype="application/x-www-form-urlencoded">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="template" id="templateName" value="{{.selected}}">
                     <div class="form-group">
                         <label for="templateSubject">{{t $lang "admin.email_editor.subject_label"}}</label>
-                        <input type="text" id="templateSubject" placeholder="{{t $lang "admin.email_editor.subject_placeholder"}}" aria-required="true">
+                        <input type="text" id="templateSubject" name="subject" required value="{{.current.Subject}}" placeholder="{{t $lang "admin.email_editor.subject_placeholder"}}">
                     </div>
 
                     <div class="form-group">
                         <label for="templateBody">{{t $lang "admin.email_editor.body_label"}}</label>
-                        <textarea id="templateBody" placeholder="{{t $lang "admin.email_editor.body_placeholder"}}" aria-required="true"></textarea>
+                        <textarea id="templateBody" name="body" required placeholder="{{t $lang "admin.email_editor.body_placeholder"}}">{{.current.Body}}</textarea>
 
                         <div class="variables-help">
                             <h4>{{t $lang "admin.email_editor.variables_heading"}}</h4>
@@ -95,31 +64,38 @@
                     </div>
 
                     <div class="action-buttons">
-                        <button type="button" class="btn btn-primary" id="saveBtn" aria-label="{{t $lang "admin.email_editor.save_aria"}}">
+                        <button type="submit" class="btn btn-primary" id="saveBtn" aria-label="{{t $lang "admin.email_editor.save_aria"}}">
                             {{t $lang "admin.email_editor.save_action"}}
                         </button>
-                        <button type="button" class="btn btn-secondary" id="reloadBtn" aria-label="{{t $lang "admin.email_editor.reload_aria"}}">
-                            {{t $lang "admin.email_editor.reload_action"}}
-                        </button>
-                        <button type="button" class="btn btn-success" id="testBtn" aria-label="{{t $lang "admin.email_editor.test_aria"}}">
+                    </div>
+                </form>
+
+                <form class="admin-form" method="post" action="{{$ap}}/config/email/templates/preview" enctype="application/x-www-form-urlencoded">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <input type="hidden" name="template" value="{{.selected}}">
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-secondary" id="testBtn" aria-label="{{t $lang "admin.email_editor.test_aria"}}">
                             {{t $lang "admin.email_editor.test_action"}}
                         </button>
                     </div>
                 </form>
             </div>
 
-            <!-- Preview Panel -->
             <div class="preview-panel">
                 <h2>{{t $lang "admin.email_editor.preview_heading"}}</h2>
                 <div class="preview-content" role="region" aria-label="{{t $lang "admin.email_editor.preview_aria"}}">
-                    <div class="preview-subject" id="previewSubject">{{t $lang "admin.email_editor.preview_subject_placeholder"}}</div>
-                    <div class="preview-body" id="previewBody">{{t $lang "admin.email_editor.preview_body_placeholder"}}</div>
+                    <div class="preview-subject" id="previewSubject" aria-live="polite">{{t $lang "admin.email_editor.preview_subject_placeholder"}}</div>
+                    <div class="preview-body" id="previewBody" aria-live="polite">{{t $lang "admin.email_editor.preview_body_placeholder"}}</div>
                 </div>
+                <button type="button" class="btn btn-secondary" id="reloadBtn" aria-label="{{t $lang "admin.email_editor.reload_aria"}}">
+                    {{t $lang "admin.email_editor.reload_action"}}
+                </button>
             </div>
+            {{end}}
         </div>
     </div>
 
-    <script type="application/json" id="admin-email-editor-data">{"adminApiPath": {{.admin_api_path}}}</script>
+    <script type="application/json" id="admin-email-editor-data">{"subjectPlaceholder": {{t $lang "admin.email_editor.preview_subject_placeholder"}}, "bodyPlaceholder": {{t $lang "admin.email_editor.preview_body_placeholder"}}, "reloadConfirm": {{t $lang "admin.email_editor.reload_confirm"}}, "reloadTitle": {{t $lang "admin.email_editor.reload_title"}}}</script>
     <script src="/static/js/app.js"></script>
 {{template "admin_footer" .}}
 {{end}}

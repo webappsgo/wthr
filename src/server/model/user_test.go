@@ -181,8 +181,7 @@ func TestUserModelCreateAndGet(t *testing.T) {
 }
 
 // TestUserModelListAndCount covers ListUsers pagination, the empty-table
-// boundary, GetAll, CountUsers/Count, and CountByRole (which uniquely reads
-// via the injected m.DB field rather than the global accessor).
+// boundary, GetAll, CountUsers/Count, and CountByRole.
 func TestUserModelListAndCount(t *testing.T) {
 	usersDB := newModelUsersDB(t)
 	serverDB := newModelServerDB(t)

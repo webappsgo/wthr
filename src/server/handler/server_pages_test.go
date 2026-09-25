@@ -47,6 +47,15 @@ func newJSONNegotiatedContext(target string) (*http.Request, *httptest.ResponseR
 	return r, w
 }
 
+func TestShowExamplesPage(t *testing.T) {
+	cfg := newServerPagesTestConfig()
+	r, w := newJSONNegotiatedContext("/server/examples")
+	ShowExamplesPage(cfg)(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+	}
+}
+
 func TestShowAboutPage(t *testing.T) {
 	db := newServerPagesTestDB(t)
 	cfg := newServerPagesTestConfig()

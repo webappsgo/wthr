@@ -34,15 +34,10 @@ type UsersConfig struct {
 
 // RegistrationConfig represents user registration settings per AI.md PART 34.
 type RegistrationConfig struct {
-	// Mode controls how new regular-user accounts are created.
-	// Per AI.md PART 34 canonical values:
-	//   open       — anyone can self-register (public)
-	//   invite     — only admin-issued invite links create accounts (default, per IDEA.md)
-	//   admin_only — only direct admin creation (no self-service)
-	//   disabled   — no new regular-user accounts allowed
-	// Legacy aliases accepted for backward compat (normalised in GetRegistrationMode):
-	//   "public"  → "open"
-	//   "private" → "invite"
+	// Mode controls whether the public self-registration form is reachable.
+	// Per AI.md PART 34 the only two values are:
+	//   open    — public self-register is available (default)
+	//   private — no public form; admin invite or direct create still work
 	Mode string `yaml:"mode"`
 	// RequireEmailVerification requires users to verify email before login.
 	RequireEmailVerification bool `yaml:"require_email_verification"`
@@ -784,8 +779,8 @@ func LoadConfig() (*AppConfig, error) {
 		Users: UsersConfig{
 			Enabled: true,
 			Registration: RegistrationConfig{
-				// invite = admin-issued invite links only (per IDEA.md project default)
-				Mode:                     "invite",
+				// open = public self-register allowed (AI.md PART 34 default)
+				Mode:                     "open",
 				RequireEmailVerification: true,
 				InviteExpirationDays:     7,
 			},
@@ -1316,10 +1311,10 @@ func IsMultiUserEnabled() bool {
 	return cfg.Users.Enabled
 }
 
-// GetRegistrationMode returns the canonical registration mode per AI.md PART 34.
-// Valid canonical values: "open", "invite", "admin_only", "disabled".
-// Legacy values "public" and "private" are normalised to their canonical equivalents.
-// Default when no config is set: "invite" (per IDEA.md project specification).
+// GetRegistrationMode returns the registration mode per AI.md PART 34.
+// The only two values are "open" (default) and "private"; the mode controls
+// solely whether the public self-registration form is reachable. Any other
+// configured value falls back to the default.
 func GetRegistrationMode() string {
 	cfg := GetGlobalConfig()
 	var mode string
@@ -1327,15 +1322,10 @@ func GetRegistrationMode() string {
 		mode = cfg.Users.Registration.Mode
 	}
 	switch mode {
-	case "public":
-		return "open"
-	case "private":
-		return "invite"
-	case "open", "invite", "admin_only", "disabled":
+	case "open", "private":
 		return mode
 	default:
-		// Not configured or unknown value: default to invite per IDEA.md.
-		return "invite"
+		return "open"
 	}
 }
 
@@ -1355,31 +1345,9 @@ func IsRegistrationOpen() bool {
 	return GetRegistrationMode() == "open"
 }
 
-// IsRegistrationPublic is a backward-compatible alias for IsRegistrationOpen.
-func IsRegistrationPublic() bool {
-	return IsRegistrationOpen()
-}
-
-// IsRegistrationPrivate returns true when only invite links create accounts.
-// Kept for backward compat; prefer IsRegistrationInviteOnly.
+// IsRegistrationPrivate returns true when the public registration form is
+// unreachable (mode "private"). Per AI.md PART 34 the admin can still invite
+// or directly create users in this mode.
 func IsRegistrationPrivate() bool {
-	return IsRegistrationInviteOnly()
-}
-
-// IsRegistrationInviteOnly returns true when registration mode is "invite".
-// Per AI.md PART 34: invite mode = admin-issued invite links only.
-func IsRegistrationInviteOnly() bool {
-	return GetRegistrationMode() == "invite"
-}
-
-// IsRegistrationAdminOnly returns true when only admins can directly create accounts.
-// Per AI.md PART 34: admin_only mode = no self-service or invites.
-func IsRegistrationAdminOnly() bool {
-	return GetRegistrationMode() == "admin_only"
-}
-
-// IsRegistrationDisabled returns true when no new regular-user accounts are allowed.
-// Per AI.md PART 34: disabled mode = existing users only.
-func IsRegistrationDisabled() bool {
-	return GetRegistrationMode() == "disabled"
+	return GetRegistrationMode() == "private"
 }

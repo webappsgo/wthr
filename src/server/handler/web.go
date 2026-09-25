@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -135,7 +136,7 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 	locationFormatted := strings.ReplaceAll(location, " ", "+")
 
 	NegotiateResponse(w, r, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":             "Weather",
+		"Title":             Translate(r, "app.name"),
 		"WeatherData":       weatherData,
 		"HostInfo":          hostInfo,
 		"Location":          location,
@@ -199,7 +200,7 @@ func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) 
 	// If still no location, show empty moon page
 	if location == "" {
 		NegotiateResponse(w, r, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title":      "Moon Phase - Weather",
+			"Title":      Translate(r, "moon.title"),
 			"HostInfo":   util.GetHostInfo(r),
 			"Location":   "",
 			"Units":      units,
@@ -214,9 +215,11 @@ func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) 
 	coords, err = h.weatherService.ParseAndResolveLocation(location, clientIP)
 
 	if err != nil {
-		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, err.Error(), util.TemplateData(r, map[string]interface{}{
-			"Title":      "Moon Phase - Weather",
-			"Error":      err.Error(),
+		// AI.md PART 11: internal error details go to the log only, never to
+		// the response body, which carries the translated user-facing message.
+		log.Printf("ERROR: moon location resolution failed for %q: %v", location, err)
+		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/moon.tmpl", ErrInternal, Translate(r, "errors.moon_location_failed"), util.TemplateData(r, map[string]interface{}{
+			"Title":      Translate(r, "nav.moon"),
 			"HostInfo":   util.GetHostInfo(r),
 			"Location":   location,
 			"Units":      units,
@@ -282,15 +285,18 @@ func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) 
 	// This shows "Albany, NY" instead of just "Albany"
 	displayLocation := enhanced.ShortName
 
-	middleware.RenderHTML(w, r, http.StatusOK, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":             "Moon Phase - " + enhanced.ShortName,
+	// AI.md PART 14: the success path must negotiate like the error paths
+	// above, so Accept: text/html gets the page and Accept: text/plain gets
+	// the pretty-printed data instead of a hardcoded HTML response.
+	NegotiateResponse(w, r, "page/moon.tmpl", map[string]interface{}{
+		"Title":             Translate(r, "moon.title") + " - " + enhanced.ShortName,
 		"MoonData":          moonData,
 		"HostInfo":          util.GetHostInfo(r),
 		"Location":          displayLocation,
 		"LocationFormatted": strings.ReplaceAll(enhanced.ShortName, " ", "+"),
 		"Units":             units,
 		"HideFooter":        false,
-	}))
+	})
 }
 
 // calculateSunTimesForWeb calculates sun times for the web template

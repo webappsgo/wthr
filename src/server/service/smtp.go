@@ -9,10 +9,13 @@ import (
 	"net"
 	"net/smtp"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
+	appconfig "github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -38,6 +41,7 @@ func translate(key, fallback string) string {
 
 // SMTPConfig represents SMTP configuration
 type SMTPConfig struct {
+	Enabled       bool   `json:"enabled"`
 	Host          string `json:"host"`
 	Port          string `json:"port"`
 	Username      string `json:"username"`
@@ -53,6 +57,11 @@ type SMTPConfig struct {
 type SMTPService struct {
 	db     *sql.DB
 	config *SMTPConfig
+	// verified records whether a working SMTP handshake was confirmed during
+	// this process lifetime. AI.md PART 18 requires email features to be
+	// enabled only while a real server answers, never from config presence
+	// alone, so every IsEnabled check consults this flag.
+	verified bool
 }
 
 // SMTPProviderPreset represents a known SMTP provider configuration
@@ -134,6 +143,26 @@ func NewSMTPService(db *sql.DB) *SMTPService {
 	}
 }
 
+// sharedSMTPInstances maps a server.db handle to the single SMTPService bound
+// to it. AI.md PART 18 requires the working-SMTP check to happen "once at
+// startup and on config change", so every caller for a given database must
+// share one instance: a caller that built its own SMTPService would never see
+// the startup handshake and would wrongly report email as unavailable. Keying
+// on the handle (rather than one process-wide slot) keeps test databases
+// isolated from each other.
+var sharedSMTPInstances sync.Map
+
+// SharedSMTPService returns the single SMTPService bound to db, creating it on
+// first use. Callers must use this instead of NewSMTPService so the verified
+// state computed at startup is visible to every email-dependent feature.
+func SharedSMTPService(db *sql.DB) *SMTPService {
+	if existing, ok := sharedSMTPInstances.Load(db); ok {
+		return existing.(*SMTPService)
+	}
+	created, _ := sharedSMTPInstances.LoadOrStore(db, &SMTPService{db: db})
+	return created.(*SMTPService)
+}
+
 // serverDB returns the server.db handle this SMTP service was constructed
 // with. Both tables the SMTP service touches (server_config,
 // server_notification_channels) are declared in database.ServerSchema, so the
@@ -154,19 +183,50 @@ func (s *SMTPService) GetConfig() *SMTPConfig {
 	return s.config
 }
 
-// IsEnabled returns whether SMTP is configured and ready to send
+// IsEnabled reports whether email features may be used right now.
+// AI.md PART 18: "SMTP configured and working" is the only state that
+// enables email — a configured-but-unreachable host, or no host at all,
+// must leave every email feature disabled.
 func (s *SMTPService) IsEnabled() bool {
 	if s.config == nil {
 		_ = s.LoadConfig()
 	}
-	return s.config != nil && s.config.Host != "" && s.config.FromAddress != ""
+	return s.config != nil && s.config.Host != "" && s.config.FromAddress != "" && s.verified
+}
+
+// VerifyConfiguredConnection tests the configured SMTP host and records the
+// result. AI.md PART 18 requires this check once at startup and again on
+// every config change: success enables email, failure disables it with a
+// warning and leaves the server running.
+func (s *SMTPService) VerifyConfiguredConnection() error {
+	// Always re-read rather than trusting the cached config: this is the
+	// "on config change" half of AI.md PART 18's "check SMTP status once at
+	// startup and on config change", and a stale cached host would verify a
+	// server the admin has already replaced.
+	if err := s.LoadConfig(); err != nil {
+		s.verified = false
+		return err
+	}
+
+	if s.config.Host == "" {
+		s.verified = false
+		return nil
+	}
+
+	if err := s.TestConnection(s.config); err != nil {
+		s.verified = false
+		return err
+	}
+	s.verified = true
+	return nil
 }
 
 // LoadConfig loads SMTP configuration from database and environment
 func (s *SMTPService) LoadConfig() error {
-	config := &SMTPConfig{}
+	smtpCfg := &SMTPConfig{}
 
 	// Load from database first
+	enabled, _ := s.getSetting("smtp.enabled")
 	host, _ := s.getSetting("smtp.host")
 	port, _ := s.getSetting("smtp.port")
 	username, _ := s.getSetting("smtp.username")
@@ -177,132 +237,161 @@ func (s *SMTPService) LoadConfig() error {
 	autoEnable, _ := s.getSetting("smtp.auto_enable")
 	testRecipient, _ := s.getSetting("smtp.test_recipient")
 
-	// Environment variables as hints (database takes precedence)
-	if host == "" {
-		host = os.Getenv("SMTP_HOST")
+	// Environment variables override the config file, per AI.md PART 18's
+	// Environment Variable Priority table. This is deliberately an override
+	// (not a fallback): the table states SMTP_* env vars override config.
+	if envHost := os.Getenv("SMTP_HOST"); envHost != "" {
+		host = envHost
+	}
+	if envPort := os.Getenv("SMTP_PORT"); envPort != "" {
+		port = envPort
 	}
 	if port == "" {
-		port = os.Getenv("SMTP_PORT")
-		if port == "" {
-			port = "587"
-		}
+		port = "587"
 	}
-	if username == "" {
-		username = os.Getenv("SMTP_USERNAME")
+	if envUser := os.Getenv("SMTP_USERNAME"); envUser != "" {
+		username = envUser
 	}
-	if password == "" {
-		password = os.Getenv("SMTP_PASSWORD")
+	if envPass := os.Getenv("SMTP_PASSWORD"); envPass != "" {
+		password = envPass
 	}
-	if fromAddr == "" {
-		fromAddr = os.Getenv("SMTP_FROM_ADDRESS")
+	if envFrom := os.Getenv("SMTP_FROM_EMAIL"); envFrom != "" {
+		fromAddr = envFrom
+	}
+	if envName := os.Getenv("SMTP_FROM_NAME"); envName != "" {
+		fromName = envName
+	}
+	useTLSOverride := useTLS
+	if envTLS := os.Getenv("SMTP_TLS"); envTLS != "" {
+		useTLSOverride = envTLS
 	}
 	if fromName == "" {
-		fromName = os.Getenv("SMTP_FROM_NAME")
-		if fromName == "" {
-			fromName = translate("app.name", "Weather")
-		}
+		fromName = translate("app.name", "Weather")
 	}
 
-	config.Host = host
-	config.Port = port
-	config.Username = username
-	config.Password = password
-	config.FromAddress = fromAddr
-	config.FromName = fromName
-	config.UseTLS = useTLS == "true"
-	config.AutoEnable = autoEnable == "true"
-	config.TestRecipient = testRecipient
+	smtpCfg.Enabled, _ = appconfig.ParseBool(enabled, false)
+	smtpCfg.Host = host
+	smtpCfg.Port = port
+	smtpCfg.Username = username
+	smtpCfg.Password = password
+	smtpCfg.FromAddress = fromAddr
+	smtpCfg.FromName = fromName
+	smtpCfg.UseTLS, _ = appconfig.ParseBool(useTLSOverride, false)
+	smtpCfg.AutoEnable, _ = appconfig.ParseBool(autoEnable, false)
+	smtpCfg.TestRecipient = testRecipient
 
-	s.config = config
+	s.config = smtpCfg
 	return nil
 }
 
 // AutoDetect attempts to auto-detect SMTP server
-// AI.md: Host-specific values detected at runtime
+// AI.md PART 18: reuse the shared host/port priority list and require a
+// real EHLO handshake, so a non-SMTP listener is never reported as mail.
 func (s *SMTPService) AutoDetect() (bool, error) {
-	// Build list of SMTP servers to try
-	candidates := []struct {
-		host string
-		port string
-	}{
-		{"localhost", "25"},
-		{"127.0.0.1", "25"},
-	}
-
-	// AI.md: Detect Docker gateway at runtime, not hardcoded
-	if gwIP := util.GetDockerGatewayIP(); gwIP != "" {
-		candidates = append(candidates, struct {
-			host string
-			port string
-		}{gwIP, "25"})
-	}
-
-	// Add remaining candidates
-	candidates = append(candidates, []struct {
-		host string
-		port string
-	}{
-		// Docker Desktop
-		{"host.docker.internal", "25"},
-		{"localhost", "587"},
-		// Mailhog/MailDev
-		{"localhost", "1025"},
-	}...)
-
-	for _, candidate := range candidates {
-		conn, err := net.DialTimeout("tcp", candidate.host+":"+candidate.port, 2*time.Second)
-		if err == nil {
-			conn.Close()
-
-			// Found a listening SMTP server
-			s.config.Host = candidate.host
-			s.config.Port = candidate.port
-			s.config.UseTLS = candidate.port == "587"
-
-			// Save to database
-			s.saveSetting("smtp.host", candidate.host)
-			s.saveSetting("smtp.port", candidate.port)
-
-			return true, nil
+	if s.config == nil {
+		if err := s.LoadConfig(); err != nil {
+			return false, err
 		}
 	}
 
-	return false, fmt.Errorf("no SMTP server detected")
+	host, port := util.AutoDetectSMTP()
+	if host == "" {
+		return false, fmt.Errorf("no SMTP server detected")
+	}
+
+	s.config.Host = host
+	s.config.Port = strconv.Itoa(port)
+	s.config.UseTLS = port == 465
+
+	// AI.md PART 18 auto-detection step 4: save the detected host:port and
+	// enable email features. A successful detection is a verified handshake,
+	// so the service is usable immediately.
+	s.saveSetting("smtp.host", host)
+	s.saveSetting("smtp.port", s.config.Port)
+	s.saveSetting("smtp.enabled", "true")
+	s.config.Enabled = true
+	s.verified = true
+	return true, nil
 }
 
 // TestConnection tests the SMTP connection
+// AI.md PART 18: "Attempt SMTP handshake (EHLO)" — a bare TCP connect is
+// not enough, any listener must actually answer EHLO with a 2xx reply.
 func (s *SMTPService) TestConnection(config *SMTPConfig) error {
 	if config == nil {
 		config = s.config
 	}
 
-	if config.Host == "" {
+	if config == nil || config.Host == "" {
 		return fmt.Errorf("SMTP host not configured")
 	}
 
-	// Try to connect
 	addr := net.JoinHostPort(config.Host, config.Port)
 
-	if config.UseTLS {
-		// TLS connection
-		tlsConfig := &tls.Config{
-			ServerName: config.Host,
-		}
+	if err := smtpHandshake(addr, config.UseTLS); err != nil {
+		return fmt.Errorf("SMTP handshake with %s failed: %w", addr, err)
+	}
+	return nil
+}
 
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
+// smtpHandshake dials addr, optionally over TLS, reads the 2xx greeting and
+// exchanges an EHLO, returning an error when the peer is not a live SMTP
+// server. The deadline bounds every step so a black-holed port cannot stall
+// startup.
+func smtpHandshake(addr string, useTLS bool) error {
+	if useTLS {
+		conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", addr, &tls.Config{ServerName: hostFromAddr(addr)})
 		if err != nil {
-			return fmt.Errorf("TLS connection failed: %w", err)
+			return err
 		}
-		defer conn.Close()
-	} else {
-		// Plain connection
-		conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
-		if err != nil {
-			return fmt.Errorf("connection failed: %w", err)
-		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
+		return exchangeEHLO(conn)
 	}
 
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+	return exchangeEHLO(conn)
+}
+
+// hostFromAddr strips the port from a host:port pair so TLS SNI and error
+// messages never carry a port number.
+func hostFromAddr(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
+}
+
+// exchangeEHLO reads the greeting banner and issues an EHLO, requiring a 2xx
+// reply from both, per AI.md PART 18's handshake requirement.
+func exchangeEHLO(conn net.Conn) error {
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		return err
+	}
+
+	if err := expectSMTPReply(conn, "greeting"); err != nil {
+		return err
+	}
+	if _, err := conn.Write([]byte("EHLO wthr\r\n")); err != nil {
+		return err
+	}
+	return expectSMTPReply(conn, "EHLO")
+}
+
+// expectSMTPReply reads one reply and requires a 2xx status code.
+func expectSMTPReply(conn net.Conn, stage string) error {
+	buf := make([]byte, 512)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return err
+	}
+	if n == 0 || buf[0] != '2' {
+		return fmt.Errorf("no %s accepted by remote SMTP server", stage)
+	}
 	return nil
 }
 
@@ -314,8 +403,12 @@ func (s *SMTPService) SendEmail(to, subject, body string) error {
 		}
 	}
 
-	if s.config.Host == "" {
-		return fmt.Errorf("SMTP not configured")
+	// AI.md PART 18: "ALL emails require a valid and working SMTP server. No
+	// SMTP = No emails. Don't even try." A configured-but-unverified host must
+	// not reach smtp.SendMail, so gate on the same check as every caller-facing
+	// feature.
+	if !s.IsEnabled() {
+		return fmt.Errorf("SMTP not configured or not reachable")
 	}
 
 	// Build message

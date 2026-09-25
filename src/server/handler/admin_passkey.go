@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -113,7 +114,7 @@ func adminPasskeyEnvelope(r *http.Request) PasskeyEnvelope {
 func (h *AdminPasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
 	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
@@ -143,19 +144,19 @@ type adminPasskeyRegistrationStartRequest struct {
 func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request) {
 	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
@@ -165,17 +166,17 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 			CeremonyToken string `json:"ceremony_token"`
 		}
 		if err := json.Unmarshal(body, &finish); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 			return
 		}
 		if strings.TrimSpace(finish.CeremonyToken) == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "ceremony_token is required"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.ceremony_token_required")})
 			return
 		}
 
 		result, err := FinishAdminPasskeyRegistrationToken(h.DB, admin, adminPasskeyEnvelope(r), finish.CeremonyToken, body)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusBadRequest, err)
 			return
 		}
 
@@ -185,7 +186,7 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
-			"message": "Passkey registered successfully",
+			"message": Translate(r, "success.passkey.registered"),
 			"passkey": result.Passkey,
 		})
 		return
@@ -194,7 +195,7 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 	// Begin: parse start request, verify password, return options + token.
 	var req adminPasskeyRegistrationStartRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
@@ -202,10 +203,10 @@ func (h *AdminPasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		// Map password-related errors to 401 to match the user-side handler.
 		status := http.StatusBadRequest
-		if strings.Contains(strings.ToLower(err.Error()), "invalid password") {
+		if errors.Is(err, ErrPasskeyInvalidPassword) {
 			status = http.StatusUnauthorized
 		}
-		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, status, err)
 		return
 	}
 
@@ -229,17 +230,17 @@ type adminPasskeyChallengeRequest struct {
 func (h *AdminPasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	var req adminPasskeyChallengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 	if strings.TrimSpace(req.SessionToken) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "session_token is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.session_token_required")})
 		return
 	}
 
 	result, err := BeginAdminPasskeyLoginToken(h.DB, adminPasskeyEnvelope(r), req.SessionToken)
 	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusUnauthorized, err)
 		return
 	}
 
@@ -257,7 +258,7 @@ func (h *AdminPasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *ht
 func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
@@ -265,11 +266,11 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 		CeremonyToken string `json:"ceremony_token"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 	if strings.TrimSpace(envelope.CeremonyToken) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "ceremony_token is required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.ceremony_token_required")})
 		return
 	}
 
@@ -286,7 +287,7 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 		adminSessionDuration,
 	)
 	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusUnauthorized, err)
 		return
 	}
 
@@ -306,7 +307,7 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Passkey authentication successful",
+		"message": Translate(r, "success.passkey.authentication_successful"),
 		"admin": map[string]interface{}{
 			"id":       result.Admin.ID,
 			"username": result.Admin.Username,
@@ -320,13 +321,13 @@ func (h *AdminPasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Reque
 func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	admin, ok := h.loadAdminFromContext(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
 	passkeyID, err := strconv.ParseInt(strings.TrimSpace(chi.URLParam(r, "passkey_id")), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey id"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_passkey_id")})
 		return
 	}
 
@@ -339,10 +340,10 @@ func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Reque
 
 	if err := DeleteAdminPasskey(h.DB, admin.ID, passkeyID); err != nil {
 		status := http.StatusInternalServerError
-		if err.Error() == "passkey not found" {
+		if isPasskeyNotFound(err) {
 			status = http.StatusNotFound
 		}
-		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, status, err)
 		return
 	}
 
@@ -352,6 +353,6 @@ func (h *AdminPasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Reque
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Passkey deleted successfully",
+		"message": Translate(r, "success.passkey.deleted"),
 	})
 }

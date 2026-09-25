@@ -31,6 +31,18 @@ https://wthr.top
 - I2P eepsite support (opt-in, admin-configurable)
 - User accounts with saved locations and alert subscriptions (password auth, optional TOTP/passkey 2FA)
 - Guest and per-user theme/language preferences (`/server/preferences`)
+- Passkey-only authentication for Server Admins (no admin passwords)
+- TOTP and WebAuthn/passkey two-factor enrollment for regular users
+- One-time recovery keys for account recovery (shown once, hashed at rest)
+- Public user profiles with visibility controls and avatars (gravatar/upload/external)
+- Registration modes configurable by the operator (see Configuration)
+- LDAP and OIDC single sign-on for user accounts
+- User self-service: change email/password, manage sessions, download data, delete account
+- Admin panel: dashboard, server/security/network config, users, notifications, scheduler, cluster, help
+- GraphQL API alongside the REST and Swagger surfaces
+
+Not adopted for this project: organization/multi-tenant features (AI.md PART 35)
+and custom domains (AI.md PART 36). Neither appears in the codebase.
 
 ## Production
 
@@ -129,6 +141,11 @@ Key settings:
 - `server.port` - Listen port (auto-selected in the 64000-64999 range on first run, then persisted; set explicitly to override)
 - `server.address` - Listen address (default: `[::]`)
 - `server.mode` - production or development
+- `users.registration.mode` - controls public self-registration. AI.md PART 34
+  defines exactly two modes: `open` (default — public self-registration, plus
+  admin invite and admin direct-create) and `private` (no public form; admin
+  invite and admin direct-create still work). Any other value is rejected and
+  falls back to `open`.
 
 Configuration file: `$CONFIG_DIR/server.yml`
 

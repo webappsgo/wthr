@@ -127,7 +127,7 @@ func NewChannelManager(db *sql.DB) *ChannelManager {
 	return &ChannelManager{
 		db:       db,
 		channels: make(map[string]NotificationChannel),
-		smtp:     NewSMTPService(db),
+		smtp:     SharedSMTPService(db),
 	}
 }
 

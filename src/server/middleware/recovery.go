@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/webappsgo/wthr/src/mode"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // panicLogger is the minimal logging surface Recovery needs. util.Logger
@@ -76,6 +77,9 @@ func respondPanic(w http.ResponseWriter, r *http.Request, rec interface{}) {
 // (path .txt suffix or Accept: text/plain) — duplicated rather than imported
 // to avoid the middleware->handler import cycle.
 func isTextRequest(r *http.Request) bool {
+	if reqctx.GetBool(r.Context(), TextRequestKey) {
+		return true
+	}
 	if strings.HasSuffix(r.URL.Path, ".txt") {
 		return true
 	}

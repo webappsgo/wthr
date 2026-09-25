@@ -36,7 +36,7 @@ type PasskeySummary struct {
 func buildWebAuthnFromEnvelope(env PasskeyEnvelope) (*webauthn.WebAuthn, error) {
 	host := strings.TrimSpace(env.Host)
 	if host == "" {
-		return nil, fmt.Errorf("missing request host")
+		return nil, ErrPasskeyMissingRequestHost
 	}
 
 	rpID := host
@@ -87,15 +87,15 @@ func issuePasskeyCeremonyToken(state *passkeyCeremonyState) (string, error) {
 func loadPasskeyCeremonyByToken(token string) (*passkeyCeremonyState, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, fmt.Errorf("passkey session not found")
+		return nil, ErrPasskeySessionNotFound
 	}
 	rawState, found := passkeyCeremonyCache.Get(token)
 	if !found {
-		return nil, fmt.Errorf("passkey session expired")
+		return nil, ErrPasskeySessionExpired
 	}
 	state, ok := rawState.(*passkeyCeremonyState)
 	if !ok || state == nil {
-		return nil, fmt.Errorf("invalid passkey session")
+		return nil, ErrPasskeyInvalidSession
 	}
 	return state, nil
 }
@@ -164,12 +164,12 @@ func BeginPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEnv
 	name = strings.TrimSpace(name)
 	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
-		return nil, fmt.Errorf("passkey name and password are required")
+		return nil, ErrPasskeyNamePasswordRequired
 	}
 
 	userModel := &models.UserModel{DB: db}
 	if !userModel.CheckPassword(user, password) {
-		return nil, fmt.Errorf("invalid password")
+		return nil, ErrPasskeyInvalidPassword
 	}
 
 	waUser, err := loadWebAuthnUserForPasskey(db, user)
@@ -233,7 +233,7 @@ func FinishPasskeyRegistrationToken(db *sql.DB, user *models.User, env PasskeyEn
 		return nil, err
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != user.ID {
-		return nil, fmt.Errorf("invalid passkey registration session")
+		return nil, ErrPasskeyInvalidRegistrationSession
 	}
 
 	waUser, err := loadWebAuthnUserForPasskey(db, user)
@@ -302,7 +302,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 		userModel := &models.UserModel{DB: db}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			return nil, fmt.Errorf("invalid session token")
+			return nil, ErrPasskeyInvalidSessionToken
 		}
 		if err := validateAuthUser(user); err != nil {
 			return nil, err
@@ -313,7 +313,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 			return nil, fmt.Errorf("failed to load passkeys: %w", err)
 		}
 		if len(waUser.credentials) == 0 {
-			return nil, fmt.Errorf("no passkeys registered for this account")
+			return nil, ErrPasskeyNoCredentials
 		}
 
 		options, sessionData, err := wa.BeginLogin(waUser, webauthn.WithUserVerification(protocol.VerificationRequired))
@@ -356,7 +356,7 @@ func BeginPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, pendingSessionT
 // PublicKeyCredential.toJSON() call.
 func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken string, body []byte, clientIP string) (*AuthLoginResponse, error) {
 	if len(body) == 0 {
-		return nil, fmt.Errorf("invalid request body")
+		return nil, ErrPasskeyInvalidRequestBody
 	}
 
 	state, err := loadPasskeyCeremonyByToken(ceremonyToken)
@@ -409,7 +409,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 					return waUser, nil
 				}
 			}
-			return nil, fmt.Errorf("credential not found")
+			return nil, ErrPasskeyCredentialNotFound
 		}
 
 		waResolvedUser, resolvedCredential, validateErr := wa.ValidatePasskeyLogin(lookup, state.SessionData, parsed)
@@ -437,7 +437,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 
 		user, err = userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			return nil, fmt.Errorf("invalid session token")
+			return nil, ErrPasskeyInvalidSessionToken
 		}
 		if err := validateAuthUser(user); err != nil {
 			return nil, err
@@ -462,7 +462,7 @@ func FinishPasskeyChallengeToken(db *sql.DB, env PasskeyEnvelope, ceremonyToken 
 		_ = sessionModel.DeleteSession(pendingSession.ID)
 
 	default:
-		return nil, fmt.Errorf("invalid passkey session")
+		return nil, ErrPasskeyInvalidSession
 	}
 
 	if err := passkeyModel.UpdateCredential(user.ID, credential); err != nil {

@@ -247,11 +247,12 @@ func TestSMTP_ListProvidersByCategory(t *testing.T) {
 	})
 }
 
-// TestSMTP_LoadConfig covers database-value precedence over environment
-// variables, environment fallback when the database has no value, and the
-// hardcoded defaults (port 587, from name "Weather") when neither is set.
+// TestSMTP_LoadConfig covers the AI.md PART 18 Environment Variable Priority
+// table (SMTP_* env vars override stored config), the environment path when the
+// database has no value, and the defaults (port 587, from name "Weather") when
+// neither is set.
 func TestSMTP_LoadConfig(t *testing.T) {
-	t.Run("database value takes precedence over env var", func(t *testing.T) {
+	t.Run("env var overrides the stored database value", func(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 		t.Setenv("SMTP_HOST", "env-host.example")
@@ -264,8 +265,8 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		if err := svc.LoadConfig(); err != nil {
 			t.Fatalf("LoadConfig() error = %v", err)
 		}
-		if svc.config.Host != "db-host.example" {
-			t.Errorf("Host = %q, want db-host.example (db must win over env)", svc.config.Host)
+		if svc.config.Host != "env-host.example" {
+			t.Errorf("Host = %q, want env-host.example (SMTP_HOST overrides stored config)", svc.config.Host)
 		}
 	})
 
@@ -273,7 +274,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 		t.Setenv("SMTP_HOST", "env-host.example")
-		t.Setenv("SMTP_FROM_ADDRESS", "env@example.com")
+		t.Setenv("SMTP_FROM_EMAIL", "env@example.com")
 
 		svc := NewSMTPService(db)
 		if err := svc.LoadConfig(); err != nil {
@@ -281,6 +282,58 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		}
 		if svc.config.Host != "env-host.example" {
 			t.Errorf("Host = %q, want env-host.example", svc.config.Host)
+		}
+		if svc.config.FromAddress != "env@example.com" {
+			t.Errorf("FromAddress = %q, want env@example.com", svc.config.FromAddress)
+		}
+	})
+
+	t.Run("all seven SMTP env vars override stored config", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+		t.Setenv("SMTP_HOST", "env.example.com")
+		t.Setenv("SMTP_PORT", "2525")
+		t.Setenv("SMTP_USERNAME", "env-user")
+		t.Setenv("SMTP_PASSWORD", "env-pass")
+		t.Setenv("SMTP_TLS", "true")
+		t.Setenv("SMTP_FROM_NAME", "Env Name")
+		t.Setenv("SMTP_FROM_EMAIL", "env@example.com")
+
+		svc := NewSMTPService(db)
+		for key, value := range map[string]string{
+			"smtp.host":        "db.example.com",
+			"smtp.port":        "25",
+			"smtp.username":    "db-user",
+			"smtp.password":    "db-pass",
+			"smtp.use_tls":     "false",
+			"smtp.from_name":   "DB Name",
+			"smtp.from_address": "db@example.com",
+		} {
+			if err := svc.saveSetting(key, value); err != nil {
+				t.Fatalf("saveSetting(%q): %v", key, err)
+			}
+		}
+
+		if err := svc.LoadConfig(); err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+		if svc.config.Host != "env.example.com" {
+			t.Errorf("Host = %q, want env.example.com", svc.config.Host)
+		}
+		if svc.config.Port != "2525" {
+			t.Errorf("Port = %q, want 2525", svc.config.Port)
+		}
+		if svc.config.Username != "env-user" {
+			t.Errorf("Username = %q, want env-user", svc.config.Username)
+		}
+		if svc.config.Password != "env-pass" {
+			t.Errorf("Password = %q, want env-pass", svc.config.Password)
+		}
+		if !svc.config.UseTLS {
+			t.Error("UseTLS = false, want true (SMTP_TLS=true overrides stored false)")
+		}
+		if svc.config.FromName != "Env Name" {
+			t.Errorf("FromName = %q, want Env Name", svc.config.FromName)
 		}
 		if svc.config.FromAddress != "env@example.com" {
 			t.Errorf("FromAddress = %q, want env@example.com", svc.config.FromAddress)
@@ -306,7 +359,7 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("use_tls and auto_enable parse the literal string true only", func(t *testing.T) {
+	t.Run("stored booleans accept the config.ParseBool truthy word list", func(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
@@ -323,15 +376,58 @@ func TestSMTP_LoadConfig(t *testing.T) {
 		if !svc.config.UseTLS {
 			t.Error("UseTLS = false, want true for stored value \"true\"")
 		}
+		if !svc.config.AutoEnable {
+			t.Error("AutoEnable = false, want true for stored value \"yes\"")
+		}
+	})
+
+	t.Run("stored booleans accept the config.ParseBool falsy word list", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+
+		svc := NewSMTPService(db)
+		if err := svc.saveSetting("smtp.use_tls", "off"); err != nil {
+			t.Fatalf("saveSetting: %v", err)
+		}
+		if err := svc.saveSetting("smtp.auto_enable", "no"); err != nil {
+			t.Fatalf("saveSetting: %v", err)
+		}
+		if err := svc.LoadConfig(); err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+		if svc.config.UseTLS {
+			t.Error("UseTLS = true, want false for stored value \"off\"")
+		}
 		if svc.config.AutoEnable {
-			t.Error("AutoEnable = true, want false for stored value \"yes\" (only \"true\" enables)")
+			t.Error("AutoEnable = true, want false for stored value \"no\"")
+		}
+	})
+
+	t.Run("empty stored booleans fall back to false", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+
+		svc := NewSMTPService(db)
+		if err := svc.LoadConfig(); err != nil {
+			t.Fatalf("LoadConfig() error = %v", err)
+		}
+		if svc.config.UseTLS {
+			t.Error("UseTLS = true, want false when no stored value exists")
+		}
+		if svc.config.AutoEnable {
+			t.Error("AutoEnable = true, want false when no stored value exists")
+		}
+		if svc.config.Enabled {
+			t.Error("Enabled = true, want false when no stored value exists")
 		}
 	})
 }
 
-// TestSMTP_IsEnabled covers the happy path (host+from address configured),
-// the false path when unconfigured, and confirms IsEnabled triggers an
-// implicit LoadConfig when config has never been loaded.
+// TestSMTP_IsEnabled covers the happy path (host+from address configured and
+// a live handshake verified), the false path when unconfigured, and confirms
+// IsEnabled triggers an implicit LoadConfig when config has never been loaded.
+// AI.md PART 18: "SMTP configured and working" is the only enabling state, so a
+// configured-but-unverified host must still report false.
 func TestSMTP_IsEnabled(t *testing.T) {
 	t.Run("false when never configured", func(t *testing.T) {
 		db := setupSMTPServerDB(t)
@@ -343,7 +439,7 @@ func TestSMTP_IsEnabled(t *testing.T) {
 		}
 	})
 
-	t.Run("true when host and from address configured", func(t *testing.T) {
+	t.Run("false when host and from address configured but not yet verified", func(t *testing.T) {
 		db := setupSMTPServerDB(t)
 		wireSMTPGlobalDB(t, db)
 
@@ -355,8 +451,57 @@ func TestSMTP_IsEnabled(t *testing.T) {
 			t.Fatalf("saveSetting from_address: %v", err)
 		}
 
+		if svc.IsEnabled() {
+			t.Error("IsEnabled() = true, want false when the connection has not been verified")
+		}
+	})
+
+	t.Run("true when a working SMTP server was verified", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+
+		host, port, _ := startFakeSMTPResponder(t, "")
+
+		svc := NewSMTPService(db)
+		if err := svc.saveSetting("smtp.host", host); err != nil {
+			t.Fatalf("saveSetting host: %v", err)
+		}
+		if err := svc.saveSetting("smtp.port", port); err != nil {
+			t.Fatalf("saveSetting port: %v", err)
+		}
+		if err := svc.saveSetting("smtp.from_address", "noreply@example.com"); err != nil {
+			t.Fatalf("saveSetting from_address: %v", err)
+		}
+
+		if err := svc.VerifyConfiguredConnection(); err != nil {
+			t.Fatalf("VerifyConfiguredConnection() error = %v, want nil", err)
+		}
 		if !svc.IsEnabled() {
-			t.Error("IsEnabled() = false, want true when host and from_address are set")
+			t.Error("IsEnabled() = false, want true after a successful handshake")
+		}
+	})
+
+	t.Run("false when the configured host refuses connections", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+
+		svc := NewSMTPService(db)
+		if err := svc.saveSetting("smtp.host", "127.0.0.1"); err != nil {
+			t.Fatalf("saveSetting host: %v", err)
+		}
+		// port 1 is privileged and unbound in the container; dial fails fast
+		if err := svc.saveSetting("smtp.port", "1"); err != nil {
+			t.Fatalf("saveSetting port: %v", err)
+		}
+		if err := svc.saveSetting("smtp.from_address", "noreply@example.com"); err != nil {
+			t.Fatalf("saveSetting from_address: %v", err)
+		}
+
+		if err := svc.VerifyConfiguredConnection(); err == nil {
+			t.Fatal("VerifyConfiguredConnection() error = nil, want a dial failure")
+		}
+		if svc.IsEnabled() {
+			t.Error("IsEnabled() = true, want false after a failed handshake")
 		}
 	})
 
@@ -371,6 +516,23 @@ func TestSMTP_IsEnabled(t *testing.T) {
 
 		if svc.IsEnabled() {
 			t.Error("IsEnabled() = true, want false when from_address is missing")
+		}
+	})
+}
+
+// TestSMTP_VerifyConfiguredConnection covers the empty-host short circuit,
+// which must not dial, and the empty-host result of leaving verified false.
+func TestSMTP_VerifyConfiguredConnection(t *testing.T) {
+	t.Run("empty host disables email without dialing", func(t *testing.T) {
+		db := setupSMTPServerDB(t)
+		wireSMTPGlobalDB(t, db)
+
+		svc := NewSMTPService(db)
+		if err := svc.VerifyConfiguredConnection(); err != nil {
+			t.Errorf("VerifyConfiguredConnection() error = %v, want nil for an unconfigured host", err)
+		}
+		if svc.verified {
+			t.Error("verified = true, want false when no host is configured")
 		}
 	})
 }
@@ -395,27 +557,14 @@ func TestSMTP_TestConnection(t *testing.T) {
 		}
 	})
 
-	t.Run("plain connection to a listening local server succeeds", func(t *testing.T) {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("listen: %v", err)
-		}
-		defer ln.Close()
-		go func() {
-			conn, err := ln.Accept()
-			if err == nil {
-				conn.Close()
-			}
-		}()
-
-		host, port, splitErr := net.SplitHostPort(ln.Addr().String())
-		if splitErr != nil {
-			t.Fatalf("split addr: %v", splitErr)
-		}
+	// AI.md PART 18 requires a real EHLO handshake, not a bare TCP connect,
+	// so the success path must run against a responder that actually answers
+	// with a 220 greeting and a 2xx EHLO reply.
+	t.Run("plain connection to a live SMTP responder succeeds", func(t *testing.T) {
+		host, port, _ := startFakeSMTPResponder(t, "")
 
 		svc := &SMTPService{}
-		err = svc.TestConnection(&SMTPConfig{Host: host, Port: port, UseTLS: false})
-		if err != nil {
+		if err := svc.TestConnection(&SMTPConfig{Host: host, Port: port, UseTLS: false}); err != nil {
 			t.Errorf("TestConnection() error = %v, want nil", err)
 		}
 	})
@@ -437,11 +586,14 @@ func TestSMTP_TestConnection(t *testing.T) {
 		if err == nil {
 			t.Fatal("TestConnection() error = nil, want dial error against closed port")
 		}
-		if !strings.Contains(err.Error(), "connection failed") {
-			t.Errorf("TestConnection() error = %q, want to contain \"connection failed\"", err.Error())
+		if !strings.Contains(err.Error(), "SMTP handshake with") {
+			t.Errorf("TestConnection() error = %q, want to contain \"SMTP handshake with\"", err.Error())
 		}
 	})
 
+	// A TLS dial against a plaintext listener fails inside the shared
+	// smtpHandshake helper, so the error carries the same wrapper prefix as
+	// every other handshake failure.
 	t.Run("TLS dial against a non-TLS listener fails", func(t *testing.T) {
 		host, port := startAcceptAndCloseListener(t)
 
@@ -450,8 +602,8 @@ func TestSMTP_TestConnection(t *testing.T) {
 		if err == nil {
 			t.Fatal("TestConnection() error = nil, want TLS handshake failure")
 		}
-		if !strings.Contains(err.Error(), "TLS connection failed") {
-			t.Errorf("TestConnection() error = %q, want to contain \"TLS connection failed\"", err.Error())
+		if !strings.Contains(err.Error(), "SMTP handshake with") {
+			t.Errorf("TestConnection() error = %q, want to contain \"SMTP handshake with\"", err.Error())
 		}
 	})
 }
@@ -474,7 +626,9 @@ func TestSMTP_SendEmail_NotConfigured(t *testing.T) {
 func TestSMTP_SendEmail_HappyPath(t *testing.T) {
 	host, port, resultCh := startFakeSMTPResponder(t, "")
 
-	svc := &SMTPService{config: &SMTPConfig{
+	// verified records the working handshake AI.md PART 18 requires before
+	// any email is attempted; the fake responder is that live server.
+	svc := &SMTPService{verified: true, config: &SMTPConfig{
 		Host:        host,
 		Port:        port,
 		FromAddress: "sender@example.com",
@@ -514,7 +668,9 @@ func TestSMTP_SendEmail_HappyPath(t *testing.T) {
 func TestSMTP_SendEmail_RecipientRejected(t *testing.T) {
 	host, port, resultCh := startFakeSMTPResponder(t, "550 no such user")
 
-	svc := &SMTPService{config: &SMTPConfig{
+	// verified is set because the local responder answers the real handshake;
+	// the rejection under test is the RCPT reply, not a disabled server.
+	svc := &SMTPService{verified: true, config: &SMTPConfig{
 		Host:        host,
 		Port:        port,
 		FromAddress: "sender@example.com",
@@ -542,7 +698,9 @@ func TestSMTP_SendEmail_RecipientRejected(t *testing.T) {
 func TestSMTP_SendTestEmail(t *testing.T) {
 	host, port, resultCh := startFakeSMTPResponder(t, "")
 
-	svc := &SMTPService{config: &SMTPConfig{
+	// verified is set because the local responder answers the real handshake
+	// AI.md PART 18 requires before any send is attempted.
+	svc := &SMTPService{verified: true, config: &SMTPConfig{
 		Host:        host,
 		Port:        port,
 		FromAddress: "sender@example.com",

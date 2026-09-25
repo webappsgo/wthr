@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // TestPathSecurityMiddleware_BlocksTraversal verifies the HTTP-level
@@ -64,6 +66,50 @@ func TestURLNormalizeMiddleware_CollapsesDoubleSlashes(t *testing.T) {
 			t.Errorf("normalized path %q still contains a double slash", seenPath)
 			break
 		}
+	}
+}
+
+// TestURLNormalizeMiddleware_RecordsTextRequest verifies the .txt suffix is
+// stripped for routing but the text-negotiation signal survives in the
+// request context, so handlers still see the AI.md PART 14 .txt request.
+func TestURLNormalizeMiddleware_RecordsTextRequest(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestPath string
+		wantPath    string
+		wantText    bool
+	}{
+		{"api route with .txt", "/api/v1/weather.txt", "/api/v1/weather", true},
+		{"api route without .txt", "/api/v1/weather", "/api/v1/weather", false},
+		{"literal robots.txt left intact", "/robots.txt", "/robots.txt", false},
+		{"literal security.txt left intact", "/security.txt", "/security.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var seenPath string
+			var seenText bool
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				seenPath = r.URL.Path
+				seenText = reqctx.GetBool(r.Context(), TextRequestKey)
+				w.WriteHeader(http.StatusOK)
+			})
+			handler := URLNormalizeMiddleware()(next)
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, tt.requestPath, nil)
+			handler.ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (body=%s)", w.Code, w.Body.String())
+			}
+			if seenPath != tt.wantPath {
+				t.Errorf("handler path = %q, want %q", seenPath, tt.wantPath)
+			}
+			if seenText != tt.wantText {
+				t.Errorf("text request signal = %v, want %v", seenText, tt.wantText)
+			}
+		})
 	}
 }
 

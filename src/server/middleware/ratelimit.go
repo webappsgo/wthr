@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-chi/httprate"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
@@ -36,135 +38,267 @@ const (
 	FileUploadRequestsPerWindow = 10
 	FileUploadWindowDuration    = 1 * time.Hour
 
-	// Admin: 30 per 15 minutes
-	AdminRequestsPerWindow = 30
-	AdminWindowDuration    = 15 * time.Minute
-
-	// Global rate limit (DDoS protection)
+	// Global rate limit (DDoS protection) - requests per window
 	GlobalRPS   = 100
 	GlobalBurst = 200
 )
 
+// rateLimitBuckets holds the effective limits for every limiter, resolved once
+// from the loaded configuration per AI.md PART 12 ("All limits are
+// configurable under `server.rate_limit.*` in `server.yml` and via the admin
+// panel"). Classes the schema does not cover (file upload) keep their
+// PART 1 defaults.
+type rateLimitBuckets struct {
+	Enabled        bool
+	GlobalLimit    int
+	GlobalWindow   time.Duration
+	ReadLimit      int
+	ReadWindow     time.Duration
+	HealthLimit    int
+	HealthWindow   time.Duration
+	WriteLimit     int
+	WriteWindow    time.Duration
+	LoginLimit     int
+	LoginWindow    time.Duration
+	PasswordReset  int
+	PasswordResetT time.Duration
+	Registration   int
+	RegistrationT  time.Duration
+	FileUpload     int
+	FileUploadT    time.Duration
+}
+
+// resolveRateLimitBuckets reads server.rate_limit.* from the loaded config,
+// substituting the PART 1/PART 12 defaults for any unset or non-positive value.
+func resolveRateLimitBuckets() rateLimitBuckets {
+	limits := config.DefaultRateLimitConfig()
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		limits = cfg.Server.RateLimit
+	}
+
+	bucket := func(requests, window, defRequests, defWindow int) (int, time.Duration) {
+		if requests <= 0 {
+			requests = defRequests
+		}
+		if window <= 0 {
+			window = defWindow
+		}
+		return requests, time.Duration(window) * time.Second
+	}
+
+	readLimit, readWindow := bucket(limits.Read.Requests, limits.Read.Window, 120, 60)
+	healthLimit, healthWindow := bucket(limits.Health.Requests, limits.Health.Window, 120, 60)
+	writeLimit, writeWindow := bucket(limits.Write.Requests, limits.Write.Window, 10, 60)
+	loginLimit, loginWindow := bucket(limits.Auth.Login.Requests, limits.Auth.Login.Window, LoginRequestsPerWindow, 900)
+	resetLimit, resetWindow := bucket(limits.Auth.PasswordReset.Requests, limits.Auth.PasswordReset.Window, PasswordResetRequestsPerWindow, 3600)
+	regLimit, regWindow := bucket(limits.Auth.Registration.Requests, limits.Auth.Registration.Window, RegistrationRequestsPerWindow, 3600)
+
+	globalLimit := limits.GlobalBurst
+	if globalLimit <= 0 {
+		globalLimit = GlobalBurst
+	}
+
+	return rateLimitBuckets{
+		Enabled:        limits.Enabled,
+		GlobalLimit:    globalLimit,
+		GlobalWindow:   time.Minute,
+		ReadLimit:      readLimit,
+		ReadWindow:     readWindow,
+		HealthLimit:    healthLimit,
+		HealthWindow:   healthWindow,
+		WriteLimit:     writeLimit,
+		WriteWindow:    writeWindow,
+		LoginLimit:     loginLimit,
+		LoginWindow:    loginWindow,
+		PasswordReset:  resetLimit,
+		PasswordResetT: resetWindow,
+		Registration:   regLimit,
+		RegistrationT:  regWindow,
+		FileUpload:     FileUploadRequestsPerWindow,
+		FileUploadT:    FileUploadWindowDuration,
+	}
+}
+
+type rateLimiterSet struct {
+	global        *httprate.RateLimiter
+	read          *httprate.RateLimiter
+	health        *httprate.RateLimiter
+	write         *httprate.RateLimiter
+	login         *httprate.RateLimiter
+	passwordReset *httprate.RateLimiter
+	registration  *httprate.RateLimiter
+	fileUpload    *httprate.RateLimiter
+}
+
 var (
-	// Rate limiters initialized in init()
-	globalLimiter        *httprate.RateLimiter
-	loginLimiter         *httprate.RateLimiter
-	passwordResetLimiter *httprate.RateLimiter
-	apiAuthLimiter       *httprate.RateLimiter
-	apiUnauthLimiter     *httprate.RateLimiter
-	registrationLimiter  *httprate.RateLimiter
-	fileUploadLimiter    *httprate.RateLimiter
-	adminLimiter         *httprate.RateLimiter
+	limiterOnce sync.Once
+	limiters    rateLimiterSet
 )
 
-func init() {
-	// Initialize all rate limiters per AI.md PART 1 specifications
-	globalLimiter = httprate.NewRateLimiter(
-		GlobalRPS,
-		time.Second,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	loginLimiter = httprate.NewRateLimiter(
-		LoginRequestsPerWindow,
-		LoginWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	passwordResetLimiter = httprate.NewRateLimiter(
-		PasswordResetRequestsPerWindow,
-		PasswordResetWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	apiAuthLimiter = httprate.NewRateLimiter(
-		APIAuthRequestsPerWindow,
-		APIAuthWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	apiUnauthLimiter = httprate.NewRateLimiter(
-		APIUnauthRequestsPerWindow,
-		APIUnauthWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	registrationLimiter = httprate.NewRateLimiter(
-		RegistrationRequestsPerWindow,
-		RegistrationWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	fileUploadLimiter = httprate.NewRateLimiter(
-		FileUploadRequestsPerWindow,
-		FileUploadWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
-
-	adminLimiter = httprate.NewRateLimiter(
-		AdminRequestsPerWindow,
-		AdminWindowDuration,
-		httprate.WithKeyFuncs(httprate.KeyByIP),
-	)
+// getRateLimiters builds every limiter from the configured buckets on first
+// use, which happens after the config has been loaded in main().
+func getRateLimiters() rateLimiterSet {
+	limiterOnce.Do(func() {
+		b := resolveRateLimitBuckets()
+		newLimiter := func(limit int, window time.Duration) *httprate.RateLimiter {
+			return httprate.NewRateLimiter(limit, window, httprate.WithKeyFuncs(httprate.KeyByIP))
+		}
+		limiters = rateLimiterSet{
+			global:        newLimiter(b.GlobalLimit, b.GlobalWindow),
+			read:          newLimiter(b.ReadLimit, b.ReadWindow),
+			health:        newLimiter(b.HealthLimit, b.HealthWindow),
+			write:         newLimiter(b.WriteLimit, b.WriteWindow),
+			login:         newLimiter(b.LoginLimit, b.LoginWindow),
+			passwordReset: newLimiter(b.PasswordReset, b.PasswordResetT),
+			registration:  newLimiter(b.Registration, b.RegistrationT),
+			fileUpload:    newLimiter(b.FileUpload, b.FileUploadT),
+		}
+	})
+	return limiters
 }
 
-// GlobalRateLimitMiddleware applies global rate limiting (100 req/s)
+// rateLimitEnabled reports whether server.rate_limit.enabled is set.
+func rateLimitEnabled() bool {
+	return resolveRateLimitBuckets().Enabled
+}
+
+// passthroughMiddleware returns a chain that never rate limits, used when
+// server.rate_limit.enabled is false.
+func passthroughMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return next
+	}
+}
+
+// GlobalRateLimitMiddleware applies the configured global burst ceiling.
 func GlobalRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(globalLimiter, GlobalRPS, time.Second)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().global, b.GlobalLimit, b.GlobalWindow)
 }
 
-// LoginRateLimitMiddleware applies login rate limiting (5 req/15min)
+// LoginRateLimitMiddleware applies the configured login rate limit.
 func LoginRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(loginLimiter, LoginRequestsPerWindow, LoginWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().login, b.LoginLimit, b.LoginWindow)
 }
 
-// PasswordResetRateLimitMiddleware applies password reset rate limiting (3 req/1hr)
+// PasswordResetRateLimitMiddleware applies the configured password reset rate limit.
 func PasswordResetRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(passwordResetLimiter, PasswordResetRequestsPerWindow, PasswordResetWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().passwordReset, b.PasswordReset, b.PasswordResetT)
 }
 
-// APIAuthRateLimitMiddleware applies authenticated API rate limiting (100 req/1min)
+// APIAuthRateLimitMiddleware applies the configured read rate limit for
+// authenticated API callers.
 func APIAuthRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(apiAuthLimiter, APIAuthRequestsPerWindow, APIAuthWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().read, b.ReadLimit, b.ReadWindow)
 }
 
-// APIUnauthRateLimitMiddleware applies unauthenticated API rate limiting (20 req/1min)
+// APIUnauthRateLimitMiddleware applies the configured read rate limit for
+// unauthenticated API callers.
 func APIUnauthRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(apiUnauthLimiter, APIUnauthRequestsPerWindow, APIUnauthWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().read, b.ReadLimit, b.ReadWindow)
 }
 
 // APIRateLimitMiddleware applies API rate limiting based on authentication status
 func APIRateLimitMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		authLimited := wrapRateLimiter(apiAuthLimiter, APIAuthRequestsPerWindow, APIAuthWindowDuration)(next)
-		unauthLimited := wrapRateLimiter(apiUnauthLimiter, APIUnauthRequestsPerWindow, APIUnauthWindowDuration)(next)
+		authLimited := APIAuthRateLimitMiddleware()(next)
+		unauthLimited := APIUnauthRateLimitMiddleware()(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check if user is authenticated
 			_, exists := reqctx.GetValue(r.Context(), UserContextKey)
 			if exists {
-				// Authenticated: 100 req/min
 				authLimited.ServeHTTP(w, r)
 			} else {
-				// Unauthenticated: 20 req/min
 				unauthLimited.ServeHTTP(w, r)
 			}
 		})
 	}
 }
 
-// RegistrationRateLimitMiddleware applies registration rate limiting (5 req/1hr)
+// RegistrationRateLimitMiddleware applies the configured registration rate limit.
 func RegistrationRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(registrationLimiter, RegistrationRequestsPerWindow, RegistrationWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().registration, b.Registration, b.RegistrationT)
 }
 
 // FileUploadRateLimitMiddleware applies file upload rate limiting (10 req/1hr)
 func FileUploadRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(fileUploadLimiter, FileUploadRequestsPerWindow, FileUploadWindowDuration)
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	return wrapRateLimiter(getRateLimiters().fileUpload, FileUploadRequestsPerWindow, FileUploadWindowDuration)
 }
 
-// AdminRateLimitMiddleware applies admin rate limiting (30 req/15min)
-func AdminRateLimitMiddleware() func(http.Handler) http.Handler {
-	return wrapRateLimiter(adminLimiter, AdminRequestsPerWindow, AdminWindowDuration)
+// HealthRateLimitMiddleware applies the configured health/status rate limit.
+func HealthRateLimitMiddleware() func(http.Handler) http.Handler {
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	return wrapRateLimiter(getRateLimiters().health, b.HealthLimit, b.HealthWindow)
+}
+
+// ReadRateLimitMiddleware applies the configured read rate limit to safe
+// requests (GET, HEAD, OPTIONS), per AI.md PART 12's Read endpoint class.
+func ReadRateLimitMiddleware() func(http.Handler) http.Handler {
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	limited := wrapRateLimiter(getRateLimiters().read, b.ReadLimit, b.ReadWindow)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodOptions:
+				limited(next).ServeHTTP(w, r)
+			default:
+				next.ServeHTTP(w, r)
+			}
+		})
+	}
+}
+
+// WriteRateLimitMiddleware applies the configured write rate limit to
+// mutating requests (POST, PUT, PATCH, DELETE) per AI.md PART 12; safe
+// methods pass through to the read bucket's budget.
+func WriteRateLimitMiddleware() func(http.Handler) http.Handler {
+	if !rateLimitEnabled() {
+		return passthroughMiddleware()
+	}
+	b := resolveRateLimitBuckets()
+	limited := wrapRateLimiter(getRateLimiters().write, b.WriteLimit, b.WriteWindow)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+				limited(next).ServeHTTP(w, r)
+			default:
+				next.ServeHTTP(w, r)
+			}
+		})
+	}
 }
 
 // wrapRateLimiter wraps httprate.RateLimiter for net/http

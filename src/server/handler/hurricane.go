@@ -2,7 +2,7 @@ package handler
 
 import (
 	"fmt"
-	"github.com/webappsgo/wthr/src/server/middleware"
+	"log"
 	"net/http"
 	"strings"
 
@@ -38,48 +38,31 @@ func (h *HurricaneHandler) ListActiveStorms() ([]service.Storm, error) {
 	return data.ActiveStorms, nil
 }
 
-// HandleHurricaneRequest handles hurricane tracking page requests
+// HandleHurricaneRequest handles hurricane tracking page requests with AI.md
+// PART 14 frontend content negotiation: HTML for browsers, formatted text for
+// text clients and HTTP tools, JSON for explicit API clients.
 func (h *HurricaneHandler) HandleHurricaneRequest(w http.ResponseWriter, r *http.Request) {
-	// Check if user wants JSON
-	accept := r.Header.Get("Accept")
-	wantsJSON := strings.Contains(accept, "application/json")
-
-	// Get active storms
 	data, err := h.hurricaneService.GetActiveStorms()
 	if err != nil {
-		if wantsJSON {
-			RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch hurricane data")
-		} else {
-			writeText(w, http.StatusInternalServerError, "Failed to fetch hurricane data: %v", err)
-		}
+		log.Printf("ERROR: active hurricanes fetch failed: %v", err)
+		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/hurricane.tmpl", ErrInternal, Translate(r, "errors.hurricane_fetch_failed"), util.TemplateData(r, map[string]interface{}{
+			"Title":    Translate(r, "hurricane.title"),
+			"HostInfo": util.GetHostInfo(r),
+		}))
 		return
 	}
 
-	// Return JSON if requested
-	if wantsJSON {
+	if wantsExplicitJSON(r) || isOurCLIClient(r) {
 		RespondNegotiatedData(w, r, http.StatusOK, data)
 		return
 	}
 
-	// Check user agent to determine if browser or console
-	isBrowser := util.IsBrowser(r)
-
-	if isBrowser {
-		// Render HTML template
-		hostInfo := util.GetHostInfo(r)
-		middleware.RenderHTML(w, r, http.StatusOK, "page/hurricane.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title":    "Active Hurricanes & Tropical Storms",
-			"Storms":   data.ActiveStorms,
-			"Count":    len(data.ActiveStorms),
-			"HostInfo": hostInfo,
-		}))
-	} else {
-		// Render console output
-		output := h.renderConsoleOutput(data)
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, output)
-	}
+	NegotiateResponse(w, r, "page/hurricane.tmpl", util.TemplateData(r, map[string]interface{}{
+		"Title":    Translate(r, "hurricane.title"),
+		"Storms":   data.ActiveStorms,
+		"Count":    len(data.ActiveStorms),
+		"HostInfo": util.GetHostInfo(r),
+	}))
 }
 
 // HandleHurricaneAPI handles JSON API requests for hurricane data
@@ -95,7 +78,8 @@ func (h *HurricaneHandler) HandleHurricaneRequest(w http.ResponseWriter, r *http
 func (h *HurricaneHandler) HandleHurricaneAPI(w http.ResponseWriter, r *http.Request) {
 	data, err := h.hurricaneService.GetActiveStorms()
 	if err != nil {
-		RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch hurricane data")
+		log.Printf("ERROR: active hurricanes fetch failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.hurricane_fetch_failed"))
 		return
 	}
 
@@ -118,13 +102,14 @@ func (h *HurricaneHandler) HandleHurricaneAPI(w http.ResponseWriter, r *http.Req
 func (h *HurricaneHandler) HandleHurricaneByIDAPI(w http.ResponseWriter, r *http.Request) {
 	hurricaneID := chi.URLParam(r, "id")
 	if hurricaneID == "" {
-		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, "Hurricane ID required")
+		RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, Translate(r, "errors.hurricane_id_required"))
 		return
 	}
 
 	data, err := h.hurricaneService.GetActiveStorms()
 	if err != nil {
-		RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch hurricane data")
+		log.Printf("ERROR: active hurricanes fetch failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.hurricane_fetch_failed"))
 		return
 	}
 
@@ -139,7 +124,7 @@ func (h *HurricaneHandler) HandleHurricaneByIDAPI(w http.ResponseWriter, r *http
 	}
 
 	if hurricane == nil {
-		NotFound(w, r, "Hurricane not found")
+		NotFound(w, r, Translate(r, "errors.hurricane_not_found"))
 		return
 	}
 
@@ -147,44 +132,6 @@ func (h *HurricaneHandler) HandleHurricaneByIDAPI(w http.ResponseWriter, r *http
 		"ok":        true,
 		"hurricane": hurricane,
 	})
-}
-
-// renderConsoleOutput renders hurricane data for console/terminal
-func (h *HurricaneHandler) renderConsoleOutput(data *service.HurricaneData) string {
-	if len(data.ActiveStorms) == 0 {
-		return "🌊 No active tropical storms or hurricanes at this time.\n\n"
-	}
-
-	output := "🌀 Active Tropical Storms & Hurricanes\n"
-	output += "═══════════════════════════════════════\n\n"
-
-	for _, storm := range data.ActiveStorms {
-		icon := h.hurricaneService.GetStormIcon(storm.Classification, storm.WindSpeed)
-		category := h.hurricaneService.GetStormCategory(storm.WindSpeed)
-
-		output += icon + " " + storm.Name + "\n"
-		output += "   Category: " + category + "\n"
-		output += "   Wind Speed: " + formatInt(storm.WindSpeed) + " mph\n"
-		output += "   Pressure: " + formatInt(storm.Pressure) + " mb\n"
-		output += "   Location: " + formatFloat(storm.Latitude) + ", " + formatFloat(storm.Longitude) + "\n"
-
-		if storm.MovementSpeed > 0 {
-			output += "   Movement: " + storm.MovementDir + " at " + formatInt(storm.MovementSpeed) + " mph\n"
-		}
-
-		output += "   Last Update: " + storm.LastUpdate + "\n"
-
-		if storm.PublicAdvisory != "" {
-			output += "   Advisory: " + storm.PublicAdvisory + "\n"
-		}
-
-		output += "\n"
-	}
-
-	output += "Data from NOAA National Hurricane Center\n"
-	output += "Updates every 10 minutes\n\n"
-
-	return output
 }
 
 // Helper functions

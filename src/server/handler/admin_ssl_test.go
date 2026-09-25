@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -60,5 +62,57 @@ func TestCalculateNextRenewal_PastRenewalWindow(t *testing.T) {
 	want := Translate(req, "admin.ssl.status.now")
 	if got != want {
 		t.Errorf("calculateNextRenewal() = %q, want %q", got, want)
+	}
+}
+
+// TestSSLHandlerUpdateSettingsFormEncoded verifies the SSL settings form
+// binds through the content-type-aware decoder so the admin panel works with
+// JavaScript disabled, per AI.md PART 16.
+func TestSSLHandlerUpdateSettingsFormEncoded(t *testing.T) {
+	h := NewSSLHandler("/tmp/example/certs", newTestServerDB(t), "")
+	form := strings.NewReader("autoRenewal=yes&renewalDays=30&emailNotifications=no")
+	req := httptest.NewRequest(http.MethodPost, "/server/admin/config/ssl", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	h.UpdateSettings(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Settings struct {
+			AutoRenewal        bool `json:"autoRenewal"`
+			RenewalDays        int  `json:"renewalDays"`
+			EmailNotifications bool `json:"emailNotifications"`
+		} `json:"settings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if !body.Settings.AutoRenewal {
+		t.Error("AutoRenewal = false, want true for the form value \"yes\"")
+	}
+	if body.Settings.RenewalDays != 30 {
+		t.Errorf("RenewalDays = %d, want 30", body.Settings.RenewalDays)
+	}
+	if body.Settings.EmailNotifications {
+		t.Error("EmailNotifications = true, want false for the form value \"no\"")
+	}
+}
+
+// TestSSLHandlerUpdateSettingsFormOutOfRange verifies a form submission whose
+// renewal window falls outside the supported 1-60 day range is rejected.
+func TestSSLHandlerUpdateSettingsFormOutOfRange(t *testing.T) {
+	h := NewSSLHandler("/tmp/example/certs", newTestServerDB(t), "")
+	form := strings.NewReader("autoRenewal=yes&renewalDays=99")
+	req := httptest.NewRequest(http.MethodPost, "/server/admin/config/ssl", form)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	h.UpdateSettings(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

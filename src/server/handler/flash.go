@@ -28,8 +28,18 @@ var flashKinds = map[string]bool{
 // flashKeys is the allow-list of translation keys a flash may name. The cookie
 // value is attacker-controllable, so only keys listed here are ever rendered.
 var flashKeys = map[string]bool{
-	"flash_settings_saved":       true,
-	"flash_settings_save_failed": true,
+	"flash_settings_saved":             true,
+	"flash_settings_save_failed":       true,
+	"flash_channel_updated":            true,
+	"flash_channel_update_failed":      true,
+	"flash_channel_enabled":            true,
+	"flash_channel_disabled":           true,
+	"flash_channel_test_sent":          true,
+	"flash_channel_test_failed":        true,
+	"flash_email_template_saved":       true,
+	"flash_email_template_save_failed": true,
+	"flash_test_email_sent":            true,
+	"flash_test_email_failed":          true,
 }
 
 // SetFlash stores a one-shot flash message for the next rendered page.

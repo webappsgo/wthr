@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/webappsgo/wthr/src/server/middleware"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/server/service"
 )
 
 // newAuthTestHandler wires an AuthHandler against fresh in-memory
@@ -266,9 +268,9 @@ func TestHandleLogin_User(t *testing.T) {
 // TestHandleRegister covers the public-registration gate, success path, and
 // duplicate-username error path.
 func TestHandleRegister(t *testing.T) {
-	t.Run("registration disabled returns 404", func(t *testing.T) {
+	t.Run("private mode returns 404", func(t *testing.T) {
 		h, _, _ := newAuthTestHandler(t)
-		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "invite"}}})
+		config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "private"}}})
 		t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
 		r, w := newTestContextJSON(t, http.MethodPost, "/server/auth/register", map[string]string{
@@ -518,12 +520,12 @@ func TestShowLoginPage_RedirectsWhenAlreadyAuthenticated(t *testing.T) {
 	}
 }
 
-// TestShowRegisterPage_NotFoundWhenRegistrationDisabled covers the 404 gate
+// TestShowRegisterPage_NotFoundWhenRegistrationPrivate covers the 404 gate
 // (routed via the JSON-error branch since we request application/json, so
 // it is safe to call without a template renderer configured).
-func TestShowRegisterPage_NotFoundWhenRegistrationDisabled(t *testing.T) {
+func TestShowRegisterPage_NotFoundWhenRegistrationPrivate(t *testing.T) {
 	h, _, _ := newAuthTestHandler(t)
-	config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "invite"}}})
+	config.SetGlobalConfig(&config.AppConfig{Users: config.UsersConfig{Enabled: true, Registration: config.RegistrationConfig{Mode: "private"}}})
 	t.Cleanup(func() { config.SetGlobalConfig(nil) })
 
 	r, w := newTestContext(http.MethodGet, "/server/auth/register")
@@ -632,5 +634,153 @@ func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
 				t.Errorf("expected a non-empty Location redirect header")
 			}
 		})
+	}
+}
+
+// TestRequiresEmailVerification covers the three gates in
+// requiresEmailVerification(): the config flag, and (per AI.md PART 18)
+// whether a usable SMTP configuration actually exists. With no SMTP the
+// function must report false so registration auto-logs-in and auto-verifies
+// instead of stranding the account on a verification step that can never
+// complete.
+func TestRequiresEmailVerification(t *testing.T) {
+	t.Run("no config skips verification", func(t *testing.T) {
+		t.Setenv("SMTP_HOST", "")
+		t.Setenv("SMTP_FROM_ADDRESS", "")
+		config.SetGlobalConfig(nil)
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
+
+		if requiresEmailVerification() {
+			t.Fatal("requiresEmailVerification() = true with a nil config, want false")
+		}
+	})
+
+	t.Run("config flag off skips verification", func(t *testing.T) {
+		t.Setenv("SMTP_HOST", "")
+		t.Setenv("SMTP_FROM_ADDRESS", "")
+		config.SetGlobalConfig(&config.AppConfig{
+			Users: config.UsersConfig{
+				Enabled: true,
+				Registration: config.RegistrationConfig{
+					Mode:                      "open",
+					RequireEmailVerification: false,
+				},
+			},
+		})
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
+
+		if requiresEmailVerification() {
+			t.Fatal("requiresEmailVerification() = true with the config flag off, want false")
+		}
+	})
+
+	t.Run("config flag on but no smtp skips verification", func(t *testing.T) {
+		t.Setenv("SMTP_HOST", "")
+		t.Setenv("SMTP_FROM_ADDRESS", "")
+		serverDB := newTestServerDB(t)
+		setGlobalTestDualDB(t, serverDB, nil)
+		config.SetGlobalConfig(&config.AppConfig{
+			Users: config.UsersConfig{
+				Enabled: true,
+				Registration: config.RegistrationConfig{
+					Mode:                      "open",
+					RequireEmailVerification: true,
+				},
+			},
+		})
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
+
+		if requiresEmailVerification() {
+			t.Fatal("requiresEmailVerification() = true with no SMTP configured, want false " +
+				"(AI.md PART 18: verification is skipped entirely without SMTP)")
+		}
+	})
+
+	t.Run("config flag on with smtp requires verification", func(t *testing.T) {
+		t.Setenv("SMTP_HOST", "")
+		t.Setenv("SMTP_FROM_ADDRESS", "")
+		serverDB := newTestServerDB(t)
+		setGlobalTestDualDB(t, serverDB, nil)
+		seedServerConfigRow(t, serverDB, "smtp.from_address", "noreply@example.com", "string")
+		config.SetGlobalConfig(&config.AppConfig{
+			Users: config.UsersConfig{
+				Enabled: true,
+				Registration: config.RegistrationConfig{
+					Mode:                      "open",
+					RequireEmailVerification: true,
+				},
+			},
+		})
+		t.Cleanup(func() { config.SetGlobalConfig(nil) })
+
+		// AI.md PART 18 enables email only for a configured AND working
+		// server, so a config pointing at an unroutable TEST-NET-1 address
+		// must still leave verification skipped.
+		replaceServerConfigRow(t, serverDB, "smtp.host", "192.0.2.1")
+		if requiresEmailVerification() {
+			t.Fatal("requiresEmailVerification() = true with an unreachable SMTP host, want false " +
+				"(AI.md PART 18: only a working SMTP server enables email)")
+		}
+
+		// A real handshake against a local responder is the startup check the
+		// process shares; once it succeeds the same code path must report
+		// verification as required.
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("Listen: %v", err)
+		}
+		t.Cleanup(func() { _ = listener.Close() })
+		go serveHandshakeOnlySMTP(listener)
+
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		if err != nil {
+			t.Fatalf("SplitHostPort: %v", err)
+		}
+		replaceServerConfigRow(t, serverDB, "smtp.host", "127.0.0.1")
+		seedServerConfigRow(t, serverDB, "smtp.port", port, "string")
+		if err := service.SharedSMTPService(serverDB).VerifyConfiguredConnection(); err != nil {
+			t.Fatalf("VerifyConfiguredConnection: %v", err)
+		}
+
+		if !requiresEmailVerification() {
+			t.Fatal("requiresEmailVerification() = false with a working SMTP server, want true")
+		}
+	})
+}
+
+// replaceServerConfigRow upserts a server_config value, letting a test change
+// a setting it already seeded without colliding on the key's unique index.
+func replaceServerConfigRow(t *testing.T, db *sql.DB, key, value string) {
+	t.Helper()
+	if _, err := db.Exec(
+		`INSERT INTO server_config (key, value, type, description) VALUES (?, ?, 'string', '')
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key, value,
+	); err != nil {
+		t.Fatalf("replace server_config %s: %v", key, err)
+	}
+}
+
+// serveHandshakeOnlySMTP accepts one connection and answers the greeting and
+// EHLO with 2xx replies — the minimum AI.md PART 18 requires before email
+// features may be treated as enabled.
+func serveHandshakeOnlySMTP(listener net.Listener) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err = conn.Write([]byte("220 127.0.0.1 ESMTP test\r\n")); err != nil {
+		return
+	}
+	buf := make([]byte, 512)
+	for {
+		n, err := conn.Read(buf)
+		if err != nil || n == 0 {
+			return
+		}
+		if _, err = conn.Write([]byte("250 127.0.0.1\r\n")); err != nil {
+			return
+		}
 	}
 }

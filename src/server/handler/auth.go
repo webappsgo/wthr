@@ -15,6 +15,7 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -670,7 +671,7 @@ func respondWithError(w http.ResponseWriter, r *http.Request, statusCode int, me
 }
 
 func isPublicRegistrationEnabled() bool {
-	return config.IsMultiUserEnabled() && config.IsRegistrationPublic()
+	return config.IsMultiUserEnabled() && config.IsRegistrationOpen()
 }
 
 func requiresEmailVerification() bool {
@@ -678,8 +679,19 @@ func requiresEmailVerification() bool {
 	if cfg == nil {
 		return false
 	}
+	if !cfg.Users.Registration.RequireEmailVerification {
+		return false
+	}
 
-	return cfg.Users.Registration.RequireEmailVerification
+	// AI.md PART 18 (SMTP Requirement): with no working SMTP server, email
+	// functionality is completely disabled and email verification is skipped
+	// entirely (addresses are auto-verified), so registration must not strand
+	// a new account on a verification step that can never complete.
+	smtpService := service.SharedSMTPService(database.GetServerDB())
+	if err := smtpService.LoadConfig(); err != nil {
+		return false
+	}
+	return smtpService.IsEnabled()
 }
 
 func createUserEmailVerification(userID int64, email string) (*model.UserEmailVerification, error) {

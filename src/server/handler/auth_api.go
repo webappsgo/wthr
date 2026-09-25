@@ -395,7 +395,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	if !config.IsMultiUserEnabled() {
 		return nil, fmt.Errorf("registration is not available")
 	}
-	if !config.IsRegistrationPublic() {
+	if !config.IsRegistrationOpen() {
 		return nil, fmt.Errorf("public registration is not available")
 	}
 
@@ -609,7 +609,7 @@ func RequestAPIUserPasswordReset(db *sql.DB, req *APIPasswordForgotRequest, rese
 		// one, and it is what the user_password_resets insert above writes to -
 		// so passing it made the service look for its configuration in the wrong
 		// database and silently find no SMTP settings at all.
-		smtpService := service.NewSMTPService(database.GetServerDB())
+		smtpService := service.SharedSMTPService(database.GetServerDB())
 		if err := smtpService.LoadConfig(); err == nil {
 			appName := "Weather"
 			if inst := i18n.GetGlobalI18n(); inst != nil {

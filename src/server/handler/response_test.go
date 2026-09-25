@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
 // newTestRequest builds a bare request/recorder pair so header/query/path
@@ -245,6 +248,24 @@ func TestShouldRespondText(t *testing.T) {
 				t.Errorf("shouldRespondText(%s, Accept=%q) = %v, want %v", tt.target, tt.accept, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestHasTextExtension_SurvivesURLNormalize verifies the .txt signal still
+// reaches the handler after URLNormalizeMiddleware strips the suffix for
+// routing, and that a non-.txt request stays false even when the recorded
+// signal is explicitly absent.
+func TestHasTextExtension_SurvivesURLNormalize(t *testing.T) {
+	r, _ := newTestRequest(http.MethodGet, "/api/v1/weather")
+	r = r.WithContext(reqctx.SetValue(r.Context(), middleware.TextRequestKey, true))
+
+	if got := hasTextExtension(r); !got {
+		t.Error("hasTextExtension = false, want true for a recorded .txt request")
+	}
+
+	plain, _ := newTestRequest(http.MethodGet, "/api/v1/weather")
+	if got := hasTextExtension(plain); got {
+		t.Error("hasTextExtension = true, want false for a plain request")
 	}
 }
 

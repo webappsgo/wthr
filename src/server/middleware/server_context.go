@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
@@ -53,7 +52,7 @@ func resolveThemeFromRequest(r *http.Request) string {
 
 // InjectServerContext adds server configuration to all requests
 func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Handler {
-	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+	settingsModel := &model.SettingsModel{DB: db}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

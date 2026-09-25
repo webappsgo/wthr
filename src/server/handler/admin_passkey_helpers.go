@@ -109,12 +109,12 @@ func BeginAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pas
 	name = strings.TrimSpace(name)
 	password = strings.TrimSpace(password)
 	if name == "" || password == "" {
-		return nil, fmt.Errorf("passkey name and password are required")
+		return nil, ErrPasskeyNamePasswordRequired
 	}
 
 	valid, err := models.VerifyPassword(password, admin.PasswordHash)
 	if err != nil || !valid {
-		return nil, fmt.Errorf("invalid password")
+		return nil, ErrPasskeyInvalidPassword
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)
@@ -177,7 +177,7 @@ func FinishAdminPasskeyRegistrationToken(db *sql.DB, admin *models.Admin, env Pa
 		return nil, err
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != admin.ID {
-		return nil, fmt.Errorf("invalid passkey registration session")
+		return nil, ErrPasskeyInvalidRegistrationSession
 	}
 
 	waUser, err := loadWebAuthnAdminUser(db, admin)

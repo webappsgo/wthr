@@ -33,16 +33,10 @@ func (h *AdminUsersHandler) UpdateUserSettings(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Registration modes per AI.md config-rules.md: open/invite/admin_only/
-	// disabled. Legacy values (public/private) are normalised to their
-	// current equivalents rather than rejected, so already-stored configs
-	// and older API clients keep working.
+	// Registration modes per AI.md PART 34: "open" (default) and "private".
+	// Any other value is rejected so an unsupported mode is never persisted.
 	switch req.RegistrationMode {
-	case "public":
-		req.RegistrationMode = "open"
-	case "private":
-		req.RegistrationMode = "invite"
-	case "open", "invite", "admin_only", "disabled":
+	case "open", "private":
 	default:
 		BadRequest(w, r, Translate(r, "errors.admin.users.invalid_registration_mode"))
 		return

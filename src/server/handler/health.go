@@ -289,7 +289,37 @@ func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 // @Success 200 {object} map[string]interface{} "Alive"
 // @Router /health [get]
 func LivenessCheck(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "alive"})
+	statusCode := http.StatusOK
+	payload := map[string]interface{}{"status": "alive"}
+
+	renderLivenessHTML := func() {
+		middleware.RenderHTML(w, r, statusCode, "page/healthz.tmpl", util.TemplateData(r, map[string]interface{}{
+			"Title":    Translate(r, "health_page_title"),
+			"page":     "health",
+			"status":   Translate(r, "health_page_alive"),
+			"HostInfo": util.GetHostInfo(r),
+		}))
+	}
+
+	// AI.md PART 14 frontend chain: Accept: text/html > Accept: text/plain >
+	// browser User-Agent > CLI/HTTP tool > default HTML. JSON is served only
+	// to explicit API clients (Accept: application/json or our own CLI).
+	switch {
+	case shouldRespondText(r):
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(statusCode)
+		_, _ = w.Write([]byte(Translate(r, "health_page_alive")))
+	case wantsExplicitJSON(r), isOurCLIClient(r):
+		renderIndentedJSON(w, statusCode, payload)
+	case util.IsBrowser(r), isTextBrowser(r):
+		renderLivenessHTML()
+	case isHTTPTool(r):
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(statusCode)
+		_, _ = w.Write([]byte(Translate(r, "health_page_alive")))
+	default:
+		renderLivenessHTML()
+	}
 }
 
 // ReadinessCheck handles GET /health/ready — readiness probe per AI.md PART 13.
@@ -393,8 +423,8 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 
 	if wantsExplicitJSON(r) || strings.HasPrefix(r.URL.Path, "/api/") || (WantsJSON(r) && !isConsoleClient) {
 		RespondNegotiatedData(w, r, http.StatusServiceUnavailable, map[string]interface{}{
-			"status":  "Initializing",
-			"message": "Services are starting up. Please wait a moment.",
+			"status":  Translate(r, "loading_page_status"),
+			"message": Translate(r, "loading_page_message"),
 			"initialization": map[string]interface{}{
 				"countries": status.Countries,
 				"cities":    status.Cities,
@@ -408,24 +438,32 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 
 	if isConsoleClient {
 		// Console-friendly ASCII output
-		output := fmt.Sprintf(`🚀 Weather - Starting Up
+		output := fmt.Sprintf(`%s
 
-Services Initialization:
-  [%s] Countries Database
-  [%s] Cities Database
-  [%s] Weather
+%s
+  [%s] %s
+  [%s] %s
+  [%s] %s
 
-Uptime: %s
+%s: %s
 
-⏳ Please wait a moment and try again...
+%s
 
-Tip: Check status with:
+%s
   curl -q -LSs %s/server/healthz
 `,
+			Translate(r, "loading_page_console_title"),
+			Translate(r, "loading_page_services_heading"),
 			checkmark(status.Countries),
+			Translate(r, "loading_page_countries"),
 			checkmark(status.Cities),
+			Translate(r, "loading_page_cities"),
 			checkmark(status.Weather),
+			Translate(r, "app.name"),
+			Translate(r, "loading_page_uptime"),
 			uptime.Round(time.Second).String(),
+			Translate(r, "loading_page_line_start"),
+			Translate(r, "loading_page_tip_health"),
 			util.GetHostInfo(r).FullHost,
 		)
 
@@ -439,7 +477,7 @@ Tip: Check status with:
 	hostInfo := util.GetHostInfo(r)
 
 	middleware.RenderHTML(w, r, http.StatusServiceUnavailable, "component/loading.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":    "Starting Up - Weather",
+		"Title":    Translate(r, "loading_page_title"),
 		"Status":   status,
 		"Uptime":   uptime.String(),
 		"HostInfo": hostInfo,

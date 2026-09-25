@@ -41,13 +41,13 @@ func newAdminUsersTestHandler(t *testing.T) *AdminUsersHandler {
 }
 
 // TestAdminUsersHandler_UpdateUserSettings_Success covers the accepted
-// legacy registration-mode value "disabled" and verifies the YAML file is
-// actually updated on disk.
+// registration-mode value "private" and verifies the YAML file is actually
+// updated on disk.
 func TestAdminUsersHandler_UpdateUserSettings_Success(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{
 		"enabled":           true,
-		"registration_mode": "disabled",
+		"registration_mode": "private",
 		"registration_require_email_verification": true,
 	}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
@@ -94,7 +94,7 @@ func TestAdminUsersHandler_UpdateUserSettings_MalformedJSON(t *testing.T) {
 // DB/IO-error path: ConfigPath points at a nonexistent file.
 func TestAdminUsersHandler_UpdateUserSettings_MissingConfigFile(t *testing.T) {
 	h := &AdminUsersHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist.yml")}
-	body := map[string]interface{}{"registration_mode": "disabled"}
+	body := map[string]interface{}{"registration_mode": "open"}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(w, c)
 
@@ -103,23 +103,33 @@ func TestAdminUsersHandler_UpdateUserSettings_MissingConfigFile(t *testing.T) {
 	}
 }
 
-// TestAdminUsersHandler_UpdateUserSettings_SpecCorrectModeRejected is a
-// regression test documenting a genuine spec-compliance bug in
-// src/server/handler/admin_users.go UpdateUserSettings: this project's own
-// rules (.claude/rules/optional-rules.md, .claude/rules/config-rules.md)
-// mandate registration modes open/invite/admin_only/disabled (with legacy
-// public->open, private->invite normalization on read), but this handler's
-// switch statement only accepts the literal legacy strings
-// "public"/"private"/"disabled" and rejects the spec-correct value "open"
-// (and "invite", "admin_only") with a 400 "Invalid registration mode"
-// error. A client sending the spec-correct value is incorrectly rejected.
-func TestAdminUsersHandler_UpdateUserSettings_SpecCorrectModeRejected(t *testing.T) {
+// TestAdminUsersHandler_UpdateUserSettings_OpenModeAccepted verifies the
+// AI.md PART 34 default registration mode "open" is accepted and persisted.
+func TestAdminUsersHandler_UpdateUserSettings_OpenModeAccepted(t *testing.T) {
 	h := newAdminUsersTestHandler(t)
 	body := map[string]interface{}{"registration_mode": "open"}
 	c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
 	h.UpdateUserSettings(w, c)
 
 	if w.Code != http.StatusOK {
-		t.Errorf("BUG admin_users.go UpdateUserSettings: status = %d, want 200 for spec-correct registration_mode=\"open\" (handler only accepts legacy public/private/disabled values); body=%s", w.Code, w.Body.String())
+		t.Errorf("status = %d, want 200 for registration_mode=\"open\"; body=%s", w.Code, w.Body.String())
+	}
+}
+
+// TestAdminUsersHandler_UpdateUserSettings_LegacyModesRejected verifies the
+// modes AI.md PART 34 does not define (invite, admin_only, disabled) are
+// rejected with 400 rather than silently persisted.
+func TestAdminUsersHandler_UpdateUserSettings_LegacyModesRejected(t *testing.T) {
+	for _, mode := range []string{"invite", "admin_only", "disabled"} {
+		t.Run(mode, func(t *testing.T) {
+			h := newAdminUsersTestHandler(t)
+			body := map[string]interface{}{"registration_mode": mode}
+			c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/users/settings", body)
+			h.UpdateUserSettings(w, c)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400 for undefined mode %q; body=%s", w.Code, mode, w.Body.String())
+			}
+		})
 	}
 }

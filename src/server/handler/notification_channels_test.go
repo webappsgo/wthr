@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -472,6 +474,193 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 		}
 		if !strings.Contains(w.Body.String(), `"total":1`) {
 			t.Errorf("expected total:1 for limit=1, got: %s", w.Body.String())
+		}
+	})
+}
+
+// newChannelFormRequest builds an urlencoded POST the way a no-JS browser form
+// submits it, then attaches the chi "type" URL param the router would set.
+func newChannelFormRequest(t *testing.T, target string, form url.Values, channelType string) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return withURLParam(r, "type", channelType), w
+}
+
+// channelFlashValue returns the value of the flash cookie set on the response,
+// or false when no flash cookie was written.
+func channelFlashValue(t *testing.T, w *httptest.ResponseRecorder) (string, bool) {
+	t.Helper()
+	for _, c := range w.Result().Cookies() {
+		if c.Name == FlashCookieName {
+			return c.Value, true
+		}
+	}
+	return "", false
+}
+
+// channelStoredConfig reads back the raw config column for a channel so tests
+// can assert exactly what an update persisted.
+func channelStoredConfig(t *testing.T, db *sql.DB, channelType string) string {
+	t.Helper()
+	var config string
+	if err := db.QueryRow(`SELECT config FROM server_notification_channels WHERE channel_type = ?`, channelType).Scan(&config); err != nil {
+		t.Fatalf("read stored config: %v", err)
+	}
+	return config
+}
+
+func TestNotificationChannelHandlerListChannelRows(t *testing.T) {
+	h := newNotificationChannelsTestHandler(t)
+	insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+	insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
+
+	rows, err := h.ListChannelRows()
+	if err != nil {
+		t.Fatalf("ListChannelRows: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+
+	// ORDER BY channel_name ASC puts Discord before Slack.
+	if rows[0].ChannelName != "Discord" || rows[1].ChannelName != "Slack" {
+		t.Fatalf("expected alphabetical order [Discord Slack], got [%s %s]", rows[0].ChannelName, rows[1].ChannelName)
+	}
+	if rows[0].ChannelType != "discord" || rows[0].Enabled || rows[0].State != "disabled" {
+		t.Errorf("unexpected Discord row: %+v", rows[0])
+	}
+	if rows[1].ChannelType != "slack" || !rows[1].Enabled || rows[1].State != "enabled" {
+		t.Errorf("unexpected Slack row: %+v", rows[1])
+	}
+}
+
+func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
+	t.Run("redirects with success flash and persists submitted config", func(t *testing.T) {
+		h := newNotificationChannelsTestHandler(t)
+		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
+
+		form := url.Values{}
+		form.Set("enabled", "true")
+		form.Set("config.webhook_url", "https://example.com/hook")
+		r, w := newChannelFormRequest(t, "/server/admin/config/channels/slack", form, "slack")
+
+		h.UpdateChannel(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+		}
+		if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/config/channels") {
+			t.Errorf("expected redirect to channels page, got %q", loc)
+		}
+		flash, ok := channelFlashValue(t, w)
+		if !ok {
+			t.Fatal("expected a flash cookie")
+		}
+		if flash != "success:flash_channel_updated" {
+			t.Errorf("flash = %q, want success:flash_channel_updated", flash)
+		}
+
+		config := channelStoredConfig(t, h.DB, "slack")
+		if !strings.Contains(config, "https://example.com/hook") {
+			t.Errorf("expected stored config to carry webhook_url, got %s", config)
+		}
+	})
+
+	t.Run("merges stored config keys the form omitted", func(t *testing.T) {
+		h := newNotificationChannelsTestHandler(t)
+		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+		// Seed a stored key the form will not submit.
+		if _, err := h.DB.Exec(`UPDATE server_notification_channels SET config = ? WHERE channel_type = ?`,
+			`{"webhook_url":"https://old.example.com/hook","channel":"#alerts"}`, "slack"); err != nil {
+			t.Fatalf("seed stored config: %v", err)
+		}
+
+		form := url.Values{}
+		form.Set("enabled", "true")
+		form.Set("config.webhook_url", "https://new.example.com/hook")
+		r, w := newChannelFormRequest(t, "/server/admin/config/channels/slack", form, "slack")
+
+		h.UpdateChannel(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+		}
+
+		config := channelStoredConfig(t, h.DB, "slack")
+		// The submitted key overrides the stored one.
+		if !strings.Contains(config, "https://new.example.com/hook") {
+			t.Errorf("expected submitted webhook_url to win, got %s", config)
+		}
+		// The omitted stored key survives the merge.
+		if !strings.Contains(config, "#alerts") {
+			t.Errorf("expected omitted stored key channel to survive, got %s", config)
+		}
+	})
+}
+
+func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
+	t.Run("enable redirects with enabled flash", func(t *testing.T) {
+		h := newNotificationChannelsTestHandler(t)
+		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
+
+		r, w := newChannelFormRequest(t, "/server/admin/config/channels/slack/enable", url.Values{}, "slack")
+		h.EnableChannel(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+		}
+		flash, ok := channelFlashValue(t, w)
+		if !ok {
+			t.Fatal("expected a flash cookie")
+		}
+		if flash != "success:flash_channel_enabled" {
+			t.Errorf("flash = %q, want success:flash_channel_enabled", flash)
+		}
+	})
+
+	t.Run("disable redirects with disabled flash", func(t *testing.T) {
+		h := newNotificationChannelsTestHandler(t)
+		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
+
+		r, w := newChannelFormRequest(t, "/server/admin/config/channels/slack/disable", url.Values{}, "slack")
+		h.DisableChannel(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+		}
+		flash, ok := channelFlashValue(t, w)
+		if !ok {
+			t.Fatal("expected a flash cookie")
+		}
+		if flash != "success:flash_channel_disabled" {
+			t.Errorf("flash = %q, want success:flash_channel_disabled", flash)
+		}
+	})
+}
+
+func TestNotificationChannelHandlerTestChannelFormPRG(t *testing.T) {
+	// An unregistered channel type makes the manager's TestChannel fail, which
+	// exercises the PRG failure branch without any SMTP/network I/O.
+	t.Run("unknown channel redirects with test-failed flash", func(t *testing.T) {
+		h := newNotificationChannelsTestHandler(t)
+
+		form := url.Values{}
+		form.Set("recipient", "ops@example.com")
+		r, w := newChannelFormRequest(t, "/server/admin/config/channels/unknown/test", form, "unknown")
+
+		h.TestChannel(w, r)
+
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+		}
+		flash, ok := channelFlashValue(t, w)
+		if !ok {
+			t.Fatal("expected a flash cookie")
+		}
+		if flash != "error:flash_channel_test_failed" {
+			t.Errorf("flash = %q, want error:flash_channel_test_failed", flash)
 		}
 	})
 }

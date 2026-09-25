@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
 
@@ -91,8 +93,8 @@ func TestLoginRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
 }
 
 // TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault verifies
-// an ordinary request with no auth context is subject to the unauthenticated
-// limit (APIUnauthRequestsPerWindow = 20/min), reflected in the
+// an ordinary request with no auth context is subject to the read bucket
+// (server.rate_limit.read, 120/min by default), reflected in the
 // X-RateLimit-Limit response header.
 func TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault(t *testing.T) {
 	ip := uniqueTestIP()
@@ -109,21 +111,21 @@ func TestAPIRateLimitMiddleware_AppliesUnauthenticatedLimitByDefault(t *testing.
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
-	if got := w.Header().Get("X-RateLimit-Limit"); got != fmt.Sprintf("%d", APIUnauthRequestsPerWindow) {
-		t.Errorf("X-RateLimit-Limit = %q, want %d", got, APIUnauthRequestsPerWindow)
+	want := resolveRateLimitBuckets().ReadLimit
+	if got := w.Header().Get("X-RateLimit-Limit"); got != fmt.Sprintf("%d", want) {
+		t.Errorf("X-RateLimit-Limit = %q, want %d", got, want)
 	}
 }
 
 // TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit is a regression test
 // for a real production bug: APIRateLimitMiddleware chose between the
-// authenticated (100/min) and unauthenticated (20/min) limiter by checking a
-// bare "user_id" context key that no middleware in this package ever set, so
-// every authenticated request was throttled at the stricter unauthenticated
-// rate instead of the intended authenticated one.
+// authenticated and unauthenticated limiter by checking a bare "user_id"
+// context key that no middleware in this package ever set, so every
+// authenticated request was throttled as anonymous.
 //
 // The check now keys on UserContextKey, and AuthMiddleware sets both
 // UserContextKey and UserIDContextKey at every authentication site. This test
-// mirrors that pair and asserts the authenticated limit is advertised.
+// mirrors that pair and asserts the request is served from the read bucket.
 func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
 	ip := uniqueTestIP()
 
@@ -148,12 +150,183 @@ func TestAPIRateLimitMiddleware_AppliesAuthenticatedLimit(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
-	if got := w.Header().Get("X-RateLimit-Limit"); got != fmt.Sprintf("%d", APIAuthRequestsPerWindow) {
+	want := resolveRateLimitBuckets().ReadLimit
+	if got := w.Header().Get("X-RateLimit-Limit"); got != fmt.Sprintf("%d", want) {
 		t.Errorf("X-RateLimit-Limit = %q, want %d - an authenticated request must get the "+
-			"authenticated limit; if this fails, AuthMiddleware has stopped setting "+
-			"UserIDContextKey and every logged-in caller is throttled as anonymous",
-			got, APIAuthRequestsPerWindow)
+			"read limit; if this fails, AuthMiddleware has stopped setting "+
+			"UserContextKey and every logged-in caller is throttled as anonymous",
+			got, want)
 	}
+}
+
+// TestResolveRateLimitBuckets_FallsBackToSpecDefaults verifies that an unset
+// or non-positive config value is replaced by the AI.md PART 12 default
+// instead of disabling the limit.
+func TestResolveRateLimitBuckets_FallsBackToSpecDefaults(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(original) })
+
+	config.SetGlobalConfig(&config.AppConfig{
+		Server: config.ServerConfig{
+			RateLimit: config.RateLimitConfig{
+				Enabled: true,
+				Read:    config.RateLimitBucket{Requests: 0, Window: 0},
+			},
+		},
+	})
+
+	buckets := resolveRateLimitBuckets()
+	if buckets.ReadLimit != 120 || buckets.ReadWindow != time.Minute {
+		t.Errorf("read bucket = %d/%v, want 120/1m", buckets.ReadLimit, buckets.ReadWindow)
+	}
+	if buckets.WriteLimit != 10 {
+		t.Errorf("write bucket = %d, want 10", buckets.WriteLimit)
+	}
+	if buckets.GlobalLimit != GlobalBurst {
+		t.Errorf("global burst = %d, want %d", buckets.GlobalLimit, GlobalBurst)
+	}
+	if buckets.LoginLimit != LoginRequestsPerWindow {
+		t.Errorf("login bucket = %d, want %d", buckets.LoginLimit, LoginRequestsPerWindow)
+	}
+}
+
+// TestResolveRateLimitBuckets_UsesConfiguredValues verifies server.rate_limit.*
+// actually reaches the limiters instead of being ignored.
+func TestResolveRateLimitBuckets_UsesConfiguredValues(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(original) })
+
+	config.SetGlobalConfig(&config.AppConfig{
+		Server: config.ServerConfig{
+			RateLimit: config.RateLimitConfig{
+				Enabled:     true,
+				Read:        config.RateLimitBucket{Requests: 7, Window: 30},
+				Write:       config.RateLimitBucket{Requests: 3, Window: 30},
+				Health:      config.RateLimitBucket{Requests: 9, Window: 30},
+				GlobalBurst: 11,
+				Auth: config.RateLimitAuthConfig{
+					Login:         config.RateLimitBucket{Requests: 2, Window: 60},
+					PasswordReset: config.RateLimitBucket{Requests: 4, Window: 120},
+					Registration:  config.RateLimitBucket{Requests: 6, Window: 180},
+				},
+			},
+		},
+	})
+
+	buckets := resolveRateLimitBuckets()
+	if buckets.ReadLimit != 7 || buckets.ReadWindow != 30*time.Second {
+		t.Errorf("read bucket = %d/%v, want 7/30s", buckets.ReadLimit, buckets.ReadWindow)
+	}
+	if buckets.HealthLimit != 9 || buckets.HealthWindow != 30*time.Second {
+		t.Errorf("health bucket = %d/%v, want 9/30s", buckets.HealthLimit, buckets.HealthWindow)
+	}
+	if buckets.WriteLimit != 3 {
+		t.Errorf("write bucket = %d, want 3", buckets.WriteLimit)
+	}
+	if buckets.GlobalLimit != 11 {
+		t.Errorf("global burst = %d, want 11", buckets.GlobalLimit)
+	}
+	if buckets.LoginLimit != 2 || buckets.LoginWindow != time.Minute {
+		t.Errorf("login bucket = %d/%v, want 2/1m", buckets.LoginLimit, buckets.LoginWindow)
+	}
+	if buckets.PasswordReset != 4 || buckets.PasswordResetT != 2*time.Minute {
+		t.Errorf("password reset bucket = %d/%v, want 4/2m", buckets.PasswordReset, buckets.PasswordResetT)
+	}
+	if buckets.Registration != 6 || buckets.RegistrationT != 3*time.Minute {
+		t.Errorf("registration bucket = %d/%v, want 6/3m", buckets.Registration, buckets.RegistrationT)
+	}
+}
+
+// TestRateLimitEnabled_FalseDisablesLimiting verifies server.rate_limit.enabled
+// is honored end to end: with it off, the request chain is reached no matter how
+// many times the same IP hits the route.
+func TestRateLimitEnabled_FalseDisablesLimiting(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(original) })
+
+	config.SetGlobalConfig(&config.AppConfig{
+		Server: config.ServerConfig{
+			RateLimit: config.RateLimitConfig{Enabled: false},
+		},
+	})
+
+	router := chi.NewRouter()
+	router.Use(GlobalRateLimitMiddleware())
+	router.Get("/ping", rateLimitOKHandler)
+
+	for i := 1; i <= 25; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+		req.RemoteAddr = "198.51.100.7:1234"
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200 (limiting disabled)", i, w.Code)
+		}
+	}
+}
+
+// TestWriteRateLimitMiddleware_BlocksAfterLimit exercises the write bucket
+// from a single IP and asserts the request past the limit is rejected.
+func TestWriteRateLimitMiddleware_BlocksAfterLimit(t *testing.T) {
+	ip := uniqueTestIP()
+
+	router := chi.NewRouter()
+	router.Use(WriteRateLimitMiddleware())
+	router.Post("/server/config", rateLimitOKHandler)
+
+	limit := resolveRateLimitBuckets().WriteLimit
+	for i := 1; i <= limit; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/server/config", nil)
+		req.RemoteAddr = ip
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200 (within limit)", i, w.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/server/config", nil)
+	req.RemoteAddr = ip
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("request beyond limit: status = %d, want 429", w.Code)
+	}
+}
+
+// TestRateLimitResponse_RetryAfterHeader verifies the 429 carries the
+// canonical RATE_LIMITED body plus the Retry-After header, per AI.md PART 12.
+func TestRateLimitResponse_RetryAfterHeader(t *testing.T) {
+	ip := uniqueTestIP()
+
+	router := chi.NewRouter()
+	router.Use(RegistrationRateLimitMiddleware())
+	router.Post("/server/auth/register", rateLimitOKHandler)
+
+	for i := 0; i <= resolveRateLimitBuckets().Registration; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/server/auth/register", nil)
+		req.RemoteAddr = ip
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code == http.StatusTooManyRequests {
+			if got := w.Header().Get("Retry-After"); got == "" {
+				t.Error("Retry-After header missing on 429")
+			}
+			var body struct {
+				OK      bool   `json:"ok"`
+				Error   string `json:"error"`
+				Message string `json:"message"`
+			}
+			if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+				t.Fatalf("decode body: %v", err)
+			}
+			if body.OK || body.Error != "RATE_LIMITED" || body.Message == "" {
+				t.Errorf("body = %+v, want ok=false error=RATE_LIMITED with a message", body)
+			}
+			return
+		}
+	}
+	t.Error("limiter never returned 429")
 }
 
 // TestRateLimitMiddleware_CanonicalRejectionShape verifies the 429 response

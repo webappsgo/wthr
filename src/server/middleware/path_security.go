@@ -9,7 +9,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/server/reqctx"
 )
+
+// TextRequestKey records in the request context that the client asked for a
+// plain-text response using the .txt extension, the highest-priority signal
+// in the AI.md PART 14 content-negotiation chain.
+const TextRequestKey = "text_request"
 
 // Path security errors per AI.md PART 5
 var (
@@ -172,8 +179,19 @@ func PathSecurityMiddleware() func(http.Handler) http.Handler {
 	}
 }
 
+// literalTxtPaths are the real .txt documents served at the root; they must
+// not have their extension stripped or routing would 404.
+var literalTxtPaths = map[string]bool{
+	"/robots.txt":               true,
+	"/security.txt":             true,
+	"/.well-known/security.txt": true,
+}
+
 // URLNormalizeMiddleware normalizes URLs (trailing slash, case, etc.) per AI.md PART 5
-// This should be the FIRST middleware in the chain
+// This should be the FIRST middleware in the chain. It also strips the
+// content-negotiation .txt suffix (AI.md PART 14: .txt outranks Accept headers)
+// so a request to /api/v1/weather.txt routes to the same handler as
+// /api/v1/weather; handlers then pick plain text from the same signal.
 func URLNormalizeMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +204,17 @@ func URLNormalizeMiddleware() func(http.Handler) http.Handler {
 			// If path was normalized, we might want to redirect in the future
 			// For now, just process with normalized path
 			_ = originalPath
+
+			// Strip the .txt content-negotiation suffix, leaving the bare
+			// ".txt" root documents alone.
+			if strings.HasSuffix(r.URL.Path, ".txt") && !literalTxtPaths[r.URL.Path] {
+				trimmed := strings.TrimSuffix(r.URL.Path, ".txt")
+				if trimmed == "" {
+					trimmed = "/"
+				}
+				r.URL.Path = trimmed
+				r = r.WithContext(reqctx.SetValue(r.Context(), TextRequestKey, true))
+			}
 
 			next.ServeHTTP(w, r)
 		})

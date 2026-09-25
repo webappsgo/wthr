@@ -51,9 +51,21 @@ func (h *EmailTemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, template)
 }
 
+// resolveTemplateName returns the template a request targets. The token-auth
+// API names it in the URL path; the session-auth admin form carries it in a
+// form field so one editor page can drive every template from a single form.
+// A submitted field wins because a form field is empty on every JSON API call.
+func resolveTemplateName(r *http.Request) string {
+	if name := r.FormValue("template"); name != "" {
+		return name
+	}
+
+	return chi.URLParam(r, "name")
+}
+
 // UpdateTemplate updates a specific email template
 func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
-	templateName := chi.URLParam(r, "name")
+	templateName := resolveTemplateName(r)
 
 	// Validate template name
 	if !isValidTemplateName(templateName) {
@@ -62,8 +74,7 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 	}
 
 	var template EmailTemplate
-	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
+	if !DecodeAndValidate(w, r, &template) {
 		return
 	}
 
@@ -79,7 +90,16 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 	// Write template file
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_save_template"))
+		return
+	}
+
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", nil)
 		return
 	}
 
@@ -120,21 +140,30 @@ func (h *EmailTemplateHandler) TestTemplate(w http.ResponseWriter, r *http.Reque
 		Template string `json:"template"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.admins.invalid_request_body"))
+	if !DecodeAndValidate(w, r, &request) {
 		return
 	}
 
+	templateName := request.Template
+	if templateName == "" {
+		templateName = resolveTemplateName(r)
+	}
+
 	// Validate template name
-	if !isValidTemplateName(request.Template) {
+	if !isValidTemplateName(templateName) {
 		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
 		return
 	}
 
 	// In a real implementation, this would use the email service
 	// For now, we'll just return success
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_test_email_sent", "flash_test_email_failed", nil)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": fmt.Sprintf("%s: %s", Translate(r, "success.admin.email_templates.test_email_sent_using_template"), request.Template),
+		"message": fmt.Sprintf("%s: %s", Translate(r, "success.admin.email_templates.test_email_sent_using_template"), templateName),
 	})
 }
 
@@ -161,36 +190,68 @@ func parseTemplate(content string) EmailTemplate {
 	return template
 }
 
+// emailTemplateNames is the allow-list of editable email templates, in the
+// order the editor page lists them. It is the single source for both name
+// validation and the page's template picker.
+var emailTemplateNames = []string{
+	"welcome",
+	"password_reset",
+	"backup_complete",
+	"backup_failed",
+	"ssl_expiring",
+	"ssl_renewed",
+	"login_alert",
+	"security_alert",
+	"scheduler_error",
+	"test",
+	"2fa_disabled",
+	"2fa_enabled",
+	"account_disabled",
+	"breach_admin_alert",
+	"breach_notification",
+	"email_verify",
+	"mfa_reminder",
+	"password_changed",
+	"user_invite",
+}
+
 // Helper: Validate template name
 func isValidTemplateName(name string) bool {
-	validTemplates := []string{
-		"welcome",
-		"password_reset",
-		"backup_complete",
-		"backup_failed",
-		"ssl_expiring",
-		"ssl_renewed",
-		"login_alert",
-		"security_alert",
-		"scheduler_error",
-		"test",
-		"2fa_disabled",
-		"2fa_enabled",
-		"account_disabled",
-		"breach_admin_alert",
-		"breach_notification",
-		"email_verify",
-		"mfa_reminder",
-		"password_changed",
-		"user_invite",
-	}
-
-	for _, valid := range validTemplates {
+	for _, valid := range emailTemplateNames {
 		if name == valid {
 			return true
 		}
 	}
 	return false
+}
+
+// EditorTemplate is one row of the session-auth template editor: the template
+// name plus the content on disk. A template file that cannot be read is skipped
+// rather than failing the whole page, so one bad file never blanks the editor.
+type EditorTemplate struct {
+	Name    string
+	Subject string
+	Body    string
+}
+
+// EditorTemplates returns every allow-listed template that has a readable file
+// on disk, in allow-list order. The editor page renders the selected one
+// server-side, which is what lets the panel edit templates with JavaScript
+// disabled; the JSON API remains the source of truth for scripted clients.
+func (h *EmailTemplateHandler) EditorTemplates() []EditorTemplate {
+	editable := make([]EditorTemplate, 0, len(emailTemplateNames))
+
+	for _, name := range emailTemplateNames {
+		content, err := os.ReadFile(filepath.Join(h.templatesDir, "email", name+".tmpl"))
+		if err != nil {
+			continue
+		}
+
+		parsed := parseTemplate(string(content))
+		editable = append(editable, EditorTemplate{Name: name, Subject: parsed.Subject, Body: parsed.Body})
+	}
+
+	return editable
 }
 
 // ExportTemplate exports a template as JSON
@@ -221,7 +282,7 @@ func (h *EmailTemplateHandler) ExportTemplate(w http.ResponseWriter, r *http.Req
 
 // ImportTemplate imports a template from JSON
 func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Request) {
-	templateName := chi.URLParam(r, "name")
+	templateName := resolveTemplateName(r)
 
 	if !isValidTemplateName(templateName) {
 		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_template_name"))
@@ -229,8 +290,7 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 	}
 
 	var template EmailTemplate
-	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
-		BadRequest(w, r, Translate(r, "errors.admin.email_templates.invalid_json_format"))
+	if !DecodeAndValidate(w, r, &template) {
 		return
 	}
 
@@ -243,7 +303,16 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_import_template"))
+		return
+	}
+
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", nil)
 		return
 	}
 

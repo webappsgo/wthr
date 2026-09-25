@@ -48,13 +48,18 @@
     <div class="card margin-y-lg">
         <h2 class="text-cyan">{{t .server.Lang "about_data_sources_heading"}}</h2>
         <ul class="feature-list">
-            <li>🌤️ <strong>{{t .server.Lang "about_source_forecasts_title"}}</strong> {{t .server.Lang "about_source_forecasts_desc"}}</li>
-            <li>⚠️ <strong>{{t .server.Lang "about_source_us_alerts_title"}}</strong> {{t .server.Lang "about_source_us_alerts_desc"}}</li>
-            <li>🌀 <strong>{{t .server.Lang "about_source_hurricanes_title"}}</strong> {{t .server.Lang "about_source_hurricanes_desc"}}</li>
-            <li>🌍 <strong>{{t .server.Lang "about_source_earthquakes_title"}}</strong> {{t .server.Lang "about_source_earthquakes_desc"}}</li>
-            <li>🌙 <strong>{{t .server.Lang "about_source_moon_title"}}</strong> {{t .server.Lang "about_source_moon_desc"}}</li>
-            <li>📍 <strong>{{t .server.Lang "about_source_geoip_title"}}</strong> {{t .server.Lang "about_source_geoip_desc"}}</li>
+            <li>🌤️ <strong>{{t .server.Lang "about_datasource_weather_title"}}</strong> {{t .server.Lang "about_datasource_weather_desc"}}</li>
+            <li>⚠️ <strong>{{t .server.Lang "about_datasource_severe_title"}}</strong> {{t .server.Lang "about_datasource_severe_desc"}}</li>
+            <li>🌀 <strong>{{t .server.Lang "about_datasource_hurricane_title"}}</strong> {{t .server.Lang "about_datasource_hurricane_desc"}}</li>
+            <li>🌍 <strong>{{t .server.Lang "about_datasource_earthquake_title"}}</strong> {{t .server.Lang "about_datasource_earthquake_desc"}}</li>
+            <li>🌙 <strong>{{t .server.Lang "about_datasource_moon_title"}}</strong> {{t .server.Lang "about_datasource_moon_desc"}}</li>
+            <li>📍 <strong>{{t .server.Lang "about_datasource_geo_title"}}</strong> {{t .server.Lang "about_datasource_geo_desc"}}</li>
         </ul>
+        <section class="attribution">
+            <h2>{{t .server.Lang "about_attribution_heading"}}</h2>
+            <p><a href="https://db-ip.com/">{{t .server.Lang "about_attribution_geoip_link"}}</a></p>
+            <p>{{t .server.Lang "about_attribution_geoip_license"}}</p>
+        </section>
     </div>
 
     <div class="card margin-y-lg">

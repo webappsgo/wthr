@@ -64,9 +64,12 @@ cp "$SCRIPT_DIR/lib/matrix.sh" "$BUILD_DIR/matrix.sh"
 chmod +x "$BUILD_DIR/matrix.sh"
 
 echo "=== Running route/header matrix in alpine:latest ==="
+MATRIX_LOG_DIR="${TMPDIR:-/tmp}/${PROJECTORG}/${PROJECTNAME}-matrix-logs"
+mkdir -p "$MATRIX_LOG_DIR"
 docker run --rm \
   --name "$CONTAINER_NAME" \
   -v "$BUILD_DIR:/artifacts:ro" \
+  -v "$MATRIX_LOG_DIR:/matrix-logs" \
   -e "PROJECTNAME=$PROJECTNAME" \
   -e "PROJECTORG=$PROJECTORG" \
   alpine:latest sh -c '

@@ -1447,7 +1447,7 @@ func (r *mutationResolver) AdminTestChannel(ctx context.Context, typeArg string,
 
 	channelManager := service.NewChannelManager(r.ServerDB)
 	if typeArg == "email" {
-		smtpService := service.NewSMTPService(r.ServerDB)
+		smtpService := service.SharedSMTPService(r.ServerDB)
 		if err := smtpService.LoadConfig(); err != nil {
 			return nil, fmt.Errorf("failed to load SMTP configuration: %w", err)
 		}
@@ -1494,7 +1494,7 @@ func (r *mutationResolver) AdminAutoDetectSMTP(ctx context.Context) (*SMTPProvid
 		return nil, fmt.Errorf("unauthorized: admin access required")
 	}
 
-	smtpService := service.NewSMTPService(r.ServerDB)
+	smtpService := service.SharedSMTPService(r.ServerDB)
 	found, err := smtpService.AutoDetect()
 	if err != nil {
 		return nil, fmt.Errorf("failed to auto-detect SMTP server: %w", err)

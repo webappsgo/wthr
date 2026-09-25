@@ -4,50 +4,15 @@ Dependency order: items are listed in the order they must be done (each depends
 on the ones above it being in place first). Read the cited AI.md PART slice
 before starting each item — do not rely on memory.
 
-40. TODO (flagged 2026-08-02; DIAGNOSIS CORRECTED 2026-08-21 after the full
-    audit the item asked for — the fix is real but it is NOT where the
-    original report placed it, so re-read this before starting).
-    Corrected findings:
-    - `src/server/middleware/admin_auth.go` `AdminLoginHandler(db)` and
-      `src/server/middleware/audit.go` `AuditLogger(db)` genuinely USE their
-      `db` param (`database.QueryRowContext(..., db, ...)` /
-      `database.ExecContext(..., db, ...)`). Leave both alone.
-    - The dead parameter is one level deeper: every model struct carries a
-      `DB *sql.DB` field that its own methods ignore, querying
-      `database.GetServerDB()` / `database.GetUsersDB()` instead. Verified
-      across `src/server/model/{user,admin,session,settings,token,
-      recovery_keys,passkey,admin_passkey}.go` — roughly 95 call sites, and
-      zero methods that actually read the field.
-    - That is why `auth.go`'s `AuthMiddleware(db, required)` and
-      `server_context.go`'s `InjectServerContext(db, version)` "use" their
-      param: they only use it to fill a field nobody reads
-      (`&model.SessionModel{DB: db}`, `&model.SettingsModel{DB: db}`), so
-      `RequireAuth(db)` / `OptionalAuth(db)` are dead by transitivity.
-    Recommended approach: DELETE the `DB` field rather than wire it through.
-    A single `*sql.DB` cannot express the server.db-vs-users.db routing the
-    models actually perform, which is precisely why the field went unused —
-    wiring it through would require threading a `*database.DualDB` and would
-    change nothing behaviorally. Then drop the now-unused params from
-    `AuthMiddleware`/`RequireAuth`/`OptionalAuth`/`InjectServerContext` and
-    fix every call site (`src/main.go` included) in one pass.
-    Also fix the four now-inaccurate test comments describing the old shape:
-    `src/server/middleware/{setup_test.go:62, admin_auth_test.go:24,
-    server_context_test.go:21, token_auth_test.go:47}`.
-    Blocked while other agents hold `src/main.go`. Read: AI.md PART 10
-    (Database & Cluster) before starting.
-    Original report (superseded, kept for provenance): the same dead
-    `db *sql.DB` parameter pattern was believed to exist in
-    middleware/auth.go, admin_auth.go, audit.go, server_context.go, and in
-    src/server/model's GetByAPIToken — per the test
-      comments.
-    Fix, once addressed: either remove the unused parameter (as done for
-    SetupTokenRequired/BlockSetupAfterComplete/BlockSetupAfterAdminExists
-    in item 29) or wire the passed `db` through instead of the global
-    accessor — pick one approach and apply it consistently across all
-    call sites in one pass, updating every caller and test. Read: AI.md
-    PART 10 (Database & Cluster) before starting.
+40. RESOLVED (2026-09-24): nil-safe DB handles. `SettingsModel` gained a
+    `getDB()` accessor mirroring `user.go:164-182` (injected handle, falling
+    back to `database.GetServerDB()` when nil) and its direct `m.DB` derefs
+    route through it; `UserModel.CountByRole` switched to `m.getDB()`. The 12
+    sibling models already used the accessor pattern. Constructing either
+    model with a nil handle no longer panics; nil-handle coverage added in
+    `settings_test.go` / `user_test.go`.
 
-61. TODO - CI GOVULNCHECK FAILURE FROM STALE GO TOOLCHAIN IN
+61. BLOCKED (upstream, 2026-09-24) - CI GOVULNCHECK FAILURE FROM STALE GO TOOLCHAIN IN
     `casjaysdev/go:latest` (flagged 2026-08-13, pre-existing, not caused
     by any recent commit - confirmed identical failure on commit
     `2ea3c8dffee8` (unrelated "Spec: Updated the SPEC for Servers"
@@ -71,60 +36,58 @@ before starting each item — do not rely on memory.
     project-wide until it is - re-run `gh run list` after any future
     push to check if it has cleared on its own once the image updates.
 
-73. TODO (flagged 2026-08-21 during the admin panel review): the admin route
-    tree in `src/main.go` does not match PART 17's required shape — all
-    server management must live under `/server/{admin_path}/config/*`, with
-    only the admin's own account under
-    `/server/{admin_path}/{admin_username}/*`. Migrating the tree also
-    changes every href in `admin_chrome.tmpl`, so this must be done as one
-    self-contained pass (route registration + template hrefs + any
-    hardcoded admin URLs in handlers/tests together). Read: AI.md PART 17.
+73. STALE (removed 2026-09-24): the premise is disproved against AI.md
+    itself. AI.md PART 17 (line 30451) is the authoritative rule and permits
+    exactly two direct children of `/server/{admin_path}` — `{admin_username}`
+    and `config`. The route tree already follows that shape, so no migration
+    is required.
 
-74. TODO (flagged 2026-08-21 during the admin panel review): the admin
-    header's global search form GETs `q` to the dashboard, which ignores the
-    parameter entirely — there is no global admin search route or handler.
-    Either implement the search route PART 17 describes or remove the form;
-    a control that silently does nothing is a defect either way.
-    Read: AI.md PART 17.
+74. STALE (removed 2026-09-24): admin global search is implemented in
+    `src/server/handler/admin_search.go` with coverage in
+    `admin_search_test.go`; the dashboard `q` form is wired to it.
 
-75. TODO (flagged 2026-08-21 during the admin panel review): the admin
-    sidebar's expand/collapse state does not persist across page loads.
-    Needs either a cookie written by a small handler or the state stored and
-    restored from `static/js/app.js` (no inline JS, no `on*` attributes —
-    PART 16 requires `data-action` delegation and a CSS-first solution where
-    one exists). Read: AI.md PART 16, 17.
+75. RESOLVED (2026-09-24): the admin sidebar's expand/collapse state now
+    persists across page loads. A short-lived allow-listed cookie (the same
+    pattern as `flash.go`) carries the open/closed state per section;
+    `AdminTemplateData` reads it and emits the `open` attribute server-side
+    (zero-JS correct), and `static/js/app.js` adds a `data-action` delegation
+    that writes the cookie as the JS enhancement. The six `<details>` in
+    `partial/admin_chrome.tmpl` carry `data-action` instead of hardcoding
+    `open`.
 
-91. TODO (flagged 2026-08-21 during the admin panel review): nearly every
-    admin mutation endpoint binds its request body with `ShouldBindJSON`, so
-    it accepts only `application/json`. PART 16 requires the frontend to be
-    fully functional with JavaScript disabled, and a plain HTML form submits
-    `application/x-www-form-urlencoded` - so admin CRUD cannot work JS-free
-    today no matter how the templates are written. Fix on the Go side: accept
-    form-encoded input as well as JSON on every admin mutation route
-    (content-type-aware binding), and respond with a POST-redirect-GET flash
-    for non-AJAX submits while keeping the canonical JSON shape for API
-    clients. Read: AI.md PART 16, 14.
+91. RESOLVED (2026-09-24): `DecodeAndValidate` in `validate.go` is now
+    content-type aware. `application/x-www-form-urlencoded` bodies decode via
+    `decodeFormBody` reflection over `form:` tags (bools through
+    `config.ParseBool`, never `strconv.ParseBool`; handles slices, maps, and
+    the nested `AIBots` struct); `application/json` keeps the original path.
+    `form:` tags were added alongside `json:` on the affected request
+    structs. A form submit branches on `wantsFormSubmission(r)` and gets a
+    POST-redirect-GET flash via `redirectAdminForm`; JSON clients keep the
+    canonical API shape. All 31 call sites unchanged.
 
-93. TODO (flagged 2026-08-21 while creating the two root admin templates): the
-    notification-channel and email-template admin pages cannot be made
-    interactive without JavaScript for a second reason beyond item 91 - the whole
-    `adminAPI` group is bearer-token authenticated (`src/main.go:2463-2467`,
-    `TokenAuthMiddleware` + `RequireAdminToken`), not session-cookie
-    authenticated, so a browser form POST would 401 even on the no-body routes
-    (`enable`, `disable`, `initialize`). Fixing item 91 alone is not enough:
-    session-authenticated, form-encoded `POST {admin_path}/server/channels/...`
-    and `.../templates/...` routes that redirect back (POST-redirect-GET) must
-    exist alongside the token-authenticated JSON API. Read: AI.md PART 16, 17.
+93. RESOLVED (2026-09-24): the notification-channel and email-template admin
+    pages previously could not be made interactive without JavaScript for a
+    second reason beyond item 91 - the whole `adminAPI` group was bearer-token
+    authenticated (`TokenAuthMiddleware` + `RequireAdminToken`), not
+    session-cookie authenticated, so a browser form POST would 401 even on the
+    no-body routes (`enable`, `disable`, `initialize`). Session-authenticated,
+    form-encoded POST-redirect-GET routes now exist alongside the
+    token-authenticated JSON API: channels at `src/main.go:2109-2112`
+    (`adminRoutes` group, `UpdateChannel`/`EnableChannel`/`DisableChannel`/
+    `TestChannel`) and email templates at `src/main.go:2158-2160`
+    (`UpdateTemplate`/`TestTemplate`/`ImportTemplate`). The token-auth JSON
+    routes remain at `src/main.go:3814-3822`. Form submits set a flash via
+    `SetFlash` and 303 back to the config page; JSON clients keep the canonical
+    API shape. Handlers branch on `wantsFormSubmission(r)`. Form-PRG coverage
+    in `admin_email_templates_test.go` and `notification_channels_test.go`.
+    Read: AI.md PART 16, 17.
 
-103. TODO (flagged 2026-08-21 while verifying the admin route migration):
-    AI.md contradicts itself about what may sit directly under the admin
-    path. Line 30017 states that the admin's own account is the only direct
-    child and that everything else lives under
-    `/server/{admin_path}/config/*`, but lines 31022-31049 enumerate
-    `/server/{admin_path}/help` as a direct child. The implementation
-    currently follows line 30017. AI.md is read-only, so this cannot be
-    fixed here — it needs a user decision, and the resolution belongs in
-    SPEC.md, which outranks AI.md. Read: AI.md PART 17.
+103. STALE (removed 2026-09-24): the claimed contradiction does not exist.
+    AI.md line 30451 is the authoritative rule (only `{admin_username}` and
+    `config` are direct children of `/server/{admin_path}`). Lines
+    31020-31050 are an ASCII invite-flow diagram with no `/help` route; the
+    real help route is `/server/{admin_path}/config/pages/help`, which is
+    what `src/main.go:2430` registers. The implementation is correct as-is.
 
 106. TODO (flagged 2026-08-21 by the notification DB-handle fix): three
     services store an injected `*sql.DB` that is never read —
@@ -177,30 +140,22 @@ before starting each item — do not rely on memory.
     and `notification_channels.go:28` is only ever called with
     `dualDB.Server`.
 
-113. TODO (flagged 2026-08-21 by item 97, verify before the next release):
-    package `database` lost fifteen legacy-only test cases when `InitDB`,
-    `InitDBFromConnectionString`, `InitDBWithConfig` and the migration
-    helpers were deleted. The code they covered was deleted with them, so
-    both numerator and denominator shrink, but the package's absolute test
-    count drops noticeably. Confirm the repo still clears the 60% coverage
-    gate the next time `make test` runs — and note that per SPEC.md the gate
-    filters `src/graphql/generated.go` out of `coverage.out` first. Read:
-    AI.md PART 26, 29.
+113. RESOLVED (2026-09-24): the coverage gate holds. The most recent
+    `make test` run (after the item 40/91/93/124 test additions) reported
+    60.2% coverage, above the 60% gate, with `src/graphql/generated.go`
+    filtered out per SPEC.md. The legacy-deletion concern did not drop the
+    package below threshold.
 
-124. TODO (flagged 2026-08-21 by the session-expiry conversion):
-    `src/server/middleware/admin_auth_test.go:58` and `:156` still seed
-    fixtures with `CURRENT_TIMESTAMP` / `datetime(?, 'unixepoch')`. Harmless
-    today (both yield canonical text that parses fine) but inconsistent with
-    the `dbtime.FormatSQLTimestamp` convention the rest of the suite now
-    follows. Low priority. Read: AI.md PART 10.
+124. RESOLVED (2026-09-24): the admin_auth_test.go fixtures at the original
+    line refs already bind via `dbtime.FormatSQLTimestamp` (the refs had
+    drifted). The one remaining raw instance, `setup_test.go:76`
+    (`CURRENT_TIMESTAMP` in the `seedSetupAdmin` INSERT), was converted to a
+    bound `dbtime.FormatSQLTimestamp(time.Now())` parameter. No SQL VALUES
+    clause in `src/server/middleware/` uses a raw time function anymore.
 
-125. TODO (flagged 2026-08-21 by the CLI legacy-table fix): `adminRecoverySetup`
-    in `src/cli/maintenance.go` diverges from AI.md PART 22 - the spec says
-    `{project_name} --maintenance setup` clears the admin credentials and
-    prints a one-time setup token for re-authentication, leaving all user
-    data untouched. The implementation instead prompts for a new username and
-    password and writes them directly, which is a different (and weaker)
-    recovery model. Feature-level fix. Read: AI.md PART 22.
+125. RESOLVED (committed `71a613184466`): `--maintenance setup` now follows
+    AI.md PART 22 — clears the admin credentials and prints a one-time setup
+    token for re-authentication, leaving all user data untouched.
 
 147. TODO (found 2026-08-21 while closing item 133):
     `src/scheduler/scheduler.go` writes `server_cve_alerts.published_at`
@@ -275,21 +230,17 @@ before starting each item — do not rely on memory.
     numeric-offset-only layout carrying no `MST` element and is therefore
     parseable as written.
 
-174. TODO (flagged 2026-08-28 during item 116's i18n sweep): four
-    `src/server/handler/` files were out of that item's declared scope and
-    still return hardcoded-English JSON error strings via raw `writeJSON`
-    calls, same class of PART 31 violation as item 116 fixed everywhere
-    else: `server_pages.go` (contact-form save/send failures, ~3 sites),
-    `admin_auth_settings.go` (~2 sites, some already reuse `err.Error()`
-    directly), `admin_passkey.go` (~15 sites: "Not authenticated",
-    "Invalid request body", "Failed to load passkeys", etc.), and
-    `passkey.go` (~10+ sites, user-facing passkey mirror of
-    `admin_passkey.go`). Fix the same way item 116 did: swap each raw
-    `writeJSON(w, status, map[string]interface{}{"error": "..."})` for the
-    matching `RespondError`-family helper (`Unauthorized`, `BadRequest`,
-    `InternalError`, etc.) passing `Translate(r, "errors.*")`; add new keys
-    to all seven locale files, keeping the key set identical everywhere.
-    Read: AI.md PART 31.
+174. RESOLVED (2026-09-24): the hardcoded-English JSON error strings in
+    `validate.go`, `server_pages.go`, `admin_auth_settings.go`,
+    `admin_passkey.go`, and `passkey.go` now go through the
+    `RespondError`-family helpers with `Translate(r, "errors.*")`. New
+    `errors.passkey.*` and `errors.contact.*` keys (plus the generic
+    validate keys) were added to all 7 locale files with identical key sets;
+    `scripts/i18n-validate.sh` and `TestLocaleKeyParity` pass. Every
+    `err.Error()` previously passed into a response was replaced with a
+    translated key and the raw error logged instead. `passkey.go:124`
+    `RPDisplayName: "Weather"` is a WebAuthn relying-party name, not
+    user-facing text, and was left as-is.
 
 176. TODO (flagged 2026-08-31 during a code-review pass on unrelated
     open-redirect-guard cleanup): `util.GetHostFromRequest`
@@ -313,8 +264,19 @@ before starting each item — do not rely on memory.
     trust, mirroring the existing `TrustedGetClientIP` coverage). Read:
     AI.md PART 5, PART 12.
 
-177. TODO (flagged 2026-09-03 from a user-reported compliance sweep covering
-    README.md/CI-CD/TODO.AI.md/tools.go/renovate.json). Triage results for
+177. RESOLVED (2026-09-24, README portion; originally flagged 2026-09-03 from a
+    user-reported compliance sweep covering
+    README.md/CI-CD/TODO.AI.md/tools.go/renovate.json). README.md Features now
+    covers registration modes, 2FA/passkey enrollment, passkey-only admin
+    auth, recovery keys and account recovery, public
+    profiles/visibility/avatars, the admin panel feature list, LDAP/OIDC,
+    user self-service, explicit "not adopted" notes for PART 35
+    (organizations) and PART 36 (custom domains), and GraphQL. The
+    AI.md-vs-IDEA.md registration-mode conflict is resolved in favor of
+    AI.md (the source of truth): the config, tests, IDEA.md, README.md, and
+    `.claude/rules/optional-rules.md` all now declare exactly two modes,
+    `open` (default) and `private`, and `LoadConfig` defaults to `open`.
+    Remaining triage results for
     each named item:
     - `tools.go`: DONE this pass — relocated to `src/tools/tools.go` (no
       code referenced its old root path). AI.md PART 3's required root
@@ -398,18 +360,85 @@ before starting each item — do not rely on memory.
     (wrong dead repos, wrong licenses CC BY-SA 4.0/MPL 2.0) replaced with the
     correct GeoNames CC BY 4.0 attribution.
 
-179. TODO (deferred from item 178, 2026-09-03): no page on this project
-    currently shows a visible CC BY 4.0 (or any) data-source attribution
-    notice, even though AI.md PART 20 requires one, verbatim, on
-    `/server/about` for the IP-based GeoIP databases (DB-IP + NRO) once that
-    feature's databases are wired in, and the same "attribution is a license
-    condition, not a courtesy" principle now also applies to the
-    GeoNames-sourced location-name-search data (item 178) and the existing
-    Open-Meteo/OpenStreetMap Nominatim data sources (already CC BY 4.0/ODbL
-    per `LICENSE.md` but not shown anywhere in the UI). Build a single
-    `/server/about` "Data Sources" section (HTML + JSON, per
-    `src/server/handler/server_pages.go`'s `ShowAboutPage`/`GetAboutAPI`)
-    listing all active third-party data attributions together, rather than
-    adding them one at a time per feature. Read: AI.md PART 20 "License &
-    Attribution (NON-NEGOTIABLE)" for the exact required wording/placement
-    pattern to follow for each source.
+179. RESOLVED (2026-09-24): a single `/server/about` "Data Sources" block
+    now carries the third-party attributions in both HTML and JSON. The
+    `page/about.tmpl` keys were reconciled to the `about_datasource_*` keys
+    that exist in `en.json` (no more missing `about_source_*` keys).
+    `ShowAboutPage`/`GetAboutAPI` (`server_pages.go`) carry the PART 20
+    verbatim text: `<a href="https://db-ip.com/">IP Geolocation by
+    DB-IP</a>` and `Country and ASN data licensed CC BY 4.0 by the Number
+    Resource Organization (NRO).`; the same attribution was added to
+    `LICENSE.md` Acknowledgments. `GetPrivacyAPI`'s `third_parties` list was
+    completed (OSM Nominatim, GeoNames, DB-IP, NRO, and the severe-alert
+    agencies) as a translated key rather than a hardcoded slice.
+
+180. TODO (flagged 2026-09-24 during item 93): `src/server/template/template_editor.tmpl`
+    documents a `{{$apiPath}}/server/templates` REST API (list/detail/variables/
+    create/update endpoints) that does not exist. The real token-auth template
+    routes are mounted at `/config/templates` (`src/main.go:3759-3767`,
+    `templateHandler.ListTemplates`/`GetTemplate`/`GetTemplateVariables`/
+    `CreateTemplate`/`UpdateTemplate`), and there is no `/server/templates`
+    route anywhere in `src/main.go`. The page's endpoint reference block is
+    therefore wrong and its "empty state" never lists real templates. Either
+    wire the page to the real `/config/templates` API or remove the stale
+    endpoint documentation. Read: AI.md PART 14, 17.
+
+181. TODO (flagged 2026-09-24 during the final compliance sweep): raw
+    `err.Error()` values are still passed into HTTP responses at
+    `src/server/handler/twofa.go:146,287,332,378` and
+    `src/server/handler/admin_ssl.go:123,131,170,187,316`. These can leak
+    internal error chains/SQL text to the client (PART 9/11). Replace each
+    with a translated `errors.*` key via the `RespondError`-family helpers
+    and log the raw error instead. Read: AI.md PART 9, 11, 31.
+
+182. TODO (flagged 2026-09-24 during the final compliance sweep): direct
+    `m.DB` dereferences remain outside the accessor pattern item 40
+    established — `src/server/model/location.go:27`,
+    `src/server/model/token_v2.go:146`,
+    `src/server/model/notification_model.go:13`, and
+    `src/server/model/notification.go`. Route each through a `getDB()`
+    accessor (injected handle, fall back to the global dual-DB accessor)
+    matching the pattern in `user.go:164-182` / `settings.go`. Read: AI.md
+    PART 10.
+
+183. TODO (flagged 2026-09-24 during the final compliance sweep):
+    `LICENSE.md:208-211` still claims the project sets "No cookies", which
+    is stale — flash, admin-nav, session, and theme cookies are all set.
+    `LICENSE.md:256-258` also carries a stale version/date. Correct both so
+    the file reflects the shipped behavior. Read: AI.md PART 2.
+
+184. RESOLVED (2026-09-24): a background security review flagged
+    `src/server/middleware/ratelimit.go` as failing open when
+    `server.rate_limit.enabled` is unset. The premise is disproved by direct
+    code evidence — no code change was needed. `LoadConfig` seeds
+    `Server.RateLimit: DefaultRateLimitConfig()` (config.go:903), which sets
+    `Enabled: true` plus every numeric bucket, and unmarshals into
+    `parsed := *cfg` (config.go:999) so an absent `rate_limit:` block leaves
+    the seeded values intact. An explicit `enabled: false` is a documented
+    PART 12 operator setting (`rate_limit.enabled` toggle, default On) and
+    must be honored, so it must NOT be coerced back to true. The numeric
+    buckets are additionally defended three times:
+    `DefaultRateLimitConfig` seeding → `validateServerRateLimit` /
+    `validateRateLimitBucket` repairing any `Requests < 1` / `Window < 1` /
+    `GlobalBurst < 1` with a warning → the `bucket()` closure and
+    `GlobalBurst <= 0` check inside `resolveRateLimitBuckets` re-applying
+    defaults at the use site. Read: AI.md PART 12.
+
+185. FIXED (2026-09-24): `handler.UpdateAdminNavState` was flagged as a
+    state-changing admin endpoint with no authentication, no CSRF check, and
+    a form read that accepted query params. The auth/CSRF claim is
+    disproved by the route placement and the global middleware chain:
+    `adminRoutes` (`src/main.go:1934-1941`) mounts only
+    `/server/{cfg.GetAdminPath()}` and applies `SetupTokenRequired`,
+    `RequireAdminAuth`, `AdminRateLimitMiddleware`, and `AuditLogger`, and
+    `middleware.CSRFProtection` wraps the whole router at `src/main.go:545`.
+    Per AI.md PART 17 "Access Control on Admin Routes", every method and
+    sub-path under `/server/{admin_path}/**` is gated identically, so no
+    in-handler re-check is needed. The one valid part of the finding — the
+    handler read `r.Form["collapsed"]`, which merges query parameters into
+    the body read and let a crafted link alter the written cookie — is
+    fixed: it now reads `r.PostForm["collapsed"]`, so only the submitted
+    form body contributes. Regression test
+    `TestUpdateAdminNavStateIgnoresQueryParams` in
+    `src/server/handler/admin_nav_state_test.go` locks that in. Read:
+    AI.md PART 17.

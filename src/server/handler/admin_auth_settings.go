@@ -42,7 +42,7 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(w http.ResponseWriter, r *
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": Translate(r, "errors.admin.auth_settings.invalid_request")})
 		return
 	}
 
@@ -66,7 +66,7 @@ func (h *AdminAuthSettingsHandler) UpdateAuthSettings(w http.ResponseWriter, r *
 	}
 
 	if err := util.UpdateYAMLConfig(h.ConfigPath, updates); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR", "message": err.Error()})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR", "message": Translate(r, "errors.admin.auth_settings.failed_to_update_settings")})
 		return
 	}
 

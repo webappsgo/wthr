@@ -86,17 +86,37 @@ func writeText(w http.ResponseWriter, status int, format string, args ...interfa
 	fmt.Fprintf(w, format, args...)
 }
 
+// startupTranslate resolves a translation key for startup banner output.
+// i18n is initialized partway through main, so early first-run lines can reach
+// this helper before the global instance exists; it then returns fallback.
+// AI.md PART 31 requires every human-readable server output string to be
+// translatable, with a silent English fallback.
+func startupTranslate(key, fallback string) string {
+	inst := i18n.GetGlobalI18n()
+	if inst == nil {
+		return fallback
+	}
+	text := inst.T(inst.GetDefaultLanguage(), key)
+	if text == key {
+		return fallback
+	}
+	return text
+}
+
 // registerHealthRoutes mounts the canonical health routes per AI.md PART 13
 // /server/healthz is the canonical content-negotiated route, /api/{api_version}/server/healthz
 // is its API counterpart, /api/healthz is the unversioned alias mounting the SAME handler,
 // and the root /healthz alias is mounted only when server.healthz.root.enabled is true
 // Aliases are always direct handler mappings, never redirects
 func registerHealthRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, frontend, api http.HandlerFunc) {
-	r.Get("/server/healthz", frontend)
-	r.Get(apiPath+"/server/healthz", api)
-	r.Get("/api/healthz", api)
+	// AI.md PART 12: health traffic has its own budget, separate from the
+	// read bucket, so health checks never consume the API read allowance.
+	withHealthLimit := middleware.HealthRateLimitMiddleware()
+	r.With(withHealthLimit).Get("/server/healthz", frontend)
+	r.With(withHealthLimit).Get(apiPath+"/server/healthz", api)
+	r.With(withHealthLimit).Get("/api/healthz", api)
 	if rootAliasEnabled {
-		r.Get("/healthz", frontend)
+		r.With(withHealthLimit).Get("/healthz", frontend)
 	}
 }
 
@@ -340,9 +360,17 @@ func main() {
 		fmt.Printf("%s First run detected - auto-configuring server...\n", display.Emoji("🎉", "*"))
 
 		// Auto-detect SMTP
+		// AI.md PART 18: no working server means email features stay disabled,
+		// so an empty host must never be written into the generated server.yml.
 		smtpHost, smtpPort := util.AutoDetectSMTP()
-		appLogger.Printf("SMTP auto-detected: %s:%d", smtpHost, smtpPort)
-		fmt.Printf("%s SMTP auto-detected: %s:%d\n", display.Emoji("📧", "*"), smtpHost, smtpPort)
+		if smtpHost != "" {
+			appLogger.Printf("SMTP auto-detected: %s:%d", smtpHost, smtpPort)
+			fmt.Printf("%s SMTP auto-detected: %s:%d\n", display.Emoji("📧", "*"), smtpHost, smtpPort)
+		} else {
+			smtpDisabledMsg := startupTranslate("startup.smtp.not_detected", "No SMTP server detected - email features disabled")
+			appLogger.Printf("%s", smtpDisabledMsg)
+			fmt.Printf("%s %s\n", display.Emoji("📧", "*"), smtpDisabledMsg)
+		}
 
 		// Create server.yml with auto-detected settings
 		configPath := filepath.Join(dirPaths.Config, "server.yml")
@@ -420,6 +448,21 @@ func main() {
 	// Set global config for handler access
 	config.SetGlobalConfig(cfg)
 
+	// AI.md PART 12: all rate limits are configurable under server.rate_limit.*;
+	// log the effective values so an admin can confirm the loaded config is the
+	// one in force rather than guessing from observed 429s.
+	if cfg != nil {
+		rl := cfg.Server.RateLimit
+		appLogger.Printf("Effective rate limits: enabled=%v global_burst=%d read=%d/%ds write=%d/%ds health=%d/%ds login=%d/%ds reset=%d/%ds register=%d/%ds",
+			rl.Enabled, rl.GlobalBurst,
+			rl.Read.Requests, rl.Read.Window,
+			rl.Write.Requests, rl.Write.Window,
+			rl.Health.Requests, rl.Health.Window,
+			rl.Auth.Login.Requests, rl.Auth.Login.Window,
+			rl.Auth.PasswordReset.Requests, rl.Auth.PasswordReset.Window,
+			rl.Auth.Registration.Requests, rl.Auth.Registration.Window)
+	}
+
 	// Note: Version and BuildDate are embedded in binary via LDFLAGS, not in config file
 
 	// Initialize default settings with proper backup path
@@ -446,7 +489,7 @@ func main() {
 
 	// Auto-detect SMTP server (localhost, Docker gateway, etc.) and configure defaults
 	// SMTPService reads server_config and server_notification_channels, both of which live in server.db
-	smtpService := service.NewSMTPService(dualDB.Server)
+	smtpService := service.SharedSMTPService(dualDB.Server)
 	if err := smtpService.LoadConfig(); err == nil {
 		// Check if SMTP is not already configured
 		smtpHost := settingsModel.GetString("smtp.host", "")
@@ -455,8 +498,9 @@ func main() {
 			if detected, _ := smtpService.AutoDetect(); detected {
 				// SMTP detected, enable it
 				settingsModel.SetBool("smtp.enabled", true)
-				appLogger.Printf("SMTP server auto-detected and enabled")
-				fmt.Printf("%s SMTP server auto-detected and enabled\n", display.Emoji("✉️", "*"))
+				detectedMsg := startupTranslate("startup.smtp.detected", "SMTP server auto-detected and enabled")
+				appLogger.Printf("%s", detectedMsg)
+				fmt.Printf("%s %s\n", display.Emoji("✉️", "*"), detectedMsg)
 			}
 		}
 
@@ -476,6 +520,25 @@ func main() {
 		if fromName == "" {
 			serverTitle := settingsModel.GetString("server.title", "Weather")
 			settingsModel.SetString("smtp.from_name", serverTitle)
+		}
+
+		// Reload so the defaults just persisted are part of the tested config
+		if err := smtpService.LoadConfig(); err != nil {
+			appLogger.Error("Warning: Could not reload SMTP configuration: %v", err)
+		} else if smtpService.GetConfig() != nil && smtpService.GetConfig().Host != "" {
+			// AI.md PART 18 Connection Test (when host is set): on every startup
+			// attempt the SMTP handshake. Success enables email; failure disables
+			// it, logs a warning, keeps the server running, and retries next startup.
+			if err := smtpService.VerifyConfiguredConnection(); err != nil {
+				settingsModel.SetBool("smtp.enabled", false)
+				unreachableMsg := startupTranslate("startup.smtp.unreachable", "SMTP server unreachable - email features disabled")
+				appLogger.Printf("Warning: %s: %v", unreachableMsg, err)
+				fmt.Printf("%s %s\n", display.Emoji("⚠️", "WARNING:"), unreachableMsg)
+			} else {
+				verifiedMsg := startupTranslate("startup.smtp.verified", "SMTP connection verified - email features enabled")
+				appLogger.Printf("%s", verifiedMsg)
+				fmt.Printf("%s %s\n", display.Emoji("✅", "[OK]"), verifiedMsg)
+			}
 		}
 	}
 
@@ -554,6 +617,14 @@ func main() {
 
 	// Global rate limiting middleware (100 req/s)
 	r.Use(middleware.GlobalRateLimitMiddleware())
+
+	// AI.md PART 12: mutating requests (POST/PUT/PATCH/DELETE) draw from the
+	// separate write bucket; safe methods pass through untouched.
+	r.Use(middleware.WriteRateLimitMiddleware())
+
+	// AI.md PART 12 Read endpoint class (120 req/min per IP) for safe
+	// requests on routes that are not otherwise covered by a narrower bucket.
+	r.Use(middleware.ReadRateLimitMiddleware())
 
 	// Server context middleware - injects server title/tagline/description
 	r.Use(middleware.InjectServerContext(db.DB, Version))
@@ -843,7 +914,7 @@ func main() {
 	_ = channelManager.InitializeChannels()
 
 	// Register email channel with the channel manager
-	smtpService = service.NewSMTPService(dualDB.Server)
+	smtpService = service.SharedSMTPService(dualDB.Server)
 	_ = smtpService.LoadConfig()
 	emailChannel := service.NewEmailChannel(smtpService)
 	channelManager.RegisterChannel(emailChannel)
@@ -1929,7 +2000,6 @@ func main() {
 	// AI.md: Show setup token entry at /admin when no admin exists
 	adminRoutes.Use(middleware.SetupTokenRequired(cfg))
 	adminRoutes.Use(middleware.RequireAdminAuth())
-	adminRoutes.Use(middleware.AdminRateLimitMiddleware())
 	// Log all admin actions
 	adminRoutes.Use(middleware.AuditLogger(db.DB))
 	{
@@ -2086,29 +2156,78 @@ func main() {
 		adminRoutes.Post("/config/network/i2p/regenerate", i2pAdminHandler.Regenerate)
 		adminRoutes.Post("/config/network/i2p/restart", i2pAdminHandler.Restart)
 
+		// AI.md PART 17: the sidebar's open/closed sections persist server-side
+		// in an allow-listed HttpOnly cookie; this is the JS enhancement only.
+		adminRoutes.Post("/config/nav-state", handler.UpdateAdminNavState)
+
 		adminRoutes.Get("/config/channels", func(w http.ResponseWriter, r *http.Request) {
+			// A read failure must not blank the page: the template renders its
+			// empty state for a nil list, which is the safe thing to show.
+			channels, _ := channelHandler.ListChannelRows()
+
 			middleware.RenderHTML(w, r, http.StatusOK, "admin_channels.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Notification Channels - Admin",
+				"title":      handler.Translate(r, "admin.channels.title"),
 				"page":       "channels",
-				"breadcrumb": "Channels",
+				"breadcrumb": handler.Translate(r, "admin.channels.list_heading"),
+				"channels":   channels,
+				"flash":      handler.TakeFlash(w, r),
 			}))
 		})
 
+		// AI.md PART 16: the same mutations the token-auth API exposes are
+		// reachable as form posts so the panel works with JavaScript disabled.
+		adminRoutes.Post("/config/channels/{type}", channelHandler.UpdateChannel)
+		adminRoutes.Post("/config/channels/{type}/enable", channelHandler.EnableChannel)
+		adminRoutes.Post("/config/channels/{type}/disable", channelHandler.DisableChannel)
+		adminRoutes.Post("/config/channels/{type}/test", channelHandler.TestChannel)
+
 		adminRoutes.Get("/config/templates", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "template_editor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Template Editor - Admin",
+				"title":      handler.Translate(r, "admin.templates.title"),
 				"page":       "templates",
-				"breadcrumb": "Templates",
+				"breadcrumb": handler.Translate(r, "admin.templates.breadcrumb"),
+				"flash":      handler.TakeFlash(w, r),
 			}))
 		})
 
 		adminRoutes.Get("/config/email/templates", func(w http.ResponseWriter, r *http.Request) {
+			// AI.md PART 16: the editor renders every template server-side and
+			// picks the requested one, so saving works with JavaScript disabled.
+			editable := emailTemplateHandler.EditorTemplates()
+			requested := r.URL.Query().Get("template")
+			var current *handler.EditorTemplate
+			for i := range editable {
+				if editable[i].Name == requested {
+					current = &editable[i]
+					break
+				}
+			}
+			if current == nil && len(editable) > 0 {
+				current = &editable[0]
+			}
+
+			selected := ""
+			if current != nil {
+				selected = current.Name
+			}
+
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_email_editor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":      "Email Template Editor - Admin",
+				"title":      handler.Translate(r, "admin.email_templates.title"),
 				"page":       "email-templates",
-				"breadcrumb": "Email Templates",
+				"breadcrumb": handler.Translate(r, "admin.email_templates.breadcrumb"),
+				"flash":      handler.TakeFlash(w, r),
+				"templates":  editable,
+				"selected":   selected,
+				"current":    current,
 			}))
 		})
+
+		// AI.md PART 16: form posts for the email templates the API mutates. The
+		// editor picks the template client-side, so the name travels in a form
+		// field rather than the path; the token-auth API keeps its {name} route.
+		adminRoutes.Post("/config/email/templates", emailTemplateHandler.UpdateTemplate)
+		adminRoutes.Post("/config/email/templates/preview", emailTemplateHandler.TestTemplate)
+		adminRoutes.Post("/config/email/templates/reset", emailTemplateHandler.ImportTemplate)
 
 		// Admin settings sub-panels (already under /server/)
 		adminRoutes.Get("/config/users/settings", adminUsersHandler.ShowUserSettings)
@@ -2627,6 +2746,17 @@ func main() {
 		usersAPI.Get("/sessions", userSettingsHandler.ListSessions)
 		usersAPI.Delete("/sessions", userSettingsHandler.RevokeAllSessions)
 		usersAPI.Delete("/sessions/{id}", userSettingsHandler.RevokeSession)
+
+		// Channel preferences
+		usersAPI.Get("/preferences", preferencesHandler.GetUserPreferences)
+		usersAPI.Put("/preferences/{id}", preferencesHandler.UpdatePreference)
+		usersAPI.Post("/preferences", preferencesHandler.CreatePreference)
+		usersAPI.Delete("/preferences/{id}", preferencesHandler.DeletePreference)
+
+		// Subscriptions
+		usersAPI.Get("/subscriptions", preferencesHandler.GetSubscriptions)
+		usersAPI.Put("/subscriptions/{id}", preferencesHandler.UpdateSubscription)
+		usersAPI.Post("/subscriptions", preferencesHandler.CreateSubscription)
 	}
 
 	// Note: 2FA routes already registered under usersAPI (/users/security/2fa/*)
@@ -2683,7 +2813,6 @@ func main() {
 	// admin group must additionally require an admin token or a usr_ token
 	// would reach every admin config, scheduler and restart route.
 	adminAPI.Use(middleware.RequireAdminToken())
-	adminAPI.Use(middleware.AdminRateLimitMiddleware())
 	// Log all admin API actions
 	adminAPI.Use(middleware.AuditLogger(db.DB))
 	{
@@ -3836,23 +3965,8 @@ func main() {
 		}
 	}
 
-	// User notification preferences API (authenticated users)
-	// AI.md PART 14: Use versioned API + plural nouns
-	userPrefAPI := chi.NewRouter()
-	apiV1.Mount("/users", userPrefAPI)
-	userPrefAPI.Use(middleware.RequireAuth(db.DB))
-	{
-		// Channel preferences
-		userPrefAPI.Get("/preferences", preferencesHandler.GetUserPreferences)
-		userPrefAPI.Put("/preferences/{id}", preferencesHandler.UpdatePreference)
-		userPrefAPI.Post("/preferences", preferencesHandler.CreatePreference)
-		userPrefAPI.Delete("/preferences/{id}", preferencesHandler.DeletePreference)
-
-		// Subscriptions
-		userPrefAPI.Get("/subscriptions", preferencesHandler.GetSubscriptions)
-		userPrefAPI.Put("/subscriptions/{id}", preferencesHandler.UpdateSubscription)
-		userPrefAPI.Post("/subscriptions", preferencesHandler.CreateSubscription)
-	}
+	// User notification preferences and subscriptions are registered on the
+	// /api/v1/users router above (AI.md PART 14: one route tree per behavior).
 
 	// API routes are now consolidated under /api/v1 above
 
@@ -3940,7 +4054,7 @@ func main() {
 		http.Redirect(w, r, "/openapi/index.html", http.StatusMovedPermanently)
 	})
 	// Swagger UI + JSON spec (auto-generated)
-	r.Get("/openapi/*any", handler.GetSwaggerUIAuto())
+	r.Get("/openapi/*", handler.GetSwaggerUIAuto())
 	r.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/openapi/doc.json", http.StatusMovedPermanently)
 	})
@@ -3998,29 +4112,8 @@ func main() {
 	r.With(middleware.OptionalAuth(db.DB)).Post("/server/preferences", themePrefsHandler.SavePreferences)
 
 	// Examples endpoint
-	// AI.md PART 14: Never hardcode v1 - use cfg.GetAPIPath()
-	r.Get("/examples", func(w http.ResponseWriter, r *http.Request) {
-		hostInfo := util.GetHostInfo(r)
-		apiPath := cfg.GetAPIPath()
-		examples := fmt.Sprintf(`Weather API Examples
-
-Console Interface:
-  curl %s/
-  curl %s/London
-  curl %s/Paris?format=1
-  curl %s/Tokyo?units=metric
-
-JSON API:
-  curl %s%s/weather?location=London
-  curl %s%s/forecasts?location=Paris&days=5
-  curl %s%s/locations/search?q=New+York
-  curl %s%s/ip
-`,
-			hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost,
-			hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath, hostInfo.FullHost, apiPath)
-
-		writeText(w, http.StatusOK, "%s", examples)
-	})
+	// AI.md PART 14: content negotiation, never hardcode v1 - use cfg.GetAPIPath()
+	r.Get("/examples", handler.ShowExamplesPage(cfg))
 
 	// Web interface routes
 	r.Get("/web", webHandler.ServeWebInterface)
@@ -4042,13 +4135,8 @@ JSON API:
 		http.Redirect(w, r, "/earthquakes", http.StatusMovedPermanently)
 	})
 
-	// Hurricane routes redirect to severe-weather (plural per AI.md PART 14)
-	r.Get("/hurricanes", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/severe-weather", http.StatusMovedPermanently)
-	})
-	r.Get("/hurricane", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/severe-weather", http.StatusMovedPermanently)
-	})
+	// Hurricane tracking page - AI.md PART 14 frontend content negotiation
+	r.Get("/hurricanes", hurricaneHandler.HandleHurricaneRequest)
 
 	// Severe Weather routes (new comprehensive severe weather page)
 	r.Get("/severe-weather", severeWeatherHandler.HandleSevereWeatherRequest)

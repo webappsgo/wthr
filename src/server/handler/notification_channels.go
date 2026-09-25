@@ -25,13 +25,50 @@ type NotificationChannelHandler struct {
 // NewNotificationChannelHandler creates a new notification channel handler
 func NewNotificationChannelHandler(db *sql.DB) *NotificationChannelHandler {
 	cm := service.NewChannelManager(db)
-	smtp := service.NewSMTPService(db)
+	smtp := service.SharedSMTPService(db)
 
 	return &NotificationChannelHandler{
 		DB:             db,
 		ChannelManager: cm,
 		SMTP:           smtp,
 	}
+}
+
+// AdminChannelRow is one configured notification channel as the session-auth
+// admin channels page renders it. It is deliberately narrower than the JSON
+// API channel: the page only shows type, name, state, and the enabled flag.
+type AdminChannelRow struct {
+	ChannelType string
+	ChannelName string
+	Enabled     bool
+	State       string
+}
+
+// ListChannelRows returns the configured channels for the admin channels page.
+// The handler owns the query so the page does not reach around the handler to
+// the database handle it already holds.
+func (h *NotificationChannelHandler) ListChannelRows() ([]AdminChannelRow, error) {
+	rows, err := database.QueryContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
+		SELECT channel_type, channel_name, enabled, state
+		FROM server_notification_channels
+		ORDER BY channel_name ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var channels []AdminChannelRow
+	for rows.Next() {
+		var row AdminChannelRow
+		if err := rows.Scan(&row.ChannelType, &row.ChannelName, &row.Enabled, &row.State); err != nil {
+			continue
+		}
+
+		channels = append(channels, row)
+	}
+
+	return channels, rows.Err()
 }
 
 // ListChannels returns all notification channels
@@ -159,27 +196,25 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 		Config  map[string]interface{} `json:"config"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
+	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
-	// Convert config to JSON
-	configJSON, _ := json.Marshal(req.Config)
+	if wantsFormSubmission(r) {
+		req.Config = h.mergeChannelFormConfig(channelType, req.Config)
+	}
 
-	// Update channel.
-	//
-	// updated_at is bound as canonical UTC text instead of datetime('now'):
-	// that spelling only exists on SQLite, and binding the value keeps this
-	// writer in the single layout every reader parses.
-	_, err := database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
-		UPDATE server_notification_channels
-		SET enabled = ?, config = ?, updated_at = ?
-		WHERE channel_type = ?
-	`, req.Enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), channelType)
-
-	if err != nil {
+	if err := h.saveChannel(channelType, req.Enabled, req.Config); err != nil {
+		if wantsFormSubmission(r) {
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_updated", "flash_channel_update_failed", err)
+			return
+		}
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_update_channel"))
+		return
+	}
+
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_updated", "flash_channel_update_failed", nil)
 		return
 	}
 
@@ -188,11 +223,65 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 	})
 }
 
+// mergeChannelFormConfig folds a form post's config.* fields over the channel's
+// stored config. A browser form carries only the fields on screen, so an
+// update that omits a field would otherwise silently drop the stored value.
+// The merge lives here rather than in the template so the form route and the
+// JSON route agree on what a config update means.
+func (h *NotificationChannelHandler) mergeChannelFormConfig(channelType string, submitted map[string]interface{}) map[string]interface{} {
+	merged := make(map[string]interface{})
+
+	var stored string
+	if err := database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, `
+		SELECT config
+		FROM server_notification_channels
+		WHERE channel_type = ?
+	`, channelType).Scan(&stored); err == nil {
+		existing := make(map[string]interface{})
+		if json.Unmarshal([]byte(stored), &existing) == nil {
+			for key, value := range existing {
+				merged[key] = value
+			}
+		}
+	}
+
+	for key, value := range submitted {
+		merged[key] = value
+	}
+
+	return merged
+}
+
+// saveChannel persists the enabled flag and configuration for a channel. It is
+// shared by the token-auth JSON route and the session-auth admin form route.
+func (h *NotificationChannelHandler) saveChannel(channelType string, enabled bool, cfg map[string]interface{}) error {
+	configJSON, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	// updated_at is bound as canonical UTC text instead of datetime('now'):
+	// that spelling only exists on SQLite, and binding the value keeps this
+	// writer in the single layout every reader parses.
+	_, err = database.ExecContext(context.Background(), h.DB, database.TimeoutWrite, `
+		UPDATE server_notification_channels
+		SET enabled = ?, config = ?, updated_at = ?
+		WHERE channel_type = ?
+	`, enabled, string(configJSON), dbtime.FormatSQLTimestamp(time.Now()), channelType)
+
+	return err
+}
+
 // EnableChannel enables a channel
 func (h *NotificationChannelHandler) EnableChannel(w http.ResponseWriter, r *http.Request) {
 	channelType := chi.URLParam(r, "type")
 
 	err := h.ChannelManager.EnableChannel(channelType)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_enabled", "flash_channel_update_failed", err)
+		return
+	}
+
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_enable_channel"))
 		return
@@ -208,6 +297,11 @@ func (h *NotificationChannelHandler) DisableChannel(w http.ResponseWriter, r *ht
 	channelType := chi.URLParam(r, "type")
 
 	err := h.ChannelManager.DisableChannel(channelType)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_disabled", "flash_channel_update_failed", err)
+		return
+	}
+
 	if err != nil {
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_disable_channel"))
 		return
@@ -230,38 +324,46 @@ func (h *NotificationChannelHandler) TestChannel(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Special handling for SMTP/email channel
-	if channelType == "email" {
-		// Load config and send test
-		if err := h.SMTP.LoadConfig(); err != nil {
-			InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_load_smtp_config"))
-			return
-		}
+	smtpChannel, err := h.sendChannelTest(channelType, req.Recipient)
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_test_sent", "flash_channel_test_failed", err)
+		return
+	}
 
-		if err := h.SMTP.SendTestEmail(req.Recipient); err != nil {
-			InternalError(w, r, err.Error())
-			return
-		}
+	if err != nil {
+		InternalError(w, r, Translate(r, "errors.notifications.channels.test_notification_failed"))
+		return
+	}
 
-		// Auto-enable if configured
-		h.SMTP.EnableChannel()
-
+	if smtpChannel {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"message": Translate(r, "success.notifications.channels.test_email_sent_successfully"),
 		})
 		return
 	}
 
-	// Generic channel test
-	err := h.ChannelManager.TestChannel(channelType, req.Recipient)
-	if err != nil {
-		InternalError(w, r, err.Error())
-		return
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": Translate(r, "success.notifications.channels.test_notification_sent_successfully"),
 	})
+}
+
+// sendChannelTest delivers a test notification through the named channel. The
+// boolean reports whether the channel was the SMTP-backed email channel, which
+// carries a different success message. The raw error is returned to the caller
+// for logging only; it is never rendered into a response.
+func (h *NotificationChannelHandler) sendChannelTest(channelType, recipient string) (bool, error) {
+	if channelType == "email" {
+		if err := h.SMTP.LoadConfig(); err != nil {
+			return true, err
+		}
+		if err := h.SMTP.SendTestEmail(recipient); err != nil {
+			return true, err
+		}
+		h.SMTP.EnableChannel()
+		return true, nil
+	}
+
+	return false, h.ChannelManager.TestChannel(channelType, recipient)
 }
 
 // GetChannelStats returns statistics for a channel
@@ -305,7 +407,7 @@ func (h *NotificationChannelHandler) ListSMTPProviders(w http.ResponseWriter, r 
 func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *http.Request) {
 	found, err := h.SMTP.AutoDetect()
 	if err != nil {
-		NotFound(w, r, err.Error())
+		NotFound(w, r, Translate(r, "errors.notifications.channels.no_smtp_server_detected"))
 		return
 	}
 
@@ -328,7 +430,7 @@ func (h *NotificationChannelHandler) AutoDetectSMTP(w http.ResponseWriter, r *ht
 func (h *NotificationChannelHandler) InitializeChannels(w http.ResponseWriter, r *http.Request) {
 	err := h.ChannelManager.InitializeChannels()
 	if err != nil {
-		InternalError(w, r, err.Error())
+		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_initialize_channels"))
 		return
 	}
 

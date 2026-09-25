@@ -166,10 +166,68 @@ func TestCreateDefaultServerYML(t *testing.T) {
 		"587",
 		"mode: production",
 		"earthquakes: true",
+		"# SMTP auto-detected: smtp.example.com:587",
+		"email_enabled: true",
 	} {
 		if !findSubstring(content, want) {
 			t.Errorf("server.yml missing expected content %q", want)
 		}
+	}
+}
+
+// TestCreateDefaultServerYML_NoSMTPDetected covers the AI.md PART 18 rule that
+// a failed auto-detection is not an error: the generated config must carry no
+// host, must not claim email is enabled, and must say so in the header.
+func TestCreateDefaultServerYML_NoSMTPDetected(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config", "server.yml")
+
+	if err := CreateDefaultServerYML(configPath, "", 0); err != nil {
+		t.Fatalf("CreateDefaultServerYML: %v", err)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+
+	if !findSubstring(content, "# No SMTP server detected - email features disabled") {
+		t.Errorf("server.yml missing no-SMTP header line, got:\n%s", content)
+	}
+	if !findSubstring(content, "email_enabled: false") {
+		t.Errorf("server.yml must set email_enabled false when no SMTP was detected, got:\n%s", content)
+	}
+	if !findSubstring(content, "host: \"\"") {
+		t.Errorf("server.yml must leave the email host blank when no SMTP was detected, got:\n%s", content)
+	}
+}
+
+// TestCreateDefaultServerYML_PreservesExisting guards the AI.md PART 5 rule
+// that an operator-supplied server.yml is the Single Instance source of truth
+// and must never be clobbered by the first-run defaults.
+func TestCreateDefaultServerYML_PreservesExisting(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config", "server.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	const existing = "server:\n  rate_limit:\n    read:\n      requests: 100000\n"
+	if err := os.WriteFile(configPath, []byte(existing), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := CreateDefaultServerYML(configPath, "127.0.0.1", 25); err != nil {
+		t.Fatalf("CreateDefaultServerYML: %v", err)
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != existing {
+		t.Errorf("existing server.yml was overwritten\n got: %q\nwant: %q", string(data), existing)
 	}
 }
 

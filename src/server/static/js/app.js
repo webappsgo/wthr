@@ -1976,8 +1976,6 @@
 
   const AdminEmailEditorPage = {
     dataPayload: null,
-    currentTemplate: 'welcome',
-    templates: {},
 
     sampleData: {
       app_name: 'Weather API Manager',
@@ -2000,27 +1998,6 @@
       return AdminEmailEditorPage.dataPayload;
     },
 
-    loadTemplate: function(templateName) {
-      const apiPath = AdminEmailEditorPage.getData().adminApiPath;
-      fetch(apiPath + '/email/templates/' + templateName)
-        .then(function(response) {
-          if (!response.ok) throw new Error('Failed to load template');
-          return response.json();
-        })
-        .then(function(data) {
-          AdminEmailEditorPage.templates[templateName] = data;
-          document.getElementById('templateSubject').value = data.subject || '';
-          document.getElementById('templateBody').value = data.body || '';
-          document.getElementById('editorTitle').textContent = 'Edit: ' + templateName.replace(/_/g, ' ').replace(/\b\w/g, function(l) {
-            return l.toUpperCase();
-          });
-          AdminEmailEditorPage.updatePreview();
-        })
-        .catch(function(error) {
-          AdminEmailEditorPage.showError('Failed to load template: ' + error.message);
-        });
-    },
-
     updatePreview: function() {
       const subject = document.getElementById('templateSubject').value;
       const body = document.getElementById('templateBody').value;
@@ -2033,112 +2010,22 @@
         previewBody = previewBody.replace(regex, value);
       }
 
-      document.getElementById('previewSubject').textContent = previewSubject || 'Subject will appear here';
-      document.getElementById('previewBody').textContent = previewBody || 'Email body will appear here...';
-    },
-
-    saveTemplate: function() {
-      const apiPath = AdminEmailEditorPage.getData().adminApiPath;
-      const saveBtn = document.getElementById('saveBtn');
-      const originalText = saveBtn.textContent;
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = '<span class="loading"></span> Saving...';
-
-      const subject = document.getElementById('templateSubject').value;
-      const body = document.getElementById('templateBody').value;
-
-      fetch(apiPath + '/email/templates/' + AdminEmailEditorPage.currentTemplate, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: subject, body: body })
-      })
-        .then(function(response) {
-          if (!response.ok) throw new Error('Failed to save template');
-          AdminEmailEditorPage.showSuccess('Template saved successfully!');
-        })
-        .catch(function(error) {
-          AdminEmailEditorPage.showError('Failed to save template: ' + error.message);
-        })
-        .finally(function() {
-          saveBtn.disabled = false;
-          saveBtn.textContent = originalText;
-        });
+      const data = AdminEmailEditorPage.getData();
+      document.getElementById('previewSubject').textContent = previewSubject || data.subjectPlaceholder;
+      document.getElementById('previewBody').textContent = previewBody || data.bodyPlaceholder;
     },
 
     reloadTemplate: function() {
-      showConfirm('Reload template from disk? Any unsaved changes will be lost.', 'Reload Template')
+      const data = AdminEmailEditorPage.getData();
+      showConfirm(data.reloadConfirm, data.reloadTitle)
         .then(function(confirmed) {
           if (!confirmed) return;
-          AdminEmailEditorPage.loadTemplate(AdminEmailEditorPage.currentTemplate);
-          AdminEmailEditorPage.showSuccess('Template reloaded from disk');
+          window.location.reload();
         });
-    },
-
-    sendTestEmail: function() {
-      const apiPath = AdminEmailEditorPage.getData().adminApiPath;
-      const testBtn = document.getElementById('testBtn');
-      const originalText = testBtn.textContent;
-      testBtn.disabled = true;
-      testBtn.innerHTML = '<span class="loading"></span> Sending...';
-
-      fetch(apiPath + '/email/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: AdminEmailEditorPage.currentTemplate })
-      })
-        .then(function(response) {
-          if (!response.ok) throw new Error('Failed to send test email');
-          AdminEmailEditorPage.showSuccess('Test email sent successfully! Check your inbox.');
-        })
-        .catch(function(error) {
-          AdminEmailEditorPage.showError('Failed to send test email: ' + error.message);
-        })
-        .finally(function() {
-          testBtn.disabled = false;
-          testBtn.textContent = originalText;
-        });
-    },
-
-    showSuccess: function(message) {
-      const alert = document.getElementById('successAlert');
-      alert.textContent = message;
-      alert.classList.add('show');
-      setTimeout(function() {
-        alert.classList.remove('show');
-      }, 5000);
-    },
-
-    showError: function(message) {
-      const alert = document.getElementById('errorAlert');
-      alert.textContent = message;
-      alert.classList.add('show');
-      setTimeout(function() {
-        alert.classList.remove('show');
-      }, 5000);
     },
 
     init: function() {
       if (!document.getElementById('admin-email-editor-data')) return;
-
-      document.querySelectorAll('.template-item').forEach(function(item) {
-        item.addEventListener('click', function() {
-          document.querySelectorAll('.template-item').forEach(function(i) {
-            i.classList.remove('active');
-            i.setAttribute('aria-pressed', 'false');
-          });
-          this.classList.add('active');
-          this.setAttribute('aria-pressed', 'true');
-          AdminEmailEditorPage.currentTemplate = this.dataset.template;
-          AdminEmailEditorPage.loadTemplate(AdminEmailEditorPage.currentTemplate);
-        });
-
-        item.addEventListener('keydown', function(e) {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            this.click();
-          }
-        });
-      });
 
       document.querySelectorAll('.variable-tag').forEach(function(tag) {
         tag.addEventListener('click', function() {
@@ -2158,11 +2045,12 @@
       document.getElementById('templateSubject').addEventListener('input', AdminEmailEditorPage.updatePreview);
       document.getElementById('templateBody').addEventListener('input', AdminEmailEditorPage.updatePreview);
 
-      document.getElementById('saveBtn').addEventListener('click', AdminEmailEditorPage.saveTemplate);
-      document.getElementById('reloadBtn').addEventListener('click', AdminEmailEditorPage.reloadTemplate);
-      document.getElementById('testBtn').addEventListener('click', AdminEmailEditorPage.sendTestEmail);
+      const reloadBtn = document.getElementById('reloadBtn');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', AdminEmailEditorPage.reloadTemplate);
+      }
 
-      AdminEmailEditorPage.loadTemplate(AdminEmailEditorPage.currentTemplate);
+      AdminEmailEditorPage.updatePreview();
     }
   };
 
@@ -7801,6 +7689,9 @@
         case 'navigate':
           window.location.href = btn.dataset.href;
           break;
+        case 'toggle-nav-section':
+          AdminNavPage.toggleSection(btn);
+          break;
         case 'stop-propagation':
           break;
         case 'earthquake-item':
@@ -8215,64 +8106,40 @@
   // ============================================
 
   /**
-   * Persists which admin sidebar sections are expanded.
-   * The markup is <details open> so navigation still works with JavaScript
-   * disabled; this only restores the admin's last choice on top of it.
-   * A UI preference is the only thing stored - never a session token.
+   * Persists which admin sidebar sections are collapsed. The markup renders
+   * the server-known state on every load, so navigation works with JavaScript
+   * disabled; this only records the admin's later choices. The stored value
+   * is a UI preference, never a session token.
    */
-  const AdminSidebarState = {
-    storageKey: 'admin.sidebar.sections',
-
+  const AdminNavPage = {
     /**
-     * Read the saved section map, tolerating unavailable or corrupt storage.
+     * Persist the sidebar's collapsed sections to the server after a toggle.
+     * The cookie stays HttpOnly, so the list is POSTed to the session-auth
+     * admin route and the next server render reads it back. Failure to save
+     * only costs the preference; the section already toggled correctly.
      */
-    read: function() {
-      try {
-        const raw = window.localStorage.getItem(this.storageKey);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        return (parsed && typeof parsed === 'object') ? parsed : {};
-      } catch (e) {
-        return {};
-      }
-    },
+    toggleSection: function(btn) {
+      const nav = document.getElementById('admin-nav');
+      if (!nav) return;
 
-    /**
-     * Persist the section map, ignoring quota or private-mode failures.
-     */
-    write: function(state) {
-      try {
-        window.localStorage.setItem(this.storageKey, JSON.stringify(state));
-      } catch (e) {
-        return;
-      }
-    },
+      const url = nav.dataset.navStateUrl;
+      if (!url) return;
 
-    /**
-     * Apply the saved state to the sidebar, then keep it in sync on toggle.
-     */
-    init: function() {
-      const sections = document.querySelectorAll('.admin-sidebar [data-nav-section]');
-      if (!sections.length) return;
-
-      const state = this.read();
-      sections.forEach(section => {
-        const key = section.dataset.navSection;
-        if (Object.prototype.hasOwnProperty.call(state, key)) {
-          section.open = state[key] === true;
-        }
+      const collapsed = [];
+      nav.querySelectorAll('[data-nav-section]').forEach(section => {
+        if (!section.open) collapsed.push(section.dataset.navSection);
       });
 
-      // The toggle event does not bubble, so listen in the capture phase.
-      document.addEventListener('toggle', function(e) {
-        const section = e.target;
-        if (!section.dataset || !section.dataset.navSection) return;
-        if (!section.closest('.admin-sidebar')) return;
-
-        const current = AdminSidebarState.read();
-        current[section.dataset.navSection] = section.open;
-        AdminSidebarState.write(current);
-      }, true);
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': nav.dataset.navStateCsrf || ''
+        },
+        body: JSON.stringify({ collapsed: collapsed })
+      }).catch(function() {
+        return;
+      });
     }
   };
 
@@ -8283,9 +8150,6 @@
   if (document.querySelector('.admin-sidebar')) {
     AdminPanel.init();
   }
-
-  // Sidebar state restores on every admin page that renders the shared chrome
-  AdminSidebarState.init();
 
   // ============================================
   // THEME SYSTEM (AI.md PART 16)

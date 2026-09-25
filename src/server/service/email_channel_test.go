@@ -5,14 +5,20 @@ import (
 	"testing"
 )
 
-// seedEmailChannelSMTPConfig inserts host/from_address rows into
-// server_config so SMTPService.IsEnabled() reports true without ever
-// touching the network.
-func seedEmailChannelSMTPConfig(t *testing.T, db *sql.DB, host, fromAddress string) {
+// seedEmailChannelSMTPConfig inserts host/port/from_address rows into
+// server_config. A port is seeded whenever one is supplied, so a test can
+// point the seeded host at a live local responder.
+func seedEmailChannelSMTPConfig(t *testing.T, db *sql.DB, host, fromAddress string, port ...string) {
 	t.Helper()
 	_, err := db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.host", host)
 	if err != nil {
 		t.Fatalf("seed smtp.host: %v", err)
+	}
+	if len(port) > 0 {
+		_, err = db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.port", port[0])
+		if err != nil {
+			t.Fatalf("seed smtp.port: %v", err)
+		}
 	}
 	_, err = db.Exec(`INSERT INTO server_config (key, value) VALUES (?, ?)`, "smtp.from_address", fromAddress)
 	if err != nil {
@@ -58,18 +64,22 @@ func TestEmailChannel_IsEnabled_DisabledSMTP(t *testing.T) {
 	}
 }
 
-// TestEmailChannel_IsEnabled_EnabledSMTP verifies the happy path: once the
-// server_config table has host + from_address populated, the channel
-// reports enabled.
+// TestEmailChannel_IsEnabled_EnabledSMTP verifies the happy path: once a
+// working SMTP server answers the handshake, the channel reports enabled.
+// AI.md PART 18 enables email only for a configured AND working server.
 func TestEmailChannel_IsEnabled_EnabledSMTP(t *testing.T) {
 	serverDB := setupSMTPServerDB(t)
 	wireSMTPGlobalDB(t, serverDB)
-	seedEmailChannelSMTPConfig(t, serverDB, "smtp.example.com", "noreply@example.com")
+	host, port, _ := startFakeSMTPResponder(t, "")
+	seedEmailChannelSMTPConfig(t, serverDB, host, "noreply@example.com", port)
 
 	smtp := NewSMTPService(serverDB)
+	if err := smtp.VerifyConfiguredConnection(); err != nil {
+		t.Fatalf("VerifyConfiguredConnection: %v", err)
+	}
 	ch := NewEmailChannel(smtp)
 	if !ch.IsEnabled() {
-		t.Error("expected channel to be enabled with configured SMTP")
+		t.Error("expected channel to be enabled with a working SMTP server")
 	}
 }
 
@@ -216,11 +226,17 @@ func TestEmailChannel_Refresh_ReflectsConfigChange(t *testing.T) {
 		t.Fatal("expected channel to start disabled")
 	}
 
-	seedEmailChannelSMTPConfig(t, serverDB, "smtp.example.com", "noreply@example.com")
+	host, port, _ := startFakeSMTPResponder(t, "")
+	seedEmailChannelSMTPConfig(t, serverDB, host, "noreply@example.com", port)
 	// smtp.config is cached from the first IsEnabled() call above, so force
 	// a reload the same way LoadConfig would be re-invoked in production.
 	if err := smtp.LoadConfig(); err != nil {
 		t.Fatalf("LoadConfig: %v", err)
+	}
+	// AI.md PART 18: the reload alone is not enough — a working handshake must
+	// be confirmed before the channel reports enabled.
+	if err := smtp.VerifyConfiguredConnection(); err != nil {
+		t.Fatalf("VerifyConfiguredConnection: %v", err)
 	}
 	ch.Refresh()
 

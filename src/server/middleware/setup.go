@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -38,6 +40,33 @@ func renderHTML(w http.ResponseWriter, status int, name string, data interface{}
 		return
 	}
 	_ = htmlTemplates.ExecuteTemplate(w, name, data)
+}
+
+// requestLang returns the language the shared i18n middleware resolved for
+// this request, defaulting to English when it did not run (AI.md PART 31).
+func requestLang(r *http.Request) string {
+	value, ok := reqctx.GetValue(r.Context(), "lang")
+	if !ok {
+		return "en"
+	}
+	lang, ok := value.(string)
+	if !ok || lang == "" {
+		return "en"
+	}
+	return lang
+}
+
+// setupTranslate resolves a translation key for the active request language.
+// The shared i18n middleware stores the resolved language on the request
+// context for every route, so the setup pages get the same fallback chain as
+// the rest of the app (AI.md PART 31). A missing global instance falls back
+// to the key itself rather than failing the response.
+func setupTranslate(r *http.Request, key string) string {
+	instance := i18n.GetGlobalI18n()
+	if instance == nil {
+		return key
+	}
+	return instance.T(requestLang(r), key)
 }
 
 // SetupTokenRequired shows setup token entry form at /server/admin when no admin exists
@@ -81,8 +110,8 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			if !util.SetupTokenExists(configDir) {
 				// No setup token file - setup was somehow skipped, show error
 				renderHTML(w, http.StatusServiceUnavailable, "page/error.tmpl", map[string]interface{}{
-					"error":   "Server setup incomplete",
-					"message": "Please restart the server to generate a setup token.",
+					"error":   setupTranslate(r, "errors.setup.incomplete"),
+					"message": setupTranslate(r, "errors.setup.restart_required"),
 				})
 				return
 			}
@@ -98,6 +127,17 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 				return
 			}
 
+			// No admin, setup token exists, no verified cookie. The setup-token
+			// form only exists at the admin root, so any other admin sub-path
+			// redirects there instead of rendering the form at a URL the
+			// wizard does not own (AI.md PART 17: admin panel reachable only
+			// by typing the URL directly; PART 29: unauthenticated admin
+			// access must redirect, never serve 200).
+			if reqPath != adminPath {
+				http.Redirect(w, r, adminPath, http.StatusFound)
+				return
+			}
+
 			// No admin, setup token exists, no verified cookie - show token entry form at /admin
 			// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token
 			title := "Weather"
@@ -107,7 +147,8 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			}
 
 			renderHTML(w, http.StatusOK, "admin/setup_token.tmpl", map[string]interface{}{
-				"title":      title + " - Setup",
+				"title":      title + " - " + setupTranslate(r, "admin.setup_token.page_title"),
+				"lang":       requestLang(r),
 				"admin_path": adminPath,
 				"branding": map[string]interface{}{
 					"Title": title,

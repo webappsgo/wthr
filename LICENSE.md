@@ -119,6 +119,15 @@ full license text is available at https://mozilla.org/MPL/2.0/.
   `go:embed` (`src/server/service/location_enhancer.go`) — a one-time
   transform of the raw GeoNames source files, not a live API dependency
 
+### IP Geolocation Databases (sapics/ip-location-db)
+- **License**: CC BY 4.0 (Creative Commons Attribution 4.0 International)
+- **ASN database**: RouteViews, NRO, DB-IP (merged)
+- **Country database**: NRO (RIR whois + geofeed + ASN data, merged)
+- **City database**: DB-IP
+- **Attribution**: [IP Geolocation by DB-IP](https://db-ip.com/)
+- **Attribution**: Country and ASN data licensed CC BY 4.0 by the Number Resource Organization (NRO).
+- **Usage**: Downloaded on first run to `{data_dir}/security/geoip` and refreshed weekly by the built-in scheduler — never embedded in the binary
+
 ## Design and Theme
 
 ### Dracula Theme

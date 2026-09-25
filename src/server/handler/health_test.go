@@ -88,20 +88,75 @@ func TestGetTorStatus_WithProvider(t *testing.T) {
 // always return 200/alive regardless of init state, since Kubernetes uses
 // this endpoint to decide whether to kill the container.
 func TestLivenessCheck(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/health", nil)
-	w := httptest.NewRecorder()
-	LivenessCheck(w, r)
+	// AI.md PART 14 frontend priority: Accept: text/html > Accept: text/plain
+	// > browser User-Agent > CLI/curl > default HTML. JSON is served only to
+	// explicit API clients, so each case below must declare its own client.
+	t.Run("explicit json client gets json", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/health", nil)
+		r.Header.Set("Accept", "application/json")
+		w := httptest.NewRecorder()
+		LivenessCheck(w, r)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", w.Code)
-	}
-	var body map[string]string
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if body["status"] != "alive" {
-		t.Errorf("status field = %q, want %q", body["status"], "alive")
-	}
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		var body map[string]string
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("unmarshal: %v; body=%s", err, w.Body.String())
+		}
+		if body["status"] != "alive" {
+			t.Errorf("status field = %q, want %q", body["status"], "alive")
+		}
+	})
+
+	t.Run("our cli client gets json", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/health", nil)
+		r.Header.Set("User-Agent", "wthr-cli/1.0.0")
+		w := httptest.NewRecorder()
+		LivenessCheck(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "application/json") {
+			t.Errorf("content-type = %q, want application/json", ct)
+		}
+	})
+
+	t.Run("accept text/plain gets plain text", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/health", nil)
+		r.Header.Set("Accept", "text/plain")
+		r.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) Firefox/128.0")
+		w := httptest.NewRecorder()
+		LivenessCheck(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+			t.Errorf("content-type = %q, want text/plain", ct)
+		}
+		if body := w.Body.String(); strings.HasPrefix(strings.TrimSpace(body), "{") {
+			t.Errorf("body = %q, want plain text not JSON", body)
+		}
+	})
+
+	t.Run("http tool gets plain text", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/health", nil)
+		r.Header.Set("User-Agent", "curl/8.0")
+		w := httptest.NewRecorder()
+		LivenessCheck(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200", w.Code)
+		}
+		if ct := w.Header().Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+			t.Errorf("content-type = %q, want text/plain", ct)
+		}
+		if body := w.Body.String(); strings.TrimSpace(body) == "" {
+			t.Error("body is empty, want the alive message")
+		}
+	})
 }
 
 // TestReadinessCheck covers the three-way branch: not-initialized,

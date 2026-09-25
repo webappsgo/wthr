@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -271,5 +272,280 @@ func TestEmailTemplateHandler_ImportTemplate(t *testing.T) {
 	}
 	if !strings.Contains(string(written), "Subject: Imported") || !strings.Contains(string(written), "Imported body") {
 		t.Errorf("unexpected template content: %s", written)
+	}
+}
+
+// newEmailTemplateFormRequest builds a form-encoded POST carrying the given
+// fields plus a chi URL param set, mirroring the session-auth admin form
+// routes. csrf_token is omitted because these handler tests exercise the
+// handler below the CSRF middleware layer.
+func newEmailTemplateFormRequest(t *testing.T, target string, form url.Values, params map[string]string) (*http.Request, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	r := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rctx := chi.NewRouteContext()
+	for key, value := range params {
+		rctx.URLParams.Add(key, value)
+	}
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	return r, httptest.NewRecorder()
+}
+
+// emailTemplateFlashValue returns the flash cookie value set on the recorder,
+// matching the helper used by the form-redirect tests.
+func emailTemplateFlashValue(t *testing.T, w *httptest.ResponseRecorder) (string, bool) {
+	t.Helper()
+	for _, c := range w.Result().Cookies() {
+		if c.Name == FlashCookieName {
+			return c.Value, true
+		}
+	}
+	return "", false
+}
+
+// TestResolveTemplateName verifies the session-auth form field takes priority
+// over the URL path parameter, and that the URL param is the fallback when no
+// form field is present.
+func TestResolveTemplateName(t *testing.T) {
+	t.Run("form field beats URL param", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodPost, "/server/admin/config/email/templates",
+			strings.NewReader(url.Values{"template": {"welcome"}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("name", "password_reset")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		if got := resolveTemplateName(r); got != "welcome" {
+			t.Fatalf("resolveTemplateName = %q, want %q", got, "welcome")
+		}
+	})
+
+	t.Run("URL param fallback when no form field", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodPost, "/server/admin/config/email-templates/welcome", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("name", "welcome")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		if got := resolveTemplateName(r); got != "welcome" {
+			t.Fatalf("resolveTemplateName = %q, want %q", got, "welcome")
+		}
+	})
+}
+
+// TestResolveTemplateName_JSONBodyNotConsumed is the regression test for the
+// session-auth/token-auth split: resolveTemplateName calls r.FormValue, which
+// must not consume the body of an application/json request, so the token-auth
+// JSON route that follows still decodes its body correctly.
+func TestResolveTemplateName_JSONBodyNotConsumed(t *testing.T) {
+	payload := `{"subject":"Kept","body":"Kept body"}`
+	r := httptest.NewRequest(http.MethodPost, "/server/admin/config/email-templates/welcome",
+		strings.NewReader(payload))
+	r.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("name", "welcome")
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	// FormValue must return empty and must not drain the JSON body.
+	if name := resolveTemplateName(r); name != "welcome" {
+		t.Fatalf("resolveTemplateName on JSON request = %q, want URL param %q", name, "welcome")
+	}
+
+	var decoded EmailTemplate
+	if err := json.NewDecoder(r.Body).Decode(&decoded); err != nil {
+		t.Fatalf("JSON body was consumed by resolveTemplateName: %v", err)
+	}
+	if decoded.Subject != "Kept" || decoded.Body != "Kept body" {
+		t.Fatalf("decoded = %+v, want subject/body preserved", decoded)
+	}
+}
+
+// TestEditorTemplates verifies the editor lists only allow-listed templates
+// that have a readable file on disk, in allow-list order, skipping unreadable
+// entries rather than failing.
+func TestEditorTemplates(t *testing.T) {
+	dir := t.TempDir()
+	emailDir := filepath.Join(dir, "email")
+	if err := os.MkdirAll(emailDir, 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+	// welcome is allow-list first; test is allow-list last. Write them in
+	// reverse order so a filesystem-ordered read would catch a missing sort.
+	if err := os.WriteFile(filepath.Join(emailDir, "test.tmpl"), []byte("Subject: Test\n---\nTest body"), 0644); err != nil {
+		t.Fatalf("write test.tmpl: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(emailDir, "welcome.tmpl"), []byte("Subject: Welcome\n---\nWelcome body"), 0644); err != nil {
+		t.Fatalf("write welcome.tmpl: %v", err)
+	}
+	// A file that is not in the allow-list must be ignored.
+	if err := os.WriteFile(filepath.Join(emailDir, "not_a_template.tmpl"), []byte("Subject: x\n---\ny"), 0644); err != nil {
+		t.Fatalf("write stray file: %v", err)
+	}
+
+	h := &EmailTemplateHandler{templatesDir: dir}
+	got := h.EditorTemplates()
+
+	if len(got) != 2 {
+		t.Fatalf("EditorTemplates returned %d entries, want 2: %+v", len(got), got)
+	}
+	if got[0].Name != "welcome" || got[1].Name != "test" {
+		t.Fatalf("EditorTemplates order = %q,%q, want welcome,test", got[0].Name, got[1].Name)
+	}
+	if got[0].Subject != "Welcome" || got[0].Body != "Welcome body" {
+		t.Fatalf("welcome template parsed wrong: %+v", got[0])
+	}
+
+	// Removing the only readable file must shrink the list, not fail it.
+	if err := os.Remove(filepath.Join(emailDir, "welcome.tmpl")); err != nil {
+		t.Fatalf("remove welcome.tmpl: %v", err)
+	}
+	got = h.EditorTemplates()
+	if len(got) != 1 || got[0].Name != "test" {
+		t.Fatalf("EditorTemplates after removing welcome = %+v, want only test", got)
+	}
+}
+
+// TestEmailTemplateHandler_UpdateTemplate_FormPRG verifies a successful
+// form-encoded update redirects (303) to the editor page with a success flash
+// and writes the template to disk.
+func TestEmailTemplateHandler_UpdateTemplate_FormPRG(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "email"), 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+	h := &EmailTemplateHandler{templatesDir: dir}
+
+	form := url.Values{
+		"template": {"welcome"},
+		"subject":  {"Welcome aboard"},
+		"body":     {"Hello there."},
+	}
+	r, w := newEmailTemplateFormRequest(t, "/server/admin/config/email/templates", form, nil)
+
+	h.UpdateTemplate(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+	}
+	if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/config/email/templates") {
+		t.Fatalf("Location = %q, want editor page", loc)
+	}
+	val, ok := emailTemplateFlashValue(t, w)
+	if !ok || val != "success:flash_email_template_saved" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash_email_template_saved", val, ok)
+	}
+
+	written, err := os.ReadFile(filepath.Join(dir, "email", "welcome.tmpl"))
+	if err != nil {
+		t.Fatalf("template not written: %v", err)
+	}
+	if !strings.Contains(string(written), "Subject: Welcome aboard") {
+		t.Fatalf("written content = %q, want updated subject", written)
+	}
+}
+
+// TestEmailTemplateHandler_UpdateTemplate_FormWriteFail verifies a form-encoded
+// update that fails to write redirects (303) with a failure flash rather than a
+// bare 500.
+func TestEmailTemplateHandler_UpdateTemplate_FormWriteFail(t *testing.T) {
+	// Point templatesDir at a path whose email/ subdirectory does not exist so
+	// the write fails.
+	h := &EmailTemplateHandler{templatesDir: filepath.Join(t.TempDir(), "nonexistent")}
+
+	form := url.Values{
+		"template": {"welcome"},
+		"subject":  {"x"},
+		"body":     {"y"},
+	}
+	r, w := newEmailTemplateFormRequest(t, "/server/admin/config/email/templates", form, nil)
+
+	h.UpdateTemplate(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+	}
+	val, ok := emailTemplateFlashValue(t, w)
+	if !ok || val != "error:flash_email_template_save_failed" {
+		t.Fatalf("flash = %q (ok=%v), want error:flash_email_template_save_failed", val, ok)
+	}
+}
+
+// TestEmailTemplateHandler_TestTemplate_FormPRG verifies a form-encoded test
+// submission redirects (303) with the test-sent success flash.
+func TestEmailTemplateHandler_TestTemplate_FormPRG(t *testing.T) {
+	h := &EmailTemplateHandler{templatesDir: t.TempDir()}
+
+	form := url.Values{"template": {"welcome"}}
+	r, w := newEmailTemplateFormRequest(t, "/server/admin/config/email/templates/test", form, nil)
+
+	h.TestTemplate(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+	}
+	val, ok := emailTemplateFlashValue(t, w)
+	if !ok || val != "success:flash_test_email_sent" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash_test_email_sent", val, ok)
+	}
+}
+
+// TestEmailTemplateHandler_ImportTemplate_FormPRG verifies a successful
+// form-encoded import redirects (303) with a success flash and writes the
+// imported content to disk.
+func TestEmailTemplateHandler_ImportTemplate_FormPRG(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "email"), 0755); err != nil {
+		t.Fatalf("failed to create email dir: %v", err)
+	}
+	h := &EmailTemplateHandler{templatesDir: dir}
+
+	form := url.Values{
+		"template": {"test"},
+		"subject":  {"Imported"},
+		"body":     {"Imported body"},
+	}
+	r, w := newEmailTemplateFormRequest(t, "/server/admin/config/email/templates/import", form, nil)
+
+	h.ImportTemplate(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+	}
+	val, ok := emailTemplateFlashValue(t, w)
+	if !ok || val != "success:flash_email_template_saved" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash_email_template_saved", val, ok)
+	}
+
+	written, err := os.ReadFile(filepath.Join(dir, "email", "test.tmpl"))
+	if err != nil {
+		t.Fatalf("template not written: %v", err)
+	}
+	if !strings.Contains(string(written), "Subject: Imported") {
+		t.Fatalf("written content = %q, want imported subject", written)
+	}
+}
+
+// TestEmailTemplateHandler_ImportTemplate_FormWriteFail verifies a form-encoded
+// import that fails to write redirects (303) with a failure flash.
+func TestEmailTemplateHandler_ImportTemplate_FormWriteFail(t *testing.T) {
+	h := &EmailTemplateHandler{templatesDir: filepath.Join(t.TempDir(), "nonexistent")}
+
+	form := url.Values{
+		"template": {"test"},
+		"subject":  {"x"},
+		"body":     {"y"},
+	}
+	r, w := newEmailTemplateFormRequest(t, "/server/admin/config/email/templates/import", form, nil)
+
+	h.ImportTemplate(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
+	}
+	val, ok := emailTemplateFlashValue(t, w)
+	if !ok || val != "error:flash_email_template_save_failed" {
+		t.Fatalf("flash = %q (ok=%v), want error:flash_email_template_save_failed", val, ok)
 	}
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -141,15 +142,18 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 	// Fetch severe weather data with distance filter
 	data, err := h.severeWeatherService.GetSevereWeatherWithDistance(latitude, longitude, distance)
 	if err != nil {
-		// Check if user wants JSON
-		accept := r.Header.Get("Accept")
-		wantsJSON := strings.Contains(accept, "application/json")
-
-		if wantsJSON {
-			RespondError(w, r, http.StatusInternalServerError, ErrInternal, "Failed to fetch severe weather data")
-		} else {
-			writeText(w, http.StatusInternalServerError, "Failed to fetch severe weather data: %v", err)
-		}
+		// AI.md PART 9/11: log the internal error but never return err.Error()
+		// to the client; the negotiation helpers pick the right format.
+		log.Printf("ERROR: HandleSevereWeatherRequest: failed to fetch severe weather data: %v", err)
+		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/severe_weather.tmpl", ErrInternal,
+			Translate(r, "errors.severe_weather_fetch_failed"),
+			util.TemplateData(r, map[string]interface{}{
+				"Title":        "Severe Weather Alerts",
+				"page":         "severe-weather",
+				"Error":        Translate(r, "errors.severe_weather_fetch_failed"),
+				"LocationName": locationName,
+				"HostInfo":     util.GetHostInfo(r),
+			}))
 		return
 	}
 
@@ -162,95 +166,78 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 	totalAlerts := len(data.TornadoWarnings) + len(data.SevereStorms) + len(data.WinterStorms) + len(data.FloodWarnings) + len(data.OtherAlerts)
 	totalStorms := len(data.Hurricanes)
 
-	// Check if user wants JSON
-	accept := r.Header.Get("Accept")
-	wantsJSON := strings.Contains(accept, "application/json")
+	// Build the template data first so the shared PART 14 negotiation helper
+	// can write the response in a single place for every accepted format.
+	hostInfo := util.GetHostInfo(r)
 
-	if wantsJSON {
-		RespondNegotiatedData(w, r, http.StatusOK, data)
-		return
-	}
-
-	// Check user agent to determine if browser or console
-	isBrowser := util.IsBrowser(r)
-
-	if isBrowser {
-		// Render HTML template
-		hostInfo := util.GetHostInfo(r)
-
-		// Create Location object for uniform display
-		var locationData interface{}
-		if latitude != 0 || longitude != 0 {
-			// Use the full locationCoords if available, otherwise create minimal coords
-			var enhanced *service.Coordinates
-			if locationCoords != nil {
-				enhanced = locationCoords
-			} else {
-				// Create minimal coords and enhance
-				coords := &service.Coordinates{
-					Latitude:  latitude,
-					Longitude: longitude,
-					Name:      locationName,
-					ShortName: locationName,
-				}
-				enhanced = h.locationEnhancer.EnhanceLocation(coords)
+	// Create Location object for uniform display
+	var locationData interface{}
+	if latitude != 0 || longitude != 0 {
+		// Use the full locationCoords if available, otherwise create minimal coords
+		var enhanced *service.Coordinates
+		if locationCoords != nil {
+			enhanced = locationCoords
+		} else {
+			// Create minimal coords and enhance
+			coords := &service.Coordinates{
+				Latitude:  latitude,
+				Longitude: longitude,
+				Name:      locationName,
+				ShortName: locationName,
 			}
-
-			// Format population with commas
-			popFormatted := ""
-			if enhanced.Population > 0 {
-				popFormatted = formatPopulation(enhanced.Population)
-			}
-
-			locationData = map[string]interface{}{
-				"Location": map[string]interface{}{
-					"Name":                enhanced.FullName,
-					"ShortName":           enhanced.ShortName,
-					"NameEncoded":         strings.ReplaceAll(enhanced.ShortName, " ", "+"),
-					"Country":             enhanced.Country,
-					"CountryCode":         enhanced.CountryCode,
-					"Latitude":            latitude,
-					"Longitude":           longitude,
-					"Timezone":            enhanced.Timezone,
-					"Population":          enhanced.Population,
-					"PopulationFormatted": popFormatted,
-				},
-			}
+			enhanced = h.locationEnhancer.EnhanceLocation(coords)
 		}
 
-		// Get type and distance filters from query params
-		typeFilter := r.URL.Query().Get("type")
-		if typeFilter == "" {
-			typeFilter = "all"
+		// Format population with commas
+		popFormatted := ""
+		if enhanced.Population > 0 {
+			popFormatted = formatPopulation(enhanced.Population)
 		}
-		distanceFilter := fmt.Sprintf("%.0f", distance)
 
-		// Always use full detected location for clarity
-		displayLocation := locationName
-
-		middleware.RenderHTML(w, r, http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title":          "Severe Weather Alerts",
-			"page":           "severe-weather",
-			"Data":           data,
-			"TotalAlerts":    totalAlerts,
-			"TotalStorms":    totalStorms,
-			"LocationName":   displayLocation,
-			"LocationData":   locationData,
-			"Latitude":       latitude,
-			"Longitude":      longitude,
-			"Distance":       distance,
-			"DistanceFilter": distanceFilter,
-			"TypeFilter":     typeFilter,
-			"HasLocation":    latitude != 0 && longitude != 0,
-			"HostInfo":       hostInfo,
-		}))
-	} else {
-		// Render console output
-		output := h.renderConsoleOutput(data, locationName)
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, output)
+		locationData = map[string]interface{}{
+			"Location": map[string]interface{}{
+				"Name":                enhanced.FullName,
+				"ShortName":           enhanced.ShortName,
+				"NameEncoded":         strings.ReplaceAll(enhanced.ShortName, " ", "+"),
+				"Country":             enhanced.Country,
+				"CountryCode":         enhanced.CountryCode,
+				"Latitude":            latitude,
+				"Longitude":           longitude,
+				"Timezone":            enhanced.Timezone,
+				"Population":          enhanced.Population,
+				"PopulationFormatted": popFormatted,
+			},
+		}
 	}
+
+	// Get type and distance filters from query params
+	typeFilter := r.URL.Query().Get("type")
+	if typeFilter == "" {
+		typeFilter = "all"
+	}
+	distanceFilter := fmt.Sprintf("%.0f", distance)
+
+	// Always use full detected location for clarity
+	displayLocation := locationName
+
+	// AI.md PART 14: hand the assembled page data to the shared negotiation
+	// helper so HTML, text, and JSON clients each get their own format.
+	NegotiateResponse(w, r, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
+		"Title":          "Severe Weather Alerts",
+		"page":           "severe-weather",
+		"Data":           data,
+		"TotalAlerts":    totalAlerts,
+		"TotalStorms":    totalStorms,
+		"LocationName":   displayLocation,
+		"LocationData":   locationData,
+		"Latitude":       latitude,
+		"Longitude":      longitude,
+		"Distance":       distance,
+		"DistanceFilter": distanceFilter,
+		"TypeFilter":     typeFilter,
+		"HasLocation":    latitude != 0 && longitude != 0,
+		"HostInfo":       hostInfo,
+	}))
 }
 
 // HandleSevereWeatherByType handles severe weather requests filtered by type

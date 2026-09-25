@@ -251,14 +251,14 @@ func (h *PasskeyHandler) passkeyLookup(rawID []byte, userHandle []byte) (webauth
 func (h *PasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
 	passkeys, err := passkeyModel.ListByUserID(user.ID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
 		return
 	}
 
@@ -291,19 +291,19 @@ func (h *PasskeyHandler) ListPasskeys(w http.ResponseWriter, r *http.Request) {
 func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
@@ -314,25 +314,25 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 
 	var req passkeyRegistrationStartRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 	if req.Name == "" || strings.TrimSpace(req.Password) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Passkey name and password are required"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.name_and_password_are_required")})
 		return
 	}
 
 	userModel := &models.UserModel{DB: h.DB}
 	if !userModel.CheckPassword(user, req.Password) {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid password"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_password")})
 		return
 	}
 
 	waUser, err := h.loadWebAuthnUser(user)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
 		return
 	}
 
@@ -343,7 +343,7 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 
 	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_initialize_passkeys")})
 		return
 	}
 
@@ -357,7 +357,7 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 		webauthn.WithExclusions(exclusions),
 	)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
@@ -367,7 +367,7 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 		Name:        req.Name,
 		SessionData: *sessionData,
 	}); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey registration"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_start_registration")})
 		return
 	}
 
@@ -380,36 +380,36 @@ func (h *PasskeyHandler) RegisterPasskey(w http.ResponseWriter, r *http.Request)
 func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *http.Request, user *models.User, body []byte) {
 	state, token, err := loadPasskeyCeremonyState(r)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 	if state.Kind != passkeyKindRegistration || state.UserID != user.ID {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey registration session"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_registration_session")})
 		return
 	}
 
 	waUser, err := h.loadWebAuthnUser(user)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
 		return
 	}
 
 	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_initialize_passkeys")})
 		return
 	}
 
 	credential, err := wa.FinishRegistration(waUser, state.SessionData, cloneRequestWithBody(r, body))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
 	passkey, err := passkeyModel.CreateUserPasskey(user.ID, state.Name, credential)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
@@ -455,29 +455,29 @@ func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *htt
 func (h *PasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.not_authenticated")})
 		return
 	}
 
 	passkeyID, err := strconv.ParseInt(strings.TrimSpace(chi.URLParam(r, "passkey_id")), 10, 64)
 	if err != nil || passkeyID <= 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey id"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_passkey_id")})
 		return
 	}
 
 	passkeyModel := &models.UserPasskeyModel{DB: h.DB}
 	if err := passkeyModel.DeleteByID(user.ID, passkeyID); err != nil {
 		status := http.StatusInternalServerError
-		if err.Error() == "passkey not found" {
+		if isPasskeyNotFound(err) {
 			status = http.StatusNotFound
 		}
-		writeJSON(w, status, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, status, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Passkey deleted successfully",
+		"message": Translate(r, "success.passkey.deleted"),
 	})
 }
 
@@ -493,47 +493,47 @@ func (h *PasskeyHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
 func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	var req passkeyChallengeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
 	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_initialize_passkeys")})
 		return
 	}
 
 	if strings.TrimSpace(req.SessionToken) != "" {
 		pendingSession, err := loadPendingTwoFactorSession(h.DB, req.SessionToken)
 		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, err)
 			return
 		}
 
 		userModel := &models.UserModel{DB: h.DB}
 		user, err := userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid session token"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_session_token")})
 			return
 		}
 		if err := validateAuthUser(user); err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, err)
 			return
 		}
 
 		waUser, err := h.loadWebAuthnUser(user)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
 			return
 		}
 		if len(waUser.credentials) == 0 {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "No passkeys registered for this account"})
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.no_passkeys_registered")})
 			return
 		}
 
 		options, sessionData, err := wa.BeginLogin(waUser, webauthn.WithUserVerification(protocol.VerificationRequired))
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusBadRequest, err)
 			return
 		}
 
@@ -543,7 +543,7 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Re
 			PendingSessionToken: pendingSession.ID,
 			SessionData:         *sessionData,
 		}); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey challenge"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_start_challenge")})
 			return
 		}
 
@@ -556,7 +556,7 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Re
 
 	options, sessionData, err := wa.BeginDiscoverableLogin(webauthn.WithUserVerification(protocol.VerificationRequired))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
@@ -564,7 +564,7 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Re
 		Kind:        passkeyKindLogin,
 		SessionData: *sessionData,
 	}); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to start passkey challenge"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_start_challenge")})
 		return
 	}
 
@@ -586,19 +586,19 @@ func (h *PasskeyHandler) BeginPasskeyChallenge(w http.ResponseWriter, r *http.Re
 func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil || len(body) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_request_body")})
 		return
 	}
 
 	state, token, err := loadPasskeyCeremonyState(r)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		writePasskeyError(w, r, http.StatusBadRequest, err)
 		return
 	}
 
 	wa, err := h.buildWebAuthn(r)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to initialize passkeys"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_initialize_passkeys")})
 		return
 	}
 
@@ -615,19 +615,19 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 	case passkeyKindLogin:
 		parsed, parseErr := protocol.ParseCredentialRequestResponse(cloneRequestWithBody(r, body))
 		if parseErr != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": parseErr.Error()})
+			writePasskeyError(w, r, http.StatusBadRequest, parseErr)
 			return
 		}
 
 		waResolvedUser, resolvedCredential, validateErr := wa.ValidatePasskeyLogin(h.passkeyLookup, state.SessionData, parsed)
 		if validateErr != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": validateErr.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, validateErr)
 			return
 		}
 
 		resolvedUser, ok := waResolvedUser.(*passkeyUser)
 		if !ok {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to resolve passkey user"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_resolve_user")})
 			return
 		}
 
@@ -635,53 +635,53 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 		credential = resolvedCredential
 		response, err = createFullAuthSession(h.DB, user)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to create session"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_create_session")})
 			return
 		}
 	case passkeyKindTwoFactor:
 		pendingSession, sessionErr := loadPendingTwoFactorSession(h.DB, state.PendingSessionToken)
 		if sessionErr != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": sessionErr.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, sessionErr)
 			return
 		}
 
 		user, err = userModel.GetByID(int64(pendingSession.UserID))
 		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid session token"})
+			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_session_token")})
 			return
 		}
 		if err := validateAuthUser(user); err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, err)
 			return
 		}
 
 		waUser, loadErr := h.loadWebAuthnUser(user)
 		if loadErr != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load passkeys"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_load_passkeys")})
 			return
 		}
 
 		credential, err = wa.FinishLogin(waUser, state.SessionData, cloneRequestWithBody(r, body))
 		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": err.Error()})
+			writePasskeyError(w, r, http.StatusUnauthorized, err)
 			return
 		}
 
 		response, err = createFullAuthSession(h.DB, user)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to create session"})
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_create_session")})
 			return
 		}
 
 		sessionModel := &models.SessionModel{DB: h.DB}
 		_ = sessionModel.DeleteSession(pendingSession.ID)
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "Invalid passkey session"})
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.invalid_session")})
 		return
 	}
 
 	if err := passkeyModel.UpdateCredential(user.ID, credential); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to update passkey"})
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.passkey.failed_to_update_passkey")})
 		return
 	}
 
@@ -692,7 +692,7 @@ func (h *PasskeyHandler) VerifyPasskey(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Passkey authentication successful",
+		"message": Translate(r, "success.passkey.authentication_successful"),
 		"result":  response,
 	})
 }

@@ -205,6 +205,89 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	}
 }
 
+// ShowExamplesPage renders the API usage examples page with content negotiation
+// (AI.md PART 14 frontend chain, AI.md PART 16 page conventions). Every example
+// URL is built from the live host info and the configured API path, so the page
+// stays correct across hostnames and API versions.
+func ShowExamplesPage(cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, _ := reqctx.GetValue(r.Context(), "user")
+		host := util.GetHostInfo(r).FullHost
+		apiPath := cfg.GetAPIPath()
+
+		consoleExamples := []string{
+			host + "/",
+			host + "/London",
+			host + "/Paris?format=1",
+			host + "/Tokyo?units=metric",
+		}
+		jsonExamples := []string{
+			host + apiPath + "/weather?location=London",
+			host + apiPath + "/forecasts?location=Paris&days=5",
+			host + apiPath + "/locations/search?q=New+York",
+			host + apiPath + "/ip",
+		}
+
+		data := map[string]interface{}{
+			"user": user,
+			"page": "examples",
+			"server": pageServerData(r, map[string]interface{}{
+				"Title":     cfg.Server.Branding.Title,
+				"BuildDate": BuildDate,
+			}),
+			"HostInfo":       util.GetHostInfo(r),
+			"ConsoleExamples": consoleExamples,
+			"JSONExamples":    jsonExamples,
+		}
+
+		NegotiateResponse(w, r, "page/examples.tmpl", data)
+	}
+}
+
+// dataSourceAttribution returns the data-source list the About page and the
+// About API share, with the PART 20 GeoIP attribution included verbatim as
+// translated copy (AI.md PART 20: attribution is a license condition).
+func dataSourceAttribution(r *http.Request) []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"title":       Translate(r, "about_datasource_weather_title"),
+			"description": Translate(r, "about_datasource_weather_desc"),
+		},
+		{
+			"title":       Translate(r, "about_datasource_severe_title"),
+			"description": Translate(r, "about_datasource_severe_desc"),
+		},
+		{
+			"title":       Translate(r, "about_datasource_hurricane_title"),
+			"description": Translate(r, "about_datasource_hurricane_desc"),
+		},
+		{
+			"title":       Translate(r, "about_datasource_earthquake_title"),
+			"description": Translate(r, "about_datasource_earthquake_desc"),
+		},
+		{
+			"title":       Translate(r, "about_datasource_moon_title"),
+			"description": Translate(r, "about_datasource_moon_desc"),
+		},
+		{
+			"title":       Translate(r, "about_datasource_geo_title"),
+			"description": Translate(r, "about_datasource_geo_desc"),
+		},
+	}
+}
+
+// geoipAttribution returns the PART 20 verbatim GeoIP notices. The link text
+// and the NRO license line are returned as separate fields so the HTML page can
+// wrap the first in an anchor and the API can carry both as plain values.
+func geoipAttribution(r *http.Request) map[string]interface{} {
+	return map[string]interface{}{
+		"heading": Translate(r, "about_attribution_heading"),
+		"link":    "https://db-ip.com/",
+		"text":    Translate(r, "about_attribution_geoip_link"),
+		"license": Translate(r, "about_attribution_geoip_license"),
+	}
+}
+
 // GetAboutAPI returns about information as JSON (AI.md PART 14: /api/v1/server/about)
 func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -218,17 +301,19 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 			"version":     Version,
 			"build_date":  BuildDate,
 			"features": []string{
-				"Real-time weather data from Open-Meteo API",
-				"Global location support with geocoding",
-				"Moon phase tracking and lunar information",
-				"Severe weather alerts and warnings",
-				"Earthquake monitoring from USGS",
-				"Hurricane and tropical storm tracking",
-				"Multi-day weather forecasts (up to 16 days)",
-				"Multi-format API (JSON, text/plain, GraphQL) with passkey auth mutations",
-				"WebSocket real-time alert notifications",
-				"Passkey / WebAuthn admin authentication",
+				Translate(r, "about_api_feature_weather"),
+				Translate(r, "about_api_feature_geocoding"),
+				Translate(r, "about_api_feature_moon"),
+				Translate(r, "about_api_feature_alerts"),
+				Translate(r, "about_api_feature_earthquakes"),
+				Translate(r, "about_api_feature_hurricanes"),
+				Translate(r, "about_api_feature_forecasts"),
+				Translate(r, "about_api_feature_api"),
+				Translate(r, "about_api_feature_websocket"),
+				Translate(r, "about_api_feature_passkey"),
 			},
+			"data_sources": dataSourceAttribution(r),
+			"attribution":  geoipAttribution(r),
 			"links": map[string]interface{}{
 				"github":  "https://github.com/webappsgo/wthr",
 				"docs":    "/openapi",
@@ -246,7 +331,7 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
-			"title":        "Privacy Policy",
+			"title":        Translate(r, "privacy_page_heading"),
 			"last_updated": BuildDate,
 			"data_stored":  true,
 			"data_sold":    false,
@@ -255,10 +340,19 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				"preferences": true,
 				"analytics":   false,
 			},
-			"data_collection": "Weather collects minimal data necessary to provide weather information. Location data is used solely for delivering location-specific weather forecasts and alerts.",
-			"data_retention":  "Session data is retained for the duration of your session. Saved locations are retained until you delete them. Server logs are rotated and deleted per the configured retention policy.",
-			"third_parties":   []string{"Open-Meteo (weather data)", "USGS (earthquake data)", "NOAA (hurricane/alert data)"},
-			"contact":         "/server/contact",
+			"data_collection": Translate(r, "privacy_api_data_collection"),
+			"data_retention":  Translate(r, "privacy_api_data_retention"),
+			"third_parties": []string{
+				Translate(r, "privacy_api_third_party_open_meteo"),
+				Translate(r, "privacy_api_third_party_usgs"),
+				Translate(r, "privacy_api_third_party_noaa"),
+				Translate(r, "privacy_api_third_party_alerts"),
+				Translate(r, "privacy_api_third_party_nominatim"),
+				Translate(r, "privacy_api_third_party_geonames"),
+				Translate(r, "privacy_api_third_party_dbip"),
+				Translate(r, "privacy_api_third_party_nro"),
+			},
+			"contact": "/server/contact",
 		})
 	}
 }
@@ -369,10 +463,10 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 			}
 			if adminEmail == "" {
 				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to save message"})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_save_message")})
 					return
 				}
-				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
 				return
 			}
 
@@ -380,20 +474,20 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 			if err != nil {
 				// Email failed - save to database as fallback
 				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to send message"})
+					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_send_message")})
 					return
 				}
-				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Thank you for contacting us. We'll get back to you soon."})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_sent")})
 		} else {
 			// No SMTP - save to database (AI.md PART 26)
 			if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to save message"})
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_save_message")})
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Your message has been saved. We'll respond as soon as possible."})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -113,44 +114,91 @@ func SetupTokenExists(configDir string) bool {
 	return err == nil
 }
 
-// AutoDetectSMTP attempts to auto-detect available SMTP servers
-// AI.md: Host-specific values detected at runtime
-func AutoDetectSMTP() (string, int) {
-	// Build list of SMTP servers to try, in order of preference
-	smtpServers := []struct {
-		Host string
-		Port int
-	}{
-		{"localhost", 25},
-		{"localhost", 587},
-		{"127.0.0.1", 25},
-	}
+// smtpDetectTimeout bounds a single TCP connect during auto-detection.
+const smtpDetectTimeout = 2 * time.Second
 
-	// AI.md: Detect Docker gateway at runtime, not hardcoded
+// smtpDetectPorts is the port set AI.md PART 18 probes for every candidate host.
+var smtpDetectPorts = []int{25, 465, 587}
+
+// smtpCandidateHosts returns the AI.md PART 18 auto-detection host list, in
+// priority order, skipping hosts that cannot be resolved on this machine.
+func smtpCandidateHosts() []string {
+	fqdn := GetFQDN()
+	hosts := []string{"127.0.0.1", "172.17.0.1"}
 	if gwIP := GetDockerGatewayIP(); gwIP != "" {
-		smtpServers = append(smtpServers, struct {
-			Host string
-			Port int
-		}{gwIP, 25})
+		hosts = append(hosts, gwIP)
+	}
+	if fqdn != "" {
+		hosts = append(hosts, fqdn)
+	}
+	if globalIP := getGlobalIPv4(); globalIP != "" {
+		hosts = append(hosts, globalIP)
+	}
+	if fqdn != "" {
+		hosts = append(hosts, "mail."+fqdn, "smtp."+fqdn)
 	}
 
-	// Docker Desktop special hostname
-	smtpServers = append(smtpServers, struct {
-		Host string
-		Port int
-	}{"host.docker.internal", 25})
+	seen := make(map[string]bool, len(hosts))
+	unique := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		if host == "" || seen[host] {
+			continue
+		}
+		seen[host] = true
+		unique = append(unique, host)
+	}
+	return unique
+}
 
-	for _, server := range smtpServers {
-		addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", server.Port))
-		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
-		if err == nil {
-			conn.Close()
-			return server.Host, server.Port
+// smtpHandshake verifies that a reachable endpoint actually speaks SMTP, by
+// reading the greeting banner and exchanging an EHLO/HELO command, so a
+// non-SMTP listener on port 25 is never reported as a mail server.
+func smtpHandshake(addr string) error {
+	conn, err := net.DialTimeout("tcp", addr, smtpDetectTimeout)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close() }()
+
+	if err := conn.SetDeadline(time.Now().Add(smtpDetectTimeout)); err != nil {
+		return err
+	}
+
+	banner := make([]byte, 512)
+	n, err := conn.Read(banner)
+	if err != nil {
+		return err
+	}
+	if n == 0 || banner[0] != '2' {
+		return fmt.Errorf("no SMTP greeting from %s", addr)
+	}
+
+	if _, err := conn.Write([]byte("EHLO wthr\r\n")); err != nil {
+		return err
+	}
+	n, err = conn.Read(banner)
+	if err != nil {
+		return err
+	}
+	if n == 0 || banner[0] != '2' {
+		return fmt.Errorf("SMTP EHLO rejected by %s", addr)
+	}
+	return nil
+}
+
+// AutoDetectSMTP attempts to auto-detect an available SMTP server
+// AI.md PART 18: probe each host in priority order, require an SMTP handshake,
+// and report no server at all when every candidate fails.
+func AutoDetectSMTP() (string, int) {
+	for _, host := range smtpCandidateHosts() {
+		for _, port := range smtpDetectPorts {
+			addr := net.JoinHostPort(host, strconv.Itoa(port))
+			if err := smtpHandshake(addr); err == nil {
+				return host, port
+			}
 		}
 	}
-
-	// Default fallback
-	return "localhost", 25
+	return "", 0
 }
 
 // SelectRandomPort selects a random port in the 64000-64999 range
@@ -179,6 +227,25 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, dirPerm); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// AI.md PART 5: in Single Instance mode server.yml is the configuration
+	// source of truth. An existing file was supplied or edited by the operator,
+	// so the first-run defaults must never clobber it.
+	if _, err := os.Stat(configPath); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check server.yml: %w", err)
+	}
+
+	// AI.md PART 18: when auto-detection finds no working SMTP server, email
+	// features stay disabled. The generated config must not carry a blank host
+	// or claim email is enabled, or a later startup would treat the phantom
+	// entry as configured-but-unverified.
+	smtpDetected := smtpHost != "" && smtpPort > 0
+	if !smtpDetected {
+		smtpHost = ""
+		smtpPort = 0
 	}
 
 	// Default configuration
@@ -216,7 +283,7 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 			},
 			"notifications": map[string]interface{}{
 				"enabled":         true,
-				"email_enabled":   true,
+				"email_enabled":   smtpDetected,
 				"webhook_enabled": false,
 			},
 			"rate_limit": map[string]interface{}{
@@ -251,7 +318,12 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 	// Write to file
 	header := "# Weather Configuration\n"
 	header += "# Auto-generated on first run: " + time.Now().Format(time.RFC3339) + "\n"
-	header += "# SMTP auto-detected: " + smtpHost + ":" + fmt.Sprintf("%d", smtpPort) + "\n\n"
+	if smtpDetected {
+		header += "# SMTP auto-detected: " + smtpHost + ":" + strconv.Itoa(smtpPort) + "\n"
+	} else {
+		header += "# No SMTP server detected - email features disabled\n"
+	}
+	header += "\n"
 
 	fullContent := header + string(data)
 	if err := os.WriteFile(configPath, []byte(fullContent), 0644); err != nil {

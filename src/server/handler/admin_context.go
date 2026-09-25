@@ -124,6 +124,8 @@ func AdminTemplateData(r *http.Request, data map[string]interface{}) map[string]
 	}
 	enriched["admin_self_api_path"] = selfAPIPath
 
+	enriched["admin_nav_open"] = AdminNavOpenSections(r)
+
 	return enriched
 }
 

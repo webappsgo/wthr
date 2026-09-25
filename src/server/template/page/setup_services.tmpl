@@ -93,10 +93,8 @@
                         <div class="form-group">
                             <label class="form-label" for="registration_mode">{{t .server.Lang "setup_services_registration_mode_label"}}</label>
                             <select id="registration_mode" name="registration_mode" class="form-input">
-                                <option value="open">{{t .server.Lang "setup_services_registration_mode_open"}}</option>
-                                <option value="invite" selected>{{t .server.Lang "setup_services_registration_mode_invite"}}</option>
-                                <option value="admin_only">{{t .server.Lang "setup_services_registration_mode_admin_only"}}</option>
-                                <option value="disabled">{{t .server.Lang "setup_services_registration_mode_disabled"}}</option>
+                                <option value="open" selected>{{t .server.Lang "setup_services_registration_mode_open"}}</option>
+                                <option value="private">{{t .server.Lang "setup_services_registration_mode_private"}}</option>
                             </select>
                         </div>
                     </div>

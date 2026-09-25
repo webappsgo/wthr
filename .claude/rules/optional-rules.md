@@ -20,17 +20,15 @@ PART 34/35/36 is declared in `IDEA.md` instead.
 Because PART 34 is active, all "NEVER/ALWAYS" rules below for Multi-User
 apply now. PART 35/36 rules are reference-only until adopted.
 
-### UNRESOLVED: registration modes (AI.md vs IDEA.md)
+### Resolved: registration modes (AI.md PART 34 wins)
 
 AI.md PART 34 defines exactly two modes — `open` (default) and `private` —
-and states there is no "disabled" mode. IDEA.md line 280 instead declares
-"open/invite-only/disabled; default invite-only", and `src/config/config.go`
-implements four modes (`open`, `invite`, `admin_only`, `disabled`), defaulting
-to `invite` and demoting `private` to a legacy alias.
-
-There is no `SPEC.md`, so nothing formally overrides AI.md here. Until the
-owner decides which side is authoritative, do NOT unilaterally rewrite either
-the config or IDEA.md — the rules below state the AI.md position.
+and states there is no "disabled" mode. There is no `SPEC.md` in this repo,
+so nothing overrides AI.md: it is the source of truth, and the code, tests,
+and IDEA.md have all been realigned to it. `src/config/config.go` now accepts
+only `open` and `private` (default `open`); the old `invite`, `admin_only`,
+and `disabled` modes are rejected, and IDEA.md line 280 records the same
+two-mode policy.
 
 ## CRITICAL - NEVER DO
 
