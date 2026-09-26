@@ -615,31 +615,9 @@ func main() {
 		MaxAge: int((24 * time.Hour).Seconds()),
 	}).Handler)
 
-	// Global rate limiting middleware (100 req/s)
-	r.Use(middleware.GlobalRateLimitMiddleware())
-
-	// AI.md PART 12: mutating requests (POST/PUT/PATCH/DELETE) draw from the
-	// separate write bucket; safe methods pass through untouched.
-	r.Use(middleware.WriteRateLimitMiddleware())
-
-	// AI.md PART 12 Read endpoint class (120 req/min per IP) for safe
-	// requests on routes that are not otherwise covered by a narrower bucket.
-	r.Use(middleware.ReadRateLimitMiddleware())
-
-	// Server context middleware - injects server title/tagline/description
-	r.Use(middleware.InjectServerContext(db.DB, Version))
-
-	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
-	// AdminSetupRequired middleware applied to admin routes only (see admin route group below)
-
-	// Restrict admin users to only access /admin routes - all other routes treat them as anonymous
-	r.Use(middleware.RestrictAdminToAdminRoutes())
-
-	// Path normalization handled by middleware.URLNormalizeMiddleware() and middleware.PathSecurityMiddleware()
-
 	// Forward-declared so the middleware closures below (registered before any
 	// route, per chi's "all middlewares must be defined before routes on a
-	// mux" constraint) can close over them by reference; both are assigned
+	// mux" constraint) can close over them by reference; all are assigned
 	// further down, before any request can actually reach the closures.
 	var i18nService *i18n.I18n
 	var tmpl *template.Template
@@ -669,6 +647,12 @@ func main() {
 
 	// I18n middleware - per AI.md PART 31 fallback chain:
 	// ?lang= query param (sets 1yr cookie) → lang cookie → Accept-Language → en
+	//
+	// Registered ahead of the rate limiters below (but still ahead of session,
+	// auth and CSRF) so a throttled request's 429 body is translated into the
+	// language that request asked for, per AI.md PART 31's "every human-readable
+	// string" rule. It reads only the request's own headers/cookie, so hoisting
+	// it above the limiters weakens no check.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lang := ""
@@ -708,6 +692,28 @@ func main() {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
+
+	// Global rate limiting middleware (100 req/s)
+	r.Use(middleware.GlobalRateLimitMiddleware())
+
+	// AI.md PART 12: mutating requests (POST/PUT/PATCH/DELETE) draw from the
+	// separate write bucket; safe methods pass through untouched.
+	r.Use(middleware.WriteRateLimitMiddleware())
+
+	// AI.md PART 12 Read endpoint class (120 req/min per IP) for safe
+	// requests on routes that are not otherwise covered by a narrower bucket.
+	r.Use(middleware.ReadRateLimitMiddleware())
+
+	// Server context middleware - injects server title/tagline/description
+	r.Use(middleware.InjectServerContext(db.DB, Version))
+
+	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
+	// AdminSetupRequired middleware applied to admin routes only (see admin route group below)
+
+	// Restrict admin users to only access /admin routes - all other routes treat them as anonymous
+	r.Use(middleware.RestrictAdminToAdminRoutes())
+
+	// Path normalization handled by middleware.URLNormalizeMiddleware() and middleware.PathSecurityMiddleware()
 
 	// Initialization check middleware - show loading page if not ready.
 	// Relocated here (from its original position, thousands of lines and many
@@ -1406,11 +1412,12 @@ func main() {
 	handler.SetBuildInfo(Version, BuildDate, CommitID)
 
 	// Health check endpoints (AI.md PART 13)
+	// These four routes are the complete set: AI.md's route table lists
+	// /server/healthz, the opt-in /healthz root alias, /api/{api_version}/server/healthz
+	// and the unversioned /api/healthz, and nothing else. registerHealthRoutes
+	// mounts exactly those, so no health route is registered here.
 	registerHealthRoutes(r, cfg.GetAPIPath(), cfg.IsHealthzRootAliasEnabled(),
 		handler.HealthCheck(db, startTime), handler.APIHealthCheck(db, startTime))
-	r.Get("/health", handler.LivenessCheck)
-	r.Get("/health/ready", handler.ReadinessCheck(db, startTime))
-	r.Get("/health/full", handler.FullHealthCheck(db, startTime))
 
 	// Metrics endpoints (AI.md PART 21) - internal only, per-service bearer tokens
 	prometheusMetricsHandler := handler.NewMetricsHandler(cfg.Server.Metrics, dirPaths.Log)

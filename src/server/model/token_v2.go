@@ -146,6 +146,17 @@ type TokenModelV2 struct {
 	DB *sql.DB
 }
 
+// getDB returns the DB handle this model was constructed with. Fallback to
+// database.GetUsersDB() when the injected handle is nil (unit tests, or
+// construction before the global dual DB is wired).
+func (m *TokenModelV2) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // CreateToken creates a new token per TEMPLATE.md PART 11
 func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope string, expiration time.Duration) (*Token, error) {
 	// Validate owner type
@@ -181,7 +192,7 @@ func (m *TokenModelV2) CreateToken(ownerType string, ownerID int64, name, scope 
 	}
 
 	// Insert into database
-	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_tokens (user_id, name, token_hash, token_prefix, scopes, expires_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, ownerID, name, tokenHash, tokenPrefix, scope, expiresAt, time.Now())
@@ -228,7 +239,7 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 	var name sql.NullString
 	var scopes sql.NullString
 
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, token_hash, token_prefix, scopes, expires_at, last_used_at, created_at
 		FROM user_tokens
 		WHERE token_hash = ?
@@ -266,7 +277,7 @@ func (m *TokenModelV2) ValidateToken(token string) (*Token, error) {
 
 // UpdateLastUsed updates the last_used_at timestamp
 func (m *TokenModelV2) UpdateLastUsed(tokenID int64) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_tokens SET last_used_at = ?
 		WHERE id = ?
 	`, time.Now(), tokenID)
@@ -279,7 +290,7 @@ func (m *TokenModelV2) ListTokens(ownerType string, ownerID int64) ([]*Token, er
 		return nil, fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
 	}
 
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, token_prefix, scopes, expires_at, last_used_at, created_at
 		FROM user_tokens
 		WHERE user_id = ?
@@ -330,7 +341,7 @@ func (m *TokenModelV2) DeleteToken(id int64, ownerType string, ownerID int64) er
 		return fmt.Errorf("owner type %s is not stored in user_tokens", ownerType)
 	}
 
-	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		DELETE FROM user_tokens
 		WHERE id = ? AND user_id = ?
 	`, id, ownerID)
@@ -363,7 +374,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	var name sql.NullString
 	var scopes sql.NullString
 
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, scopes, expires_at, created_at
 		FROM user_tokens
 		WHERE id = ? AND user_id = ?
@@ -392,7 +403,7 @@ func (m *TokenModelV2) RotateToken(id int64, ownerType string, ownerID int64) (*
 	tokenPrefix := GetTokenPrefix(fullToken)
 
 	// Update token
-	_, err = database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_tokens
 		SET token_hash = ?, token_prefix = ?, last_used_at = NULL
 		WHERE id = ?

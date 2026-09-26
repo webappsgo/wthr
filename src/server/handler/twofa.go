@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/webappsgo/wthr/src/server/middleware"
@@ -284,7 +285,8 @@ func (h *TwoFactorHandler) SetupTwoFactor(w http.ResponseWriter, r *http.Request
 			BadRequest(w, r, Translate(r, "errors.twofa.two_factor_authentication_is_already_enabled"))
 			return
 		}
-		InternalError(w, r, err.Error())
+		log.Printf("twofa setup error: %v", err)
+		InternalError(w, r, Translate(r, "errors.twofa.failed_to_prepare_setup"))
 		return
 	}
 
@@ -328,11 +330,16 @@ func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Reques
 
 	response, err := h.enableCurrentUserTwoFactor(user, req.Secret, req.Code)
 	if err != nil {
-		if err.Error() == "two-factor authentication is already enabled" || err.Error() == "invalid verification code" {
-			BadRequest(w, r, err.Error())
+		if err.Error() == "two-factor authentication is already enabled" {
+			BadRequest(w, r, Translate(r, "errors.twofa.two_factor_authentication_is_already_enabled"))
 			return
 		}
-		InternalError(w, r, err.Error())
+		if err.Error() == "invalid verification code" {
+			BadRequest(w, r, Translate(r, "errors.twofa.invalid_verification_code"))
+			return
+		}
+		log.Printf("twofa enable error: %v", err)
+		InternalError(w, r, Translate(r, "errors.twofa.failed_to_enable_two_factor"))
 		return
 	}
 
@@ -373,13 +380,14 @@ func (h *TwoFactorHandler) DisableTwoFactor(w http.ResponseWriter, r *http.Reque
 	if err := h.disableCurrentUserTwoFactor(user, req.Password); err != nil {
 		switch err.Error() {
 		case "two-factor authentication is not enabled":
-			BadRequest(w, r, err.Error())
+			BadRequest(w, r, Translate(r, "errors.twofa.two_factor_authentication_is_not_enabled"))
 			return
 		case "invalid password":
-			Unauthorized(w, r, err.Error())
+			Unauthorized(w, r, Translate(r, "errors.twofa.invalid_password"))
 			return
 		default:
-			InternalError(w, r, err.Error())
+			log.Printf("twofa disable error: %v", err)
+			InternalError(w, r, Translate(r, "errors.twofa.failed_to_disable_two_factor"))
 			return
 		}
 	}
@@ -419,7 +427,8 @@ func (h *TwoFactorHandler) VerifyTwoFactorCode(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := h.verifyCurrentUserTwoFactorCode(user, req.Code); err != nil {
-		BadRequest(w, r, err.Error())
+		log.Printf("twofa verify code error: %v", err)
+		BadRequest(w, r, Translate(r, "errors.twofa.failed_to_verify_code"))
 		return
 	}
 
@@ -458,11 +467,16 @@ func (h *TwoFactorHandler) RegenerateRecoveryKeys(w http.ResponseWriter, r *http
 
 	response, err := h.regenerateCurrentUserRecoveryKeys(user, req.Code)
 	if err != nil {
-		if err.Error() == "two-factor authentication is not enabled" || err.Error() == "invalid verification code" {
-			BadRequest(w, r, err.Error())
+		if err.Error() == "two-factor authentication is not enabled" {
+			BadRequest(w, r, Translate(r, "errors.twofa.two_factor_authentication_is_not_enabled"))
 			return
 		}
-		InternalError(w, r, err.Error())
+		if err.Error() == "invalid verification code" {
+			BadRequest(w, r, Translate(r, "errors.twofa.invalid_verification_code"))
+			return
+		}
+		log.Printf("twofa regenerate recovery keys error: %v", err)
+		InternalError(w, r, Translate(r, "errors.twofa.failed_to_regenerate_recovery_keys"))
 		return
 	}
 

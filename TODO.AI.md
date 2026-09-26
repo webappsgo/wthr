@@ -12,7 +12,20 @@ before starting each item — do not rely on memory.
     model with a nil handle no longer panics; nil-handle coverage added in
     `settings_test.go` / `user_test.go`.
 
-61. BLOCKED (upstream, 2026-09-24) - CI GOVULNCHECK FAILURE FROM STALE GO TOOLCHAIN IN
+61. RESOLVED (2026-09-26, cleared upstream as predicted): the pinned-to-
+    floating `casjaysdev/go:latest` image has since been rebuilt and now ships
+    Go 1.27.0, past the 1.26.6 release that carried the fixes for
+    GO-2026-6218, GO-2026-6091, GO-2026-6090, GO-2026-6089, GO-2026-6088,
+    GO-2026-5972 and GO-2026-5026. Verified rather than assumed: `go version`
+    reports go1.27.0 and `govulncheck ./...` against that image exits 0 with
+    "No vulnerabilities found / Your code is affected by 0 vulnerabilities".
+    The remaining advisory hits (2 in imported packages, 3 in required modules)
+    are unreachable from this code's call graph, which is what govulncheck
+    reports as "your code doesn't appear to call these vulnerabilities". No
+    workaround was added to this repo, as CLAUDE.md requires the image to stay
+    floating. The `ci.yml` `vuln-scan` job should now pass.
+
+    (Originally BLOCKED upstream 2026-09-24) - CI GOVULNCHECK FAILURE FROM STALE GO TOOLCHAIN IN
     `casjaysdev/go:latest` (flagged 2026-08-13, pre-existing, not caused
     by any recent commit - confirmed identical failure on commit
     `2ea3c8dffee8` (unrelated "Spec: Updated the SPEC for Servers"
@@ -89,7 +102,7 @@ before starting each item — do not rely on memory.
     real help route is `/server/{admin_path}/config/pages/help`, which is
     what `src/main.go:2430` registers. The implementation is correct as-is.
 
-106. TODO (flagged 2026-08-21 by the notification DB-handle fix): three
+106. RESOLVED (flagged 2026-08-21 by the notification DB-handle fix): three
     services store an injected `*sql.DB` that is never read —
     `DeliverySystem.db` (`src/server/service/delivery_system.go:50`),
     `SMTPService.db` (`src/server/service/smtp.go:54`) and
@@ -157,7 +170,7 @@ before starting each item — do not rely on memory.
     AI.md PART 22 — clears the admin credentials and prints a one-time setup
     token for re-authentication, leaving all user data untouched.
 
-147. TODO (found 2026-08-21 while closing item 133):
+147. RESOLVED (found 2026-08-21 while closing item 133):
     `src/scheduler/scheduler.go` writes `server_cve_alerts.published_at`
     straight from the NVD API's `published` JSON string (RFC-3339-ish with
     fractional seconds, e.g. `2024-01-15T10:30:00.000`), not canonical
@@ -196,7 +209,7 @@ before starting each item — do not rely on memory.
     Nothing else in the repo references `server_cve_alerts`, so no reader
     needed updating alongside the rename.
 
-138. TODO (flagged 2026-08-21 by the timestamp conversion agents): several
+138. RESOLVED (flagged 2026-08-21 by the timestamp conversion agents): several
     test fixtures build their "wrong zone" timestamps with
     `time.FixedZone("EST13", ...)` (or `"FARWEST"`/`"FAREAST"`). Formatted
     through a layout carrying the `MST` element, those produce text that
@@ -242,7 +255,26 @@ before starting each item — do not rely on memory.
     `RPDisplayName: "Weather"` is a WebAuthn relying-party name, not
     user-facing text, and was left as-is.
 
-176. TODO (flagged 2026-08-31 during a code-review pass on unrelated
+176. RESOLVED (2026-09-26): `TrustedGetHostFromRequest` exists in
+    `src/util/trusted_proxies.go` alongside `TrustedGetClientIP` and
+    `TrustedIsHTTPS`, reusing the same `isTrustedPeer()` gate. It honors
+    `X-Forwarded-Host`/`X-Real-Host`/`X-Original-Host` (in that order) only
+    for a trusted immediate peer; an untrusted peer's headers are dropped and
+    `GetFQDN()` is used directly. Tor/I2P overlay hosts still bypass the gate
+    at priority 0 per PART 32, and a nil request returns "" rather than
+    panicking. The ungated `GetHostFromRequest` now has zero non-test call
+    sites; the two security-relevant consumers — `BuildURL` in
+    `src/util/host.go:53` and the current-URL helper in
+    `src/util/template_helpers.go:137` — both call the gated variant. The
+    remaining `GetHostFromRequest` references in `src/util/host_test.go`
+    test that function directly, which is correct. Coverage mirrors the
+    `TrustedGetClientIP` shape: `_TrustedPeerHonorsHeaders`,
+    `_UntrustedPeerIgnoresHeaders`, `_TrustedPeerHeaderPriority`,
+    `_OverlayBypassesGate` and `_NilRequest` in
+    `src/util/trusted_proxies_test.go`. Read: AI.md PART 5, PART 12.
+
+    (Originally flagged 2026-08-31 during a code-review pass on unrelated
+    open-redirect-guard cleanup): `util.GetHostFromRequest`
     open-redirect-guard cleanup): `util.GetHostFromRequest`
     (`src/util/host.go` lines 71-92) honors `X-Forwarded-Host`/
     `X-Real-Host`/`X-Original-Host` from every caller unconditionally,
@@ -372,40 +404,43 @@ before starting each item — do not rely on memory.
     completed (OSM Nominatim, GeoNames, DB-IP, NRO, and the severe-alert
     agencies) as a translated key rather than a hardcoded slice.
 
-180. TODO (flagged 2026-09-24 during item 93): `src/server/template/template_editor.tmpl`
-    documents a `{{$apiPath}}/server/templates` REST API (list/detail/variables/
-    create/update endpoints) that does not exist. The real token-auth template
-    routes are mounted at `/config/templates` (`src/main.go:3759-3767`,
-    `templateHandler.ListTemplates`/`GetTemplate`/`GetTemplateVariables`/
-    `CreateTemplate`/`UpdateTemplate`), and there is no `/server/templates`
-    route anywhere in `src/main.go`. The page's endpoint reference block is
-    therefore wrong and its "empty state" never lists real templates. Either
-    wire the page to the real `/config/templates` API or remove the stale
-    endpoint documentation. Read: AI.md PART 14, 17.
+180. RESOLVED (2026-09-25): `src/server/template/template_editor.tmpl` endpoint
+    reference block updated from stale `{{$apiPath}}/server/templates` routes to
+    `/config/templates`, matching `src/main.go:3847-3855`.
 
-181. TODO (flagged 2026-09-24 during the final compliance sweep): raw
-    `err.Error()` values are still passed into HTTP responses at
-    `src/server/handler/twofa.go:146,287,332,378` and
-    `src/server/handler/admin_ssl.go:123,131,170,187,316`. These can leak
-    internal error chains/SQL text to the client (PART 9/11). Replace each
-    with a translated `errors.*` key via the `RespondError`-family helpers
-    and log the raw error instead. Read: AI.md PART 9, 11, 31.
+181. RESOLVED (2026-09-26): every raw `err.Error()` that reached an HTTP
+    response body in `twofa.go` and `admin_ssl.go` now goes through a
+    translated `errors.*` key, with the raw error written to the server log
+    via `log.Printf` instead. Response paths take only `Translate(r, key)`;
+    no handler interpolates an internal error chain or SQL text into a
+    client-visible payload (PART 9/11). The `err.Error()` calls that remain in
+    `twofa.go` are `switch`/`==` comparisons against known sentinel strings
+    inside the handler, never response content, so they are not leaks. Nine
+    new keys were added to `en.json` (`errors.twofa.*`) and translated into
+    all six other locales (ar/de/es/fr/ja/zh) so the i18n key-parity test in
+    `src/common/i18n/i18n_test.go` holds. `go test ./src/...` passes.
 
-182. TODO (flagged 2026-09-24 during the final compliance sweep): direct
-    `m.DB` dereferences remain outside the accessor pattern item 40
-    established — `src/server/model/location.go:27`,
-    `src/server/model/token_v2.go:146`,
-    `src/server/model/notification_model.go:13`, and
-    `src/server/model/notification.go`. Route each through a `getDB()`
-    accessor (injected handle, fall back to the global dual-DB accessor)
-    matching the pattern in `user.go:164-182` / `settings.go`. Read: AI.md
-    PART 10.
+182. RESOLVED (2026-09-26): every DB-holding model now reaches its handle
+    through an accessor, so a nil injected handle degrades to the process
+    global instead of panicking. `getDB()` added to `LocationModel` and
+    `TokenModelV2` (`model/location.go`, `model/token_v2.go`),
+    `NotificationModel` (`model/notification_model.go`), and both single-DB
+    models in `model/notification.go` (`UserNotificationModel` ->
+    `GetUsersDB`, `AdminNotificationModel` -> `GetServerDB`).
+    `NotificationPreferencesModel` spans both databases by design
+    (`user_notification_preferences` is in `UsersSchema`,
+    `server_admin_notification_preferences` in `ServerSchema`), so it got
+    two accessors, `getUserDB()` and `getServerDB()`, rather than one
+    ambiguous fallback. Fallback DBs were assigned from the actual schema
+    declarations in `src/database/*_schema.go`, not from the table in
+    AI.md:12176-12181, which is stale for `admins` (those rows live in
+    `server.db`). A generated sweep confirms no struct holding a `*sql.DB`
+    lacks an accessor, the sole exception being a test fixture. `go build`,
+    `go vet`, and `go test ./src/...` all pass. Read: AI.md PART 10.
 
-183. TODO (flagged 2026-09-24 during the final compliance sweep):
-    `LICENSE.md:208-211` still claims the project sets "No cookies", which
-    is stale — flash, admin-nav, session, and theme cookies are all set.
-    `LICENSE.md:256-258` also carries a stale version/date. Correct both so
-    the file reflects the shipped behavior. Read: AI.md PART 2.
+183. RESOLVED (2026-09-25): `LICENSE.md` Cookies section updated to list actual
+    cookies (theme, admin_session, location), version bumped 1.0 -> 1.1, and Last
+    Updated date corrected to 2026.
 
 184. RESOLVED (2026-09-24): a background security review flagged
     `src/server/middleware/ratelimit.go` as failing open when
@@ -467,3 +502,27 @@ before starting each item — do not rely on memory.
     is the converter-generated break the implementation now relies on.
     Read: AI.md PART 14 ("HTTP tools (curl, wget) -> Formatted text
     (`HTML2TextConverter()`)").
+
+187. RESOLVED (2026-09-26): three health routes were served that AI.md does
+    not define. `src/main.go` registered `/health` (LivenessCheck),
+    `/health/ready` (ReadinessCheck) and `/health/full` (FullHealthCheck) on
+    top of the canonical set. AI.md's route table (PART 13, lines 2307-2317)
+    lists exactly four health routes: `/server/healthz`, the opt-in `/healthz`
+    root alias, `/api/{api_version}/server/healthz`, and `/api/healthz` — the
+    three legacy routes appear nowhere in the spec. They were removed, along
+    with the now-unreferenced `LivenessCheck`, `ReadinessCheck` and
+    `FullHealthCheck` handler funcs in `src/server/handler/health.go` and
+    their tests in `health_test.go`. Nothing depended on them: the repo's
+    compose healthchecks call `wthr --status`, and AI.md's own Kubernetes
+    `livenessProbe` example (line 13304) probes `/server/healthz`, not
+    `/health`. `docs/security.md` listed all three under "Well-Known &
+    Public Endpoints" and now documents the canonical four instead;
+    `src/util/robots_meta_test.go` had a `/health` case replaced with the
+    `/healthz` and `/api/healthz` aliases. Regression guard added as
+    `TestRegisterHealthRoutesHasNoUndocumentedRoutes`, which fails if any
+    route outside AI.md's documented set is ever registered again.
+    Note: AI.md's rate-limit "Health / status" rows (lines 4636, 18681) name
+    `/readyz` and `/livez` as members of that budget class, but the route table
+    never defines them; the route table is the authoritative inventory, so no
+    such routes were added.
+    Read: AI.md PART 13.

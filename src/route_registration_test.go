@@ -79,6 +79,41 @@ func TestRegisterHealthRoutes(t *testing.T) {
 	})
 }
 
+// TestRegisterHealthRoutesHasNoUndocumentedRoutes pins the health route set to
+// the four paths AI.md's route table lists (PART 13): /server/healthz, the
+// versioned API counterpart, /api/healthz, and the config-gated /healthz root
+// alias. AI.md names no other health route, so registerHealthRoutes must not
+// grow one - an earlier revision mounted /health, /health/ready and
+// /health/full here, none of which the spec defines. This test fails if any
+// health-looking route outside the documented set is added.
+func TestRegisterHealthRoutesHasNoUndocumentedRoutes(t *testing.T) {
+	frontend := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("frontend")) }
+	api := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("api")) }
+
+	documented := map[string]bool{
+		"GET /server/healthz":        true,
+		"GET /api/v1/server/healthz": true,
+		"GET /api/healthz":           true,
+		"GET /healthz":               true,
+	}
+
+	for _, rootAlias := range []bool{false, true} {
+		r := chi.NewRouter()
+		registerHealthRoutes(r, "/api/v1", rootAlias, frontend, api)
+
+		for route := range routeMethodPaths(r) {
+			if documented[route] {
+				continue
+			}
+			// Any route this function registers that is not in AI.md's table
+			// is a spec violation, whether or not the name looks health-ish.
+			t.Errorf("registerHealthRoutes registered undocumented route %q "+
+				"(rootAlias=%t); AI.md PART 13 defines only the four documented health routes",
+				route, rootAlias)
+		}
+	}
+}
+
 // TestRegisterGraphQLRoutes covers AI.md PART 14: the API-path GraphQL alias
 // must mount the same handlers as /graphql instead of redirecting to it.
 func TestRegisterGraphQLRoutes(t *testing.T) {

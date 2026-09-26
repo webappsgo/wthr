@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -330,9 +331,11 @@ func TestRateLimitResponse_RetryAfterHeader(t *testing.T) {
 }
 
 // TestRateLimitMiddleware_CanonicalRejectionShape verifies the 429 response
-// body follows AI.md PART 9/14: canonical error shape ({"ok":false,
-// "error":"RATE_LIMITED"}) plus a Retry-After header carrying the retry
-// timing, and NO ad-hoc top-level body fields (no retry_after in the body).
+// body follows AI.md PART 12, which names this exact shape: the canonical
+// PART 9/14 error envelope ({"ok":false,"error":"RATE_LIMITED"}) plus a
+// top-level "retry_after" field, carried alongside the Retry-After header.
+// PART 14's general ban on ad-hoc top-level body fields does not apply here —
+// the more specific rate-limit section governs its own response shape.
 func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
 	ip := uniqueTestIP()
 
@@ -355,8 +358,9 @@ func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
 	if w.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429", w.Code)
 	}
-	if got := w.Header().Get("Retry-After"); got == "" {
-		t.Errorf("Retry-After header missing; retry timing must be a header, not a body field")
+	retryHeader := w.Header().Get("Retry-After")
+	if retryHeader == "" {
+		t.Fatal("Retry-After header missing on the 429")
 	}
 
 	var body map[string]interface{}
@@ -369,13 +373,26 @@ func TestRateLimitMiddleware_CanonicalRejectionShape(t *testing.T) {
 	if got, _ := body["error"].(string); got != "RATE_LIMITED" {
 		t.Errorf("body[\"error\"] = %q, want \"RATE_LIMITED\"", got)
 	}
-	if _, present := body["retry_after"]; present {
-		t.Errorf("body must not carry ad-hoc retry_after field; use the Retry-After header")
+	// AI.md PART 12 requires the retry window in BOTH carriers: the header
+	// and a top-level retry_after field. They must agree.
+	bodyRetry, present := body["retry_after"]
+	if !present {
+		t.Fatal("body missing the retry_after field required by AI.md PART 12")
+	}
+	seconds, ok := bodyRetry.(float64)
+	if !ok {
+		t.Fatalf("body[\"retry_after\"] = %#v, want a JSON number", bodyRetry)
+	}
+	if got, want := strconv.Itoa(int(seconds)), retryHeader; got != want {
+		t.Errorf("body retry_after = %s, Retry-After header = %s; the two must carry the same window", got, want)
+	}
+	if want := resolveRateLimitBuckets().RegistrationT; time.Duration(int(seconds)*int(time.Second)) != want {
+		t.Errorf("body retry_after = %ds, want the bucket window %v", int(seconds), want)
 	}
 }
 
 // TestGlobalRateLimitMiddleware_AllowsWithinBurst is a smoke test that the
-// global limiter (GlobalRPS=100/GlobalBurst=200) does not reject ordinary,
+// global limiter (GlobalBurst=240 per AI.md PART 12) does not reject ordinary,
 // low-volume traffic.
 func TestGlobalRateLimitMiddleware_AllowsWithinBurst(t *testing.T) {
 	ip := uniqueTestIP()
@@ -391,5 +408,74 @@ func TestGlobalRateLimitMiddleware_AllowsWithinBurst(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+// TestRateLimitMiddleware_LiveReloadsConfigChange verifies the AI.md PART 5
+// live-reload requirement: a rate limit changed at runtime takes effect
+// without rebuilding the router or restarting the process.
+//
+// This is the regression test for the real bug the rework fixed. chi evaluates
+// r.Use() exactly once at registration, so the previous implementation — which
+// captured the limiter, the limit, and the window when the middleware
+// constructor ran — kept enforcing the configuration that was live at startup
+// forever. The middleware now resolves the buckets inside the request handler
+// and rebuilds the cached limiter set when the resolved config differs, so the
+// very same router enforces the new limit.
+func TestRateLimitMiddleware_LiveReloadsConfigChange(t *testing.T) {
+	original := config.GetGlobalConfig()
+	t.Cleanup(func() { config.SetGlobalConfig(original) })
+
+	setWriteLimit := func(requests int) {
+		config.SetGlobalConfig(&config.AppConfig{
+			Server: config.ServerConfig{
+				RateLimit: config.RateLimitConfig{
+					Enabled: true,
+					Write:   config.RateLimitBucket{Requests: requests, Window: 60},
+				},
+			},
+		})
+	}
+
+	// One router, built once, reused for both phases. If the limit were still
+	// captured at registration time, phase two would enforce the phase-one
+	// value and this test would fail.
+	router := chi.NewRouter()
+	router.Use(WriteRateLimitMiddleware())
+	router.Post("/server/config", rateLimitOKHandler)
+
+	// exhaust sends limit+1 POSTs from one IP and returns the status of the
+	// last one: 200 while within budget, 429 once the limit is exceeded.
+	exhaust := func(limit int) int {
+		ip := uniqueTestIP()
+		last := 0
+		for i := 0; i <= limit; i++ {
+			req := httptest.NewRequest(http.MethodPost, "/server/config", nil)
+			req.RemoteAddr = ip
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			last = w.Code
+		}
+		return last
+	}
+
+	setWriteLimit(2)
+	if got := exhaust(2); got != http.StatusTooManyRequests {
+		t.Fatalf("with write limit 2, the third request returned %d, want 429", got)
+	}
+
+	// Live reload: the same router must now honor the new limit. A single
+	// request is enough because the new limit of 1 rejects the second one.
+	setWriteLimit(1)
+	if got := exhaust(1); got != http.StatusTooManyRequests {
+		t.Errorf("after lowering the write limit to 1, the second request returned %d, want 429 "+
+			"— the change did not reach the already-registered router", got)
+	}
+
+	// And raising it must be honored too, proving the cache is not simply
+	// re-frozen at the first configuration it happens to observe.
+	setWriteLimit(3)
+	if got := exhaust(3); got != http.StatusTooManyRequests {
+		t.Errorf("with write limit 3, the fourth request returned %d, want 429", got)
 	}
 }

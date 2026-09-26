@@ -135,9 +135,9 @@ Audit logs are append-only and never contain raw credentials or tokens.
 | Path | Purpose |
 |------|---------|
 | `/.well-known/acme-challenge/` | Let's Encrypt HTTP-01 ACME challenge (automatic TLS) |
-| `/health` | Liveness probe — returns 200 OK when the process is alive |
-| `/health/ready` | Readiness probe — returns 200 when all dependencies are ready |
-| `/health/full` | Full status JSON — safe for external monitoring |
+| `/server/healthz` | Health status — content-negotiated (HTML for browsers, JSON for API clients, text for CLI) |
+| `/api/{api_version}/server/healthz` | API health status — JSON by default, text via standard API text rules |
+| `/api/healthz` | Unversioned alias for machine-friendly versionless probing |
 | `/metrics` | Prometheus-compatible metrics (configurable auth) |
 
 ---

@@ -65,7 +65,8 @@ func TestRobotsMetaForPath(t *testing.T) {
 		{"debug vars", "/debug/vars", RobotsNoIndexNoFollow},
 		{"debug ip", "/debug/ip", RobotsNoIndexNoFollow},
 		{"healthz", "/server/healthz", RobotsNoIndexNoFollow},
-		{"health", "/health", RobotsNoIndexNoFollow},
+		{"healthz root alias", "/healthz", RobotsNoIndexNoFollow},
+		{"healthz unversioned alias", "/api/healthz", RobotsNoIndexNoFollow},
 		{"metrics", "/metrics", RobotsNoIndexNoFollow},
 
 		// Error pages

@@ -27,9 +27,20 @@ type LocationModel struct {
 	DB *sql.DB
 }
 
+// getDB returns the DB handle this model was constructed with. Fallback to
+// database.GetUsersDB() when the injected handle is nil (unit tests, or
+// construction before the global dual DB is wired).
+func (m *LocationModel) getDB() *sql.DB {
+	if m.DB != nil {
+		return m.DB
+	}
+
+	return database.GetUsersDB()
+}
+
 // CreateSavedLocation creates a new saved location
 func (m *LocationModel) CreateSavedLocation(userID int, name string, latitude, longitude float64, timezone string) (*SavedLocation, error) {
-	result, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	result, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		INSERT INTO user_saved_locations (user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, userID, name, latitude, longitude, timezone, true, time.Now(), time.Now())
@@ -51,7 +62,7 @@ func (m *LocationModel) GetByID(id int) (*SavedLocation, error) {
 	location := &SavedLocation{}
 	var timezone sql.NullString
 
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at
 		FROM user_saved_locations WHERE id = ?
 	`, id).Scan(&location.ID, &location.UserID, &location.Name, &location.Latitude,
@@ -73,7 +84,7 @@ func (m *LocationModel) GetByID(id int) (*SavedLocation, error) {
 
 // GetByUserID retrieves all locations for a user
 func (m *LocationModel) GetByUserID(userID int) ([]*SavedLocation, error) {
-	rows, err := database.QueryContext(context.Background(), m.DB, database.TimeoutSimpleSelect, `
+	rows, err := database.QueryContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, user_id, name, latitude, longitude, timezone, alerts_enabled, created_at, updated_at
 		FROM user_saved_locations WHERE user_id = ?
 		ORDER BY created_at DESC
@@ -103,7 +114,7 @@ func (m *LocationModel) GetByUserID(userID int) ([]*SavedLocation, error) {
 
 // UpdateSavedLocation updates a location
 func (m *LocationModel) UpdateSavedLocation(id int, name string, latitude, longitude float64, timezone string, alertsEnabled bool) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_saved_locations
 		SET name = ?, latitude = ?, longitude = ?, timezone = ?, alerts_enabled = ?, updated_at = ?
 		WHERE id = ?
@@ -113,7 +124,7 @@ func (m *LocationModel) UpdateSavedLocation(id int, name string, latitude, longi
 
 // ToggleAlerts toggles alerts for a location
 func (m *LocationModel) ToggleAlerts(id int, enabled bool) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, `
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
 		UPDATE user_saved_locations SET alerts_enabled = ?, updated_at = ?
 		WHERE id = ?
 	`, enabled, time.Now(), id)
@@ -122,13 +133,13 @@ func (m *LocationModel) ToggleAlerts(id int, enabled bool) error {
 
 // DeleteSavedLocation deletes a location
 func (m *LocationModel) DeleteSavedLocation(id int) error {
-	_, err := database.ExecContext(context.Background(), m.DB, database.TimeoutWrite, "DELETE FROM user_saved_locations WHERE id = ?", id)
+	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, "DELETE FROM user_saved_locations WHERE id = ?", id)
 	return err
 }
 
 // Count returns the number of locations for a user
 func (m *LocationModel) Count(userID int) (int, error) {
 	var count int
-	err := database.QueryRowContext(context.Background(), m.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations WHERE user_id = ?", userID).Scan(&count)
+	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations WHERE user_id = ?", userID).Scan(&count)
 	return count, err
 }

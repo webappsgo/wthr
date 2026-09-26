@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -120,7 +121,8 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	// Initialize Let's Encrypt service if not already initialized
 	if h.leService == nil {
 		if err := h.InitLetsEncrypt(request.Email, request.Staging); err != nil {
-			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service")+": "+err.Error())
+			log.Printf("ssl init error: %v", err)
+			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_initialize_lets_encrypt_service"))
 			return
 		}
 	}
@@ -128,7 +130,8 @@ func (h *SSLHandler) ObtainCertificate(w http.ResponseWriter, r *http.Request) {
 	// Obtain certificate
 	cert, err := h.leService.ObtainCertificate(request.Domain, request.AltNames, request.ChallengeType)
 	if err != nil {
-		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_obtain_certificate")+": "+err.Error())
+		log.Printf("ssl obtain cert error: %v", err)
+		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_obtain_certificate"))
 		return
 	}
 
@@ -167,7 +170,8 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	if !request.Force {
 		needsRenewal, daysRemaining, err := h.leService.CheckRenewal(request.Domain)
 		if err != nil {
-			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_check_renewal_status")+": "+err.Error())
+			log.Printf("ssl check renewal error: %v", err)
+			InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_check_renewal_status"))
 			return
 		}
 
@@ -184,7 +188,8 @@ func (h *SSLHandler) RenewCertificate(w http.ResponseWriter, r *http.Request) {
 	// Renew certificate
 	cert, err := h.leService.RenewCertificate(request.Domain, request.ChallengeType)
 	if err != nil {
-		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_renew_certificate")+": "+err.Error())
+		log.Printf("ssl renew error: %v", err)
+		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_renew_certificate"))
 		return
 	}
 
@@ -313,7 +318,8 @@ func (h *SSLHandler) RevokeCertificate(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke certificate
 	if err := h.leService.RevokeCertificate(request.Domain); err != nil {
-		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_revoke_certificate")+": "+err.Error())
+		log.Printf("ssl revoke error: %v", err)
+		InternalError(w, r, Translate(r, "errors.admin.ssl.failed_to_revoke_certificate"))
 		return
 	}
 

@@ -206,9 +206,11 @@ Powered by Console Weather Service
 - No tracking or analytics
 
 ### Cookies and Storage
-- No cookies are set by this service
-- No user data is stored
+- Theme cookie persists UI preferences (light/dark mode)
+- Admin session cookie for authenticated admin sessions
+- Location cookies store user latitude/longitude/name for geolocation features
 - No third-party tracking scripts
+- No user data is stored beyond what the cookies hold
 
 ## Disclaimer
 
@@ -253,8 +255,8 @@ Special thanks to:
 
 ## Updates
 
-- **Last Updated**: 2024
-- **License Version**: 1.0
+- **Last Updated**: 2026
+- **License Version**: 1.1
 - **Go Version**: 2.0.0
 
 ---
