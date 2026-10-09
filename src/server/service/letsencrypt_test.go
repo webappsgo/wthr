@@ -370,7 +370,7 @@ func TestLoadOrCreateUser(t *testing.T) {
 		if !ok1 || !ok2 {
 			t.Fatal("expected ecdsa.PrivateKey types")
 		}
-		if key1.D.Cmp(key2.D) != 0 {
+		if !key1.Equal(key2) {
 			t.Error("expected the same private key to be reloaded, got a different key")
 		}
 	})
