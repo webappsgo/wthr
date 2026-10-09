@@ -535,7 +535,7 @@ before starting each item — do not rely on memory.
     whether plural `tests/unit/handlers` / `tests/unit/services` fall under
     the tooling-directory exception.
 
-189. BLOCKED upstream (2026-10-09): CI `vuln-scan` and `image-scan` fail on
+189. RESOLVED (2026-10-09, locally verified; CI confirmation pending on the commit that records this): casjaysdev/go:latest now ships go1.27.2 and `govulncheck ./...` reports 0 vulnerabilities affecting this code. Originally BLOCKED upstream: CI `vuln-scan` and `image-scan` fail on
     the Go standard library bundled in `casjaysdev/go:latest` (go1.27.0):
     govulncheck reports 12 stdlib advisories reachable from this code
     (net/http, net/http/internal/http2, net/textproto, crypto/tls,
