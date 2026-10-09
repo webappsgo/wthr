@@ -190,8 +190,11 @@ func TestEarthquakeHandler_renderASCIIEarthquakes(t *testing.T) {
 		if !strings.Contains(out, "Total:") {
 			t.Errorf("output missing total count: %q", out)
 		}
-		if !strings.Contains(out, "🌊") {
-			t.Errorf("output missing tsunami marker: %q", out)
+		if !strings.Contains(out, "~ = Tsunami warning") {
+			t.Errorf("output missing plain-text tsunami marker: %q", out)
+		}
+		if strings.Contains(out, "\x1b[") || strings.Contains(out, "🌊") {
+			t.Errorf("plain-text output must not carry escapes or emoji: %q", out)
 		}
 	})
 

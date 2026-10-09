@@ -168,8 +168,11 @@ func createFullAuthSession(db *sql.DB, user *models.User) (*AuthLoginResponse, e
 	}, nil
 }
 
+// requestUsesHTTPS reports whether the request reached the server over TLS.
+// X-Forwarded-Proto is honored only from a trusted proxy (AI.md PART 12),
+// so an attacker reaching the binary directly cannot influence cookie flags.
 func requestUsesHTTPS(r *http.Request) bool {
-	return r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return util.TrustedIsHTTPS(r)
 }
 
 func setUserSessionCookie(w http.ResponseWriter, r *http.Request, token string, expiresAt time.Time) {
@@ -402,7 +405,10 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
 
-	if err := util.ValidateUsername(req.Username); err != nil {
+	// Normalize username first (per AI.md PART 22: validation accepts lowercase only)
+	username := util.NormalizeUsername(req.Username)
+
+	if err := util.ValidateUsername(username); err != nil {
 		return nil, err
 	}
 	if err := util.ValidateEmail(req.Email); err != nil {
@@ -413,7 +419,7 @@ func RegisterAPIUser(db *sql.DB, req *APIRegisterRequest) (*AuthRegisterResponse
 	}
 
 	userModel := &models.UserModel{DB: db}
-	user, err := userModel.CreateUserAccount(util.NormalizeUsername(req.Username), req.Email, req.Password, "user")
+	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, "user")
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key") {
 			return nil, fmt.Errorf("username or email already exists")
@@ -936,7 +942,7 @@ func (h *AuthAPIHandler) HandleAPILogout(w http.ResponseWriter, r *http.Request)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Logged out successfully",
+		"message": Translate(r, "success.auth.logout"),
 	})
 }
 
@@ -1092,7 +1098,7 @@ func (h *AuthAPIHandler) HandleAPIVerifyEmail(w http.ResponseWriter, r *http.Req
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Email verified successfully",
+		"message": Translate(r, "success.auth.email_verified"),
 	})
 }
 
@@ -1128,7 +1134,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordForgot(w http.ResponseWriter, r *http.
 	// Per AI.md security requirements
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "If an account exists with that email, a password reset link will be sent",
+		"message": Translate(r, "success.auth.password_reset_link_sent_v2"),
 	})
 }
 
@@ -1163,7 +1169,7 @@ func (h *AuthAPIHandler) HandleAPIPasswordReset(w http.ResponseWriter, r *http.R
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Password reset successfully. Please log in with your new password.",
+		"message": Translate(r, "success.auth.password_reset_complete_v2"),
 	})
 }
 

@@ -35,7 +35,7 @@ func TestSchedulerHandler_GetAllTasks_Empty(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"count":0`) {
+	if !strings.Contains(body, `"count": 0`) {
 		t.Errorf("expected count:0 in body, got: %s", body)
 	}
 }

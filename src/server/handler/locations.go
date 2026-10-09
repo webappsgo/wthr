@@ -28,7 +28,7 @@ type LocationHandler struct {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} model.Location "List of saved locations"
+// @Success 200 {array} model.SavedLocation "List of saved locations"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /api/v1/users/locations [get]
@@ -57,7 +57,7 @@ func (h *LocationHandler) ListLocations(w http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Security BearerAuth
 // @Param id path integer true "Location ID"
-// @Success 200 {object} model.Location "Location details"
+// @Success 200 {object} model.SavedLocation "Location details"
 // @Failure 400 {object} map[string]interface{} "Invalid location ID"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 403 {object} map[string]interface{} "Access denied"
@@ -100,7 +100,7 @@ func (h *LocationHandler) GetLocation(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Security BearerAuth
 // @Param location body object true "Location data" SchemaExample({"name": "New York", "latitude": 40.7128, "longitude": -74.0060, "timezone": "America/New_York"})
-// @Success 201 {object} model.Location "Created location"
+// @Success 201 {object} model.SavedLocation "Created location"
 // @Failure 400 {object} map[string]interface{} "Invalid request data"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
@@ -169,7 +169,7 @@ func (h *LocationHandler) CreateLocation(w http.ResponseWriter, r *http.Request)
 // @Security BearerAuth
 // @Param id path integer true "Location ID"
 // @Param location body object true "Updated location data" SchemaExample({"name": "Updated Name", "latitude": 40.7128, "longitude": -74.0060})
-// @Success 200 {object} model.Location "Updated location"
+// @Success 200 {object} model.SavedLocation "Updated location"
 // @Failure 400 {object} map[string]interface{} "Invalid request data"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Failure 403 {object} map[string]interface{} "Access denied"

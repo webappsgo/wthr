@@ -54,7 +54,7 @@ func SetThemeCookie(w http.ResponseWriter, r *http.Request, mode string) {
 	if !IsValidTheme(mode) {
 		mode = DefaultTheme
 	}
-	secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	secure := util.TrustedIsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     ThemeCookieName,
 		Value:    mode,

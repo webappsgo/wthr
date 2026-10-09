@@ -97,7 +97,7 @@ func (h *LogFormatHandler) SetLogFormat(w http.ResponseWriter, r *http.Request) 
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Log format updated successfully",
+		"message": Translate(r, "success.admin.logging.log_format_updated"),
 		"format":  request.Format,
 		"note":    "Restart the server for changes to take effect",
 	})

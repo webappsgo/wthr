@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // AdminNavCookieName is the long-lived cookie carrying the admin sidebar's
@@ -70,14 +72,14 @@ func SetAdminNavCollapsed(w http.ResponseWriter, r *http.Request, collapsed []st
 			Value:    "",
 			Path:     "/",
 			MaxAge:   -1,
-			Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+			Secure:   util.TrustedIsHTTPS(r),
 			HttpOnly: true,
 			SameSite: http.SameSiteStrictMode,
 		})
 		return
 	}
 
-	secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	secure := util.TrustedIsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     AdminNavCookieName,
 		Value:    strings.Join(kept, ","),

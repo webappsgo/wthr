@@ -259,12 +259,10 @@ func mapGraphQLUserSettings(settings *handler.UserSettingsResponse) *UserSetting
 			TimeFormat:  settings.Account.TimeFormat,
 		},
 		Privacy: &PrivacySettings{
-			Visibility:    settings.Privacy.Visibility,
-			ShowEmail:     settings.Privacy.ShowEmail,
-			ShowActivity:  settings.Privacy.ShowActivity,
-			ShowOrgs:      settings.Privacy.ShowOrgs,
-			Searchable:    settings.Privacy.Searchable,
-			OrgVisibility: settings.Privacy.OrgVisibility,
+			Visibility:   settings.Privacy.Visibility,
+			ShowEmail:    settings.Privacy.ShowEmail,
+			ShowActivity: settings.Privacy.ShowActivity,
+			Searchable:   settings.Privacy.Searchable,
 		},
 		Notifications: &NotificationSettings{
 			EmailSecurity: settings.Notifications.EmailSecurity,

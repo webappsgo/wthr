@@ -122,8 +122,9 @@ func TestEnableTwoFactor(t *testing.T) {
 		}
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/enable", map[string]string{
-			"secret": secret,
-			"code":   code,
+			"secret":   secret,
+			"code":     code,
+			"password": "correcthorse123",
 		})
 		c = withReqCtxValue(c, middleware.UserContextKey, user)
 		h.EnableTwoFactor(w, c)
@@ -145,14 +146,43 @@ func TestEnableTwoFactor(t *testing.T) {
 		user := seedTwoFactorUser(t, db, "enableuser2", "enableuser2@example.com", "correcthorse123", false, "")
 
 		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/enable", map[string]string{
-			"secret": secret,
-			"code":   "000000",
+			"secret":   secret,
+			"code":     "000000",
+			"password": "correcthorse123",
 		})
 		c = withReqCtxValue(c, middleware.UserContextKey, user)
 		h.EnableTwoFactor(w, c)
 
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("wrong password is rejected with 401", func(t *testing.T) {
+		h, db := newTwoFactorTestHandler(t)
+		user := seedTwoFactorUser(t, db, "enableuser4", "enableuser4@example.com", "correcthorse123", false, "")
+		code, err := totp.GenerateCode(secret, time.Now())
+		if err != nil {
+			t.Fatalf("generate totp code: %v", err)
+		}
+
+		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/users/security/2fa/enable", map[string]string{
+			"secret":   secret,
+			"code":     code,
+			"password": "totallywrong",
+		})
+		c = withReqCtxValue(c, middleware.UserContextKey, user)
+		h.EnableTwoFactor(w, c)
+
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())
+		}
+		var enabled bool
+		if err := db.QueryRow(`SELECT two_factor_enabled FROM user_accounts WHERE id = ?`, user.ID).Scan(&enabled); err != nil {
+			t.Fatalf("query 2fa flag: %v", err)
+		}
+		if enabled {
+			t.Fatalf("expected two_factor_enabled to stay false after a rejected password")
 		}
 	})
 

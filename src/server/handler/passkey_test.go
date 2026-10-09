@@ -105,7 +105,7 @@ func TestPasskeyHandlerListPasskeys(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"passkeys":[]`) {
+		if !strings.Contains(w.Body.String(), `"passkeys": []`) {
 			t.Errorf("expected empty passkeys array, got: %s", w.Body.String())
 		}
 	})

@@ -168,7 +168,7 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Tor service enabled and started",
+		"message": Translate(r, "success.tor.service_started"),
 		"status":  h.torService.GetStatus(),
 	})
 }
@@ -200,7 +200,7 @@ func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Tor service disabled and stopped",
+		"message": Translate(r, "success.tor.service_stopped"),
 	})
 }
 
@@ -214,7 +214,7 @@ func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
-				"message": "Invalid request body",
+				"message": Translate(r, "errors.common.invalid_request_body"),
 			},
 		})
 		return
@@ -232,7 +232,7 @@ func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 		"error": map[string]interface{}{
 			"code":    "INVALID_REQUEST",
-			"message": "No settings to update",
+			"message": Translate(r, "errors.common.no_settings_to_update"),
 		},
 	})
 }
@@ -255,7 +255,7 @@ func (h *TorAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Tor address regenerated successfully",
+		"message": Translate(r, "success.tor.address_regenerated"),
 		"address": h.torService.GetOnionAddress(),
 	})
 }
@@ -271,7 +271,7 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
-				"message": "Missing or invalid prefix",
+				"message": Translate(r, "errors.tor.invalid_prefix"),
 			},
 		})
 		return
@@ -282,7 +282,7 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "INVALID_REQUEST",
-				"message": "Missing or invalid prefix",
+				"message": Translate(r, "errors.tor.invalid_prefix"),
 			},
 		})
 		return
@@ -354,7 +354,7 @@ func (h *TorAdminHandler) CancelVanity(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Vanity generation cancelled",
+		"message": Translate(r, "success.tor.vanity_cancelled"),
 	})
 }
 
@@ -398,7 +398,7 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Vanity address applied successfully",
+		"message": Translate(r, "success.tor.vanity_applied"),
 		"address": h.torService.GetOnionAddress(),
 	})
 }
@@ -411,7 +411,7 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 			"error": map[string]interface{}{
 				"code":    "NO_FILE",
-				"message": "No key file provided",
+				"message": Translate(r, "errors.tor.no_key_file"),
 			},
 		})
 		return
@@ -460,7 +460,7 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
-		"message": "Keys imported and Tor restarted successfully",
+		"message": Translate(r, "success.tor.keys_imported"),
 		"address": h.torService.GetOnionAddress(),
 	})
 }

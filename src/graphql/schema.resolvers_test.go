@@ -447,7 +447,7 @@ func TestMutationResolver_UserAuthLoadGuards(t *testing.T) {
 		call func() error
 	}{
 		{"EnableUserTwoFactor", func() error {
-			_, err := m.EnableUserTwoFactor(ctx, "secret", "000000")
+			_, err := m.EnableUserTwoFactor(ctx, "secret", "000000", "correctpass1")
 			return err
 		}},
 		{"DisableUserTwoFactor", func() error {

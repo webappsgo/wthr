@@ -28,15 +28,13 @@ func NewDebugHandlers(db *sql.DB, router chi.Router) *DebugHandlers {
 }
 
 // RegisterDebugRoutes registers all debug endpoints
-func (h *DebugHandlers) RegisterDebugRoutes(r chi.Router) {
-	r.Route("/debug", func(debug chi.Router) {
-		debug.Get("/routes", h.ListRoutes)
-		debug.Get("/config", h.ShowConfig)
-		debug.Get("/memory", h.ShowMemory)
-		debug.Get("/db", h.ShowDatabase)
-		debug.Post("/reload", h.ReloadConfig)
-		debug.Post("/gc", h.TriggerGC)
-	})
+func (h *DebugHandlers) RegisterDebugRoutes(debug chi.Router) {
+	debug.Get("/routes", h.ListRoutes)
+	debug.Get("/config", h.ShowConfig)
+	debug.Get("/memory", h.ShowMemory)
+	debug.Get("/db", h.ShowDatabase)
+	debug.Post("/reload", h.ReloadConfig)
+	debug.Post("/gc", h.TriggerGC)
 }
 
 // ListRoutes shows all registered routes
@@ -167,7 +165,7 @@ func (h *DebugHandlers) ShowDatabase(w http.ResponseWriter, r *http.Request) {
 func (h *DebugHandlers) ReloadConfig(w http.ResponseWriter, r *http.Request) {
 	// This would trigger SIGHUP internally
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message": "Configuration reload triggered",
+		"message": Translate(r, "success.admin.debug.configuration_reload_triggered"),
 		"note":    "Send SIGHUP to process for full reload",
 	})
 }
@@ -182,7 +180,7 @@ func (h *DebugHandlers) TriggerGC(w http.ResponseWriter, r *http.Request) {
 	runtime.ReadMemStats(&after)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":         "Garbage collection triggered",
+		"message":         Translate(r, "success.admin.debug.garbage_collection_triggered"),
 		"before_alloc_mb": before.Alloc / 1024 / 1024,
 		"after_alloc_mb":  after.Alloc / 1024 / 1024,
 		"freed_mb":        (before.Alloc - after.Alloc) / 1024 / 1024,

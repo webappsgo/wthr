@@ -16,37 +16,37 @@ func TestValidateUsername(t *testing.T) {
 		{"valid_simple", "abc", false, ""},
 		// Changed from "user123" which is blocked
 		{"valid_with_numbers", "player123", false, ""},
-		{"valid_with_underscore", "player_name", false, ""},
 		{"valid_with_hyphen", "player-name", false, ""},
-		{"valid_mixed", "player_123-test", false, ""},
-		// 32 chars
-		{"valid_max_length", "abcdefghij1234567890abcdefghij12", false, ""},
+		{"valid_mixed", "player-123-test", false, ""},
+		// 39 chars (AI.md PART 22 maximum)
+		{"valid_max_length", "abcdefghij1234567890abcdefghij123456789", false, ""},
+		// AI.md PART 22 allows a leading digit
+		{"valid_starts_with_digit", "1player", false, ""},
+		// AI.md PART 22 minimum length is 2
+		{"valid_min_length", "ab", false, ""},
 
 		// Invalid: Length
-		{"too_short", "ab", true, "at least 3 characters"},
-		// 33 chars
-		{"too_long", "abcdefghij1234567890abcdefghij123", true, "no more than 32 characters"},
+		{"too_short", "a", true, "at least 2 characters"},
+		// 40 chars
+		{"too_long", "abcdefghij1234567890abcdefghij1234567890", true, "no more than 39 characters"},
 
-		// Invalid: Must start with letter
-		{"starts_with_number", "1user", true, "must start with a lowercase letter"},
-		{"starts_with_underscore", "_user", true, "must start with a lowercase letter"},
-		{"starts_with_hyphen", "-user", true, "must start with a lowercase letter"},
+		// Invalid: Must start with alphanumeric
+		{"starts_with_underscore", "_user", true, "must start with a lowercase letter or digit"},
+		{"starts_with_hyphen", "-user", true, "must start with a lowercase letter or digit"},
 
-		// Invalid: Cannot end with underscore or hyphen
-		{"ends_with_underscore", "user_", true, "cannot end with underscore or hyphen"},
-		{"ends_with_hyphen", "user-", true, "cannot end with underscore or hyphen"},
+		// Invalid: Cannot end with hyphen
+		{"ends_with_underscore", "user_", true, "can only contain lowercase letters"},
+		{"ends_with_hyphen", "user-", true, "cannot end with hyphen"},
 
-		// Invalid: Uppercase letters
-		// Converted to lowercase "user" which is blocked
-		{"uppercase", "User", true, "reserved"},
-		// Converted to "username" which has complex suffix
-		{"mixed_case", "UsErNaMe", false, ""},
+		// Invalid: Uppercase letters are rejected, never normalized
+		{"uppercase", "User", true, "only lowercase"},
+		{"mixed_case", "UsErNaMe", true, "only lowercase"},
 
 		// Invalid: Consecutive special characters
-		{"consecutive_underscores", "user__name", true, "consecutive underscores"},
 		{"consecutive_hyphens", "user--name", true, "consecutive hyphens"},
-		{"consecutive_mixed_1", "user_-name", true, "consecutive underscore and hyphen"},
-		{"consecutive_mixed_2", "user-_name", true, "consecutive underscore and hyphen"},
+		{"consecutive_underscores", "user__name", true, "can only contain lowercase letters"},
+		{"consecutive_mixed_1", "user_-name", true, "can only contain lowercase letters"},
+		{"consecutive_mixed_2", "user-_name", true, "can only contain lowercase letters"},
 
 		// Invalid: Invalid characters
 		{"with_space", "user name", true, "can only contain lowercase letters"},
@@ -84,12 +84,11 @@ func TestValidateUsername(t *testing.T) {
 		{"valid_complex", "cool-username-123", false, ""},
 
 		// Edge cases
-		{"empty", "", true, "at least 3 characters"},
-		{"whitespace_only", "   ", true, "at least 3 characters"},
-		// Trimmed to "user" which is blocked
-		{"with_leading_space", "  user", true, "reserved"},
-		// Trimmed to "user" which is blocked
-		{"with_trailing_space", "user  ", true, "reserved"},
+		{"empty", "", true, "at least 2 characters"},
+		{"whitespace_only", "   ", true, "leading or trailing whitespace"},
+		// Surrounding whitespace is rejected, never trimmed away
+		{"with_leading_space", "  user", true, "leading or trailing whitespace"},
+		{"with_trailing_space", "user  ", true, "leading or trailing whitespace"},
 	}
 
 	for _, tt := range tests {
@@ -192,21 +191,22 @@ func TestUsernameRegex(t *testing.T) {
 		want     bool
 	}{
 		// Should match
-		{"min_length", "abc", true},
-		// 32 chars
-		{"max_length", "abcdefghij1234567890abcdefghij12", true},
+		{"min_length", "ab", true},
+		// 39 chars
+		{"max_length", "abcdefghij1234567890abcdefghij123456789", true},
 		{"with_numbers", "user123", true},
-		{"with_underscore", "user_name", true},
 		{"with_hyphen", "user-name", true},
-		{"complex", "user_123-test-456_name", true},
+		{"complex", "user-123-test-456", true},
+		{"starts_with_digit", "1user", true},
 
 		// Should NOT match
-		{"too_short", "ab", false},
-		// 33 chars
-		{"too_long", "abcdefghij1234567890abcdefghij123", false},
-		{"starts_with_number", "1user", false},
+		{"too_short", "a", true},
+		// The regex checks shape; ValidateUsername enforces length separately.
+		{"length_boundary_short", "a", true},
+		{"length_boundary_long", "abcdefghij1234567890abcdefghij1234567890", true},
 		{"starts_with_underscore", "_user", false},
 		{"starts_with_hyphen", "-user", false},
+		{"with_underscore", "user_name", false},
 		{"ends_with_underscore", "user_", false},
 		{"ends_with_hyphen", "user-", false},
 		{"uppercase", "User", false},

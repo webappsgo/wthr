@@ -92,13 +92,9 @@ func buildGraphQLAuthContext(r *http.Request) (context.Context, error) {
 	ctx = context.WithValue(ctx, ctxKeyClientIP, clientIP)
 	ctx = context.WithValue(ctx, ctxKeyRequestHost, r.Host)
 
-	scheme := r.Header.Get("X-Forwarded-Proto")
-	if scheme == "" {
-		if r.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
-		}
+	scheme := "http"
+	if util.TrustedIsHTTPS(r) {
+		scheme = "https"
 	}
 	ctx = context.WithValue(ctx, ctxKeyRequestScheme, scheme)
 

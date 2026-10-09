@@ -1,10 +1,11 @@
-// Package handler provides HTTP handlers
 // Server-rendered one-shot flash messages per AI.md PART 16
 package handler
 
 import (
 	"net/http"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // FlashCookieName is the short-lived cookie carrying a one-shot flash message.
@@ -48,7 +49,7 @@ func SetFlash(w http.ResponseWriter, r *http.Request, kind, key string) {
 		return
 	}
 
-	secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	secure := util.TrustedIsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     FlashCookieName,
 		Value:    kind + ":" + key,
@@ -68,7 +69,7 @@ func TakeFlash(w http.ResponseWriter, r *http.Request) *Flash {
 		return nil
 	}
 
-	secure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	secure := util.TrustedIsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     FlashCookieName,
 		Value:    "",

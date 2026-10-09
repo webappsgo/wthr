@@ -218,12 +218,23 @@ func isBackupArchiveName(name string) bool {
 	return false
 }
 
-// adminBackupDir resolves the directory backups live in. DATA_DIR is honoured
-// first so a container override (and a test) points these handlers at exactly
-// the tree src/backup writes to; otherwise the canonical PART 4 resolver
-// decides, which is what the CLI and the retention sweep also use.
+// adminBackupDir resolves the directory backups live in. BACKUP_DIR is honoured
+// first because that is the variable the --backup flag sets and the one
+// backup.ResolveDir reads when writing; DATA_DIR comes next so a container
+// override (and a test) points these handlers at exactly the tree src/backup
+// writes to; otherwise the canonical PART 4 resolver decides, which is what the
+// CLI and the retention sweep also use. The /data/backups guard mirrors
+// backup.ResolveDir exactly: that path is the container's default BACKUP_DIR,
+// so when an explicit DATA_DIR is also set (notably an isolated test) it must
+// not be redirected away from {DATA_DIR}/backups by the container default.
 func adminBackupDir() string {
-	if dataDir := os.Getenv("DATA_DIR"); dataDir != "" {
+	dataDir := os.Getenv("DATA_DIR")
+	if backupDir := os.Getenv("BACKUP_DIR"); backupDir != "" {
+		if dataDir == "" || backupDir != "/data/backups" {
+			return backupDir
+		}
+	}
+	if dataDir != "" {
 		return filepath.Join(dataDir, "backups")
 	}
 	return path.GetBackupDir()

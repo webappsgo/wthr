@@ -37,6 +37,7 @@ type ErrorResponse struct {
 
 // PaginatedResponse represents a paginated API response per AI.md PART 14
 type PaginatedResponse struct {
+	OK         bool        `json:"ok"`
 	Data       interface{} `json:"data"`
 	Pagination Pagination  `json:"pagination"`
 }
@@ -60,6 +61,7 @@ const (
 	ErrValidationFailed = "VALIDATION_FAILED"
 	ErrRateLimited      = "RATE_LIMITED"
 	ErrBadRequest       = "BAD_REQUEST"
+	ErrMethodNotAllowed = "METHOD_NOT_ALLOWED"
 
 	// Server errors (5xx)
 	ErrInternal        = "INTERNAL_ERROR"
@@ -70,9 +72,17 @@ const (
 
 // writeJSON writes v as a JSON response body with the given status code.
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("{\n  \"ok\": false,\n  \"error\": \"" + ErrInternal + "\",\n  \"message\": \"failed to encode response\"\n}\n"))
+		return
+	}
+	data = append(data, '\n')
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(data)
 }
 
 // writeText writes a plain-text response body with the given status code.
@@ -186,6 +196,9 @@ func RespondNegotiatedData(w http.ResponseWriter, r *http.Request, status int, d
 // RespondPaginated sends a paginated response per AI.md PART 14
 // Format: {"data": [...], "pagination": {"page": 1, "limit": 250, "total": 1000, "pages": 4}}
 func RespondPaginated(w http.ResponseWriter, r *http.Request, data interface{}, page, limit, total int) {
+	if limit <= 0 {
+		limit = 250
+	}
 	pages := total / limit
 	if total%limit != 0 {
 		pages++
@@ -198,6 +211,7 @@ func RespondPaginated(w http.ResponseWriter, r *http.Request, data interface{}, 
 	}
 
 	response := PaginatedResponse{
+		OK:   true,
 		Data: data,
 		Pagination: Pagination{
 			Page:  page,

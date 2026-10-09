@@ -287,7 +287,7 @@ func TestRequireAdminToken(t *testing.T) {
 			if w.Code != tt.want {
 				t.Errorf("status = %d, want %d", w.Code, tt.want)
 			}
-			if tt.want == http.StatusForbidden && !strings.Contains(w.Body.String(), `"error":"FORBIDDEN"`) {
+			if tt.want == http.StatusForbidden && !strings.Contains(w.Body.String(), `"error": "FORBIDDEN"`) {
 				t.Errorf("body = %q, want canonical FORBIDDEN error shape", w.Body.String())
 			}
 		})

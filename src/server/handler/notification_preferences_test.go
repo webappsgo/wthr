@@ -100,8 +100,8 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":0`) {
-			t.Errorf("expected total:0, got: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), `"total": 0`) {
+			t.Errorf("expected total: 0, got: %s", w.Body.String())
 		}
 	})
 
@@ -110,7 +110,7 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 		_, err := h.DB.Exec(`
 			INSERT INTO user_notification_channel_preferences
 			(user_id, channel_type, enabled, priority, config, created_at, updated_at)
-			VALUES (1, 'email', 1, 7, '{"foo":"bar"}', ?, ?)
+			VALUES (1, 'email', 1, 7, '{"foo": "bar"}', ?, ?)
 		`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("insert preference: %v", err)
@@ -125,10 +125,10 @@ func TestNotificationPreferencesHandlerGetUserPreferences(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":1`) {
+		if !strings.Contains(body, `"total": 1`) {
 			t.Errorf("expected total:1, got: %s", body)
 		}
-		if !strings.Contains(body, `"foo":"bar"`) {
+		if !strings.Contains(body, `"foo": "bar"`) {
 			t.Errorf("expected decoded config, got: %s", body)
 		}
 	})
@@ -392,8 +392,8 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":0`) {
-			t.Errorf("expected total:0, got: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), `"total": 0`) {
+			t.Errorf("expected total: 0, got: %s", w.Body.String())
 		}
 	})
 
@@ -402,7 +402,7 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 		_, err := h.DB.Exec(`
 			INSERT INTO notification_subscriptions
 			(user_id, subscription_type, subscription_category, enabled, config, created_at, updated_at)
-			VALUES (1, 'weather', 'severe', 1, '{"radius":10}', ?, ?)
+			VALUES (1, 'weather', 'severe', 1, '{"radius": 10}', ?, ?)
 		`, time.Now(), time.Now())
 		if err != nil {
 			t.Fatalf("insert subscription: %v", err)
@@ -417,10 +417,10 @@ func TestNotificationPreferencesHandlerGetSubscriptions(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":1`) {
+		if !strings.Contains(body, `"total": 1`) {
 			t.Errorf("expected total:1, got: %s", body)
 		}
-		if !strings.Contains(body, `"radius":10`) {
+		if !strings.Contains(body, `"radius": 10`) {
 			t.Errorf("expected decoded config, got: %s", body)
 		}
 	})

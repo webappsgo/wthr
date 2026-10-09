@@ -29,6 +29,24 @@ import (
 // manifestEntryName is the archive member holding the backup manifest
 const manifestEntryName = "manifest.json"
 
+// ResolveDir returns the directory that holds backup archives for a given data
+// dir. BACKUP_DIR wins when set, matching path.Paths.BackupDir and the
+// --backup CLI flag, which set the same variable; otherwise it falls back to
+// {data_dir}/backups. Every reader and writer (admin API, scheduler retention
+// sweep, CLI) resolves the directory through this one function, so a backup
+// written under BACKUP_DIR stays visible to all of them.
+func ResolveDir(dataDir string) string {
+	if envDir := os.Getenv("BACKUP_DIR"); envDir != "" {
+		// /data/backups is the container's default and must not redirect
+		// explicitly supplied data directories (notably isolated tests).
+		// A non-default BACKUP_DIR remains an explicit CLI/runtime override.
+		if dataDir == "" || envDir != "/data/backups" {
+			return envDir
+		}
+	}
+	return filepath.Join(dataDir, "backups")
+}
+
 // Manifest represents backup metadata per AI.md PART 22 (Backup Format)
 type Manifest struct {
 	Version          string    `json:"version"`
@@ -136,7 +154,7 @@ func (s *BackupService) CreateBackupArchive(opts BackupOptions) (string, []strin
 			// wthr_backup_YYYY-MM-DD_HHMMSS.tar.gz[.enc]
 			filename = fmt.Sprintf("wthr_backup_%s%s", time.Now().Format("2006-01-02_150405"), ext)
 		}
-		opts.OutputPath = filepath.Join(opts.DataDir, "backups", filename)
+		opts.OutputPath = filepath.Join(ResolveDir(opts.DataDir), filename)
 	}
 
 	// Ensure backup directory exists

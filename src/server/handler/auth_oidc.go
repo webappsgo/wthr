@@ -358,15 +358,12 @@ func (h *OIDCAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildOIDCCallbackURL constructs the absolute callback URL for this request.
+// It goes through BuildURL (AI.md PART 12) rather than reading Host and
+// X-Forwarded-Proto directly: this URL is registered with the external identity
+// provider, so a forged Host header from an untrusted peer would otherwise send
+// the provider's redirect - and the authorization code in it - to an attacker.
 func buildOIDCCallbackURL(r *http.Request, provider string) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	return scheme + "://" + r.Host + "/server/auth/oidc/" + provider + "/callback"
+	return util.BuildURL(r, "/server/auth/oidc/"+provider+"/callback")
 }
 
 // deriveUsernameFromClaims creates a sanitized username candidate from OIDC claims.

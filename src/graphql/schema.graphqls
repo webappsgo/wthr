@@ -511,9 +511,7 @@ type PrivacySettings {
   visibility: String!
   showEmail: Boolean!
   showActivity: Boolean!
-  showOrgs: Boolean!
   searchable: Boolean!
-  orgVisibility: Boolean!
 }
 
 type NotificationSettings {
@@ -546,9 +544,7 @@ input PrivacySettingsInput {
   visibility: String!
   showEmail: Boolean!
   showActivity: Boolean!
-  showOrgs: Boolean!
   searchable: Boolean!
-  orgVisibility: Boolean!
 }
 
 input NotificationSettingsInput {
@@ -849,7 +845,7 @@ type Mutation {
   updateUserAvatar(type: String!, url: String): PublicAvatar!
   resetUserAvatar: GenericResponse!
   changeUserPassword(currentPassword: String!, newPassword: String!): GenericResponse!
-  enableUserTwoFactor(secret: String!, code: String!): TOTPRecoveryKeys!
+  enableUserTwoFactor(secret: String!, code: String!, password: String!): TOTPRecoveryKeys!
   disableUserTwoFactor(password: String!): GenericResponse!
   verifyUserTwoFactor(code: String!): GenericResponse!
   regenerateUserRecoveryKeys(code: String!): TOTPRecoveryKeys!

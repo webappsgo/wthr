@@ -24,7 +24,7 @@ func TestAdminServerStatus_Healthy(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"status":"healthy"`) {
+	if !strings.Contains(body, `"status": "healthy"`) {
 		t.Errorf("expected healthy status in body, got: %s", body)
 	}
 }

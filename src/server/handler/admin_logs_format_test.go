@@ -59,7 +59,7 @@ func TestLogFormatHandler_PreviewLogFormat_DefaultsToApache(t *testing.T) {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"current_format":"apache"`) {
+	if !strings.Contains(body, `"current_format": "apache"`) {
 		t.Errorf("expected default current_format apache, got: %s", body)
 	}
 	for _, format := range []string{"apache", "nginx", "json", "fail2ban", "syslog", "cef", "text"} {
@@ -80,7 +80,7 @@ func TestLogFormatHandler_PreviewLogFormat_ExplicitFormat(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"current_format":"cef"`) {
+	if !strings.Contains(w.Body.String(), `"current_format": "cef"`) {
 		t.Errorf("expected current_format cef, got: %s", w.Body.String())
 	}
 }
@@ -99,7 +99,7 @@ func TestLogFormatHandler_GetLogFormat_DefaultsToApache(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"format":"apache"`) {
+	if !strings.Contains(w.Body.String(), `"format": "apache"`) {
 		t.Errorf("expected default format apache, got: %s", w.Body.String())
 	}
 }
@@ -124,7 +124,7 @@ func TestLogFormatHandler_GetLogFormat_ReflectsStoredValue(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"format":"syslog"`) {
+	if !strings.Contains(w.Body.String(), `"format": "syslog"`) {
 		t.Errorf("expected stored format syslog, got: %s", w.Body.String())
 	}
 }

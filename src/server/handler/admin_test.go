@@ -126,7 +126,7 @@ func TestAdminHandler_CreateUser(t *testing.T) {
 	t.Run("invalid username returns 400", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
 		body := map[string]interface{}{
-			"username": "AB", // too short and uppercase - fails ValidateUsername
+			"username": "a_b", // underscore is not allowed - fails ValidateUsername
 			"email":    "ab@example.com",
 			"password": "password123",
 			"role":     "user",

@@ -94,6 +94,7 @@ func TestSetThemeCookie(t *testing.T) {
 	t.Run("forwarded-proto https marks the cookie secure", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.RemoteAddr = "127.0.0.1:12345"
 		req.Header.Set("X-Forwarded-Proto", "https")
 		SetThemeCookie(rec, req, "dark")
 

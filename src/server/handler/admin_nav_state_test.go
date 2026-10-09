@@ -98,6 +98,7 @@ func TestSetAdminNavCollapsedFiltersAndPersists(t *testing.T) {
 func TestSetAdminNavCollapsedSecureBehindHTTPSProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "http://example.invalid/server/admin/config/nav-state", nil)
+	r.RemoteAddr = "127.0.0.1:12345"
 	r.Header.Set("X-Forwarded-Proto", "https")
 
 	SetAdminNavCollapsed(rec, r, []string{"users"})

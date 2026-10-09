@@ -162,7 +162,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
-		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		// AI.md PART 14 API negotiation: explicit Accept: application/json
 		// wins over the non-interactive-client (empty UA) default of plain
 		// text — a real JSON API client always sends this header.
@@ -197,7 +197,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		serverDB := newTestServerDB(t)
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
-		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		// AI.md PART 14 API negotiation: explicit Accept: application/json
 		// wins over the non-interactive-client (empty UA) default of plain
 		// text — a real JSON API client always sends this header.
@@ -225,7 +225,7 @@ func TestAPIHealthCheck(t *testing.T) {
 		setGlobalTestDualDB(t, serverDB, nil)
 		db := &database.DB{DB: serverDB}
 		db.DB.Close()
-		r := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/server/healthz", nil)
 		w := httptest.NewRecorder()
 
 		APIHealthCheck(db, time.Now())(w, r)

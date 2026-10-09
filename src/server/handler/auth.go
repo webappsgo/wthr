@@ -185,7 +185,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 			if strings.Contains(contentType, "application/json") {
 				writeAuthJSON(w, http.StatusOK, map[string]interface{}{
-					"message":            "Passkey verification required",
+					"message":            Translate(r, "errors.auth.passkey_verification_required"),
 					"type":               "admin",
 					"requires_passkey":   true,
 					"session_token":      pendingToken,
@@ -197,7 +197,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 				// Non-JSON callers (HTML form login) get redirected to a
 				// challenge page; the pending token is propagated via a
 				// short-lived cookie so the in-browser JS can reach it.
-				isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+				isHTTPS := util.TrustedIsHTTPS(r)
 				http.SetCookie(w, &http.Cookie{
 					Name:     "admin_passkey_pending",
 					Value:    pendingToken,
@@ -226,7 +226,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 		adminModel.UpdateLastLogin(admin.ID)
 
-		isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+		isHTTPS := util.TrustedIsHTTPS(r)
 
 		http.SetCookie(w, &http.Cookie{
 			Name:     "admin_session",
@@ -240,7 +240,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 		if strings.Contains(contentType, "application/json") {
 			writeAuthJSON(w, http.StatusOK, map[string]interface{}{
-				"message":  "Login successful",
+				"message":  Translate(r, "success.auth.login"),
 				"type":     "admin",
 				"redirect": adminPath,
 				"admin": map[string]interface{}{
@@ -354,7 +354,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
 		writeAuthJSON(w, http.StatusOK, map[string]interface{}{
-			"message": "Login successful",
+			"message": Translate(r, "success.auth.login"),
 			"type":    "user",
 			"user": map[string]interface{}{
 				"id":       user.ID,
@@ -419,14 +419,14 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 	userModel := &model.UserModel{DB: h.DB}
 
+	// Normalize username first (per AI.md PART 22: validation accepts lowercase only)
+	username := util.NormalizeUsername(req.Username)
+
 	// Validate username
-	if err := util.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(username); err != nil {
 		respondWithError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	// Normalize username
-	username := util.NormalizeUsername(req.Username)
 
 	// All users created via /register are regular users.
 	// Admin accounts are created through the /{admin_path}/config/setup wizard on first run.
@@ -451,7 +451,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 
 		if strings.Contains(contentType, "application/json") {
 			writeAuthJSON(w, http.StatusCreated, map[string]interface{}{
-				"message":               "Registration successful. Please verify your email before logging in.",
+				"message":               Translate(r, "success.auth.registration_verify_email"),
 				"verification_required": true,
 				"user": map[string]interface{}{
 					"id":       user.ID,
@@ -499,7 +499,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	// Respond based on request type
 	if strings.Contains(contentType, "application/json") {
 		writeAuthJSON(w, http.StatusCreated, map[string]interface{}{
-			"message": "Registration successful",
+			"message": Translate(r, "success.auth.registration"),
 			"user": map[string]interface{}{
 				"id":       user.ID,
 				"username": user.Username,
@@ -541,7 +541,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	// Respond based on request type
 	acceptHeader := r.Header.Get("Accept")
 	if strings.Contains(acceptHeader, "application/json") {
-		writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": "Logged out successfully"})
+		writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.auth.logout")})
 	} else {
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
@@ -583,7 +583,7 @@ func (h *AuthHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": "Profile updated successfully"})
+	writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.auth.profile_updated")})
 }
 
 // LoadCurrentUserProfile returns the same current-user payload used by GET /api/v1/users.

@@ -240,7 +240,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		// Detect if HTTPS is being used
-		isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+		isHTTPS := util.TrustedIsHTTPS(r)
 
 		// Get admin path from config (AI.md: use configurable admin_path)
 		adminPath := "/server/admin"

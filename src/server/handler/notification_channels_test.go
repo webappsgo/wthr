@@ -80,8 +80,8 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":0`) {
-			t.Errorf("expected total:0, got: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), `"total": 0`) {
+			t.Errorf("expected total: 0, got: %s", w.Body.String())
 		}
 	})
 
@@ -97,7 +97,7 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":2`) {
+		if !strings.Contains(body, `"total": 2`) {
 			t.Errorf("expected total:2, got: %s", body)
 		}
 		if strings.Index(body, "Discord") > strings.Index(body, "Slack") {
@@ -130,7 +130,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"channel_name":"Slack"`) {
+		if !strings.Contains(w.Body.String(), `"channel_name": "Slack"`) {
 			t.Errorf("expected channel_name Slack, got: %s", w.Body.String())
 		}
 	})
@@ -299,7 +299,7 @@ func TestNotificationChannelHandlerListSMTPProviders(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		all := service.ListProvidersByCategory("transactional")
-		if !strings.Contains(w.Body.String(), fmt.Sprintf(`"total":%d`, len(all))) {
+		if !strings.Contains(w.Body.String(), fmt.Sprintf(`"total": %d`, len(all))) {
 			t.Errorf("expected total %d for category filter, got: %s", len(all), w.Body.String())
 		}
 	})
@@ -344,7 +344,7 @@ func TestNotificationChannelHandlerGetChannelDefinitions(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), fmt.Sprintf(`"total":%d`, len(service.ChannelRegistry))) {
+		if !strings.Contains(w.Body.String(), fmt.Sprintf(`"total": %d`, len(service.ChannelRegistry))) {
 			t.Errorf("expected total %d, got: %s", len(service.ChannelRegistry), w.Body.String())
 		}
 	})
@@ -394,13 +394,13 @@ func TestNotificationChannelHandlerGetQueueStats(t *testing.T) {
 		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `"total":2`) {
+	if !strings.Contains(body, `"total": 2`) {
 		t.Errorf("expected total:2, got: %s", body)
 	}
-	if !strings.Contains(body, `"delivered":1`) {
+	if !strings.Contains(body, `"delivered": 1`) {
 		t.Errorf("expected delivered:1, got: %s", body)
 	}
-	if !strings.Contains(body, `"failed":1`) {
+	if !strings.Contains(body, `"failed": 1`) {
 		t.Errorf("expected failed:1, got: %s", body)
 	}
 }
@@ -432,7 +432,7 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":2`) {
+		if !strings.Contains(w.Body.String(), `"total": 2`) {
 			t.Errorf("expected total:2, got: %s", w.Body.String())
 		}
 	})
@@ -445,10 +445,10 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":1`) {
+		if !strings.Contains(body, `"total": 1`) {
 			t.Errorf("expected total:1 for channel filter, got: %s", body)
 		}
-		if !strings.Contains(body, `"channel_type":"slack"`) {
+		if !strings.Contains(body, `"channel_type": "slack"`) {
 			t.Errorf("expected slack entry, got: %s", body)
 		}
 	})
@@ -460,7 +460,7 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":1`) {
+		if !strings.Contains(w.Body.String(), `"total": 1`) {
 			t.Errorf("expected total:1 for status filter, got: %s", w.Body.String())
 		}
 	})
@@ -472,7 +472,7 @@ func TestNotificationChannelHandlerGetNotificationHistory(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":1`) {
+		if !strings.Contains(w.Body.String(), `"total": 1`) {
 			t.Errorf("expected total:1 for limit=1, got: %s", w.Body.String())
 		}
 	})
@@ -573,7 +573,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 		// Seed a stored key the form will not submit.
 		if _, err := h.DB.Exec(`UPDATE server_notification_channels SET config = ? WHERE channel_type = ?`,
-			`{"webhook_url":"https://old.example.com/hook","channel":"#alerts"}`, "slack"); err != nil {
+			`{"webhook_url": "https://old.example.com/hook","channel": "#alerts"}`, "slack"); err != nil {
 			t.Fatalf("seed stored config: %v", err)
 		}
 

@@ -8,30 +8,35 @@ import (
 
 // Username validation rules per AI.md PART 22
 const (
-	MinUsernameLength = 3
-	MaxUsernameLength = 32
+	MinUsernameLength = 2
+	MaxUsernameLength = 39
 )
 
 // Username regex per AI.md PART 22:
-// - Must start with a-z (lowercase letter)
-// - Can contain a-z, 0-9, _, - (lowercase only)
-// - Must end with a-z or 0-9 (not _ or -)
-// - Length 3-32 characters
-var usernameRegex = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,30}[a-z0-9]$`)
+// - Must start with a lowercase letter or digit
+// - Can contain lowercase letters, digits, and hyphens
+// - Must end with a lowercase letter or digit (not a hyphen)
+// - Length 2-39 characters
+var usernameRegex = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
 
 // ValidateUsername validates a username according to AI.md PART 22:
-// - Length between 3 and 32 characters
-// - Only lowercase letters (a-z), numbers (0-9), underscore (_), hyphen (-)
-// - Must start with a letter (a-z)
-// - Cannot end with underscore or hyphen
-// - No consecutive __, --, _-, -_
+// - Length between 2 and 39 characters
+// - Only lowercase letters (a-z), numbers (0-9), and hyphen (-)
+// - Must start with a letter or digit
+// - Cannot end with hyphen
+// - No consecutive hyphens
 // - Not on the blocklist
+// - Rejects uppercase letters and surrounding whitespace (does NOT normalize)
 func ValidateUsername(username string) error {
-	// Trim spaces
-	username = strings.TrimSpace(username)
+	// Check for surrounding whitespace (must not be present)
+	if username != strings.TrimSpace(username) {
+		return fmt.Errorf("username cannot contain leading or trailing whitespace")
+	}
 
-	// Convert to lowercase per AI.md PART 22 (case-insensitive)
-	username = strings.ToLower(username)
+	// Check for uppercase letters (must be rejected, not normalized)
+	if regexp.MustCompile(`[A-Z]`).MatchString(username) {
+		return fmt.Errorf("username must contain only lowercase letters")
+	}
 
 	// Check length
 	if len(username) < MinUsernameLength {
@@ -45,27 +50,21 @@ func ValidateUsername(username string) error {
 	// Check format with regex
 	if !usernameRegex.MatchString(username) {
 		// Provide more specific error messages
-		if !regexp.MustCompile(`^[a-z]`).MatchString(username) {
-			return fmt.Errorf("username must start with a lowercase letter (a-z)")
+		if !regexp.MustCompile(`^[a-z0-9]`).MatchString(username) {
+			return fmt.Errorf("username must start with a lowercase letter or digit")
 		}
-		if regexp.MustCompile(`[_-]$`).MatchString(username) {
-			return fmt.Errorf("username cannot end with underscore or hyphen")
+		if regexp.MustCompile(`-$`).MatchString(username) {
+			return fmt.Errorf("username cannot end with hyphen")
 		}
-		if regexp.MustCompile(`[^a-z0-9_-]`).MatchString(username) {
-			return fmt.Errorf("username can only contain lowercase letters (a-z), numbers (0-9), underscore (_), and hyphen (-)")
+		if regexp.MustCompile(`[^a-z0-9-]`).MatchString(username) {
+			return fmt.Errorf("username can only contain lowercase letters (a-z), numbers (0-9), and hyphen (-)")
 		}
 		return fmt.Errorf("username format is invalid")
 	}
 
 	// Check for consecutive special characters per AI.md PART 22
-	if strings.Contains(username, "__") {
-		return fmt.Errorf("username cannot contain consecutive underscores (__)")
-	}
 	if strings.Contains(username, "--") {
 		return fmt.Errorf("username cannot contain consecutive hyphens (--)")
-	}
-	if strings.Contains(username, "_-") || strings.Contains(username, "-_") {
-		return fmt.Errorf("username cannot contain consecutive underscore and hyphen (_- or -_)")
 	}
 
 	// Check against blocklist

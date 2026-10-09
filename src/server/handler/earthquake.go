@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -538,23 +539,21 @@ func (h *EarthquakeHandler) serveASCIIEarthquakes(w http.ResponseWriter, r *http
 func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.EarthquakeCollection, location, feedType string) string {
 	var sb strings.Builder
 
-	// ANSI color codes (Dracula theme)
-	cyan := "\x1b[38;2;139;233;253m"
-	green := "\x1b[38;2;80;250;123m"
-	yellow := "\x1b[38;2;241;250;140m"
-	orange := "\x1b[38;2;255;184;108m"
-	pink := "\x1b[38;2;255;121;198m"
-	purple := "\x1b[38;2;189;147;249m"
-	red := "\x1b[38;2;255;85;85m"
-	comment := "\x1b[38;2;98;114;164m"
-	bold := "\x1b[1m"
-	reset := "\x1b[0m"
+	// ANSI color codes (Dracula theme), gated for plain-text clients.
+	cyan, green, yellow, orange, pink, purple, red, comment, bold, reset := "", "", "", "", "", "", "", "", "", ""
+	globe, wave := "", "~"
+	if display.ColorEnabled() {
+		cyan, green, yellow = "\x1b[38;2;139;233;253m", "\x1b[38;2;80;250;123m", "\x1b[38;2;241;250;140m"
+		orange, pink, purple = "\x1b[38;2;255;184;108m", "\x1b[38;2;255;121;198m", "\x1b[38;2;189;147;249m"
+		red, comment, bold, reset = "\x1b[38;2;255;85;85m", "\x1b[38;2;98;114;164m", "\x1b[1m", "\x1b[0m"
+		globe, wave = "🌍", "🌊"
+	}
 
 	// Header
 	if location != "" {
-		sb.WriteString(fmt.Sprintf("%s%s🌍 Earthquakes near %s%s\n\n", bold, yellow, location, reset))
+		sb.WriteString(fmt.Sprintf("%s%s%s Earthquakes near %s%s\n\n", bold, yellow, globe, location, reset))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s🌍 %s%s\n\n", bold, yellow, earthquakes.Metadata.Title, reset))
+		sb.WriteString(fmt.Sprintf("%s%s%s %s%s\n\n", bold, yellow, globe, earthquakes.Metadata.Title, reset))
 	}
 
 	sb.WriteString(fmt.Sprintf("%sTotal: %s%d%s earthquakes\n", comment, cyan, earthquakes.Metadata.Count, reset))
@@ -581,7 +580,7 @@ func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.Earthqua
 	for i, eq := range earthquakes.Earthquakes {
 		tsunamiWarning := ""
 		if eq.Tsunami == 1 {
-			tsunamiWarning = " 🌊"
+			tsunamiWarning = " " + wave
 		}
 
 		// Color code by magnitude
@@ -618,7 +617,7 @@ func (h *EarthquakeHandler) renderASCIIEarthquakes(earthquakes *service.Earthqua
 	sb.WriteString(fmt.Sprintf("%s└─────────┴────────────────────────────────────────────────────┴──────────────────────┴─────────────┘%s\n",
 		purple, reset))
 
-	sb.WriteString(fmt.Sprintf("\n%s🌊 = Tsunami warning%s\n", cyan, reset))
+	sb.WriteString(fmt.Sprintf("\n%s%s = Tsunami warning%s\n", cyan, wave, reset))
 	sb.WriteString(fmt.Sprintf("\n%sView details: https://earthquake.usgs.gov/earthquakes/map/%s\n", comment, reset))
 
 	return sb.String()
@@ -635,17 +634,15 @@ func truncateString(s string, maxLen int) string {
 func (h *EarthquakeHandler) renderASCIIEarthquakeDetail(eq *service.Earthquake) string {
 	var sb strings.Builder
 
-	// ANSI color codes (Dracula theme)
-	cyan := "\x1b[38;2;139;233;253m"
-	green := "\x1b[38;2;80;250;123m"
-	yellow := "\x1b[38;2;241;250;140m"
-	orange := "\x1b[38;2;255;184;108m"
-	pink := "\x1b[38;2;255;121;198m"
-	purple := "\x1b[38;2;189;147;249m"
-	red := "\x1b[38;2;255;85;85m"
-	comment := "\x1b[38;2;98;114;164m"
-	bold := "\x1b[1m"
-	reset := "\x1b[0m"
+	// ANSI color codes (Dracula theme), gated for plain-text clients.
+	cyan, green, yellow, orange, pink, purple, red, comment, bold, reset := "", "", "", "", "", "", "", "", "", ""
+	globe, wave := "", "~"
+	if display.ColorEnabled() {
+		cyan, green, yellow = "\x1b[38;2;139;233;253m", "\x1b[38;2;80;250;123m", "\x1b[38;2;241;250;140m"
+		orange, pink, purple = "\x1b[38;2;255;184;108m", "\x1b[38;2;255;121;198m", "\x1b[38;2;189;147;249m"
+		red, comment, bold, reset = "\x1b[38;2;255;85;85m", "\x1b[38;2;98;114;164m", "\x1b[1m", "\x1b[0m"
+		globe, wave = "🌍", "🌊"
+	}
 
 	// Magnitude color
 	var magColor string
@@ -662,7 +659,7 @@ func (h *EarthquakeHandler) renderASCIIEarthquakeDetail(eq *service.Earthquake) 
 	}
 
 	// Header
-	sb.WriteString(fmt.Sprintf("%s%s🌍 Earthquake Details%s\n\n", bold, yellow, reset))
+	sb.WriteString(fmt.Sprintf("%s%s%s Earthquake Details%s\n\n", bold, yellow, globe, reset))
 
 	// Main info box
 	sb.WriteString(fmt.Sprintf("%s┌─────────────────────────────────────────────────────────────────────┐%s\n", purple, reset))
@@ -673,7 +670,7 @@ func (h *EarthquakeHandler) renderASCIIEarthquakeDetail(eq *service.Earthquake) 
 	// Magnitude and tsunami
 	tsunamiIndicator := ""
 	if eq.Tsunami == 1 {
-		tsunamiIndicator = fmt.Sprintf("  %s🌊 TSUNAMI WARNING%s", cyan, reset)
+		tsunamiIndicator = fmt.Sprintf("  %s%s TSUNAMI WARNING%s", cyan, wave, reset)
 	}
 	sb.WriteString(fmt.Sprintf("%s│%s %sMagnitude:%s %s%.1f%s %s(%s)%s%s %s│%s\n",
 		purple, reset,

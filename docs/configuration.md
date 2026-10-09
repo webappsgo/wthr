@@ -83,6 +83,8 @@ re-read on every start.
 | `LOG_DIR` | Override log directory |
 | `CACHE_DIR` | Override cache directory |
 | `TEMP_DIR` | Override temp directory |
+| `BACKUP_DIR` | Override backup directory (default: `{data_dir}/backups`) |
+| `WTHR_PORT` | Override the listen port (same as `--port`) |
 
 ## Common Settings
 

@@ -305,7 +305,7 @@ type Mutation struct {
 type NotificationChannel struct {
 	Type    string        `json:"type"`
 	Enabled bool          `json:"enabled"`
-	Config  any           `json:"config,omitempty"`
+	Config  interface{}   `json:"config,omitempty"`
 	Stats   *ChannelStats `json:"stats,omitempty"`
 }
 
@@ -333,26 +333,22 @@ type NotificationStats struct {
 }
 
 type PrivacySettings struct {
-	Visibility    string `json:"visibility"`
-	ShowEmail     bool   `json:"showEmail"`
-	ShowActivity  bool   `json:"showActivity"`
-	ShowOrgs      bool   `json:"showOrgs"`
-	Searchable    bool   `json:"searchable"`
-	OrgVisibility bool   `json:"orgVisibility"`
+	Visibility   string `json:"visibility"`
+	ShowEmail    bool   `json:"showEmail"`
+	ShowActivity bool   `json:"showActivity"`
+	Searchable   bool   `json:"searchable"`
 }
 
 type PrivacySettingsInput struct {
-	Visibility    string `json:"visibility"`
-	ShowEmail     bool   `json:"showEmail"`
-	ShowActivity  bool   `json:"showActivity"`
-	ShowOrgs      bool   `json:"showOrgs"`
-	Searchable    bool   `json:"searchable"`
-	OrgVisibility bool   `json:"orgVisibility"`
+	Visibility   string `json:"visibility"`
+	ShowEmail    bool   `json:"showEmail"`
+	ShowActivity bool   `json:"showActivity"`
+	Searchable   bool   `json:"searchable"`
 }
 
 type PublicAvatar struct {
-	Type string `json:"type"`
-	Urls any    `json:"urls"`
+	Type string      `json:"type"`
+	Urls interface{} `json:"urls"`
 }
 
 type PublicUserProfile struct {

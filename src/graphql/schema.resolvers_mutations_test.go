@@ -775,7 +775,7 @@ func TestMutationResolver_EnableUserTwoFactor(t *testing.T) {
 	authedCtx := withGraphQLUserContext(context.Background(), user)
 
 	t.Run("invalid code is rejected", func(t *testing.T) {
-		_, err := m.EnableUserTwoFactor(authedCtx, secret, "000000")
+		_, err := m.EnableUserTwoFactor(authedCtx, secret, "000000", "correctpass1")
 		if err == nil || err.Error() != "invalid verification code" {
 			t.Fatalf("err = %v, want %q", err, "invalid verification code")
 		}
@@ -786,7 +786,7 @@ func TestMutationResolver_EnableUserTwoFactor(t *testing.T) {
 		if err != nil {
 			t.Fatalf("generate totp code: %v", err)
 		}
-		result, err := m.EnableUserTwoFactor(authedCtx, secret, code)
+		result, err := m.EnableUserTwoFactor(authedCtx, secret, code, "correctpass1")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -807,7 +807,7 @@ func TestMutationResolver_EnableUserTwoFactor(t *testing.T) {
 			if err != nil {
 				t.Fatalf("generate totp code: %v", err)
 			}
-			_, err = m.EnableUserTwoFactor(authedCtx, secret, code)
+			_, err = m.EnableUserTwoFactor(authedCtx, secret, code, "correctpass1")
 			if err == nil || err.Error() != "two-factor authentication is already enabled" {
 				t.Fatalf("err = %v, want %q", err, "two-factor authentication is already enabled")
 			}

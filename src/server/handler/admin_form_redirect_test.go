@@ -197,6 +197,7 @@ func TestSetFlashSecureFlag(t *testing.T) {
 	t.Run("forwarded https sets secure", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/server/admin/config/channels", nil)
+		r.RemoteAddr = "127.0.0.1:12345"
 		r.Header.Set("X-Forwarded-Proto", "https")
 		SetFlash(w, r, "success", "flash_channel_updated")
 

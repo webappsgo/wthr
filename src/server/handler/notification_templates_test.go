@@ -49,8 +49,8 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"total":0`) {
-			t.Errorf("expected total:0, got: %s", w.Body.String())
+		if !strings.Contains(w.Body.String(), `"total": 0`) {
+			t.Errorf("expected total: 0, got: %s", w.Body.String())
 		}
 	})
 
@@ -67,7 +67,7 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":2`) {
+		if !strings.Contains(body, `"total": 2`) {
 			t.Errorf("expected total:2, got: %s", body)
 		}
 		if !strings.Contains(body, `"grouped"`) {
@@ -88,10 +88,10 @@ func TestNotificationTemplateHandlerListTemplates(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"total":1`) {
+		if !strings.Contains(body, `"total": 1`) {
 			t.Errorf("expected total:1, got: %s", body)
 		}
-		if !strings.Contains(body, `"channel_type":"sms"`) {
+		if !strings.Contains(body, `"channel_type": "sms"`) {
 			t.Errorf("expected sms template, got: %s", body)
 		}
 	})
@@ -123,7 +123,7 @@ func TestNotificationTemplateHandlerGetTemplate(t *testing.T) {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
 		body := w.Body.String()
-		if !strings.Contains(body, `"template_name":"welcome"`) {
+		if !strings.Contains(body, `"template_name": "welcome"`) {
 			t.Errorf("expected template_name welcome, got: %s", body)
 		}
 		_ = id
@@ -221,7 +221,7 @@ func TestNotificationTemplateHandlerCreateTemplate(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"is_default":true`) {
+		if !strings.Contains(w.Body.String(), `"is_default": true`) {
 			t.Errorf("expected is_default:true, got: %s", w.Body.String())
 		}
 	})

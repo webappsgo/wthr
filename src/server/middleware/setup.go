@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
@@ -117,11 +118,7 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			}
 
 			// Check if user has valid setup token cookie
-			var tokenVerified string
-			if cookie, err := r.Cookie("setup_token_verified"); err == nil {
-				tokenVerified = cookie.Value
-			}
-			if tokenVerified == "true" {
+			if setupTokenVerified(r, cfg) {
 				// Token verified - redirect to setup wizard to create admin account
 				http.Redirect(w, r, setupPath, http.StatusFound)
 				return
@@ -192,12 +189,10 @@ func BlockSetupAfterComplete(cfg *config.AppConfig) func(http.Handler) http.Hand
 func RequireSetupTokenVerified(cfg *config.AppConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Check for setup_token_verified cookie
-			var tokenVerified string
-			if cookie, err := r.Cookie("setup_token_verified"); err == nil {
-				tokenVerified = cookie.Value
-			}
-			if tokenVerified != "true" {
+			// The cookie value is an HMAC-signed proof (util.SignSetupProof),
+			// not a literal "true" — a client cannot reach the wizard by
+			// setting the cookie itself.
+			if !setupTokenVerified(r, cfg) {
 				// No verified token - redirect to /server/admin to enter token
 				adminPath := "/server/" + cfg.GetAdminPath()
 				http.Redirect(w, r, adminPath, http.StatusFound)
@@ -207,6 +202,22 @@ func RequireSetupTokenVerified(cfg *config.AppConfig) func(http.Handler) http.Ha
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// setupTokenVerified reports whether the request carries a setup_token_verified
+// cookie that was signed under the configured encryption key and has not
+// expired. It fails closed when the key is missing or the value is malformed.
+func setupTokenVerified(r *http.Request, cfg *config.AppConfig) bool {
+	if cfg == nil {
+		return false
+	}
+
+	cookie, err := r.Cookie("setup_token_verified")
+	if err != nil {
+		return false
+	}
+
+	return util.VerifySetupProof(cfg.Server.Security.EncryptionKey, cookie.Value, time.Now())
 }
 
 // BlockSetupAfterAdminExists blocks access to admin setup if admin account already exists

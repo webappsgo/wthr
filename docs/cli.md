@@ -53,8 +53,9 @@ Common usage:
 
 ```bash
 wthr-cli --help
-wthr-cli weather Brooklyn,NY
-wthr-cli severe-weather
+wthr-cli current --location "Brooklyn,NY"
+wthr-cli forecast --zip 10001
+wthr-cli alerts
 wthr-cli moon
 ```
 

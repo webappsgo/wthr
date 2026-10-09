@@ -1112,7 +1112,7 @@ func createDefaultConfig(cfg *AppConfig, path string) error {
 	fullData := append([]byte(header), data...)
 
 	// Write to file
-	if err := os.WriteFile(path, fullData, 0644); err != nil {
+	if err := os.WriteFile(path, fullData, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -1153,7 +1153,7 @@ func SaveConfig(cfg *AppConfig) error {
 	}
 
 	// Write to file
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 

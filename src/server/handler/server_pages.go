@@ -235,7 +235,7 @@ func ShowExamplesPage(cfg *config.AppConfig) http.HandlerFunc {
 				"Title":     cfg.Server.Branding.Title,
 				"BuildDate": BuildDate,
 			}),
-			"HostInfo":       util.GetHostInfo(r),
+			"HostInfo":        util.GetHostInfo(r),
 			"ConsoleExamples": consoleExamples,
 			"JSONExamples":    jsonExamples,
 		}

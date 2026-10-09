@@ -114,7 +114,7 @@ func TestGetAboutAPI(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"title":"Weather"`) {
+	if !strings.Contains(w.Body.String(), `"title": "Weather"`) {
 		t.Errorf("body = %s, want it to contain the branding title", w.Body.String())
 	}
 }

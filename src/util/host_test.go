@@ -49,6 +49,21 @@ func TestGetHostFromRequest(t *testing.T) {
 	})
 }
 
+func TestConfiguredURLHostRequiresExplicitConfiguration(t *testing.T) {
+	t.Setenv("DOMAIN", "weather.example.com, 203.0.113.10")
+	t.Setenv("HOSTNAME", "weather-host")
+
+	if !isConfiguredURLHost("203.0.113.10") {
+		t.Fatal("explicitly configured IP should be accepted")
+	}
+	if isConfiguredURLHost("198.51.100.20") {
+		t.Fatal("arbitrary IP should not be accepted")
+	}
+	if isConfiguredURLHost("attacker.example") {
+		t.Fatal("arbitrary hostname should not be accepted")
+	}
+}
+
 // TestGetHostInfo verifies protocol detection and derived fields.
 // Note: GetHostInfo now uses TrustedGetHostFromRequest and TrustedIsHTTPS,
 // which honor X-Forwarded-* headers only from trusted peers (loopback/private).

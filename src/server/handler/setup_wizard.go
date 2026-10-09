@@ -43,7 +43,7 @@ type SetupWizardResponse struct {
 // Per TEMPLATE.md PART 22: Check if any admins exist
 func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		RespondError(w, r, http.StatusMethodNotAllowed, ErrMethodNotAllowed, Translate(r, "errors.common.method_not_allowed"))
 		return
 	}
 
@@ -69,7 +69,7 @@ func SetupStatusHandler(w http.ResponseWriter, r *http.Request) {
 // Per TEMPLATE.md PART 22: First-run admin creation with Argon2id
 func SetupWizardHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		RespondError(w, r, http.StatusMethodNotAllowed, ErrMethodNotAllowed, Translate(r, "errors.common.method_not_allowed"))
 		return
 	}
 
@@ -309,7 +309,7 @@ func SetupRequiredMiddleware(next http.Handler) http.Handler {
 		setupComplete, err := IsSetupComplete()
 		if err != nil {
 			log.Printf("[ERROR] "+"Failed to check setup status: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			RespondError(w, r, http.StatusInternalServerError, ErrInternal, Translate(r, "errors.common.internal_error"))
 			return
 		}
 
@@ -320,7 +320,7 @@ func SetupRequiredMiddleware(next http.Handler) http.Handler {
 				respondJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
 					"ok":             false,
 					"error":          "SETUP_REQUIRED",
-					"message":        "Setup required",
+					"message":        Translate(r, "errors.setup.setup_required"),
 					"setup_required": true,
 				})
 				return

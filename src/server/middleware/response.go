@@ -13,9 +13,13 @@ import (
 func writeAPIError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	data, err := json.MarshalIndent(map[string]interface{}{
 		"ok":      false,
 		"error":   code,
 		"message": message,
-	})
+	}, "", "  ")
+	if err != nil {
+		return
+	}
+	_, _ = w.Write(append(data, '\n'))
 }

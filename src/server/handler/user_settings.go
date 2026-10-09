@@ -190,12 +190,10 @@ func (h *UserSettingsHandler) PostPrivacySettings(w http.ResponseWriter, r *http
 	}
 
 	settings := &PrivacySettings{
-		Visibility:    strings.TrimSpace(r.FormValue("visibility")),
-		ShowEmail:     formChecked(r, "showEmail"),
-		ShowActivity:  formChecked(r, "showActivity"),
-		ShowOrgs:      formChecked(r, "showOrgs"),
-		Searchable:    formChecked(r, "searchable"),
-		OrgVisibility: formChecked(r, "orgVisibility"),
+		Visibility:   strings.TrimSpace(r.FormValue("visibility")),
+		ShowEmail:    formChecked(r, "showEmail"),
+		ShowActivity: formChecked(r, "showActivity"),
+		Searchable:   formChecked(r, "searchable"),
 	}
 
 	flashResult(w, r, h.updatePrivacySettings(user.ID, settings), "/users/settings/privacy")
@@ -280,12 +278,10 @@ type AccountSettings struct {
 
 // PrivacySettings represents privacy-related settings
 type PrivacySettings struct {
-	Visibility    string `json:"visibility"`
-	ShowEmail     bool   `json:"show_email"`
-	ShowActivity  bool   `json:"show_activity"`
-	ShowOrgs      bool   `json:"show_orgs"`
-	Searchable    bool   `json:"searchable"`
-	OrgVisibility bool   `json:"org_visibility"`
+	Visibility   string `json:"visibility"`
+	ShowEmail    bool   `json:"show_email"`
+	ShowActivity bool   `json:"show_activity"`
+	Searchable   bool   `json:"searchable"`
 }
 
 // NotificationSettings represents notification-related settings
@@ -442,12 +438,10 @@ func (h *UserSettingsHandler) loadSettings(userID int64) (*UserSettingsResponse,
 			TimeFormat:  extPrefs.TimeFormat,
 		},
 		Privacy: PrivacySettings{
-			Visibility:    user.Visibility,
-			ShowEmail:     extPrefs.ShowEmail,
-			ShowActivity:  extPrefs.ShowActivity,
-			ShowOrgs:      extPrefs.ShowOrgs,
-			Searchable:    extPrefs.Searchable,
-			OrgVisibility: extPrefs.OrgVisibility,
+			Visibility:   user.Visibility,
+			ShowEmail:    extPrefs.ShowEmail,
+			ShowActivity: extPrefs.ShowActivity,
+			Searchable:   extPrefs.Searchable,
 		},
 		Notifications: NotificationSettings{
 			EmailSecurity: true,
@@ -491,18 +485,16 @@ func (h *UserSettingsHandler) applySettingsUpdate(userID int64, req *UpdateSetti
 
 // ExtendedPreferences stores additional preference fields not in base UserPreferences
 type ExtendedPreferences struct {
-	DateFormat    string
-	TimeFormat    string
-	ShowEmail     bool
-	ShowActivity  bool
-	ShowOrgs      bool
-	Searchable    bool
-	OrgVisibility bool
-	EmailUpdates  bool
-	EmailDigest   string
-	PushMentions  bool
-	FontSize      string
-	ReduceMotion  bool
+	DateFormat   string
+	TimeFormat   string
+	ShowEmail    bool
+	ShowActivity bool
+	Searchable   bool
+	EmailUpdates bool
+	EmailDigest  string
+	PushMentions bool
+	FontSize     string
+	ReduceMotion bool
 }
 
 // getOrCreatePreferences gets or creates user preferences
@@ -567,18 +559,16 @@ func (h *UserSettingsHandler) getExtendedPreferences(userID int64) (*ExtendedPre
 	// For now return defaults - these would be stored in user_preferences table
 	// with additional columns in a real implementation
 	return &ExtendedPreferences{
-		DateFormat:    "YYYY-MM-DD",
-		TimeFormat:    "24h",
-		ShowEmail:     false,
-		ShowActivity:  true,
-		ShowOrgs:      true,
-		Searchable:    true,
-		OrgVisibility: true,
-		EmailUpdates:  false,
-		EmailDigest:   "weekly",
-		PushMentions:  true,
-		FontSize:      "medium",
-		ReduceMotion:  false,
+		DateFormat:   "YYYY-MM-DD",
+		TimeFormat:   "24h",
+		ShowEmail:    false,
+		ShowActivity: true,
+		Searchable:   true,
+		EmailUpdates: false,
+		EmailDigest:  "weekly",
+		PushMentions: true,
+		FontSize:     "medium",
+		ReduceMotion: false,
 	}, nil
 }
 

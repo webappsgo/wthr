@@ -85,8 +85,7 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Re
 	}
 
 	// Store validated token in session for the admin creation step
-	isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-	http.SetCookie(w, &http.Cookie{Name: "setup_token_verified", Value: "true", MaxAge: 3600, Path: "/", Secure: isHTTPS, HttpOnly: true})
+	setSetupVerifiedCookie(w, r, cfg)
 
 	// Redirect to setup wizard at /{admin_path}/config/setup
 	// AI.md: Step 4: Redirect to /{admin_path}/config/setup (setup wizard)
@@ -133,11 +132,10 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 
 	// Store validated token in session for the admin creation step
 	// Use a secure session cookie to track that token was validated
-	isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-	http.SetCookie(w, &http.Cookie{Name: "setup_token_verified", Value: "true", MaxAge: 3600, Path: "/", Secure: isHTTPS, HttpOnly: true})
-
 	// Get admin path for redirect
 	cfg, _ := config.LoadConfig()
+	setSetupVerifiedCookie(w, r, cfg)
+
 	adminPath := "/server/admin"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
@@ -161,6 +159,43 @@ func (h *SetupHandler) ShowAdminSetup(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "page/setup_admin.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title": Translate(r, "setup.create_administrator") + " - " + title,
 	}))
+}
+
+// setSetupVerifiedCookie issues the setup_token_verified cookie after a
+// successful setup-token verification. The value is an HMAC-signed proof
+// (util.SignSetupProof) rather than a literal "true", so the wizard cannot be
+// reached by a client that simply sets the cookie itself.
+func setSetupVerifiedCookie(w http.ResponseWriter, r *http.Request, cfg *config.AppConfig) {
+	if cfg == nil {
+		return
+	}
+
+	isHTTPS := util.TrustedIsHTTPS(r)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "setup_token_verified",
+		Value:    util.SignSetupProof(cfg.Server.Security.EncryptionKey, time.Now()),
+		MaxAge:   3600,
+		Path:     "/",
+		Secure:   isHTTPS,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// setupTokenVerified reports whether the request carries a setup_token_verified
+// cookie this server minted and has not yet expired.
+func setupTokenVerified(r *http.Request) bool {
+	cookie, err := r.Cookie("setup_token_verified")
+	if err != nil {
+		return false
+	}
+
+	cfg, _ := config.LoadConfig()
+	if cfg == nil {
+		return false
+	}
+
+	return util.VerifySetupProof(cfg.Server.Security.EncryptionKey, cookie.Value, time.Now())
 }
 
 // setupError renders error for form submissions or returns JSON for API
@@ -190,8 +225,7 @@ func (h *SetupHandler) setupError(w http.ResponseWriter, r *http.Request, status
 // AI.md PART 16: Works without JavaScript - form POST returns redirect
 func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Verify setup token was validated
-	verifiedCookie, err := r.Cookie("setup_token_verified")
-	if err != nil || verifiedCookie.Value != "true" {
+	if !setupTokenVerified(r) {
 		h.setupError(w, r, http.StatusUnauthorized, Translate(r, "errors.setup.setup_token_not_verified"))
 		return
 	}
@@ -245,10 +279,10 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	var password string
 	var generatedPassword string
+	var err error
 
 	if input.UseRandom {
 		// Generate random password (32 characters, alphanumeric + special)
-		var err error
 		generatedPassword, err = generateRandomPassword(32)
 		if err != nil {
 			h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_generate_secure_password"))
@@ -342,7 +376,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	isHTTPS := util.TrustedIsHTTPS(r)
 
 	// Set admin_session cookie (separate from weather_session)
 	http.SetCookie(w, &http.Cookie{
@@ -363,7 +397,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear the setup_token_verified cookie
-	http.SetCookie(w, &http.Cookie{Name: "setup_token_verified", Value: "", MaxAge: -1, Path: "/", Secure: false, HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{Name: "setup_token_verified", Value: "", MaxAge: -1, Path: "/", Secure: false, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 
 	// Generate API token for the new admin
 	// AI.md: Step 2 - API Token auto-generated
@@ -487,7 +521,7 @@ func (h *SetupHandler) ShowAPIToken(w http.ResponseWriter, r *http.Request) {
 // ProcessAPIToken handles acknowledgment of API token (Step 2 → Step 3)
 func (h *SetupHandler) ProcessAPIToken(w http.ResponseWriter, r *http.Request) {
 	// Clear the sensitive cookies
-	isHTTPS := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	isHTTPS := util.TrustedIsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{Name: "setup_api_token", Value: "", MaxAge: -1, Path: "/", Secure: isHTTPS, HttpOnly: true})
 	http.SetCookie(w, &http.Cookie{Name: "setup_generated_password", Value: "", MaxAge: -1, Path: "/", Secure: isHTTPS, HttpOnly: true})
 

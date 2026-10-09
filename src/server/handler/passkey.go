@@ -418,7 +418,7 @@ func (h *PasskeyHandler) finishPasskeyRegistration(w http.ResponseWriter, r *htt
 
 	response := map[string]interface{}{
 		"ok":      true,
-		"message": "Passkey registered successfully",
+		"message": Translate(r, "success.auth.passkey_registered"),
 		"passkey": passkeySummary{
 			ID:         passkey.ID,
 			Name:       passkey.Name,

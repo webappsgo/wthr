@@ -306,11 +306,17 @@ func (h *TwoFactorHandler) SetupTwoFactor(w http.ResponseWriter, r *http.Request
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param body body object true "TOTP secret and verification code"
+// @Param body body Enable2FARequest true "TOTP secret, verification code, and current password"
 // @Success 200 {object} map[string]interface{} "2FA enabled, recovery keys returned"
 // @Failure 400 {object} map[string]interface{} "Invalid code"
 // @Failure 401 {object} map[string]interface{} "Not authenticated"
 // @Router /api/v1/users/security/2fa/enable [post]
+type Enable2FARequest struct {
+	Secret   string `json:"secret"`
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
 func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	user, ok := middleware.GetCurrentUser(r)
 	if !ok {
@@ -318,13 +324,16 @@ func (h *TwoFactorHandler) EnableTwoFactor(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var req struct {
-		Secret string `json:"secret"`
-		Code   string `json:"code"`
+	var req Enable2FARequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Secret == "" || req.Code == "" || req.Password == "" {
+		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
+		return
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Secret == "" || req.Code == "" {
-		BadRequest(w, r, Translate(r, "errors.notifications.channels.invalid_request"))
+	userModel := &model.UserModel{DB: h.DB}
+	if !userModel.CheckPassword(user, req.Password) {
+		Unauthorized(w, r, Translate(r, "errors.auth.invalid_password"))
 		return
 	}
 

@@ -343,6 +343,12 @@ func (p *Paths) Override() {
 	if tempDir := os.Getenv("TEMP_DIR"); tempDir != "" {
 		p.TempDir = tempDir
 	}
+	// BACKUP_DIR overrides the derived {data_dir}/backups default set by
+	// initializeSubdirectories, so it must be applied after that call -
+	// see Initialize, which runs initializeSubdirectories() before Override().
+	if backupDir := os.Getenv("BACKUP_DIR"); backupDir != "" {
+		p.BackupDir = backupDir
+	}
 }
 
 // initializeSubdirectories sets up additional directory paths

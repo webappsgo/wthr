@@ -450,9 +450,15 @@ Returns location for client's IP address.
 #### Health Check
 
 ```http
+GET /server/healthz
+GET /api/v1/server/healthz
+GET /api/healthz
 GET /healthz
-GET /api/v1/healthz
 ```
+
+`/server/healthz` is the canonical route; `/api/{api_version}/server/healthz`
+and `/api/healthz` are its API counterparts. The root `/healthz` alias is
+mounted only when `server.healthz.root.enabled` is true (default: false).
 
 **Response:**
 

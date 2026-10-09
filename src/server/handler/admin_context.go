@@ -42,6 +42,18 @@ func Translate(r *http.Request, key string) string {
 	return key
 }
 
+// TranslateFormat resolves a translation key and substitutes named {token}
+// placeholders with the supplied values, per AI.md PART 31 (interpolation is
+// literal string replacement - a translation is never used as a fmt format
+// string). It falls back to the raw key when no global i18n instance exists so
+// a response never fails to render.
+func TranslateFormat(r *http.Request, key string, args map[string]string) string {
+	if instance := i18n.GetGlobalI18n(); instance != nil {
+		return instance.TranslateFormat(Lang(r), key, args)
+	}
+	return key
+}
+
 // AdminLang is a naming-compatible alias for Lang, kept for admin-panel call
 // sites that predate the general-purpose rename.
 func AdminLang(r *http.Request) string {

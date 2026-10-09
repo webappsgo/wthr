@@ -704,6 +704,9 @@ func main() {
 	// requests on routes that are not otherwise covered by a narrower bucket.
 	r.Use(middleware.ReadRateLimitMiddleware())
 
+	// AI.md PART 14: /api/** honors Accept: text/plain and .txt by re-serializing JSON
+	r.Use(middleware.ContentNegotiation)
+
 	// Server context middleware - injects server title/tagline/description
 	r.Use(middleware.InjectServerContext(db.DB, Version))
 
@@ -721,7 +724,11 @@ func main() {
 	// mux to precede every r.Handle()/r.Get()/etc. registered on it.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasPrefix(r.URL.Path, "/health") || strings.HasPrefix(r.URL.Path, "/server/healthz") || strings.HasPrefix(r.URL.Path, "/api") || strings.HasPrefix(r.URL.Path, "/debug") || strings.Contains(r.URL.Path, ".") {
+			path := r.URL.Path
+			// Keep this bypass anchored to actual public route namespaces.
+			isHealth := path == "/healthz" || path == "/server/healthz" || path == "/api/healthz" || (strings.HasPrefix(path, "/api/") && strings.HasSuffix(path, "/server/healthz"))
+			isPublicNamespace := path == "/debug" || strings.HasPrefix(path, "/debug/") || path == "/static" || strings.HasPrefix(path, "/static/")
+			if isHealth || isPublicNamespace {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -1477,11 +1484,15 @@ func main() {
 	// Debug endpoints (only enabled when --debug flag or DEBUG=true)
 	// Per AI.md PART 6: Debug endpoints only available when debug mode enabled
 	if mode.IsDebugEnabled() {
-		debugHandlers := handler.NewDebugHandlers(db.DB, r)
-		debugHandlers.RegisterDebugRoutes(r)
+		// Debug endpoints expose operational state and can mutate configuration;
+		// keep them behind the same admin session gate as other sensitive routes.
+		r.With(middleware.RequireAdminAuth()).Route("/debug", func(debug chi.Router) {
+			debugHandlers := handler.NewDebugHandlers(db.DB, r)
+			debugHandlers.RegisterDebugRoutes(debug)
+		})
 
 		// pprof + expvar endpoints per AI.md PART 6's canonical chi debug pattern
-		r.Route("/debug/pprof", func(r chi.Router) {
+		r.With(middleware.RequireAdminAuth()).Route("/debug/pprof", func(r chi.Router) {
 			r.HandleFunc("/", pprof.Index)
 			r.HandleFunc("/cmdline", pprof.Cmdline)
 			r.HandleFunc("/profile", pprof.Profile)
@@ -1496,7 +1507,7 @@ func main() {
 		})
 
 		// expvar endpoint per AI.md PART 6
-		r.Handle("/debug/vars", http.DefaultServeMux)
+		r.With(middleware.RequireAdminAuth()).Handle("/debug/vars", http.DefaultServeMux)
 
 		log.Println("INFO: Debug endpoints enabled:")
 		log.Println("   GET  /debug/routes  - List all routes")
@@ -1584,7 +1595,7 @@ func main() {
 		}))
 	})
 	r.With(middleware.PasswordResetRateLimitMiddleware()).Post("/server/auth/password/forgot", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "If an account with that email exists, a reset link has been sent"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": handler.Translate(r, "success.auth.password_reset_link_sent")})
 	})
 	r.Get("/server/auth/password/reset", func(w http.ResponseWriter, r *http.Request) {
 		handler.NegotiateResponse(w, r, "page/reset_password.tmpl", util.TemplateData(r, map[string]interface{}{
@@ -1593,7 +1604,7 @@ func main() {
 		}))
 	})
 	r.Post("/server/auth/password/reset", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Password has been reset successfully"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": handler.Translate(r, "success.auth.password_reset_complete")})
 	})
 
 	// Email verification route (public) - per spec: GET /auth/verify/{code} verifies inline
@@ -1648,7 +1659,7 @@ func main() {
 		}))
 	})
 	r.Post("/server/auth/2fa", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Two-factor authentication verified"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": handler.Translate(r, "success.auth.twofa_verified")})
 	})
 
 	// Passkey authentication routes (public)
@@ -1665,7 +1676,7 @@ func main() {
 		}))
 	})
 	r.Post("/server/auth/username/forgot", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "If an account with that email exists, the username has been sent"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": handler.Translate(r, "success.auth.username_recovery_sent")})
 	})
 
 	// Recovery key usage route (public)
@@ -1675,7 +1686,7 @@ func main() {
 		}))
 	})
 	r.Post("/server/auth/recovery/use", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"message": "Recovery key accepted"})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"message": handler.Translate(r, "success.auth.recovery_key_accepted")})
 	})
 
 	renderServerInvitePage := func(w http.ResponseWriter, r *http.Request, status int, data map[string]interface{}) {
@@ -2327,19 +2338,12 @@ func main() {
 			if err != nil {
 				middleware.RenderHTML(w, r, http.StatusInternalServerError, "page/error.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 					"title":   "User Invites",
-					"message": "Failed to load user invites",
+					"message": handler.Translate(r, "errors.admin.admins.failed_to_fetch_invites"),
 				}))
 				return
 			}
 
-			scheme := r.Header.Get("X-Forwarded-Proto")
-			if scheme == "" {
-				if r.TLS != nil {
-					scheme = "https"
-				} else {
-					scheme = "http"
-				}
-			}
+			inviteBaseURL := util.BuildURL(r, "")
 
 			inviteRows := make([]map[string]interface{}, 0, len(invites))
 			for _, invite := range invites {
@@ -2359,7 +2363,7 @@ func main() {
 					"expires_at": invite.ExpiresAt,
 					"used_at":    invite.UsedAt,
 					"status":     statusLabel,
-					"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, r.Host, invite.Token),
+					"invite_url": inviteBaseURL + "/server/auth/invite/user/" + invite.Token,
 				})
 			}
 
@@ -2463,18 +2467,11 @@ func main() {
 				return
 			}
 
-			scheme := r.Header.Get("X-Forwarded-Proto")
-			if scheme == "" {
-				if r.TLS != nil {
-					scheme = "https"
-				} else {
-					scheme = "http"
-				}
-			}
+			inviteBaseURL := util.BuildURL(r, "")
 
 			renderAdminUserInvitesPage(w, r, http.StatusOK, map[string]interface{}{
-				"message":    "User invite created",
-				"invite_url": fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, r.Host, invite.Token),
+				"message":    handler.Translate(r, "success.admin.invites.created"),
+				"invite_url": inviteBaseURL + "/server/auth/invite/user/" + invite.Token,
 			})
 		})
 
@@ -2836,13 +2833,13 @@ func main() {
 		getCurrentAdmin := func(w http.ResponseWriter, req *http.Request) (*model.Admin, bool) {
 			adminValue, exists := reqctx.GetValue(req.Context(), "admin")
 			if !exists {
-				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Not authenticated"})
+				handler.RespondError(w, req, http.StatusUnauthorized, "UNAUTHORIZED", handler.Translate(req, "errors.admin.admins.not_authenticated"))
 				return nil, false
 			}
 
 			admin, ok := adminValue.(*model.Admin)
 			if !ok || admin == nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"ok": false, "error": "Invalid admin context"})
+				handler.RespondError(w, req, http.StatusUnauthorized, "UNAUTHORIZED", handler.Translate(req, "errors.admin.admins.invalid_admin_id"))
 				return nil, false
 			}
 
@@ -2921,29 +2918,11 @@ func main() {
 		}
 
 		buildInviteURL := func(req *http.Request, token string) string {
-			scheme := req.Header.Get("X-Forwarded-Proto")
-			if scheme == "" {
-				if req.TLS != nil {
-					scheme = "https"
-				} else {
-					scheme = "http"
-				}
-			}
-
-			return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, req.Host, token)
+			return util.BuildURL(req, "/server/auth/invite/server/"+token)
 		}
 
 		buildUserInviteURL := func(req *http.Request, token string) string {
-			scheme := req.Header.Get("X-Forwarded-Proto")
-			if scheme == "" {
-				if req.TLS != nil {
-					scheme = "https"
-				} else {
-					scheme = "http"
-				}
-			}
-
-			return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, req.Host, token)
+			return util.BuildURL(req, "/server/auth/invite/user/"+token)
 		}
 
 		userInviteStatus := func(invite model.UserInvite) string {
@@ -2962,22 +2941,22 @@ func main() {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "verified": true})
 		})
 		adminAPI.Post("/config/setup/account", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin account created"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.admin_account_created")})
 		})
 		adminAPI.Post("/config/setup/token", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "token": ""})
 		})
 		adminAPI.Post("/config/setup/config", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Server config saved"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.server_config_saved")})
 		})
 		adminAPI.Post("/config/setup/security", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Security settings saved"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.security_settings_saved")})
 		})
 		adminAPI.Post("/config/setup/services", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Services configured"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.services_configured")})
 		})
 		adminAPI.Post("/config/setup/complete", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Setup complete"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.complete")})
 		})
 
 		// Server management API - all under /server/ per spec
@@ -2988,7 +2967,7 @@ func main() {
 		adminAPI.Get("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load user invites"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_invites"))
 				return
 			}
 
@@ -3020,29 +2999,29 @@ func main() {
 				ExpiresInDays int    `json:"expires_in_days"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 
 			username := util.NormalizeUsername(req.Username)
 			if err := util.ValidateUsername(username); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_username"))
 				return
 			}
 
 			email := util.NormalizeEmail(req.Email)
 			if err := util.ValidateEmail(email); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_email"))
 				return
 			}
 
 			if _, err := (&model.UserModel{DB: db.DB}).GetByUsername(username); err == nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Username is already in use"})
+				handler.RespondError(w, r, http.StatusBadRequest, "CONFLICT", handler.Translate(r, "errors.admin.admins.username_in_use"))
 				return
 			}
 
 			if _, err := (&model.UserModel{DB: db.DB}).GetByEmail(email); err == nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Email is already in use"})
+				handler.RespondError(w, r, http.StatusBadRequest, "CONFLICT", handler.Translate(r, "errors.admin.admins.email_in_use"))
 				return
 			}
 
@@ -3058,13 +3037,13 @@ func main() {
 
 			invite, err := userInviteModel.CreateInvite(username, email, role, expiresInDays)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.failed_to_create_invite"))
 				return
 			}
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":              true,
-				"message":         "User invite created",
+				"message":         handler.Translate(r, "success.admin.invites.created"),
 				"invite":          invite,
 				"invite_url":      buildUserInviteURL(r, invite.Token),
 				"expires_in_days": expiresInDays,
@@ -3077,17 +3056,17 @@ func main() {
 
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid invite ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_invite"))
 				return
 			}
 
 			invite, err := userInviteModel.GetByID(id)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load invite"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_invites"))
 				return
 			}
 			if invite == nil {
-				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Invite not found"})
+				handler.RespondError(w, r, http.StatusNotFound, "NOT_FOUND", handler.Translate(r, "errors.admin.admins.invite_not_found"))
 				return
 			}
 
@@ -3104,16 +3083,16 @@ func main() {
 
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid invite ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_invite"))
 				return
 			}
 
 			if err := userInviteModel.DeleteInvite(id); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to revoke invite"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_revoke_invite"))
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Invite revoked"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.invites.revoked")})
 		})
 
 		// AI.md PART 17 header spec: JSON counterpart of the admin global search
@@ -3164,22 +3143,22 @@ func main() {
 		adminAPI.Patch("/config/email", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("email."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
 					return
 				}
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Email settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.email_settings_updated")})
 		})
 		adminAPI.Post("/config/email/test", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
-				"message": "Test email functionality available when SMTP is configured",
+				"message": handler.Translate(r, "success.admin.setup.test_email_unavailable"),
 			})
 		})
 
@@ -3197,17 +3176,17 @@ func main() {
 		adminAPI.Patch("/config/branding", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("branding."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
 					return
 				}
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Branding settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.branding_settings_updated")})
 		})
 
 		// Pages per spec: /api/{api_version}/{admin_path}/config/pages/
@@ -3234,13 +3213,13 @@ func main() {
 			name := chi.URLParam(r, "name")
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("pages."+name+"."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
 					return
 				}
 			}
@@ -3258,17 +3237,17 @@ func main() {
 		adminAPI.Patch("/config/web", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": fmt.Sprintf("Failed to update %s: %v", key, err)})
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
 					return
 				}
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Web settings updated"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.web_settings_updated")})
 		})
 
 		// Admin status and health endpoints
@@ -3280,7 +3259,7 @@ func main() {
 		adminAPI.Post("/config/restart", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
-				"message": "Server restart initiated",
+				"message": handler.Translate(r, "success.admin.setup.restart_initiated"),
 			})
 			go func() {
 				time.Sleep(500 * time.Millisecond)
@@ -3333,7 +3312,7 @@ func main() {
 				Email    *string `json:"email"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 
@@ -3343,7 +3322,7 @@ func main() {
 			if req.Username != nil {
 				username = util.NormalizeUsername(*req.Username)
 				if err := util.ValidateUsername(username); err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_username"))
 					return
 				}
 			}
@@ -3351,24 +3330,24 @@ func main() {
 			if req.Email != nil {
 				email = util.NormalizeEmail(*req.Email)
 				if err := util.ValidateEmail(email); err != nil {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_email"))
 					return
 				}
 			}
 
 			if req.Username == nil && req.Email == nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "No profile fields provided"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.no_profile_fields"))
 				return
 			}
 
 			if err := adminModel.UpdateAdminAccount(admin.ID, username, email); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update profile"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_profile"))
 				return
 			}
 
 			updatedAdmin, err := adminModel.GetByID(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load updated profile"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_load_profile"))
 				return
 			}
 
@@ -3377,7 +3356,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
-				"message": "Profile updated",
+				"message": handler.Translate(r, "success.auth.profile_updated_short"),
 				"profile": updatedAdmin,
 			})
 		})
@@ -3393,43 +3372,43 @@ func main() {
 				ConfirmPassword string `json:"confirm_password"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 
 			if req.CurrentPassword == "" {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Current password is required"})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.core.value_is_required"))
 				return
 			}
 
 			if req.NewPassword != req.ConfirmPassword {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Passwords do not match"})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.passwords_do_not_match"))
 				return
 			}
 
 			if len(req.NewPassword) < 8 {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Password must be at least 8 characters long"})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.core.password_must_be_at_least_8_characters"))
 				return
 			}
 
 			fullAdmin, err := adminModel.GetByID(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to verify current password"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_verify_password"))
 				return
 			}
 
 			valid, err := model.VerifyPassword(req.CurrentPassword, fullAdmin.PasswordHash)
 			if err != nil || !valid {
-				writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "Current password is incorrect"})
+				handler.RespondError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", handler.Translate(r, "errors.admin.admins.current_password_is_incorrect"))
 				return
 			}
 
 			if err := adminModel.UpdatePassword(admin.ID, req.NewPassword); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update password"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_password"))
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Password changed successfully"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.auth.password_changed")})
 		})
 		adminSelfAPI.Get("/profile/token", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
@@ -3450,13 +3429,13 @@ func main() {
 
 			newToken, err := adminModel.RegenerateAPIToken(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to regenerate API token"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_regenerate_token"))
 				return
 			}
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
-				"message": "API token regenerated successfully",
+				"message": handler.Translate(r, "success.auth.api_token_regenerated"),
 				"token":   newToken,
 			})
 		})
@@ -3469,7 +3448,7 @@ func main() {
 			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			sessions, err := sessionModel.GetActiveSessions(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to load sessions"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_sessions"))
 				return
 			}
 
@@ -3483,7 +3462,7 @@ func main() {
 
 			sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
 			if err := sessionModel.DeleteAllSessionsForAdmin(admin.ID); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "Failed to log out of all sessions"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_logout_sessions"))
 				return
 			}
 
@@ -3496,7 +3475,7 @@ func main() {
 				HttpOnly: true,
 			})
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Logged out of all sessions"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.auth.logout_all_sessions")})
 		})
 		adminSelfAPI.Get("/preferences", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
@@ -3506,7 +3485,7 @@ func main() {
 
 			prefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load preferences"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_preferences"))
 				return
 			}
 
@@ -3520,7 +3499,7 @@ func main() {
 
 			currentPrefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load current preferences"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_preferences"))
 				return
 			}
 
@@ -3532,7 +3511,7 @@ func main() {
 				EmailNotifications   *bool   `json:"email_notifications"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 
@@ -3547,7 +3526,7 @@ func main() {
 				case "auto", "light", "dark":
 					theme = *req.Theme
 				default:
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid theme"})
+					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_theme"))
 					return
 				}
 			}
@@ -3555,7 +3534,7 @@ func main() {
 			if req.Language != nil {
 				language = strings.TrimSpace(*req.Language)
 				if language == "" {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Language cannot be empty"})
+					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.language_required"))
 					return
 				}
 			}
@@ -3563,7 +3542,7 @@ func main() {
 			if req.Timezone != nil {
 				timezone = strings.TrimSpace(*req.Timezone)
 				if timezone == "" {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Timezone cannot be empty"})
+					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.timezone_required"))
 					return
 				}
 			}
@@ -3585,7 +3564,7 @@ func main() {
 				EmailNotifications:   emailNotifications,
 			})
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to encode preferences"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_preferences"))
 				return
 			}
 
@@ -3596,19 +3575,19 @@ func main() {
 				SET preferences = ?, updated_at = ?
 				WHERE admin_id = ?
 			`, string(updatedJSON), dbtime.FormatSQLTimestamp(time.Now()), admin.ID); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to update preferences"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_preferences"))
 				return
 			}
 
 			updatedPrefs, err := loadAdminPreferences(admin.ID)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load updated preferences"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_preferences"))
 				return
 			}
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":          true,
-				"message":     "Preferences updated",
+				"message":     handler.Translate(r, "success.auth.preferences_updated"),
 				"preferences": updatedPrefs,
 			})
 		})
@@ -3628,13 +3607,13 @@ func main() {
 
 			count, err := adminModel.GetCount()
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to count admins"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_count_admins"))
 				return
 			}
 
 			onlineAdmins, err := getOnlineAdminUsernames()
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to load online admins"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_admins"))
 				return
 			}
 
@@ -3658,12 +3637,12 @@ func main() {
 
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			if id != admin.ID {
-				writeJSON(w, http.StatusForbidden, map[string]interface{}{"error": "Other admin account details are private"})
+				handler.RespondError(w, r, http.StatusForbidden, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.other_admin_details_private"))
 				return
 			}
 
@@ -3679,28 +3658,33 @@ func main() {
 				return
 			}
 
+			if !admin.IsSuperAdmin {
+				handler.RespondError(w, r, http.StatusForbidden, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
+				return
+			}
+
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			if id == admin.ID {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot delete your own account"})
+				handler.RespondError(w, r, http.StatusBadRequest, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 				return
 			}
 
 			if id == 1 {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Primary admin cannot be deleted"})
+				handler.RespondError(w, r, http.StatusBadRequest, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 				return
 			}
 
 			if err := adminModel.DeleteAdminAccount(id); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.failed_to_delete_admin"))
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin deleted"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_deleted")})
 		})
 		adminAPI.Post("/config/admins/{id}/disable", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
@@ -3708,66 +3692,81 @@ func main() {
 				return
 			}
 
+			if !admin.IsSuperAdmin {
+				handler.RespondError(w, r, http.StatusForbidden, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
+				return
+			}
+
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			if id == admin.ID {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot disable your own account"})
+				handler.RespondError(w, r, http.StatusBadRequest, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 				return
 			}
 
 			if id == 1 {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Primary admin cannot be disabled"})
+				handler.RespondError(w, r, http.StatusBadRequest, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 				return
 			}
 
 			targetAdmin, err := adminModel.GetByID(id)
 			if err != nil {
-				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Admin not found"})
+				handler.RespondError(w, r, http.StatusNotFound, "NOT_FOUND", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			if targetAdmin.IsSuperAdmin {
 				otherSuperAdmins, err := countOtherActiveSuperAdmins(id)
 				if err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to validate admin hierarchy"})
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_count_admins"))
 					return
 				}
 				if otherSuperAdmins == 0 {
-					writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Cannot disable the last active super admin"})
+					handler.RespondError(w, r, http.StatusBadRequest, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
 					return
 				}
 			}
 
 			if err := adminModel.UpdateAdminAccount(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, false); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to disable admin"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_admin"))
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin disabled"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_disabled")})
 		})
 		adminAPI.Post("/config/admins/{id}/enable", func(w http.ResponseWriter, r *http.Request) {
+			admin, ok := getCurrentAdmin(w, r)
+			if !ok {
+				return
+			}
+
+			if !admin.IsSuperAdmin {
+				handler.RespondError(w, r, http.StatusForbidden, "FORBIDDEN", handler.Translate(r, "errors.admin.admins.cannot_delete_your_own_account"))
+				return
+			}
+
 			id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid admin ID"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			targetAdmin, err := adminModel.GetByID(id)
 			if err != nil {
-				writeJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Admin not found"})
+				handler.RespondError(w, r, http.StatusNotFound, "NOT_FOUND", handler.Translate(r, "errors.admin.admins.invalid_admin_id"))
 				return
 			}
 
 			if err := adminModel.UpdateAdminAccount(id, targetAdmin.Username, targetAdmin.Email, targetAdmin.IsSuperAdmin, true); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": "Failed to enable admin"})
+				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_update_admin"))
 				return
 			}
 
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Admin enabled"})
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_enabled")})
 		})
 		adminAPI.Post("/config/admins/invite", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
@@ -3780,19 +3779,19 @@ func main() {
 				ExpiresIn string `json:"expires_in"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": "Invalid request body"})
+				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
 				return
 			}
 
 			invite, expiresIn, err := adminInviteService.CreateInvite(req.Email, int(admin.ID), req.ExpiresIn)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"error": err.Error()})
+				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.failed_to_create_invite"))
 				return
 			}
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":         true,
-				"message":    "Admin invite created",
+				"message":    handler.Translate(r, "success.admin.core.admin_invite_created"),
 				"token":      invite.Token,
 				"email":      invite.InvitedEmail,
 				"expires_at": invite.ExpiresAt,
@@ -4000,12 +3999,10 @@ func main() {
 	// AI.md PART 33/34: Non-versioned endpoint for CLI/agent self-configuration
 	// SECURITY: NEVER include admin_path, secrets, or internal IPs
 	r.Get("/api/autodiscover", func(w http.ResponseWriter, r *http.Request) {
-		// Build public URL from request
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		publicURL := scheme + "://" + r.Host
+		// Build public URL from the proto/host this request actually used, so
+		// the advertised cluster node is one the caller can reach (AI.md
+		// PART 12). X-Forwarded-Proto is only honored from a trusted proxy.
+		publicURL := util.BuildURL(r, "")
 
 		// Get cluster nodes (empty array if single-node)
 		clusterNodes := []string{publicURL}

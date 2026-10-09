@@ -3,10 +3,12 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	urlpkg "net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/renderer"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -46,9 +48,25 @@ func (h *WeatherHandler) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	// Check for location query parameter
 	locationQuery := r.URL.Query().Get("location")
 	if locationQuery != "" {
-		// If location param provided, redirect to path-based route
-		http.Redirect(w, r, "/"+strings.ReplaceAll(locationQuery, " ", "+"), http.StatusMovedPermanently)
-		return
+		// Redirect to the path-based route. The value is attacker-controlled,
+		// so a leading "/" or "\" would let "//evil.com" or "/\evil.com" be
+		// read as a scheme-relative URL by the browser. Strip the separators
+		// so the redirect target is always a path on this host.
+		locationQuery = strings.Map(func(ch rune) rune {
+			if ch < 0x20 || ch == 0x7f || ch == '/' || ch == '\\' {
+				return -1
+			}
+			return ch
+		}, locationQuery)
+		if locationQuery != "" {
+			target := "/" + urlpkg.PathEscape(strings.ReplaceAll(locationQuery, " ", "+"))
+			if parsed, err := urlpkg.Parse(target); err == nil && parsed.Scheme == "" && parsed.Host == "" && strings.HasPrefix(parsed.Path, "/") && !strings.HasPrefix(parsed.Path, "//") {
+				http.Redirect(w, r, parsed.String(), http.StatusMovedPermanently)
+				return
+			}
+			RespondError(w, r, http.StatusBadRequest, ErrInvalidInput, Translate(r, "errors.weather.invalid_location"))
+			return
+		}
 	}
 
 	var coords *service.Coordinates
@@ -627,15 +645,21 @@ func (h *WeatherHandler) handleMoonRequest(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// ASCII moon report
-	cyan := "\x1b[38;2;139;233;253m"
-	yellow := "\x1b[38;2;241;250;140m"
-	purple := "\x1b[38;2;189;147;249m"
-	reset := "\x1b[0m"
+	// ASCII moon report. Use the shared gate so plain-text clients and
+	// NO_COLOR callers never receive terminal escapes or emoji.
+	cyan, yellow, purple, reset := "", "", "", ""
+	moon := "*"
+	if display.ColorEnabled() {
+		cyan = "\x1b[38;2;139;233;253m"
+		yellow = "\x1b[38;2;241;250;140m"
+		purple = "\x1b[38;2;189;147;249m"
+		reset = "\x1b[0m"
+		moon = "🌙"
+	}
 
 	output := fmt.Sprintf(`%sMoon Phase Feature%s
 
-🌙 Moon phase calculations are available via the web interface:
+%s Moon phase calculations are available via the web interface:
    %s/moon
 
 For location-specific moon phases:
@@ -645,7 +669,7 @@ For location-specific moon phases:
 %sComing soon to ASCII interface!%s
 
 Visit %s%s/moon%s for the full moon phase interface.
-`, yellow, reset, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost, purple, reset, cyan, hostInfo.FullHost, reset)
+`, yellow, reset, moon, hostInfo.FullHost, hostInfo.FullHost, hostInfo.FullHost, purple, reset, cyan, hostInfo.FullHost, reset)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)

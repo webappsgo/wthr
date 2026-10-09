@@ -50,14 +50,14 @@ func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize username first (per AI.md PART 22: validation accepts lowercase only)
+	username := util.NormalizeUsername(req.Username)
+
 	// Validate username
-	if err := util.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(username); err != nil {
 		BadRequest(w, r, err.Error())
 		return
 	}
-
-	// Normalize username
-	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
 	user, err := userModel.CreateUserAccount(username, req.Email, req.Password, req.Role)
@@ -98,14 +98,14 @@ func (h *AdminHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize username first (per AI.md PART 22: validation accepts lowercase only)
+	username := util.NormalizeUsername(req.Username)
+
 	// Validate username
-	if err := util.ValidateUsername(req.Username); err != nil {
+	if err := util.ValidateUsername(username); err != nil {
 		BadRequest(w, r, err.Error())
 		return
 	}
-
-	// Normalize username
-	username := util.NormalizeUsername(req.Username)
 
 	userModel := &model.UserModel{DB: h.DB}
 	if err := userModel.UpdateUserProfile(id, username, req.Email, req.Role); err != nil {

@@ -17,7 +17,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
-	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // region    ************************** generated!.gotpl **************************
@@ -389,7 +389,7 @@ type ComplexityRoot struct {
 		AdminRevokeToken               func(childComplexity int, id string) int
 		AdminTestChannel               func(childComplexity int, typeArg string, recipient *string) int
 		AdminTriggerTask               func(childComplexity int, name string) int
-		AdminUpdateChannel             func(childComplexity int, typeArg string, enabled *bool, config any) int
+		AdminUpdateChannel             func(childComplexity int, typeArg string, enabled *bool, config interface{}) int
 		AdminUpdateSetting             func(childComplexity int, key string, value string) int
 		AdminUpdateSettings            func(childComplexity int, settings []*SettingInput) int
 		AdminUpdateTask                func(childComplexity int, name string, enabled bool) int
@@ -409,11 +409,11 @@ type ComplexityRoot struct {
 		DeleteSavedLocation            func(childComplexity int, id string) int
 		DeleteUserPasskey              func(childComplexity int, id string) int
 		DisableUserTwoFactor           func(childComplexity int, password string) int
-		EnableUserTwoFactor            func(childComplexity int, secret string, code string) int
-		FinishAdminPasskeyChallenge    func(childComplexity int, ceremonyToken string, credential any) int
-		FinishAdminPasskeyRegistration func(childComplexity int, ceremonyToken string, credential any) int
-		FinishUserPasskeyChallenge     func(childComplexity int, ceremonyToken string, credential any) int
-		FinishUserPasskeyRegistration  func(childComplexity int, ceremonyToken string, credential any) int
+		EnableUserTwoFactor            func(childComplexity int, secret string, code string, password string) int
+		FinishAdminPasskeyChallenge    func(childComplexity int, ceremonyToken string, credential interface{}) int
+		FinishAdminPasskeyRegistration func(childComplexity int, ceremonyToken string, credential interface{}) int
+		FinishUserPasskeyChallenge     func(childComplexity int, ceremonyToken string, credential interface{}) int
+		FinishUserPasskeyRegistration  func(childComplexity int, ceremonyToken string, credential interface{}) int
 		LoginUser                      func(childComplexity int, identifier string, password string, twoFactorCode *string, recoveryKey *string) int
 		LogoutUser                     func(childComplexity int) int
 		MarkAllNotificationsRead       func(childComplexity int) int
@@ -486,12 +486,10 @@ type ComplexityRoot struct {
 	}
 
 	PrivacySettings struct {
-		OrgVisibility func(childComplexity int) int
-		Searchable    func(childComplexity int) int
-		ShowActivity  func(childComplexity int) int
-		ShowEmail     func(childComplexity int) int
-		ShowOrgs      func(childComplexity int) int
-		Visibility    func(childComplexity int) int
+		Searchable   func(childComplexity int) int
+		ShowActivity func(childComplexity int) int
+		ShowEmail    func(childComplexity int) int
+		Visibility   func(childComplexity int) int
 	}
 
 	PublicAvatar struct {
@@ -830,9 +828,9 @@ type ComplexityRoot struct {
 }
 
 type APITokenResolver interface {
-	ExpiresAt(ctx context.Context, obj *models.APIToken) (*time.Time, error)
+	ExpiresAt(ctx context.Context, obj *model.APIToken) (*time.Time, error)
 
-	LastUsedIP(ctx context.Context, obj *models.APIToken) (*string, error)
+	LastUsedIP(ctx context.Context, obj *model.APIToken) (*string, error)
 }
 type GenericResponseResolver interface {
 	Ok(ctx context.Context, obj *GenericResponse) (bool, error)
@@ -854,26 +852,26 @@ type MutationResolver interface {
 	UpdateUserAvatar(ctx context.Context, typeArg string, url *string) (*PublicAvatar, error)
 	ResetUserAvatar(ctx context.Context) (*GenericResponse, error)
 	ChangeUserPassword(ctx context.Context, currentPassword string, newPassword string) (*GenericResponse, error)
-	EnableUserTwoFactor(ctx context.Context, secret string, code string) (*TOTPRecoveryKeys, error)
+	EnableUserTwoFactor(ctx context.Context, secret string, code string, password string) (*TOTPRecoveryKeys, error)
 	DisableUserTwoFactor(ctx context.Context, password string) (*GenericResponse, error)
 	VerifyUserTwoFactor(ctx context.Context, code string) (*GenericResponse, error)
 	RegenerateUserRecoveryKeys(ctx context.Context, code string) (*TOTPRecoveryKeys, error)
 	BeginUserPasskeyRegistration(ctx context.Context, name string, password string) (*PasskeyRegistrationOptions, error)
-	FinishUserPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*PasskeyRegistrationResult, error)
+	FinishUserPasskeyRegistration(ctx context.Context, ceremonyToken string, credential interface{}) (*PasskeyRegistrationResult, error)
 	DeleteUserPasskey(ctx context.Context, id string) (*GenericResponse, error)
 	BeginUserPasskeyChallenge(ctx context.Context, sessionToken *string) (*PasskeyChallengeOptions, error)
-	FinishUserPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AuthResult, error)
+	FinishUserPasskeyChallenge(ctx context.Context, ceremonyToken string, credential interface{}) (*AuthResult, error)
 	UpdateUserSettings(ctx context.Context, account *AccountSettingsInput, privacy *PrivacySettingsInput, notifications *NotificationSettingsInput, appearance *AppearanceSettingsInput) (*GenericResponse, error)
 	CreateUserToken(ctx context.Context, name string, scopes *string, expiresIn *int) (*UserToken, error)
 	RevokeUserToken(ctx context.Context, id string) (*GenericResponse, error)
-	CreateSavedLocation(ctx context.Context, name string, lat float64, lon float64, country *string, region *string, alerts *bool) (*models.SavedLocation, error)
-	UpdateSavedLocation(ctx context.Context, id string, name *string, alerts *bool) (*models.SavedLocation, error)
+	CreateSavedLocation(ctx context.Context, name string, lat float64, lon float64, country *string, region *string, alerts *bool) (*model.SavedLocation, error)
+	UpdateSavedLocation(ctx context.Context, id string, name *string, alerts *bool) (*model.SavedLocation, error)
 	DeleteSavedLocation(ctx context.Context, id string) (*GenericResponse, error)
-	ToggleLocationAlerts(ctx context.Context, id string) (*models.SavedLocation, error)
-	MarkNotificationRead(ctx context.Context, id string) (*models.Notification, error)
+	ToggleLocationAlerts(ctx context.Context, id string) (*model.SavedLocation, error)
+	MarkNotificationRead(ctx context.Context, id string) (*model.Notification, error)
 	MarkAllNotificationsRead(ctx context.Context) (*GenericResponse, error)
 	DeleteNotification(ctx context.Context, id string) (*GenericResponse, error)
-	AdminUpdateUser(ctx context.Context, id string, username *string, email *string, role *string) (*models.User, error)
+	AdminUpdateUser(ctx context.Context, id string, username *string, email *string, role *string) (*model.User, error)
 	AdminDeleteUser(ctx context.Context, id string) (*GenericResponse, error)
 	AdminCreateUserInvite(ctx context.Context, username string, email string, role *string, expiresInDays *int) (*UserInvite, error)
 	AdminDeleteUserInvite(ctx context.Context, id string) (*GenericResponse, error)
@@ -881,31 +879,31 @@ type MutationResolver interface {
 	AdminDeleteServerAdmin(ctx context.Context, id string) (*GenericResponse, error)
 	AdminDisableServerAdmin(ctx context.Context, id string) (*GenericResponse, error)
 	AdminEnableServerAdmin(ctx context.Context, id string) (*GenericResponse, error)
-	AdminUpdateSetting(ctx context.Context, key string, value string) (*models.Setting, error)
+	AdminUpdateSetting(ctx context.Context, key string, value string) (*model.Setting, error)
 	AdminUpdateSettings(ctx context.Context, settings []*SettingInput) (*BulkResponse, error)
 	AdminResetSettings(ctx context.Context) (*GenericResponse, error)
-	AdminGenerateToken(ctx context.Context) (*models.APIToken, error)
+	AdminGenerateToken(ctx context.Context) (*model.APIToken, error)
 	AdminRevokeToken(ctx context.Context, id string) (*GenericResponse, error)
 	AdminClearAuditLogs(ctx context.Context) (*GenericResponse, error)
 	AdminUpdateTask(ctx context.Context, name string, enabled bool) (*ScheduledTask, error)
 	AdminEnableTask(ctx context.Context, name string) (*ScheduledTask, error)
 	AdminDisableTask(ctx context.Context, name string) (*ScheduledTask, error)
 	AdminTriggerTask(ctx context.Context, name string) (*GenericResponse, error)
-	AdminUpdateChannel(ctx context.Context, typeArg string, enabled *bool, config any) (*NotificationChannel, error)
+	AdminUpdateChannel(ctx context.Context, typeArg string, enabled *bool, config interface{}) (*NotificationChannel, error)
 	AdminEnableChannel(ctx context.Context, typeArg string) (*NotificationChannel, error)
 	AdminDisableChannel(ctx context.Context, typeArg string) (*NotificationChannel, error)
 	AdminTestChannel(ctx context.Context, typeArg string, recipient *string) (*GenericResponse, error)
 	AdminInitializeChannels(ctx context.Context) (*GenericResponse, error)
 	AdminAutoDetectSMTP(ctx context.Context) (*SMTPProvider, error)
 	BeginAdminPasskeyRegistration(ctx context.Context, name string, password string) (*PasskeyRegistrationOptions, error)
-	FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*AdminPasskeyRegistrationResult, error)
+	FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential interface{}) (*AdminPasskeyRegistrationResult, error)
 	DeleteAdminPasskey(ctx context.Context, id string) (*GenericResponse, error)
 	BeginAdminPasskeyChallenge(ctx context.Context, sessionToken string) (*PasskeyChallengeOptions, error)
-	FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AdminLoginResult, error)
+	FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential interface{}) (*AdminLoginResult, error)
 	SubmitContactForm(ctx context.Context, name string, email string, subject string, message string) (*ContactSubmission, error)
 }
 type NotificationResolver interface {
-	Type(ctx context.Context, obj *models.Notification) (string, error)
+	Type(ctx context.Context, obj *model.Notification) (string, error)
 }
 type QueryResolver interface {
 	Health(ctx context.Context) (*HealthStatus, error)
@@ -924,25 +922,25 @@ type QueryResolver interface {
 	PublicUserProfile(ctx context.Context, username string) (*PublicUserProfile, error)
 	ValidateUserInvite(ctx context.Context, token string) (*UserInviteValidation, error)
 	ValidateServerInvite(ctx context.Context, token string) (*ServerInviteValidation, error)
-	CurrentUser(ctx context.Context) (*models.User, error)
+	CurrentUser(ctx context.Context) (*model.User, error)
 	CurrentUserAvatar(ctx context.Context) (*PublicAvatar, error)
 	CurrentUserTwoFactorStatus(ctx context.Context) (*TOTPStatus, error)
 	CurrentUserTwoFactorSetup(ctx context.Context) (*TOTPSetup, error)
 	CurrentUserPasskeys(ctx context.Context) ([]*UserPasskey, error)
 	UserSettings(ctx context.Context) (*UserSettings, error)
 	UserTokens(ctx context.Context) ([]*UserToken, error)
-	SavedLocations(ctx context.Context) ([]*models.SavedLocation, error)
-	SavedLocation(ctx context.Context, id string) (*models.SavedLocation, error)
-	Notifications(ctx context.Context) ([]*models.Notification, error)
+	SavedLocations(ctx context.Context) ([]*model.SavedLocation, error)
+	SavedLocation(ctx context.Context, id string) (*model.SavedLocation, error)
+	Notifications(ctx context.Context) ([]*model.Notification, error)
 	UnreadNotifications(ctx context.Context) (*UnreadCount, error)
-	AdminUsers(ctx context.Context) ([]*models.User, error)
+	AdminUsers(ctx context.Context) ([]*model.User, error)
 	AdminServerAdmins(ctx context.Context) (*ServerAdminOverview, error)
 	AdminServerAdmin(ctx context.Context, id string) (*ServerAdmin, error)
 	AdminUserInvites(ctx context.Context) ([]*UserInvite, error)
 	AdminUserInvite(ctx context.Context, id string) (*UserInvite, error)
-	AdminSettings(ctx context.Context) ([]*models.Setting, error)
-	AdminSetting(ctx context.Context, key string) (*models.Setting, error)
-	AdminTokens(ctx context.Context) ([]*models.APIToken, error)
+	AdminSettings(ctx context.Context) ([]*model.Setting, error)
+	AdminSetting(ctx context.Context, key string) (*model.Setting, error)
+	AdminTokens(ctx context.Context) ([]*model.APIToken, error)
 	AdminAuditLogs(ctx context.Context, limit *int, offset *int) ([]*AuditLog, error)
 	AdminStats(ctx context.Context) (*SystemStats, error)
 	AdminTasks(ctx context.Context) ([]*ScheduledTask, error)
@@ -955,14 +953,14 @@ type QueryResolver interface {
 	AdminPasskeys(ctx context.Context) ([]*AdminPasskey, error)
 }
 type SavedLocationResolver interface {
-	Lat(ctx context.Context, obj *models.SavedLocation) (float64, error)
-	Lon(ctx context.Context, obj *models.SavedLocation) (float64, error)
-	Country(ctx context.Context, obj *models.SavedLocation) (*string, error)
-	Region(ctx context.Context, obj *models.SavedLocation) (*string, error)
-	Alerts(ctx context.Context, obj *models.SavedLocation) (bool, error)
+	Lat(ctx context.Context, obj *model.SavedLocation) (float64, error)
+	Lon(ctx context.Context, obj *model.SavedLocation) (float64, error)
+	Country(ctx context.Context, obj *model.SavedLocation) (*string, error)
+	Region(ctx context.Context, obj *model.SavedLocation) (*string, error)
+	Alerts(ctx context.Context, obj *model.SavedLocation) (bool, error)
 }
 type SettingResolver interface {
-	UpdatedBy(ctx context.Context, obj *models.Setting) (*string, error)
+	UpdatedBy(ctx context.Context, obj *model.Setting) (*string, error)
 }
 type __InputValueResolver interface {
 	IsDeprecated(ctx context.Context, obj *introspection.InputValue) (bool, error)
@@ -2625,7 +2623,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.AdminUpdateChannel(childComplexity, args["type"].(string), args["enabled"].(*bool), args["config"].(any)), true
+		return e.complexity.Mutation.AdminUpdateChannel(childComplexity, args["type"].(string), args["enabled"].(*bool), args["config"].(interface{})), true
 
 	case "Mutation.adminUpdateSetting":
 		if e.complexity.Mutation.AdminUpdateSetting == nil {
@@ -2865,7 +2863,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.EnableUserTwoFactor(childComplexity, args["secret"].(string), args["code"].(string)), true
+		return e.complexity.Mutation.EnableUserTwoFactor(childComplexity, args["secret"].(string), args["code"].(string), args["password"].(string)), true
 
 	case "Mutation.finishAdminPasskeyChallenge":
 		if e.complexity.Mutation.FinishAdminPasskeyChallenge == nil {
@@ -2877,7 +2875,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.FinishAdminPasskeyChallenge(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
+		return e.complexity.Mutation.FinishAdminPasskeyChallenge(childComplexity, args["ceremonyToken"].(string), args["credential"].(interface{})), true
 
 	case "Mutation.finishAdminPasskeyRegistration":
 		if e.complexity.Mutation.FinishAdminPasskeyRegistration == nil {
@@ -2889,7 +2887,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.FinishAdminPasskeyRegistration(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
+		return e.complexity.Mutation.FinishAdminPasskeyRegistration(childComplexity, args["ceremonyToken"].(string), args["credential"].(interface{})), true
 
 	case "Mutation.finishUserPasskeyChallenge":
 		if e.complexity.Mutation.FinishUserPasskeyChallenge == nil {
@@ -2901,7 +2899,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.FinishUserPasskeyChallenge(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
+		return e.complexity.Mutation.FinishUserPasskeyChallenge(childComplexity, args["ceremonyToken"].(string), args["credential"].(interface{})), true
 
 	case "Mutation.finishUserPasskeyRegistration":
 		if e.complexity.Mutation.FinishUserPasskeyRegistration == nil {
@@ -2913,7 +2911,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.FinishUserPasskeyRegistration(childComplexity, args["ceremonyToken"].(string), args["credential"].(any)), true
+		return e.complexity.Mutation.FinishUserPasskeyRegistration(childComplexity, args["ceremonyToken"].(string), args["credential"].(interface{})), true
 
 	case "Mutation.loginUser":
 		if e.complexity.Mutation.LoginUser == nil {
@@ -3336,13 +3334,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PasskeyRegistrationResult.RecoveryKeys(childComplexity), true
 
-	case "PrivacySettings.orgVisibility":
-		if e.complexity.PrivacySettings.OrgVisibility == nil {
-			break
-		}
-
-		return e.complexity.PrivacySettings.OrgVisibility(childComplexity), true
-
 	case "PrivacySettings.searchable":
 		if e.complexity.PrivacySettings.Searchable == nil {
 			break
@@ -3363,13 +3354,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.PrivacySettings.ShowEmail(childComplexity), true
-
-	case "PrivacySettings.showOrgs":
-		if e.complexity.PrivacySettings.ShowOrgs == nil {
-			break
-		}
-
-		return e.complexity.PrivacySettings.ShowOrgs(childComplexity), true
 
 	case "PrivacySettings.visibility":
 		if e.complexity.PrivacySettings.Visibility == nil {
@@ -5828,13 +5812,13 @@ func (ec *executionContext) field_Mutation_adminUpdateChannel_argsEnabled(
 func (ec *executionContext) field_Mutation_adminUpdateChannel_argsConfig(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (any, error) {
+) (interface{}, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["config"]
 	if !ok {
-		var zeroVal any
+		var zeroVal interface{}
 		return zeroVal, nil
 	}
 
@@ -5843,7 +5827,7 @@ func (ec *executionContext) field_Mutation_adminUpdateChannel_argsConfig(
 		return ec.unmarshalOAny2interface(ctx, tmp)
 	}
 
-	var zeroVal any
+	var zeroVal interface{}
 	return zeroVal, nil
 }
 
@@ -7008,6 +6992,11 @@ func (ec *executionContext) field_Mutation_enableUserTwoFactor_args(ctx context.
 		return nil, err
 	}
 	args["code"] = arg1
+	arg2, err := ec.field_Mutation_enableUserTwoFactor_argsPassword(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["password"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_enableUserTwoFactor_argsSecret(
@@ -7047,6 +7036,28 @@ func (ec *executionContext) field_Mutation_enableUserTwoFactor_argsCode(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("code"))
 	if tmp, ok := rawArgs["code"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_enableUserTwoFactor_argsPassword(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (string, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["password"]
+	if !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+	if tmp, ok := rawArgs["password"]; ok {
 		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
@@ -7094,13 +7105,13 @@ func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_argsCerem
 func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_argsCredential(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (any, error) {
+) (interface{}, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["credential"]
 	if !ok {
-		var zeroVal any
+		var zeroVal interface{}
 		return zeroVal, nil
 	}
 
@@ -7109,7 +7120,7 @@ func (ec *executionContext) field_Mutation_finishAdminPasskeyChallenge_argsCrede
 		return ec.unmarshalNAny2interface(ctx, tmp)
 	}
 
-	var zeroVal any
+	var zeroVal interface{}
 	return zeroVal, nil
 }
 
@@ -7153,13 +7164,13 @@ func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_argsCe
 func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_argsCredential(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (any, error) {
+) (interface{}, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["credential"]
 	if !ok {
-		var zeroVal any
+		var zeroVal interface{}
 		return zeroVal, nil
 	}
 
@@ -7168,7 +7179,7 @@ func (ec *executionContext) field_Mutation_finishAdminPasskeyRegistration_argsCr
 		return ec.unmarshalNAny2interface(ctx, tmp)
 	}
 
-	var zeroVal any
+	var zeroVal interface{}
 	return zeroVal, nil
 }
 
@@ -7212,13 +7223,13 @@ func (ec *executionContext) field_Mutation_finishUserPasskeyChallenge_argsCeremo
 func (ec *executionContext) field_Mutation_finishUserPasskeyChallenge_argsCredential(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (any, error) {
+) (interface{}, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["credential"]
 	if !ok {
-		var zeroVal any
+		var zeroVal interface{}
 		return zeroVal, nil
 	}
 
@@ -7227,7 +7238,7 @@ func (ec *executionContext) field_Mutation_finishUserPasskeyChallenge_argsCreden
 		return ec.unmarshalNAny2interface(ctx, tmp)
 	}
 
-	var zeroVal any
+	var zeroVal interface{}
 	return zeroVal, nil
 }
 
@@ -7271,13 +7282,13 @@ func (ec *executionContext) field_Mutation_finishUserPasskeyRegistration_argsCer
 func (ec *executionContext) field_Mutation_finishUserPasskeyRegistration_argsCredential(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (any, error) {
+) (interface{}, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
 	_, ok := rawArgs["credential"]
 	if !ok {
-		var zeroVal any
+		var zeroVal interface{}
 		return zeroVal, nil
 	}
 
@@ -7286,7 +7297,7 @@ func (ec *executionContext) field_Mutation_finishUserPasskeyRegistration_argsCre
 		return ec.unmarshalNAny2interface(ctx, tmp)
 	}
 
-	var zeroVal any
+	var zeroVal interface{}
 	return zeroVal, nil
 }
 
@@ -9435,7 +9446,7 @@ func (ec *executionContext) field___Type_fields_argsIncludeDeprecated(
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _APIToken_id(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_id(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9479,7 +9490,7 @@ func (ec *executionContext) fieldContext_APIToken_id(_ context.Context, field gr
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_token(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_token(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_token(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9520,7 +9531,7 @@ func (ec *executionContext) fieldContext_APIToken_token(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_name(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_name(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_name(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9561,7 +9572,7 @@ func (ec *executionContext) fieldContext_APIToken_name(_ context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9605,7 +9616,7 @@ func (ec *executionContext) fieldContext_APIToken_createdAt(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_expiresAt(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_expiresAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9646,7 +9657,7 @@ func (ec *executionContext) fieldContext_APIToken_expiresAt(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_lastUsedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -9687,7 +9698,7 @@ func (ec *executionContext) fieldContext_APIToken_lastUsedAt(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _APIToken_lastUsedIP(ctx context.Context, field graphql.CollectedField, obj *models.APIToken) (ret graphql.Marshaler) {
+func (ec *executionContext) _APIToken_lastUsedIP(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_APIToken_lastUsedIP(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -19373,7 +19384,7 @@ func (ec *executionContext) _Mutation_enableUserTwoFactor(ctx context.Context, f
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().EnableUserTwoFactor(rctx, fc.Args["secret"].(string), fc.Args["code"].(string))
+		return ec.resolvers.Mutation().EnableUserTwoFactor(rctx, fc.Args["secret"].(string), fc.Args["code"].(string), fc.Args["password"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -20153,7 +20164,7 @@ func (ec *executionContext) _Mutation_createSavedLocation(ctx context.Context, f
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.SavedLocation)
+	res := resTmp.(*model.SavedLocation)
 	fc.Result = res
 	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
@@ -20230,7 +20241,7 @@ func (ec *executionContext) _Mutation_updateSavedLocation(ctx context.Context, f
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.SavedLocation)
+	res := resTmp.(*model.SavedLocation)
 	fc.Result = res
 	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
@@ -20368,7 +20379,7 @@ func (ec *executionContext) _Mutation_toggleLocationAlerts(ctx context.Context, 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.SavedLocation)
+	res := resTmp.(*model.SavedLocation)
 	fc.Result = res
 	return ec.marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
@@ -20445,7 +20456,7 @@ func (ec *executionContext) _Mutation_markNotificationRead(ctx context.Context, 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.Notification)
+	res := resTmp.(*model.Notification)
 	fc.Result = res
 	return ec.marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx, field.Selections, res)
 }
@@ -20629,7 +20640,7 @@ func (ec *executionContext) _Mutation_adminUpdateUser(ctx context.Context, field
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.User)
+	res := resTmp.(*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
 }
@@ -21157,7 +21168,7 @@ func (ec *executionContext) _Mutation_adminUpdateSetting(ctx context.Context, fi
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.Setting)
+	res := resTmp.(*model.Setting)
 	fc.Result = res
 	return ec.marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
 }
@@ -21341,7 +21352,7 @@ func (ec *executionContext) _Mutation_adminGenerateToken(ctx context.Context, fi
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.APIToken)
+	res := resTmp.(*model.APIToken)
 	fc.Result = res
 	return ec.marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx, field.Selections, res)
 }
@@ -22507,7 +22518,7 @@ func (ec *executionContext) fieldContext_Mutation_submitContactForm(ctx context.
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22551,7 +22562,7 @@ func (ec *executionContext) fieldContext_Notification_id(_ context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_userId(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_userId(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_userId(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22595,7 +22606,7 @@ func (ec *executionContext) fieldContext_Notification_userId(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_type(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_type(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_type(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22639,7 +22650,7 @@ func (ec *executionContext) fieldContext_Notification_type(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_title(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_title(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_title(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22683,7 +22694,7 @@ func (ec *executionContext) fieldContext_Notification_title(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_message(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_message(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_message(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22727,7 +22738,7 @@ func (ec *executionContext) fieldContext_Notification_message(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_read(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_read(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_read(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22771,7 +22782,7 @@ func (ec *executionContext) fieldContext_Notification_read(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22815,7 +22826,7 @@ func (ec *executionContext) fieldContext_Notification_createdAt(_ context.Contex
 	return fc, nil
 }
 
-func (ec *executionContext) _Notification_readAt(ctx context.Context, field graphql.CollectedField, obj *models.Notification) (ret graphql.Marshaler) {
+func (ec *executionContext) _Notification_readAt(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Notification_readAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -22967,7 +22978,7 @@ func (ec *executionContext) _NotificationChannel_config(ctx context.Context, fie
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(any)
+	res := resTmp.(interface{})
 	fc.Result = res
 	return ec.marshalOAny2interface(ctx, field.Selections, res)
 }
@@ -23830,50 +23841,6 @@ func (ec *executionContext) fieldContext_PrivacySettings_showActivity(_ context.
 	return fc, nil
 }
 
-func (ec *executionContext) _PrivacySettings_showOrgs(ctx context.Context, field graphql.CollectedField, obj *PrivacySettings) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_PrivacySettings_showOrgs(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ShowOrgs, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_PrivacySettings_showOrgs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "PrivacySettings",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _PrivacySettings_searchable(ctx context.Context, field graphql.CollectedField, obj *PrivacySettings) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_PrivacySettings_searchable(ctx, field)
 	if err != nil {
@@ -23906,50 +23873,6 @@ func (ec *executionContext) _PrivacySettings_searchable(ctx context.Context, fie
 }
 
 func (ec *executionContext) fieldContext_PrivacySettings_searchable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "PrivacySettings",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _PrivacySettings_orgVisibility(ctx context.Context, field graphql.CollectedField, obj *PrivacySettings) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_PrivacySettings_orgVisibility(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.OrgVisibility, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_PrivacySettings_orgVisibility(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "PrivacySettings",
 		Field:      field,
@@ -24032,7 +23955,7 @@ func (ec *executionContext) _PublicAvatar_urls(ctx context.Context, field graphq
 		}
 		return graphql.Null
 	}
-	res := resTmp.(any)
+	res := resTmp.(interface{})
 	fc.Result = res
 	return ec.marshalNAny2interface(ctx, field.Selections, res)
 }
@@ -25545,7 +25468,7 @@ func (ec *executionContext) _Query_currentUser(ctx context.Context, field graphq
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.User)
+	res := resTmp.(*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx, field.Selections, res)
 }
@@ -25935,7 +25858,7 @@ func (ec *executionContext) _Query_savedLocations(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*models.SavedLocation)
+	res := resTmp.([]*model.SavedLocation)
 	fc.Result = res
 	return ec.marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx, field.Selections, res)
 }
@@ -25998,7 +25921,7 @@ func (ec *executionContext) _Query_savedLocation(ctx context.Context, field grap
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*models.SavedLocation)
+	res := resTmp.(*model.SavedLocation)
 	fc.Result = res
 	return ec.marshalOSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx, field.Selections, res)
 }
@@ -26075,7 +25998,7 @@ func (ec *executionContext) _Query_notifications(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*models.Notification)
+	res := resTmp.([]*model.Notification)
 	fc.Result = res
 	return ec.marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx, field.Selections, res)
 }
@@ -26185,7 +26108,7 @@ func (ec *executionContext) _Query_adminUsers(ctx context.Context, field graphql
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*models.User)
+	res := resTmp.([]*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx, field.Selections, res)
 }
@@ -26521,7 +26444,7 @@ func (ec *executionContext) _Query_adminSettings(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*models.Setting)
+	res := resTmp.([]*model.Setting)
 	fc.Result = res
 	return ec.marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx, field.Selections, res)
 }
@@ -26576,7 +26499,7 @@ func (ec *executionContext) _Query_adminSetting(ctx context.Context, field graph
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*models.Setting)
+	res := resTmp.(*model.Setting)
 	fc.Result = res
 	return ec.marshalOSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx, field.Selections, res)
 }
@@ -26645,7 +26568,7 @@ func (ec *executionContext) _Query_adminTokens(ctx context.Context, field graphq
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*models.APIToken)
+	res := resTmp.([]*model.APIToken)
 	fc.Result = res
 	return ec.marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx, field.Selections, res)
 }
@@ -28099,7 +28022,7 @@ func (ec *executionContext) fieldContext_SSLHealth_daysRemaining(_ context.Conte
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_id(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_id(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28143,7 +28066,7 @@ func (ec *executionContext) fieldContext_SavedLocation_id(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_userId(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_userId(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_userId(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28187,7 +28110,7 @@ func (ec *executionContext) fieldContext_SavedLocation_userId(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_name(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_name(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_name(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28231,7 +28154,7 @@ func (ec *executionContext) fieldContext_SavedLocation_name(_ context.Context, f
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_lat(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_lat(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_lat(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28275,7 +28198,7 @@ func (ec *executionContext) fieldContext_SavedLocation_lat(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_lon(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_lon(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_lon(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28319,7 +28242,7 @@ func (ec *executionContext) fieldContext_SavedLocation_lon(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_country(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_country(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_country(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28360,7 +28283,7 @@ func (ec *executionContext) fieldContext_SavedLocation_country(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_region(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_region(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_region(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28401,7 +28324,7 @@ func (ec *executionContext) fieldContext_SavedLocation_region(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_alerts(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_alerts(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_alerts(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28445,7 +28368,7 @@ func (ec *executionContext) fieldContext_SavedLocation_alerts(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -28489,7 +28412,7 @@ func (ec *executionContext) fieldContext_SavedLocation_createdAt(_ context.Conte
 	return fc, nil
 }
 
-func (ec *executionContext) _SavedLocation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.SavedLocation) (ret graphql.Marshaler) {
+func (ec *executionContext) _SavedLocation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SavedLocation) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SavedLocation_updatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30037,7 +29960,7 @@ func (ec *executionContext) fieldContext_SessionsHealth_total(_ context.Context,
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_key(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_key(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_key(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30081,7 +30004,7 @@ func (ec *executionContext) fieldContext_Setting_key(_ context.Context, field gr
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_value(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_value(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_value(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30122,7 +30045,7 @@ func (ec *executionContext) fieldContext_Setting_value(_ context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_type(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_type(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_type(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30163,7 +30086,7 @@ func (ec *executionContext) fieldContext_Setting_type(_ context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_description(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_description(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_description(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30204,7 +30127,7 @@ func (ec *executionContext) fieldContext_Setting_description(_ context.Context, 
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_updatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -30245,7 +30168,7 @@ func (ec *executionContext) fieldContext_Setting_updatedAt(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Setting_updatedBy(ctx context.Context, field graphql.CollectedField, obj *models.Setting) (ret graphql.Marshaler) {
+func (ec *executionContext) _Setting_updatedBy(ctx context.Context, field graphql.CollectedField, obj *model.Setting) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Setting_updatedBy(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31646,7 +31569,7 @@ func (ec *executionContext) fieldContext_UnreadCount_count(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_id(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31690,7 +31613,7 @@ func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphq
 	return fc, nil
 }
 
-func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_username(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31734,7 +31657,7 @@ func (ec *executionContext) fieldContext_User_username(_ context.Context, field 
 	return fc, nil
 }
 
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_email(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31778,7 +31701,7 @@ func (ec *executionContext) fieldContext_User_email(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _User_phone(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_phone(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_phone(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31819,7 +31742,7 @@ func (ec *executionContext) fieldContext_User_phone(_ context.Context, field gra
 	return fc, nil
 }
 
-func (ec *executionContext) _User_displayName(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_displayName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_displayName(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31860,7 +31783,7 @@ func (ec *executionContext) fieldContext_User_displayName(_ context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _User_role(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_role(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_role(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31904,7 +31827,7 @@ func (ec *executionContext) fieldContext_User_role(_ context.Context, field grap
 	return fc, nil
 }
 
-func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_createdAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31948,7 +31871,7 @@ func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_updatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -31992,7 +31915,7 @@ func (ec *executionContext) fieldContext_User_updatedAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _User_lastLoginAt(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_lastLoginAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_lastLoginAt(ctx, field)
 	if err != nil {
 		return graphql.Null
@@ -33147,12 +33070,8 @@ func (ec *executionContext) fieldContext_UserSettings_privacy(_ context.Context,
 				return ec.fieldContext_PrivacySettings_showEmail(ctx, field)
 			case "showActivity":
 				return ec.fieldContext_PrivacySettings_showActivity(ctx, field)
-			case "showOrgs":
-				return ec.fieldContext_PrivacySettings_showOrgs(ctx, field)
 			case "searchable":
 				return ec.fieldContext_PrivacySettings_searchable(ctx, field)
-			case "orgVisibility":
-				return ec.fieldContext_PrivacySettings_orgVisibility(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type PrivacySettings", field.Name)
 		},
@@ -37025,7 +36944,7 @@ func (ec *executionContext) unmarshalInputPrivacySettingsInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"visibility", "showEmail", "showActivity", "showOrgs", "searchable", "orgVisibility"}
+	fieldsInOrder := [...]string{"visibility", "showEmail", "showActivity", "searchable"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -37053,13 +36972,6 @@ func (ec *executionContext) unmarshalInputPrivacySettingsInput(ctx context.Conte
 				return it, err
 			}
 			it.ShowActivity = data
-		case "showOrgs":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("showOrgs"))
-			data, err := ec.unmarshalNBoolean2bool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ShowOrgs = data
 		case "searchable":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("searchable"))
 			data, err := ec.unmarshalNBoolean2bool(ctx, v)
@@ -37067,13 +36979,6 @@ func (ec *executionContext) unmarshalInputPrivacySettingsInput(ctx context.Conte
 				return it, err
 			}
 			it.Searchable = data
-		case "orgVisibility":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("orgVisibility"))
-			data, err := ec.unmarshalNBoolean2bool(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.OrgVisibility = data
 		}
 	}
 
@@ -37124,7 +37029,7 @@ func (ec *executionContext) unmarshalInputSettingInput(ctx context.Context, obj 
 
 var aPITokenImplementors = []string{"APIToken"}
 
-func (ec *executionContext) _APIToken(ctx context.Context, sel ast.SelectionSet, obj *models.APIToken) graphql.Marshaler {
+func (ec *executionContext) _APIToken(ctx context.Context, sel ast.SelectionSet, obj *model.APIToken) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, aPITokenImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -39681,7 +39586,7 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 
 var notificationImplementors = []string{"Notification"}
 
-func (ec *executionContext) _Notification(ctx context.Context, sel ast.SelectionSet, obj *models.Notification) graphql.Marshaler {
+func (ec *executionContext) _Notification(ctx context.Context, sel ast.SelectionSet, obj *model.Notification) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, notificationImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -40094,18 +39999,8 @@ func (ec *executionContext) _PrivacySettings(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "showOrgs":
-			out.Values[i] = ec._PrivacySettings_showOrgs(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "searchable":
 			out.Values[i] = ec._PrivacySettings_searchable(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "orgVisibility":
-			out.Values[i] = ec._PrivacySettings_orgVisibility(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -41494,7 +41389,7 @@ func (ec *executionContext) _SSLHealth(ctx context.Context, sel ast.SelectionSet
 
 var savedLocationImplementors = []string{"SavedLocation"}
 
-func (ec *executionContext) _SavedLocation(ctx context.Context, sel ast.SelectionSet, obj *models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) _SavedLocation(ctx context.Context, sel ast.SelectionSet, obj *model.SavedLocation) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, savedLocationImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -42151,7 +42046,7 @@ func (ec *executionContext) _SessionsHealth(ctx context.Context, sel ast.Selecti
 
 var settingImplementors = []string{"Setting"}
 
-func (ec *executionContext) _Setting(ctx context.Context, sel ast.SelectionSet, obj *models.Setting) graphql.Marshaler {
+func (ec *executionContext) _Setting(ctx context.Context, sel ast.SelectionSet, obj *model.Setting) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, settingImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -42607,7 +42502,7 @@ func (ec *executionContext) _UnreadCount(ctx context.Context, sel ast.SelectionS
 
 var userImplementors = []string{"User"}
 
-func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *models.User) graphql.Marshaler {
+func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -43723,11 +43618,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAPIToken2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v model.APIToken) graphql.Marshaler {
 	return ec._APIToken(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.APIToken) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -43771,7 +43666,7 @@ func (ec *executionContext) marshalNAPIToken2ᚕᚖgithubᚗcomᚋwebappsgoᚋwt
 	return ret
 }
 
-func (ec *executionContext) marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v *models.APIToken) graphql.Marshaler {
+func (ec *executionContext) marshalNAPIToken2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐAPIToken(ctx context.Context, sel ast.SelectionSet, v *model.APIToken) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -43873,12 +43768,12 @@ func (ec *executionContext) marshalNAdminPasskeyRegistrationResult2ᚖgithubᚗc
 	return ec._AdminPasskeyRegistrationResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNAny2interface(ctx context.Context, v interface{}) (any, error) {
+func (ec *executionContext) unmarshalNAny2interface(ctx context.Context, v interface{}) (interface{}, error) {
 	res, err := graphql.UnmarshalAny(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAny2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+func (ec *executionContext) marshalNAny2interface(ctx context.Context, sel ast.SelectionSet, v interface{}) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44447,11 +44342,11 @@ func (ec *executionContext) marshalNMoonPhase2ᚖgithubᚗcomᚋwebappsgoᚋwthr
 	return ec._MoonPhase(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNNotification2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v model.Notification) graphql.Marshaler {
 	return ec._Notification(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotificationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Notification) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44495,7 +44390,7 @@ func (ec *executionContext) marshalNNotification2ᚕᚖgithubᚗcomᚋwebappsgo�
 	return ret
 }
 
-func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *models.Notification) graphql.Marshaler {
+func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44727,11 +44622,11 @@ func (ec *executionContext) marshalNSMTPProvider2ᚖgithubᚗcomᚋwebappsgoᚋw
 	return ec._SMTPProvider(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSavedLocation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v model.SavedLocation) graphql.Marshaler {
 	return ec._SavedLocation(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SavedLocation) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44775,7 +44670,7 @@ func (ec *executionContext) marshalNSavedLocation2ᚕᚖgithubᚗcomᚋwebappsgo
 	return ret
 }
 
-func (ec *executionContext) marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalNSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *model.SavedLocation) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -44909,11 +44804,11 @@ func (ec *executionContext) marshalNServerInviteValidation2ᚖgithubᚗcomᚋweb
 	return ec._ServerInviteValidation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSetting2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v model.Setting) graphql.Marshaler {
 	return ec._Setting(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSettingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Setting) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -44957,7 +44852,7 @@ func (ec *executionContext) marshalNSetting2ᚕᚖgithubᚗcomᚋwebappsgoᚋwth
 	return ret
 }
 
-func (ec *executionContext) marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalNSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *model.Setting) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45244,11 +45139,11 @@ func (ec *executionContext) marshalNUpload2githubᚗcomᚋ99designsᚋgqlgenᚋg
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -45292,7 +45187,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋwebappsgoᚋwthr�
 	return ret
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *models.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -45833,7 +45728,7 @@ func (ec *executionContext) unmarshalOAccountSettingsInput2ᚖgithubᚗcomᚋweb
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOAny2interface(ctx context.Context, v interface{}) (any, error) {
+func (ec *executionContext) unmarshalOAny2interface(ctx context.Context, v interface{}) (interface{}, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -45841,7 +45736,7 @@ func (ec *executionContext) unmarshalOAny2interface(ctx context.Context, v inter
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOAny2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+func (ec *executionContext) marshalOAny2interface(ctx context.Context, sel ast.SelectionSet, v interface{}) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46170,7 +46065,7 @@ func (ec *executionContext) marshalOSSLHealth2ᚖgithubᚗcomᚋwebappsgoᚋwthr
 	return ec._SSLHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *models.SavedLocation) graphql.Marshaler {
+func (ec *executionContext) marshalOSavedLocation2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSavedLocation(ctx context.Context, sel ast.SelectionSet, v *model.SavedLocation) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -46198,7 +46093,7 @@ func (ec *executionContext) marshalOSessionsHealth2ᚖgithubᚗcomᚋwebappsgo�
 	return ec._SessionsHealth(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *models.Setting) graphql.Marshaler {
+func (ec *executionContext) marshalOSetting2ᚖgithubᚗcomᚋwebappsgoᚋwthrᚋsrcᚋserverᚋmodelᚐSetting(ctx context.Context, sel ast.SelectionSet, v *model.Setting) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

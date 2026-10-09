@@ -82,7 +82,7 @@ func TestNotificationAPIHandlers_GetUserNotifications(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"count":0`) {
+		if !strings.Contains(w.Body.String(), `"count": 0`) {
 			t.Errorf("body = %s, want count:0", w.Body.String())
 		}
 	})
@@ -154,7 +154,7 @@ func TestNotificationAPIHandlers_GetUserUnreadCount(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), `"count":0`) {
+	if !strings.Contains(w.Body.String(), `"count": 0`) {
 		t.Errorf("body = %s, want count:0", w.Body.String())
 	}
 }
@@ -253,7 +253,7 @@ func TestNotificationAPIHandlers_UserPreferences(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
-		if !strings.Contains(w.Body.String(), `"enable_toast":true`) {
+		if !strings.Contains(w.Body.String(), `"enable_toast": true`) {
 			t.Errorf("body = %s, want default enable_toast:true", w.Body.String())
 		}
 	})

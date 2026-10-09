@@ -1041,7 +1041,7 @@ func CreateSystemBackup() error {
 	// backup.skipped_disk_full, level=error) without creating a backup when
 	// free space is under 2x the most recent backup's size, or disk usage is
 	// above disk_threshold (default 90%).
-	backupDir := filepath.Join(p.DataDir, "backups")
+	backupDir := backup.ResolveDir(p.DataDir)
 	if skip, reason := backupDiskSpaceExceeded(backupDir); skip {
 		logBackupSkippedDiskFullAudit(database.GetServerDB(), reason)
 		log.Printf("ERROR: %s", reason)

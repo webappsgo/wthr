@@ -79,7 +79,7 @@ func (h *SchedulerHandler) EnableTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   "Task enabled successfully",
+		"message":   Translate(r, "success.scheduler.task_enabled"),
 		"task_name": taskName,
 	})
 }
@@ -97,7 +97,7 @@ func (h *SchedulerHandler) DisableTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   "Task disabled successfully",
+		"message":   Translate(r, "success.scheduler.task_disabled"),
 		"task_name": taskName,
 	})
 }
@@ -109,7 +109,7 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	task := h.Scheduler.GetTask(taskName)
 	if task == nil {
 		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": map[string]interface{}{"code": "TASK_NOT_FOUND", "message": "Task not found: " + taskName},
+			"error": map[string]interface{}{"code": "TASK_NOT_FOUND", "message": TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName})},
 		})
 		return
 	}
@@ -119,7 +119,7 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": "Invalid request body"},
+			"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": Translate(r, "errors.common.invalid_request_body")},
 		})
 		return
 	}
@@ -141,7 +141,7 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":        true,
-		"message":   "Task updated successfully",
+		"message":   Translate(r, "success.scheduler.task_updated"),
 		"task_name": taskName,
 	})
 }
@@ -159,7 +159,7 @@ func (h *SchedulerHandler) TriggerTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   "Task triggered successfully",
+		"message":   Translate(r, "success.scheduler.task_triggered"),
 		"task_name": taskName,
 	})
 }

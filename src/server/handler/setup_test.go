@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/webappsgo/wthr/src/config"
 	paths "github.com/webappsgo/wthr/src/path"
 	utils "github.com/webappsgo/wthr/src/util"
 )
@@ -60,12 +62,21 @@ func TestVerifySetupToken(t *testing.T) {
 		}
 		found := false
 		for _, ck := range w.Result().Cookies() {
-			if ck.Name == "setup_token_verified" && ck.Value == "true" {
+			if ck.Name != "setup_token_verified" {
+				continue
+			}
+			// The cookie is an HMAC-signed proof, not a literal "true", so it
+			// cannot be forged client-side.
+			cfg, _ := config.LoadConfig()
+			if cfg == nil {
+				t.Fatal("config not available for proof verification")
+			}
+			if utils.VerifySetupProof(cfg.Server.Security.EncryptionKey, ck.Value, time.Now()) {
 				found = true
 			}
 		}
 		if !found {
-			t.Fatalf("expected setup_token_verified=true cookie, got %v", w.Result().Cookies())
+			t.Fatalf("expected a valid setup_token_verified proof cookie, got %v", w.Result().Cookies())
 		}
 	})
 
@@ -110,7 +121,15 @@ func newVerifiedSetupRequest(t *testing.T, body map[string]interface{}) (*http.R
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/setup/admin", bytes.NewReader(raw))
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Accept", "application/json")
-	r.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
+
+	cfg, _ := config.LoadConfig()
+	if cfg == nil {
+		t.Fatal("config not available for signing the setup proof")
+	}
+	r.AddCookie(&http.Cookie{
+		Name:  "setup_token_verified",
+		Value: utils.SignSetupProof(cfg.Server.Security.EncryptionKey, time.Now()),
+	})
 	return r, w
 }
 
@@ -423,7 +442,7 @@ func TestValidateSetupRequest(t *testing.T) {
 	}{
 		{"valid request", func(r SetupWizardRequest) SetupWizardRequest { return r }, false},
 		{"empty username", func(r SetupWizardRequest) SetupWizardRequest { r.Username = ""; return r }, true},
-		{"username too short", func(r SetupWizardRequest) SetupWizardRequest { r.Username = "ab"; return r }, true},
+		{"username too short", func(r SetupWizardRequest) SetupWizardRequest { r.Username = "a"; return r }, true},
 		{"invalid username characters", func(r SetupWizardRequest) SetupWizardRequest { r.Username = "admin!"; return r }, true},
 		{"empty email", func(r SetupWizardRequest) SetupWizardRequest { r.Email = ""; return r }, true},
 		{"invalid email format", func(r SetupWizardRequest) SetupWizardRequest { r.Email = "not-an-email"; return r }, true},

@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/handler"
+	"github.com/webappsgo/wthr/src/util"
 	_ "modernc.org/sqlite"
 )
 
@@ -60,6 +63,15 @@ func initTestDualDB(t *testing.T) (*database.DualDB, func()) {
 	return dualDB, cleanup
 }
 
+func signedSetupProof(t *testing.T) string {
+	t.Helper()
+	cfg, err := config.LoadConfig()
+	if err != nil || cfg == nil || cfg.Server.Security.EncryptionKey == "" {
+		t.Fatalf("load config for setup proof: %v", err)
+	}
+	return util.SignSetupProof(cfg.Server.Security.EncryptionKey, time.Now())
+}
+
 // TestCompleteSetupFlow tests the admin setup wizard account step end-to-end.
 func TestCompleteSetupFlow(t *testing.T) {
 	// Initialize fresh database
@@ -86,7 +98,7 @@ func TestCompleteSetupFlow(t *testing.T) {
 		req := httptest.NewRequest("POST", "/admin/server/setup", bytes.NewBuffer(jsonData))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json")
-		req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
+		req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: signedSetupProof(t)})
 
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -195,7 +207,7 @@ func TestAdminSetupValidation(t *testing.T) {
 			req := httptest.NewRequest("POST", "/admin/server/setup", bytes.NewBuffer(jsonData))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", "application/json")
-			req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
+			req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: signedSetupProof(t)})
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)

@@ -526,3 +526,11 @@ before starting each item — do not rely on memory.
     never defines them; the route table is the authoritative inventory, so no
     such routes were added.
     Read: AI.md PART 13.
+
+188. OPEN (flagged 2026-10-09 by the go-lint gate, pre-existing): the
+    `Makefile` `dev` target (lines 250, 253, 257) runs `go build -o ...`
+    without an inline `-buildvcs=false`; `GO_DOCKER` already sets it via
+    `GOFLAGS`, but the lint rule wants it inline on every build. Also check
+    whether `Logger.Fatal` (`src/util/logger.go:167`) exits with code 1, and
+    whether plural `tests/unit/handlers` / `tests/unit/services` fall under
+    the tooling-directory exception.

@@ -32,7 +32,7 @@ func (h *HistoryHandler) ShowHistory(w http.ResponseWriter, r *http.Request) {
 		middleware.RenderHTML(w, r, http.StatusServiceUnavailable, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 			"title":   "Feature Disabled",
 			"code":    503,
-			"message": "Historical weather feature is disabled",
+			"message": Translate(r, "errors.history.disabled"),
 		}))
 		return
 	}

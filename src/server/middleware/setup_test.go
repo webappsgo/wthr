@@ -87,7 +87,18 @@ func seedSetupAdmin(t *testing.T, db *sql.DB) {
 // (src/config/config.go:339-344) already falls back to "admin" when
 // Server.AdminPath is empty, matching the CLAUDE.md default admin path.
 func testAppConfig() *config.AppConfig {
-	return &config.AppConfig{}
+	cfg := &config.AppConfig{}
+	cfg.Server.Security.EncryptionKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+	return cfg
+}
+
+// signedProofCookie returns a setup_token_verified cookie carrying a valid
+// signed proof for cfg, matching what the verify handler issues.
+func signedProofCookie(cfg *config.AppConfig) *http.Cookie {
+	return &http.Cookie{
+		Name:  "setup_token_verified",
+		Value: utils.SignSetupProof(cfg.Server.Security.EncryptionKey, time.Now()),
+	}
 }
 
 // removeSetupToken guarantees a clean, token-file-absent starting state
@@ -237,7 +248,7 @@ func TestSetupTokenRequired_NoAdminAdminSubPathRedirectsToRoot(t *testing.T) {
 }
 
 // TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard verifies that
-// with the setup_token_verified cookie set to "true", the request is
+// with a validly signed setup_token_verified cookie, the request is
 // redirected straight to the setup wizard.
 func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
 	openSetupTestServerDB(t)
@@ -249,7 +260,7 @@ func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/server/admin", nil)
-	req.AddCookie(&http.Cookie{Name: "setup_token_verified", Value: "true"})
+	req.AddCookie(signedProofCookie(cfg))
 	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusFound {
@@ -336,7 +347,8 @@ func TestRequireSetupTokenVerified(t *testing.T) {
 	}{
 		{"no cookie redirects", nil, http.StatusFound, false},
 		{"wrong value redirects", &http.Cookie{Name: "setup_token_verified", Value: "nope"}, http.StatusFound, false},
-		{"verified cookie reaches handler", &http.Cookie{Name: "setup_token_verified", Value: "true"}, http.StatusOK, true},
+		{"literal true is rejected", &http.Cookie{Name: "setup_token_verified", Value: "true"}, http.StatusFound, false},
+		{"verified cookie reaches handler", signedProofCookie(cfg), http.StatusOK, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

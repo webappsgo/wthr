@@ -173,13 +173,28 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 			continue
 		}
 
+		// Reject symlinks and hard links: an archive member that resolves to a
+		// link can redirect a later write outside the destination entirely.
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			return fmt.Errorf("backup archive contains a link entry (%s)", header.Name)
+		}
+
 		// Determine destination path per AI.md PART 22 backup contents
 		var destPath string
+		var baseDir string
 		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "template/") ||
 			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") {
-			destPath = filepath.Join(configDir, header.Name)
+			baseDir = configDir
 		} else {
-			destPath = filepath.Join(dataDir, header.Name)
+			baseDir = dataDir
+		}
+
+		// Reject traversal. The prefix tests above run against the raw member
+		// name, so "../../etc/template/x" matches "template/" only after
+		// escaping — safeExtractPath is what actually confines the write.
+		destPath, err = safeExtractPath(baseDir, header.Name)
+		if err != nil {
+			return err
 		}
 
 		// Create directory if needed

@@ -297,10 +297,16 @@ func (r *mutationResolver) ChangeUserPassword(ctx context.Context, currentPasswo
 }
 
 // EnableUserTwoFactor is the resolver for the enableUserTwoFactor field.
-func (r *mutationResolver) EnableUserTwoFactor(ctx context.Context, secret string, code string) (*TOTPRecoveryKeys, error) {
+func (r *mutationResolver) EnableUserTwoFactor(ctx context.Context, secret string, code string, password string) (*TOTPRecoveryKeys, error) {
 	user, err := loadGraphQLCurrentUserAuth(ctx, r.UsersDB)
 	if err != nil {
 		return nil, err
+	}
+	// Enabling 2FA is a security-sensitive change, so require the account password
+	// first, matching the check DisableUserTwoFactor already applies.
+	userModel := &models.UserModel{DB: r.UsersDB}
+	if !userModel.CheckPassword(user, password) {
+		return nil, fmt.Errorf("invalid password")
 	}
 
 	response, err := handler.EnableCurrentUserTwoFactor(r.UsersDB, user, secret, code)
@@ -386,7 +392,7 @@ func (r *mutationResolver) BeginUserPasskeyRegistration(ctx context.Context, nam
 
 // FinishUserPasskeyRegistration is the resolver for the
 // finishUserPasskeyRegistration field.
-func (r *mutationResolver) FinishUserPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*PasskeyRegistrationResult, error) {
+func (r *mutationResolver) FinishUserPasskeyRegistration(ctx context.Context, ceremonyToken string, credential interface{}) (*PasskeyRegistrationResult, error) {
 	user, err := loadGraphQLCurrentUserAuth(ctx, r.UsersDB)
 	if err != nil {
 		return nil, err
@@ -464,7 +470,7 @@ func (r *mutationResolver) BeginUserPasskeyChallenge(ctx context.Context, sessio
 // FinishUserPasskeyChallenge is the resolver for the finishUserPasskeyChallenge
 // field. Public mutation — completes passkey login or the
 // passkey-as-second-factor flow.
-func (r *mutationResolver) FinishUserPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AuthResult, error) {
+func (r *mutationResolver) FinishUserPasskeyChallenge(ctx context.Context, ceremonyToken string, credential interface{}) (*AuthResult, error) {
 	env, err := graphQLPasskeyEnvelope(ctx)
 	if err != nil {
 		return nil, err
@@ -505,12 +511,10 @@ func (r *mutationResolver) UpdateUserSettings(ctx context.Context, account *Acco
 	}
 	if privacy != nil {
 		req.Privacy = &handler.PrivacySettings{
-			Visibility:    privacy.Visibility,
-			ShowEmail:     privacy.ShowEmail,
-			ShowActivity:  privacy.ShowActivity,
-			ShowOrgs:      privacy.ShowOrgs,
-			Searchable:    privacy.Searchable,
-			OrgVisibility: privacy.OrgVisibility,
+			Visibility:   privacy.Visibility,
+			ShowEmail:    privacy.ShowEmail,
+			ShowActivity: privacy.ShowActivity,
+			Searchable:   privacy.Searchable,
 		}
 	}
 	if notifications != nil {
@@ -1363,7 +1367,7 @@ func (r *mutationResolver) AdminTriggerTask(ctx context.Context, name string) (*
 }
 
 // AdminUpdateChannel is the resolver for the adminUpdateChannel field.
-func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg string, enabled *bool, config any) (*NotificationChannel, error) {
+func (r *mutationResolver) AdminUpdateChannel(ctx context.Context, typeArg string, enabled *bool, config interface{}) (*NotificationChannel, error) {
 	userRole, ok := ctx.Value(ctxKeyUserRole).(string)
 	if !ok || userRole != "admin" {
 		return nil, fmt.Errorf("unauthorized: admin access required")
@@ -1560,7 +1564,7 @@ func (r *mutationResolver) BeginAdminPasskeyRegistration(ctx context.Context, na
 
 // FinishAdminPasskeyRegistration is the resolver for the finishAdminPasskeyRegistration field.
 // Requires admin auth. Completes the WebAuthn ceremony and persists the passkey.
-func (r *mutationResolver) FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential any) (*AdminPasskeyRegistrationResult, error) {
+func (r *mutationResolver) FinishAdminPasskeyRegistration(ctx context.Context, ceremonyToken string, credential interface{}) (*AdminPasskeyRegistrationResult, error) {
 	admin, err := loadGraphQLCurrentAdmin(ctx, r.ServerDB)
 	if err != nil {
 		return nil, err
@@ -1632,7 +1636,7 @@ func (r *mutationResolver) BeginAdminPasskeyChallenge(ctx context.Context, sessi
 // session token (the caller must set the admin_session cookie via the REST
 // verify endpoint; GraphQL callers receive the session ID for use in
 // subsequent authenticated requests).
-func (r *mutationResolver) FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential any) (*AdminLoginResult, error) {
+func (r *mutationResolver) FinishAdminPasskeyChallenge(ctx context.Context, ceremonyToken string, credential interface{}) (*AdminLoginResult, error) {
 	env, err := graphQLPasskeyEnvelope(ctx)
 	if err != nil {
 		return nil, err
@@ -2553,10 +2557,6 @@ func (r *queryResolver) SavedLocation(ctx context.Context, id string) (*models.S
 	return &loc, nil
 }
 
-// graphQLNotificationListLimit is the number of most recent notifications the notifications query returns. It used
-// to be an SQL "LIMIT 50"; it is applied in Go now so the cut is made against the true instant ordering.
-const graphQLNotificationListLimit = 50
-
 // Notifications is the resolver for the notifications field.
 func (r *queryResolver) Notifications(ctx context.Context) ([]*models.Notification, error) {
 	userID := getUserIDFromContext(ctx)
@@ -2864,13 +2864,6 @@ func (r *queryResolver) AdminTokens(ctx context.Context) ([]*models.APIToken, er
 		},
 	}, nil
 }
-
-// graphQLAuditLogCandidateOverscan is how many rows past the requested page AdminAuditLogs pulls before ordering by
-// true instant in Go. It is the id-ordered counterpart of graphQLAuditLogSkewWindow: the prefilter takes the
-// highest-id rows, and this margin absorbs entries whose real timestamp sits out of step with their insertion order
-// (a backdated entry, or a legacy local-zone row) so the true newest page cannot be missed. server_audit_log is
-// unbounded, so the scan must stay capped - reading the whole table to serve one page would be worse than the bug.
-const graphQLAuditLogCandidateOverscan = 500
 
 // AdminAuditLogs is the resolver for the adminAuditLogs field.
 func (r *queryResolver) AdminAuditLogs(ctx context.Context, limit *int, offset *int) ([]*AuditLog, error) {
@@ -3347,3 +3340,10 @@ type notificationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type savedLocationResolver struct{ *Resolver }
 type settingResolver struct{ *Resolver }
+
+// graphQLNotificationListLimit is the number of most recent notifications the notifications query returns.
+const graphQLNotificationListLimit = 50
+
+// graphQLAuditLogCandidateOverscan is how many rows past the requested page AdminAuditLogs pulls before
+// ordering by true instant in Go.
+const graphQLAuditLogCandidateOverscan = 500
