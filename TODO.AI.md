@@ -534,3 +534,14 @@ before starting each item — do not rely on memory.
     whether `Logger.Fatal` (`src/util/logger.go:167`) exits with code 1, and
     whether plural `tests/unit/handlers` / `tests/unit/services` fall under
     the tooling-directory exception.
+
+189. BLOCKED upstream (2026-10-09): CI `vuln-scan` and `image-scan` fail on
+    the Go standard library bundled in `casjaysdev/go:latest` (go1.27.0):
+    govulncheck reports 12 stdlib advisories reachable from this code
+    (net/http, net/http/internal/http2, net/textproto, crypto/tls,
+    html/template) and Trivy reports CVE-2026-78667 and CVE-2026-97031
+    (HIGH), all fixed in go1.27.2. The one module-level advisory
+    (GO-2026-6617, golang.org/x/net) was fixed here by upgrading to v0.60.0.
+    Not worked around in this repo: CLAUDE.md requires the floating image.
+    Clears when the image is rebuilt on go1.27.2 or later; verify with
+    `govulncheck ./...` in that image, then mark RESOLVED.
