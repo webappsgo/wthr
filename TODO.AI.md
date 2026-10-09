@@ -545,3 +545,13 @@ before starting each item — do not rely on memory.
     Not worked around in this repo: CLAUDE.md requires the floating image.
     Clears when the image is rebuilt on go1.27.2 or later; verify with
     `govulncheck ./...` in that image, then mark RESOLVED.
+
+190. BLOCKED upstream (2026-10-09): CI `lint` fails with `staticcheck ./...`
+    reporting `internal error in importing "cmp" (cannot decode "cmp", export
+    data version 5 is greater than maximum supported version 4)`. The
+    `staticcheck` binary pre-installed in `casjaysdev/go:latest` was built with
+    an older Go than the image's go1.27.2 toolchain, so it cannot read the
+    standard library export data. Not a repo code issue (it passed on go1.27.0
+    once the deprecated `ecdsa.PrivateKey.D` use was fixed), and CI rules
+    forbid installing tools inline. Clears when the image rebuilds staticcheck
+    against go1.27.2; re-run CI then and mark RESOLVED.
