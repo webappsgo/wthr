@@ -546,7 +546,8 @@ before starting each item — do not rely on memory.
     Clears when the image is rebuilt on go1.27.2 or later; verify with
     `govulncheck ./...` in that image, then mark RESOLVED.
 
-190. BLOCKED upstream (2026-10-09): CI `lint` fails with `staticcheck ./...`
+190. RESOLVED (2026-10-10): image rebuilt; `staticcheck ./...` in
+    casjaysdev/go:latest (go1.27.2) now reports nothing. Was: CI `lint` fails with `staticcheck ./...`
     reporting `internal error in importing "cmp" (cannot decode "cmp", export
     data version 5 is greater than maximum supported version 4)`. The
     `staticcheck` binary pre-installed in `casjaysdev/go:latest` was built with
