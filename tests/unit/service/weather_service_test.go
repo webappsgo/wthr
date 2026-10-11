@@ -1,4 +1,4 @@
-package services_test
+package service_test
 
 import (
 	"github.com/webappsgo/wthr/src/server/service"

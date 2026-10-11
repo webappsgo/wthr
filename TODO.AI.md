@@ -527,13 +527,12 @@ before starting each item — do not rely on memory.
     such routes were added.
     Read: AI.md PART 13.
 
-188. OPEN (flagged 2026-10-09 by the go-lint gate, pre-existing): the
-    `Makefile` `dev` target (lines 250, 253, 257) runs `go build -o ...`
-    without an inline `-buildvcs=false`; `GO_DOCKER` already sets it via
-    `GOFLAGS`, but the lint rule wants it inline on every build. Also check
-    whether `Logger.Fatal` (`src/util/logger.go:167`) exits with code 1, and
-    whether plural `tests/unit/handlers` / `tests/unit/services` fall under
-    the tooling-directory exception.
+188. RESOLVED (2026-10-10): `Makefile` `dev` target now passes `-buildvcs=false`
+    inline on all three `go build` calls. `Logger.Fatal` verified to exit 1.
+    AI.md requires singular Go directory names (line 1171), so
+    `tests/unit/handlers|services` were renamed to `handler|service` (packages
+    `handler_test`/`service_test`) and `docs/development.md` was updated.
+    `make test` passes at 62.9%.
 
 189. RESOLVED (2026-10-09, locally verified; CI confirmation pending on the commit that records this): casjaysdev/go:latest now ships go1.27.2 and `govulncheck ./...` reports 0 vulnerabilities affecting this code. Originally BLOCKED upstream: CI `vuln-scan` and `image-scan` fail on
     the Go standard library bundled in `casjaysdev/go:latest` (go1.27.0):

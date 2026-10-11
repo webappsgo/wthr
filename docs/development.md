@@ -318,7 +318,7 @@ func GetFeature(c *gin.Context) {
 apiV1.GET("/feature", handler.GetFeature)
 ```
 
-3. **Add tests** in `tests/unit/handlers/`
+3. **Add tests** in `tests/unit/handler/`
 
 ```go
 func TestGetFeature(t *testing.T) {
