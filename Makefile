@@ -1,6 +1,6 @@
-# Infer PROJECTNAME and PROJECTORG from git remote or directory path (NEVER hardcode)
-PROJECTNAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/||' || basename "$$(pwd)")
-PROJECTORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/([^/]+)/[^/]+$$|\1|' || basename "$$(dirname "$$(pwd)")")
+# Infer PROJECT_NAME and PROJECT_ORG from git remote or directory path (NEVER hardcode)
+PROJECT_NAME := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/||' || basename "$$(pwd)")
+PROJECT_ORG := $(shell git remote get-url origin 2>/dev/null | sed -E 's|^git@([^:]+):|https://\1/|; s|\.git$$||' | sed -E 's|.*/([^/]+)/[^/]+$$|\1|' || basename "$$(dirname "$$(pwd)")")
 
 # Version precedence: release.txt > env/default fallback
 VERSION ?= $(shell cat release.txt 2>/dev/null || echo "devel")
@@ -16,15 +16,14 @@ COMMIT_ID := $(shell git rev-parse --short=7 HEAD 2>/dev/null || echo "N/A")
 #   2. Environment variable: OFFICIAL_SITE=https://example.com
 #   3. Empty (self-hosted projects - users must use --server flag)
 # NEVER infer from project name, domain, or any other source
-OFFICIALSITE := $(shell [ -f site.txt ] && cat site.txt || echo "$${OFFICIAL_SITE:-}")
+OFFICIAL_SITE := $(shell [ -f site.txt ] && cat site.txt || echo "$${OFFICIAL_SITE:-}")
 
 # Linker flags to embed build info
 LDFLAGS := -s -w \
 	-X 'main.Version=$(VERSION)' \
 	-X 'main.CommitID=$(COMMIT_ID)' \
-	-X 'github.com/webappsgo/wthr/src/cli.BuildEpoch=$(BUILD_EPOCH)' \
-	-X 'main.BuildDate=$(BUILD_DATE)' \
-	-X 'main.OfficialSite=$(OFFICIALSITE)'
+	-X 'main.BuildEpoch=$(BUILD_EPOCH)' \
+	-X 'main.OfficialSite=$(OFFICIAL_SITE)'
 
 # Directories
 BINDIR := binaries
@@ -34,20 +33,20 @@ RELDIR := releases
 # GO_CACHE maps host module cache to GOPATH/pkg/mod inside casjaysdev/go:latest
 # GO_BUILD maps to GOCACHE inside the image
 GO_CACHE  ?= $(HOME)/go/pkg/mod
-GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECTNAME)
+GO_BUILD  ?= $(HOME)/.cache/go-build/$(PROJECT_NAME)
 
 # Build targets (space-separated — consumed by shell for-loops; all 8 platforms)
 PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64 freebsd/arm64
 
 # Docker - Set REGISTRY based on your platform (ghcr.io, registry.gitlab.com, git.example.com)
-REGISTRY ?= ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
+REGISTRY ?= ghcr.io/$(PROJECT_ORG)/$(PROJECT_NAME)
 
 # Resource caps keep one build from starving concurrent builds on the same host
 DOCKER_MEM  ?= 4g
 DOCKER_CPUS ?= 2
 
 GO_DOCKER := docker run --rm \
-	--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
+	--name $(PROJECT_NAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 	--memory=$(DOCKER_MEM) --cpus=$(DOCKER_CPUS) \
 	-v $(PWD):/app \
 	-v $(GO_CACHE):/usr/local/share/go/pkg/mod \
@@ -75,13 +74,13 @@ build: clean
 	# Build for local OS/ARCH
 	@echo "Building local binary..."
 	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME) ./src"
+		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
 
 	# Build server for all platforms
 	@for platform in $(PLATFORMS); do \
 		OS=$${platform%/*}; \
 		ARCH=$${platform#*/}; \
-		OUTPUT=$(BINDIR)/$(PROJECTNAME)-$$OS-$$ARCH; \
+		OUTPUT=$(BINDIR)/$(PROJECT_NAME)-$$OS-$$ARCH; \
 		[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 		echo "Building server $$OS/$$ARCH..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -94,7 +93,7 @@ build: clean
 		for platform in $(PLATFORMS); do \
 			OS=$${platform%/*}; \
 			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECTNAME)-cli-$$OS-$$ARCH; \
+			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-cli-$$OS-$$ARCH; \
 			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 			echo "Building CLI $$OS/$$ARCH..."; \
 			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -108,7 +107,7 @@ build: clean
 		for platform in $(PLATFORMS); do \
 			OS=$${platform%/*}; \
 			ARCH=$${platform#*/}; \
-			OUTPUT=$(BINDIR)/$(PROJECTNAME)-agent-$$OS-$$ARCH; \
+			OUTPUT=$(BINDIR)/$(PROJECT_NAME)-agent-$$OS-$$ARCH; \
 			[ "$$OS" = "windows" ] && OUTPUT=$$OUTPUT.exe; \
 			echo "Building agent $$OS/$$ARCH..."; \
 			$(GO_DOCKER) sh -c "GOOS=$$OS GOARCH=$$ARCH \
@@ -132,22 +131,22 @@ local: clean
 	@$(GO_DOCKER) go mod download
 
 	# Build server binary
-	@echo "Building $(PROJECTNAME)..."
+	@echo "Building $(PROJECT_NAME)..."
 	@$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME) ./src"
+		go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME) ./src"
 
 	# Build CLI binary (if exists)
 	@if [ -d "src/client" ]; then \
-		echo "Building $(PROJECTNAME)-cli..."; \
+		echo "Building $(PROJECT_NAME)-cli..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME)-cli ./src/client"; \
+			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-cli ./src/client"; \
 	fi
 
 	# Build agent binary (if exists)
 	@if [ -d "src/agent" ]; then \
-		echo "Building $(PROJECTNAME)-agent..."; \
+		echo "Building $(PROJECT_NAME)-agent..."; \
 		$(GO_DOCKER) sh -c "GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) \
-			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECTNAME)-agent ./src/agent"; \
+			go build -buildvcs=false -trimpath -ldflags \"$(LDFLAGS)\" -o $(BINDIR)/$(PROJECT_NAME)-agent ./src/agent"; \
 	fi
 
 	@echo "Local build complete: $(BINDIR)/"
@@ -163,7 +162,7 @@ release: build
 	@echo "$(VERSION)" > $(RELDIR)/version.txt
 
 	# Copy binaries to releases (strip if needed)
-	@for f in $(BINDIR)/$(PROJECTNAME)-*; do \
+	@for f in $(BINDIR)/$(PROJECT_NAME)-*; do \
 		[ -f "$$f" ] || continue; \
 		strip "$$f" 2>/dev/null || true; \
 		cp "$$f" $(RELDIR)/; \
@@ -172,7 +171,7 @@ release: build
 	# Create source archive (exclude VCS and build artifacts)
 	@tar --exclude='.git' --exclude='.github' --exclude='.gitea' \
 		--exclude='binaries' --exclude='releases' --exclude='*.tar.gz' \
-		-czf $(RELDIR)/$(PROJECTNAME)-$(VERSION)-source.tar.gz .
+		-czf $(RELDIR)/$(PROJECT_NAME)-$(VERSION)-source.tar.gz .
 
 	# Delete existing release/tag if exists
 	@gh release delete $(VERSION) --yes 2>/dev/null || true
@@ -181,7 +180,7 @@ release: build
 
 	# Create new release (stable)
 	@gh release create $(VERSION) $(RELDIR)/* \
-		--title "$(PROJECTNAME) $(VERSION)" \
+		--title "$(PROJECT_NAME) $(VERSION)" \
 		--notes "Release $(VERSION)" \
 		--latest
 
@@ -199,8 +198,8 @@ docker:
 	@docker buildx version > /dev/null 2>&1 || (echo "docker buildx required" && exit 1)
 
 	# Create/use builder
-	@docker buildx create --name $(PROJECTNAME)-builder --use 2>/dev/null || \
-		docker buildx use $(PROJECTNAME)-builder
+	@docker buildx create --name $(PROJECT_NAME)-builder --use 2>/dev/null || \
+		docker buildx use $(PROJECT_NAME)-builder
 
 	# Build multi-arch locally (pushing is CI/CD's responsibility)
 	@docker buildx build \
@@ -210,7 +209,7 @@ docker:
 		--build-arg BUILD_DATE="$(BUILD_DATE)" \
 		--build-arg BUILD_EPOCH="$(BUILD_EPOCH)" \
 		--build-arg COMMIT_ID="$(COMMIT_ID)" \
-		--build-arg OFFICIAL_SITE="$(OFFICIALSITE)" \
+		--build-arg OFFICIAL_SITE="$(OFFICIAL_SITE)" \
 		-t $(REGISTRY):$(VERSION) \
 		-t $(REGISTRY):latest \
 		.
@@ -224,8 +223,8 @@ test:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@echo "Running tests with coverage..."
 	@$(GO_DOCKER) sh -c " \
-		mkdir -p \"\$${TMPDIR:-/tmp}/$(PROJECTORG)\" && \
-		COVDIR=\$$(mktemp -d \"\$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX\") && \
+		mkdir -p \"\$${TMPDIR:-/tmp}/$(PROJECT_ORG)\" && \
+		COVDIR=\$$(mktemp -d \"\$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX\") && \
 		go mod download && \
 		go test -v -cover -coverprofile=\$$COVDIR/coverage.out ./... && \
 		grep -v '/graphql/generated\.go:' \$$COVDIR/coverage.out > \$$COVDIR/coverage.filtered.out && \
@@ -244,20 +243,20 @@ test:
 dev:
 	@mkdir -p $(GO_CACHE) $(GO_BUILD)
 	@$(GO_DOCKER) go mod tidy
-	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECTORG)" && \
-		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECTORG)/$(PROJECTNAME)-XXXXXX") && \
+	@mkdir -p "$${TMPDIR:-/tmp}/$(PROJECT_ORG)" && \
+		BUILD_DIR=$$(mktemp -d "$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX") && \
 		echo "Quick dev build to $$BUILD_DIR..." && \
-		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECTNAME) ./src && \
-		echo "Built: $$BUILD_DIR/$(PROJECTNAME)" && \
+		$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME) ./src && \
+		echo "Built: $$BUILD_DIR/$(PROJECT_NAME)" && \
 		if [ -d "src/client" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECTNAME)-cli ./src/client && \
-			echo "Built: $$BUILD_DIR/$(PROJECTNAME)-cli"; \
+			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-cli ./src/client && \
+			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-cli"; \
 		fi && \
 		if [ -d "src/agent" ]; then \
-			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECTNAME)-agent ./src/agent && \
-			echo "Built: $$BUILD_DIR/$(PROJECTNAME)-agent"; \
+			$(GO_DOCKER) go build -buildvcs=false -o $$BUILD_DIR/$(PROJECT_NAME)-agent ./src/agent && \
+			echo "Built: $$BUILD_DIR/$(PROJECT_NAME)-agent"; \
 		fi && \
-		echo "Test:  docker run --rm --name $(PROJECTNAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECTNAME) --help"
+		echo "Test:  docker run --rm --name $(PROJECT_NAME)-test -v $$BUILD_DIR:/app alpine:latest /app/$(PROJECT_NAME) --help"
 
 # =============================================================================
 # CLEAN - Remove build artifacts

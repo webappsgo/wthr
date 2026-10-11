@@ -555,3 +555,20 @@ before starting each item — do not rely on memory.
     once the deprecated `ecdsa.PrivateKey.D` use was fixed), and CI rules
     forbid installing tools inline. Clears when the image rebuilds staticcheck
     against go1.27.2; re-run CI then and mark RESOLVED.
+
+191. PARTIAL (2026-10-10, Makefile/CI vs AI.md PART 26/27/28):
+    Resolved: ldflags now match AI.md everywhere (Makefile, release/beta/daily
+    workflows, Dockerfile, Dockerfile.aio, Dockerfile.dev, Jenkinsfile): only
+    `main.Version`, `main.CommitID`, `main.BuildEpoch`, `main.OfficialSite`.
+    `src/version.go` gained `BuildEpoch` and derives `BuildDate` (RFC 3339 UTC)
+    in `init()` (tests in `src/version_test.go`), `main()` feeds
+    `cli.BuildEpoch`; defaults are `devel`/`N/A`/empty site. Jenkinsfile and
+    Dockerfile.aio now pass/accept BUILD_EPOCH and OFFICIAL_SITE. Makefile
+    variables renamed to PROJECT_NAME/PROJECT_ORG/OFFICIAL_SITE; `ci.yml` temp
+    dir uses the repository basename; Jenkinsfile `PROJECTORG` typo fixed.
+    OPEN: the coverage gate in `Makefile` `test` and `ci.yml` still excludes
+    `src/graphql/generated.go`. AI.md has no exclusion, but unfiltered
+    coverage is 34.5% (62.9% filtered), so removing it fails the gate. Needs a
+    decision: test/shrink the generated code, or approve the exclusion.
+    Not yet compared line by line: docker.yml, docker-aio.yml, docker-compose
+    files, remaining Dockerfile content.

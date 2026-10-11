@@ -40,17 +40,13 @@ jobs:
       - name: Run tests with coverage
         run: |
           mkdir -p "/tmp/${{ github.repository_owner }}"
-          COVDIR=$(mktemp -d "/tmp/${{ github.repository_owner }}/wthr-XXXXXX")
+          COVDIR=$(mktemp -d "/tmp/${{ github.repository_owner }}/$(basename "${{ github.repository }}")-XXXXXX")
           echo "COVDIR=$COVDIR" >> "$GITHUB_ENV"
           go test -cover -coverprofile="$COVDIR/coverage.out" ./...
       - name: Enforce coverage threshold
         run: |
           THRESHOLD=60
-          # src/graphql/generated.go is mechanically generated gqlgen
-          # dispatch/marshalling code (99designs/gqlgen, "DO NOT EDIT"), not
-          # hand-written logic - it is excluded from the coverage gate the
-          # same way any generated code is, so the threshold measures real,
-          # testable business logic instead of unstestable boilerplate.
+          # src/graphql/generated.go is mechanically generated gqlgen code ("DO NOT EDIT"), excluded from the gate
           grep -v '/graphql/generated\.go:' "$COVDIR/coverage.out" > "$COVDIR/coverage.filtered.out"
           PCT=$(go tool cover -func="$COVDIR/coverage.filtered.out" | awk '/^total:/ {gsub("%","",$3); print int($3)}')
           if [ "$PCT" -lt "$THRESHOLD" ]; then

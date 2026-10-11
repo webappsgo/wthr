@@ -159,6 +159,7 @@ func main() {
 	// Set version information
 	cli.Version = Version
 	cli.BuildDate = BuildDate
+	cli.BuildEpoch = BuildEpoch
 	cli.CommitID = CommitID
 
 	// Register CLI commands

@@ -22,10 +22,11 @@ COPY src/ ./src/
 ARG VERSION=dev
 ARG COMMIT_ID=unknown
 ARG BUILD_DATE=unknown
-ARG OFFICIALSITE=https://wthr.top
+ARG BUILD_EPOCH=0
+ARG OFFICIAL_SITE=
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.OfficialSite=${OFFICIALSITE}'" \
+    -ldflags="-s -w -X 'main.Version=${VERSION}' -X 'main.CommitID=${COMMIT_ID}' -X 'main.BuildEpoch=${BUILD_EPOCH}' -X 'main.OfficialSite=${OFFICIAL_SITE}'" \
     -o wthr ./src
 
 # =============================================================================

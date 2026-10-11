@@ -7,8 +7,8 @@ pipeline {
     }
 
     environment {
-        PROJECTNAME = 'wthr'
-        PROJECTORG = 'webappsgo'
+        PROJECT_NAME = 'wthr'
+        PROJECT_ORG = 'webappsgo'
         BINDIR = 'binaries'
         RELDIR = 'releases'
         // Go cache bind-mounted from host: GO_CACHE (mod) and GO_BUILD (build cache)
@@ -65,11 +65,12 @@ pipeline {
                         env.VERSION = sh(script: 'date -u +"%Y%m%d%H%M%S"', returnStdout: true).trim() + '-dev'
                     }
                     env.COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.BUILD_DATE = sh(script: 'date +"%a %b %d, %Y at %H:%M:%S %Z"', returnStdout: true).trim()
-                    // OFFICIALSITE (optional): site.txt wins; otherwise use Jenkins credentials or leave empty
+                    env.BUILD_EPOCH = sh(script: 'date -u +%s', returnStdout: true).trim()
+                    env.BUILD_DATE = sh(script: "date -u -d @${env.BUILD_EPOCH} +'%Y-%m-%dT%H:%M:%SZ'", returnStdout: true).trim()
+                    // OFFICIAL_SITE (optional): site.txt wins; otherwise use Jenkins credentials or leave empty
                     // Never guess or assume - must be explicitly defined by user
-                    env.OFFICIALSITE = sh(script: '[ -f site.txt ] && cat site.txt || echo "${OFFICIALSITE:-}"', returnStdout: true).trim()
-                    env.LDFLAGS = "-s -w -X 'main.Version=${env.VERSION}' -X 'main.CommitID=${env.COMMIT_ID}' -X 'main.BuildDate=${env.BUILD_DATE}' -X 'main.OfficialSite=${env.OFFICIALSITE}'"
+                    env.OFFICIAL_SITE = sh(script: '[ -f site.txt ] && cat site.txt || echo "${OFFICIAL_SITE:-}"', returnStdout: true).trim()
+                    env.LDFLAGS = "-s -w -X 'main.Version=${env.VERSION}' -X 'main.CommitID=${env.COMMIT_ID}' -X 'main.BuildEpoch=${env.BUILD_EPOCH}' -X 'main.OfficialSite=${env.OFFICIAL_SITE}'"
                     env.HAS_CLI = sh(script: '[ -d src/client ] && echo true || echo false', returnStdout: true).trim()
                     env.HAS_AGENT = sh(script: '[ -d src/agent ] && echo true || echo false', returnStdout: true).trim()
                 }
@@ -652,6 +653,8 @@ pipeline {
                             --build-arg VERSION="${VERSION}" \
                             --build-arg COMMIT_ID="${COMMIT_ID}" \
                             --build-arg BUILD_DATE="${BUILD_DATE}" \
+                            --build-arg BUILD_EPOCH="${BUILD_EPOCH}" \
+                            --build-arg OFFICIAL_SITE="${OFFICIAL_SITE}" \
                             --label "org.opencontainers.image.vendor=${PROJECT_ORG}" \
                             --label "org.opencontainers.image.authors=${PROJECT_ORG}" \
                             --label "org.opencontainers.image.title=${PROJECT_NAME}" \
@@ -721,6 +724,8 @@ pipeline {
                             --build-arg VERSION="${VERSION}" \
                             --build-arg COMMIT_ID="${COMMIT_ID}" \
                             --build-arg BUILD_DATE="${BUILD_DATE}" \
+                            --build-arg BUILD_EPOCH="${BUILD_EPOCH}" \
+                            --build-arg OFFICIAL_SITE="${OFFICIAL_SITE}" \
                             --label "org.opencontainers.image.vendor=${PROJECT_ORG}" \
                             --label "org.opencontainers.image.authors=${PROJECT_ORG}" \
                             --label "org.opencontainers.image.title=${PROJECT_NAME}-aio" \
