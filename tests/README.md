@@ -75,6 +75,10 @@ route matrices with every applicable `Accept` header, the `.txt` extension
 endpoints, and CLI commands run against the live server. It counts failures and
 exits non-zero if any check fails.
 
+Admin frontend routes must return HTML even for `Accept: text/plain`; the
+shared matrix checks this content negotiation contract alongside the API's
+plain-text responses.
+
 It also runs the two PART 31 matrices:
 
 - **Accessibility** — for one representative page per layout family (public,
