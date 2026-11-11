@@ -48,26 +48,16 @@ On first run, wthr generates `server.yml` in `{config_dir}` and creates its data
 
 ## Service Installation
 
-### Linux systemd
+### Linux
 
-Create a service that runs the binary in the foreground and lets Weather manage its runtime directories:
+Let the binary install itself. It detects systemd, OpenRC, runit or SysVinit, writes the matching service file, creates the `wthr` service account and enables the service:
 
-```ini
-[Unit]
-Description=Weather Service
-After=network.target
-
-[Service]
-Type=simple
-User=wthr
-Group=wthr
-ExecStart=/usr/local/bin/wthr --mode production
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
+```bash
+sudo wthr --service --install
+sudo wthr --service start
 ```
+
+The service starts as root only to bind its ports, then the binary drops privileges to the `wthr` account (no `User=`, `command_user` or `--chuid` in any service file). Use `--service --disable` to stop and disable it, and `--service --uninstall` to remove the service, its data and the account.
 
 Typical runtime locations follow AI.md PART 4:
 

@@ -88,11 +88,7 @@ func installService() error {
 
 	switch runtime.GOOS {
 	case "linux":
-		// Detect service manager on Linux (runit or systemd)
-		if isRunitAvailable() {
-			return installRunitService()
-		}
-		return installSystemdService()
+		return installLinuxService()
 	case "darwin":
 		return installLaunchdService()
 	case "freebsd", "openbsd", "netbsd":
@@ -117,11 +113,7 @@ func uninstallService() error {
 
 	switch runtime.GOOS {
 	case "linux":
-		// Detect service manager on Linux (runit or systemd)
-		if isRunitAvailable() {
-			return uninstallRunitService()
-		}
-		return uninstallSystemdService()
+		return uninstallLinuxService()
 	case "darwin":
 		return uninstallLaunchdService()
 	case "freebsd", "openbsd", "netbsd":
@@ -145,7 +137,7 @@ func disableService() error {
 
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "disable", "wthr")
+		return linuxServiceControl("disable")
 	case "darwin":
 		return runCommand("launchctl", "unload", "/Library/LaunchDaemons/io.github.webappsgo.wthr.plist")
 	case "freebsd", "openbsd", "netbsd":
@@ -161,7 +153,7 @@ func disableService() error {
 func startService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "start", "wthr")
+		return linuxServiceControl("start")
 	case "darwin":
 		return runCommand("launchctl", "start", "io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
@@ -176,7 +168,7 @@ func startService() error {
 func stopService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "stop", "wthr")
+		return linuxServiceControl("stop")
 	case "darwin":
 		return runCommand("launchctl", "stop", "io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
@@ -191,7 +183,7 @@ func stopService() error {
 func restartService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "restart", "wthr")
+		return linuxServiceControl("restart")
 	case "darwin":
 		if err := stopService(); err != nil {
 			return err
@@ -212,7 +204,7 @@ func restartService() error {
 func reloadService() error {
 	switch runtime.GOOS {
 	case "linux":
-		return runCommand("systemctl", "reload", "wthr")
+		return linuxServiceControl("reload")
 	case "darwin":
 		return runCommand("launchctl", "kickstart", "-k", "system/io.github.webappsgo.wthr")
 	case "freebsd", "openbsd", "netbsd":
@@ -237,32 +229,7 @@ func installSystemdService() error {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	serviceContent := `[Unit]
-Description=Wthr Weather
-Documentation=https://github.com/webappsgo/wthr
-After=network.target
-
-[Service]
-Type=simple
-User=wthr
-Group=wthr
-ExecStart=/usr/local/bin/wthr
-Restart=on-failure
-RestartSec=5s
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=wthr
-
-# Security hardening
-PrivateTmp=true
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/webappsgo/wthr /var/log/webappsgo/wthr
-
-[Install]
-WantedBy=multi-user.target
-`
+	serviceContent := serviceTemplate(systemdUnitTemplate)
 
 	// Write service file
 	servicePath := "/etc/systemd/system/wthr.service"
@@ -461,10 +428,7 @@ func installRunitService() error {
 	}
 
 	// Create run script
-	runScript := `#!/bin/sh
-exec 2>&1
-exec chpst -u wthr:wthr /usr/local/bin/wthr
-`
+	runScript := serviceTemplate(runitRunTemplate)
 
 	runPath := serviceDir + "/run"
 	if err := os.WriteFile(runPath, []byte(runScript), 0755); err != nil {
@@ -478,9 +442,7 @@ exec chpst -u wthr:wthr /usr/local/bin/wthr
 	}
 
 	// Create log run script
-	logRunScript := `#!/bin/sh
-exec svlogd -tt /var/log/webappsgo/wthr
-`
+	logRunScript := serviceTemplate(runitLogRunTemplate)
 
 	logRunPath := logDir + "/run"
 	if err := os.WriteFile(logRunPath, []byte(logRunScript), 0755); err != nil {
@@ -649,6 +611,7 @@ func createServiceDirectories() error {
 		"/var/lib/webappsgo/wthr",
 		"/var/lib/webappsgo/wthr/db",
 		"/var/log/webappsgo/wthr",
+		"/var/cache/webappsgo/wthr",
 		"/etc/webappsgo/wthr",
 	}
 

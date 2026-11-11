@@ -77,33 +77,14 @@ chmod +x wthr-linux-amd64
 ./wthr-linux-amd64
 ```
 
-### Systemd Service
+### Service
+
+The binary installs itself as a service for systemd, OpenRC, runit, SysVinit (Linux), rc.d (BSD), launchd (macOS) or Windows Service. It starts as root so it can bind privileged ports, then drops to its own unprivileged `wthr` account.
 
 ```bash
-# Download and install
 sudo mv wthr-linux-amd64 /usr/local/bin/wthr
-sudo useradd -r -s /bin/false wthr
-sudo mkdir -p /var/lib/webappsgo/wthr/{data,config}
-sudo chown -R wthr:wthr /var/lib/webappsgo/wthr
-
-# Create service
-sudo tee /etc/systemd/system/wthr.service > /dev/null <<EOF
-[Unit]
-Description=Wthr API Service
-After=network.target
-
-[Service]
-Type=simple
-User=wthr
-ExecStart=/usr/local/bin/wthr
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now wthr
+sudo wthr --service --install
+sudo wthr --service start
 ```
 
 ## CLI Client
