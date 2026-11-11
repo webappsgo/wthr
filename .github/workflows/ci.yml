@@ -73,7 +73,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - name: Run govulncheck
-        run: govulncheck ./...
+        run: |
+          GOTOOLCHAIN="$(curl -q -LSsf 'https://go.dev/VERSION?m=text' | head -n1)"
+          export GOTOOLCHAIN
+          govulncheck ./...
 
   secret-scan:
     runs-on: ubuntu-latest
