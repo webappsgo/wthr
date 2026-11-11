@@ -206,7 +206,7 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 
 	if err := h.saveChannel(channelType, req.Enabled, req.Config); err != nil {
 		if wantsFormSubmission(r) {
-			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_updated", "flash_channel_update_failed", err)
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash.channel_updated", "flash.channel_update_failed", err)
 			return
 		}
 		InternalError(w, r, Translate(r, "errors.notifications.channels.failed_to_update_channel"))
@@ -214,7 +214,7 @@ func (h *NotificationChannelHandler) UpdateChannel(w http.ResponseWriter, r *htt
 	}
 
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_updated", "flash_channel_update_failed", nil)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash.channel_updated", "flash.channel_update_failed", nil)
 		return
 	}
 
@@ -278,7 +278,7 @@ func (h *NotificationChannelHandler) EnableChannel(w http.ResponseWriter, r *htt
 
 	err := h.ChannelManager.EnableChannel(channelType)
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_enabled", "flash_channel_update_failed", err)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash.channel_enabled", "flash.channel_update_failed", err)
 		return
 	}
 
@@ -298,7 +298,7 @@ func (h *NotificationChannelHandler) DisableChannel(w http.ResponseWriter, r *ht
 
 	err := h.ChannelManager.DisableChannel(channelType)
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_disabled", "flash_channel_update_failed", err)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash.channel_disabled", "flash.channel_update_failed", err)
 		return
 	}
 
@@ -326,7 +326,7 @@ func (h *NotificationChannelHandler) TestChannel(w http.ResponseWriter, r *http.
 
 	smtpChannel, err := h.sendChannelTest(channelType, req.Recipient)
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash_channel_test_sent", "flash_channel_test_failed", err)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/channels"), "flash.channel_test_sent", "flash.channel_test_failed", err)
 		return
 	}
 

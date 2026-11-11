@@ -91,7 +91,7 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 	templatePath := filepath.Join(h.templatesDir, "email", templateName+".tmpl")
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
 		if wantsFormSubmission(r) {
-			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", err)
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash.email_template_saved", "flash.email_template_save_failed", err)
 			return
 		}
 		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_save_template"))
@@ -99,7 +99,7 @@ func (h *EmailTemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Req
 	}
 
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", nil)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash.email_template_saved", "flash.email_template_save_failed", nil)
 		return
 	}
 
@@ -158,7 +158,7 @@ func (h *EmailTemplateHandler) TestTemplate(w http.ResponseWriter, r *http.Reque
 	// In a real implementation, this would use the email service
 	// For now, we'll just return success
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_test_email_sent", "flash_test_email_failed", nil)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash.test_email_sent", "flash.test_email_failed", nil)
 		return
 	}
 
@@ -304,7 +304,7 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 
 	if err := os.WriteFile(templatePath, []byte(content), 0644); err != nil {
 		if wantsFormSubmission(r) {
-			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", err)
+			redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash.email_template_saved", "flash.email_template_save_failed", err)
 			return
 		}
 		InternalError(w, r, Translate(r, "errors.admin.email_templates.failed_to_import_template"))
@@ -312,7 +312,7 @@ func (h *EmailTemplateHandler) ImportTemplate(w http.ResponseWriter, r *http.Req
 	}
 
 	if wantsFormSubmission(r) {
-		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash_email_template_saved", "flash_email_template_save_failed", nil)
+		redirectAdminForm(w, r, adminConfigPagePath(r, "/config/email/templates"), "flash.email_template_saved", "flash.email_template_save_failed", nil)
 		return
 	}
 

@@ -3,315 +3,315 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "help_heading"}}</h1>
+    <h1 class="text-purple">{{t .server.Lang "help.heading"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_quick_start_heading"}}</h2>
-        <p class="text-comment margin-bottom-1">{{t .server.Lang "help_quick_start_intro"}}</p>
+        <h2 class="text-cyan">{{t .server.Lang "help.quick_start_heading"}}</h2>
+        <p class="text-comment margin-bottom-1">{{t .server.Lang "help.quick_start_intro"}}</p>
         <div class="console-commands">
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_current_weather_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.current_weather_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/London</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_one_line_format_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.one_line_format_label"}}</strong>
                 <code class="mobile-code">curl "{{.HostInfo.FullHost}}/Paris?format=3"</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_moon_phase_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.moon_phase_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/moon</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_json_api_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.json_api_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/weather?location=Tokyo</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_earthquakes_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.earthquakes_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/earthquakes?feed=all_day</code>
             </div>
             <div class="command-item">
-                <strong class="console-label">{{t .server.Lang "help_severe_weather_label"}}</strong>
+                <strong class="console-label">{{t .server.Lang "help.severe_weather_label"}}</strong>
                 <code class="mobile-code">curl {{.HostInfo.FullHost}}/api/v1/severe-weather?location=Miami</code>
             </div>
         </div>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_getting_started_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help.getting_started_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_faq_location_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.faq_location_question"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_faq_location_answer1"}}</p>
-                <p>{{t .server.Lang "help_faq_location_formats_intro"}}</p>
+                <p>{{t .server.Lang "help.faq_location_answer1"}}</p>
+                <p>{{t .server.Lang "help.faq_location_formats_intro"}}</p>
                 <ul>
-                    <li>{{t .server.Lang "help_faq_location_format_city"}} <code>London</code>, <code>New York</code></li>
-                    <li>{{t .server.Lang "help_faq_location_format_city_state"}} <code>Paris, France</code>, <code>Albany, NY</code></li>
-                    <li>{{t .server.Lang "help_faq_location_format_zip"}} <code>10001</code>, <code>SW1A 1AA</code></li>
-                    <li>{{t .server.Lang "help_faq_location_format_coords"}} <code>40.7128,-74.0060</code></li>
+                    <li>{{t .server.Lang "help.faq_location_format_city"}} <code>London</code>, <code>New York</code></li>
+                    <li>{{t .server.Lang "help.faq_location_format_city_state"}} <code>Paris, France</code>, <code>Albany, NY</code></li>
+                    <li>{{t .server.Lang "help.faq_location_format_zip"}} <code>10001</code>, <code>SW1A 1AA</code></li>
+                    <li>{{t .server.Lang "help.faq_location_format_coords"}} <code>40.7128,-74.0060</code></li>
                 </ul>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_faq_account_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.faq_account_question"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_faq_account_answer"}}</p>
+                <p>{{t .server.Lang "help.faq_account_answer"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_faq_alerts_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.faq_alerts_question"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_faq_alerts_answer"}}</p>
+                <p>{{t .server.Lang "help.faq_alerts_answer"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_features_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help.features_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_feature_forecasts_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.feature_forecasts_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_feature_forecasts_intro"}}</p>
+                <p>{{t .server.Lang "help.feature_forecasts_intro"}}</p>
                 <ul>
-                    <li>{{t .server.Lang "help_feature_forecasts_current"}}</li>
-                    <li>{{t .server.Lang "help_feature_forecasts_48h"}}</li>
-                    <li>{{t .server.Lang "help_feature_forecasts_16d"}}</li>
-                    <li>{{t .server.Lang "help_feature_forecasts_precip"}}</li>
-                    <li>{{t .server.Lang "help_feature_forecasts_uv"}}</li>
+                    <li>{{t .server.Lang "help.feature_forecasts_current"}}</li>
+                    <li>{{t .server.Lang "help.feature_forecasts_48h"}}</li>
+                    <li>{{t .server.Lang "help.feature_forecasts_16d"}}</li>
+                    <li>{{t .server.Lang "help.feature_forecasts_precip"}}</li>
+                    <li>{{t .server.Lang "help.feature_forecasts_uv"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_feature_forecasts_data_from"}} <a href="https://open-meteo.com" target="_blank" class="text-cyan">Open-Meteo</a>{{t .server.Lang "help_feature_forecasts_updated_suffix"}}</p>
+                <p>{{t .server.Lang "help.feature_forecasts_data_from"}} <a href="https://open-meteo.com" target="_blank" class="text-cyan">Open-Meteo</a>{{t .server.Lang "help.feature_forecasts_updated_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_feature_severe_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.feature_severe_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_feature_severe_intro"}} <a href="/severe-weather" class="text-cyan">{{t .server.Lang "help_feature_severe_page_link"}}</a> {{t .server.Lang "help_feature_severe_shows"}}</p>
+                <p>{{t .server.Lang "help.feature_severe_intro"}} <a href="/severe-weather" class="text-cyan">{{t .server.Lang "help.feature_severe_page_link"}}</a> {{t .server.Lang "help.feature_severe_shows"}}</p>
                 <ul>
-                    <li>🇺🇸 {{t .server.Lang "help_feature_severe_usa"}}</li>
-                    <li>🇨🇦 {{t .server.Lang "help_feature_severe_canada"}}</li>
-                    <li>🇬🇧 {{t .server.Lang "help_feature_severe_uk"}}</li>
-                    <li>🇦🇺 {{t .server.Lang "help_feature_severe_australia"}}</li>
-                    <li>🇯🇵 {{t .server.Lang "help_feature_severe_japan"}}</li>
-                    <li>🇲🇽 {{t .server.Lang "help_feature_severe_mexico"}}</li>
+                    <li>🇺🇸 {{t .server.Lang "help.feature_severe_usa"}}</li>
+                    <li>🇨🇦 {{t .server.Lang "help.feature_severe_canada"}}</li>
+                    <li>🇬🇧 {{t .server.Lang "help.feature_severe_uk"}}</li>
+                    <li>🇦🇺 {{t .server.Lang "help.feature_severe_australia"}}</li>
+                    <li>🇯🇵 {{t .server.Lang "help.feature_severe_japan"}}</li>
+                    <li>🇲🇽 {{t .server.Lang "help.feature_severe_mexico"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_feature_severe_filter_note"}}</p>
+                <p>{{t .server.Lang "help.feature_severe_filter_note"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_feature_hurricane_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.feature_hurricane_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_feature_hurricane_desc"}}</p>
+                <p>{{t .server.Lang "help.feature_hurricane_desc"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_feature_earthquake_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.feature_earthquake_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_feature_earthquake_intro"}} <a href="/earthquake" class="text-cyan">{{t .server.Lang "help_feature_earthquake_page_link"}}</a> {{t .server.Lang "help_feature_earthquake_shows"}}</p>
+                <p>{{t .server.Lang "help.feature_earthquake_intro"}} <a href="/earthquake" class="text-cyan">{{t .server.Lang "help.feature_earthquake_page_link"}}</a> {{t .server.Lang "help.feature_earthquake_shows"}}</p>
                 <ul>
-                    <li>{{t .server.Lang "help_feature_earthquake_filter_time"}}</li>
-                    <li>{{t .server.Lang "help_feature_earthquake_filter_magnitude"}}</li>
-                    <li>{{t .server.Lang "help_feature_earthquake_tsunami"}}</li>
-                    <li>{{t .server.Lang "help_feature_earthquake_map"}}</li>
-                    <li>{{t .server.Lang "help_feature_earthquake_search"}}</li>
+                    <li>{{t .server.Lang "help.feature_earthquake_filter_time"}}</li>
+                    <li>{{t .server.Lang "help.feature_earthquake_filter_magnitude"}}</li>
+                    <li>{{t .server.Lang "help.feature_earthquake_tsunami"}}</li>
+                    <li>{{t .server.Lang "help.feature_earthquake_map"}}</li>
+                    <li>{{t .server.Lang "help.feature_earthquake_search"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_feature_earthquake_updated"}}</p>
+                <p>{{t .server.Lang "help.feature_earthquake_updated"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_feature_moon_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.feature_moon_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_feature_moon_intro"}} <a href="/moon" class="text-cyan">{{t .server.Lang "help_feature_moon_page_link"}}</a> {{t .server.Lang "help_feature_moon_shows"}}</p>
+                <p>{{t .server.Lang "help.feature_moon_intro"}} <a href="/moon" class="text-cyan">{{t .server.Lang "help.feature_moon_page_link"}}</a> {{t .server.Lang "help.feature_moon_shows"}}</p>
                 <ul>
-                    <li>{{t .server.Lang "help_feature_moon_phase"}}</li>
-                    <li>{{t .server.Lang "help_feature_moon_illumination"}}</li>
-                    <li>{{t .server.Lang "help_feature_moon_days_since"}}</li>
-                    <li>{{t .server.Lang "help_feature_moon_rise_set"}}</li>
+                    <li>{{t .server.Lang "help.feature_moon_phase"}}</li>
+                    <li>{{t .server.Lang "help.feature_moon_illumination"}}</li>
+                    <li>{{t .server.Lang "help.feature_moon_days_since"}}</li>
+                    <li>{{t .server.Lang "help.feature_moon_rise_set"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_feature_moon_calculated"}}</p>
+                <p>{{t .server.Lang "help.feature_moon_calculated"}}</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_api_access_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help.api_access_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_api_endpoints_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.api_endpoints_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_api_endpoints_intro"}} <code>/api/v1/</code>:</p>
+                <p>{{t .server.Lang "help.api_endpoints_intro"}} <code>/api/v1/</code>:</p>
                 <ul>
-                    <li><code>GET /api/v1/weather?location=CITY</code> - {{t .server.Lang "help_api_endpoint_weather"}}</li>
-                    <li><code>GET /api/v1/earthquakes?feed=all_day</code> - {{t .server.Lang "help_api_endpoint_earthquakes"}}</li>
-                    <li><code>GET /api/v1/severe-weather?location=CITY</code> - {{t .server.Lang "help_api_endpoint_severe"}}</li>
-                    <li><code>GET /api/v1/hurricanes</code> - {{t .server.Lang "help_api_endpoint_hurricanes"}}</li>
-                    <li><code>GET /api/v1/moon?location=CITY</code> - {{t .server.Lang "help_api_endpoint_moon"}}</li>
-                    <li><code>GET /api/v1/search?q=QUERY</code> - {{t .server.Lang "help_api_endpoint_search"}}</li>
-                    <li><code>GET /server/healthz</code> - {{t .server.Lang "help_api_endpoint_healthz"}}</li>
+                    <li><code>GET /api/v1/weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_weather"}}</li>
+                    <li><code>GET /api/v1/earthquakes?feed=all_day</code> - {{t .server.Lang "help.api_endpoint_earthquakes"}}</li>
+                    <li><code>GET /api/v1/severe-weather?location=CITY</code> - {{t .server.Lang "help.api_endpoint_severe"}}</li>
+                    <li><code>GET /api/v1/hurricanes</code> - {{t .server.Lang "help.api_endpoint_hurricanes"}}</li>
+                    <li><code>GET /api/v1/moon?location=CITY</code> - {{t .server.Lang "help.api_endpoint_moon"}}</li>
+                    <li><code>GET /api/v1/search?q=QUERY</code> - {{t .server.Lang "help.api_endpoint_search"}}</li>
+                    <li><code>GET /server/healthz</code> - {{t .server.Lang "help.api_endpoint_healthz"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_api_docs_visit"}} <a href="/docs" class="text-cyan">/docs</a> {{t .server.Lang "help_api_docs_suffix"}}</p>
+                <p>{{t .server.Lang "help.api_docs_visit"}} <a href="/docs" class="text-cyan">/docs</a> {{t .server.Lang "help.api_docs_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_api_key_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.api_key_question"}}</summary>
             <div class="help-content">
-                <p><strong>{{t .server.Lang "help_api_key_no_key_required"}}</strong> {{t .server.Lang "help_api_key_answer1"}}</p>
-                <p>{{t .server.Lang "help_api_key_answer2_prefix"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help_settings_page_link"}}</a> {{t .server.Lang "help_api_key_answer2_suffix"}}</p>
+                <p><strong>{{t .server.Lang "help.api_key_no_key_required"}}</strong> {{t .server.Lang "help.api_key_answer1"}}</p>
+                <p>{{t .server.Lang "help.api_key_answer2_prefix"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help.settings_page_link"}}</a> {{t .server.Lang "help.api_key_answer2_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_rate_limits_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.rate_limits_title"}}</summary>
             <div class="help-content">
                 <ul>
-                    <li><strong>{{t .server.Lang "help_rate_limits_anonymous_label"}}</strong> {{t .server.Lang "help_rate_limits_anonymous_value"}}</li>
-                    <li><strong>{{t .server.Lang "help_rate_limits_authenticated_label"}}</strong> {{t .server.Lang "help_rate_limits_authenticated_value"}}</li>
-                    <li><strong>{{t .server.Lang "help_rate_limits_admin_label"}}</strong> {{t .server.Lang "help_rate_limits_admin_value"}}</li>
+                    <li><strong>{{t .server.Lang "help.rate_limits_anonymous_label"}}</strong> {{t .server.Lang "help.rate_limits_anonymous_value"}}</li>
+                    <li><strong>{{t .server.Lang "help.rate_limits_authenticated_label"}}</strong> {{t .server.Lang "help.rate_limits_authenticated_value"}}</li>
+                    <li><strong>{{t .server.Lang "help.rate_limits_admin_label"}}</strong> {{t .server.Lang "help.rate_limits_admin_value"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_rate_limits_headers_intro"}} <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></p>
+                <p>{{t .server.Lang "help.rate_limits_headers_intro"}} <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code></p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_response_formats_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.response_formats_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_response_formats_intro"}} <code>Accept</code> {{t .server.Lang "help_response_formats_intro_suffix"}}</p>
+                <p>{{t .server.Lang "help.response_formats_intro"}} <code>Accept</code> {{t .server.Lang "help.response_formats_intro_suffix"}}</p>
                 <ul>
-                    <li><code>Accept: application/json</code> - {{t .server.Lang "help_response_format_json"}}</li>
-                    <li><code>Accept: text/plain</code> - {{t .server.Lang "help_response_format_text"}}</li>
-                    <li><code>Accept: text/html</code> - {{t .server.Lang "help_response_format_html"}}</li>
+                    <li><code>Accept: application/json</code> - {{t .server.Lang "help.response_format_json"}}</li>
+                    <li><code>Accept: text/plain</code> - {{t .server.Lang "help.response_format_text"}}</li>
+                    <li><code>Accept: text/html</code> - {{t .server.Lang "help.response_format_html"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_graphql_endpoint_intro"}} <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. {{t .server.Lang "help_graphql_endpoint_suffix"}}</p>
+                <p>{{t .server.Lang "help.graphql_endpoint_intro"}} <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. {{t .server.Lang "help.graphql_endpoint_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_graphql_api_title"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.graphql_api_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_graphql_send_intro"}} <code>POST /graphql</code> {{t .server.Lang "help_graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
-                <p><strong>{{t .server.Lang "help_graphql_key_queries_heading"}}</strong></p>
+                <p>{{t .server.Lang "help.graphql_send_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
+                <p><strong>{{t .server.Lang "help.graphql_key_queries_heading"}}</strong></p>
                 <ul>
-                    <li><code>weather(location: String!)</code> - {{t .server.Lang "help_graphql_query_weather"}}</li>
-                    <li><code>currentUser</code> - {{t .server.Lang "help_graphql_query_current_user"}}</li>
-                    <li><code>savedLocations</code> - {{t .server.Lang "help_graphql_query_saved_locations"}}</li>
-                    <li><code>userTokens</code> - {{t .server.Lang "help_graphql_query_user_tokens"}}</li>
-                    <li><code>userPasskeys</code> - {{t .server.Lang "help_graphql_query_user_passkeys"}}</li>
-                    <li><code>publicUserProfile(username: String!)</code> - {{t .server.Lang "help_graphql_query_public_profile"}}</li>
+                    <li><code>weather(location: String!)</code> - {{t .server.Lang "help.graphql_query_weather"}}</li>
+                    <li><code>currentUser</code> - {{t .server.Lang "help.graphql_query_current_user"}}</li>
+                    <li><code>savedLocations</code> - {{t .server.Lang "help.graphql_query_saved_locations"}}</li>
+                    <li><code>userTokens</code> - {{t .server.Lang "help.graphql_query_user_tokens"}}</li>
+                    <li><code>userPasskeys</code> - {{t .server.Lang "help.graphql_query_user_passkeys"}}</li>
+                    <li><code>publicUserProfile(username: String!)</code> - {{t .server.Lang "help.graphql_query_public_profile"}}</li>
                 </ul>
-                <p><strong>{{t .server.Lang "help_graphql_auth_mutations_heading"}}</strong></p>
+                <p><strong>{{t .server.Lang "help.graphql_auth_mutations_heading"}}</strong></p>
                 <ul>
-                    <li><code>register(username, email, password)</code> - {{t .server.Lang "help_graphql_mutation_register"}}</li>
-                    <li><code>login(username, password)</code> - {{t .server.Lang "help_graphql_mutation_login"}}</li>
-                    <li><code>logout</code> - {{t .server.Lang "help_graphql_mutation_logout"}}</li>
-                    <li><code>requestPasswordReset(email)</code> - {{t .server.Lang "help_graphql_mutation_request_reset"}}</li>
-                    <li><code>resetPassword(token, newPassword)</code> - {{t .server.Lang "help_graphql_mutation_reset_password"}}</li>
-                    <li><code>verifyEmail(token)</code> - {{t .server.Lang "help_graphql_mutation_verify_email"}}</li>
-                    <li><code>twoFactorLogin(sessionToken, code)</code> - {{t .server.Lang "help_graphql_mutation_2fa_login"}}</li>
-                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - {{t .server.Lang "help_graphql_mutation_recovery_login"}}</li>
+                    <li><code>register(username, email, password)</code> - {{t .server.Lang "help.graphql_mutation_register"}}</li>
+                    <li><code>login(username, password)</code> - {{t .server.Lang "help.graphql_mutation_login"}}</li>
+                    <li><code>logout</code> - {{t .server.Lang "help.graphql_mutation_logout"}}</li>
+                    <li><code>requestPasswordReset(email)</code> - {{t .server.Lang "help.graphql_mutation_request_reset"}}</li>
+                    <li><code>resetPassword(token, newPassword)</code> - {{t .server.Lang "help.graphql_mutation_reset_password"}}</li>
+                    <li><code>verifyEmail(token)</code> - {{t .server.Lang "help.graphql_mutation_verify_email"}}</li>
+                    <li><code>twoFactorLogin(sessionToken, code)</code> - {{t .server.Lang "help.graphql_mutation_2fa_login"}}</li>
+                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - {{t .server.Lang "help.graphql_mutation_recovery_login"}}</li>
                 </ul>
-                <p><strong>{{t .server.Lang "help_graphql_user_passkey_heading"}}</strong></p>
-                <p>{{t .server.Lang "help_graphql_user_passkey_intro"}} <code>ceremonyToken</code> {{t .server.Lang "help_graphql_user_passkey_middle"}}</p>
+                <p><strong>{{t .server.Lang "help.graphql_user_passkey_heading"}}</strong></p>
+                <p>{{t .server.Lang "help.graphql_user_passkey_intro"}} <code>ceremonyToken</code> {{t .server.Lang "help.graphql_user_passkey_middle"}}</p>
                 <ul>
-                    <li><code>beginUserPasskeyRegistration(name, password)</code> - {{t .server.Lang "help_graphql_mutation_begin_user_passkey_reg"}}</li>
-                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_user_passkey_reg"}}</li>
-                    <li><code>deleteUserPasskey(id)</code> - {{t .server.Lang "help_graphql_mutation_delete_user_passkey"}}</li>
-                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help_graphql_mutation_begin_user_passkey_login"}}</li>
-                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_user_passkey_login"}}</li>
+                    <li><code>beginUserPasskeyRegistration(name, password)</code> - {{t .server.Lang "help.graphql_mutation_begin_user_passkey_reg"}}</li>
+                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_user_passkey_reg"}}</li>
+                    <li><code>deleteUserPasskey(id)</code> - {{t .server.Lang "help.graphql_mutation_delete_user_passkey"}}</li>
+                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help.graphql_mutation_begin_user_passkey_login"}}</li>
+                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_user_passkey_login"}}</li>
                 </ul>
-                <p><strong>{{t .server.Lang "help_graphql_admin_passkey_heading"}}</strong></p>
-                <p>{{t .server.Lang "help_graphql_admin_passkey_intro"}}</p>
+                <p><strong>{{t .server.Lang "help.graphql_admin_passkey_heading"}}</strong></p>
+                <p>{{t .server.Lang "help.graphql_admin_passkey_intro"}}</p>
                 <ul>
-                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - {{t .server.Lang "help_graphql_mutation_begin_admin_passkey_reg"}}</li>
-                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_admin_passkey_reg"}}</li>
-                    <li><code>deleteAdminPasskey(id)</code> - {{t .server.Lang "help_graphql_mutation_delete_admin_passkey"}}</li>
-                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help_graphql_mutation_begin_admin_passkey_login"}}</li>
-                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help_graphql_mutation_finish_admin_passkey_login"}}</li>
+                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - {{t .server.Lang "help.graphql_mutation_begin_admin_passkey_reg"}}</li>
+                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_admin_passkey_reg"}}</li>
+                    <li><code>deleteAdminPasskey(id)</code> - {{t .server.Lang "help.graphql_mutation_delete_admin_passkey"}}</li>
+                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help.graphql_mutation_begin_admin_passkey_login"}}</li>
+                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_admin_passkey_login"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help_graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help_graphql_introspection_middle"}} <a href="/graphql" class="text-cyan">{{t .server.Lang "help_graphql_playground_link"}}</a>.</p>
-            </div>
-        </details>
-    </div>
-
-    <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_troubleshooting_heading"}}</h2>
-        <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_trouble_weather_title"}}</summary>
-            <div class="help-content">
-                <ul>
-                    <li>{{t .server.Lang "help_trouble_weather_refresh"}}</li>
-                    <li>{{t .server.Lang "help_trouble_weather_verify"}}</li>
-                    <li>{{t .server.Lang "help_trouble_weather_coords"}}</li>
-                    <li>{{t .server.Lang "help_trouble_weather_check"}} <a href="/server/healthz" class="text-cyan">/server/healthz</a> {{t .server.Lang "help_trouble_weather_status"}}</li>
-                </ul>
-            </div>
-        </details>
-
-        <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_trouble_location_title"}}</summary>
-            <div class="help-content">
-                <ul>
-                    <li>{{t .server.Lang "help_trouble_location_allow"}}</li>
-                    <li>{{t .server.Lang "help_trouble_location_gps_fallback"}}</li>
-                    <li>{{t .server.Lang "help_trouble_location_manual"}}</li>
-                </ul>
-            </div>
-        </details>
-
-        <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_trouble_password_title"}}</summary>
-            <div class="help-content">
-                <p>{{t .server.Lang "help_trouble_password_click"}} <a href="/server/auth/login" class="text-cyan">{{t .server.Lang "help_trouble_password_login_link"}}</a>. {{t .server.Lang "help_trouble_password_instructions"}}</p>
+                <p>{{t .server.Lang "help.graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_introspection_middle"}} <a href="/graphql" class="text-cyan">{{t .server.Lang "help.graphql_playground_link"}}</a>.</p>
             </div>
         </details>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_privacy_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help.troubleshooting_heading"}}</h2>
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_privacy_data_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.trouble_weather_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_privacy_data_see"}} <a href="/server/privacy" class="text-cyan">{{t .server.Lang "help_privacy_policy_link"}}</a>. {{t .server.Lang "help_privacy_data_answer"}}</p>
+                <ul>
+                    <li>{{t .server.Lang "help.trouble_weather_refresh"}}</li>
+                    <li>{{t .server.Lang "help.trouble_weather_verify"}}</li>
+                    <li>{{t .server.Lang "help.trouble_weather_coords"}}</li>
+                    <li>{{t .server.Lang "help.trouble_weather_check"}} <a href="/server/healthz" class="text-cyan">/server/healthz</a> {{t .server.Lang "help.trouble_weather_status"}}</li>
+                </ul>
             </div>
         </details>
 
         <details class="help-section">
-            <summary class="help-summary">{{t .server.Lang "help_privacy_delete_question"}}</summary>
+            <summary class="help-summary">{{t .server.Lang "help.trouble_location_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help_privacy_delete_go_to"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help_settings_page_link"}}</a> {{t .server.Lang "help_privacy_delete_answer"}}</p>
+                <ul>
+                    <li>{{t .server.Lang "help.trouble_location_allow"}}</li>
+                    <li>{{t .server.Lang "help.trouble_location_gps_fallback"}}</li>
+                    <li>{{t .server.Lang "help.trouble_location_manual"}}</li>
+                </ul>
+            </div>
+        </details>
+
+        <details class="help-section">
+            <summary class="help-summary">{{t .server.Lang "help.trouble_password_title"}}</summary>
+            <div class="help-content">
+                <p>{{t .server.Lang "help.trouble_password_click"}} <a href="/server/auth/login" class="text-cyan">{{t .server.Lang "help.trouble_password_login_link"}}</a>. {{t .server.Lang "help.trouble_password_instructions"}}</p>
+            </div>
+        </details>
+    </div>
+
+    <div class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help.privacy_heading"}}</h2>
+        <details class="help-section">
+            <summary class="help-summary">{{t .server.Lang "help.privacy_data_question"}}</summary>
+            <div class="help-content">
+                <p>{{t .server.Lang "help.privacy_data_see"}} <a href="/server/privacy" class="text-cyan">{{t .server.Lang "help.privacy_policy_link"}}</a>. {{t .server.Lang "help.privacy_data_answer"}}</p>
+            </div>
+        </details>
+
+        <details class="help-section">
+            <summary class="help-summary">{{t .server.Lang "help.privacy_delete_question"}}</summary>
+            <div class="help-content">
+                <p>{{t .server.Lang "help.privacy_delete_go_to"}} <a href="/users/settings" class="text-cyan">{{t .server.Lang "help.settings_page_link"}}</a> {{t .server.Lang "help.privacy_delete_answer"}}</p>
             </div>
         </details>
     </div>
 
     {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
     <div class="card margin-y-lg" id="i2p-access">
-        <h2 class="text-cyan">🔗 {{t .server.Lang "help_i2p_heading"}}</h2>
-        <p>{{t .server.Lang "help_i2p_description"}}</p>
-        <h3 class="text-purple">{{t .server.Lang "help_i2p_address_heading"}}</h3>
+        <h2 class="text-cyan">🔗 {{t .server.Lang "help.i2p_heading"}}</h2>
+        <p>{{t .server.Lang "help.i2p_description"}}</p>
+        <h3 class="text-purple">{{t .server.Lang "help.i2p_address_heading"}}</h3>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code i2p-address">{{.server.I2P.Address}}</code>
             <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.server.I2P.Address}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
-        <h3 class="text-purple">{{t .server.Lang "help_i2p_connect_heading"}}</h3>
+        <h3 class="text-purple">{{t .server.Lang "help.i2p_connect_heading"}}</h3>
         <ol>
-            <li>{{t .server.Lang "help_i2p_step_install"}} <a href="https://geti2p.net/en/download" target="_blank" rel="noopener" class="text-cyan">I2P</a> {{t .server.Lang "help_i2p_step_install_or"}} <a href="https://i2pd.website/" target="_blank" rel="noopener" class="text-cyan">i2pd</a></li>
-            <li>{{t .server.Lang "help_i2p_step_proxy"}} <code class="mobile-code">127.0.0.1:4444</code></li>
-            <li>{{t .server.Lang "help_i2p_step_open"}} <code class="mobile-code i2p-address">http://{{.server.I2P.Address}}</code></li>
+            <li>{{t .server.Lang "help.i2p_step_install"}} <a href="https://geti2p.net/en/download" target="_blank" rel="noopener" class="text-cyan">I2P</a> {{t .server.Lang "help.i2p_step_install_or"}} <a href="https://i2pd.website/" target="_blank" rel="noopener" class="text-cyan">i2pd</a></li>
+            <li>{{t .server.Lang "help.i2p_step_proxy"}} <code class="mobile-code">127.0.0.1:4444</code></li>
+            <li>{{t .server.Lang "help.i2p_step_open"}} <code class="mobile-code i2p-address">http://{{.server.I2P.Address}}</code></li>
         </ol>
-        <p class="text-comment"><small>{{t .server.Lang "help_i2p_http_note"}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "help.i2p_http_note"}}</small></p>
     </div>
     {{end}}
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "help_still_need_help_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "help.still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">
-            <a href="{{path "/server/contact"}}" class="btn btn-primary">{{t .server.Lang "help_contact_support_label"}}</a>
+            <a href="{{path "/server/contact"}}" class="btn btn-primary">{{t .server.Lang "help.contact_support_label"}}</a>
             {{if .MCPEnabled}}<a href="{{path "/server/help/mcp"}}" class="btn btn-secondary">{{t .server.Lang "help_mcp.link"}}</a>{{end}}
-            <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api_docs_heading"}}</a>
-            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">{{t .server.Lang "help_report_issue_label"}}</a>
+            <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api.docs_heading"}}</a>
+            <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">{{t .server.Lang "help.report_issue_label"}}</a>
         </div>
     </div>
 </div>

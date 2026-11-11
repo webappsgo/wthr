@@ -4,16 +4,16 @@
 {{template "navbar" .}}
 
 <main class="weather-container" id="main-content" role="main">
-    <h1 class="text-purple">{{t .server.Lang "about_heading"}}</h1>
+    <h1 class="text-purple">{{t .server.Lang "about.heading"}}</h1>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_what_is_heading"}}</h2>
-        <p>{{t .server.Lang "about_what_is_description"}}</p>
-        <p class="text-comment margin-top-1">{{t .server.Lang "about_free_apis_note"}}</p>
+        <h2 class="text-cyan">{{t .server.Lang "about.what_is_heading"}}</h2>
+        <p>{{t .server.Lang "about.what_is_description"}}</p>
+        <p class="text-comment margin-top-1">{{t .server.Lang "about.free_apis_note"}}</p>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_app_info_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about.app_info_heading"}}</h2>
         <div class="stat-box margin-y-md">
             <div class="stat-box__label">{{t .server.Lang "admin.system.version_label"}}</div>
             <div class="stat-box__value">{{.server.Version}}</div>
@@ -29,88 +29,88 @@
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_features_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about.features_heading"}}</h2>
         <ul class="feature-list">
-            <li>🌤️ <strong>{{t .server.Lang "about_feature_forecasts_title"}}</strong> - {{t .server.Lang "about_feature_forecasts_desc"}}</li>
-            <li>⚠️ <strong>{{t .server.Lang "about_feature_alerts_title"}}</strong> - {{t .server.Lang "about_feature_alerts_desc"}}</li>
-            <li>🌀 <strong>{{t .server.Lang "about_feature_hurricanes_title"}}</strong> - {{t .server.Lang "about_feature_hurricanes_desc"}}</li>
-            <li>🌍 <strong>{{t .server.Lang "about_feature_earthquakes_title"}}</strong> - {{t .server.Lang "about_feature_earthquakes_desc"}}</li>
-            <li>🌙 <strong>{{t .server.Lang "about_feature_moon_title"}}</strong> - {{t .server.Lang "about_feature_moon_desc"}}</li>
-            <li>📍 <strong>{{t .server.Lang "about_feature_location_title"}}</strong> - {{t .server.Lang "about_feature_location_desc"}}</li>
-            <li>📊 <strong>{{t .server.Lang "about_feature_api_title"}}</strong> - {{t .server.Lang "about_feature_api_desc"}}</li>
-            <li>💻 <strong>{{t .server.Lang "about_feature_terminal_title"}}</strong> - {{t .server.Lang "about_feature_terminal_desc"}}</li>
-            <li>🔔 <strong>{{t .server.Lang "about_feature_websocket_title"}}</strong> - {{t .server.Lang "about_feature_websocket_desc"}}</li>
-            <li>🔑 <strong>{{t .server.Lang "about_feature_passkey_title"}}</strong> - {{t .server.Lang "about_feature_passkey_desc"}}</li>
-            <li>🔗 <strong>{{t .server.Lang "about_feature_graphql_title"}}</strong> - {{t .server.Lang "about_feature_graphql_desc"}}</li>
-            <li>📱 <strong>{{t .server.Lang "about_feature_mobile_title"}}</strong> - {{t .server.Lang "about_feature_mobile_desc"}}</li>
+            <li>🌤️ <strong>{{t .server.Lang "about.feature_forecasts_title"}}</strong> - {{t .server.Lang "about.feature_forecasts_desc"}}</li>
+            <li>⚠️ <strong>{{t .server.Lang "about.feature_alerts_title"}}</strong> - {{t .server.Lang "about.feature_alerts_desc"}}</li>
+            <li>🌀 <strong>{{t .server.Lang "about.feature_hurricanes_title"}}</strong> - {{t .server.Lang "about.feature_hurricanes_desc"}}</li>
+            <li>🌍 <strong>{{t .server.Lang "about.feature_earthquakes_title"}}</strong> - {{t .server.Lang "about.feature_earthquakes_desc"}}</li>
+            <li>🌙 <strong>{{t .server.Lang "about.feature_moon_title"}}</strong> - {{t .server.Lang "about.feature_moon_desc"}}</li>
+            <li>📍 <strong>{{t .server.Lang "about.feature_location_title"}}</strong> - {{t .server.Lang "about.feature_location_desc"}}</li>
+            <li>📊 <strong>{{t .server.Lang "about.feature_api_title"}}</strong> - {{t .server.Lang "about.feature_api_desc"}}</li>
+            <li>💻 <strong>{{t .server.Lang "about.feature_terminal_title"}}</strong> - {{t .server.Lang "about.feature_terminal_desc"}}</li>
+            <li>🔔 <strong>{{t .server.Lang "about.feature_websocket_title"}}</strong> - {{t .server.Lang "about.feature_websocket_desc"}}</li>
+            <li>🔑 <strong>{{t .server.Lang "about.feature_passkey_title"}}</strong> - {{t .server.Lang "about.feature_passkey_desc"}}</li>
+            <li>🔗 <strong>{{t .server.Lang "about.feature_graphql_title"}}</strong> - {{t .server.Lang "about.feature_graphql_desc"}}</li>
+            <li>📱 <strong>{{t .server.Lang "about.feature_mobile_title"}}</strong> - {{t .server.Lang "about.feature_mobile_desc"}}</li>
         </ul>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_data_sources_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about.data_sources_heading"}}</h2>
         <ul class="feature-list">
-            <li>🌤️ <strong>{{t .server.Lang "about_datasource_weather_title"}}</strong> {{t .server.Lang "about_datasource_weather_desc"}}</li>
-            <li>⚠️ <strong>{{t .server.Lang "about_datasource_severe_title"}}</strong> {{t .server.Lang "about_datasource_severe_desc"}}</li>
-            <li>🌀 <strong>{{t .server.Lang "about_datasource_hurricane_title"}}</strong> {{t .server.Lang "about_datasource_hurricane_desc"}}</li>
-            <li>🌍 <strong>{{t .server.Lang "about_datasource_earthquake_title"}}</strong> {{t .server.Lang "about_datasource_earthquake_desc"}}</li>
-            <li>🌙 <strong>{{t .server.Lang "about_datasource_moon_title"}}</strong> {{t .server.Lang "about_datasource_moon_desc"}}</li>
-            <li>📍 <strong>{{t .server.Lang "about_datasource_geo_title"}}</strong> {{t .server.Lang "about_datasource_geo_desc"}}</li>
+            <li>🌤️ <strong>{{t .server.Lang "about.datasource_weather_title"}}</strong> {{t .server.Lang "about.datasource_weather_desc"}}</li>
+            <li>⚠️ <strong>{{t .server.Lang "about.datasource_severe_title"}}</strong> {{t .server.Lang "about.datasource_severe_desc"}}</li>
+            <li>🌀 <strong>{{t .server.Lang "about.datasource_hurricane_title"}}</strong> {{t .server.Lang "about.datasource_hurricane_desc"}}</li>
+            <li>🌍 <strong>{{t .server.Lang "about.datasource_earthquake_title"}}</strong> {{t .server.Lang "about.datasource_earthquake_desc"}}</li>
+            <li>🌙 <strong>{{t .server.Lang "about.datasource_moon_title"}}</strong> {{t .server.Lang "about.datasource_moon_desc"}}</li>
+            <li>📍 <strong>{{t .server.Lang "about.datasource_geo_title"}}</strong> {{t .server.Lang "about.datasource_geo_desc"}}</li>
         </ul>
         <section class="attribution">
-            <h2>{{t .server.Lang "about_attribution_heading"}}</h2>
-            <p><a href="https://db-ip.com/">{{t .server.Lang "about_attribution_geoip_link"}}</a></p>
-            <p>{{t .server.Lang "about_attribution_geoip_license"}}</p>
+            <h2>{{t .server.Lang "about.attribution_heading"}}</h2>
+            <p><a href="https://db-ip.com/">{{t .server.Lang "about.attribution_geoip_link"}}</a></p>
+            <p>{{t .server.Lang "about.attribution_geoip_license"}}</p>
         </section>
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_who_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about.who_heading"}}</h2>
         <ul class="feature-list">
-            <li>👩‍💻 <strong>{{t .server.Lang "about_who_developers_title"}}</strong> - {{t .server.Lang "about_who_developers_desc"}}</li>
-            <li>🖥️ <strong>{{t .server.Lang "about_who_sysadmins_title"}}</strong> - {{t .server.Lang "about_who_sysadmins_desc"}}</li>
-            <li>🚨 <strong>{{t .server.Lang "about_who_emergency_title"}}</strong> - {{t .server.Lang "about_who_emergency_desc"}}</li>
-            <li>📰 <strong>{{t .server.Lang "about_who_news_title"}}</strong> - {{t .server.Lang "about_who_news_desc"}}</li>
-            <li>🏠 <strong>{{t .server.Lang "about_who_iot_title"}}</strong> - {{t .server.Lang "about_who_iot_desc"}}</li>
-            <li>👤 <strong>{{t .server.Lang "about_who_public_title"}}</strong> - {{t .server.Lang "about_who_public_desc"}}</li>
+            <li>👩‍💻 <strong>{{t .server.Lang "about.who_developers_title"}}</strong> - {{t .server.Lang "about.who_developers_desc"}}</li>
+            <li>🖥️ <strong>{{t .server.Lang "about.who_sysadmins_title"}}</strong> - {{t .server.Lang "about.who_sysadmins_desc"}}</li>
+            <li>🚨 <strong>{{t .server.Lang "about.who_emergency_title"}}</strong> - {{t .server.Lang "about.who_emergency_desc"}}</li>
+            <li>📰 <strong>{{t .server.Lang "about.who_news_title"}}</strong> - {{t .server.Lang "about.who_news_desc"}}</li>
+            <li>🏠 <strong>{{t .server.Lang "about.who_iot_title"}}</strong> - {{t .server.Lang "about.who_iot_desc"}}</li>
+            <li>👤 <strong>{{t .server.Lang "about.who_public_title"}}</strong> - {{t .server.Lang "about.who_public_desc"}}</li>
         </ul>
     </div>
 
     {{if .server.Tor.Enabled}}
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">🧅 {{t .server.Lang "about_tor_heading"}}</h2>
-        <p>{{t .server.Lang "about_tor_description"}}</p>
+        <h2 class="text-cyan">🧅 {{t .server.Lang "about.tor_heading"}}</h2>
+        <p>{{t .server.Lang "about.tor_description"}}</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code onion-address">{{.server.Tor.OnionAddress}}</code>
             <button class="copy-btn" data-action="copy-to-clipboard" data-text="{{.server.Tor.OnionAddress}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
-        <p class="text-comment"><small>{{t .server.Lang "about_tor_browser_note"}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "about.tor_browser_note"}}</small></p>
     </div>
     {{end}}
 
     {{if and .server.I2P.Enabled .server.I2P.Running .server.I2P.Address}}
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">🔗 {{t .server.Lang "about_i2p_heading"}}</h2>
-        <p>{{t .server.Lang "about_i2p_description"}}</p>
+        <h2 class="text-cyan">🔗 {{t .server.Lang "about.i2p_heading"}}</h2>
+        <p>{{t .server.Lang "about.i2p_description"}}</p>
         <div class="code-wrapper margin-y-md">
             <code class="mobile-code i2p-address">{{.server.I2P.Address}}</code>
             <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.server.I2P.Address}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
         </div>
-        <p class="text-comment"><small>{{t .server.Lang "about_i2p_router_note"}}</small></p>
-        <p class="text-comment"><small>{{t .server.Lang "about_i2p_help_link_text"}} <a href="/server/help#i2p-access" class="text-cyan">{{t .server.Lang "about_i2p_help_link_label"}}</a></small></p>
+        <p class="text-comment"><small>{{t .server.Lang "about.i2p_router_note"}}</small></p>
+        <p class="text-comment"><small>{{t .server.Lang "about.i2p_help_link_text"}} <a href="/server/help#i2p-access" class="text-cyan">{{t .server.Lang "about.i2p_help_link_label"}}</a></small></p>
     </div>
     {{end}}
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "about_links_heading"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "about.links_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile">
             <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}" target="_blank" class="btn btn-primary">
-                {{t .server.Lang "about_github_repository"}}
+                {{t .server.Lang "about.github_repository"}}
             </a>
             <a href="/docs" class="btn btn-secondary">
-                {{t .server.Lang "about_api_documentation"}}
+                {{t .server.Lang "about.api_documentation"}}
             </a>
             <a href="/server/help" class="btn btn-secondary">
-                {{t .server.Lang "about_help_support"}}
+                {{t .server.Lang "about.help_support"}}
             </a>
         </div>
     </div>

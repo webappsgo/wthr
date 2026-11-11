@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1 class="login-title">{{t .server.Lang "setup_complete_title"}}</h1>
-                <p class="login-subtitle">{{t .server.Lang "setup_complete_step_subtitle"}}</p>
+                <h1 class="login-title">{{t .server.Lang "setup.complete_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup.complete_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,26 +22,26 @@
                     <div class="progress-fill success progress-fill--step-6"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_server"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_security"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_services"}}</span>
-                    <span class="step active">{{t .server.Lang "setup_step_complete"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_api_token"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_server"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_security"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_services"}}</span>
+                    <span class="step active">{{t .server.Lang "setup.step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info success-box">
-                <p>{{t .server.Lang "setup_complete_success_line1"}}</p>
-                <p>{{t .server.Lang "setup_complete_success_line2"}}</p>
+                <p>{{t .server.Lang "setup.complete_success_line1"}}</p>
+                <p>{{t .server.Lang "setup.complete_success_line2"}}</p>
             </div>
 
             <div class="button-group">
                 <a href="{{.AdminPath}}/dashboard" class="btn-login">
-                    {{t .server.Lang "setup_complete_go_to_dashboard"}}
+                    {{t .server.Lang "setup.complete_go_to_dashboard"}}
                 </a>
                 <a href="/" class="btn-secondary">
-                    {{t .server.Lang "setup_complete_go_to_homepage"}}
+                    {{t .server.Lang "setup.complete_go_to_homepage"}}
                 </a>
             </div>
         </div>

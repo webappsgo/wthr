@@ -433,8 +433,8 @@ func TestEmailTemplateHandler_UpdateTemplate_FormPRG(t *testing.T) {
 		t.Fatalf("Location = %q, want editor page", loc)
 	}
 	val, ok := emailTemplateFlashValue(t, w)
-	if !ok || val != "success:flash_email_template_saved" {
-		t.Fatalf("flash = %q (ok=%v), want success:flash_email_template_saved", val, ok)
+	if !ok || val != "success:flash.email_template_saved" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash.email_template_saved", val, ok)
 	}
 
 	written, err := os.ReadFile(filepath.Join(dir, "email", "welcome.tmpl"))
@@ -467,8 +467,8 @@ func TestEmailTemplateHandler_UpdateTemplate_FormWriteFail(t *testing.T) {
 		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 	}
 	val, ok := emailTemplateFlashValue(t, w)
-	if !ok || val != "error:flash_email_template_save_failed" {
-		t.Fatalf("flash = %q (ok=%v), want error:flash_email_template_save_failed", val, ok)
+	if !ok || val != "error:flash.email_template_save_failed" {
+		t.Fatalf("flash = %q (ok=%v), want error:flash.email_template_save_failed", val, ok)
 	}
 }
 
@@ -486,8 +486,8 @@ func TestEmailTemplateHandler_TestTemplate_FormPRG(t *testing.T) {
 		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 	}
 	val, ok := emailTemplateFlashValue(t, w)
-	if !ok || val != "success:flash_test_email_sent" {
-		t.Fatalf("flash = %q (ok=%v), want success:flash_test_email_sent", val, ok)
+	if !ok || val != "success:flash.test_email_sent" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash.test_email_sent", val, ok)
 	}
 }
 
@@ -514,8 +514,8 @@ func TestEmailTemplateHandler_ImportTemplate_FormPRG(t *testing.T) {
 		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 	}
 	val, ok := emailTemplateFlashValue(t, w)
-	if !ok || val != "success:flash_email_template_saved" {
-		t.Fatalf("flash = %q (ok=%v), want success:flash_email_template_saved", val, ok)
+	if !ok || val != "success:flash.email_template_saved" {
+		t.Fatalf("flash = %q (ok=%v), want success:flash.email_template_saved", val, ok)
 	}
 
 	written, err := os.ReadFile(filepath.Join(dir, "email", "test.tmpl"))
@@ -545,7 +545,7 @@ func TestEmailTemplateHandler_ImportTemplate_FormWriteFail(t *testing.T) {
 		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 	}
 	val, ok := emailTemplateFlashValue(t, w)
-	if !ok || val != "error:flash_email_template_save_failed" {
-		t.Fatalf("flash = %q (ok=%v), want error:flash_email_template_save_failed", val, ok)
+	if !ok || val != "error:flash.email_template_save_failed" {
+		t.Fatalf("flash = %q (ok=%v), want error:flash.email_template_save_failed", val, ok)
 	}
 }

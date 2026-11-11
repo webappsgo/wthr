@@ -14,8 +14,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">{{t .server.Lang "setup_services_title"}}</h1>
-                <p class="login-subtitle">{{t .server.Lang "setup_services_step_subtitle"}}</p>
+                <h1 class="login-title">{{t .server.Lang "setup.services_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup.services_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -23,17 +23,17 @@
                     <div class="progress-fill progress-fill--step-5"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_api_token"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_server"}}</span>
-                    <span class="step completed">{{t .server.Lang "setup_step_security"}}</span>
-                    <span class="step active">{{t .server.Lang "setup_step_services"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_admin"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_api_token"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_server"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_security"}}</span>
+                    <span class="step active">{{t .server.Lang "setup.step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>{{t .server.Lang "setup_services_intro"}}</p>
+                <p>{{t .server.Lang "setup.services_intro"}}</p>
             </div>
 
             {{ if .error }}
@@ -50,30 +50,30 @@
                                name="enable_ssl"
                                value="true"
                                data-toggle-target="#ssl-options">
-                        <span>{{t .server.Lang "setup_services_enable_ssl_label"}}</span>
+                        <span>{{t .server.Lang "setup.services_enable_ssl_label"}}</span>
                     </label>
-                    <p class="form-hint">{{t .server.Lang "setup_services_enable_ssl_hint"}}</p>
+                    <p class="form-hint">{{t .server.Lang "setup.services_enable_ssl_hint"}}</p>
 
                     <div id="ssl-options" class="sub-options hidden">
                         <div class="form-group">
-                            <label class="form-label" for="ssl_domain">{{t .server.Lang "setup_services_ssl_domain_label"}}</label>
+                            <label class="form-label" for="ssl_domain">{{t .server.Lang "setup.services_ssl_domain_label"}}</label>
                             <input type="text"
                                    id="ssl_domain"
                                    name="ssl_domain"
                                    class="form-input"
                                    value="{{ .DefaultDomain }}"
                                    placeholder="example.com">
-                            <small class="form-hint">{{t .server.Lang "setup_services_ssl_domain_hint"}}</small>
+                            <small class="form-hint">{{t .server.Lang "setup.services_ssl_domain_hint"}}</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="ssl_email">{{t .server.Lang "setup_services_ssl_email_label"}}</label>
+                            <label class="form-label" for="ssl_email">{{t .server.Lang "setup.services_ssl_email_label"}}</label>
                             <input type="email"
                                    id="ssl_email"
                                    name="ssl_email"
                                    class="form-input"
                                    value="{{ .AdminEmail }}"
                                    placeholder="admin@example.com">
-                            <small class="form-hint">{{t .server.Lang "setup_services_ssl_email_hint"}}</small>
+                            <small class="form-hint">{{t .server.Lang "setup.services_ssl_email_hint"}}</small>
                         </div>
                     </div>
                 </div>
@@ -85,16 +85,16 @@
                                name="enable_multiuser"
                                value="true"
                                data-toggle-target="#multiuser-options">
-                        <span>{{t .server.Lang "setup_services_enable_multiuser_label"}}</span>
+                        <span>{{t .server.Lang "setup.services_enable_multiuser_label"}}</span>
                     </label>
-                    <p class="form-hint">{{t .server.Lang "setup_services_enable_multiuser_hint"}}</p>
+                    <p class="form-hint">{{t .server.Lang "setup.services_enable_multiuser_hint"}}</p>
 
                     <div id="multiuser-options" class="sub-options hidden">
                         <div class="form-group">
-                            <label class="form-label" for="registration_mode">{{t .server.Lang "setup_services_registration_mode_label"}}</label>
+                            <label class="form-label" for="registration_mode">{{t .server.Lang "setup.services_registration_mode_label"}}</label>
                             <select id="registration_mode" name="registration_mode" class="form-input">
-                                <option value="open" selected>{{t .server.Lang "setup_services_registration_mode_open"}}</option>
-                                <option value="private">{{t .server.Lang "setup_services_registration_mode_private"}}</option>
+                                <option value="open" selected>{{t .server.Lang "setup.services_registration_mode_open"}}</option>
+                                <option value="private">{{t .server.Lang "setup.services_registration_mode_private"}}</option>
                             </select>
                         </div>
                     </div>
@@ -103,24 +103,24 @@
                 {{ if .TorAvailable }}
                 <div class="service-option">
                     <div class="service-status">
-                        <span class="status-badge status-active">{{t .server.Lang "setup_services_auto_enabled_badge"}}</span>
+                        <span class="status-badge status-active">{{t .server.Lang "setup.services_auto_enabled_badge"}}</span>
                     </div>
                     <label class="checkbox-label disabled">
                         <input type="checkbox" checked disabled>
-                        <span>{{t .server.Lang "setup_services_tor_label"}}</span>
+                        <span>{{t .server.Lang "setup.services_tor_label"}}</span>
                     </label>
-                    <p class="form-hint">{{t .server.Lang "setup_services_tor_hint"}}</p>
+                    <p class="form-hint">{{t .server.Lang "setup.services_tor_hint"}}</p>
                     {{ if .OnionAddress }}
                     <p class="onion-preview"><code class="onion-address">{{ .OnionAddress }}</code></p>
                     {{ end }}
                 </div>
                 {{ end }}
 
-                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup_services_completing_button"}}">{{t .server.Lang "setup_services_complete_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup.services_completing_button"}}">{{t .server.Lang "setup.services_complete_button"}}</button>
             </form>
 
             <div class="setup-skip">
-                <a href="?skip=true" class="text-comment">{{t .server.Lang "setup_services_skip_step"}}</a>
+                <a href="?skip=true" class="text-comment">{{t .server.Lang "setup.services_skip_step"}}</a>
             </div>
         </div>
 

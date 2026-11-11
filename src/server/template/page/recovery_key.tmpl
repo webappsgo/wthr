@@ -12,8 +12,8 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>{{t .server.Lang "recovery_key_page_heading"}}</h1>
-            <p>{{t .server.Lang "recovery_key_page_subtitle"}}</p>
+            <h1>{{t .server.Lang "recovery.key_page_heading"}}</h1>
+            <p>{{t .server.Lang "recovery.key_page_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
@@ -22,14 +22,14 @@
             <form method="POST" class="auth-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="recovery_key">{{t .server.Lang "recovery_key_field_label"}}</label>
-                    <input type="text" id="recovery_key" name="recovery_key" required autocomplete="off" placeholder="{{t .server.Lang "recovery_key_field_placeholder"}}">
+                    <label for="recovery_key">{{t .server.Lang "recovery.key_field_label"}}</label>
+                    <input type="text" id="recovery_key" name="recovery_key" required autocomplete="off" placeholder="{{t .server.Lang "recovery.key_field_placeholder"}}">
                 </div>
-                <button type="submit" class="btn btn-primary">{{t .server.Lang "recovery_key_submit_button"}}</button>
+                <button type="submit" class="btn btn-primary">{{t .server.Lang "recovery.key_submit_button"}}</button>
             </form>
 
             <div class="auth-links">
-                <a href="/server/auth/login">{{t .server.Lang "oidc_back_to_login_link"}}</a>
+                <a href="/server/auth/login">{{t .server.Lang "oidc.back_to_login_link"}}</a>
             </div>
         </div>
     </div>

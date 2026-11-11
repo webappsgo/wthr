@@ -558,8 +558,8 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if flash != "success:flash_channel_updated" {
-			t.Errorf("flash = %q, want success:flash_channel_updated", flash)
+		if flash != "success:flash.channel_updated" {
+			t.Errorf("flash = %q, want success:flash.channel_updated", flash)
 		}
 
 		config := channelStoredConfig(t, h.DB, "slack")
@@ -615,8 +615,8 @@ func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if flash != "success:flash_channel_enabled" {
-			t.Errorf("flash = %q, want success:flash_channel_enabled", flash)
+		if flash != "success:flash.channel_enabled" {
+			t.Errorf("flash = %q, want success:flash.channel_enabled", flash)
 		}
 	})
 
@@ -634,8 +634,8 @@ func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if flash != "success:flash_channel_disabled" {
-			t.Errorf("flash = %q, want success:flash_channel_disabled", flash)
+		if flash != "success:flash.channel_disabled" {
+			t.Errorf("flash = %q, want success:flash.channel_disabled", flash)
 		}
 	})
 }
@@ -659,8 +659,8 @@ func TestNotificationChannelHandlerTestChannelFormPRG(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if flash != "error:flash_channel_test_failed" {
-			t.Errorf("flash = %q, want error:flash_channel_test_failed", flash)
+		if flash != "error:flash.channel_test_failed" {
+			t.Errorf("flash = %q, want error:flash.channel_test_failed", flash)
 		}
 	})
 }

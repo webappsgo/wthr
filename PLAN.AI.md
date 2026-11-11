@@ -6,6 +6,7 @@ missing. Order: items marked (blocks) come first.
 
 ## Done in the current pass
 
+- i18n: `it.json`, locale `meta` blocks, language registry with build-time check, dotted keys, 365 undefined template keys defined, template key existence test
 - `WWW-Authenticate` on 401 and `/debug/*` operator token (`server.token`), `/debug/ip` removed in favor of `/api/v1/weather/locations`
 - admin_path default `administration` (config, validation, docs, tests, scripts)
 - AI-bot blocking removed (robots.txt has no ai_bots; admin UI, config, locale keys removed)
@@ -18,13 +19,9 @@ missing. Order: items marked (blocks) come first.
 - IDEA.md, README.md, docs (api, security, configuration, admin paths), docs/translating.md, .gitignore, .dockerignore, `.claude/rules` partial refresh
 - `tests/e2e.sh` and `tests/e2e/layout.mjs` (layout review matrix)
 
-## PART 31 I18N (blocks nothing, large)
+## PART 31 I18N
 
-- `it.json` locale file does not exist (required minimum language); every other key must be translated
-- locale files have no `meta` block (`language`, `name`, `native_name`, `direction`, `version`); loader must read it and `ar` direction must come from it
-- 1015 legacy underscore keys (for example `about_api_documentation`) violate dot-separated key naming
-- language registry (code, native name, direction, plural categories) and the build-time check that registry, locale files and `EmbeddedLanguages` match
-- plural messages are not nested under CLDR categories; `make i18n-validate` does not apply plural key parity
+- plural messages are not nested under CLDR categories (`*_singular` / `*_plural` key pairs remain); `TestLocaleKeyParity` does not apply plural key parity
 - several handlers still carry hardcoded English (`GetTermsAPI`, `GetHelpAPI`, `GetAboutAPI` section text)
 
 ## PART 5/6/8 configuration and CLI

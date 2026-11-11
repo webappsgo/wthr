@@ -4,14 +4,14 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">👤 {{t .server.Lang "profile_title"}}</h1>
-        <p class="text-comment">{{t .server.Lang "profile_subtitle"}}</p>
+        <h1 class="profile-page-header-title">👤 {{t .server.Lang "profile.title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "profile.subtitle"}}</p>
     </div>
 
     <!-- Profile Information Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "profile_account_information"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "profile.account_information"}}</h2>
         </div>
         <div class="card-body">
             <form id="profileForm">
@@ -19,36 +19,36 @@
                 <div class="form-grid">
                     <!-- Username -->
                     <div class="form-group">
-                        <label for="username" class="form-label">{{t .server.Lang "profile_username_label"}}</label>
+                        <label for="username" class="form-label">{{t .server.Lang "profile.username_label"}}</label>
                         <input type="text" id="username" class="form-input" value="{{.user.Username}}" readonly>
-                        <small class="text-comment">{{t .server.Lang "profile_username_hint"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.username_hint"}}</small>
                     </div>
 
                     <!-- Email -->
                     <div class="form-group">
-                        <label for="email" class="form-label">{{t .server.Lang "profile_email_label"}}</label>
+                        <label for="email" class="form-label">{{t .server.Lang "profile.email_label"}}</label>
                         <input type="email" id="email" class="form-input" value="{{.user.Email}}" required>
-                        <small class="text-comment">{{t .server.Lang "profile_email_hint"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.email_hint"}}</small>
                     </div>
 
                     <!-- Display Name -->
                     <div class="form-group">
-                        <label for="displayName" class="form-label">{{t .server.Lang "profile_display_name_label"}}</label>
+                        <label for="displayName" class="form-label">{{t .server.Lang "profile.display_name_label"}}</label>
                         <input type="text" id="displayName" class="form-input" value="{{.user.DisplayName}}" placeholder="{{.user.Username}}">
-                        <small class="text-comment">{{t .server.Lang "profile_display_name_hint"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.display_name_hint"}}</small>
                     </div>
 
                     <!-- Phone -->
                     <div class="form-group">
-                        <label for="phone" class="form-label">{{t .server.Lang "profile_phone_label"}}</label>
+                        <label for="phone" class="form-label">{{t .server.Lang "profile.phone_label"}}</label>
                         <input type="tel" id="phone" class="form-input" value="{{.user.Phone}}" placeholder="+1 (555) 123-4567">
-                        <small class="text-comment">{{t .server.Lang "profile_phone_hint"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.phone_hint"}}</small>
                     </div>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">💾 {{t .server.Lang "profile_save_changes"}}</button>
-                    <button type="button" class="btn btn-secondary" data-action="profile-reset-form">↻ {{t .server.Lang "profile_reset"}}</button>
+                    <button type="submit" class="btn btn-primary">💾 {{t .server.Lang "profile.save_changes"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="profile-reset-form">↻ {{t .server.Lang "profile.reset"}}</button>
                 </div>
             </form>
         </div>
@@ -57,53 +57,53 @@
     <!-- Security Settings Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "profile_security"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "profile.security"}}</h2>
         </div>
         <div class="card-body">
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="info-label">{{t .server.Lang "profile_two_factor_authentication"}}</div>
+                    <div class="info-label">{{t .server.Lang "profile.two_factor_authentication"}}</div>
                     <div class="info-value">
                         {{if .user.TwoFactorEnabled}}
-                        <span class="badge badge-success">{{t .server.Lang "profile_enabled"}}</span>
+                        <span class="badge badge-success">{{t .server.Lang "profile.enabled"}}</span>
                         {{else}}
-                        <span class="badge badge-danger">{{t .server.Lang "profile_disabled"}}</span>
+                        <span class="badge badge-danger">{{t .server.Lang "profile.disabled"}}</span>
                         {{end}}
                     </div>
                 </div>
             </div>
-            <a href="/users/security" class="btn btn-primary margin-y-md">🔒 {{t .server.Lang "profile_manage_security_settings"}}</a>
+            <a href="/users/security" class="btn btn-primary margin-y-md">🔒 {{t .server.Lang "profile.manage_security_settings"}}</a>
         </div>
     </div>
 
     <!-- Change Password Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "profile_change_password"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "profile.change_password"}}</h2>
         </div>
         <div class="card-body">
             <form id="passwordForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="currentPassword" class="form-label">{{t .server.Lang "profile_current_password_label"}}</label>
+                    <label for="currentPassword" class="form-label">{{t .server.Lang "profile.current_password_label"}}</label>
                     <input type="password" id="currentPassword" class="form-input" required minlength="8">
                 </div>
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="newPassword" class="form-label">{{t .server.Lang "profile_new_password_label"}}</label>
+                        <label for="newPassword" class="form-label">{{t .server.Lang "profile.new_password_label"}}</label>
                         <input type="password" id="newPassword" class="form-input" required minlength="8">
-                        <small class="text-comment">{{t .server.Lang "profile_minimum_8_characters"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.minimum_8_characters"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="confirmPassword" class="form-label">{{t .server.Lang "profile_confirm_new_password_label"}}</label>
+                        <label for="confirmPassword" class="form-label">{{t .server.Lang "profile.confirm_new_password_label"}}</label>
                         <input type="password" id="confirmPassword" class="form-input" required minlength="8">
-                        <small class="text-comment">{{t .server.Lang "profile_must_match_new_password"}}</small>
+                        <small class="text-comment">{{t .server.Lang "profile.must_match_new_password"}}</small>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary profile-password-button">🔒 {{t .server.Lang "profile_change_password"}}</button>
+                <button type="submit" class="btn btn-primary profile-password-button">🔒 {{t .server.Lang "profile.change_password"}}</button>
             </form>
         </div>
     </div>
@@ -111,100 +111,100 @@
     <!-- Notification Preferences Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">🔔 {{t .server.Lang "profile_notification_preferences"}}</h2>
+            <h2 class="profile-card-header-title">🔔 {{t .server.Lang "profile.notification_preferences"}}</h2>
         </div>
         <div class="card-body">
             <form id="notificationPreferencesForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
                     <p class="text-comment mb-3">
-                        {{t .server.Lang "profile_notification_intro"}}
+                        {{t .server.Lang "profile.notification_intro"}}
                     </p>
 
                     <!-- Display Mode Toggles -->
                     <div class="mb-4">
-                        <h3 class="section-title">{{t .server.Lang "profile_display_modes"}}</h3>
+                        <h3 class="section-title">{{t .server.Lang "profile.display_modes"}}</h3>
 
                         <div class="form-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="enableToast" checked>
-                                <span>{{t .server.Lang "profile_enable_toast_notifications"}}</span>
+                                <span>{{t .server.Lang "profile.enable_toast_notifications"}}</span>
                             </label>
-                            <small class="text-comment">{{t .server.Lang "profile_toast_hint"}}</small>
+                            <small class="text-comment">{{t .server.Lang "profile.toast_hint"}}</small>
                         </div>
 
                         <div class="form-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="enableBanner" checked>
-                                <span>{{t .server.Lang "profile_enable_banner_notifications"}}</span>
+                                <span>{{t .server.Lang "profile.enable_banner_notifications"}}</span>
                             </label>
-                            <small class="text-comment">{{t .server.Lang "profile_banner_hint"}}</small>
+                            <small class="text-comment">{{t .server.Lang "profile.banner_hint"}}</small>
                         </div>
 
                         <div class="form-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="enableCenter" checked>
-                                <span>{{t .server.Lang "profile_enable_notification_center"}}</span>
+                                <span>{{t .server.Lang "profile.enable_notification_center"}}</span>
                             </label>
-                            <small class="text-comment">{{t .server.Lang "profile_center_hint"}}</small>
+                            <small class="text-comment">{{t .server.Lang "profile.center_hint"}}</small>
                         </div>
 
                         <div class="form-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="enableSound">
-                                <span>{{t .server.Lang "profile_enable_notification_sound"}}</span>
+                                <span>{{t .server.Lang "profile.enable_notification_sound"}}</span>
                             </label>
-                            <small class="text-comment">{{t .server.Lang "profile_sound_hint"}}</small>
+                            <small class="text-comment">{{t .server.Lang "profile.sound_hint"}}</small>
                         </div>
                     </div>
 
                     <!-- Toast Duration Settings -->
                     <div class="mb-3">
-                        <h3 class="section-title">{{t .server.Lang "profile_toast_duration_title"}}</h3>
+                        <h3 class="section-title">{{t .server.Lang "profile.toast_duration_title"}}</h3>
 
                         <div class="form-grid">
                             <div class="form-group">
-                                <label for="toastDurationSuccess" class="form-label">{{t .server.Lang "profile_success_notifications"}}</label>
+                                <label for="toastDurationSuccess" class="form-label">{{t .server.Lang "profile.success_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationSuccess" min="1" max="60" value="5"
                                            class="flex-1">
                                     <span id="durationLabelSuccess" class="duration-label-success">5s</span>
                                 </div>
-                                <small class="text-comment">{{t .server.Lang "profile_success_duration_hint"}}</small>
+                                <small class="text-comment">{{t .server.Lang "profile.success_duration_hint"}}</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="toastDurationInfo" class="form-label">{{t .server.Lang "profile_info_notifications"}}</label>
+                                <label for="toastDurationInfo" class="form-label">{{t .server.Lang "profile.info_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationInfo" min="1" max="60" value="5"
                                            class="flex-1">
                                     <span id="durationLabelInfo" class="duration-label-info">5s</span>
                                 </div>
-                                <small class="text-comment">{{t .server.Lang "profile_info_duration_hint"}}</small>
+                                <small class="text-comment">{{t .server.Lang "profile.info_duration_hint"}}</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="toastDurationWarning" class="form-label">{{t .server.Lang "profile_warning_notifications"}}</label>
+                                <label for="toastDurationWarning" class="form-label">{{t .server.Lang "profile.warning_notifications"}}</label>
                                 <div class="d-flex align-center gap-2">
                                     <input type="range" id="toastDurationWarning" min="1" max="60" value="10"
                                            class="flex-1">
                                     <span id="durationLabelWarning" class="duration-label-warning">10s</span>
                                 </div>
-                                <small class="text-comment">{{t .server.Lang "profile_warning_duration_hint"}}</small>
+                                <small class="text-comment">{{t .server.Lang "profile.warning_duration_hint"}}</small>
                             </div>
                         </div>
 
                         <div class="info-box-styled">
                             <p>
-                                <strong>{{t .server.Lang "profile_note_label"}}</strong> {{t .server.Lang "profile_error_notice"}}
+                                <strong>{{t .server.Lang "profile.note_label"}}</strong> {{t .server.Lang "profile.error_notice"}}
                             </p>
                         </div>
                     </div>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">💾 {{t .server.Lang "profile_save_preferences"}}</button>
-                    <button type="button" class="btn btn-secondary" data-action="profile-load-notification-prefs">↻ {{t .server.Lang "profile_reset"}}</button>
+                    <button type="submit" class="btn btn-primary">💾 {{t .server.Lang "profile.save_preferences"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="profile-load-notification-prefs">↻ {{t .server.Lang "profile.reset"}}</button>
                 </div>
             </form>
         </div>
@@ -213,16 +213,16 @@
     <!-- Account Information (Read-only) -->
     <div class="card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "profile_account_details"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "profile.account_details"}}</h2>
         </div>
         <div class="card-body">
             <div class="info-grid">
                 <div class="info-item">
-                    <div class="info-label">{{t .server.Lang "profile_user_id"}}</div>
+                    <div class="info-label">{{t .server.Lang "profile.user_id"}}</div>
                     <div class="info-value">{{.user.ID}}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">{{t .server.Lang "profile_role"}}</div>
+                    <div class="info-label">{{t .server.Lang "profile.role"}}</div>
                     <div class="info-value">
                         <span class="badge {{if eq .user.Role "admin"}}badge-admin{{else}}badge-user{{end}}">
                             {{.user.Role}}
@@ -230,11 +230,11 @@
                     </div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">{{t .server.Lang "profile_account_created"}}</div>
+                    <div class="info-label">{{t .server.Lang "profile.account_created"}}</div>
                     <div class="info-value">{{.user.CreatedAt.Format "January 2, 2006 at 3:04 PM"}}</div>
                 </div>
                 <div class="info-item">
-                    <div class="info-label">{{t .server.Lang "profile_last_updated"}}</div>
+                    <div class="info-label">{{t .server.Lang "profile.last_updated"}}</div>
                     <div class="info-value">{{.user.UpdatedAt.Format "January 2, 2006 at 3:04 PM"}}</div>
                 </div>
             </div>

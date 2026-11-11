@@ -341,8 +341,8 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 
 	if wantsExplicitJSON(r) || strings.HasPrefix(r.URL.Path, "/api/") || (WantsJSON(r) && !isConsoleClient) {
 		RespondNegotiatedData(w, r, http.StatusServiceUnavailable, map[string]interface{}{
-			"status":  Translate(r, "loading_page_status"),
-			"message": Translate(r, "loading_page_message"),
+			"status":  Translate(r, "loading.page_status"),
+			"message": Translate(r, "loading.page_message"),
 			"initialization": map[string]interface{}{
 				"countries": status.Countries,
 				"cities":    status.Cities,
@@ -370,18 +370,18 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 %s
   curl -q -LSs %s/server/healthz
 `,
-			Translate(r, "loading_page_console_title"),
-			Translate(r, "loading_page_services_heading"),
+			Translate(r, "loading.page_console_title"),
+			Translate(r, "loading.page_services_heading"),
 			checkmark(status.Countries),
-			Translate(r, "loading_page_countries"),
+			Translate(r, "loading.page_countries"),
 			checkmark(status.Cities),
-			Translate(r, "loading_page_cities"),
+			Translate(r, "loading.page_cities"),
 			checkmark(status.Weather),
 			Translate(r, "app.name"),
-			Translate(r, "loading_page_uptime"),
+			Translate(r, "loading.page_uptime"),
 			uptime.Round(time.Second).String(),
-			Translate(r, "loading_page_line_start"),
-			Translate(r, "loading_page_tip_health"),
+			Translate(r, "loading.page_line_start"),
+			Translate(r, "loading.page_tip_health"),
 			util.GetHostInfo(r).FullHost,
 		)
 
@@ -395,7 +395,7 @@ func ServeLoadingPage(w http.ResponseWriter, r *http.Request) {
 	hostInfo := util.GetHostInfo(r)
 
 	middleware.RenderHTML(w, r, http.StatusServiceUnavailable, "component/loading.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":    Translate(r, "loading_page_title"),
+		"Title":    Translate(r, "loading.page_title"),
 		"Status":   status,
 		"Uptime":   uptime.String(),
 		"HostInfo": hostInfo,

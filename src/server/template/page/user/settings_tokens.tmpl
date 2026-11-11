@@ -4,27 +4,27 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">{{t .server.Lang "settings_tokens_title"}}</h1>
-        <p class="text-comment">{{t .server.Lang "settings_tokens_subtitle"}}</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings.tokens_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings.tokens_subtitle"}}</p>
     </div>
 
     {{template "flash" .}}
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
-        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings_nav_privacy"}}</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
-        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
-        <a href="/users/tokens" class="settings-nav-item active">{{t .server.Lang "settings_nav_api_tokens"}}</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings.nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item">{{t .server.Lang "settings.nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings.nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings.nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings.nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item active">{{t .server.Lang "settings.nav_api_tokens"}}</a>
     </div>
 
     <!-- API Tokens Card -->
     <div class="card profile-card">
         <div class="card-header d-flex justify-between align-center">
-            <h2 class="profile-card-header-title">{{t .server.Lang "settings_tokens_title"}}</h2>
-            <button type="button" class="btn btn-primary" data-action="tokens-show-new-modal">+ {{t .server.Lang "settings_tokens_new_token"}}</button>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings.tokens_title"}}</h2>
+            <button type="button" class="btn btn-primary" data-action="tokens-show-new-modal">+ {{t .server.Lang "settings.tokens_new_token"}}</button>
         </div>
         <div class="card-body">
             <div id="tokenList">
@@ -32,34 +32,34 @@
                 {{range .tokens}}
                 <div class="token-item" data-token-id="{{.ID}}">
                     <div class="token-info">
-                        <div class="token-name">{{if .Name}}{{.Name}}{{else}}{{t $.server.Lang "settings_tokens_unnamed_token"}}{{end}}</div>
+                        <div class="token-name">{{if .Name}}{{.Name}}{{else}}{{t $.server.Lang "settings.tokens_unnamed_token"}}{{end}}</div>
                         <div class="token-meta">
                             <span class="token-prefix">{{.TokenPrefix}}</span>
                             {{if .Scopes}}
-                            <span class="token-scopes">{{t $.server.Lang "settings_tokens_scopes_label"}} {{.Scopes}}</span>
+                            <span class="token-scopes">{{t $.server.Lang "settings.tokens_scopes_label"}} {{.Scopes}}</span>
                             {{end}}
                         </div>
                         <div class="token-dates">
-                            <span>{{t $.server.Lang "settings_tokens_created_label"}} {{.CreatedAt.Format "Jan 2, 2006"}}</span>
+                            <span>{{t $.server.Lang "settings.tokens_created_label"}} {{.CreatedAt.Format "Jan 2, 2006"}}</span>
                             {{if .ExpiresAt}}
-                            <span>{{t $.server.Lang "settings_tokens_expires_label"}} {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
+                            <span>{{t $.server.Lang "settings.tokens_expires_label"}} {{.ExpiresAt.Format "Jan 2, 2006"}}</span>
                             {{else}}
-                            <span>{{t $.server.Lang "settings_tokens_expires_label"}} {{t $.server.Lang "settings_tokens_never"}}</span>
+                            <span>{{t $.server.Lang "settings.tokens_expires_label"}} {{t $.server.Lang "settings.tokens_never"}}</span>
                             {{end}}
                             {{if .LastUsedAt}}
-                            <span>{{t $.server.Lang "settings_tokens_last_used_label"}} {{.LastUsedAt.Format "Jan 2, 2006 15:04"}}</span>
+                            <span>{{t $.server.Lang "settings.tokens_last_used_label"}} {{.LastUsedAt.Format "Jan 2, 2006 15:04"}}</span>
                             {{else}}
-                            <span>{{t $.server.Lang "settings_tokens_last_used_label"}} {{t $.server.Lang "settings_tokens_never"}}</span>
+                            <span>{{t $.server.Lang "settings.tokens_last_used_label"}} {{t $.server.Lang "settings.tokens_never"}}</span>
                             {{end}}
                         </div>
                     </div>
-                    <button type="button" class="btn btn-danger btn-sm" data-action="tokens-revoke" data-token-id="{{.ID}}">{{t $.server.Lang "settings_tokens_revoke"}}</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-action="tokens-revoke" data-token-id="{{.ID}}">{{t $.server.Lang "settings.tokens_revoke"}}</button>
                 </div>
                 {{end}}
                 {{else}}
                 <div class="empty-state">
-                    <p>{{t .server.Lang "settings_tokens_empty_title"}}</p>
-                    <p class="text-comment">{{t .server.Lang "settings_tokens_empty_message"}}</p>
+                    <p>{{t .server.Lang "settings.tokens_empty_title"}}</p>
+                    <p class="text-comment">{{t .server.Lang "settings.tokens_empty_message"}}</p>
                 </div>
                 {{end}}
             </div>
@@ -69,18 +69,18 @@
     <!-- Token Info Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "settings_tokens_about_heading"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings.tokens_about_heading"}}</h2>
         </div>
         <div class="card-body">
             <div class="info-content">
-                <p>{{t .server.Lang "settings_tokens_about_intro"}}</p>
+                <p>{{t .server.Lang "settings.tokens_about_intro"}}</p>
                 <ul>
-                    <li>{{t .server.Lang "settings_tokens_use_cli"}}</li>
-                    <li>{{t .server.Lang "settings_tokens_use_scripts"}}</li>
-                    <li>{{t .server.Lang "settings_tokens_use_integrations"}}</li>
+                    <li>{{t .server.Lang "settings.tokens_use_cli"}}</li>
+                    <li>{{t .server.Lang "settings.tokens_use_scripts"}}</li>
+                    <li>{{t .server.Lang "settings.tokens_use_integrations"}}</li>
                 </ul>
                 <p class="text-comment">
-                    <strong>{{t .server.Lang "settings_tokens_security_note_label"}}</strong> {{t .server.Lang "settings_tokens_security_note_message"}}
+                    <strong>{{t .server.Lang "settings.tokens_security_note_label"}}</strong> {{t .server.Lang "settings.tokens_security_note_message"}}
                 </p>
             </div>
         </div>
@@ -91,7 +91,7 @@
 <div id="newTokenModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="newTokenTitle">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="newTokenTitle" class="modal-title">{{t .server.Lang "settings_tokens_create_new_title"}}</h3>
+            <h3 id="newTokenTitle" class="modal-title">{{t .server.Lang "settings.tokens_create_new_title"}}</h3>
             <button class="modal-close" data-action="tokens-close-new-modal">&times;</button>
         </div>
         <div class="modal-body">
@@ -99,31 +99,31 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label for="tokenName" class="form-label">{{t .server.Lang "settings_tokens_name_label"}}</label>
+                    <label for="tokenName" class="form-label">{{t .server.Lang "settings.tokens_name_label"}}</label>
                     <input type="text" id="tokenName" class="form-input" required placeholder="My CLI Token">
-                    <small class="text-comment">{{t .server.Lang "settings_tokens_name_hint"}}</small>
+                    <small class="text-comment">{{t .server.Lang "settings.tokens_name_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="tokenScopes" class="form-label">{{t .server.Lang "settings_tokens_scopes_label_optional"}}</label>
+                    <label for="tokenScopes" class="form-label">{{t .server.Lang "settings.tokens_scopes_label_optional"}}</label>
                     <input type="text" id="tokenScopes" class="form-input" placeholder="read, write">
-                    <small class="text-comment">{{t .server.Lang "settings_tokens_scopes_hint"}}</small>
+                    <small class="text-comment">{{t .server.Lang "settings.tokens_scopes_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="tokenExpires" class="form-label">{{t .server.Lang "settings_tokens_expiration_label"}}</label>
+                    <label for="tokenExpires" class="form-label">{{t .server.Lang "settings.tokens_expiration_label"}}</label>
                     <select id="tokenExpires" class="form-input">
-                        <option value="0">{{t .server.Lang "settings_tokens_never"}}</option>
-                        <option value="7">{{t .server.Lang "settings_tokens_7_days"}}</option>
-                        <option value="30">{{t .server.Lang "settings_tokens_30_days"}}</option>
-                        <option value="90">{{t .server.Lang "settings_tokens_90_days"}}</option>
-                        <option value="365">{{t .server.Lang "settings_tokens_1_year"}}</option>
+                        <option value="0">{{t .server.Lang "settings.tokens_never"}}</option>
+                        <option value="7">{{t .server.Lang "settings.tokens_7_days"}}</option>
+                        <option value="30">{{t .server.Lang "settings.tokens_30_days"}}</option>
+                        <option value="90">{{t .server.Lang "settings.tokens_90_days"}}</option>
+                        <option value="365">{{t .server.Lang "settings.tokens_1_year"}}</option>
                     </select>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">{{t .server.Lang "settings_tokens_create_button"}}</button>
-                    <button type="button" class="btn btn-secondary" data-action="tokens-close-new-modal">{{t .server.Lang "security_cancel"}}</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "settings.tokens_create_button"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-close-new-modal">{{t .server.Lang "security.cancel"}}</button>
                 </div>
             </form>
         </div>
@@ -134,21 +134,21 @@
 <div id="tokenCreatedModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tokenCreatedTitle">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="tokenCreatedTitle" class="modal-title">{{t .server.Lang "settings_tokens_created_title"}}</h3>
+            <h3 id="tokenCreatedTitle" class="modal-title">{{t .server.Lang "settings.tokens_created_title"}}</h3>
         </div>
         <div class="modal-body">
             <div class="alert alert-warning">
-                <strong>{{t .server.Lang "settings_tokens_important_label"}}</strong> {{t .server.Lang "settings_tokens_created_warning"}}
+                <strong>{{t .server.Lang "settings.tokens_important_label"}}</strong> {{t .server.Lang "settings.tokens_created_warning"}}
             </div>
             <div class="form-group">
-                <label class="form-label">{{t .server.Lang "settings_tokens_your_new_token_label"}}</label>
+                <label class="form-label">{{t .server.Lang "settings.tokens_your_new_token_label"}}</label>
                 <div class="token-display">
                     <input type="text" id="createdToken" class="form-input" readonly>
-                    <button type="button" class="btn btn-secondary" data-action="tokens-copy-created">{{t .server.Lang "weather_copy"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="tokens-copy-created">{{t .server.Lang "weather.copy"}}</button>
                 </div>
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" data-action="tokens-close-created-modal">{{t .server.Lang "settings_tokens_done_button"}}</button>
+                <button type="button" class="btn btn-primary" data-action="tokens-close-created-modal">{{t .server.Lang "settings.tokens_done_button"}}</button>
             </div>
         </div>
     </div>

@@ -14,8 +14,8 @@
         <div class="status-message {{.health_status_class}}">
             <strong>{{.health_status_text}}</strong>
         </div>
-        <p class="text-comment">{{t .server.Lang "healthz_last_checked"}} <time datetime="{{.health.Timestamp}}">{{.health.Timestamp}}</time></p>
-        <p class="text-comment">{{t .server.Lang "healthz_auto_refreshing"}} <span id="health-countdown">30</span>s</p>
+        <p class="text-comment">{{t .server.Lang "healthz.last_checked"}} <time datetime="{{.health.Timestamp}}">{{.health.Timestamp}}</time></p>
+        <p class="text-comment">{{t .server.Lang "healthz.auto_refreshing"}} <span id="health-countdown">30</span>s</p>
     </div>
 
     <div class="grid grid-2">
@@ -30,7 +30,7 @@
                 <div class="stat-box__value"><code>{{.health.GoVersion}}</code></div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_build_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.build_label"}}</div>
                 <div class="stat-box__value"><code>{{.health.Build.Commit}}</code> ({{.health.Build.Date}})</div>
             </div>
             <div class="stat-box margin-y-md">
@@ -44,19 +44,19 @@
         </div>
 
         <div class="card">
-            <h2 class="text-cyan">🔗 {{t .server.Lang "healthz_cluster_heading"}}</h2>
+            <h2 class="text-cyan">🔗 {{t .server.Lang "healthz.cluster_heading"}}</h2>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_enabled_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.enabled_label"}}</div>
                 <div class="stat-box__value">{{if .health.Cluster.Enabled}}{{t .server.Lang "admin.logs_format.active_yes"}}{{else}}{{t .server.Lang "admin.logs_format.active_no"}}{{end}}</div>
             </div>
             {{if .health.Cluster.Status}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_status_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.status_label"}}</div>
                 <div class="stat-box__value">{{.health.Cluster.Status}}</div>
             </div>
             {{end}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_primary_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.primary_label"}}</div>
                 <div class="stat-box__value">
                     {{if .health.Cluster.Primary}}
                     <div class="code-wrapper">
@@ -64,19 +64,19 @@
                         <button class="copy-btn" type="button" data-action="copy-to-clipboard" data-text="{{.health.Cluster.Primary}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
                     </div>
                     {{else}}
-                    <span class="text-comment">{{t .server.Lang "healthz_not_in_cluster"}}</span>
+                    <span class="text-comment">{{t .server.Lang "healthz.not_in_cluster"}}</span>
                     {{end}}
                 </div>
             </div>
             {{if .health.Cluster.NodeCount}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_nodes_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.nodes_label"}}</div>
                 <div class="stat-box__value">{{.health.Cluster.NodeCount}}</div>
             </div>
             {{end}}
             {{if .health.Cluster.Role}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_role_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.role_label"}}</div>
                 <div class="stat-box__value">{{.health.Cluster.Role}}</div>
             </div>
             {{end}}
@@ -84,12 +84,12 @@
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">🎛️ {{t .server.Lang "healthz_features_heading"}}</h2>
+        <h2 class="text-cyan">🎛️ {{t .server.Lang "healthz.features_heading"}}</h2>
         <ul class="feature-list">
-            <li>👥 <strong>{{t .server.Lang "healthz_multiuser_label"}}</strong> {{if .health.Features.MultiUser}}{{t .server.Lang "healthz_feature_enabled"}}{{else}}{{t .server.Lang "healthz_feature_disabled"}}{{end}}</li>
-            <li>🌍 <strong>{{t .server.Lang "healthz_geoip_label"}}</strong> {{if .health.Features.GeoIP}}{{t .server.Lang "healthz_feature_enabled"}}{{else}}{{t .server.Lang "healthz_feature_disabled"}}{{end}}</li>
+            <li>👥 <strong>{{t .server.Lang "healthz.multiuser_label"}}</strong> {{if .health.Features.MultiUser}}{{t .server.Lang "healthz.feature_enabled"}}{{else}}{{t .server.Lang "healthz.feature_disabled"}}{{end}}</li>
+            <li>🌍 <strong>{{t .server.Lang "healthz.geoip_label"}}</strong> {{if .health.Features.GeoIP}}{{t .server.Lang "healthz.feature_enabled"}}{{else}}{{t .server.Lang "healthz.feature_disabled"}}{{end}}</li>
             <li>
-                🧅 <strong>{{t .server.Lang "healthz_tor_label"}}</strong>
+                🧅 <strong>{{t .server.Lang "healthz.tor_label"}}</strong>
                 {{if .health.Features.Tor.Enabled}}
                     {{.health.Features.Tor.Status}}
                     {{if .health.Features.Tor.Hostname}}
@@ -99,16 +99,16 @@
                     </div>
                     {{end}}
                 {{else}}
-                    {{t .server.Lang "healthz_feature_disabled"}}
+                    {{t .server.Lang "healthz.feature_disabled"}}
                 {{end}}
             </li>
             <li>
-                🔗 <strong>{{t .server.Lang "healthz_i2p_label"}}</strong>
+                🔗 <strong>{{t .server.Lang "healthz.i2p_label"}}</strong>
                 {{if .health.Features.I2P.Enabled}}
                     {{.health.Features.I2P.Status}}
-                    {{if .health.Features.I2P.Running}}{{t .server.Lang "healthz_i2p_running"}}{{else}}{{t .server.Lang "healthz_i2p_not_running"}}{{end}}
+                    {{if .health.Features.I2P.Running}}{{t .server.Lang "healthz.i2p_running"}}{{else}}{{t .server.Lang "healthz.i2p_not_running"}}{{end}}
                     {{if .health.Features.I2P.Provider}}
-                    <span class="text-comment">{{t .server.Lang "healthz_i2p_provider_label"}} {{.health.Features.I2P.Provider}}</span>
+                    <span class="text-comment">{{t .server.Lang "healthz.i2p_provider_label"}} {{.health.Features.I2P.Provider}}</span>
                     {{end}}
                     {{if .health.Features.I2P.Hostname}}
                     <div class="code-wrapper margin-y-md">
@@ -117,7 +117,7 @@
                     </div>
                     {{end}}
                 {{else}}
-                    {{t .server.Lang "healthz_feature_disabled"}}
+                    {{t .server.Lang "healthz.feature_disabled"}}
                 {{end}}
             </li>
         </ul>
@@ -125,55 +125,55 @@
 
     <div class="grid grid-2">
         <div class="card">
-            <h2 class="text-cyan">🔧 {{t .server.Lang "healthz_component_status_heading"}}</h2>
+            <h2 class="text-cyan">🔧 {{t .server.Lang "healthz.component_status_heading"}}</h2>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_database_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.database_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Database}}</div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_cache_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.cache_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Cache}}</div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_disk_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.disk_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Disk}}</div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_scheduler_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.scheduler_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Scheduler}}</div>
             </div>
             {{if .health.Checks.Cluster}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_cluster_heading"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.cluster_heading"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Cluster}}</div>
             </div>
             {{end}}
             {{if .health.Checks.Tor}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_tor_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.tor_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.Tor}}</div>
             </div>
             {{end}}
             {{if .health.Checks.I2P}}
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_i2p_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.i2p_label"}}</div>
                 <div class="stat-box__value">{{.health.Checks.I2P}}</div>
             </div>
             {{end}}
         </div>
 
         <div class="card">
-            <h2 class="text-cyan">📈 {{t .server.Lang "healthz_stats_heading"}}</h2>
+            <h2 class="text-cyan">📈 {{t .server.Lang "healthz.stats_heading"}}</h2>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_total_requests_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.total_requests_label"}}</div>
                 <div class="stat-box__value">{{.health.Stats.RequestsTotal}}</div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_requests_24h_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.requests_24h_label"}}</div>
                 <div class="stat-box__value">{{.health.Stats.Requests24H}}</div>
             </div>
             <div class="stat-box margin-y-md">
-                <div class="stat-box__label">{{t .server.Lang "healthz_active_connections_label"}}</div>
+                <div class="stat-box__label">{{t .server.Lang "healthz.active_connections_label"}}</div>
                 <div class="stat-box__value">{{.health.Stats.ActiveConnections}}</div>
             </div>
         </div>
@@ -181,9 +181,9 @@
 
     {{if .health.Maintenance}}
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">⚠️ {{t .server.Lang "healthz_maintenance_heading"}}</h2>
-        <p><strong>{{t .server.Lang "healthz_reason_label"}}</strong> {{.health.Maintenance.Reason}}</p>
-        <p><strong>{{t .server.Lang "healthz_message_label"}}</strong> {{.health.Maintenance.Message}}</p>
+        <h2 class="text-cyan">⚠️ {{t .server.Lang "healthz.maintenance_heading"}}</h2>
+        <p><strong>{{t .server.Lang "healthz.reason_label"}}</strong> {{.health.Maintenance.Reason}}</p>
+        <p><strong>{{t .server.Lang "healthz.message_label"}}</strong> {{.health.Maintenance.Message}}</p>
     </div>
     {{end}}
 </main>

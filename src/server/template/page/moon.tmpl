@@ -27,7 +27,7 @@
                             id="moon-location-input"
                             name="location"
                             class="location-input moon-form__input"
-                            placeholder="{{t .server.Lang "moon_location_placeholder"}}"
+                            placeholder="{{t .server.Lang "moon.location_placeholder"}}"
                             value="{{.Location}}"
                             autocomplete="off"
                         >
@@ -42,10 +42,10 @@
                 <!-- Second row: Buttons -->
                 <div class="moon-form__row">
                     <button type="submit" class="search-button moon-form__button">
-                        🌙 {{t .server.Lang "moon_moon_info_button"}}
+                        🌙 {{t .server.Lang "moon.moon_info_button"}}
                     </button>
                     <button type="button" id="moon-location-btn" class="search-button moon-form__button--location">
-                        📍 {{t .server.Lang "index_my_location_button"}}
+                        📍 {{t .server.Lang "index.my_location_button"}}
                     </button>
                 </div>
             </div>
@@ -64,12 +64,12 @@
                         {{.MoonData.Moon.Phase}}
                     </div>
                     <div class="description">
-                        {{.MoonData.Moon.Illumination}}% {{t .server.Lang "moon_illuminated_suffix"}}
+                        {{.MoonData.Moon.Illumination}}% {{t .server.Lang "moon.illuminated_suffix"}}
                     </div>
                     <div class="weather-stats">
-                        <div class="stat">{{t .server.Lang "moon_age_label"}} <span class="stat-value">{{.MoonData.Moon.AgeFmt}} {{t .server.Lang "moon_days_suffix"}}</span></div>
-                        <div class="stat">{{t .server.Lang "moon_next_phase_label"}} <span class="stat-value">
-                            {{if lt .MoonData.Moon.Age 7.0}}{{t .server.Lang "moon_phase_first_quarter"}}{{else if lt .MoonData.Moon.Age 14.0}}{{t .server.Lang "moon_phase_full_moon"}}{{else if lt .MoonData.Moon.Age 21.0}}{{t .server.Lang "moon_phase_last_quarter"}}{{else}}{{t .server.Lang "moon_phase_new_moon"}}{{end}}
+                        <div class="stat">{{t .server.Lang "moon.age_label"}} <span class="stat-value">{{.MoonData.Moon.AgeFmt}} {{t .server.Lang "moon.days_suffix"}}</span></div>
+                        <div class="stat">{{t .server.Lang "moon.next_phase_label"}} <span class="stat-value">
+                            {{if lt .MoonData.Moon.Age 7.0}}{{t .server.Lang "moon.phase_first_quarter"}}{{else if lt .MoonData.Moon.Age 14.0}}{{t .server.Lang "moon.phase_full_moon"}}{{else if lt .MoonData.Moon.Age 21.0}}{{t .server.Lang "moon.phase_last_quarter"}}{{else}}{{t .server.Lang "moon.phase_new_moon"}}{{end}}
                         </span></div>
                     </div>
                 </div>
@@ -79,36 +79,36 @@
             <div class="grid-auto-fit-300">
                 <!-- Moon Times -->
                 <div class="info-box">
-                    <h3 class="info-box__title info-box__title--lunar">🌙 {{t .server.Lang "moon_lunar_information_heading"}}</h3>
+                    <h3 class="info-box__title info-box__title--lunar">🌙 {{t .server.Lang "moon.lunar_information_heading"}}</h3>
                     <div class="info-box__content">
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_phase_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.phase_label"}}</strong>
                             <span class="info-box__value--primary">{{.MoonData.Moon.Phase}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_illumination_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.illumination_label"}}</strong>
                             <span class="info-box__value--green">{{.MoonData.Moon.Illumination}}%</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_age_label"}}</strong>
-                            <span class="info-box__value--pink">{{.MoonData.Moon.AgeFmt}} {{t .server.Lang "moon_days_suffix"}}</span>
+                            <strong class="info-box__label">{{t .server.Lang "moon.age_label"}}</strong>
+                            <span class="info-box__value--pink">{{.MoonData.Moon.AgeFmt}} {{t .server.Lang "moon.days_suffix"}}</span>
                         </div>
                         {{if and .MoonData.Moon.Rise .MoonData.Moon.Set}}
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_moonrise_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.moonrise_label"}}</strong>
                             <span class="info-box__value--orange">{{.MoonData.Moon.RiseFormatted}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_moonset_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.moonset_label"}}</strong>
                             <span class="info-box__value--orange">{{.MoonData.Moon.SetFormatted}}</span>
                         </div>
                         {{end}}
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_distance_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.distance_label"}}</strong>
                             <span class="info-box__value--cyan">{{.MoonData.Moon.DistanceFormatted}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_angular_size_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.angular_size_label"}}</strong>
                             <span class="info-box__value--purple">{{.MoonData.Moon.AngularSizeFmt}}</span>
                         </div>
                     </div>
@@ -116,14 +116,14 @@
 
                 <!-- Upcoming Phases -->
                 <div class="info-box">
-                    <h3 class="info-box__title info-box__title--upcoming">📅 {{t .server.Lang "moon_upcoming_phases_heading"}}</h3>
+                    <h3 class="info-box__title info-box__title--upcoming">📅 {{t .server.Lang "moon.upcoming_phases_heading"}}</h3>
                     <div class="info-box__content">
                         <div class="info-box__item">
-                            <strong class="info-box__label">🌑 {{t .server.Lang "moon_next_new_moon_label"}}</strong>
+                            <strong class="info-box__label">🌑 {{t .server.Lang "moon.next_new_moon_label"}}</strong>
                             <span class="info-box__value--primary">{{.MoonData.Moon.NextNewMoonFmt}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">🌕 {{t .server.Lang "moon_next_full_moon_label"}}</strong>
+                            <strong class="info-box__label">🌕 {{t .server.Lang "moon.next_full_moon_label"}}</strong>
                             <span class="info-box__value--yellow">{{.MoonData.Moon.NextFullMoonFmt}}</span>
                         </div>
                     </div>
@@ -131,22 +131,22 @@
 
                 <!-- Sun Times -->
                 <div class="info-box">
-                    <h3 class="info-box__title info-box__title--solar">☀️ {{t .server.Lang "moon_solar_information_heading"}}</h3>
+                    <h3 class="info-box__title info-box__title--solar">☀️ {{t .server.Lang "moon.solar_information_heading"}}</h3>
                     <div class="info-box__content">
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_sunrise_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.sunrise_label"}}</strong>
                             <span class="info-box__value--primary">{{.MoonData.Sun.SunriseFormatted}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_sunset_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.sunset_label"}}</strong>
                             <span class="info-box__value--red">{{.MoonData.Sun.SunsetFormatted}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_solar_noon_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.solar_noon_label"}}</strong>
                             <span class="info-box__value--green">{{.MoonData.Sun.SolarNoonFormatted}}</span>
                         </div>
                         <div class="info-box__item">
-                            <strong class="info-box__label">{{t .server.Lang "moon_day_length_label"}}</strong>
+                            <strong class="info-box__label">{{t .server.Lang "moon.day_length_label"}}</strong>
                             <span class="info-box__value--pink">{{.MoonData.Sun.DayLengthFormatted}}</span>
                         </div>
                     </div>
@@ -155,42 +155,42 @@
 
             <!-- Console Command Examples -->
             <div class="console-section">
-                <h3 class="console-section__title">{{t .server.Lang "index_console_access_heading"}}</h3>
+                <h3 class="console-section__title">{{t .server.Lang "index.console_access_heading"}}</h3>
                 <div class="console-commands">
                     <div class="command-item">
-                        <strong class="console-section__label">{{t .server.Lang "index_console_weather_label"}}</strong>
+                        <strong class="console-section__label">{{t .server.Lang "index.console_weather_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}">{{t .server.Lang "moon_copy_button"}}</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}">{{t .server.Lang "moon.copy_button"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">{{t .server.Lang "index_console_oneline_label"}}</strong>
+                        <strong class="console-section__label">{{t .server.Lang "index.console_oneline_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3">{{t .server.Lang "moon_copy_button"}}</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/{{.MoonData.Location.NameEncoded}}?format=3">{{t .server.Lang "moon.copy_button"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">{{t .server.Lang "index_console_moon_label"}}</strong>
+                        <strong class="console-section__label">{{t .server.Lang "index.console_moon_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon">{{t .server.Lang "moon_copy_button"}}</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon">{{t .server.Lang "moon.copy_button"}}</button>
                         </div>
                     </div>
                     <div class="command-item">
-                        <strong class="console-section__label">{{t .server.Lang "index_console_moon_location_label"}}</strong>
+                        <strong class="console-section__label">{{t .server.Lang "index.console_moon_location_label"}}</strong>
                         <div class="code-wrapper">
                             <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}</code>
-                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}">{{t .server.Lang "moon_copy_button"}}</button>
+                            <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/moon/{{.MoonData.Location.NameEncoded}}">{{t .server.Lang "moon.copy_button"}}</button>
                         </div>
                     </div>
                 </div>
             </div>
         {{else}}
             <div class="welcome-section">
-                <h2 class="welcome-section__title">🌙 {{t .server.Lang "moon_welcome_heading"}}</h2>
-                <p>{{t .server.Lang "moon_welcome_text"}}</p>
+                <h2 class="welcome-section__title">🌙 {{t .server.Lang "moon.welcome_heading"}}</h2>
+                <p>{{t .server.Lang "moon.welcome_text"}}</p>
                 <div class="city-links-grid">
                     <a href="?location=London" class="city-link">🇬🇧 London</a>
                     <a href="?location=Tokyo" class="city-link">🇯🇵 Tokyo</a>
@@ -205,9 +205,9 @@
     <script type="application/json" id="moon-data">
         {
             "apiPath": "{{.api_path}}",
-            "gettingLocation": "{{t .server.Lang "moon_js_getting_location"}}",
-            "foundLocation": "{{t .server.Lang "moon_js_found_location"}}",
-            "locationError": "{{t .server.Lang "moon_js_location_error"}}"
+            "gettingLocation": "{{t .server.Lang "moon.js_getting_location"}}",
+            "foundLocation": "{{t .server.Lang "moon.js_found_location"}}",
+            "locationError": "{{t .server.Lang "moon.js_location_error"}}"
         }
     </script>
 

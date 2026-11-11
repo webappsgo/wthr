@@ -4,26 +4,26 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">{{t .server.Lang "settings_privacy_title"}}</h1>
-        <p class="text-comment">{{t .server.Lang "settings_privacy_subtitle"}}</p>
+        <h1 class="profile-page-header-title">{{t .server.Lang "settings.privacy_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "settings.privacy_subtitle"}}</p>
     </div>
 
     {{template "flash" .}}
 
     <!-- Settings Navigation -->
     <div class="settings-nav">
-        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings_nav_account"}}</a>
-        <a href="/users/settings/privacy" class="settings-nav-item active">{{t .server.Lang "settings_nav_privacy"}}</a>
-        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings_nav_notifications"}}</a>
-        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings_nav_appearance"}}</a>
-        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings_nav_security"}}</a>
-        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings_nav_api_tokens"}}</a>
+        <a href="/users/settings" class="settings-nav-item">{{t .server.Lang "settings.nav_account"}}</a>
+        <a href="/users/settings/privacy" class="settings-nav-item active">{{t .server.Lang "settings.nav_privacy"}}</a>
+        <a href="/users/settings/notifications" class="settings-nav-item">{{t .server.Lang "settings.nav_notifications"}}</a>
+        <a href="/users/settings/appearance" class="settings-nav-item">{{t .server.Lang "settings.nav_appearance"}}</a>
+        <a href="/users/security" class="settings-nav-item">{{t .server.Lang "settings.nav_security"}}</a>
+        <a href="/users/tokens" class="settings-nav-item">{{t .server.Lang "settings.nav_api_tokens"}}</a>
     </div>
 
     <!-- Privacy Settings Form -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "settings_profile_visibility_heading"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "settings.profile_visibility_heading"}}</h2>
         </div>
         <div class="card-body">
             <form id="privacySettingsForm" method="post" action="/users/settings/privacy">
@@ -33,52 +33,52 @@
                     <label class="visibility-option {{if eq .user.Visibility "public"}}selected{{end}}">
                         <input type="radio" name="visibility" value="public" {{if eq .user.Visibility "public"}}checked{{end}}>
                         <div class="visibility-content">
-                            <strong>{{t .server.Lang "settings_visibility_public"}}</strong>
-                            <p class="text-comment">{{t .server.Lang "settings_visibility_public_hint"}}</p>
+                            <strong>{{t .server.Lang "settings.visibility_public"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings.visibility_public_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="visibility-option {{if eq .user.Visibility "private"}}selected{{end}}">
                         <input type="radio" name="visibility" value="private" {{if eq .user.Visibility "private"}}checked{{end}}>
                         <div class="visibility-content">
-                            <strong>{{t .server.Lang "settings_visibility_private"}}</strong>
-                            <p class="text-comment">{{t .server.Lang "settings_visibility_private_hint"}}</p>
+                            <strong>{{t .server.Lang "settings.visibility_private"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings.visibility_private_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <hr class="settings-divider">
 
-                <h3 class="section-title">{{t .server.Lang "settings_when_public_heading"}}</h3>
+                <h3 class="section-title">{{t .server.Lang "settings.when_public_heading"}}</h3>
 
                 <div class="toggle-group">
                     <label class="toggle-item">
                         <input type="checkbox" id="showEmail" name="showEmail">
                         <div class="toggle-content">
-                            <strong>{{t .server.Lang "settings_show_email_label"}}</strong>
-                            <p class="text-comment">{{t .server.Lang "settings_show_email_hint"}}</p>
+                            <strong>{{t .server.Lang "settings.show_email_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings.show_email_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="showActivity" name="showActivity" checked>
                         <div class="toggle-content">
-                            <strong>{{t .server.Lang "settings_show_activity_label"}}</strong>
-                            <p class="text-comment">{{t .server.Lang "settings_show_activity_hint"}}</p>
+                            <strong>{{t .server.Lang "settings.show_activity_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings.show_activity_hint"}}</p>
                         </div>
                     </label>
 
                     <label class="toggle-item">
                         <input type="checkbox" id="searchable" name="searchable" checked>
                         <div class="toggle-content">
-                            <strong>{{t .server.Lang "settings_searchable_label"}}</strong>
-                            <p class="text-comment">{{t .server.Lang "settings_searchable_hint"}}</p>
+                            <strong>{{t .server.Lang "settings.searchable_label"}}</strong>
+                            <p class="text-comment">{{t .server.Lang "settings.searchable_hint"}}</p>
                         </div>
                     </label>
                 </div>
 
                 <div class="profile-form-actions">
-                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile_save_changes"}}</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "profile.save_changes"}}</button>
                 </div>
             </form>
         </div>

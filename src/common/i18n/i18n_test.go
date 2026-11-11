@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/webappsgo/wthr/src/config"
 	utils "github.com/webappsgo/wthr/src/util"
 )
 
@@ -539,5 +540,81 @@ func TestLocaleKeyParity(t *testing.T) {
 				t.Errorf("locale %q: orphaned key %q (not present in en.json)", lang, key)
 			}
 		}
+	}
+}
+
+func TestRegistryMatchesLocaleFiles(t *testing.T) {
+	locales := loadRealLocales(t)
+
+	registered := map[string]bool{}
+	for _, spec := range Registry {
+		registered[spec.Code] = true
+		translations, ok := locales[spec.Code]
+		if !ok {
+			t.Errorf("registry language %q has no locale file", spec.Code)
+			continue
+		}
+		if len(spec.Plurals) == 0 {
+			t.Errorf("registry language %q has no plural categories", spec.Code)
+		}
+		want := map[string]string{
+			"meta.language":    spec.Code,
+			"meta.name":        spec.Name,
+			"meta.native_name": spec.NativeName,
+			"meta.direction":   spec.Direction,
+		}
+		for key, expected := range want {
+			if got := translations[key]; got != expected {
+				t.Errorf("locale %q: %s = %q, want %q (registry)", spec.Code, key, got, expected)
+			}
+		}
+		if translations["meta.version"] == "" {
+			t.Errorf("locale %q: meta.version is missing", spec.Code)
+		}
+	}
+
+	for code := range locales {
+		if !registered[code] {
+			t.Errorf("locale file %q has no registry entry", code)
+		}
+	}
+}
+
+func TestEmbeddedLanguagesMatchRegistry(t *testing.T) {
+	registry := RegistryCodes()
+	if !reflect.DeepEqual(registry, config.EmbeddedLanguages) {
+		t.Fatalf("config.EmbeddedLanguages = %v, registry = %v", config.EmbeddedLanguages, registry)
+	}
+}
+
+// TestTemplateKeysExist fails when a page or admin template asks for a
+// translation key that no locale defines, which would render the raw key.
+func TestTemplateKeysExist(t *testing.T) {
+	locales := loadRealLocales(t)
+	en := locales["en"]
+	keyRef := regexp.MustCompile(`\{\{-?\s*tf?\s+[^"}]*"([^"]+)"`)
+
+	root := filepath.Join("..", "..", "server", "template")
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return walkErr
+		}
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range keyRef.FindAllStringSubmatch(string(data), -1) {
+			key := m[1]
+			if strings.Contains(key, "%") {
+				continue
+			}
+			if _, ok := en[key]; !ok {
+				t.Errorf("%s: translation key %q is not defined in en.json", path, key)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk templates: %v", err)
 	}
 }

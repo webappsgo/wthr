@@ -4,26 +4,26 @@
 
 <div class="profile-container">
     <div class="page-header">
-        <h1 class="profile-page-header-title">🔒 {{t .server.Lang "security_title"}}</h1>
-        <p class="text-comment">{{t .server.Lang "security_subtitle"}}</p>
+        <h1 class="profile-page-header-title">🔒 {{t .server.Lang "security.page_title"}}</h1>
+        <p class="text-comment">{{t .server.Lang "security.subtitle"}}</p>
     </div>
 
     <!-- Two-Factor Authentication Card -->
     <div class="card profile-card">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "security_2fa_heading"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "security.2fa_heading"}}</h2>
         </div>
         <div class="card-body">
             {{if .user.TwoFactorEnabled}}
                 <!-- 2FA Enabled State -->
                 <div class="alert alert-success margin-y-md">
-                    <strong>✓ {{t .server.Lang "security_2fa_enabled_notice"}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_2fa_enabled_message"}}</p>
+                    <strong>✓ {{t .server.Lang "security.2fa_enabled_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.2fa_enabled_message"}}</p>
                 </div>
 
                 <div class="info-grid margin-y-md">
                     <div class="info-item">
-                        <div class="info-label">{{t .server.Lang "security_recovery_keys_remaining"}}</div>
+                        <div class="info-label">{{t .server.Lang "security.recovery_keys_remaining"}}</div>
                         <div class="info-value">
                             <span class="{{if lt .recoveryKeysCount 3}}text-danger{{else}}text-success{{end}}">
                                 {{.recoveryKeysCount}} / 10
@@ -34,32 +34,32 @@
 
                 {{if lt .recoveryKeysCount 3}}
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ {{t .server.Lang "security_low_recovery_keys"}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_low_recovery_keys_message"}}</p>
+                    <strong>⚠ {{t .server.Lang "security.low_recovery_keys"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.low_recovery_keys_message"}}</p>
                 </div>
                 {{end}}
 
                 <div class="profile-form-actions">
                     <button type="button" class="btn btn-secondary" data-action="regenerate-recovery-keys">
-                        🔄 {{t .server.Lang "security_regenerate_recovery_keys"}}
+                        🔄 {{t .server.Lang "security.regenerate_recovery_keys"}}
                     </button>
                     <button type="button" class="btn btn-danger" data-action="disable-2fa">
-                        🔓 {{t .server.Lang "security_disable_2fa"}}
+                        🔓 {{t .server.Lang "security.disable_2fa"}}
                     </button>
                 </div>
             {{else}}
                 <!-- 2FA Disabled State -->
                 <div class="alert alert-info margin-y-md">
-                    <strong>ℹ {{t .server.Lang "security_2fa_disabled_notice"}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_2fa_disabled_message"}}</p>
+                    <strong>ℹ {{t .server.Lang "security.2fa_disabled_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.2fa_disabled_message"}}</p>
                 </div>
 
                 <p class="text-comment margin-y-md">
-                    {{t .server.Lang "security_2fa_explanation"}}
+                    {{t .server.Lang "security.2fa_explanation"}}
                 </p>
 
                 <button type="button" class="btn btn-primary" data-action="enable-2fa">
-                    🔒 {{t .server.Lang "security_enable_2fa"}}
+                    🔒 {{t .server.Lang "security.enable_2fa"}}
                 </button>
             {{end}}
         </div>
@@ -67,49 +67,49 @@
 
     <div class="card profile-card margin-y-md">
         <div class="card-header">
-            <h2 class="profile-card-header-title">{{t .server.Lang "security_passkeys_heading"}}</h2>
+            <h2 class="profile-card-header-title">{{t .server.Lang "security.passkeys_heading"}}</h2>
         </div>
         <div class="card-body">
             {{if .hasPasskeys}}
                 <div class="alert alert-success margin-y-md">
-                    <strong>✓ {{len .passkeys}} {{if ne (len .passkeys) 1}}{{t .server.Lang "security_passkeys_registered_plural"}}{{else}}{{t .server.Lang "security_passkey_registered_singular"}}{{end}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_passkeys_success_message"}}</p>
+                    <strong>✓ {{len .passkeys}} {{if ne (len .passkeys) 1}}{{t .server.Lang "security.passkeys_registered_plural"}}{{else}}{{t .server.Lang "security.passkey_registered_singular"}}{{end}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.passkeys_success_message"}}</p>
                 </div>
             {{else}}
                 <div class="alert alert-info margin-y-md">
-                    <strong>ℹ {{t .server.Lang "security_no_passkeys_notice"}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_no_passkeys_message"}}</p>
+                    <strong>ℹ {{t .server.Lang "security.no_passkeys_notice"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.no_passkeys_message"}}</p>
                 </div>
             {{end}}
 
             {{if and .hasPasskeys (lt .recoveryKeysCount 3)}}
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ {{t .server.Lang "security_low_recovery_keys"}}</strong>
-                    <p class="text-sm margin-y-sm">{{t .server.Lang "security_low_recovery_keys_passkey_message"}}</p>
+                    <strong>⚠ {{t .server.Lang "security.low_recovery_keys"}}</strong>
+                    <p class="text-sm margin-y-sm">{{t .server.Lang "security.low_recovery_keys_passkey_message"}}</p>
                 </div>
             {{end}}
 
             <div class="form-group">
-                <label class="form-label" for="newPasskeyName">{{t .server.Lang "security_new_passkey_name_label"}}</label>
-                <input id="newPasskeyName" class="form-input" type="text" placeholder="{{t .server.Lang "security_new_passkey_name_placeholder"}}">
+                <label class="form-label" for="newPasskeyName">{{t .server.Lang "security.new_passkey_name_label"}}</label>
+                <input id="newPasskeyName" class="form-input" type="text" placeholder="{{t .server.Lang "security.new_passkey_name_placeholder"}}">
             </div>
             <div class="form-group">
-                <label class="form-label" for="newPasskeyPassword">{{t .server.Lang "security_confirm_password_label"}}</label>
-                <input id="newPasskeyPassword" class="form-input" type="password" placeholder="{{t .server.Lang "security_confirm_password_placeholder"}}">
+                <label class="form-label" for="newPasskeyPassword">{{t .server.Lang "security.confirm_password_label"}}</label>
+                <input id="newPasskeyPassword" class="form-input" type="password" placeholder="{{t .server.Lang "security.confirm_password_placeholder"}}">
             </div>
             <div class="profile-form-actions">
-                <button type="button" class="btn btn-primary" data-action="register-passkey">🔑 {{t .server.Lang "security_add_passkey"}}</button>
+                <button type="button" class="btn btn-primary" data-action="register-passkey">🔑 {{t .server.Lang "security.add_passkey"}}</button>
             </div>
 
             {{if .hasPasskeys}}
             <div class="margin-y-md">
-                <h3 class="profile-card-header-title">{{t .server.Lang "security_registered_passkeys_heading"}}</h3>
+                <h3 class="profile-card-header-title">{{t .server.Lang "security.registered_passkeys_heading"}}</h3>
                 <div class="info-grid">
                     {{range .passkeys}}
                     <div class="info-item">
                         <div class="info-label">{{.Name}}</div>
-                        <div class="info-value text-comment">{{t $.server.Lang "security_created_label"}} {{.CreatedAt.Format "2006-01-02 15:04"}}{{if .LastUsedAt}} · {{t $.server.Lang "security_last_used_label"}} {{.LastUsedAt.Format "2006-01-02 15:04"}}{{end}}</div>
-                        <button type="button" class="btn btn-danger margin-y-sm" data-action="delete-passkey" data-passkey-id="{{.ID}}" data-passkey-name="{{.Name}}">{{t $.server.Lang "security_delete"}}</button>
+                        <div class="info-value text-comment">{{t $.server.Lang "security.created_label"}} {{.CreatedAt.Format "2006-01-02 15:04"}}{{if .LastUsedAt}} · {{t $.server.Lang "security.last_used_label"}} {{.LastUsedAt.Format "2006-01-02 15:04"}}{{end}}</div>
+                        <button type="button" class="btn btn-danger margin-y-sm" data-action="delete-passkey" data-passkey-id="{{.ID}}" data-passkey-name="{{.Name}}">{{t $.server.Lang "security.delete"}}</button>
                     </div>
                     {{end}}
                 </div>
@@ -123,48 +123,48 @@
 <div id="setup2FAModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="setup2FATitle">
     <div class="modal modal-md">
         <div class="modal-header">
-            <h3 id="setup2FATitle" class="modal-title">{{t .server.Lang "security_enable_2fa"}}</h3>
+            <h3 id="setup2FATitle" class="modal-title">{{t .server.Lang "security.enable_2fa"}}</h3>
             <button class="modal-close" data-action="close-setup-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div id="setupStep1">
-                <h4>{{t .server.Lang "security_step1_scan_qr"}}</h4>
-                <p class="text-comment">{{t .server.Lang "security_step1_scan_qr_message"}}</p>
+                <h4>{{t .server.Lang "security.step1_scan_qr"}}</h4>
+                <p class="text-comment">{{t .server.Lang "security.step1_scan_qr_message"}}</p>
                 <div id="qrCodeContainer" class="text-center margin-y-md"></div>
                 <details class="margin-y-md">
-                    <summary class="text-comment">{{t .server.Lang "security_cant_scan_enter_manually"}}</summary>
+                    <summary class="text-comment">{{t .server.Lang "security.cant_scan_enter_manually"}}</summary>
                     <div class="margin-y-sm">
-                        <label class="form-label">{{t .server.Lang "security_secret_key_label"}}</label>
+                        <label class="form-label">{{t .server.Lang "security.secret_key_label"}}</label>
                         <input type="text" id="manualSecret" class="form-input" readonly>
-                        <small class="text-comment">{{t .server.Lang "security_secret_key_hint"}}</small>
+                        <small class="text-comment">{{t .server.Lang "security.secret_key_hint"}}</small>
                     </div>
                 </details>
-                <button type="button" class="btn btn-primary" data-action="setup-2fa-next-step">{{t .server.Lang "security_next"}}</button>
+                <button type="button" class="btn btn-primary" data-action="setup-2fa-next-step">{{t .server.Lang "security.next"}}</button>
             </div>
 
             <div id="setupStep2" class="d-none">
-                <h4>{{t .server.Lang "security_step2_verify_code"}}</h4>
-                <p class="text-comment">{{t .server.Lang "security_step2_verify_code_message"}}</p>
+                <h4>{{t .server.Lang "security.step2_verify_code"}}</h4>
+                <p class="text-comment">{{t .server.Lang "security.step2_verify_code_message"}}</p>
                 <form id="verify2FAForm" class="margin-y-md">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
-                        <label class="form-label">{{t .server.Lang "security_verification_code_label"}}</label>
+                        <label class="form-label">{{t .server.Lang "security.verification_code_label"}}</label>
                         <input type="text" id="verificationCode" class="form-input" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
                     </div>
-                    <button type="submit" class="btn btn-primary">{{t .server.Lang "security_verify_and_enable"}}</button>
-                    <button type="button" class="btn btn-secondary" data-action="setup-2fa-prev-step">{{t .server.Lang "security_back"}}</button>
+                    <button type="submit" class="btn btn-primary">{{t .server.Lang "security.verify_and_enable"}}</button>
+                    <button type="button" class="btn btn-secondary" data-action="setup-2fa-prev-step">{{t .server.Lang "security.page_back"}}</button>
                 </form>
             </div>
 
             <div id="setupStep3" class="d-none">
-                <h4>{{t .server.Lang "security_step3_save_recovery_keys"}}</h4>
+                <h4>{{t .server.Lang "security.step3_save_recovery_keys"}}</h4>
                 <div class="alert alert-warning margin-y-md">
-                    <strong>⚠ {{t .server.Lang "security_important_save_keys"}}</strong>
-                    <p class="text-sm">{{t .server.Lang "security_save_keys_message"}}</p>
+                    <strong>⚠ {{t .server.Lang "security.important_save_keys"}}</strong>
+                    <p class="text-sm">{{t .server.Lang "security.save_keys_message"}}</p>
                 </div>
                 <div id="recoveryKeysContainer" class="margin-y-md"></div>
-                <button type="button" class="btn btn-primary" data-action="download-recovery-keys">💾 {{t .server.Lang "security_download_recovery_keys"}}</button>
-                <button type="button" class="btn btn-success" data-action="finish-2fa-setup">✓ {{t .server.Lang "security_saved_my_keys"}}</button>
+                <button type="button" class="btn btn-primary" data-action="download-recovery-keys">💾 {{t .server.Lang "security.download_recovery_keys"}}</button>
+                <button type="button" class="btn btn-success" data-action="finish-2fa-setup">✓ {{t .server.Lang "security.saved_my_keys"}}</button>
             </div>
         </div>
     </div>
@@ -174,22 +174,22 @@
 <div id="disable2FAModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="disable2FATitle">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="disable2FATitle" class="modal-title">{{t .server.Lang "security_disable_2fa"}}</h3>
+            <h3 id="disable2FATitle" class="modal-title">{{t .server.Lang "security.disable_2fa"}}</h3>
             <button class="modal-close" data-action="close-disable-2fa-modal">&times;</button>
         </div>
         <div class="modal-body">
             <div class="alert alert-warning">
-                <strong>⚠ {{t .server.Lang "security_warning_label"}}</strong>
-                <p>{{t .server.Lang "security_disable_2fa_warning_message"}}</p>
+                <strong>⚠ {{t .server.Lang "security.warning_label"}}</strong>
+                <p>{{t .server.Lang "security.disable_2fa_warning_message"}}</p>
             </div>
             <form id="disable2FAForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label class="form-label">{{t .server.Lang "security_confirm_password_label"}}</label>
+                    <label class="form-label">{{t .server.Lang "security.confirm_password_label"}}</label>
                     <input type="password" id="disablePassword" class="form-input" required>
                 </div>
-                <button type="submit" class="btn btn-danger">{{t .server.Lang "security_disable_2fa"}}</button>
-                <button type="button" class="btn btn-secondary" data-action="close-disable-2fa-modal">{{t .server.Lang "security_cancel"}}</button>
+                <button type="submit" class="btn btn-danger">{{t .server.Lang "security.disable_2fa"}}</button>
+                <button type="button" class="btn btn-secondary" data-action="close-disable-2fa-modal">{{t .server.Lang "security.cancel"}}</button>
             </form>
         </div>
     </div>

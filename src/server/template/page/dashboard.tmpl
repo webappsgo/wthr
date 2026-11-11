@@ -4,7 +4,7 @@
 
 <main class="weather-container page-container" id="main-content" role="main">
     <header class="text-center margin-y-lg">
-        <h1 class="text-purple">{{t .server.Lang "dashboard_welcome_back"}}</h1>
+        <h1 class="text-purple">{{t .server.Lang "dashboard.welcome_back"}}</h1>
         <p class="text-comment">{{.user.Email}} · {{.user.Role | upper}}</p>
     </header>
 
@@ -12,24 +12,24 @@
         <div class="stat-card">
             <div class="stat-icon">📍</div>
             <div class="stat-value">{{.locationCount}}</div>
-            <div class="stat-label">{{t .server.Lang "dashboard_saved_locations"}}</div>
+            <div class="stat-label">{{t .server.Lang "dashboard.saved_locations"}}</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">🔔</div>
             <div class="stat-value">{{.unreadCount}}</div>
-            <div class="stat-label">{{t .server.Lang "dashboard_unread_alerts"}}</div>
+            <div class="stat-label">{{t .server.Lang "dashboard.unread_alerts"}}</div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">🛡️</div>
             <div class="stat-value">{{.user.Role | upper}}</div>
-            <div class="stat-label">{{t .server.Lang "dashboard_account_role"}}</div>
+            <div class="stat-label">{{t .server.Lang "dashboard.account_role"}}</div>
         </div>
     </section>
 
     <section class="card">
         <div class="card-header flex items-center justify-between gap-sm">
-            <h2 class="card-title">{{t .server.Lang "dashboard_your_saved_locations"}}</h2>
-            <a href="/users/locations/new" class="btn btn-primary btn-sm">+ {{t .server.Lang "dashboard_add_location"}}</a>
+            <h2 class="card-title">{{t .server.Lang "dashboard.your_saved_locations"}}</h2>
+            <a href="/users/locations/new" class="btn btn-primary btn-sm">+ {{t .server.Lang "dashboard.add_location"}}</a>
         </div>
         <div class="card-body">
             {{if gt .locationCount 0}}
@@ -47,15 +47,15 @@
 
                             <div>
                                 {{if .AlertsEnabled}}
-                                <span class="badge badge-success">{{t $.server.Lang "dashboard_alerts_on"}}</span>
+                                <span class="badge badge-success">{{t $.server.Lang "dashboard.alerts_on"}}</span>
                                 {{else}}
-                                <span class="badge badge-danger">{{t $.server.Lang "dashboard_alerts_off"}}</span>
+                                <span class="badge badge-danger">{{t $.server.Lang "dashboard.alerts_off"}}</span>
                                 {{end}}
                             </div>
 
                             <div class="flex gap-sm margin-y-md">
-                                <button type="button" class="btn btn-secondary btn-sm flex-1" data-action="navigate" data-href="/{{.Latitude}},{{.Longitude}}">{{t $.server.Lang "dashboard_view_weather"}}</button>
-                                <button type="button" class="btn btn-primary btn-sm flex-1" data-action="navigate" data-href="/users/locations/{{.ID}}/edit">{{t $.server.Lang "btn_edit"}}</button>
+                                <button type="button" class="btn btn-secondary btn-sm flex-1" data-action="navigate" data-href="/{{.Latitude}},{{.Longitude}}">{{t $.server.Lang "dashboard.view_weather"}}</button>
+                                <button type="button" class="btn btn-primary btn-sm flex-1" data-action="navigate" data-href="/users/locations/{{.ID}}/edit">{{t $.server.Lang "btn.edit"}}</button>
                             </div>
                         </div>
                     </div>
@@ -64,9 +64,9 @@
             {{else}}
                 <div class="empty-state">
                     <div class="empty-state__icon">📍</div>
-                    <h3 class="empty-state__title">{{t .server.Lang "dashboard_no_locations_title"}}</h3>
-                    <p class="empty-state__message">{{t .server.Lang "dashboard_no_locations_message"}}</p>
-                    <a href="/users/locations/new" class="btn btn-primary margin-y-md">{{t .server.Lang "dashboard_add_first_location"}}</a>
+                    <h3 class="empty-state__title">{{t .server.Lang "dashboard.no_locations_title"}}</h3>
+                    <p class="empty-state__message">{{t .server.Lang "dashboard.no_locations_message"}}</p>
+                    <a href="/users/locations/new" class="btn btn-primary margin-y-md">{{t .server.Lang "dashboard.add_first_location"}}</a>
                 </div>
             {{end}}
         </div>

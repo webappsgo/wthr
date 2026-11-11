@@ -3,12 +3,12 @@
 {{template "navbar" .}}
 
 <div class="weather-container">
-    <h1 class="text-purple">{{t .server.Lang "examples_page_title"}}</h1>
+    <h1 class="text-purple">{{t .server.Lang "examples.page_title"}}</h1>
 
-    <p>{{t .server.Lang "examples_note"}}</p>
+    <p>{{t .server.Lang "examples.note"}}</p>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "examples_console_title"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "examples.console_title"}}</h2>
         <ul>
             {{range .ConsoleExamples}}
             <li><code>{{.}}</code></li>
@@ -17,7 +17,7 @@
     </div>
 
     <div class="card margin-y-lg">
-        <h2 class="text-cyan">{{t .server.Lang "examples_json_title"}}</h2>
+        <h2 class="text-cyan">{{t .server.Lang "examples.json_title"}}</h2>
         <ul>
             {{range .JSONExamples}}
             <li><code>{{.}}</code></li>

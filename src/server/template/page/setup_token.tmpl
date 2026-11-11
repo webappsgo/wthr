@@ -15,19 +15,19 @@
         <div class="setup-card">
             <div class="setup-header">
                 <div class="setup-icon">🔐</div>
-                <h1 class="setup-title">{{t .server.Lang "setup_token_title"}}</h1>
-                <p class="setup-subtitle">{{t .server.Lang "setup_token_subtitle"}}</p>
+                <h1 class="setup-title">{{t .server.Lang "setup.token_title"}}</h1>
+                <p class="setup-subtitle">{{t .server.Lang "setup.token_subtitle"}}</p>
             </div>
 
             <div class="info-box">
-                <p>{{t .server.Lang "setup_token_info"}}</p>
+                <p>{{t .server.Lang "setup.token_info"}}</p>
             </div>
 
             <div id="error-message" class="error-message" role="alert" aria-live="polite"></div>
 
-            <form id="token-form" role="form" aria-label="{{t .server.Lang "setup_token_form_aria_label"}}">
+            <form id="token-form" role="form" aria-label="{{t .server.Lang "setup.token_form_aria_label"}}">
                 <div class="form-group">
-                    <label class="form-label" for="setup_token">{{t .server.Lang "setup_token_label"}}</label>
+                    <label class="form-label" for="setup_token">{{t .server.Lang "setup.token_label"}}</label>
                     <input type="text"
                            id="setup_token"
                            name="setup_token"
@@ -36,32 +36,32 @@
                            minlength="32"
                            maxlength="32"
                            pattern="[a-fA-F0-9]{32}"
-                           placeholder="{{t .server.Lang "setup_token_placeholder"}}"
+                           placeholder="{{t .server.Lang "setup.token_placeholder"}}"
                            autocomplete="off"
                            spellcheck="false"
-                           aria-label="{{t .server.Lang "setup_token_label"}}"
+                           aria-label="{{t .server.Lang "setup.token_label"}}"
                            aria-required="true"
                            aria-describedby="token-hint"
-                           title="{{t .server.Lang "setup_token_input_title"}}">
-                    <small class="setup-admin-form-hint" id="token-hint">{{t .server.Lang "setup_token_hint"}}</small>
+                           title="{{t .server.Lang "setup.token_input_title"}}">
+                    <small class="setup-admin-form-hint" id="token-hint">{{t .server.Lang "setup.token_hint"}}</small>
                 </div>
 
                 <button type="submit"
                         id="submit-btn"
                         class="submit-button"
-                        aria-label="{{t .server.Lang "setup_token_verify_aria_label"}}"
-                        title="{{t .server.Lang "setup_token_verify_title"}}">{{t .server.Lang "setup_token_continue_button"}}</button>
+                        aria-label="{{t .server.Lang "setup.token_verify_aria_label"}}"
+                        title="{{t .server.Lang "setup.token_verify_title"}}">{{t .server.Lang "setup.token_continue_button"}}</button>
             </form>
         </div>
     </div>
 
     <script type="application/json" id="setup-token-data">
         {
-            "invalidFormat": "{{t .server.Lang "setup_token_invalid_format_error"}}",
-            "verifying": "{{t .server.Lang "setup_token_verifying_button"}}",
-            "invalidToken": "{{t .server.Lang "setup_token_invalid_token_error"}}",
-            "networkError": "{{t .server.Lang "setup_token_network_error"}}",
-            "continueLabel": "{{t .server.Lang "setup_token_continue_button"}}"
+            "invalidFormat": "{{t .server.Lang "setup.token_invalid_format_error"}}",
+            "verifying": "{{t .server.Lang "setup.token_verifying_button"}}",
+            "invalidToken": "{{t .server.Lang "setup.token_invalid_token_error"}}",
+            "networkError": "{{t .server.Lang "setup.token_network_error"}}",
+            "continueLabel": "{{t .server.Lang "setup.token_continue_button"}}"
         }
     </script>
 </body>

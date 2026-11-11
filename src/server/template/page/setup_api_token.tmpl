@@ -13,8 +13,8 @@
     <div class="login-container">
         <div class="login-card setup-card">
             <div class="login-header">
-                <h1 class="login-title">{{t .server.Lang "setup_api_token_title"}}</h1>
-                <p class="login-subtitle">{{t .server.Lang "setup_api_token_step_subtitle"}}</p>
+                <h1 class="login-title">{{t .server.Lang "setup.api_token_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup.api_token_step_subtitle"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -22,18 +22,18 @@
                     <div class="progress-fill progress-fill--step-2"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step completed">{{t .server.Lang "setup_step_admin"}}</span>
-                    <span class="step active">{{t .server.Lang "setup_step_api_token"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_server"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_security"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_services"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
+                    <span class="step completed">{{t .server.Lang "setup.step_admin"}}</span>
+                    <span class="step active">{{t .server.Lang "setup.step_api_token"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_server"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_security"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_complete"}}</span>
                 </div>
             </div>
 
             <div class="login-info">
-                <p>{{t .server.Lang "setup_api_token_intro"}}</p>
-                <p class="text-orange"><strong>{{t .server.Lang "setup_api_token_copy_warning"}}</strong></p>
+                <p>{{t .server.Lang "setup.api_token_intro"}}</p>
+                <p class="text-orange"><strong>{{t .server.Lang "setup.api_token_copy_warning"}}</strong></p>
             </div>
 
             {{ if .error }}
@@ -41,25 +41,25 @@
             {{ end }}
 
             <div class="token-display">
-                <label class="form-label">{{t .server.Lang "setup_api_token_your_token_label"}}</label>
+                <label class="form-label">{{t .server.Lang "setup.api_token_your_token_label"}}</label>
                 <div class="token-box">
                     <code id="api-token" class="token-value copy-value">{{ .APIToken }}</code>
-                    <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">{{t .server.Lang "btn_copy"}}</button>
+                    <button type="button" class="btn-copy" data-action="copy-command" data-text="{{ .APIToken }}">{{t .server.Lang "btn.copy"}}</button>
                 </div>
-                <small class="form-hint">{{t .server.Lang "setup_api_token_usage_hint"}} <code>Bearer {token}</code></small>
+                <small class="form-hint">{{t .server.Lang "setup.api_token_usage_hint"}} <code>Bearer {token}</code></small>
             </div>
 
             <div class="form-group checkbox-confirm">
                 <label class="checkbox-label">
                     <input type="checkbox" id="token-copied" data-enables="#submit-btn" required>
-                    <span>{{t .server.Lang "setup_api_token_confirm_checkbox"}}</span>
+                    <span>{{t .server.Lang "setup.api_token_confirm_checkbox"}}</span>
                 </label>
             </div>
 
             <form method="POST" action="" id="token-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <input type="hidden" name="token_acknowledged" value="true">
-                <button type="submit" id="submit-btn" class="btn-login" disabled>{{t .server.Lang "setup_api_token_continue_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" disabled>{{t .server.Lang "setup.api_token_continue_button"}}</button>
             </form>
         </div>
 

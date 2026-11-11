@@ -149,9 +149,9 @@ func (h *UserSettingsHandler) ShowTokensSettings(w http.ResponseWriter, r *http.
 // redirects back to the originating page, so the form works without JavaScript.
 func flashResult(w http.ResponseWriter, r *http.Request, err error, target string) {
 	if err != nil {
-		SetFlash(w, r, "error", "flash_settings_save_failed")
+		SetFlash(w, r, "error", "flash.settings_save_failed")
 	} else {
-		SetFlash(w, r, "success", "flash_settings_saved")
+		SetFlash(w, r, "success", "flash.settings_saved")
 	}
 
 	http.Redirect(w, r, target, http.StatusSeeOther)

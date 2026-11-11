@@ -4,31 +4,31 @@
 
     <div class="container">
         <div class="page-header">
-            <h1>{{t .server.Lang "edit_location_heading"}}</h1>
-            <a href="/users/dashboard" class="back-link">← {{t .server.Lang "add_location_back_to_dashboard"}}</a>
+            <h1>{{t .server.Lang "edit.location_heading"}}</h1>
+            <a href="/users/dashboard" class="back-link">← {{t .server.Lang "add.location_back_to_dashboard"}}</a>
         </div>
 
         <div class="form-card">
             <div id="message" role="alert" aria-live="polite"></div>
 
-            <form id="locationForm" role="form" aria-label="{{t .server.Lang "edit_location_form_aria"}}">
+            <form id="locationForm" role="form" aria-label="{{t .server.Lang "edit.location_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label for="name">{{t .server.Lang "add_location_name_label"}}</label>
+                    <label for="name">{{t .server.Lang "add.location_name_label"}}</label>
                     <input type="text"
                            id="name"
                            name="name"
                            value="{{ .location.Name }}"
                            required
-                           aria-label="{{t .server.Lang "add_location_name_aria"}}"
+                           aria-label="{{t .server.Lang "add.location_name_aria"}}"
                            aria-required="true"
                            aria-describedby="name-hint"
-                           title="{{t .server.Lang "edit_location_name_title"}}">
-                    <small id="name-hint">{{t .server.Lang "add_location_name_help"}}</small>
+                           title="{{t .server.Lang "edit.location_name_title"}}">
+                    <small id="name-hint">{{t .server.Lang "add.location_name_help"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="latitude">{{t .server.Lang "add_location_latitude_label"}}</label>
+                    <label for="latitude">{{t .server.Lang "add.location_latitude_label"}}</label>
                     <input type="number"
                            id="latitude"
                            name="latitude"
@@ -37,15 +37,15 @@
                            max="90"
                            value="{{ .location.Latitude }}"
                            required
-                           aria-label="{{t .server.Lang "add_location_latitude_aria"}}"
+                           aria-label="{{t .server.Lang "add.location_latitude_aria"}}"
                            aria-required="true"
                            aria-describedby="latitude-hint"
-                           title="{{t .server.Lang "edit_location_latitude_title"}}">
-                    <small id="latitude-hint">{{t .server.Lang "add_location_latitude_help"}}</small>
+                           title="{{t .server.Lang "edit.location_latitude_title"}}">
+                    <small id="latitude-hint">{{t .server.Lang "add.location_latitude_help"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="longitude">{{t .server.Lang "add_location_longitude_label"}}</label>
+                    <label for="longitude">{{t .server.Lang "add.location_longitude_label"}}</label>
                     <input type="number"
                            id="longitude"
                            name="longitude"
@@ -54,23 +54,23 @@
                            max="180"
                            value="{{ .location.Longitude }}"
                            required
-                           aria-label="{{t .server.Lang "add_location_longitude_aria"}}"
+                           aria-label="{{t .server.Lang "add.location_longitude_aria"}}"
                            aria-required="true"
                            aria-describedby="longitude-hint"
-                           title="{{t .server.Lang "edit_location_longitude_title"}}">
-                    <small id="longitude-hint">{{t .server.Lang "add_location_longitude_help"}}</small>
+                           title="{{t .server.Lang "edit.location_longitude_title"}}">
+                    <small id="longitude-hint">{{t .server.Lang "add.location_longitude_help"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="timezone">{{t .server.Lang "edit_location_timezone_label"}}</label>
+                    <label for="timezone">{{t .server.Lang "edit.location_timezone_label"}}</label>
                     <input type="text"
                            id="timezone"
                            name="timezone"
                            value="{{ .location.Timezone }}"
-                           aria-label="{{t .server.Lang "edit_location_timezone_aria"}}"
+                           aria-label="{{t .server.Lang "edit.location_timezone_aria"}}"
                            aria-describedby="timezone-hint"
-                           title="{{t .server.Lang "edit_location_timezone_title"}}">
-                    <small id="timezone-hint">{{t .server.Lang "edit_location_timezone_help"}}</small>
+                           title="{{t .server.Lang "edit.location_timezone_title"}}">
+                    <small id="timezone-hint">{{t .server.Lang "edit.location_timezone_help"}}</small>
                 </div>
 
                 <div class="form-group">
@@ -79,28 +79,28 @@
                                id="alerts_enabled"
                                name="alerts_enabled"
                                {{ if .location.AlertsEnabled }}checked{{ end }}
-                               aria-label="{{t .server.Lang "edit_location_alerts_label"}}"
-                               title="{{t .server.Lang "edit_location_alerts_title"}}">
-                        <label for="alerts_enabled">{{t .server.Lang "edit_location_alerts_label"}}</label>
+                               aria-label="{{t .server.Lang "edit.location_alerts_label"}}"
+                               title="{{t .server.Lang "edit.location_alerts_title"}}">
+                        <label for="alerts_enabled">{{t .server.Lang "edit.location_alerts_label"}}</label>
                     </div>
                 </div>
 
                 <div class="form-actions">
                     <button type="submit"
                             class="btn btn-primary"
-                            aria-label="{{t .server.Lang "edit_location_update_aria"}}"
-                            title="{{t .server.Lang "edit_location_update_title"}}">{{t .server.Lang "edit_location_update_label"}}</button>
+                            aria-label="{{t .server.Lang "edit.location_update_aria"}}"
+                            title="{{t .server.Lang "edit.location_update_title"}}">{{t .server.Lang "edit.location_update_label"}}</button>
                     <button type="button"
                             class="btn btn-secondary"
                             data-action="navigate"
                             data-href="/users/dashboard"
-                            aria-label="{{t .server.Lang "edit_location_cancel_aria"}}"
-                            title="{{t .server.Lang "add_location_cancel_title"}}">{{t .server.Lang "action.cancel"}}</button>
+                            aria-label="{{t .server.Lang "edit.location_cancel_aria"}}"
+                            title="{{t .server.Lang "add.location_cancel_title"}}">{{t .server.Lang "action.cancel"}}</button>
                     <button type="button"
                             class="btn btn-danger"
                             data-action="edit-location-delete"
-                            aria-label="{{t .server.Lang "edit_location_delete_aria"}}"
-                            title="{{t .server.Lang "edit_location_delete_title"}}">{{t .server.Lang "action.delete"}}</button>
+                            aria-label="{{t .server.Lang "edit.location_delete_aria"}}"
+                            title="{{t .server.Lang "edit.location_delete_title"}}">{{t .server.Lang "action.delete"}}</button>
                 </div>
             </form>
         </div>

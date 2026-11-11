@@ -14,50 +14,50 @@
 
     <div class="weather-container">
         <div class="page-header">
-            <h1>📡 {{t .server.Lang "api_docs_heading"}}</h1>
-            <p class="page-subtitle">{{t .server.Lang "api_docs_subtitle"}}</p>
+            <h1>📡 {{t .server.Lang "api.docs_heading"}}</h1>
+            <p class="page-subtitle">{{t .server.Lang "api.docs_subtitle"}}</p>
         </div>
 
         <!-- Interactive API Tools -->
         <div class="grid-auto-fit-300">
             <a href="/api/swagger" class="info-box api-docs-link-box">
-                <h3 class="info-box__title info-box__title--swagger">📘 {{t .server.Lang "api_docs_swagger_title"}}</h3>
+                <h3 class="info-box__title info-box__title--swagger">📘 {{t .server.Lang "api.docs_swagger_title"}}</h3>
                 <div class="info-box__content">
-                    <p>{{t .server.Lang "api_docs_swagger_desc"}}</p>
-                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api_docs_swagger_launch"}} →</div>
+                    <p>{{t .server.Lang "api.docs_swagger_desc"}}</p>
+                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api.docs_swagger_launch"}} →</div>
                 </div>
             </a>
 
             <a href="/graphql" class="info-box api-docs-link-box">
-                <h3 class="info-box__title info-box__title--graphql">🔷 {{t .server.Lang "api_docs_graphql_title"}}</h3>
+                <h3 class="info-box__title info-box__title--graphql">🔷 {{t .server.Lang "api.docs_graphql_title"}}</h3>
                 <div class="info-box__content">
-                    <p>{{t .server.Lang "api_docs_graphql_desc"}}</p>
-                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api_docs_graphql_launch"}} →</div>
+                    <p>{{t .server.Lang "api.docs_graphql_desc"}}</p>
+                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api.docs_graphql_launch"}} →</div>
                 </div>
             </a>
 
             <a href="/api" class="info-box api-docs-link-box">
-                <h3 class="info-box__title info-box__title--api">🔗 {{t .server.Lang "api_docs_rest_title"}}</h3>
+                <h3 class="info-box__title info-box__title--api">🔗 {{t .server.Lang "api.docs_rest_title"}}</h3>
                 <div class="info-box__content">
-                    <p>{{t .server.Lang "api_docs_rest_desc"}}</p>
-                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api_docs_rest_launch"}} →</div>
+                    <p>{{t .server.Lang "api.docs_rest_desc"}}</p>
+                    <div class="btn btn-primary api-docs-button-inline">{{t .server.Lang "api.docs_rest_launch"}} →</div>
                 </div>
             </a>
         </div>
 
         <!-- Quick Start -->
         <div class="console-section">
-            <h3 class="console-section__title">{{t .server.Lang "api_docs_quickstart_heading"}}</h3>
+            <h3 class="console-section__title">{{t .server.Lang "api.docs_quickstart_heading"}}</h3>
             <div class="console-commands">
                 <div class="command-item">
-                    <strong class="console-section__label">{{t .server.Lang "api_docs_weather_api_label"}}</strong>
+                    <strong class="console-section__label">{{t .server.Lang "api.docs_weather_api_label"}}</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/api/v1/weather?location=London</code>
                         <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/api/v1/weather?location=London">{{t .server.Lang "admin.tor.copy_action"}}</button>
                     </div>
                 </div>
                 <div class="command-item">
-                    <strong class="console-section__label">{{t .server.Lang "api_docs_graphql_query_label"}}</strong>
+                    <strong class="console-section__label">{{t .server.Lang "api.docs_graphql_query_label"}}</strong>
                     <div class="code-wrapper">
                         <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/graphql -d '{query}'</code>
                         <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/graphql">{{t .server.Lang "admin.tor.copy_action"}}</button>
@@ -69,30 +69,30 @@
         <!-- API Features -->
         <div class="grid-auto-fit-200">
             <div class="stat-card">
-                <h4>🌍 {{t .server.Lang "api_docs_global_coverage_title"}}</h4>
-                <p>{{t .server.Lang "api_docs_global_coverage_desc"}}</p>
+                <h4>🌍 {{t .server.Lang "api.docs_global_coverage_title"}}</h4>
+                <p>{{t .server.Lang "api.docs_global_coverage_desc"}}</p>
             </div>
             <div class="stat-card">
-                <h4>🔓 {{t .server.Lang "api_docs_no_api_key_title"}}</h4>
-                <p>{{t .server.Lang "api_docs_no_api_key_desc"}}</p>
+                <h4>🔓 {{t .server.Lang "api.docs_no_api_key_title"}}</h4>
+                <p>{{t .server.Lang "api.docs_no_api_key_desc"}}</p>
             </div>
             <div class="stat-card">
-                <h4>📊 {{t .server.Lang "api_docs_multiple_formats_title"}}</h4>
-                <p>{{t .server.Lang "api_docs_multiple_formats_desc"}}</p>
+                <h4>📊 {{t .server.Lang "api.docs_multiple_formats_title"}}</h4>
+                <p>{{t .server.Lang "api.docs_multiple_formats_desc"}}</p>
             </div>
             <div class="stat-card">
-                <h4>⚡ {{t .server.Lang "api_docs_realtime_title"}}</h4>
-                <p>{{t .server.Lang "api_docs_realtime_desc"}}</p>
+                <h4>⚡ {{t .server.Lang "api.docs_realtime_title"}}</h4>
+                <p>{{t .server.Lang "api.docs_realtime_desc"}}</p>
             </div>
         </div>
 
         <!-- Documentation Links -->
         <div class="console-section">
-            <h3 class="console-section__title">{{t .server.Lang "api_docs_resources_heading"}}</h3>
+            <h3 class="console-section__title">{{t .server.Lang "api.docs_resources_heading"}}</h3>
             <div class="grid-auto-fit-300">
-                <a href="https://webappsgo-wthr.readthedocs.io" target="_blank" class="btn btn-secondary btn-block">📚 {{t .server.Lang "api_docs_readthedocs"}}</a>
-                <a href="https://github.com/webappsgo/wthr" target="_blank" class="btn btn-secondary btn-block">💻 {{t .server.Lang "about_github_repository"}}</a>
-                <a href="/api/openapi.json" class="btn btn-secondary btn-block">📄 {{t .server.Lang "api_docs_openapi_spec"}}</a>
+                <a href="https://webappsgo-wthr.readthedocs.io" target="_blank" class="btn btn-secondary btn-block">📚 {{t .server.Lang "api.docs_readthedocs"}}</a>
+                <a href="https://github.com/webappsgo/wthr" target="_blank" class="btn btn-secondary btn-block">💻 {{t .server.Lang "about.github_repository"}}</a>
+                <a href="/api/openapi.json" class="btn btn-secondary btn-block">📄 {{t .server.Lang "api.docs_openapi_spec"}}</a>
             </div>
         </div>
     </div>

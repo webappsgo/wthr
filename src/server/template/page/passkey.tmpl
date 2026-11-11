@@ -13,33 +13,33 @@
 <body>
     <div class="auth-container">
         <div class="auth-card">
-            <h1>{{t .server.Lang "passkey_page_heading"}}</h1>
-            <p>{{t .server.Lang "passkey_page_subtitle"}}</p>
+            <h1>{{t .server.Lang "passkey.page_heading"}}</h1>
+            <p>{{t .server.Lang "passkey.page_subtitle"}}</p>
 
             {{if .error}}
             <div class="alert alert-error">{{.error}}</div>
             {{end}}
 
             <div class="auth-message">
-                <p>{{t .server.Lang "passkey_auth_message"}}</p>
+                <p>{{t .server.Lang "passkey.auth_message"}}</p>
             </div>
 
-            <div id="passkeyStatus" class="alert alert-info">{{t .server.Lang "passkey_status_waiting"}}</div>
+            <div id="passkeyStatus" class="alert alert-info">{{t .server.Lang "passkey.status_waiting"}}</div>
 
             <div class="auth-links">
-                <a href="/server/auth/login">{{t .server.Lang "oidc_back_to_login_link"}}</a>
+                <a href="/server/auth/login">{{t .server.Lang "oidc.back_to_login_link"}}</a>
             </div>
         </div>
     </div>
     <script type="application/json" id="passkey-login-data">
         {
-            "unsupportedBrowser": "{{t .server.Lang "passkey_js_unsupported_browser"}}",
-            "failedStart": "{{t .server.Lang "passkey_js_failed_start"}}",
-            "touchPrompt": "{{t .server.Lang "passkey_js_touch_prompt"}}",
-            "cancelled": "{{t .server.Lang "passkey_js_cancelled"}}",
-            "failedVerify": "{{t .server.Lang "passkey_js_failed_verify"}}",
-            "successRedirecting": "{{t .server.Lang "passkey_js_success_redirecting"}}",
-            "failedGeneric": "{{t .server.Lang "passkey_js_failed_generic"}}"
+            "unsupportedBrowser": "{{t .server.Lang "passkey.js_unsupported_browser"}}",
+            "failedStart": "{{t .server.Lang "passkey.js_failed_start"}}",
+            "touchPrompt": "{{t .server.Lang "passkey.js_touch_prompt"}}",
+            "cancelled": "{{t .server.Lang "passkey.js_cancelled"}}",
+            "failedVerify": "{{t .server.Lang "passkey.js_failed_verify"}}",
+            "successRedirecting": "{{t .server.Lang "passkey.js_success_redirecting"}}",
+            "failedGeneric": "{{t .server.Lang "passkey.js_failed_generic"}}"
         }
     </script>
 </body>

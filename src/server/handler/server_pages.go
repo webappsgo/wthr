@@ -248,28 +248,28 @@ func ShowExamplesPage(cfg *config.AppConfig) http.HandlerFunc {
 func dataSourceAttribution(r *http.Request) []map[string]interface{} {
 	return []map[string]interface{}{
 		{
-			"title":       Translate(r, "about_datasource_weather_title"),
-			"description": Translate(r, "about_datasource_weather_desc"),
+			"title":       Translate(r, "about.datasource_weather_title"),
+			"description": Translate(r, "about.datasource_weather_desc"),
 		},
 		{
-			"title":       Translate(r, "about_datasource_severe_title"),
-			"description": Translate(r, "about_datasource_severe_desc"),
+			"title":       Translate(r, "about.datasource_severe_title"),
+			"description": Translate(r, "about.datasource_severe_desc"),
 		},
 		{
-			"title":       Translate(r, "about_datasource_hurricane_title"),
-			"description": Translate(r, "about_datasource_hurricane_desc"),
+			"title":       Translate(r, "about.datasource_hurricane_title"),
+			"description": Translate(r, "about.datasource_hurricane_desc"),
 		},
 		{
-			"title":       Translate(r, "about_datasource_earthquake_title"),
-			"description": Translate(r, "about_datasource_earthquake_desc"),
+			"title":       Translate(r, "about.datasource_earthquake_title"),
+			"description": Translate(r, "about.datasource_earthquake_desc"),
 		},
 		{
-			"title":       Translate(r, "about_datasource_moon_title"),
-			"description": Translate(r, "about_datasource_moon_desc"),
+			"title":       Translate(r, "about.datasource_moon_title"),
+			"description": Translate(r, "about.datasource_moon_desc"),
 		},
 		{
-			"title":       Translate(r, "about_datasource_geo_title"),
-			"description": Translate(r, "about_datasource_geo_desc"),
+			"title":       Translate(r, "about.datasource_geo_title"),
+			"description": Translate(r, "about.datasource_geo_desc"),
 		},
 	}
 }
@@ -279,10 +279,10 @@ func dataSourceAttribution(r *http.Request) []map[string]interface{} {
 // wrap the first in an anchor and the API can carry both as plain values.
 func geoipAttribution(r *http.Request) map[string]interface{} {
 	return map[string]interface{}{
-		"heading": Translate(r, "about_attribution_heading"),
+		"heading": Translate(r, "about.attribution_heading"),
 		"link":    "https://db-ip.com/",
-		"text":    Translate(r, "about_attribution_geoip_link"),
-		"license": Translate(r, "about_attribution_geoip_license"),
+		"text":    Translate(r, "about.attribution_geoip_link"),
+		"license": Translate(r, "about.attribution_geoip_license"),
 	}
 }
 
@@ -299,16 +299,16 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 			"version":     Version,
 			"build_date":  BuildDate,
 			"features": []string{
-				Translate(r, "about_api_feature_weather"),
-				Translate(r, "about_api_feature_geocoding"),
-				Translate(r, "about_api_feature_moon"),
-				Translate(r, "about_api_feature_alerts"),
-				Translate(r, "about_api_feature_earthquakes"),
-				Translate(r, "about_api_feature_hurricanes"),
-				Translate(r, "about_api_feature_forecasts"),
-				Translate(r, "about_api_feature_api"),
-				Translate(r, "about_api_feature_websocket"),
-				Translate(r, "about_api_feature_passkey"),
+				Translate(r, "about.api_feature_weather"),
+				Translate(r, "about.api_feature_geocoding"),
+				Translate(r, "about.api_feature_moon"),
+				Translate(r, "about.api_feature_alerts"),
+				Translate(r, "about.api_feature_earthquakes"),
+				Translate(r, "about.api_feature_hurricanes"),
+				Translate(r, "about.api_feature_forecasts"),
+				Translate(r, "about.api_feature_api"),
+				Translate(r, "about.api_feature_websocket"),
+				Translate(r, "about.api_feature_passkey"),
 			},
 			"data_sources": dataSourceAttribution(r),
 			"attribution":  geoipAttribution(r),
@@ -329,7 +329,7 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
-			"title":        Translate(r, "privacy_page_heading"),
+			"title":        Translate(r, "privacy.page_heading"),
 			"last_updated": BuildDate,
 			"data_stored":  true,
 			"data_sold":    false,
@@ -338,17 +338,17 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				"preferences": true,
 				"analytics":   false,
 			},
-			"data_collection": Translate(r, "privacy_api_data_collection"),
-			"data_retention":  Translate(r, "privacy_api_data_retention"),
+			"data_collection": Translate(r, "privacy.api_data_collection"),
+			"data_retention":  Translate(r, "privacy.api_data_retention"),
 			"third_parties": []string{
-				Translate(r, "privacy_api_third_party_open_meteo"),
-				Translate(r, "privacy_api_third_party_usgs"),
-				Translate(r, "privacy_api_third_party_noaa"),
-				Translate(r, "privacy_api_third_party_alerts"),
-				Translate(r, "privacy_api_third_party_nominatim"),
-				Translate(r, "privacy_api_third_party_geonames"),
-				Translate(r, "privacy_api_third_party_dbip"),
-				Translate(r, "privacy_api_third_party_nro"),
+				Translate(r, "privacy.api_third_party_open_meteo"),
+				Translate(r, "privacy.api_third_party_usgs"),
+				Translate(r, "privacy.api_third_party_noaa"),
+				Translate(r, "privacy.api_third_party_alerts"),
+				Translate(r, "privacy.api_third_party_nominatim"),
+				Translate(r, "privacy.api_third_party_geonames"),
+				Translate(r, "privacy.api_third_party_dbip"),
+				Translate(r, "privacy.api_third_party_nro"),
 			},
 			"contact": "/server/contact",
 		})
@@ -573,7 +573,7 @@ func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFu
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
 		if err := r.ParseForm(); err != nil {
-			SetFlash(w, r, "error", "flash_contact_invalid")
+			SetFlash(w, r, "error", "flash.contact_invalid")
 			http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
 			return
 		}
@@ -582,18 +582,18 @@ func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFu
 			CaptchaID: r.PostFormValue("captcha_id"), CaptchaAnswer: r.PostFormValue("captcha_answer"),
 			CaptchaToken: firstNonEmpty(r.PostFormValue("g-recaptcha-response"), r.PostFormValue("h-captcha-response")),
 		})
-		kind, key := "error", "flash_contact_failed"
+		kind, key := "error", "flash.contact_failed"
 		switch result {
 		case contactSent:
-			kind, key = "success", "flash_contact_sent"
+			kind, key = "success", "flash.contact_sent"
 		case contactSaved:
-			kind, key = "success", "flash_contact_saved"
+			kind, key = "success", "flash.contact_saved"
 		case contactInvalid:
-			key = "flash_contact_invalid"
+			key = "flash.contact_invalid"
 		case contactCaptchaFailed:
-			key = "flash_contact_captcha_failed"
+			key = "flash.contact_captcha_failed"
 		case contactCaptchaOffline:
-			key = "flash_contact_captcha_unavailable"
+			key = "flash.contact_captcha_unavailable"
 		}
 		SetFlash(w, r, kind, key)
 		http.Redirect(w, r, "/server/contact", http.StatusSeeOther)

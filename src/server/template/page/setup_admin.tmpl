@@ -14,13 +14,13 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1 class="login-title">{{t .server.Lang "setup_admin_title"}}</h1>
-                <p class="login-subtitle">{{t .server.Lang "setup_admin_step_subtitle"}}</p>
+                <h1 class="login-title">{{t .server.Lang "setup.admin_title"}}</h1>
+                <p class="login-subtitle">{{t .server.Lang "setup.admin_step_subtitle"}}</p>
             </div>
 
             <div class="login-info">
-                <p>{{t .server.Lang "setup_admin_intro_line1"}}</p>
-                <p>{{t .server.Lang "setup_admin_intro_line2"}}</p>
+                <p>{{t .server.Lang "setup.admin_intro_line1"}}</p>
+                <p>{{t .server.Lang "setup.admin_intro_line2"}}</p>
             </div>
 
             <div class="setup-progress">
@@ -28,12 +28,12 @@
                     <div class="progress-fill progress-fill--step-1"></div>
                 </div>
                 <div class="progress-steps">
-                    <span class="step active">{{t .server.Lang "setup_step_admin"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_api_token"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_server"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_security"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_services"}}</span>
-                    <span class="step">{{t .server.Lang "setup_step_complete"}}</span>
+                    <span class="step active">{{t .server.Lang "setup.step_admin"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_api_token"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_server"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_security"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_services"}}</span>
+                    <span class="step">{{t .server.Lang "setup.step_complete"}}</span>
                 </div>
             </div>
 
@@ -46,7 +46,7 @@
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                 <div class="form-group">
-                    <label class="form-label" for="username">{{t .server.Lang "setup_admin_username_label"}}</label>
+                    <label class="form-label" for="username">{{t .server.Lang "setup.admin_username_label"}}</label>
                     <input type="text"
                            id="username"
                            name="username"
@@ -55,11 +55,11 @@
                            required
                            minlength="3"
                            aria-required="true">
-                    <small class="form-hint">{{t .server.Lang "setup_admin_username_hint"}}</small>
+                    <small class="form-hint">{{t .server.Lang "setup.admin_username_hint"}}</small>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="email">{{t .server.Lang "setup_admin_email_label"}}</label>
+                    <label class="form-label" for="email">{{t .server.Lang "setup.admin_email_label"}}</label>
                     <input type="email"
                            id="email"
                            name="email"
@@ -67,7 +67,7 @@
                            required
                            placeholder="admin@example.com"
                            aria-required="true">
-                    <small class="form-hint">{{t .server.Lang "setup_admin_email_hint"}}</small>
+                    <small class="form-hint">{{t .server.Lang "setup.admin_email_hint"}}</small>
                 </div>
 
                 <div class="form-group">
@@ -80,25 +80,25 @@
                                data-toggle-invert="true"
                                data-toggle-required="true"
                                checked>
-                        <span>{{t .server.Lang "setup_admin_random_password_label"}}</span>
+                        <span>{{t .server.Lang "setup.admin_random_password_label"}}</span>
                     </label>
-                    <small class="form-hint">{{t .server.Lang "setup_admin_random_password_hint"}}</small>
+                    <small class="form-hint">{{t .server.Lang "setup.admin_random_password_hint"}}</small>
                 </div>
 
                 <div id="password-fields" class="password-fields hidden">
                     <div class="form-group">
-                        <label class="form-label" for="password">{{t .server.Lang "setup_admin_password_label"}}</label>
+                        <label class="form-label" for="password">{{t .server.Lang "setup.admin_password_label"}}</label>
                         <input type="password"
                                id="password"
                                name="password"
                                class="form-input"
                                minlength="12"
                                aria-required="false">
-                        <small class="form-hint">{{t .server.Lang "setup_admin_password_min_hint"}}</small>
+                        <small class="form-hint">{{t .server.Lang "setup.admin_password_min_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="confirm_password">{{t .server.Lang "reset_password_confirm_password_label"}}</label>
+                        <label class="form-label" for="confirm_password">{{t .server.Lang "reset.password_confirm_password_label"}}</label>
                         <input type="password"
                                id="confirm_password"
                                name="confirm_password"
@@ -108,7 +108,7 @@
                     </div>
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup_admin_creating_button"}}">{{t .server.Lang "setup_admin_submit_button"}}</button>
+                <button type="submit" id="submit-btn" class="btn-login" data-loading-label="{{t .server.Lang "setup.admin_creating_button"}}">{{t .server.Lang "setup.admin_submit_button"}}</button>
             </form>
         </div>
 

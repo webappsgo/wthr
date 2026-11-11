@@ -72,7 +72,7 @@ func TestRedirectAdminForm(t *testing.T) {
 	t.Run("success sets success flash and redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash_channel_updated", "flash_channel_update_failed", nil)
+		redirectAdminForm(w, r, "/server/administration/config/channels", "flash.channel_updated", "flash.channel_update_failed", nil)
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
@@ -84,15 +84,15 @@ func TestRedirectAdminForm(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if val != "success:flash_channel_updated" {
-			t.Fatalf("flash = %q, want %q", val, "success:flash_channel_updated")
+		if val != "success:flash.channel_updated" {
+			t.Fatalf("flash = %q, want %q", val, "success:flash.channel_updated")
 		}
 	})
 
 	t.Run("failure sets error flash and redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash_channel_updated", "flash_channel_update_failed", errors.New("write failed"))
+		redirectAdminForm(w, r, "/server/administration/config/channels", "flash.channel_updated", "flash.channel_update_failed", errors.New("write failed"))
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
@@ -101,15 +101,15 @@ func TestRedirectAdminForm(t *testing.T) {
 		if !ok {
 			t.Fatal("expected a flash cookie")
 		}
-		if val != "error:flash_channel_update_failed" {
-			t.Fatalf("flash = %q, want %q", val, "error:flash_channel_update_failed")
+		if val != "error:flash.channel_update_failed" {
+			t.Fatalf("flash = %q, want %q", val, "error:flash.channel_update_failed")
 		}
 	})
 
 	t.Run("unlisted key sets no cookie but still redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash_not_a_real_key", "flash_channel_update_failed", nil)
+		redirectAdminForm(w, r, "/server/administration/config/channels", "flash_not_a_real_key", "flash.channel_update_failed", nil)
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
@@ -123,7 +123,7 @@ func TestRedirectAdminForm(t *testing.T) {
 func TestFlashRoundTrip(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
-	SetFlash(w, r, "success", "flash_channel_updated")
+	SetFlash(w, r, "success", "flash.channel_updated")
 
 	val, ok := flashCookieValue(t, w)
 	if !ok {
@@ -138,8 +138,8 @@ func TestFlashRoundTrip(t *testing.T) {
 	if flash == nil {
 		t.Fatal("expected a pending flash")
 	}
-	if flash.Kind != "success" || flash.Key != "flash_channel_updated" {
-		t.Fatalf("flash = %+v, want success/flash_channel_updated", flash)
+	if flash.Kind != "success" || flash.Key != "flash.channel_updated" {
+		t.Fatalf("flash = %+v, want success/flash.channel_updated", flash)
 	}
 
 	// TakeFlash must clear the cookie (MaxAge -1).
@@ -166,8 +166,8 @@ func TestFlashRejectsTamperedValues(t *testing.T) {
 		value string
 	}{
 		{"unknown key", "success:flash_not_a_real_key"},
-		{"unknown kind", "bogus:flash_channel_updated"},
-		{"no separator", "flash_channel_updated"},
+		{"unknown kind", "bogus:flash.channel_updated"},
+		{"no separator", "flash.channel_updated"},
 		{"markup injection", "success:<script>alert(1)</script>"},
 	}
 
@@ -186,7 +186,7 @@ func TestSetFlashSecureFlag(t *testing.T) {
 	t.Run("plain http is not secure", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
-		SetFlash(w, r, "success", "flash_channel_updated")
+		SetFlash(w, r, "success", "flash.channel_updated")
 		for _, c := range w.Result().Cookies() {
 			if c.Name == FlashCookieName && c.Secure {
 				t.Fatal("expected Secure=false on plain http")
@@ -199,7 +199,7 @@ func TestSetFlashSecureFlag(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
 		r.RemoteAddr = "127.0.0.1:12345"
 		r.Header.Set("X-Forwarded-Proto", "https")
-		SetFlash(w, r, "success", "flash_channel_updated")
+		SetFlash(w, r, "success", "flash.channel_updated")
 
 		var found bool
 		for _, c := range w.Result().Cookies() {
@@ -218,18 +218,18 @@ func TestSetFlashSecureFlag(t *testing.T) {
 
 func TestFlashKeysStayAllowListed(t *testing.T) {
 	required := []string{
-		"flash_settings_saved",
-		"flash_settings_save_failed",
-		"flash_channel_updated",
-		"flash_channel_update_failed",
-		"flash_channel_enabled",
-		"flash_channel_disabled",
-		"flash_channel_test_sent",
-		"flash_channel_test_failed",
-		"flash_email_template_saved",
-		"flash_email_template_save_failed",
-		"flash_test_email_sent",
-		"flash_test_email_failed",
+		"flash.settings_saved",
+		"flash.settings_save_failed",
+		"flash.channel_updated",
+		"flash.channel_update_failed",
+		"flash.channel_enabled",
+		"flash.channel_disabled",
+		"flash.channel_test_sent",
+		"flash.channel_test_failed",
+		"flash.email_template_saved",
+		"flash.email_template_save_failed",
+		"flash.test_email_sent",
+		"flash.test_email_failed",
 	}
 	for _, key := range required {
 		if !flashKeys[key] {
@@ -237,10 +237,10 @@ func TestFlashKeysStayAllowListed(t *testing.T) {
 		}
 	}
 
-	// Every allow-listed key must carry the flash_ prefix convention.
+	// Every allow-listed key must carry the flash. prefix convention.
 	for key := range flashKeys {
-		if !strings.HasPrefix(key, "flash_") {
-			t.Fatalf("allow-listed key %q does not use the flash_ prefix", key)
+		if !strings.HasPrefix(key, "flash.") {
+			t.Fatalf("allow-listed key %q does not use the flash. prefix", key)
 		}
 	}
 }

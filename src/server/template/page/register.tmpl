@@ -12,18 +12,18 @@
 <body>
     <div class="register-container">
         <div class="register-header">
-            <h1>🌤️ {{t .server.Lang "login_brand_heading"}}</h1>
-            <p>{{t .server.Lang "register_create_account_subtitle"}}</p>
+            <h1>🌤️ {{t .server.Lang "login.brand_heading"}}</h1>
+            <p>{{t .server.Lang "register.create_account_subtitle"}}</p>
         </div>
 
         {{ if .error }}
         <div class="error-message" role="alert" aria-live="assertive">{{ .error }}</div>
         {{ end }}
 
-        <form method="POST" action="/server/auth/register" id="registerForm" role="form" aria-label="{{t .server.Lang "register_form_aria"}}">
+        <form method="POST" action="/server/auth/register" id="registerForm" role="form" aria-label="{{t .server.Lang "register.form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
-                <label for="username">{{t .server.Lang "register_username_label"}}</label>
+                <label for="username">{{t .server.Lang "register.username_label"}}</label>
                 <input type="text"
                        id="username"
                        name="username"
@@ -32,41 +32,41 @@
                        minlength="3"
                        maxlength="32"
                        pattern="[a-z][a-z0-9_-]{2,31}"
-                       aria-label="{{t .server.Lang "register_username_label"}}"
+                       aria-label="{{t .server.Lang "register.username_label"}}"
                        aria-required="true"
                        aria-describedby="username-requirements"
-                       title="{{t .server.Lang "register_username_title"}}">
-                <small id="username-requirements">{{t .server.Lang "register_username_requirements"}}</small>
+                       title="{{t .server.Lang "register.username_title"}}">
+                <small id="username-requirements">{{t .server.Lang "register.username_requirements"}}</small>
             </div>
 
             <div class="form-group">
-                <label for="email">{{t .server.Lang "register_email_label"}}</label>
+                <label for="email">{{t .server.Lang "register.email_label"}}</label>
                 <input type="email"
                        id="email"
                        name="email"
                        required
-                       aria-label="{{t .server.Lang "register_email_aria"}}"
+                       aria-label="{{t .server.Lang "register.email_aria"}}"
                        aria-required="true"
-                       title="{{t .server.Lang "register_email_title"}}">
+                       title="{{t .server.Lang "register.email_title"}}">
             </div>
 
             <div class="form-group">
-                <label for="password">{{t .server.Lang "login_password_label"}}</label>
+                <label for="password">{{t .server.Lang "login.password_label"}}</label>
                 <input type="password"
                        id="password"
                        name="password"
                        required
                        minlength="8"
-                       aria-label="{{t .server.Lang "login_password_label"}}"
+                       aria-label="{{t .server.Lang "login.password_label"}}"
                        aria-required="true"
                        aria-describedby="password-requirements password-strength-indicator"
-                       title="{{t .server.Lang "register_password_title"}}">
-                <small id="password-requirements">{{t .server.Lang "register_password_requirements"}}</small>
+                       title="{{t .server.Lang "register.password_title"}}">
+                <small id="password-requirements">{{t .server.Lang "register.password_requirements"}}</small>
                 <div class="password-strength">
                     <div class="password-strength-bar"
                          id="strengthBar"
                          role="progressbar"
-                         aria-label="{{t .server.Lang "register_password_strength_aria"}}"
+                         aria-label="{{t .server.Lang "register.password_strength_aria"}}"
                          aria-live="polite"
                          aria-valuemin="0"
                          aria-valuemax="4"
@@ -76,43 +76,43 @@
             </div>
 
             <div class="form-group">
-                <label for="confirm_password">{{t .server.Lang "register_confirm_password_label"}}</label>
+                <label for="confirm_password">{{t .server.Lang "register.confirm_password_label"}}</label>
                 <input type="password"
                        id="confirm_password"
                        name="confirm_password"
                        required
                        data-match-with="#password"
-                       data-mismatch-message="{{t .server.Lang "register_js_passwords_no_match"}}"
-                       aria-label="{{t .server.Lang "register_confirm_password_label"}}"
+                       data-mismatch-message="{{t .server.Lang "register.js_passwords_no_match"}}"
+                       aria-label="{{t .server.Lang "register.confirm_password_label"}}"
                        aria-required="true"
                        aria-describedby="password-match-help confirm_password-error"
-                       title="{{t .server.Lang "register_confirm_password_title"}}">
-                <small id="password-match-help" class="sr-only">{{t .server.Lang "register_password_match_help"}}</small>
-                <span id="confirm_password-error" class="field-error" role="alert">{{t .server.Lang "register_js_passwords_no_match"}}</span>
+                       title="{{t .server.Lang "register.confirm_password_title"}}">
+                <small id="password-match-help" class="sr-only">{{t .server.Lang "register.password_match_help"}}</small>
+                <span id="confirm_password-error" class="field-error" role="alert">{{t .server.Lang "register.js_passwords_no_match"}}</span>
             </div>
 
             <button type="submit"
                     class="btn-primary"
-                    aria-label="{{t .server.Lang "register_submit_aria"}}"
-                    title="{{t .server.Lang "register_submit_title"}}">
-                {{t .server.Lang "register_submit_button"}}
+                    aria-label="{{t .server.Lang "register.submit_aria"}}"
+                    title="{{t .server.Lang "register.submit_title"}}">
+                {{t .server.Lang "register.submit_button"}}
             </button>
         </form>
 
         <div class="form-footer">
-            <p>{{t .server.Lang "register_already_have_account"}} <a href="/server/auth/login">{{t .server.Lang "register_sign_in_link"}}</a></p>
+            <p>{{t .server.Lang "register.already_have_account"}} <a href="/server/auth/login">{{t .server.Lang "register.sign_in_link"}}</a></p>
         </div>
 
         <div class="back-link">
-            <a href="/">← {{t .server.Lang "login_back_to_weather_link"}}</a>
+            <a href="/">← {{t .server.Lang "login.back_to_weather_link"}}</a>
         </div>
     </div>
 
     <script type="application/json" id="register-data">
         {
-            "weak": "{{t .server.Lang "register_js_strength_weak"}}",
-            "medium": "{{t .server.Lang "register_js_strength_medium"}}",
-            "strong": "{{t .server.Lang "register_js_strength_strong"}}"
+            "weak": "{{t .server.Lang "register.js_strength_weak"}}",
+            "medium": "{{t .server.Lang "register.js_strength_medium"}}",
+            "strong": "{{t .server.Lang "register.js_strength_strong"}}"
         }
     </script>
 </body>
