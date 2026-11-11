@@ -1,9 +1,13 @@
 package model
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/webappsgo/wthr/src/database"
 )
 
 // testAdminPassword is a fake fixture password, not a real credential.
@@ -568,8 +572,21 @@ func TestAdminSessionModel(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateSession: %v", err)
 		}
-		if sess.SessionID == "" {
-			t.Fatal("expected non-empty session id")
+		if !strings.HasPrefix(sess.SessionID, "adm:") {
+			t.Fatalf("session token = %q, want adm: prefix", sess.SessionID)
+		}
+		if _, err := uuid.Parse(sess.ID); err != nil {
+			t.Fatalf("row id = %q, want a UUID: %v", sess.ID, err)
+		}
+		var storedHash string
+		if err := database.GetServerDB().QueryRow(`SELECT token_hash FROM server_admin_sessions WHERE id = ?`, sess.ID).Scan(&storedHash); err != nil {
+			t.Fatalf("read stored token hash: %v", err)
+		}
+		if storedHash != HashAdminSessionToken(sess.SessionID) {
+			t.Fatal("stored token_hash does not match the SHA-256 digest")
+		}
+		if storedHash == sess.SessionID {
+			t.Fatal("stored token_hash contains the raw token")
 		}
 
 		got, err := sm.GetSession(sess.SessionID)
@@ -625,9 +642,30 @@ func TestAdminSessionModel(t *testing.T) {
 			t.Fatalf("GetActiveSessions: %v", err)
 		}
 		for _, s := range active {
-			if s.SessionID == expiredSess.SessionID {
+			if s.ID == expiredSess.ID {
 				t.Fatal("expired session should not be active")
 			}
+		}
+	})
+
+	t.Run("active session listing exposes UUIDs but no session credentials", func(t *testing.T) {
+		created, err := sm.CreateSession(admin.ID, "127.0.0.1", "test-agent", time.Hour)
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+		active, err := sm.GetActiveSessions(admin.ID)
+		if err != nil {
+			t.Fatalf("GetActiveSessions: %v", err)
+		}
+		encoded, err := json.Marshal(active)
+		if err != nil {
+			t.Fatalf("marshal active sessions: %v", err)
+		}
+		if strings.Contains(string(encoded), created.SessionID) || strings.Contains(string(encoded), HashAdminSessionToken(created.SessionID)) {
+			t.Fatal("active-session response exposed a session credential")
+		}
+		if !strings.Contains(string(encoded), created.ID) {
+			t.Fatal("active-session response omitted the UUID row ID")
 		}
 	})
 

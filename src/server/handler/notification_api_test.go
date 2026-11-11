@@ -313,7 +313,7 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("success with no notifications yet", func(t *testing.T) {
-		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications", "")
 		r = setAdminIDContext(r, 1)
 
 		h.GetAdminNotifications(w, r)
@@ -324,7 +324,7 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 	})
 
 	t.Run("missing admin_id returns 401", func(t *testing.T) {
-		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications", "")
 
 		h.GetAdminNotifications(w, r)
 
@@ -336,7 +336,7 @@ func TestNotificationAPIHandlers_GetAdminNotifications(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetAdminUnreadCount(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/count", "")
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications/count", "")
 	r = setAdminIDContext(r, 1)
 
 	h.GetAdminUnreadCount(w, r)
@@ -348,7 +348,7 @@ func TestNotificationAPIHandlers_GetAdminUnreadCount(t *testing.T) {
 
 func TestNotificationAPIHandlers_GetAdminNotificationStats(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
+	r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications/stats", "")
 	r = setAdminIDContext(r, 1)
 
 	h.GetAdminNotificationStats(w, r)
@@ -360,7 +360,7 @@ func TestNotificationAPIHandlers_GetAdminNotificationStats(t *testing.T) {
 
 func TestNotificationAPIHandlers_MarkAdminNotificationRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/read", "")
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/administration/admin/notifications/x/read", "")
 	r = setAdminIDContext(r, 1)
 	r = withURLParam(r, "id", "x")
 
@@ -373,7 +373,7 @@ func TestNotificationAPIHandlers_MarkAdminNotificationRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_MarkAllAdminNotificationsRead(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/read", "")
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/administration/admin/notifications/read", "")
 	r = setAdminIDContext(r, 1)
 
 	h.MarkAllAdminNotificationsRead(w, r)
@@ -385,7 +385,7 @@ func TestNotificationAPIHandlers_MarkAllAdminNotificationsRead(t *testing.T) {
 
 func TestNotificationAPIHandlers_DismissAdminNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/x/dismiss", "")
+	r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/administration/admin/notifications/x/dismiss", "")
 	r = setAdminIDContext(r, 1)
 	r = withURLParam(r, "id", "x")
 
@@ -398,7 +398,7 @@ func TestNotificationAPIHandlers_DismissAdminNotification(t *testing.T) {
 
 func TestNotificationAPIHandlers_DeleteAdminNotification(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
-	r, w := newAPIRequest(t, http.MethodDelete, "/api/v1/server/admin/admin/notifications/x", "")
+	r, w := newAPIRequest(t, http.MethodDelete, "/api/v1/server/administration/admin/notifications/x", "")
 	r = setAdminIDContext(r, 1)
 	r = withURLParam(r, "id", "x")
 
@@ -413,7 +413,7 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 	h := newNotificationAPIHandlers(t)
 
 	t.Run("get returns defaults", func(t *testing.T) {
-		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/preferences", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications/preferences", "")
 		r = setAdminIDContext(r, 1)
 
 		h.GetAdminNotificationPreferences(w, r)
@@ -432,7 +432,7 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/administration/admin/notifications/preferences", body)
 		r = setAdminIDContext(r, 1)
 
 		h.UpdateAdminNotificationPreferences(w, r)
@@ -448,7 +448,7 @@ func TestNotificationAPIHandlers_AdminPreferences(t *testing.T) {
 			ToastDurationInfo:    5,
 			ToastDurationWarning: 10,
 		}
-		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/admin/admin/notifications/preferences", body)
+		r, w := newAPIRequest(t, http.MethodPatch, "/api/v1/server/administration/admin/notifications/preferences", body)
 		r = setAdminIDContext(r, 1)
 
 		h.UpdateAdminNotificationPreferences(w, r)
@@ -471,7 +471,7 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 			"title":   "Hello",
 			"message": "World",
 		}
-		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/administration/admin/notifications/send", body)
 		r = setAdminIDContext(r, 1)
 
 		h.SendTestNotification(w, r)
@@ -485,7 +485,7 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "toast", "title": "t", "message": "m",
 		}
-		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/administration/admin/notifications/send", body)
 
 		h.SendTestNotification(w, r)
 
@@ -498,7 +498,7 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "toast", "message": "m",
 		}
-		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/administration/admin/notifications/send", body)
 		r = setAdminIDContext(r, 1)
 
 		h.SendTestNotification(w, r)
@@ -512,7 +512,7 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "bogus", "display": "toast", "title": "t", "message": "m",
 		}
-		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/administration/admin/notifications/send", body)
 		r = setAdminIDContext(r, 1)
 
 		h.SendTestNotification(w, r)
@@ -526,7 +526,7 @@ func TestNotificationAPIHandlers_SendTestNotification(t *testing.T) {
 		body := map[string]interface{}{
 			"type": "info", "display": "bogus", "title": "t", "message": "m",
 		}
-		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/admin/admin/notifications/send", body)
+		r, w := newAPIRequest(t, http.MethodPost, "/api/v1/server/administration/admin/notifications/send", body)
 		r = setAdminIDContext(r, 1)
 
 		h.SendTestNotification(w, r)
@@ -564,7 +564,7 @@ func TestNotificationAPIHandlers_Aliases(t *testing.T) {
 	})
 
 	t.Run("GetAdminStats delegates and requires auth", func(t *testing.T) {
-		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/admin/admin/notifications/stats", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/api/v1/server/administration/admin/notifications/stats", "")
 		h.GetAdminStats(w, r)
 		if w.Code != http.StatusUnauthorized {
 			t.Fatalf("status = %d, want 401; body=%s", w.Code, w.Body.String())

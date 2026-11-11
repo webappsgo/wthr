@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -29,22 +30,31 @@ var flashKinds = map[string]bool{
 // flashKeys is the allow-list of translation keys a flash may name. The cookie
 // value is attacker-controllable, so only keys listed here are ever rendered.
 var flashKeys = map[string]bool{
-	"flash_settings_saved":             true,
-	"flash_settings_save_failed":       true,
-	"flash_channel_updated":            true,
-	"flash_channel_update_failed":      true,
-	"flash_channel_enabled":            true,
-	"flash_channel_disabled":           true,
-	"flash_channel_test_sent":          true,
-	"flash_channel_test_failed":        true,
-	"flash_email_template_saved":       true,
-	"flash_email_template_save_failed": true,
-	"flash_test_email_sent":            true,
-	"flash_test_email_failed":          true,
+	"flash_settings_saved":              true,
+	"flash_settings_save_failed":        true,
+	"flash_channel_updated":             true,
+	"flash_channel_update_failed":       true,
+	"flash_channel_enabled":             true,
+	"flash_channel_disabled":            true,
+	"flash_channel_test_sent":           true,
+	"flash_channel_test_failed":         true,
+	"flash_email_template_saved":        true,
+	"flash_email_template_save_failed":  true,
+	"flash_test_email_sent":             true,
+	"flash_test_email_failed":           true,
+	"flash_contact_sent":                true,
+	"flash_contact_saved":               true,
+	"flash_contact_invalid":             true,
+	"flash_contact_failed":              true,
+	"flash_contact_captcha_failed":      true,
+	"flash_contact_captcha_unavailable": true,
 }
 
 // SetFlash stores a one-shot flash message for the next rendered page.
 func SetFlash(w http.ResponseWriter, r *http.Request, kind, key string) {
+	if middleware.GPCOptOut(r) {
+		return
+	}
 	if !flashKinds[kind] || !flashKeys[key] {
 		return
 	}
@@ -64,6 +74,9 @@ func SetFlash(w http.ResponseWriter, r *http.Request, kind, key string) {
 // TakeFlash returns the pending flash message, if any, and clears the cookie so
 // the message is displayed exactly once.
 func TakeFlash(w http.ResponseWriter, r *http.Request) *Flash {
+	if middleware.GPCOptOut(r) {
+		return nil
+	}
 	cookie, err := r.Cookie(FlashCookieName)
 	if err != nil || cookie.Value == "" {
 		return nil

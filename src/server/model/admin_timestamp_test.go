@@ -74,9 +74,9 @@ func insertAdminSessionFixtures(t *testing.T, db *sql.DB, adminID int64, fixture
 
 	for _, fixture := range fixtures {
 		_, err := db.Exec(`
-			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
-			VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-		`, fixture.name, adminID, "203.0.113.10", "go-test", fixture.storedExpiresAt)
+			INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at)
+			VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+		`, fixture.name, "fixture-hash-"+fixture.name, adminID, "203.0.113.10", "go-test", fixture.storedExpiresAt)
 		if err != nil {
 			t.Fatalf("insert admin session fixture %q: %v", fixture.name, err)
 		}
@@ -196,7 +196,7 @@ func TestAdminSessionGetActiveHonorsStoredZone(t *testing.T) {
 
 	var got []string
 	for _, session := range sessions {
-		got = append(got, session.SessionID)
+		got = append(got, session.ID)
 	}
 	sort.Strings(got)
 
@@ -222,7 +222,7 @@ func TestAdminSessionCreateReadRoundTrip(t *testing.T) {
 	}
 
 	var stored string
-	err = serverDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM server_admin_sessions WHERE id = ?", created.SessionID).Scan(&stored)
+	err = serverDB.QueryRow("SELECT CAST(expires_at AS TEXT) FROM server_admin_sessions WHERE id = ?", created.ID).Scan(&stored)
 	if err != nil {
 		t.Fatalf("read stored expires_at: %v", err)
 	}

@@ -1461,9 +1461,9 @@ func TestLoadGraphQLOnlineAdminUsernames_ExpiryIsJudgedByInstantNotText(t *testi
 
 	seedSession := func(id string, adminID int64, expiresAt string) {
 		if _, err := ddb.Server.Exec(`
-			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, id, adminID, "127.0.0.1", "test-agent", expiresAt, createdAt); err != nil {
+			INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`, id, "test-hash-"+id, adminID, "127.0.0.1", "test-agent", expiresAt, createdAt); err != nil {
 			t.Fatalf("seed session %q: %v", id, err)
 		}
 	}

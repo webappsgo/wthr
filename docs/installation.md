@@ -87,11 +87,11 @@ wthr --mode production
 
 The server is functional immediately on first run. Admin setup is completed through:
 
-- `https://wthr.top/admin/server/setup`
+- `https://wthr.top/server/administration/config/setup`
 
 After setup, use:
 
-- Admin panel: `https://wthr.top/admin`
+- Admin panel: `https://wthr.top/server/administration`
 - Health: `https://wthr.top/healthz`
 - OpenAPI: `https://wthr.top/openapi`
 

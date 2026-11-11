@@ -16,7 +16,7 @@ func TestAdminServerStatus_Healthy(t *testing.T) {
 	db := newTestDatabaseDB(t)
 
 	handlerFunc := AdminServerStatus(db, "8090", 8443, nil)
-	c, w := newAPITestContext("/server/admin/config/status")
+	c, w := newAPITestContext("/server/administration/config/status")
 
 	handlerFunc(w, c)
 
@@ -34,7 +34,7 @@ func TestAdminServerStatus_Healthy(t *testing.T) {
 // wired DB responds normally.
 func TestBuildAdminServerStatusResponse_Healthy(t *testing.T) {
 	db := newTestDatabaseDB(t)
-	c, _ := newAPITestContext("/server/admin/config/status")
+	c, _ := newAPITestContext("/server/administration/config/status")
 
 	httpStatus, response := buildAdminServerStatusResponse(db, c, "8090", 8443, nil)
 

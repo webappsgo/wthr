@@ -126,19 +126,22 @@ coverage.out
 *.swp
 *.swo
 
-# AI config — keep shared rules tracked, ignore personal/state per PART 1 "AI-Specific Files"
-# Personal local overrides (never committed)
+# AI config: team config (rules, settings.json, agents, commands, mcp.json) is COMMITTED;
+# only personal and runtime files are ignored
+.claude/settings.local.json
+.claude/*.lock
+.claude/backups/
+.claude/cache/
+.claude/history.jsonl
+.cursor/settings.json
+.windsurf/settings.json
+.aider/
+.ai/
+
+# Claude Code personal files (always gitignored)
+CLAUDE.local.md
 *.local.json
 *.local.md
-CLAUDE.local.md
-
-# Auto-generated session/runtime state
-.claude/projects/
-.claude/cache/
-.claude/state/
-.claude/sessions/
-.cursor/state/
-.aider/cache/
 
 # Sensitive material — NEVER commit
 .env

@@ -1,8 +1,10 @@
+{{define "header"}}
 {{/* Site header (logo, branding) - Mandatory partial */}}
 <header class="site-header">
     <div class="container">
         <div class="header-content">
-            <h1 class="site-logo">{{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</h1>
+            <p class="site-logo">{{ if .server }}{{ if .server.Title }}{{ .server.Title }}{{ else }}Weather{{ end }}{{ else }}Weather{{ end }}</p>
         </div>
     </div>
 </header>
+{{end}}

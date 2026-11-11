@@ -53,11 +53,25 @@ Common usage:
 
 ```bash
 wthr-cli --help
+wthr-cli --lang es --help
+wthr-cli --update check
+wthr-cli --update yes
 wthr-cli current --location "Brooklyn,NY"
 wthr-cli forecast --zip 10001
 wthr-cli alerts
 wthr-cli moon
 ```
+
+The client checks `/api/autodiscover` for a newer platform build on each
+command. In an interactive terminal it offers to install an available update;
+`--update check` prints the update status. Bare `--update` and `--update yes`
+install an available build and restart the client. Updates require an HTTPS server and a matching SHA-256
+checksum from autodiscovery. If the server requires a newer minimum client
+version, ordinary requests stop until the client is updated.
+
+Set `lang` in `cli.yml` or pass `--lang CODE` to choose the output language.
+The default `auto` value detects the language from `LC_ALL` or `LANG`, then
+falls back to English.
 
 ## Output and Status
 
@@ -86,6 +100,20 @@ The client binary (`wthr-cli`) reads these environment variables
 | `WTHR_DEBUG` | Enable client debug output |
 | `MYLOCATION_NAME` | Default location name for weather lookups |
 | `MYLOCATION_ZIP` | Default ZIP/postal code for weather lookups |
+
+Client update behavior can also be set in `cli.yml`:
+
+```yaml
+lang: auto
+update:
+  auto: false
+  check_interval: per_invocation
+  channel: stable
+```
+
+The client is short-lived and checks once per invocation. Interactive runs
+prompt when an update is available. A non-interactive `--update yes` installs
+the update only when `update.auto` is true; otherwise it returns an error.
 
 The server binary (`wthr`) reads these directory overrides, used by its
 `--maintenance` subcommands and by first-run directory resolution

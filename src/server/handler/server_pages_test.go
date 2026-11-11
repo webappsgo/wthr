@@ -149,6 +149,15 @@ func TestGetTermsAPI(t *testing.T) {
 	}
 }
 
+// validContactBody returns a complete contact submission carrying a freshly solved built-in captcha.
+func validContactBody() map[string]interface{} {
+	id, a, b := contactCaptcha.New()
+	return map[string]interface{}{
+		"name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
+		"captcha_id": id, "captcha_answer": fmt.Sprintf("%d", a+b),
+	}
+}
+
 func TestHandleContactFormSubmission(t *testing.T) {
 	cfg := newServerPagesTestConfig()
 
@@ -161,9 +170,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 	})
 
 	t.Run("no smtp and no db saves and returns 500", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", map[string]interface{}{
-			"name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
-		})
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", validContactBody())
 		HandleContactFormSubmission(nil, cfg)(w, r)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusInternalServerError, w.Body.String())
@@ -172,9 +179,7 @@ func TestHandleContactFormSubmission(t *testing.T) {
 
 	t.Run("no smtp with db saves successfully", func(t *testing.T) {
 		db := newServerPagesTestDB(t)
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", map[string]interface{}{
-			"name": "Ada", "email": "ada@example.com", "subject": "Hello", "message": "Test message",
-		})
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/contact", validContactBody())
 		r = r.WithContext(reqctx.SetValue(r.Context(), "db", db))
 
 		HandleContactFormSubmission(db, cfg)(w, r)

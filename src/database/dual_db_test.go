@@ -1,7 +1,9 @@
 package database
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func memDSN(prefix string) string {
@@ -33,6 +37,58 @@ func TestInitServerDB_NewDatabase(t *testing.T) {
 	// server_admin_credentials must exist from ServerSchema.
 	if _, err := db.Exec("SELECT COUNT(*) FROM server_admin_credentials"); err != nil {
 		t.Errorf("server_admin_credentials table missing: %v", err)
+	}
+}
+
+func TestMigrateLegacyAdminSessionsHashesTokensAndReplacesIDs(t *testing.T) {
+	db, err := sql.Open("sqlite", memDSN("legacyadminsession"))
+	if err != nil {
+		t.Fatalf("open legacy database: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	if _, err := db.Exec(`
+		CREATE TABLE server_admin_sessions (
+			id TEXT PRIMARY KEY,
+			admin_id INTEGER NOT NULL,
+			expires_at DATETIME NOT NULL,
+			created_at DATETIME
+		);
+		CREATE TABLE server_audit_log (ulid TEXT PRIMARY KEY);
+		INSERT INTO server_admin_sessions (id, admin_id, expires_at)
+		VALUES ('legacy-raw-admin-cookie', 1, '2030-01-01 00:00:00');
+	`); err != nil {
+		t.Fatalf("seed legacy admin session: %v", err)
+	}
+	if err := applySchemaUpdates(db, serverSchemaUpdates); err != nil {
+		t.Fatalf("apply server schema updates: %v", err)
+	}
+	if err := migrateLegacyAdminSessions(db); err != nil {
+		t.Fatalf("migrate legacy admin sessions: %v", err)
+	}
+
+	var rowID, tokenHash string
+	if err := db.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
+		t.Fatalf("read migrated session: %v", err)
+	}
+	if _, err := uuid.Parse(rowID); err != nil {
+		t.Fatalf("migrated row id = %q, want UUID: %v", rowID, err)
+	}
+	expectedHash := sha256.Sum256([]byte("legacy-raw-admin-cookie"))
+	if tokenHash != hex.EncodeToString(expectedHash[:]) {
+		t.Fatalf("token_hash = %q, want hash of legacy raw cookie token", tokenHash)
+	}
+	if rowID == "legacy-raw-admin-cookie" || tokenHash == "legacy-raw-admin-cookie" {
+		t.Fatal("migration left the legacy raw cookie token in the row")
+	}
+	if err := migrateLegacyAdminSessions(db); err != nil {
+		t.Fatalf("repeat migration: %v", err)
+	}
+	var repeatedID, repeatedHash string
+	if err := db.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&repeatedID, &repeatedHash); err != nil {
+		t.Fatalf("read session after repeat migration: %v", err)
+	}
+	if repeatedID != rowID || repeatedHash != tokenHash {
+		t.Fatalf("repeat migration changed row: (%q, %q), want (%q, %q)", repeatedID, repeatedHash, rowID, tokenHash)
 	}
 }
 

@@ -308,7 +308,8 @@
     <div class="card margin-y-lg">
         <h2 class="text-cyan">{{t .server.Lang "help_still_need_help_heading"}}</h2>
         <div class="flex gap-md flex-column-mobile margin-y-md">
-            <a href="/server/contact" class="btn btn-primary">{{t .server.Lang "help_contact_support_label"}}</a>
+            <a href="{{path "/server/contact"}}" class="btn btn-primary">{{t .server.Lang "help_contact_support_label"}}</a>
+            {{if .MCPEnabled}}<a href="{{path "/server/help/mcp"}}" class="btn btn-secondary">{{t .server.Lang "help_mcp.link"}}</a>{{end}}
             <a href="/docs" class="btn btn-secondary">{{t .server.Lang "api_docs_heading"}}</a>
             <a href="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/issues" target="_blank" class="btn btn-secondary">{{t .server.Lang "help_report_issue_label"}}</a>
         </div>

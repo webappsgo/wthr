@@ -159,12 +159,12 @@ func IsAdmin(r *http.Request) bool {
 	return ok && user.Role == "admin"
 }
 
-// RestrictAdminToAdminRoutes middleware that forces admins to only access /server/admin routes
+// RestrictAdminToAdminRoutes middleware that forces admins to only access /server/administration routes
 // Admins are treated as guest/anonymous on all non-admin routes
 func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}
@@ -208,7 +208,7 @@ func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 func BlockAdminFromUserRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
 	cfg, _ := config.LoadConfig()
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}

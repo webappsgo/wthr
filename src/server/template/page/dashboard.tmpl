@@ -1,7 +1,8 @@
 {{template "head" .}}
+{{template "header" .}}
 {{template "navbar" .}}
 
-<div class="weather-container page-container">
+<main class="weather-container page-container" id="main-content" role="main">
     <header class="text-center margin-y-lg">
         <h1 class="text-purple">{{t .server.Lang "dashboard_welcome_back"}}</h1>
         <p class="text-comment">{{.user.Email}} · {{.user.Role | upper}}</p>
@@ -70,6 +71,6 @@
             {{end}}
         </div>
     </section>
-</div>
+</main>
 
 {{template "footer" .}}

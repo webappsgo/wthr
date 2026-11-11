@@ -61,8 +61,8 @@ func TestDisplayFirstRunBanner_NoPanic(t *testing.T) {
 			t.Errorf("DisplayFirstRunBanner panicked: %v", r)
 		}
 	}()
-	DisplayFirstRunBanner(8080, false, "abcdef0123456789", "", "", "/server/admin")
-	DisplayFirstRunBanner(443, true, "abcdef0123456789", "example.onion", "abcdefghij.b32.i2p", "/server/admin")
+	DisplayFirstRunBanner(8080, false, "abcdef0123456789", "", "", "/server/administration")
+	DisplayFirstRunBanner(443, true, "abcdef0123456789", "example.onion", "abcdefghij.b32.i2p", "/server/administration")
 }
 
 // TestDisplayNormalBanner_NoPanic mirrors the first-run banner check for the
@@ -85,11 +85,11 @@ func TestPrintTierHelpers_NoPanic(t *testing.T) {
 			t.Errorf("print tier helper panicked: %v", r)
 		}
 	}()
-	printFirstRunFull("wthr", "http://localhost:8080", "example.onion", "abcdefghij.b32.i2p", "tok", "http://localhost:8080/server/admin/config/setup")
-	printFirstRunCompact("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/admin/config/setup")
+	printFirstRunFull("wthr", "http://localhost:8080", "example.onion", "abcdefghij.b32.i2p", "tok", "http://localhost:8080/server/administration/config/setup")
+	printFirstRunCompact("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/administration/config/setup")
 	printFirstRunMinimal("wthr", "http://localhost:8080", "tok")
 	printFirstRunMicro("wthr", 8080)
-	printFirstRunPlain("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/admin/config/setup")
+	printFirstRunPlain("wthr", "http://localhost:8080", "tok", "http://localhost:8080/server/administration/config/setup")
 	printNormalFull("wthr", "1.0.0", "2026-01-01T00:00:00Z", "http://localhost:8080", "example.onion", "abcdefghij.b32.i2p")
 	printNormalCompact("wthr", "1.0.0", "http://localhost:8080")
 	printNormalMinimal("wthr", "1.0.0", "http://localhost:8080")

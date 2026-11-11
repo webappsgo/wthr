@@ -11,7 +11,7 @@ wthr generates its configuration at runtime with sane defaults and keeps the liv
 
 Use the admin panel for routine changes:
 
-- Server settings: `https://wthr.top/admin`
+- Server settings: `https://wthr.top/server/administration`
 - User settings: `https://wthr.top/users/settings`
 
 ## Precedence
@@ -74,7 +74,7 @@ re-read on every start.
 | `SMTP_FROM_ADDRESS` | Envelope/from address |
 | `SMTP_FROM_NAME` | Display name for outgoing mail |
 
-### Paths (init-only)
+### Paths (applied on every startup; flag, then variable, then platform default)
 
 | Variable | Purpose |
 |----------|---------|
@@ -84,7 +84,6 @@ re-read on every start.
 | `CACHE_DIR` | Override cache directory |
 | `TEMP_DIR` | Override temp directory |
 | `BACKUP_DIR` | Override backup directory (default: `{data_dir}/backups`) |
-| `WTHR_PORT` | Override the listen port (same as `--port`) |
 
 ## Common Settings
 
@@ -178,6 +177,43 @@ Docker deployments typically mount:
 -v ./volumes/config:/config:z
 -v ./volumes/data:/data:z
 ```
+
+## Pages, Contact and Tracking
+
+```yaml
+server:
+  admin_path: administration
+  contact:
+    # Shown on /server/dpo; empty values are never invented
+    dpo:
+      name: ""
+      email: ""
+  pages:
+    help:
+      # Markdown shown as the project section of /server/help/mcp
+      mcp: ""
+    contact:
+      # simple (built-in, default), recaptcha, hcaptcha
+      captcha: simple
+      captcha_site_key: ""
+      captcha_secret_key: ""
+  tracking:
+    # google, matomo, piwik, owa, fathom, plausible, umami, simple, cloudflare, or empty
+    type: ""
+    id: ""
+    url: ""
+  mcp:
+    enabled: true
+  i18n:
+    default_language: en
+    available_languages: [en, es, fr, de, it, ar, zh, ja]
+```
+
+- `admin_path` is one segment (`[a-z0-9-]`, 2-32 characters). An invalid value reverts to `administration`.
+- `/server/dpo` shows `contact.dpo.email`, then `contact.general.email`, and never the admin address.
+- The contact form needs a captcha on every submission. `recaptcha` and `hcaptcha` need both keys; without them the built-in challenge is used, and requests through Tor or I2P always use the built-in challenge.
+- Analytics run only after the visitor opts in, never over Tor or I2P, and never inline: the page loads `/server/tracking.js`. Only the configured provider's hosts are added to the Content-Security-Policy.
+- `available_languages` may be narrowed but always keeps `en`, `es`, `fr`, `de`, `it`, `ar`.
 
 ## Language and Theme
 

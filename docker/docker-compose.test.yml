@@ -2,7 +2,7 @@
 # nginx proxy address - http://172.17.0.1:64581
 # Usage: docker compose -f docker-compose.test.yml up -d
 
-name: wthr-test
+name: wthr
 
 x-logging: &default-logging
   options:
@@ -12,9 +12,9 @@ x-logging: &default-logging
 
 services:
   wthr:
-    image: ghcr.io/webappsgo/wthr:latest
-    container_name: wthr-test
-    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    image: ghcr.io/webappsgo/wthr:devel
+    container_name: wthr-app
+    hostname: wthr
     restart: "no"
     pull_policy: always
     logging: *default-logging
@@ -23,23 +23,44 @@ services:
       PORT: 80
       DEBUG: true
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: wthr-app
+      CACHE_URL: valkey://wthr-cache:6379
     ports:
-      - "64581:80"
+      - "172.17.0.1:64581:80"
     volumes:
       # TEMP DIR WORKFLOW: ./volumes/ resolves to $TEMP_DIR/volumes/
       # NEVER run from project directory - always use temp dir workflow
-      - ./volumes/config:/config
-      - ./volumes/data:/data
+      - ./volumes/config:/config:z
+      - ./volumes/data:/data:z
     healthcheck:
       test: /usr/local/bin/wthr --status
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 90s
+    depends_on:
+      wthr-cache:
+        condition: service_healthy
     networks:
-      - wthr-test
+      - wthr
+
+  wthr-cache:
+    image: valkey/valkey:alpine
+    container_name: wthr-cache
+    restart: "no"
+    logging: *default-logging
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - wthr
 
 networks:
-  wthr-test:
-    name: wthr-test
+  wthr:
+    name: wthr
     external: false

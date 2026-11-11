@@ -39,10 +39,7 @@ func (h *WebHandler) ServeWebInterface(w http.ResponseWriter, r *http.Request) {
 	}
 
 	location := r.URL.Query().Get("location")
-	units := r.URL.Query().Get("units")
-	if units == "" {
-		units = "imperial"
-	}
+	units := preferenceWeatherUnits(r)
 
 	var weatherData interface{}
 	var errorMsg string
@@ -162,10 +159,7 @@ func (h *WebHandler) ServeMoonInterface(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get units from query parameter (default to imperial)
-	units := r.URL.Query().Get("units")
-	if units == "" {
-		units = "imperial"
-	}
+	units := preferenceWeatherUnits(r)
 
 	clientIP := util.TrustedGetClientIP(r)
 

@@ -35,13 +35,9 @@ func DefaultCSRFConfig() CSRFConfig {
 		CookieName:  "csrf_token",
 		HeaderName:  "X-CSRF-Token",
 		Secure:      "auto",
-		// AI.md PART 16 default exempt paths: OIDC providers post the
-		// callback cross-site, and webhook senders authenticate with their
-		// own signature rather than a browser session.
-		ExemptPaths: []string{
-			"/api/*/server/auth/oidc/*/callback",
-			"/api/*/webhooks/*",
-		},
+		// AI.md PART 16: exempt_paths is for frontend paths only; the backend
+		// (/api/**, compatibility layers) is outside CSRF scope and needs no entry.
+		ExemptPaths: []string{},
 	}
 }
 
@@ -53,6 +49,14 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip if disabled
 			if !cfg.Enabled {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// AI.md PART 16 "Scope - Frontend Only": CSRF never applies to the backend.
+			// No token is issued, required or checked on /api/** or the MCP aliases;
+			// SameSite=Strict cookies and CORS still stop cross-site browsers.
+			if isBackendRoute(r.URL.Path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -91,6 +95,14 @@ func CSRFProtection(cfg CSRFConfig) func(http.Handler) http.Handler {
 			if hasBearerCredential(r) || isWebSocketUpgrade(r) ||
 				isPublicEndpoint(r.URL.Path) || matchesExemptPath(r.URL.Path, cfg.ExemptPaths) {
 				next.ServeHTTP(w, r)
+				return
+			}
+
+			// AI.md PART 11 Sec-Fetch-* layer: a cross-site state-changing request to a
+			// frontend route is rejected outright
+			if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+				logCSRFFailure(r, "cross-site request rejected by Sec-Fetch-Site")
+				writeCSRFForbidden(w, "Cross-site request rejected")
 				return
 			}
 
@@ -154,13 +166,14 @@ func hasBearerCredential(r *http.Request) bool {
 		return true
 	}
 
-	for _, header := range []string{"X-API-Token", "X-Api-Key", "X-Auth-Token"} {
-		if r.Header.Get(header) != "" {
-			return true
-		}
-	}
-
 	return false
+}
+
+// isBackendRoute reports whether the path belongs to the backend (every /api/**
+// route and the MCP aliases), which is outside CSRF scope (AI.md PART 16).
+func isBackendRoute(requestPath string) bool {
+	return requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") ||
+		requestPath == "/mcp" || strings.HasPrefix(requestPath, "/mcp/")
 }
 
 // isWebSocketUpgrade reports whether this is a WebSocket handshake, which

@@ -1,0 +1,21 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <p><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></p>
+    <h1 class="text-purple">{{t .server.Lang "security.thanks.title"}}</h1>
+    <p>{{t .server.Lang "security.thanks.intro"}}</p>
+
+    <section class="card margin-y-lg">
+        {{if .Entries}}
+        <ul>
+            {{range .Entries}}<li>{{.credit}} <small>{{.date}}</small></li>{{end}}
+        </ul>
+        {{else}}
+        <p>{{t .server.Lang "security.thanks.empty"}}</p>
+        {{end}}
+    </section>
+</main>
+
+{{template "footer" .}}

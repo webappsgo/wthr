@@ -5,11 +5,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -36,6 +39,7 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	appgraphql "github.com/webappsgo/wthr/src/graphql"
+	"github.com/webappsgo/wthr/src/mcp"
 	"github.com/webappsgo/wthr/src/mode"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/scheduler"
@@ -84,6 +88,75 @@ func writeText(w http.ResponseWriter, status int, format string, args ...interfa
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
 	fmt.Fprintf(w, format, args...)
+}
+
+func validCLIBinaryName(name, projectName string) bool {
+	if name == "" || filepath.Base(name) != name {
+		return false
+	}
+	for _, platform := range []string{"linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64", "windows-amd64", "windows-arm64", "freebsd-amd64", "freebsd-arm64"} {
+		candidate := projectName + "-cli-" + platform
+		if name == candidate || strings.HasPrefix(platform, "windows-") && name == candidate+".exe" {
+			return true
+		}
+	}
+	return false
+}
+
+func discoverCLIVersions(binaryDir, projectName, defaultVersion string, configured map[string]config.UpdateVersion) map[string]config.UpdateVersion {
+	versions := make(map[string]config.UpdateVersion)
+	platforms := []string{"linux-amd64", "linux-arm64", "darwin-amd64", "darwin-arm64", "windows-amd64", "windows-arm64", "freebsd-amd64", "freebsd-arm64"}
+	for _, platform := range platforms {
+		name := projectName + "-cli-" + platform
+		if strings.HasPrefix(platform, "windows-") {
+			name += ".exe"
+		}
+		if !validCLIBinaryName(name, projectName) {
+			continue
+		}
+		binaryPath, err := middleware.SafeFilePath(binaryDir, name)
+		if err != nil {
+			continue
+		}
+		file, err := os.Open(binaryPath)
+		if err != nil {
+			continue
+		}
+		hasher := sha256.New()
+		_, copyErr := io.Copy(hasher, file)
+		closeErr := file.Close()
+		if copyErr != nil || closeErr != nil {
+			continue
+		}
+		version := configured[platform].Version
+		if version == "" {
+			version = defaultVersion
+		}
+		versions[platform] = config.UpdateVersion{Version: version, SHA256: hex.EncodeToString(hasher.Sum(nil))}
+	}
+	return versions
+}
+
+func cacheContextMiddleware(cacheManager *service.CacheManager) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := reqctx.SetValue(r.Context(), "cache", cacheManager)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func runtimeCacheConfigForMode(cfg *config.AppConfig, clusterEnabled bool) (config.CacheConfig, bool) {
+	if cfg == nil {
+		return config.DefaultCacheConfig(), false
+	}
+	cacheConfig := cfg.Server.Cache
+	backend := strings.ToLower(strings.TrimSpace(cacheConfig.Type))
+	if config.RequiresSharedCache(cfg, clusterEnabled) && backend != "redis" && backend != "valkey" {
+		cacheConfig.Type = "unavailable"
+		return cacheConfig, true
+	}
+	return cacheConfig, false
 }
 
 // startupTranslate resolves a translation key for startup banner output.
@@ -189,6 +262,9 @@ func main() {
 		// Bad CLI usage (AI.md PART 8: exit code 64 = usage error).
 		log.Printf("Failed to parse CLI: %v", err)
 		os.Exit(64)
+	}
+	if os.Getenv("CLI_COMMAND_HANDLED") == "1" {
+		os.Exit(0)
 	}
 
 	// Check if this is a command that exits (handled by CLI package)
@@ -474,11 +550,24 @@ func main() {
 		fmt.Printf("%s Warning: Could not initialize default settings: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}
 
-	// Initialize cache manager (Valkey/Redis support, optional)
-	cacheManager := service.NewCacheManager()
+	// Cluster and remote-database deployments require a shared Valkey/Redis
+	// backend. Do not report a local memory cache as healthy in those modes.
+	var clusterEnabled string
+	clusterStateErr := database.QueryRowContext(context.Background(), dualDB.Server, database.TimeoutSimpleSelect, "SELECT value FROM server_config WHERE key = 'cluster.enabled'").Scan(&clusterEnabled)
+	if clusterStateErr != nil && clusterStateErr != sql.ErrNoRows {
+		appLogger.Printf("WARNING: Could not determine cluster mode for cache validation: %v", clusterStateErr)
+	}
+	runtimeCacheConfig, sharedCacheMisconfigured := runtimeCacheConfigForMode(cfg, strings.EqualFold(strings.TrimSpace(clusterEnabled), "true"))
+	if sharedCacheMisconfigured {
+		appLogger.Printf("WARNING: Cluster or remote database mode requires Redis/Valkey; the configured cache backend will be reported unavailable")
+	}
+
+	// Initialize cache manager from the validated runtime backend.
+	cacheManager := service.NewCacheManager(runtimeCacheConfig)
+	handler.SetCacheStatusProvider(cacheManager)
 	if cacheManager.IsEnabled() {
-		appLogger.Printf("Cache enabled (Redis/Valkey)")
-		fmt.Printf("%s Cache enabled (Redis/Valkey)\n", display.Emoji("✅", "[OK]"))
+		appLogger.Printf("Cache enabled (%s)", cacheManager.BackendType())
+		fmt.Printf("%s Cache enabled (%s)\n", display.Emoji("✅", "[OK]"), cacheManager.BackendType())
 	}
 
 	// LDAP authentication service per AI.md PART 11
@@ -582,6 +671,10 @@ func main() {
 
 	// Request ID middleware - for request tracing in logs
 	r.Use(middleware.RequestID())
+	r.Use(cacheContextMiddleware(cacheManager))
+
+	// Honor Sec-GPC throughout every request and record compliance events.
+	r.Use(middleware.GlobalPrivacyControl(db.DB))
 
 	// Access logging middleware (writes to log files)
 	r.Use(middleware.AccessLogger(appLogger))
@@ -661,14 +754,16 @@ func main() {
 			// 1. ?lang= query param (highest priority, also sets cookie)
 			if q := r.URL.Query().Get("lang"); q != "" && i18nService.IsSupported(q) {
 				lang = q
-				http.SetCookie(w, &http.Cookie{
-					Name:     "lang",
-					Value:    lang,
-					MaxAge:   365 * 24 * 60 * 60,
-					Path:     "/",
-					Secure:   r.TLS != nil,
-					HttpOnly: true,
-				})
+				if !middleware.GPCOptOut(r) {
+					http.SetCookie(w, &http.Cookie{
+						Name:     "lang",
+						Value:    lang,
+						MaxAge:   365 * 24 * 60 * 60,
+						Path:     "/",
+						Secure:   r.TLS != nil,
+						HttpOnly: true,
+					})
+				}
 			}
 
 			// 2. lang cookie
@@ -808,7 +903,10 @@ func main() {
 
 	// Create template function map with i18n support
 	templateFuncs = template.FuncMap{
-		"upper":     strings.ToUpper,
+		"upper": strings.ToUpper,
+		// path builds an origin-relative same-origin URL: the configured {baseurl} prefix plus the
+		// given path (AI.md PART 1 "Auto-config for clients")
+		"path":      func(p string) string { return util.OriginRelativePath(config.GetGlobalConfig(), p) },
 		"lower":     strings.ToLower,
 		"nextTheme": server.NextTheme,
 		"title":     func(s string) string { return cases.Title(language.English).String(s) },
@@ -981,7 +1079,11 @@ func main() {
 		cfg.Server.SEO = newCfg.Server.SEO
 		cfg.Web = newCfg.Web
 		cfg.Server.Notifications = newCfg.Server.Notifications
+		cfg.Server.Update = newCfg.Server.Update
 		cfg.Server.RateLimit = newCfg.Server.RateLimit
+		// Cache backend changes are persisted and exposed as pending restart;
+		// the shared manager captured by middleware is intentionally unchanged.
+		cfg.Server.Cache = newCfg.Server.Cache
 		cfg.Server.Tor = newCfg.Server.Tor
 		cfg.Server.Features = newCfg.Server.Features
 
@@ -1011,6 +1113,7 @@ func main() {
 	// AI.md PART 19: task state persists in server.db, so the scheduler must hold
 	// the server handle - the users handle created above has no server_* tables.
 	taskScheduler := scheduler.NewScheduler(dualDB.Server)
+	var notificationService *service.NotificationService
 
 	// Register log rotation task - AI.md PART 19: daily at midnight
 	taskScheduler.AddTask("rotate-logs", "0 0 * * *", func() error {
@@ -1146,6 +1249,48 @@ func main() {
 		return scheduler.UpdateCVEDatabase()
 	})
 
+	// AI.md PART 19: check for eligible updates daily at 06:00. Notifications
+	// are keyed by release version so retries and later checks do not duplicate them.
+	taskScheduler.AddTask("update_check", "0 6 * * *", func() error {
+		current := config.GetGlobalConfig()
+		if current == nil {
+			current = cfg
+		}
+		release, err := cli.ScheduledRelease(current.Server.Update.Branch, handler.Version, current.Server.Update.DeferDays, time.Now().UTC())
+		if err != nil || release == nil {
+			return err
+		}
+		if current.Server.Update.AutoInstall {
+			return cli.PerformReleaseUpdate(release)
+		}
+		if notificationService == nil {
+			return fmt.Errorf("update notification service is not initialized")
+		}
+		admins, err := (&model.AdminModel{DB: dualDB.Server}).GetAll()
+		if err != nil {
+			return err
+		}
+		title := "Update available"
+		for _, admin := range admins {
+			var exists int
+			err := dualDB.Server.QueryRow(`SELECT COUNT(*) FROM server_admin_notifications WHERE admin_id = ? AND title = ? AND message = ?`, admin.ID, title, release.TagName).Scan(&exists)
+			if err != nil {
+				return err
+			}
+			if exists > 0 {
+				continue
+			}
+			action := &model.NotificationAction{Label: "Review update", URL: "/server/" + current.GetAdminPath() + "/config/updates"}
+			if _, err := notificationService.SendAdminNotification(int(admin.ID), model.NotificationTypeInfo, model.NotificationDisplayBanner, title, release.TagName, action); err != nil {
+				log.Printf("Failed to notify admin about update %s: %v", release.TagName, err)
+			}
+			if _, err := notificationService.SendAdminNotification(int(admin.ID), model.NotificationTypeInfo, model.NotificationDisplayCenter, title, release.TagName, action); err != nil {
+				log.Printf("Failed to add update notification center item %s: %v", release.TagName, err)
+			}
+		}
+		return nil
+	})
+
 	// AI.md PART 19 line 24792: cluster.heartbeat every 30 seconds (cluster mode only)
 	// This is a LOCAL task - runs on every node (not a global task)
 	nodeIDForHeartbeat, _ := os.Hostname()
@@ -1222,7 +1367,7 @@ func main() {
 	go wsHub.RunWebSocketHub()
 
 	// Initialize Notification Service (TEMPLATE.md Part 25 - WebUI Notifications)
-	notificationService := &service.NotificationService{
+	notificationService = &service.NotificationService{
 		UserDB:     dualDB.Users,
 		ServerDB:   dualDB.Server,
 		WSHub:      wsHub,
@@ -1452,14 +1597,17 @@ func main() {
 
 	// security.txt endpoint (RFC 9116 - TEMPLATE.md PART 25)
 	r.Get("/.well-known/security.txt", adminWebHandler.ServeSecurityTxt)
-	// Also serve at root for compatibility
-	r.Get("/security.txt", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/.well-known/security.txt", http.StatusMovedPermanently)
-	})
+	// AI.md PART 16: /.well-known/security.txt is canonical; /security.txt is not served (404)
 
 	// /.well-known/change-password redirect (TEMPLATE.md PART 25)
+	// AI.md PART 16: signed-in users go to their password settings, everyone else to the reset flow
 	r.Get("/.well-known/change-password", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/profile?tab=security", http.StatusFound)
+		w.Header().Set("Cache-Control", "no-store")
+		target := "/server/auth/password/forgot"
+		if c, err := r.Cookie(middleware.SessionCookieName); err == nil && c.Value != "" {
+			target = "/users/security/password"
+		}
+		http.Redirect(w, r, target, http.StatusFound)
 	})
 
 	// /.well-known/acme-challenge/:token - Let's Encrypt HTTP-01 challenge (TEMPLATE.md Part 8)
@@ -1984,7 +2132,7 @@ func main() {
 	}
 
 	// Admin setup token verification route (public - before auth check)
-	// AI.md: Step 2: User navigates to /server/admin → Step 3: User enters setup token
+	// AI.md: Step 2: User navigates to /server/administration → Step 3: User enters setup token
 	r.Post("/server/"+cfg.GetAdminPath()+"/verify-token", setupHandler.VerifySetupTokenAtAdmin)
 
 	// Admin passkey login page (public — shown during the post-password / pre-passkey
@@ -2037,8 +2185,9 @@ func main() {
 				adminSessionID = cookie.Value
 			}
 			if adminSessionID != "" {
-				if _, err := database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, "DELETE FROM server_admin_sessions WHERE id = ?", adminSessionID); err != nil {
-					log.Printf("WARNING: admin-logout: failed to delete admin session %s: %v", adminSessionID, err)
+				sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+				if err := sessionModel.DeleteSession(adminSessionID); err != nil {
+					log.Printf("WARNING: admin-logout: failed to delete admin session: %v", err)
 				}
 			}
 			// Clear admin_session cookie
@@ -2064,6 +2213,8 @@ func main() {
 		adminRoutes.Get("/config/search", handler.AdminSearchPage)
 
 		adminRoutes.Get("/config/settings", adminHandler.ShowSettingsPage)
+		adminRoutes.Post("/config/settings/cache", handler.UpdateCacheConfig)
+		adminRoutes.Post("/config/settings/rate-limit", handler.UpdateRateLimitConfig)
 
 		adminRoutes.Get("/config/web", adminWebHandler.ShowWebSettings)
 
@@ -2526,13 +2677,8 @@ func main() {
 		})
 
 		// /{admin_path}/config/updates - Software updates
-		adminRoutes.Get("/config/updates", func(w http.ResponseWriter, r *http.Request) {
-			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_updates.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
-				"title":   "Updates - Admin",
-				"page":    "server-updates",
-				"version": handler.Version,
-			}))
-		})
+		adminRoutes.Get("/config/updates", handler.ShowUpdateSettings)
+		adminRoutes.Post("/config/updates", handler.UpdateSettings)
 
 		// /{admin_path}/config/cluster/nodes - Cluster node management
 		adminRoutes.Get("/config/cluster/nodes", func(w http.ResponseWriter, r *http.Request) {
@@ -2573,6 +2719,7 @@ func main() {
 	// User security settings page (per AI.md PART 14: /users/ is plural)
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security", twoFAHandler.ShowSecurityPage)
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/passkeys", twoFAHandler.ShowSecurityPage)
+	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/password", twoFAHandler.ShowSecurityPage)
 
 	// User notification preferences page (per AI.md PART 14: /users/ is plural)
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/preferences", func(w http.ResponseWriter, r *http.Request) {
@@ -2592,6 +2739,25 @@ func main() {
 	// AI.md: API version prefix is configurable (default: "v1")
 	apiV1 := chi.NewRouter()
 	r.Mount(cfg.GetAPIPath(), apiV1)
+	mcpServer := mcp.NewServer(r, cfg, database.GetServerDB(), Version)
+	mcpAccess := middleware.OptionalAuth(db.DB)(mcpServer)
+	mcpEndpoint := http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		request = request.Clone(request.Context())
+		request.Header = request.Header.Clone()
+		request.Header.Del("Cookie")
+		mcpAccess.ServeHTTP(w, request)
+	})
+	apiV1.Handle("/server/mcp", mcpEndpoint)
+	mcpHelp := mcpHelpSource{server: mcpServer}
+	apiV1.Get("/server/help/mcp", handler.GetMCPHelpAPI(cfg, mcpHelp))
+	r.Get("/server/help/mcp", handler.ShowMCPHelpPage(cfg, mcpHelp))
+	r.Handle("/api/mcp", mcpEndpoint)
+	r.Handle("/mcp", mcpEndpoint)
+	themePrefsHandler := handler.NewPreferencesHandler(db.DB)
+	apiV1.Get("/server/preferences", themePrefsHandler.ExportCurrentPreferences)
+	apiV1.Post("/server/preferences", themePrefsHandler.SavePreferences)
+	apiV1.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
+	apiV1.Get("/server/preferences/import", themePrefsHandler.ImportPreferences)
 
 	// Weather API routes (optional auth + API rate limiting)
 	weatherAPI := chi.NewRouter()
@@ -2676,6 +2842,10 @@ func main() {
 	apiV1.Get("/server/help", handler.GetHelpAPI(db, cfg))
 	apiV1.Get("/server/terms", handler.GetTermsAPI(db, cfg))
 	apiV1.Post("/server/contact", handler.HandleContactFormSubmission(db, cfg))
+	apiV1.Get("/server/dpo", handler.GetDPOAPI(cfg))
+	apiV1.Get("/server/security", handler.GetSecurityAPI(cfg))
+	apiV1.Get("/server/security/policy", handler.GetSecurityPolicyAPI())
+	apiV1.Get("/server/security/thanks", handler.GetSecurityThanksAPI())
 
 	// Auth API routes per AI.md PART 33
 	authAPI := chi.NewRouter()
@@ -3113,6 +3283,8 @@ func main() {
 
 		// Admin settings sub-endpoints
 		adminAPI.Post("/config/users/settings", adminUsersHandler.UpdateUserSettings)
+		adminAPI.Put("/config/settings/cache", handler.UpdateCacheConfig)
+		adminAPI.Put("/config/settings/rate-limit", handler.UpdateRateLimitConfig)
 		adminAPI.Post("/config/security/auth", adminAuthHandler.UpdateAuthSettings)
 		adminAPI.Post("/config/weather", adminWeatherHandler.UpdateWeatherSettings)
 		adminAPI.Post("/config/notifications", adminNotificationsHandler.UpdateNotificationSettings)
@@ -3230,9 +3402,11 @@ func main() {
 		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
 		adminAPI.Get("/config/web", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			mcpDefault := cfg.Server.MCP.Enabled
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"robots_txt":   settingsModel.GetBool("web.robots_enabled", true),
 				"security_txt": settingsModel.GetBool("web.security_enabled", true),
+				"mcp_enabled":  settingsModel.GetBool("server.mcp.enabled", mcpDefault),
 			})
 		})
 		adminAPI.Patch("/config/web", func(w http.ResponseWriter, r *http.Request) {
@@ -3242,6 +3416,28 @@ func main() {
 				return
 			}
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
+			if value, exists := settings["mcp_enabled"]; exists {
+				var enabled bool
+				switch typed := value.(type) {
+				case bool:
+					enabled = typed
+				case string:
+					parsed, err := config.ParseBool(typed, false)
+					if err != nil {
+						handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", "mcp_enabled must be a boolean")
+						return
+					}
+					enabled = parsed
+				default:
+					handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", "mcp_enabled must be a boolean")
+					return
+				}
+				if err := settingsModel.SetBool("server.mcp.enabled", enabled); err != nil {
+					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to update MCP setting")
+					return
+				}
+				delete(settings, "mcp_enabled")
+			}
 			for key, value := range settings {
 				if err := settingsModel.SetSetting("web."+key, fmt.Sprintf("%v", value), "string"); err != nil {
 					handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.core.failed_to_update_setting"), map[string]interface{}{"setting": key})
@@ -3999,6 +4195,34 @@ func main() {
 	// /api/autodiscover - Client/Agent auto-configuration endpoint
 	// AI.md PART 33/34: Non-versioned endpoint for CLI/agent self-configuration
 	// SECURITY: NEVER include admin_path, secrets, or internal IPs
+	r.Get("/cli/binaries/{binary}", func(w http.ResponseWriter, r *http.Request) {
+		serve := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			name := chi.URLParam(r, "binary")
+			if !validCLIBinaryName(name, "wthr") {
+				http.NotFound(w, r)
+				return
+			}
+			binaryPath, err := middleware.SafeFilePath(filepath.Join(dirPaths.Data, "cli", "binaries"), name)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			info, err := os.Stat(binaryPath)
+			if err != nil || !info.Mode().IsRegular() {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+			http.ServeFile(w, r, binaryPath)
+		})
+		if cfg.CLI.BinaryDownload.RequireAuth {
+			middleware.TokenAuthMiddleware(database.GetServerDB(), database.GetUsersDB())(serve).ServeHTTP(w, r)
+			return
+		}
+		serve.ServeHTTP(w, r)
+	})
+
 	r.Get("/api/autodiscover", func(w http.ResponseWriter, r *http.Request) {
 		// Build public URL from the proto/host this request actually used, so
 		// the advertised cluster node is one the caller can reach (AI.md
@@ -4011,13 +4235,22 @@ func main() {
 		// Cache for 1 hour per AI.md
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 
+		cliVersions := discoverCLIVersions(filepath.Join(dirPaths.Data, "cli", "binaries"), "wthr", Version, cfg.Server.Update.CLIVersions)
+		agentVersions := cfg.Server.Update.AgentVersions
+		if agentVersions == nil {
+			agentVersions = map[string]config.UpdateVersion{}
+		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"primary":     publicURL,
-			"cluster":     clusterNodes,
-			"api_version": cfg.GetAPIVersion(),
-			"timeout":     30,
-			"retry":       3,
-			"retry_delay": 1,
+			"primary":           publicURL,
+			"cluster":           clusterNodes,
+			"api_version":       cfg.GetAPIVersion(),
+			"cli_versions":      cliVersions,
+			"agent_versions":    agentVersions,
+			"cli_min_version":   cfg.Server.Update.CLIMinVersion,
+			"agent_min_version": cfg.Server.Update.AgentMinVersion,
+			"timeout":           30,
+			"retry":             3,
+			"retry_delay":       1,
 			"config": map[string]interface{}{
 				"database": map[string]interface{}{
 					"drivers": []string{"file", "sqlite", "libsql", "postgres", "mysql", "mssql", "mongodb"},
@@ -4061,10 +4294,11 @@ func main() {
 		http.Redirect(w, r, "/openapi/index.html", http.StatusMovedPermanently)
 	})
 	// Swagger UI + JSON spec (auto-generated)
+	r.Get("/openapi/doc.json", mcpServer.OpenAPI)
 	r.Get("/openapi/*", handler.GetSwaggerUIAuto())
-	r.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/openapi/doc.json", http.StatusMovedPermanently)
-	})
+	r.Get("/openapi.json", mcpServer.OpenAPI)
+	r.Get("/.well-known/llms.txt", mcpServer.LLMS)
+	r.Get("/llms.txt", mcpServer.LLMS)
 
 	// GraphQL API (AI.md PART 14)
 	graphqlResolver := appgraphql.NewResolver(
@@ -4112,11 +4346,20 @@ func main() {
 	r.Get("/server/contact", handler.ShowContactPage(db, cfg))
 	r.Get("/server/help", handler.ShowHelpPage(db, cfg))
 	r.Get("/server/terms", handler.ShowTermsPage(db, cfg))
+	r.Post("/server/contact", handler.HandleContactFormWeb(db, cfg))
+	r.Get("/server/dpo", handler.ShowDPOPage(cfg))
+	r.Get("/server/security", handler.ShowSecurityPage(cfg))
+	r.Get("/server/security/policy", handler.ShowSecurityPolicyPage(cfg))
+	r.Get("/server/security/thanks", handler.ShowSecurityThanksPage(cfg))
+	r.Get("/server/tracking.js", handler.ServeTrackingScript)
 
 	// Preferences (AI.md PART 16): theme + language, works with JS disabled
-	themePrefsHandler := handler.NewPreferencesHandler(db.DB)
 	r.With(middleware.OptionalAuth(db.DB)).Get("/server/preferences", themePrefsHandler.ShowPreferences)
 	r.With(middleware.OptionalAuth(db.DB)).Post("/server/preferences", themePrefsHandler.SavePreferences)
+	r.Get("/server/preferences/export", themePrefsHandler.ExportPreferences)
+	r.Get("/server/preferences/import", themePrefsHandler.ImportPreferences)
+	r.Post("/server/consent", themePrefsHandler.SaveConsent)
+	r.Post("/server/ccpa", themePrefsHandler.SaveCCPA)
 
 	// Examples endpoint
 	// AI.md PART 14: content negotiation, never hardcode v1 - use cfg.GetAPIPath()
@@ -4280,7 +4523,7 @@ func main() {
 	}
 
 	// The setup wizard lives at {adminBasePath}/config/setup, so the banner needs the configured admin path
-	adminBasePath := "/server/admin"
+	adminBasePath := "/server/administration"
 	if cfg != nil {
 		adminBasePath = "/server/" + cfg.GetAdminPath()
 	}
@@ -4689,4 +4932,20 @@ func loadAdminPreferencesRow(db *sql.DB, adminID int64) (*model.AdminPreferences
 	}
 
 	return prefs, nil
+}
+
+// mcpHelpSource adapts the MCP server to the help page handler.
+type mcpHelpSource struct{ server *mcp.Server }
+
+// Enabled reports whether MCP is switched on.
+func (m mcpHelpSource) Enabled() bool { return m.server != nil && m.server.Enabled() }
+
+// PublicToolList lists the tools an anonymous caller may use.
+func (m mcpHelpSource) PublicToolList() []handler.MCPToolInfo {
+	tools := m.server.PublicTools()
+	out := make([]handler.MCPToolInfo, 0, len(tools))
+	for _, t := range tools {
+		out = append(out, handler.MCPToolInfo{Name: t.Name, Description: t.Description})
+	}
+	return out
 }

@@ -62,8 +62,17 @@ func TestDefaultI18nConfig(t *testing.T) {
 	if got.DefaultLanguage != "en" {
 		t.Errorf("default_language = %q, want en", got.DefaultLanguage)
 	}
-	if len(got.Supported) == 0 || got.Supported[0] != "en" {
-		t.Errorf("supported = %v, want en included", got.Supported)
+	if len(got.AvailableLanguages) != len(EmbeddedLanguages) || got.AvailableLanguages[0] != "en" {
+		t.Errorf("available_languages = %v, want every embedded language", got.AvailableLanguages)
+	}
+	for _, req := range RequiredLanguages {
+		found := false
+		for _, l := range got.AvailableLanguages {
+			found = found || l == req
+		}
+		if !found {
+			t.Errorf("required language %q missing from defaults", req)
+		}
 	}
 }
 
@@ -188,9 +197,6 @@ func TestDefaultPrivacyConfig(t *testing.T) {
 	if got.Data.Sold {
 		t.Error("privacy.data.sold must default to false")
 	}
-	if !got.Consent.DefaultEnabled {
-		t.Error("privacy.consent.default_enabled must default to true")
-	}
 	if len(got.Data.Sharing) == 0 {
 		t.Error("privacy.data.sharing must document the disclosure rows")
 	}
@@ -208,6 +214,40 @@ func TestTrackingTypesRequiringURL(t *testing.T) {
 	for _, kind := range []string{"google", "plausible", "fathom", "simple", "cloudflare"} {
 		if trackingTypesRequiringURL[kind] {
 			t.Errorf("%s must not require tracking.url", kind)
+		}
+	}
+}
+
+func TestResolveDPOEmail(t *testing.T) {
+	c := ContactConfig{Admin: ContactRoleConfig{Email: "admin@x"}, General: ContactRoleConfig{Email: "gen@x"}}
+	if got := c.ResolveDPOEmail(); got != "gen@x" {
+		t.Errorf("fallback to general = %q", got)
+	}
+	c.DPO.Email = " dpo@x "
+	if got := c.ResolveDPOEmail(); got != "dpo@x" {
+		t.Errorf("dpo email = %q", got)
+	}
+	c = ContactConfig{Admin: ContactRoleConfig{Email: "admin@x"}}
+	if got := c.ResolveDPOEmail(); got != "" {
+		t.Errorf("admin address must never be shown, got %q", got)
+	}
+}
+
+func TestEffectiveCaptcha(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     PagesContactConfig
+		overlay bool
+		want    string
+	}{
+		{"default", PagesContactConfig{}, false, CaptchaSimple},
+		{"recaptcha with keys", PagesContactConfig{Captcha: CaptchaReCaptcha, CaptchaSiteKey: "s", CaptchaSecretKey: "k"}, false, CaptchaReCaptcha},
+		{"recaptcha without keys", PagesContactConfig{Captcha: CaptchaReCaptcha}, false, CaptchaSimple},
+		{"hcaptcha on overlay", PagesContactConfig{Captcha: CaptchaHCaptcha, CaptchaSiteKey: "s", CaptchaSecretKey: "k"}, true, CaptchaSimple},
+	}
+	for _, c := range cases {
+		if got := c.cfg.EffectiveCaptcha(c.overlay); got != c.want {
+			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
 	}
 }

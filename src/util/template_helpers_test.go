@@ -94,6 +94,16 @@ func TestTemplateData_Defaults(t *testing.T) {
 	}
 }
 
+func TestTemplateDataGPCOptOutFlag(t *testing.T) {
+	setSafeConfigDir(t)
+	r := newTemplateDataRequest()
+	r.Header.Set("Sec-GPC", "1")
+	got := TemplateData(r, map[string]interface{}{})
+	if enabled, _ := got["gpc_opt_out"].(bool); !enabled {
+		t.Fatal("gpc_opt_out = false for Sec-GPC: 1 request")
+	}
+}
+
 // TestTemplateData_ContextOverrides verifies server/user/csrf_token/lang
 // values already present on the request context are used instead of defaults.
 func TestTemplateData_ContextOverrides(t *testing.T) {

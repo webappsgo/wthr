@@ -21,6 +21,8 @@ var OfficialSite = "https://wthr.top"
 // Execute is the main entry point for the CLI
 // Per AI.md PART 33: Automatic mode detection, NEVER implement --tui flag
 func Execute() error {
+	updateReexec := os.Getenv("WTHR_CLI_UPDATE_REEXEC") == "1"
+	_ = os.Unsetenv("WTHR_CLI_UPDATE_REEXEC")
 	// Get actual binary name for display
 	// Per AI.md PART 33 line 9551: Display uses filepath.Base(os.Args[0])
 	binaryName := filepath.Base(os.Args[0])
@@ -78,9 +80,11 @@ func Execute() error {
 	outputFlag := flagSet.String("output", "", "Output format: json, table, plain, yaml, csv")
 	debugFlag := flagSet.Bool("debug", false, "Enable debug mode")
 	colorFlag := flagSet.String("color", "auto", "Color output: auto, yes, no")
+	updateFlag := flagSet.String("update", "", "Check or install CLI updates: check, yes")
+	langFlag := flagSet.String("lang", "", "Language for output: auto, en, es, zh, fr, ar, de, ja")
 
 	// Parse flags - supports both --flag=value and --flag value per line 45527-45540
-	if err := flagSet.Parse(os.Args[1:]); err != nil {
+	if err := flagSet.Parse(normalizeClientUpdateArgs(os.Args[1:])); err != nil {
 		return NewUsageError(err.Error())
 	}
 
@@ -105,11 +109,63 @@ func Execute() error {
 	if *serverFlag != "" {
 		config.Server.Primary = *serverFlag
 	}
+	if *langFlag != "" {
+		config.Language = *langFlag
+	}
+	setCLIUpdateLanguage(config.Language)
 
 	// Apply server resolution priority per AI.md PART 33 line 45376-45395
 	// 1. --server flag > 2. config server.primary > 3. OfficialSite
 	if config.Server.Primary == "" {
 		config.Server.Primary = OfficialSite
+	}
+	if *updateFlag != "" {
+		if *updateFlag != "check" && *updateFlag != "yes" {
+			return NewUsageError("--update must be check or yes")
+		}
+	}
+	if !updateReexec {
+		updateInfo, updateErr := discoverCLIUpdate(config, *configFlag)
+		if updateErr != nil && *updateFlag != "" {
+			return updateErr
+		}
+		if updateErr == nil {
+			if *updateFlag == "check" {
+				if updateInfo.Available != "" {
+					fmt.Println(cliUpdateText("cli.update.client_available", map[string]string{"version": updateInfo.Available, "current": Version}))
+				} else {
+					fmt.Println(cliUpdateText("cli.update.client_current", map[string]string{"version": Version}))
+				}
+				return nil
+			}
+			if *updateFlag == "yes" {
+				if err := validateCLIUpdateMode(config.Update.Auto, isInteractive()); err != nil {
+					return err
+				}
+				if updateInfo.Available == "" {
+					if updateInfo.MinimumRequired {
+						return NewAPIError(cliUpdateText("cli.update.client_minimum_unavailable", map[string]string{"minimum": updateInfo.Minimum}))
+					}
+					fmt.Println(cliUpdateText("cli.update.client_current", map[string]string{"version": Version}))
+					return nil
+				}
+				if updateInfo.MinimumRequired && versionLessThan(updateInfo.Available, updateInfo.Minimum) {
+					return NewAPIError(cliUpdateText("cli.update.client_available_below_minimum", map[string]string{"version": updateInfo.Available, "minimum": updateInfo.Minimum}))
+				}
+				return installCLIUpdate(config, updateInfo)
+			}
+			if updateInfo.MinimumRequired {
+				if updateInfo.Available == "" || versionLessThan(updateInfo.Available, updateInfo.Minimum) {
+					return NewAPIError(cliUpdateText("cli.update.client_minimum_unavailable", map[string]string{"minimum": updateInfo.Minimum}))
+				}
+				return NewAPIError(cliUpdateText("cli.update.client_too_old", map[string]string{"minimum": updateInfo.Minimum, "binary": binaryName}))
+			}
+			if updateInfo.Available != "" && isInteractive() {
+				if confirmCLIUpdate(updateInfo.Available) {
+					return installCLIUpdate(config, updateInfo)
+				}
+			}
+		}
 	}
 
 	if *userFlag != "" {
@@ -171,6 +227,18 @@ func Execute() error {
 	}
 }
 
+func normalizeClientUpdateArgs(args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for index, argument := range args {
+		if argument == "--update" && (index+1 == len(args) || args[index+1] != "check" && args[index+1] != "yes") {
+			normalized = append(normalized, "--update=yes")
+			continue
+		}
+		normalized = append(normalized, argument)
+	}
+	return normalized
+}
+
 // detectMode determines if we should use TUI or CLI mode
 // Per AI.md PART 33: Mode is auto-detected, NEVER implement --tui flag
 func detectMode(args []string) string {
@@ -184,6 +252,8 @@ func detectMode(args []string) string {
 	configFlags := map[string]bool{
 		"--config": true, "--server": true, "--token": true, "--debug": true,
 		"--token-file": true, "--user": true, "--color": true, "--output": true,
+		"--update": true,
+		"--lang":   true,
 	}
 
 	// Check if any non-config args provided
@@ -275,6 +345,8 @@ func printUsage(binaryName string) {
 	fmt.Println("  --output FORMAT       Output format: json, table, plain, yaml, csv")
 	fmt.Println("  --debug               Enable debug mode")
 	fmt.Println("  --color MODE          Color output: auto, yes, no (default: auto)")
+	fmt.Println("  --update MODE         Check for updates or install one (check, yes)")
+	fmt.Println("  --lang CODE           Language for output (default: auto)")
 	fmt.Println("  --shell completions   Print shell completions")
 	fmt.Println("  --shell init          Print shell init command")
 	fmt.Println("  -v, --version         Show version information")

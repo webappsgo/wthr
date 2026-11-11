@@ -3,12 +3,18 @@ package middleware
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/server/service"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // ServerContext holds server-wide configuration per AI.md PART 16
@@ -36,6 +42,39 @@ type ServerContext struct {
 	VerifyBaidu     string
 	VerifyPinterest string
 	VerifyFacebook  string
+	// Analytics tags for <head> and the <noscript> pixel for <body>; both empty
+	// unless tracking is configured, consent is given and the request is clearnet
+	TrackingHTML     template.HTML
+	TrackingNoscript template.HTML
+}
+
+// analyticsConsentGiven reports whether the visitor opted in to analytics. Tracking is
+// strictly opt-in: no cookie, a malformed cookie or a GPC signal all mean no.
+func analyticsConsentGiven(r *http.Request) bool {
+	if GPCOptOut(r) {
+		return false
+	}
+	cookie, err := r.Cookie("cookie_consent")
+	if err != nil {
+		return false
+	}
+	value, err := url.QueryUnescape(cookie.Value)
+	if err != nil {
+		return false
+	}
+	var state struct {
+		Analytics bool `json:"analytics"`
+	}
+	if json.Unmarshal([]byte(value), &state) != nil {
+		return false
+	}
+	return state.Analytics
+}
+
+// TrackingAllowed reports whether analytics may run for this request: consent is given and the
+// request is not served through an onion or I2P address (AI.md PART 12 "Tracking and CSP").
+func TrackingAllowed(r *http.Request) bool {
+	return util.OverlayHostFromRequest(r) == "" && analyticsConsentGiven(r)
 }
 
 // resolveThemeFromRequest mirrors server.ResolveTheme's Theme Detection Flow
@@ -108,6 +147,11 @@ func InjectServerContext(db *sql.DB, version string) func(http.Handler) http.Han
 				VerifyBaidu:     verifyBaidu,
 				VerifyPinterest: verifyPinterest,
 				VerifyFacebook:  verifyFacebook,
+			}
+
+			if cfg := config.GetGlobalConfig(); cfg != nil && TrackingAllowed(r) {
+				serverCtx.TrackingHTML = service.TrackingScript(cfg.Server.Tracking)
+				serverCtx.TrackingNoscript = service.TrackingNoscript(cfg.Server.Tracking)
 			}
 
 			// Add to request context for handlers to use

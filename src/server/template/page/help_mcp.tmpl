@@ -1,0 +1,80 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <p><a href="{{path "/server/help"}}">{{t .server.Lang "help_mcp.back"}}</a></p>
+    <h1 class="text-purple">{{t .server.Lang "help_mcp.title"}}</h1>
+
+    <section id="overview" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.overview.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.overview.text"}}</p>
+    </section>
+
+    <section id="endpoint" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.endpoint.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.endpoint.text"}}</p>
+        <p><code class="select-all break-all">{{.MCP.url}}</code></p>
+        <ul>
+            {{range .MCP.aliases}}<li><code class="select-all break-all">{{.}}</code></li>{{end}}
+        </ul>
+    </section>
+
+    <section id="authentication" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.auth.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.auth.text"}}</p>
+    </section>
+
+    <section id="connect" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.connect.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.connect.token_note"}}</p>
+        <h3>{{t .server.Lang "help_mcp.connect.claude"}}</h3>
+        <pre class="select-all"><code>claude mcp add --transport http {{.MCP_name}} {{.MCP.url}} --header "Authorization: Bearer $MCP_TOKEN"</code></pre>
+        <h3>{{t .server.Lang "help_mcp.connect.json"}}</h3>
+        <pre class="select-all"><code>{"mcpServers": {"{{.MCP_name}}": {"type": "http", "url": "{{.MCP.url}}", "headers": {"Authorization": "Bearer $MCP_TOKEN"}}}}</code></pre>
+        <h3>{{t .server.Lang "help_mcp.connect.curl"}}</h3>
+        <pre class="select-all"><code>curl -q -LSsf -X POST {{.MCP.url}} -H "Authorization: Bearer $MCP_TOKEN" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'</code></pre>
+    </section>
+
+    <section id="tools" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.tools.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.tools.text"}}</p>
+        {{if .MCP.tools}}
+        <ul>
+            {{range .MCP.tools}}<li><code>{{.Name}}</code> - {{.Description}}</li>{{end}}
+        </ul>
+        {{else}}
+        <p>{{t .server.Lang "help_mcp.tools.empty"}}</p>
+        {{end}}
+    </section>
+
+    <section id="limits" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.limits.heading"}}</h2>
+        <p>{{t .server.Lang "help_mcp.limits.text"}}</p>
+    </section>
+
+    <section id="troubleshooting" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.trouble.heading"}}</h2>
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th scope="col">{{t .server.Lang "help_mcp.trouble.status"}}</th><th scope="col">{{t .server.Lang "help_mcp.trouble.fix"}}</th></tr></thead>
+                <tbody>
+                    <tr><td>400</td><td>{{t .server.Lang "help_mcp.trouble.400"}}</td></tr>
+                    <tr><td>401</td><td>{{t .server.Lang "help_mcp.trouble.401"}}</td></tr>
+                    <tr><td>403</td><td>{{t .server.Lang "help_mcp.trouble.403"}}</td></tr>
+                    <tr><td>404</td><td>{{t .server.Lang "help_mcp.trouble.404"}}</td></tr>
+                    <tr><td>405</td><td>{{t .server.Lang "help_mcp.trouble.405"}}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {{if .Project}}
+    <section id="project" class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "help_mcp.project.heading"}}</h2>
+        <div class="pre-wrap">{{.Project}}</div>
+    </section>
+    {{end}}
+</main>
+
+{{template "footer" .}}

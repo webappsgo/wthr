@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +10,9 @@ import (
 
 // SaveLocationCookies saves user location to persistent cookies
 func SaveLocationCookies(w http.ResponseWriter, r *http.Request, latitude, longitude float64, locationName string) {
+	if GPCOptOut(r) || !validCoordinates(latitude, longitude) {
+		return
+	}
 	// Cookie settings: 30 days expiration, accessible to all paths
 	// 30 days in seconds
 	maxAge := 30 * 24 * 60 * 60
@@ -35,11 +39,16 @@ func GetLocationFromCookies(r *http.Request) (latitude, longitude float64, locat
 	}
 
 	lon, err := strconv.ParseFloat(lonCookie.Value, 64)
-	if err != nil {
+	if err != nil || !validCoordinates(lat, lon) {
 		return 0, 0, "", false
 	}
 
 	return lat, lon, nameCookie.Value, true
+}
+
+func validCoordinates(latitude, longitude float64) bool {
+	return !math.IsNaN(latitude) && !math.IsInf(latitude, 0) && latitude >= -90 && latitude <= 90 &&
+		!math.IsNaN(longitude) && !math.IsInf(longitude, 0) && longitude >= -180 && longitude <= 180
 }
 
 // ClearLocationCookies removes location cookies

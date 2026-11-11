@@ -2,7 +2,7 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-{{- $ap := "/server/admin" -}}
+{{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
 {{- $current := .current_format -}}
   <div class="admin-header">

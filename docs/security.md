@@ -10,8 +10,8 @@ the `server.db` database; the authenticator private key never leaves the device.
 
 | Flow | Description |
 |------|-------------|
-| **Register** | Navigate to `/server/admin` → complete passkey ceremony → passkey bound to your device |
-| **Login** | Navigate to `/server/admin` → browser prompts for passkey → session created (30-day cookie) |
+| **Register** | Navigate to `/server/administration` → complete passkey ceremony → passkey bound to your device |
+| **Login** | Navigate to `/server/administration` → browser prompts for passkey → session created (30-day cookie) |
 | **Revoke** | Admin panel → Administrators → Manage Passkeys → remove a passkey |
 
 ### User Authentication

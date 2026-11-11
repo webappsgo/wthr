@@ -15,6 +15,9 @@ import (
 )
 
 // WeatherConfig represents weather-specific configuration per AI.md PART 37
+// DefaultAdminPath is the documented default {admin_path} segment (AI.md PART 17).
+const DefaultAdminPath = "administration"
+
 type WeatherConfig struct {
 	// Number of days for forecast
 	ForecastDays int `yaml:"forecast_days"`
@@ -53,10 +56,13 @@ type AppConfig struct {
 	Users UsersConfig `yaml:"users"`
 	// Weather-specific settings per AI.md PART 37
 	Weather WeatherConfig `yaml:"weather"`
+	CLI     CLIConfig     `yaml:"cli"`
 }
 
 // ServerConfig represents server-specific configuration per AI.md PART 4
 type ServerConfig struct {
+	MCP    MCPConfig    `yaml:"mcp"`
+	Update UpdateConfig `yaml:"update"`
 	// Port: random 64xxx on first run, then persisted
 	// int or string (for dual port "8090,8443")
 	Port interface{} `yaml:"port"`
@@ -65,7 +71,7 @@ type ServerConfig struct {
 	Address string `yaml:"address"`
 	// production or development
 	Mode string `yaml:"mode"`
-	// AI.md: Admin panel URL path (configurable, default: "admin")
+	// AI.md PART 17: Admin panel URL path (configurable, default: "administration")
 	AdminPath string `yaml:"admin_path"`
 	// AI.md: API version prefix (default: "v1")
 	APIVersion string `yaml:"api_version"`
@@ -110,12 +116,41 @@ type ServerConfig struct {
 	Contact ContactConfig `yaml:"contact"`
 	// AI.md PART 12: analytics platform settings
 	Tracking TrackingConfig `yaml:"tracking"`
+	// AI.md PART 16: editable page content and contact-form captcha settings
+	Pages PagesConfig `yaml:"pages"`
 	// AI.md PART 12: privacy disclosure and consent banner settings
 	Privacy PrivacyConfig `yaml:"privacy"`
 	// AI.md PART 12: cache backend settings
 	Cache CacheConfig `yaml:"cache"`
 	// AI.md PART 21: Prometheus metrics exposition settings
 	Metrics MetricsConfig `yaml:"metrics"`
+}
+
+type MCPConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type UpdateConfig struct {
+	Branch          string                   `yaml:"branch"`
+	AutoInstall     bool                     `yaml:"auto_install"`
+	DeferDays       int                      `yaml:"defer_days"`
+	CLIMinVersion   string                   `yaml:"cli_min_version"`
+	AgentMinVersion string                   `yaml:"agent_min_version"`
+	CLIVersions     map[string]UpdateVersion `yaml:"cli_versions"`
+	AgentVersions   map[string]UpdateVersion `yaml:"agent_versions"`
+}
+
+type UpdateVersion struct {
+	Version string `yaml:"version" json:"version"`
+	SHA256  string `yaml:"sha256" json:"sha256"`
+}
+
+type CLIConfig struct {
+	BinaryDownload CLIBinaryDownloadConfig `yaml:"binary_download"`
+}
+
+type CLIBinaryDownloadConfig struct {
+	RequireAuth bool `yaml:"require_auth"`
 }
 
 // MetricsConfig represents the Prometheus exposition settings per AI.md PART 21.
@@ -377,7 +412,8 @@ type NotificationConfig struct {
 // WebConfig represents web-specific configuration per AI.md PART 4
 // WebConfig represents web interface configuration
 type WebConfig struct {
-	UI UIConfig `yaml:"ui"`
+	UI   UIConfig   `yaml:"ui"`
+	LLMS LLMSConfig `yaml:"llms"`
 	// CORS setting, e.g., "*"
 	CORS string `yaml:"cors"`
 	// Custom robots.txt content
@@ -386,90 +422,13 @@ type WebConfig struct {
 	SecurityTxt string `yaml:"security_txt"`
 	// Custom favicon URL (empty = use embedded default)
 	FaviconURL string `yaml:"favicon_url"`
-	// Generated robots.txt policy (AI crawler access control)
-	Robots RobotsConfig `yaml:"robots"`
 }
 
-// RobotsConfig represents the generated robots.txt policy per AI.md PART 14
-type RobotsConfig struct {
-	// Per-AI-crawler access control
-	AIBots AIBotsConfig `yaml:"ai_bots"`
-}
-
-// AIBotsConfig controls which AI crawlers may index the site per AI.md PART 14
-type AIBotsConfig struct {
-	// Applies to any recognized AI bot not listed individually in Bots: allow | deny
-	Default string `yaml:"default"`
-	// Per-bot overrides: allow | deny
-	Bots map[string]string `yaml:"bots"`
-}
-
-// RecognizedAIBots is the canonical AI crawler list from AI.md PART 14, in spec order
-var RecognizedAIBots = []string{
-	"GPTBot",
-	"ChatGPT-User",
-	"ClaudeBot",
-	"anthropic-ai",
-	"Claude-Web",
-	"CCBot",
-	"Google-Extended",
-	"Bytespider",
-	"PerplexityBot",
-	"Applebot-Extended",
-	"Amazonbot",
-	"Diffbot",
-	"FacebookBot",
-	"cohere-ai",
-}
-
-// DeniedAIBots returns the recognized AI crawlers that must render their own
-// "Disallow: /" stanza in robots.txt, in the canonical spec order.
-// AI.md PART 14: default posture is allow; an explicit per-bot value always
-// wins over ai_bots.default, and unknown values fall back to the default.
-func (c AIBotsConfig) DeniedAIBots() []string {
-	denyByDefault := strings.EqualFold(strings.TrimSpace(c.Default), "deny")
-
-	denied := make([]string, 0, len(RecognizedAIBots))
-	for _, bot := range RecognizedAIBots {
-		deny := denyByDefault
-		for name, value := range c.Bots {
-			if !strings.EqualFold(strings.TrimSpace(name), bot) {
-				continue
-			}
-			switch strings.ToLower(strings.TrimSpace(value)) {
-			case "deny":
-				deny = true
-			case "allow":
-				deny = false
-			}
-			break
-		}
-		if deny {
-			denied = append(denied, bot)
-		}
-	}
-	return denied
-}
-
-// AIBotStanzas renders the robots.txt stanzas for every denied AI crawler.
-// Returns an empty string when no bot is denied, so an all-allow policy adds
-// nothing to the generated file.
-func (c AIBotsConfig) AIBotStanzas() string {
-	denied := c.DeniedAIBots()
-	if len(denied) == 0 {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString("# AI crawlers denied by server policy\n")
-	for i, bot := range denied {
-		if i > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString("User-agent: " + bot + "\n")
-		b.WriteString("Disallow: /\n")
-	}
-	return b.String()
+type LLMSConfig struct {
+	Enabled          bool     `yaml:"enabled"`
+	IncludeEndpoints bool     `yaml:"include_endpoints"`
+	IncludeSchemas   bool     `yaml:"include_schemas"`
+	CustomSections   []string `yaml:"custom_sections"`
 }
 
 // UIConfig represents UI configuration per AI.md PART 4
@@ -691,10 +650,10 @@ func DefaultEmailAddress(localPart string, cfg *AppConfig) string {
 }
 
 // GetAdminPath returns the admin panel URL path with default fallback
-// AI.md: {admin_path} is configurable, default: "admin"
+// AI.md PART 17: {admin_path} is configurable, default: "administration"
 func (c *AppConfig) GetAdminPath() string {
 	if c == nil || c.Server.AdminPath == "" {
-		return "admin"
+		return DefaultAdminPath
 	}
 	return c.Server.AdminPath
 }
@@ -714,7 +673,7 @@ func (c *AppConfig) GetAPIPath() string {
 	return "/api/" + c.GetAPIVersion()
 }
 
-// GetAdminAPIPath returns the full admin API path prefix (e.g., "/api/v1/server/admin")
+// GetAdminAPIPath returns the full admin API path prefix (e.g., "/api/v1/server/administration")
 // AI.md: Admin API routes use /api/{api_version}/server/{admin_path}/ format
 func (c *AppConfig) GetAdminAPIPath() string {
 	return c.GetAPIPath() + "/server/" + c.GetAdminPath()
@@ -795,14 +754,16 @@ func LoadConfig() (*AppConfig, error) {
 			LocationSearchEnabled: true,
 		},
 		Server: ServerConfig{
+			MCP:    MCPConfig{Enabled: true},
+			Update: UpdateConfig{Branch: "stable", CLIVersions: map[string]UpdateVersion{}, AgentVersions: map[string]UpdateVersion{}},
 			// Random 64xxx on first run
 			Port: randomPort(),
 			FQDN: hostname,
 			// All interfaces IPv4/IPv6
 			Address: "[::]",
 			Mode:    "production",
-			// AI.md: Admin panel URL path (configurable, default: "admin")
-			AdminPath: "admin",
+			// AI.md: Admin panel URL path (configurable, default: "administration")
+			AdminPath: DefaultAdminPath,
 			// AI.md: API version prefix (default: "v1")
 			APIVersion: "v1",
 			// AI.md PART 12: serve from root unless a reverse proxy says otherwise
@@ -902,6 +863,7 @@ func LoadConfig() (*AppConfig, error) {
 			Session:     DefaultSessionConfig(),
 			I18n:        DefaultI18nConfig(),
 			Contact:     DefaultContactConfig(hostname),
+			Pages:       DefaultPagesConfig(),
 			Privacy:     DefaultPrivacyConfig(),
 			Cache:       DefaultCacheConfig(),
 			Database: DatabaseConfig{
@@ -954,6 +916,7 @@ func LoadConfig() (*AppConfig, error) {
 			// generate-once-and-persist accordingly (see LoadConfig).
 		},
 		Web: WebConfig{
+			LLMS: LLMSConfig{Enabled: true, IncludeEndpoints: true},
 			UI: UIConfig{
 				Theme: "dark",
 			},
@@ -1034,7 +997,19 @@ func LoadConfig() (*AppConfig, error) {
 		}
 	}
 
+	applyEnvOverrides(cfg)
 	return cfg, nil
+}
+
+// applyEnvOverrides applies the runtime environment variables that beat server.yml
+// (AI.md PART 8: --i2p flag, then I2P_ENABLED, then server.i2p.enabled).
+func applyEnvOverrides(cfg *AppConfig) {
+	if v := strings.TrimSpace(os.Getenv("I2P_ENABLED")); v != "" {
+		if enabled, err := ParseBool(v, cfg.Server.I2P.Enabled); err == nil {
+			cfg.Server.I2P.Enabled = enabled
+			cfg.Server.Features.I2P = enabled
+		}
+	}
 }
 
 // getConfigPath returns the config file path based on user privileges per AI.md PART 4
@@ -1171,44 +1146,6 @@ func UpdateWebRobotsTxt(content string) error {
 	return SaveConfig(cfg)
 }
 
-// UpdateWebRobotsAIBots updates the AI crawler policy in server.yml.
-// Values other than "allow"/"deny" are rejected so an invalid admin submission
-// can never silently flip a bot's posture.
-func UpdateWebRobotsAIBots(defaultPolicy string, bots map[string]string) error {
-	cfg := GetGlobalConfig()
-	if cfg == nil {
-		return fmt.Errorf("global config not initialized")
-	}
-
-	normalized, err := normalizeAIBotPolicy(defaultPolicy)
-	if err != nil {
-		return fmt.Errorf("invalid ai_bots default: %w", err)
-	}
-
-	normalizedBots := make(map[string]string, len(bots))
-	for name, value := range bots {
-		canonical := ""
-		for _, bot := range RecognizedAIBots {
-			if strings.EqualFold(strings.TrimSpace(name), bot) {
-				canonical = bot
-				break
-			}
-		}
-		if canonical == "" {
-			return fmt.Errorf("unrecognized ai bot: %q", name)
-		}
-		policy, err := normalizeAIBotPolicy(value)
-		if err != nil {
-			return fmt.Errorf("invalid policy for %s: %w", canonical, err)
-		}
-		normalizedBots[canonical] = policy
-	}
-
-	cfg.Web.Robots.AIBots.Default = normalized
-	cfg.Web.Robots.AIBots.Bots = normalizedBots
-	return SaveConfig(cfg)
-}
-
 // UpdateI2PConfig validates and persists the I2P eepsite settings per AI.md PART 32.2.
 // It also mirrors the enabled flag into server.features.i2p so feature-list
 // surfaces can gate on a single value.
@@ -1276,18 +1213,6 @@ func UpdateMetricsConfig(next MetricsConfig) []ValidationError {
 	}
 
 	return nil
-}
-
-// normalizeAIBotPolicy validates and lowercases an AI crawler policy value
-func normalizeAIBotPolicy(value string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "allow":
-		return "allow", nil
-	case "deny":
-		return "deny", nil
-	default:
-		return "", fmt.Errorf("must be allow or deny, got %q", value)
-	}
 }
 
 // UpdateWebSecurityTxt updates the security.txt content in server.yml

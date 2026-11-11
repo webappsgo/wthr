@@ -35,11 +35,13 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 
     project_name:     wthr
     project_org:      webappsgo
+    # STABLE - set at first-time setup; change only on an explicit rename or fork reset
     internal_name:    wthr
+    # STABLE - set at first-time setup; change only on an explicit rename or fork reset
+    internal_org:     webappsgo
     app_name:         Weather
     official_site:    https://wthr.top
     project_repo:     https://github.com/webappsgo/wthr
-    admin_path:       admin
     maintainer_name:  webappsgo
     maintainer_email: casjay@yahoo.com
     module_path:      github.com/webappsgo/wthr
@@ -54,7 +56,7 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 - Earthquake data (USGS, real-time)
 - Hurricane/tropical storm tracking (NOAA NHC)
 - Moon phases (calculated locally, no external API)
-- Location detection (embedded GeoIP database)
+- Location detection (GeoIP databases downloaded on first run and updated by the scheduler)
 - Multi-format API (REST JSON, plain text, GraphQL)
 - Terminal/curl-friendly output with ASCII art
 - WebSocket real-time alert push
@@ -94,7 +96,7 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 | Manage admins | ❌ | ❌ | ✅ |
 | Manage regular users | ❌ | ❌ | ✅ |
 
-Rate limits: 20 req/min anonymous, 100 req/min authenticated, unlimited admin.
+Rate limits use the AI.md PART 11/12 defaults (reads 120/min, writes 10/min, health 120/min, global burst 240/min): per IP for anonymous callers and per token for authenticated callers. Every value is editable in the admin panel.
 
 ### Data model & sensitivity
 
@@ -192,7 +194,7 @@ type MoonPhase struct {
 | CONAGUA (Mexico) | Untrusted (external) | Same as NOAA |
 | USGS Earthquake API | Untrusted (external) | Return cached; if no cache, empty list |
 | NOAA NHC (Hurricanes) | Untrusted (external) | Return cached; if no cache, empty list |
-| sapics/ip-location-db | Trusted (embedded at build time, updated by scheduler) | Fall back to default location on lookup failure |
+| sapics/ip-location-db | Trusted (downloaded on first run, updated weekly by the scheduler, never embedded) | Fall back to default location on lookup failure |
 | Client IP address | Untrusted | Used only for GeoIP lookup; no other trust |
 | User-supplied location | Untrusted | Validate and sanitize before use |
 | Admin input (config) | Trusted (authenticated admin) | Validate schema; reject invalid values |
@@ -235,7 +237,7 @@ All external API responses are validated before use. Network calls have 30-secon
 | Session hijacking | 32-byte crypto/rand tokens, SHA-256 stored, HttpOnly Secure cookies |
 | Passkey bypass | WebAuthn ceremony enforced server-side, pending token expires in 5 min |
 | Account enumeration | Same message + timing for wrong-password vs no-such-user |
-| Scraping | Rate limiting: 20 req/min anonymous, 429 + Retry-After |
+| Scraping | Rate limiting (AI.md defaults, per IP or per token), 429 + Retry-After |
 | Malformed API response | Schema validation before use, never eval/exec |
 | SSRF | Location input validated against allowed formats (city name, coordinates, ZIP); no URL input |
 | Path traversal | Backup filenames sanitized; never use user input directly in file paths |
@@ -303,70 +305,35 @@ All external API responses are validated before use. Network calls have 30-secon
 | Moon Phases | Calculated (no external API) | N/A |
 | IP Geolocation | sapics/ip-location-db | Monthly |
 
-### API endpoints
+### Product scope & non-goals
 
-The JSON API is versioned under `/api/v1` (the `{api_version}` prefix). Web
-pages share the same route tree and are content-negotiated (HTML for browsers,
-text for CLI/curl, JSON on request).
+**Interfaces.** Every feature is available as a web page (HTML for browsers, plain
+text for curl and terminals), as a versioned JSON API, as GraphQL and OpenAPI, and
+through the CLI client. An MCP server (Streamable HTTP, public weather operations
+as tools) lets AI assistants use the service; it can be switched off in the admin
+panel. The standard server pages (about, help, MCP help, privacy, terms, contact,
+security reporting, data protection officer contact, health, preferences) have
+real content derived from this document.
 
-**Public Weather (JSON API):**
-- `GET /api/v1/weather` — Current weather (location from IP or `?location=`)
-- `GET /api/v1/weather/:location` — Current weather for a named location
-- `GET /api/v1/weather/forecast` — Multi-day forecast
-- `GET /api/v1/weather/locations` — Saved/known locations
-- `GET /api/v1/weather/alerts` — Weather alerts for the resolved location
-- `GET /api/v1/weather/moon` — Moon data for the resolved location
-- `GET /api/v1/weather/history` — Recent weather history
-- `GET /api/v1/forecasts` / `GET /api/v1/forecasts/:location` — Forecast data
-- `GET /api/v1/ip` — Detect location from the client IP
+**Compatibility.** No external weather service's API is emulated. Feature
+compatibility only. No RFC-defined protocol is implemented by the application
+itself.
 
-**Weather web pages (content-negotiated):**
-- `GET /` — Current weather (location from IP or query param)
-- `GET /:location` / `GET /weather/:location` — Current weather for a location
-- `GET /web` / `GET /web/:location` — Web-rendered weather view
-- `GET /moon` / `GET /moon/:location` — Moon phase page
-- `GET /history` — Weather history page
-- `GET /earthquakes` / `GET /earthquake` / `GET /earthquakes/:location`
-- `GET /hurricanes` / `GET /hurricane`
-- `GET /severe-weather` / `GET /severe-weather/:location` /
-  `GET /severe/:type` / `GET /severe/:type/:location`
+**Guest preferences (cookies, never stored server-side).**
 
-**Severe Weather (JSON API):**
-- `GET /api/v1/severe-weather` — Active severe-weather events
-- `GET /api/v1/severe-weather/:id` — Single event details
-- `GET /api/v1/weather/alerts` — Active alerts for the resolved location
+| Cookie | Allowed values | Default | Export/import |
+|--------|----------------|---------|---------------|
+| `wthr_pref_units` | `metric`, `imperial` | region based | exported and imported with `theme` and `lang` |
 
-**Natural Events (JSON API):**
-- `GET /api/v1/earthquakes` — Recent earthquakes
-- `GET /api/v1/earthquakes/:id` — Single earthquake details
-- `GET /api/v1/hurricanes` — Active tropical storms
-- `GET /api/v1/hurricanes/:id` — Hurricane with forecast track
+### Weather capabilities
 
-**Astronomy (JSON API):**
-- `GET /api/v1/moon` — Current moon phase
-- `GET /api/v1/moon/calendar` — Monthly moon calendar
-- `GET /api/v1/sun` — Sunrise/sunset for location
-
-**Location (JSON API):**
-- `GET /api/v1/locations/search` — Find cities by name
-- `GET /api/v1/locations/lookup/zip/:code` — Look up a ZIP/postal code
-- `GET /api/v1/locations/lookup/coords` — Reverse geocode coordinates
-- `GET /api/v1/users/locations` (+ POST/PUT/DELETE, auth) — Saved user locations
-- `PUT /api/v1/users/locations/:id/alerts` — Configure per-location alerts
-
-**System & discovery:**
-- `GET /server/healthz` / `GET /health` / `GET /health/ready` / `GET /health/full`
-  — Liveness/readiness/full status (content-negotiated)
-- `GET /api/v1/server/healthz` — Health check (JSON, unversioned alias `/api/healthz`)
-- `GET /metrics` — Prometheus metrics (internal only)
-- `GET /graphql` (+ `POST /graphql`) — GraphQL endpoint
-- `GET /docs` / `GET /openapi` / `GET /openapi.json` — OpenAPI documentation
-- `GET /api` / `GET /api/autodiscover` — API discovery
-- `GET /ws/notifications` — WebSocket notification stream
-- `GET /server/about` — About page (content from IDEA.md)
-- `GET /server/help` — Help page (real endpoints + curl examples)
-
-**Admin (`/server/{admin_path}/...`, default `admin_path` = `admin`):**
-- Dashboard, server settings, admin/user management, security, logs, backup,
-  SSL, scheduler, notifications, updates — full web + `/api/v1` route trees
-  per AI.md PART 17. Not linked from any public page (typed-URL access only).
+- **Current weather and forecast** for a city name, ZIP/postal code, coordinates or the visitor's detected location; hourly and daily breakdown; saved locations for signed-in users
+- **Severe weather** — active alerts for the resolved location or by event type, single event detail
+- **Earthquakes** — recent events, single event detail
+- **Hurricanes** — active tropical storms with forecast tracks, single storm detail
+- **Astronomy** — current moon phase, monthly moon calendar, sunrise and sunset
+- **Location tools** — search by name, ZIP/postal code lookup, reverse geocoding of coordinates, detect location from the client IP
+- **History** — recent weather history for a location
+- **Real-time** — WebSocket stream of notifications for subscribed alerts
+- **Accounts** — saved locations (up to 10), per-location alert subscriptions, email notifications, self-service profile and session management
+- **Administration** — dashboard, settings, admins and users, security, logs, backup, SSL, scheduler, notifications, updates; reachable only by typing the admin URL, never linked from a public page

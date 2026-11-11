@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 // This file holds the server.yml settings trees defined by AI.md PART 12:
 // base URL, request limits, response compression, session, rate limiting,
 // i18n, contact roles, analytics tracking, privacy/consent, and cache.
@@ -97,15 +99,24 @@ func DefaultSessionConfig() SessionConfig {
 
 // I18nConfig represents server language settings per AI.md PART 12
 type I18nConfig struct {
-	DefaultLanguage string   `yaml:"default_language"`
-	Supported       []string `yaml:"supported"`
+	DefaultLanguage string `yaml:"default_language"`
+	// Enabled languages; never fewer than RequiredLanguages (AI.md PART 31)
+	AvailableLanguages []string `yaml:"available_languages"`
 }
+
+// RequiredLanguages is the AI.md PART 31 minimum: every project supports at least these six.
+var RequiredLanguages = []string{"en", "es", "fr", "de", "it", "ar"}
+
+// EmbeddedLanguages is the full set of locale files shipped in the binary (the required
+// minimum plus the languages this project chose to add); it must equal the files in
+// src/common/i18n/locales.
+var EmbeddedLanguages = []string{"en", "es", "fr", "de", "it", "ar", "zh", "ja"}
 
 // DefaultI18nConfig returns the AI.md PART 12 i18n defaults
 func DefaultI18nConfig() I18nConfig {
 	return I18nConfig{
-		DefaultLanguage: "en",
-		Supported:       []string{"en"},
+		DefaultLanguage:    "en",
+		AvailableLanguages: append([]string(nil), EmbeddedLanguages...),
 	}
 }
 
@@ -117,6 +128,72 @@ type ContactConfig struct {
 	Security ContactRoleConfig `yaml:"security"`
 	Abuse    ContactRoleConfig `yaml:"abuse"`
 	General  ContactRoleConfig `yaml:"general"`
+	DPO      ContactDPOConfig  `yaml:"dpo"`
+}
+
+// ContactDPOConfig is the data protection officer contact shown on /server/dpo (AI.md PART 12).
+// Both fields default to empty: the server never invents a DPO address.
+type ContactDPOConfig struct {
+	Name  string `yaml:"name"`
+	Email string `yaml:"email"`
+}
+
+// ResolveDPOEmail returns the address /server/dpo shows: dpo.email, else general.email, else
+// empty. The admin address is never shown.
+func (c ContactConfig) ResolveDPOEmail() string {
+	if e := strings.TrimSpace(c.DPO.Email); e != "" {
+		return e
+	}
+	return strings.TrimSpace(c.General.Email)
+}
+
+// PagesConfig holds editable public page content and the contact-form captcha (AI.md PART 16).
+type PagesConfig struct {
+	Help    PagesHelpConfig    `yaml:"help"`
+	Contact PagesContactConfig `yaml:"contact"`
+}
+
+// PagesHelpConfig holds the project expansion of the help pages as Markdown.
+type PagesHelpConfig struct {
+	// Project section of /server/help/mcp
+	MCP string `yaml:"mcp"`
+}
+
+// PagesContactConfig holds the contact form captcha settings (AI.md PART 16 "Captcha providers").
+type PagesContactConfig struct {
+	// simple (built-in, default), recaptcha, hcaptcha
+	Captcha string `yaml:"captcha"`
+	// Public provider key, rendered in the page; ignored for simple
+	CaptchaSiteKey string `yaml:"captcha_site_key"`
+	// Server-side provider secret; never returned in a response or logged; ignored for simple
+	CaptchaSecretKey string `yaml:"captcha_secret_key"`
+}
+
+// Captcha provider names (AI.md PART 16).
+const (
+	CaptchaSimple    = "simple"
+	CaptchaReCaptcha = "recaptcha"
+	CaptchaHCaptcha  = "hcaptcha"
+)
+
+// DefaultPagesConfig returns the AI.md PART 16 page defaults.
+func DefaultPagesConfig() PagesConfig {
+	return PagesConfig{Contact: PagesContactConfig{Captcha: CaptchaSimple}}
+}
+
+// EffectiveCaptcha returns the provider in force: simple unless a valid hcaptcha/recaptcha choice
+// has both keys set, and always simple on overlay-network requests.
+func (p PagesContactConfig) EffectiveCaptcha(overlay bool) string {
+	if overlay {
+		return CaptchaSimple
+	}
+	switch p.Captcha {
+	case CaptchaReCaptcha, CaptchaHCaptcha:
+		if p.CaptchaSiteKey != "" && p.CaptchaSecretKey != "" {
+			return p.Captcha
+		}
+	}
+	return CaptchaSimple
 }
 
 // ContactRoleConfig represents one contact role per AI.md PART 12.
@@ -247,7 +324,6 @@ type PrivacyRetentionConfig struct {
 // PrivacyConsentConfig represents the consent banner per AI.md PART 12
 type PrivacyConsentConfig struct {
 	ShowUntilAcknowledged bool                       `yaml:"show_until_acknowledged"`
-	DefaultEnabled        bool                       `yaml:"default_enabled"`
 	Message               string                     `yaml:"message"`
 	MessageIfSold         string                     `yaml:"message_if_sold"`
 	Policy                PrivacyConsentPolicyConfig `yaml:"policy"`
@@ -342,7 +418,6 @@ func DefaultPrivacyConfig() PrivacyConfig {
 		},
 		Consent: PrivacyConsentConfig{
 			ShowUntilAcknowledged: true,
-			DefaultEnabled:        true,
 			Message:               "We use cookies for essential functionality and, with your consent, analytics. Your data is never sold.",
 			MessageIfSold:         "We use cookies for essential functionality and, with your consent, analytics. Your data may be shared with or sold to third parties.",
 			Policy: PrivacyConsentPolicyConfig{
@@ -450,7 +525,7 @@ const (
 // memory works standalone for single-instance mode; valkey/redis is required
 // for cluster mode. URL takes precedence over the discrete fields.
 type CacheConfig struct {
-	// memory, valkey, or redis
+	// none, memory, valkey, or redis
 	Type string `yaml:"type"`
 	// Connection URL - takes precedence over host/port/username/password/db
 	URL      string `yaml:"url"`
@@ -495,6 +570,23 @@ func DefaultCacheConfig() CacheConfig {
 		TTL:           "1h",
 		Cluster:       false,
 		ClusterNodes:  []string{},
+	}
+}
+
+// RequiresSharedCache reports whether the configured database or cluster state
+// requires a Valkey/Redis backend per AI.md PART 12.
+func RequiresSharedCache(cfg *AppConfig, clusterEnabled bool) bool {
+	if clusterEnabled {
+		return true
+	}
+	if cfg == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Server.Database.Driver)) {
+	case "", "file", "sqlite":
+		return false
+	default:
+		return true
 	}
 }
 

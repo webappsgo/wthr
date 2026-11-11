@@ -1,0 +1,36 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <h1 class="text-purple">{{t .server.Lang "security.title"}}</h1>
+    <p>{{t .server.Lang "security.intro"}}</p>
+
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.contacts.heading"}}</h2>
+        <ol>
+            {{range .Overview.contacts}}
+            <li>
+                {{if eq .type "form"}}<a href="{{path "/server/contact"}}">{{t $.server.Lang "security.contact.form"}}</a>
+                {{else}}{{t $.server.Lang "security.contact.email"}}: <a href="mailto:{{.address}}">{{.address}}</a>{{end}}
+            </li>
+            {{end}}
+        </ol>
+        {{if .Overview.expires}}<p><small>{{t .server.Lang "security.expires"}} <time datetime="{{.Overview.expires}}">{{.Overview.expires}}</time></small></p>{{end}}
+    </section>
+
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.pgp.heading"}}</h2>
+        <p>{{t .server.Lang "security.pgp.none"}}</p>
+    </section>
+
+    <section class="card margin-y-lg">
+        <div class="actions">
+            <a href="{{path "/server/security/policy"}}" class="btn btn-secondary">{{t .server.Lang "security.policy_link"}}</a>
+            <a href="{{path "/server/security/thanks"}}" class="btn btn-secondary">{{t .server.Lang "security.thanks_link"}}</a>
+            <a href="{{path "/.well-known/security.txt"}}" class="btn btn-secondary">security.txt</a>
+        </div>
+    </section>
+</main>
+
+{{template "footer" .}}

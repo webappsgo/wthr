@@ -70,9 +70,9 @@ func setupTranslate(r *http.Request, key string) string {
 	return instance.T(requestLang(r), key)
 }
 
-// SetupTokenRequired shows setup token entry form at /server/admin when no admin exists
-// AI.md: User navigates to /server/admin → User enters setup token → Redirect to /server/{admin_path}/config/setup
-// AI.md: Admin panel (/server/admin) - YES (requires setup token) - accessible before setup
+// SetupTokenRequired shows setup token entry form at /server/administration when no admin exists
+// AI.md: User navigates to /server/administration → User enters setup token → Redirect to /server/{admin_path}/config/setup
+// AI.md: Admin panel (/server/administration) - YES (requires setup token) - accessible before setup
 func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,7 +193,7 @@ func RequireSetupTokenVerified(cfg *config.AppConfig) func(http.Handler) http.Ha
 			// not a literal "true" — a client cannot reach the wizard by
 			// setting the cookie itself.
 			if !setupTokenVerified(r, cfg) {
-				// No verified token - redirect to /server/admin to enter token
+				// No verified token - redirect to /server/administration to enter token
 				adminPath := "/server/" + cfg.GetAdminPath()
 				http.Redirect(w, r, adminPath, http.StatusFound)
 				return

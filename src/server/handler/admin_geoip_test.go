@@ -26,7 +26,7 @@ func newGeoIPTestConfigFile(t *testing.T) string {
 // path. No auth/data gating exists on this handler.
 func TestAdminGeoIPHandler_ShowGeoIPSettings(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
-	c, w := newAPITestContext("/server/admin/config/geoip")
+	c, w := newAPITestContext("/server/administration/config/geoip")
 	defer htmlRenderGuard(t)
 	h.ShowGeoIPSettings(w, c)
 	if w.Code != http.StatusOK {

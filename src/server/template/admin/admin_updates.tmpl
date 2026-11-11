@@ -2,7 +2,7 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-{{- $ap := "/server/admin" -}}
+{{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
   <div class="admin-header">
     <h1>{{t $lang "admin.updates.title"}}</h1>
@@ -19,15 +19,40 @@
     </dl>
   </section>
 
+  <section class="admin-section" aria-labelledby="updates-settings-heading">
+    <div class="section-header">
+      <h2 id="updates-settings-heading">{{t $lang "admin.updates.settings_heading"}}</h2>
+    </div>
+    {{if .saved}}<p role="status" class="alert alert-success">{{t $lang "admin.updates.saved"}}</p>{{end}}
+    <form method="post" action="{{$ap}}/config/updates">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="update-branch">{{t $lang "admin.updates.release_channel"}}</label>
+        <select id="update-branch" name="branch">
+          <option value="stable" {{if eq .update_branch "stable"}}selected{{end}}>{{t $lang "admin.updates.stable"}}</option>
+          <option value="beta" {{if eq .update_branch "beta"}}selected{{end}}>{{t $lang "admin.updates.beta"}}</option>
+          <option value="devel" {{if eq .update_branch "devel"}}selected{{end}}>{{t $lang "admin.updates.devel"}}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="update-defer-days">{{t $lang "admin.updates.defer_label"}}</label>
+        <input id="update-defer-days" name="defer_days" type="number" min="0" max="365" value="{{.defer_days}}" required>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="auto_install" value="true" {{if .auto_install}}checked{{end}}> {{t $lang "admin.updates.auto_install"}}</label>
+      </div>
+      <button class="btn btn-primary" type="submit">{{t $lang "admin.updates.save"}}</button>
+    </form>
+  </section>
+
   <section class="admin-section" aria-labelledby="updates-available-heading">
     <div class="section-header">
       <h2 id="updates-available-heading">{{t $lang "admin.updates.available_heading"}}</h2>
     </div>
-    <div class="empty-state">
-      <p class="empty-state__icon" aria-hidden="true">&#128260;</p>
-      <h3 class="empty-state__title">{{t $lang "admin.updates.empty_title"}}</h3>
-      <p class="empty-state__message">{{t $lang "admin.updates.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/config/info">{{t $lang "admin.updates.empty_action"}}</a>
-    </div>
+    {{if .available_version}}
+    <p>{{t $lang "admin.updates.available_version"}} <strong>{{.available_version}}</strong></p>
+    {{else}}
+    <p>{{t $lang "admin.updates.none_detected"}}</p>
+    {{end}}
   </section>
 {{template "admin_footer" .}}

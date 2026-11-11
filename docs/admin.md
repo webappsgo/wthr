@@ -4,13 +4,13 @@ The Weather Service admin panel provides a web interface for managing the server
 
 ## Accessing the Admin Panel
 
-Default URL: `https://wthr.top/admin`
+Default URL: `https://wthr.top/server/administration`
 
 ### First-Time Setup
 
 On first run, Weather Service launches the setup wizard:
 
-1. Navigate to `https://wthr.top/admin/server/setup` in your browser
+1. Navigate to `https://wthr.top/server/administration/config/setup` in your browser
 2. The setup wizard automatically opens
 3. Create the primary admin account:
    - Username (email address)
@@ -19,13 +19,13 @@ On first run, Weather Service launches the setup wizard:
 4. Configure basic server settings
 5. Complete setup
 
-The setup wizard is a one-time process. After completion, access the admin panel at `/admin`.
+The setup wizard is a one-time process. After completion, access the admin panel at `/server/administration`.
 
 ## Authentication
 
 ### Login
 
-1. Go to `https://wthr.top/admin`
+1. Go to `https://wthr.top/server/administration`
 2. Enter admin username and password
 3. If 2FA is enabled, enter the TOTP code
 4. Click **Login**
@@ -381,7 +381,7 @@ The admin panel is fully responsive and works on:
 
 ### Access Control
 
-- Only server admins can access `/admin`
+- Only server admins can access `/server/administration`
 - Regular users cannot access admin panel
 - Failed login attempts are rate-limited
 - Suspicious activity triggers security notifications

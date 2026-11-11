@@ -90,7 +90,7 @@ func adminPathFromData(data map[string]interface{}) string {
 	if adminPath, ok := data["admin_path"].(string); ok && adminPath != "" {
 		return adminPath
 	}
-	return "/server/admin"
+	return "/server/administration"
 }
 
 // adminSearchAll runs every source search for the given query. An empty query

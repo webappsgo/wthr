@@ -4,7 +4,7 @@
 
 ## CRITICAL - NEVER DO
 
-- NEVER add targets beyond the six core targets (`dev`, `local`, `build`, `test`, `release`, `docker`)
+- NEVER add targets beyond the six core targets (`dev`, `local`, `build`, `test`, `release`, `docker`) plus the `clean` housekeeping target (removes `binaries/` and `releases/`, builds nothing); there is no `all` target
 - NEVER build on the host — all Go builds/tests run inside Docker via `$(GO_DOCKER)` (`casjaysdev/go:latest`)
 - NEVER hardcode `PROJECT_NAME` / `PROJECT_ORG` — always derive from `git remote get-url origin` (fallback: directory names)
 - NEVER copy or symlink binaries out of `binaries/` (no `cp`/`ln -s` to `/usr/local/bin`, `~/bin`, `releases/`, etc.) — only CI/CD copies binaries, during release
@@ -60,7 +60,7 @@ GO_DOCKER := docker run --rm \
 ### Version tag `v` prefix
 
 - Numeric semver (`0.2.0`, `1.2.3-rc1`) → add `v` → `v0.2.0`
-- Text (`dev`, `beta`, `daily`) or timestamp (`20251218060432`) → NO `v`
+- Text (`dev`, `beta`, `devel`) or timestamp (`20251218060432`) → NO `v`
 - Already has `v` → leave as-is (never `vv...`)
 
 ### Local dev workflow (not CI/CD)

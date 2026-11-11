@@ -140,7 +140,7 @@ _%s_completions() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main options
-    opts="--help --version --status --mode --config --data --cache --log --backup --pid --address --port --daemon --debug --service --maintenance --update --shell"
+    opts="--help --version --status --mode --config --data --cache --log --backup --pid --address --port --daemon --debug --i2p --service --maintenance --update --shell"
 
     case "${prev}" in
         --mode)
@@ -176,7 +176,7 @@ _%s_completions() {
             return 0
             ;;
         branch)
-            COMPREPLY=( $(compgen -W "stable beta daily" -- ${cur}) )
+            COMPREPLY=( $(compgen -W "stable beta devel" -- ${cur}) )
             return 0
             ;;
     esac
@@ -216,6 +216,7 @@ _%s() {
         '--port[Server port (deprecated)]:port:'
         '--daemon[Daemonize]'
         '--debug[Enable debug mode]'
+        '--i2p[Enable the I2P eepsite]'
         '--service[Service management]:command:(start stop restart reload --install --uninstall --disable --help)'
         '--maintenance[Maintenance command]:command:(backup restore update mode setup --help)'
         '--update[Update command]:command:(check yes branch --help)'
@@ -251,13 +252,14 @@ complete -c %s -l address -d 'Listen address'
 complete -c %s -l port -d 'Server port (deprecated)'
 complete -c %s -l daemon -d 'Daemonize'
 complete -c %s -l debug -d 'Enable debug mode'
+complete -c %s -l i2p -d 'Enable the I2P eepsite'
 complete -c %s -l service -d 'Service management' -xa 'start stop restart reload --install --uninstall --disable --help'
 complete -c %s -l maintenance -d 'Maintenance command' -xa 'backup restore update mode setup --help'
 complete -c %s -l update -d 'Update command' -xa 'check yes branch --help'
 complete -c %s -l shell -d 'Shell integration' -xa 'completions init --help'
 `, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName,
 		binaryName, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName,
-		binaryName, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName)
+		binaryName, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName, binaryName)
 }
 
 // printPowerShellCompletions outputs PowerShell completion script
@@ -285,6 +287,7 @@ Register-ArgumentCompleter -Native -CommandName %s -ScriptBlock {
         @{ Name = '--port'; Description = 'Server port (deprecated)' }
         @{ Name = '--daemon'; Description = 'Daemonize' }
         @{ Name = '--debug'; Description = 'Enable debug mode' }
+        @{ Name = '--i2p'; Description = 'Enable the I2P eepsite' }
         @{ Name = '--service'; Description = 'Service management' }
         @{ Name = '--maintenance'; Description = 'Maintenance command' }
         @{ Name = '--update'; Description = 'Update command' }

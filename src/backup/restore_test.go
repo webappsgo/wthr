@@ -2,6 +2,9 @@
 package backup
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,6 +115,41 @@ func TestRestoreMissingFile(t *testing.T) {
 // TestRestoreEncryptedWithoutPassword verifies Restore() rejects an .enc
 // backup when no password is supplied, rather than attempting to decrypt
 // with an empty key or panicking.
+func TestRejectRestoreSymlinkPath(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+	link := filepath.Join(base, "linked")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	if err := rejectRestoreSymlinkPath(base, filepath.Join(link, "server.yml")); err == nil {
+		t.Fatal("restore path through a symbolic link was accepted")
+	}
+	if err := rejectRestoreSymlinkPath(base, filepath.Join(base, "safe", "server.yml")); err != nil {
+		t.Fatalf("safe path was rejected: %v", err)
+	}
+}
+
+func TestRestoreRejectsSpecialArchiveEntries(t *testing.T) {
+	var data bytes.Buffer
+	gz := gzip.NewWriter(&data)
+	tarWriter := tar.NewWriter(gz)
+	if err := tarWriter.WriteHeader(&tar.Header{Name: "device", Typeflag: tar.TypeChar, Mode: 0600, Devmajor: 1, Devminor: 1}); err != nil {
+		t.Fatalf("write special tar entry: %v", err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatalf("close tar writer: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("close gzip writer: %v", err)
+	}
+
+	service := New(t.TempDir(), t.TempDir())
+	if err := service.extractArchiveWithLimits(data.Bytes(), t.TempDir(), t.TempDir(), defaultRestoreLimits()); err == nil {
+		t.Fatal("restore accepted a character-device archive entry")
+	}
+}
+
 func TestRestoreEncryptedWithoutPassword(t *testing.T) {
 	configDir := t.TempDir()
 	dataDir := t.TempDir()

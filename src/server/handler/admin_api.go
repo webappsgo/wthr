@@ -375,9 +375,22 @@ func RestoreBackup(w http.ResponseWriter, r *http.Request) {
 		// The staged copy is transient input to the restore, not a backup the
 		// operator asked to keep, so it is removed on every exit path.
 		defer os.Remove(stagedPath)
-		if _, err := io.Copy(staged, file); err != nil {
+		settings, settingsErr := adminSettingsModel(r)
+		if settingsErr != nil {
+			staged.Close()
+			InternalError(w, r, settingsErr.Error())
+			return
+		}
+		limit, _ := backup.ParseMaxTotalSizeBytes(settings.GetString("restore.max_archive_size", "1G"), 0)
+		written, err := io.Copy(staged, io.LimitReader(file, limit+1))
+		if err != nil {
 			staged.Close()
 			InternalError(w, r, "Failed to store uploaded backup")
+			return
+		}
+		if written > limit {
+			staged.Close()
+			BadRequest(w, r, "Uploaded backup exceeds the configured archive size limit")
 			return
 		}
 		if err := staged.Close(); err != nil {
@@ -388,12 +401,25 @@ func RestoreBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	svc := backup.New(configDir, dataDir)
+	settings, settingsErr := adminSettingsModel(r)
+	if settingsErr != nil {
+		InternalError(w, r, settingsErr.Error())
+		return
+	}
+	archiveLimit, _ := backup.ParseMaxTotalSizeBytes(settings.GetString("restore.max_archive_size", "1G"), 0)
+	expandedLimit, _ := backup.ParseMaxTotalSizeBytes(settings.GetString("restore.max_expanded_size", "4G"), 0)
+	fileLimit, _ := backup.ParseMaxTotalSizeBytes(settings.GetString("restore.max_file_size", "512M"), 0)
 	if err := svc.Restore(backup.RestoreOptions{
 		BackupPath: backupPath,
 		Password:   password,
 		ConfigDir:  configDir,
 		DataDir:    dataDir,
 		Force:      true,
+		Limits: backup.RestoreLimits{
+			MaxArchiveSize: archiveLimit, MaxExpandedSize: expandedLimit,
+			MaxFiles:    settings.GetInt("restore.max_files", 10000),
+			MaxFileSize: fileLimit, MaxRatio: int64(settings.GetInt("restore.max_ratio", 100)),
+		},
 	}); err != nil {
 		InternalError(w, r, "Failed to restore backup: "+err.Error())
 		return
@@ -585,6 +611,13 @@ func GetBackupSchedule(w http.ResponseWriter, r *http.Request) {
 			"keep_yearly":    retention.KeepYearly,
 			"max_total_size": retention.MaxTotalSize,
 		},
+		"restore": map[string]interface{}{
+			"max_archive_size":  settings.GetString("restore.max_archive_size", "1G"),
+			"max_expanded_size": settings.GetString("restore.max_expanded_size", "4G"),
+			"max_files":         settings.GetInt("restore.max_files", 10000),
+			"max_file_size":     settings.GetString("restore.max_file_size", "512M"),
+			"max_ratio":         settings.GetInt("restore.max_ratio", 100),
+		},
 	})
 }
 
@@ -592,13 +625,18 @@ func GetBackupSchedule(w http.ResponseWriter, r *http.Request) {
 // on its next run.
 func SaveBackupSchedule(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
-		Enabled      *bool   `json:"enabled" form:"enabled"`
-		Interval     *int    `json:"interval" form:"interval"`
-		MaxBackups   *int    `json:"max_backups" form:"max_backups"`
-		KeepWeekly   *int    `json:"keep_weekly" form:"keep_weekly"`
-		KeepMonthly  *int    `json:"keep_monthly" form:"keep_monthly"`
-		KeepYearly   *int    `json:"keep_yearly" form:"keep_yearly"`
-		MaxTotalSize *string `json:"max_total_size" form:"max_total_size"`
+		Enabled                *bool   `json:"enabled" form:"enabled"`
+		Interval               *int    `json:"interval" form:"interval"`
+		MaxBackups             *int    `json:"max_backups" form:"max_backups"`
+		KeepWeekly             *int    `json:"keep_weekly" form:"keep_weekly"`
+		KeepMonthly            *int    `json:"keep_monthly" form:"keep_monthly"`
+		KeepYearly             *int    `json:"keep_yearly" form:"keep_yearly"`
+		MaxTotalSize           *string `json:"max_total_size" form:"max_total_size"`
+		RestoreMaxArchiveSize  *string `json:"restore_max_archive_size"`
+		RestoreMaxExpandedSize *string `json:"restore_max_expanded_size"`
+		RestoreMaxFiles        *int    `json:"restore_max_files"`
+		RestoreMaxFileSize     *string `json:"restore_max_file_size"`
+		RestoreMaxRatio        *int    `json:"restore_max_ratio"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		BadRequest(w, r, "Invalid request data")
@@ -682,6 +720,47 @@ func SaveBackupSchedule(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := settings.SetString("backup.retention.max_total_size", *payload.MaxTotalSize); err != nil {
 			InternalError(w, r, "Failed to save backup settings: "+err.Error())
+			return
+		}
+	}
+	for _, size := range []struct {
+		key, name string
+		value     *string
+	}{
+		{"restore.max_archive_size", "restore_max_archive_size", payload.RestoreMaxArchiveSize},
+		{"restore.max_expanded_size", "restore_max_expanded_size", payload.RestoreMaxExpandedSize},
+		{"restore.max_file_size", "restore_max_file_size", payload.RestoreMaxFileSize},
+	} {
+		if size.value == nil {
+			continue
+		}
+		bytes, parseErr := backup.ParseMaxTotalSizeBytes(*size.value, 0)
+		if parseErr != nil || bytes <= 0 {
+			BadRequest(w, r, size.name+" must be a positive size such as 1G or 512M")
+			return
+		}
+		if err := settings.SetString(size.key, *size.value); err != nil {
+			InternalError(w, r, "Failed to save restore settings: "+err.Error())
+			return
+		}
+	}
+	if payload.RestoreMaxFiles != nil {
+		if *payload.RestoreMaxFiles < 1 || *payload.RestoreMaxFiles > 1000000 {
+			BadRequest(w, r, "restore_max_files must be between 1 and 1000000")
+			return
+		}
+		if err := settings.SetInt("restore.max_files", *payload.RestoreMaxFiles); err != nil {
+			InternalError(w, r, "Failed to save restore settings: "+err.Error())
+			return
+		}
+	}
+	if payload.RestoreMaxRatio != nil {
+		if *payload.RestoreMaxRatio < 1 || *payload.RestoreMaxRatio > 10000 {
+			BadRequest(w, r, "restore_max_ratio must be between 1 and 10000")
+			return
+		}
+		if err := settings.SetInt("restore.max_ratio", *payload.RestoreMaxRatio); err != nil {
+			InternalError(w, r, "Failed to save restore settings: "+err.Error())
 			return
 		}
 	}

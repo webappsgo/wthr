@@ -14,7 +14,7 @@ services:
   wthr:
     image: ghcr.io/webappsgo/wthr:latest
     container_name: wthr-app
-    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    hostname: wthr
     restart: always
     pull_policy: always
     logging: *default-logging
@@ -23,6 +23,8 @@ services:
       # Binary defaults to production; MODE/DEBUG are set only in dev/test compose
       PORT: 80
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: wthr-app
+      CACHE_URL: valkey://wthr-cache:6379
     ports:
       # Production: bound to Docker bridge only (reverse proxy handles external)
       - "172.17.0.1:64580:80"
@@ -37,6 +39,26 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s
+    depends_on:
+      wthr-cache:
+        condition: service_healthy
+    networks:
+      - wthr
+
+  wthr-cache:
+    image: valkey/valkey:alpine
+    container_name: wthr-cache
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    volumes:
+      - ./volumes/data/db/valkey:/data:z
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - wthr
 

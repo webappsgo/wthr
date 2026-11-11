@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,9 +16,10 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/config"
 )
 
-// BuildEpoch is the Unix build timestamp injected at link time. The daily
+// BuildEpoch is the Unix build timestamp injected at link time. The devel
 // channel is a single rolling tag that never matches the running version, so
 // publish time is compared against this instead.
 var BuildEpoch = ""
@@ -45,42 +47,125 @@ const (
 // UpdateCommand handles update operations
 func UpdateCommand(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("no update command specified. Use: check, yes, or branch {stable|beta|daily}")
+		return fmt.Errorf("no update command specified. Use: check, yes, or branch {stable|beta|devel}")
 	}
 
 	cmd := args[0]
 
 	switch cmd {
+	case "--help", "help":
+		printUpdateHelp()
+		return nil
+
 	case "check":
-		return checkForUpdates()
+		branch, err := configuredUpdateBranch()
+		if err != nil {
+			return err
+		}
+		return checkForUpdates(branch)
 
 	case "yes":
-		return performUpdate("stable")
+		branch, err := configuredUpdateBranch()
+		if err != nil {
+			return err
+		}
+		return performUpdate(branch)
 
 	case "branch":
 		if len(args) < 2 {
-			return fmt.Errorf("branch requires a value: stable, beta, or daily")
+			return fmt.Errorf("branch requires a value: stable, beta, or devel")
 		}
 		if !isValidBranch(args[1]) {
-			return fmt.Errorf("invalid branch: %s (use stable, beta, or daily)", args[1])
+			return fmt.Errorf("invalid branch: %s (use stable, beta, or devel)", args[1])
 		}
-		return performUpdate(args[1])
+		cfg, err := config.LoadConfig()
+		if err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
+		}
+		cfg.Server.Update.Branch = normalizeUpdateBranch(args[1])
+		if err := config.SaveConfig(cfg); err != nil {
+			return fmt.Errorf("failed to save update branch: %w", err)
+		}
+		return nil
 
 	default:
 		return fmt.Errorf("unknown update command: %s", cmd)
 	}
 }
 
+func printUpdateHelp() {
+	binaryName := filepath.Base(os.Args[0])
+	branch, err := configuredUpdateBranch()
+	if err != nil {
+		branch = "stable"
+	}
+	var latest string
+	if releases, err := listReleases(); err == nil {
+		if release := SelectRelease(releases, branch, Version); release != nil {
+			latest = release.TagName
+		}
+	}
+	fmt.Print(updateHelpText(binaryName, Version, branch, latest))
+}
+
+func updateHelpText(binaryName, version, branch, latest string) string {
+	help := fmt.Sprintf(`Update management:
+check                                 - Check for available updates
+                                        Compares current version with latest release
+yes                                   - Download and install update
+                                        Downloads latest release, replaces binary, restarts
+branch <name>                         - Switch update branch
+                                        stable - Stable releases (default)
+                                        beta   - Beta/preview releases
+                                        devel  - Devel builds (development)
+
+Examples:
+  %s --update check
+  %s --update yes
+  %s --update branch beta
+
+Current:
+  Version:  %s
+  Branch:   %s
+`, binaryName, binaryName, binaryName, version, branch)
+	if latest != "" {
+		help += fmt.Sprintf("  Latest:   %s\n", latest)
+	}
+	return help
+}
+
+func configuredUpdateBranch() (string, error) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return "", fmt.Errorf("failed to load configuration: %w", err)
+	}
+	branch := normalizeUpdateBranch(cfg.Server.Update.Branch)
+	if !isValidBranch(branch) {
+		return "stable", nil
+	}
+	return branch, nil
+}
+
 func isValidBranch(branch string) bool {
 	switch branch {
-	case "stable", "beta", "daily":
+	case "stable", "beta", "devel", "daily", "rolling", "dev", "development":
 		return true
 	}
 	return false
 }
 
+// normalizeUpdateBranch maps legacy channel names to their canonical values.
+func normalizeUpdateBranch(branch string) string {
+	switch branch {
+	case "daily", "rolling", "dev", "development":
+		return "devel"
+	default:
+		return branch
+	}
+}
+
 // checkForUpdates checks for available updates
-func checkForUpdates() error {
+func checkForUpdates(branch string) error {
 	fmt.Println(T("cli.update.checking"))
 
 	releases, err := listReleases()
@@ -88,46 +173,39 @@ func checkForUpdates() error {
 		return fmt.Errorf("failed to check releases: %w", err)
 	}
 
-	stable := SelectRelease(releases, "stable", Version)
-	beta := SelectRelease(releases, "beta", Version)
-	daily := SelectRelease(releases, "daily", Version)
+	release := SelectRelease(releases, branch, Version)
 
 	fmt.Printf("\n"+T("cli.update.current_version")+"\n", Version)
 	fmt.Println()
 
-	if stable != nil {
-		fmt.Printf(T("cli.update.stable_line")+"\n", stable.TagName, stable.PublishedAt.Format("2006-01-02"))
-		fmt.Printf(T("cli.update.update_available")+"\n", display.Emoji("✨", "*"))
-	}
-
-	if beta != nil {
-		fmt.Printf(T("cli.update.beta_line")+"\n", beta.TagName, beta.PublishedAt.Format("2006-01-02"))
-		fmt.Printf(T("cli.update.update_available")+"\n", display.Emoji("✨", "*"))
-	}
-
-	if daily != nil {
-		fmt.Printf(T("cli.update.daily_line")+"\n", daily.TagName, daily.PublishedAt.Format("2006-01-02"))
-	}
-
-	if stable == nil && beta == nil && daily == nil {
+	if release == nil {
 		fmt.Printf(T("cli.update.already_up_to_date")+"\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
+	line := "cli.update.stable_line"
+	if branch == "beta" {
+		line = "cli.update.beta_line"
+	} else if branch == "devel" {
+		line = "cli.update.devel_line"
+	}
+	fmt.Printf(T(line)+"\n", release.TagName, release.PublishedAt.Format("2006-01-02"))
+	fmt.Printf(T("cli.update.update_available")+"\n", display.Emoji("✨", "*"))
 
 	fmt.Println()
 	fmt.Println(T("cli.update.to_update_heading"))
 	fmt.Println(T("cli.update.hint_yes"))
 	fmt.Println(T("cli.update.hint_branch_stable"))
 	fmt.Println(T("cli.update.hint_branch_beta"))
-	fmt.Println(T("cli.update.hint_branch_daily"))
+	fmt.Println(T("cli.update.hint_branch_devel"))
 
 	return nil
 }
 
 // performUpdate performs the actual update
 func performUpdate(branch string) error {
+	branch = normalizeUpdateBranch(branch)
 	if !isValidBranch(branch) {
-		return fmt.Errorf("invalid branch: %s (use stable, beta, or daily)", branch)
+		return fmt.Errorf("invalid branch: %s (use stable, beta, or devel)", branch)
 	}
 
 	fmt.Printf(T("cli.update.updating_to_branch")+"\n", branch)
@@ -142,7 +220,18 @@ func performUpdate(branch string) error {
 		fmt.Printf(T("cli.update.already_up_to_date")+"\n", display.Emoji("✓", "[OK]"))
 		return nil
 	}
+	return performReleaseUpdate(release)
+}
 
+// PerformReleaseUpdate installs a release selected by the caller.
+func PerformReleaseUpdate(release *GitHubRelease) error {
+	if release == nil {
+		return fmt.Errorf("no release selected")
+	}
+	return performReleaseUpdate(release)
+}
+
+func performReleaseUpdate(release *GitHubRelease) error {
 	fmt.Printf(T("cli.update.found_version")+"\n", release.TagName)
 
 	assetName := getBinaryName()
@@ -169,13 +258,23 @@ func performUpdate(branch string) error {
 
 	fmt.Printf(T("cli.update.downloading")+"\n", assetName, float64(assetSize)/(1024*1024))
 
-	tmpFile, err := os.CreateTemp("", "wthr-update-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+	tempBase := filepath.Join(os.TempDir(), "webappsgo")
+	if err := os.MkdirAll(tempBase, 0755); err != nil {
+		return fmt.Errorf("failed to create update temp directory: %w", err)
 	}
-	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
+	tempDir, err := os.MkdirTemp(tempBase, "wthr-")
+	if err != nil {
+		return fmt.Errorf("failed to create update temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+	tmpPath := filepath.Join(tempDir, "cli.update.tmp")
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create update temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close update temp file: %w", err)
+	}
 
 	if err := downloadFile(tmpPath, downloadURL); err != nil {
 		return fmt.Errorf("failed to download: %w", err)
@@ -207,14 +306,15 @@ func performUpdate(branch string) error {
 	}
 
 	if err := replaceBinary(currentPath, tmpPath); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("you do not have permission to update %s; ask your admin or move the binary to a writable path", currentPath)
+		}
 		return fmt.Errorf("failed to replace binary: %w", err)
 	}
 
 	fmt.Printf("\n"+T("cli.update.update_successful")+"\n", display.Emoji("✓", "[OK]"))
 	fmt.Printf(T("cli.update.new_version")+"\n", release.TagName)
-	fmt.Println(T("cli.update.restart_hint"))
-
-	return nil
+	return restartSelf()
 }
 
 // listReleases returns every published release. A 404 from the GitHub API means
@@ -222,6 +322,43 @@ func performUpdate(branch string) error {
 // rather than an error.
 func listReleases() ([]GitHubRelease, error) {
 	return fetchReleases(githubReleasesList)
+}
+
+// ScheduledRelease returns the newest release that is both newer than the
+// running build and old enough for the configured scheduled deferral window.
+func ScheduledRelease(branch, currentVersion string, deferDays int, now time.Time) (*GitHubRelease, error) {
+	releases, err := listReleases()
+	if err != nil {
+		return nil, err
+	}
+	var currentPublished time.Time
+	for i := range releases {
+		if sameVersion(releases[i].TagName, currentVersion) {
+			currentPublished = releases[i].PublishedAt
+		}
+	}
+	return selectScheduledRelease(releases, branch, deferDays, now, currentPublished), nil
+}
+
+func selectScheduledRelease(releases []GitHubRelease, branch string, deferDays int, now, currentPublished time.Time) *GitHubRelease {
+	var selected *GitHubRelease
+	for i := range releases {
+		release := &releases[i]
+		if !MatchesBranch(*release, branch) {
+			continue
+		}
+		if release.TagName == "devel" {
+			if release.PublishedAt.Unix() <= buildEpoch() {
+				continue
+			}
+		} else if !release.PublishedAt.After(currentPublished) || !IsReleaseEligible(release.PublishedAt, deferDays, now) {
+			continue
+		}
+		if selected == nil || release.PublishedAt.After(selected.PublishedAt) {
+			selected = release
+		}
+	}
+	return selected
 }
 
 func fetchReleases(url string) ([]GitHubRelease, error) {
@@ -271,7 +408,7 @@ func SelectRelease(releases []GitHubRelease, branch, currentVersion string) *Git
 	if newest == nil {
 		return nil
 	}
-	if newest.TagName == "daily" {
+	if newest.TagName == "devel" {
 		if newest.PublishedAt.Unix() <= buildEpoch() {
 			return nil
 		}
@@ -284,18 +421,19 @@ func SelectRelease(releases []GitHubRelease, branch, currentVersion string) *Git
 }
 
 // MatchesBranch implements cumulative channels: beta = beta + stable,
-// daily = daily + beta + stable. A less-stable channel never leaves the
+// devel = devel + beta + stable. A less-stable channel never leaves the
 // installation older than a more-stable one.
 func MatchesBranch(r GitHubRelease, branch string) bool {
-	isDaily := r.TagName == "daily"
+	branch = normalizeUpdateBranch(branch)
+	isDevel := r.TagName == "devel"
 	isBeta := strings.HasSuffix(r.TagName, "-beta")
-	isStable := !r.Prerelease && !isDaily && !isBeta
+	isStable := !r.Prerelease && !isDevel && !isBeta
 
 	switch branch {
 	case "beta":
 		return isBeta || isStable
-	case "daily":
-		return isDaily || isBeta || isStable
+	case "devel":
+		return isDevel || isBeta || isStable
 	default:
 		return isStable
 	}

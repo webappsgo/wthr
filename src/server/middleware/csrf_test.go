@@ -70,30 +70,58 @@ func TestCSRFProtection_SkipsUnauthenticatedPublicEndpoints(t *testing.T) {
 	}
 }
 
-// TestCSRFProtection_SessionAuthenticatedAPIRouteIsProtected is a regression
-// test for an exploitable bypass: CSRFProtection used to exempt every path
-// under /api/ on the stated assumption that API routes authenticate with API
-// tokens. AuthMiddleware accepts the session cookie on every path including
-// /api/, so a cross-site page could drive the victim's browser through any
-// mutating API route with a plain fetch() -- exactly the attack AI.md PART 16
-// lists as stopped. The bypass is gated on the authentication method, never on
-// a path prefix.
-func TestCSRFProtection_SessionAuthenticatedAPIRouteIsProtected(t *testing.T) {
+// TestCSRFProtection_BackendIsOutOfScope verifies AI.md PART 16 "Scope - Frontend Only":
+// no /api/** route (or MCP alias) is ever CSRF-checked, even for a session-authenticated
+// caller, and no token is issued there.
+func TestCSRFProtection_BackendIsOutOfScope(t *testing.T) {
 	cfg := DefaultCSRFConfig()
+	handler := CSRFProtection(cfg)(okHandler)
 
+	for _, p := range []string{"/api/v1/locations", "/api/mcp", "/mcp"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, p, nil)
+		ctx := reqctx.SetValue(req.Context(), UserContextKey, "session-authenticated-user")
+		ctx = reqctx.SetValue(ctx, UserIDContextKey, 7)
+		handler.ServeHTTP(w, req.WithContext(ctx))
+
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200 - the backend is never CSRF-checked", p, w.Code)
+		}
+		if len(w.Result().Cookies()) != 0 {
+			t.Errorf("%s: no CSRF cookie may be issued on the backend", p)
+		}
+	}
+}
+
+// TestCSRFProtection_FrontendStillProtected keeps the frontend rule: a cookie-authenticated
+// state-changing page request without a token is rejected, and a cross-site Sec-Fetch-Site
+// is rejected even for an unauthenticated form post.
+func TestCSRFProtection_FrontendStillProtected(t *testing.T) {
+	cfg := DefaultCSRFConfig()
 	handler := CSRFProtection(cfg)(okHandler)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/locations", nil)
+	req := httptest.NewRequest(http.MethodPost, "/users/settings", nil)
 	ctx := reqctx.SetValue(req.Context(), UserContextKey, "session-authenticated-user")
-	ctx = reqctx.SetValue(ctx, UserIDContextKey, 7)
-	req = req.WithContext(ctx)
-	handler.ServeHTTP(w, req)
-
+	handler.ServeHTTP(w, req.WithContext(ctx))
 	if w.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403 - a session-authenticated POST to an /api/ route "+
-			"with no CSRF token must be rejected; a path-prefix bypass here is a "+
-			"cross-site request forgery hole", w.Code)
+		t.Errorf("tokenless frontend POST status = %d, want 403", w.Code)
+	}
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/server/contact", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("cross-site frontend POST status = %d, want 403", w.Code)
+	}
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/server/contact", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("same-origin unauthenticated POST status = %d, want 200", w.Code)
 	}
 }
 
@@ -109,7 +137,6 @@ func TestCSRFProtection_BypassesBearerCredentials(t *testing.T) {
 		value  string
 	}{
 		{"Authorization Bearer", "Authorization", "Bearer usr_abcdef0123456789abcdef0123456789"},
-		{"X-API-Token", "X-API-Token", "usr_abcdef0123456789abcdef0123456789"},
 		{"WebSocket upgrade", "Upgrade", "websocket"},
 	}
 
@@ -118,7 +145,7 @@ func TestCSRFProtection_BypassesBearerCredentials(t *testing.T) {
 			handler := CSRFProtection(cfg)(okHandler)
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/api/v1/locations", nil)
+			req := httptest.NewRequest(http.MethodPost, "/users/settings", nil)
 			req.Header.Set(tc.header, tc.value)
 			ctx := reqctx.SetValue(req.Context(), UserContextKey, "token-authenticated-user")
 			req = req.WithContext(ctx)
@@ -136,16 +163,16 @@ func TestCSRFProtection_BypassesBearerCredentials(t *testing.T) {
 // covers deeper paths beneath it.
 func TestCSRFProtection_ExemptPaths(t *testing.T) {
 	cfg := DefaultCSRFConfig()
+	cfg.ExemptPaths = []string{"/pay/callback/*"}
 
 	cases := []struct {
 		requestPath string
 		wantStatus  int
 	}{
-		{"/api/v1/webhooks/stripe", http.StatusOK},
-		{"/api/v1/webhooks/stripe/events/replay", http.StatusOK},
-		{"/api/v1/server/auth/oidc/google/callback", http.StatusOK},
-		{"/api/v1/webhook", http.StatusForbidden},
-		{"/api/v1/locations", http.StatusForbidden},
+		{"/pay/callback/provider", http.StatusOK},
+		{"/pay/callback/provider/events/replay", http.StatusOK},
+		{"/pay/callback", http.StatusForbidden},
+		{"/users/settings", http.StatusForbidden},
 	}
 
 	for _, tc := range cases {

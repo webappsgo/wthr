@@ -26,7 +26,7 @@ func newNotificationsTestConfigFile(t *testing.T) string {
 // HTML render path. No auth/data gating exists on this handler.
 func TestAdminNotificationsHandler_ShowNotificationSettings(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: newNotificationsTestConfigFile(t)}
-	c, w := newAPITestContext("/server/admin/config/notifications")
+	c, w := newAPITestContext("/server/administration/config/notifications")
 	defer htmlRenderGuard(t)
 	h.ShowNotificationSettings(w, c)
 	if w.Code != http.StatusOK {

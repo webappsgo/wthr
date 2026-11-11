@@ -98,6 +98,10 @@ func initServerDB(path string) (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("failed to apply server schema updates: %w", err)
 	}
+	if err := migrateLegacyAdminSessions(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to migrate legacy admin sessions: %w", err)
+	}
 
 	return db, nil
 }

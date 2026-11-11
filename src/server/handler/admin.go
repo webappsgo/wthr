@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -711,20 +712,20 @@ func (h *AdminHandler) seedScheduledTasks() {
 func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) {
 	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
@@ -802,6 +803,16 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	settings["weather_refresh_interval"] = settingsModel.GetInt("weather.refresh_interval", 1800)
 	settings["weather_default_units"] = settingsModel.GetString("weather.default_units", "auto")
 	settings["weather_cache_enabled"] = settingsModel.GetBool("weather.cache_enabled", true)
+	var cacheConfigSettings map[string]interface{}
+	cacheConfig := config.GetGlobalConfig()
+	rateLimitConfig := config.DefaultRateLimitConfig()
+	if cacheConfig == nil {
+		defaults := config.DefaultCacheConfig()
+		cacheConfigSettings = cacheConfigView(defaults)
+	} else {
+		cacheConfigSettings = cacheConfigView(cacheConfig.Server.Cache)
+		rateLimitConfig = cacheConfig.Server.RateLimit
+	}
 	settings["alerts_enabled"] = settingsModel.GetBool("alerts.enabled", true)
 	settings["alerts_check_interval"] = settingsModel.GetInt("alerts.check_interval", 900)
 
@@ -850,9 +861,11 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_settings.tmpl", util.TemplateData(r, map[string]interface{}{
-		"title":    Translate(r, "admin.server_settings"),
-		"user":     admin,
-		"settings": settings,
-		"Settings": historySettings,
+		"title":             Translate(r, "admin.server_settings"),
+		"user":              admin,
+		"settings":          settings,
+		"cache_config":      cacheConfigSettings,
+		"rate_limit_config": rateLimitConfigView(rateLimitConfig),
+		"Settings":          historySettings,
 	}))
 }

@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/httprate"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/server/reqctx"
+	"github.com/webappsgo/wthr/src/util"
 )
 
 // Rate limit constants per AI.md PART 1: Security-First Design
@@ -156,7 +158,7 @@ func getRateLimiters(b rateLimitBuckets) rateLimiterSet {
 	}
 
 	newLimiter := func(limit int, window time.Duration) *httprate.RateLimiter {
-		return httprate.NewRateLimiter(limit, window, httprate.WithKeyFuncs(httprate.KeyByIP))
+		return httprate.NewRateLimiter(limit, window, httprate.WithKeyFuncs(rateLimitClientIP))
 	}
 	limiters = rateLimiterSet{
 		global:        newLimiter(b.GlobalLimit, b.GlobalWindow),
@@ -252,6 +254,9 @@ func newRateLimitMiddleware(name rateLimiterName) func(http.Handler) http.Handle
 				return
 			}
 			_, window := b.bucket(name)
+			if serveDistributedRateLimit(w, r, next, name, b, window) {
+				return
+			}
 			limiter := getRateLimiters(b).pick(name)
 			if limiter == nil {
 				next.ServeHTTP(w, r)
@@ -260,6 +265,57 @@ func newRateLimitMiddleware(name rateLimiterName) func(http.Handler) http.Handle
 			serveRateLimited(w, r, next, limiter, window)
 		})
 	}
+}
+
+type distributedRateCache interface {
+	IsEnabled() bool
+	Increment(string) (int64, error)
+	Expire(string, time.Duration) error
+	TTL(string) (time.Duration, error)
+}
+
+func serveDistributedRateLimit(w http.ResponseWriter, r *http.Request, next http.Handler, name rateLimiterName, buckets rateLimitBuckets, window time.Duration) bool {
+	value, ok := reqctx.GetValue(r.Context(), "cache")
+	cache, ok := value.(distributedRateCache)
+	if !ok || !cache.IsEnabled() {
+		return false
+	}
+	clientIP, err := rateLimitClientIP(r)
+	if err != nil || clientIP == "" {
+		return false
+	}
+	key := "rate-limit:v1:" + strconv.Itoa(int(name)) + ":" + clientIP
+	count, err := cache.Increment(key)
+	if err != nil {
+		return false
+	}
+	if count == 1 {
+		if err := cache.Expire(key, window); err != nil {
+			return false
+		}
+	}
+	limit, _ := buckets.bucket(name)
+	w.Header().Set("X-RateLimit-Limit", strconv.Itoa(limit))
+	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(max(limit-int(count), 0)))
+	reset := time.Now().Add(window)
+	if remaining, err := cache.TTL(key); err == nil && remaining > 0 {
+		reset = time.Now().Add(remaining)
+	}
+	w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
+	if count > int64(limit) {
+		writeRateLimitExceeded(w, r, window)
+		return true
+	}
+	next.ServeHTTP(w, r)
+	return true
+}
+
+func rateLimitClientIP(r *http.Request) (string, error) {
+	clientIP := util.TrustedGetClientIP(r)
+	if clientIP == "" {
+		return httprate.KeyByIP(r)
+	}
+	return clientIP, nil
 }
 
 // newMethodRateLimitMiddleware limits only the request methods in methods and
@@ -361,22 +417,7 @@ func serveRateLimited(w http.ResponseWriter, r *http.Request, next http.Handler,
 	// If httprate never called the inner handler, the request was
 	// rejected as over the limit.
 	if !nextCalled {
-		retryAfter := int(window.Seconds())
-		// AI.md PART 12 mandates both carriers for the retry window:
-		// the Retry-After header and a top-level retry_after field in
-		// the body. PART 14's general "no ad-hoc top-level fields" rule
-		// is overridden here by the rate-limit section, which names
-		// this exact body shape.
-		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
-		// AI.md PART 9/14: canonical error shape with the RATE_LIMITED code.
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"ok":          false,
-			"error":       "RATE_LIMITED",
-			"message":     setupTranslate(r, "errors.rate_limit.too_many_requests"),
-			"retry_after": retryAfter,
-		})
+		writeRateLimitExceeded(w, r, window)
 		return
 	}
 
@@ -386,6 +427,19 @@ func serveRateLimited(w http.ResponseWriter, r *http.Request, next http.Handler,
 	w.Header().Set("X-RateLimit-Remaining", writer.Header().Get("X-RateLimit-Remaining"))
 	w.Header().Set("X-RateLimit-Reset", writer.Header().Get("X-RateLimit-Reset"))
 	next.ServeHTTP(w, r)
+}
+
+func writeRateLimitExceeded(w http.ResponseWriter, r *http.Request, window time.Duration) {
+	retryAfter := int(window.Seconds())
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusTooManyRequests)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":          false,
+		"error":       "RATE_LIMITED",
+		"message":     setupTranslate(r, "errors.rate_limit.too_many_requests"),
+		"retry_after": retryAfter,
+	})
 }
 
 // rateLimitResponseWriter wraps http.ResponseWriter to work with httprate

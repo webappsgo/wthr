@@ -86,9 +86,12 @@ __request() {
     local hdr="$TEST_DIR/headers.txt"
     local body="$TEST_DIR/body.txt"
 
-    if ! curl -q -LSsf -X "$method" -D "$hdr" -o "$body" -H "Accept: $accept" "$@" "${BASE_URL}${path}" >/dev/null; then
+    if ! curl -q -LSs -X "$method" -D "$hdr" -o "$body" -H "Accept: $accept" "$@" "${BASE_URL}${path}" >/dev/null; then
         __fail "$label :: curl transport failed"
         grep -i -- '^X-RateLimit\|^Retry-After\|^HTTP/' "$hdr" >&2 2>/dev/null || true
+        if [ "$path" = "/api/v1/users/sessions" ]; then
+            jq -r 'if .message then .message elif .error then .error else empty end' "$body" >&2 2>/dev/null || true
+        fi
         return
     fi
 
@@ -127,15 +130,20 @@ __request() {
 __frontend_matrix() {
     local scope="$1"
     local cookie_file="${2:-}"
+    local text_accept_type="text/plain"
+    if [ "$scope" = "admin frontend" ]; then
+        # AI.md PART 14 keeps /server/{admin_path}/* HTML for every client.
+        text_accept_type="text/html"
+    fi
     shift $(( $# > 0 ? 2 : 1 )) || true
     local path
     for path in "$@"; do
         if [ -n "$cookie_file" ]; then
             __request GET "$path" "text/html" "200" "text/html" "$scope html $path" -b "$cookie_file" -c "$cookie_file"
-            __request GET "$path" "text/plain" "200" "text/plain" "$scope text $path" -b "$cookie_file" -c "$cookie_file"
+            __request GET "$path" "text/plain" "200" "$text_accept_type" "$scope text $path" -b "$cookie_file" -c "$cookie_file"
         else
             __request GET "$path" "text/html" "200" "text/html" "$scope html $path"
-            __request GET "$path" "text/plain" "200" "text/plain" "$scope text $path"
+            __request GET "$path" "text/plain" "200" "$text_accept_type" "$scope text $path"
         fi
     done
 }
@@ -235,7 +243,7 @@ __create_admin() {
 
     curl -q -LSsf -L -c "$SETUP_COOKIE" -b "$SETUP_COOKIE" \
         --data-urlencode "setup_token=$setup_token" \
-        "$BASE_URL/server/admin/verify-token" >/dev/null
+        "$BASE_URL/server/administration/verify-token" >/dev/null
 
     curl -q -LSsf -D "$hdr" -o "$body" -c "$SETUP_COOKIE" -b "$SETUP_COOKIE" \
         -H "Accept: application/json" \
@@ -243,7 +251,7 @@ __create_admin() {
         --data-urlencode "email=admin@example.com" \
         --data-urlencode "password=$ADMIN_PASSWORD" \
         --data-urlencode "confirm_password=$ADMIN_PASSWORD" \
-        "$BASE_URL/server/admin/config/setup"
+        "$BASE_URL/server/administration/config/setup"
 
     if [ "$(__http_code "$hdr")" != "200" ]; then
         __fail "admin bootstrap :: expected status 200, got $(__http_code "$hdr")"
@@ -324,21 +332,20 @@ __check_unauth_protection() {
         __fail "unauth api /api/v1/users :: expected 401"
     fi
 
-    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/admin/config/users" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/administration/config/users" >/dev/null
     if [ "$(__http_code "$hdr")" != "401" ]; then
-        __fail "unauth api /api/v1/server/admin/config/users :: expected 401"
+        __fail "unauth api /api/v1/server/administration/config/users :: expected 401"
     fi
 
-    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/admin/dashboard" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/administration/dashboard" >/dev/null
     case "$(__http_code "$hdr")" in
         302 | 401 | 403) ;;
-        *) __fail "unauth html /server/admin/dashboard :: expected 302/401/403, got $(__http_code "$hdr")" ;;
+        *) __fail "unauth html /server/administration/dashboard :: expected 302/401/403, got $(__http_code "$hdr")" ;;
     esac
 }
 
 PUBLIC_FRONTEND_ROUTES=(
     "/"
-    "/health"
     "/server/healthz"
     "/server/auth/login"
     "/server/auth/register"
@@ -439,47 +446,47 @@ USER_API_ROUTES=(
 )
 
 ADMIN_FRONTEND_ROUTES=(
-    "/server/admin"
-    "/server/admin/dashboard"
-    "/server/admin/config/settings"
-    "/server/admin/config/web"
-    "/server/admin/config/users"
-    "/server/admin/config/security"
-    "/server/admin/config/scheduler"
-    "/server/admin/config/backup"
-    "/server/admin/config/logs"
-    "/server/admin/config/branding"
-    "/server/admin/config/pages"
-    "/server/admin/config/admins"
-    "/server/admin/$ADMIN_USERNAME/notifications"
+    "/server/administration"
+    "/server/administration/dashboard"
+    "/server/administration/config/settings"
+    "/server/administration/config/web"
+    "/server/administration/config/users"
+    "/server/administration/config/security"
+    "/server/administration/config/scheduler"
+    "/server/administration/config/backup"
+    "/server/administration/config/logs"
+    "/server/administration/config/branding"
+    "/server/administration/config/pages"
+    "/server/administration/config/admins"
+    "/server/administration/$ADMIN_USERNAME/notifications"
 )
 
 ADMIN_API_ROUTES=(
-    "/api/v1/server/admin/config/setup"
-    "/api/v1/server/admin/config/users"
-    "/api/v1/server/admin/config/settings"
-    "/api/v1/server/admin/config/settings/all"
-    "/api/v1/server/admin/config/security/tokens"
-    "/api/v1/server/admin/config/stats"
-    "/api/v1/server/admin/config/email"
-    "/api/v1/server/admin/config/branding"
-    "/api/v1/server/admin/config/pages"
-    "/api/v1/server/admin/config/web"
-    "/api/v1/server/admin/config/status"
-    "/api/v1/server/admin/config/health"
-    "/api/v1/server/admin/config/scheduler"
-    "/api/v1/server/admin/config/channels"
-    "/api/v1/server/admin/config/admins"
-    "/api/v1/server/admin/config/backup"
-    "/api/v1/server/admin/config/templates"
-    "/api/v1/server/admin/config/smtp/providers"
-    "/api/v1/server/admin/$ADMIN_USERNAME/preferences"
-    "/api/v1/server/admin/$ADMIN_USERNAME/profile/sessions"
-    "/api/v1/server/admin/$ADMIN_USERNAME/notifications"
-    "/api/v1/server/admin/$ADMIN_USERNAME/notifications/unread"
-    "/api/v1/server/admin/$ADMIN_USERNAME/notifications/count"
-    "/api/v1/server/admin/$ADMIN_USERNAME/notifications/stats"
-    "/api/v1/server/admin/$ADMIN_USERNAME/notifications/preferences"
+    "/api/v1/server/administration/config/setup"
+    "/api/v1/server/administration/config/users"
+    "/api/v1/server/administration/config/settings"
+    "/api/v1/server/administration/config/settings/all"
+    "/api/v1/server/administration/config/security/tokens"
+    "/api/v1/server/administration/config/stats"
+    "/api/v1/server/administration/config/email"
+    "/api/v1/server/administration/config/branding"
+    "/api/v1/server/administration/config/pages"
+    "/api/v1/server/administration/config/web/robots"
+    "/api/v1/server/administration/config/status"
+    "/api/v1/server/administration/config/health"
+    "/api/v1/server/administration/config/scheduler"
+    "/api/v1/server/administration/config/channels"
+    "/api/v1/server/administration/config/admins"
+    "/api/v1/server/administration/config/backup"
+    "/api/v1/server/administration/config/templates"
+    "/api/v1/server/administration/config/smtp/providers"
+    "/api/v1/server/administration/$ADMIN_USERNAME/preferences"
+    "/api/v1/server/administration/$ADMIN_USERNAME/profile/sessions"
+    "/api/v1/server/administration/$ADMIN_USERNAME/notifications"
+    "/api/v1/server/administration/$ADMIN_USERNAME/notifications/unread"
+    "/api/v1/server/administration/$ADMIN_USERNAME/notifications/count"
+    "/api/v1/server/administration/$ADMIN_USERNAME/notifications/stats"
+    "/api/v1/server/administration/$ADMIN_USERNAME/notifications/preferences"
 )
 
 __check_binary_rename() {
@@ -549,7 +556,7 @@ A11Y_USER_ROUTES=(
 )
 
 A11Y_ADMIN_ROUTES=(
-    "/server/admin/dashboard"
+    "/server/administration/dashboard"
 )
 
 __a11y_fetch() {
@@ -558,9 +565,9 @@ __a11y_fetch() {
     local out="$3"
 
     if [ -n "$cookie_file" ]; then
-        curl -q -LSsf -o "$out" -H "Accept: text/html" -b "$cookie_file" -c "$cookie_file" "${BASE_URL}${path}" >/dev/null
+        curl -q -LSsf -D "$TEST_DIR/a11y.headers" -o "$out" -H "Accept: text/html" -b "$cookie_file" -c "$cookie_file" "${BASE_URL}${path}" >/dev/null
     else
-        curl -q -LSsf -o "$out" -H "Accept: text/html" "${BASE_URL}${path}" >/dev/null
+        curl -q -LSsf -D "$TEST_DIR/a11y.headers" -o "$out" -H "Accept: text/html" "${BASE_URL}${path}" >/dev/null
     fi
 }
 
@@ -665,6 +672,7 @@ __a11y_page() {
     local label="a11y $path"
     local raw="$TEST_DIR/a11y.html"
     local flat="$TEST_DIR/a11y-flat.html"
+    local failures_before="$FAILURES"
 
     if ! __a11y_fetch "$path" "$cookie_file" "$raw"; then
         __fail "$label :: curl transport failed"
@@ -678,6 +686,13 @@ __a11y_page() {
     __a11y_check_form_labels "$flat" "$label"
     __a11y_check_headings "$flat" "$label"
     __a11y_check_landmarks "$flat" "$label"
+    if [ "$FAILURES" -gt "$failures_before" ]; then
+        local content_type title structure
+        content_type=$(__content_type "$TEST_DIR/a11y.headers")
+        title=$(grep -o '<title>[^<]*</title>' "$flat" | head -n1 || true)
+        structure=$(grep -oE '<(h[1-6]|main|header|nav|footer)[^>]*>|<a[^>]*skip-link[^>]*>' "$flat" | head -n 12 | tr '\n' ' ')
+        printf '  Diagnostic: Content-Type=%s title=%s bytes=%s structure=%s\n' "$content_type" "$title" "$(wc -c <"$raw")" "$structure" >&2
+    fi
 }
 
 __a11y_matrix() {

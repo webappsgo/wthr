@@ -6,9 +6,10 @@
     <h1 class="text-purple">{{t .server.Lang "contact_heading"}}</h1>
 
     <div class="card margin-y-lg">
+        {{template "flash" .}}
         <div id="contact-message" role="alert" aria-live="polite"></div>
 
-        <form id="contact-form" role="form" aria-label="{{t .server.Lang "contact_form_aria"}}">
+        <form id="contact-form" method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "contact_form_aria"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="form-group">
                 <label for="contact-name" class="form-label">{{t .server.Lang "contact_name_label"}}</label>
@@ -77,6 +78,21 @@
                 <small id="contact-message-help" class="form-help">{{t .server.Lang "contact_message_help"}}</small>
             </div>
 
+            {{if eq .Captcha.Provider "simple"}}
+            <div class="form-group">
+                <label for="contact-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}}</label>
+                <input type="hidden" name="captcha_id" value="{{.Captcha.ID}}">
+                <input type="text" id="contact-captcha" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off" aria-describedby="contact-captcha-help">
+                <small id="contact-captcha-help" class="form-help">{{t .server.Lang "contact.captcha.help"}}</small>
+            </div>
+            {{else if eq .Captcha.Provider "recaptcha"}}
+            <div class="g-recaptcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+            {{else if eq .Captcha.Provider "hcaptcha"}}
+            <div class="h-captcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+            {{end}}
+
             <div class="form-actions">
                 <button type="submit"
                         class="btn btn-primary"
@@ -105,8 +121,6 @@
     </div>
 </div>
 
-<script type="application/json" id="contact-page-data">
-{"apiPath": "{{.api_path}}"}
-</script>
+
 
 {{template "footer" .}}

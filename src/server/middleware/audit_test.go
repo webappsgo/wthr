@@ -45,9 +45,9 @@ func TestIsAdminRoute(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"/server/admin", true},
-		{"/server/admin/users", true},
-		{"/api/v1/server/admin/config", true},
+		{"/server/administration", true},
+		{"/server/administration/users", true},
+		{"/api/v1/server/administration/config", true},
 		{"/users/settings", false},
 		{"/api/v1/weather/london", false},
 		{"/", false},
@@ -64,7 +64,7 @@ func TestIsAdminRoute(t *testing.T) {
 // TestIsAdminRoute_ConfiguredAdminPathNotDefault verifies isAdminRoute
 // derives the admin prefix from the configured admin.path (via
 // config.LoadConfig()/cfg.GetAdminPath(), same pattern as auth.go) instead
-// of hardcoding "/server/admin". This is a regression test for a real
+// of hardcoding "/server/administration". This is a regression test for a real
 // production bug that was fixed in audit.go: previously the prefix was
 // hardcoded, so audit logging silently stopped matching admin routes
 // whenever admin.path was customized away from the default "admin".
@@ -87,7 +87,7 @@ func TestIsAdminRoute_ConfiguredAdminPathNotDefault(t *testing.T) {
 	if got := isAdminRoute(customAdminPath + "/users"); !got {
 		t.Errorf("isAdminRoute(%q) = false, want true - audit.go should derive "+
 			"the admin prefix from the configured admin.path (%q) instead of a "+
-			"hardcoded \"/server/admin\"", customAdminPath+"/users", customAdminPath)
+			"hardcoded \"/server/administration\"", customAdminPath+"/users", customAdminPath)
 	}
 }
 
@@ -98,13 +98,13 @@ func TestGetActionFromRequest(t *testing.T) {
 		path   string
 		want   string
 	}{
-		{"POST", "/server/admin/auth/login", "login"},
-		{"POST", "/server/admin/auth/logout", "logout"},
-		{"POST", "/server/admin/users", "create"},
-		{"PUT", "/server/admin/users/1", "update"},
-		{"PATCH", "/server/admin/users/1", "update"},
-		{"DELETE", "/server/admin/users/1", "delete"},
-		{"HEAD", "/server/admin/users/1", "HEAD"},
+		{"POST", "/server/administration/auth/login", "login"},
+		{"POST", "/server/administration/auth/logout", "logout"},
+		{"POST", "/server/administration/users", "create"},
+		{"PUT", "/server/administration/users/1", "update"},
+		{"PATCH", "/server/administration/users/1", "update"},
+		{"DELETE", "/server/administration/users/1", "delete"},
+		{"HEAD", "/server/administration/users/1", "HEAD"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.method+"_"+tt.path, func(t *testing.T) {
@@ -122,11 +122,11 @@ func TestGetResourceFromPath(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/server/admin", "dashboard"},
-		{"/server/admin/users", "users"},
-		{"/server/admin/users/42", "users"},
-		{"/api/v1/server/admin/config", "config"},
-		{"/api/v1/server/admin", "dashboard"},
+		{"/server/administration", "dashboard"},
+		{"/server/administration/users", "users"},
+		{"/server/administration/users/42", "users"},
+		{"/api/v1/server/administration/config", "config"},
+		{"/api/v1/server/administration", "dashboard"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
@@ -141,8 +141,8 @@ func TestGetResourceFromPath(t *testing.T) {
 // for the companion half of the hardcoded-prefix bug covered by
 // TestIsAdminRoute_ConfiguredAdminPathNotDefault. isAdminRoute was fixed to
 // resolve the configured admin.path, but getResourceFromPath still compared
-// path[:20]/path[:13] against literal "/api/v1/server/admin" and
-// "/server/admin". With a non-default admin.path those literals never matched,
+// path[:20]/path[:13] against literal "/api/v1/server/administration" and
+// "/server/administration". With a non-default admin.path those literals never matched,
 // so nothing was stripped and every audit row recorded the resource as "server"
 // - the same value for every admin action, making the audit trail useless for
 // telling one action apart from another.
@@ -191,8 +191,8 @@ func TestAuditLogger_SkipsNonAdminAndSafeMethods(t *testing.T) {
 		path   string
 	}{
 		{"non-admin route", http.MethodPost, "/api/v1/weather/london"},
-		{"admin route but GET", http.MethodGet, "/server/admin/users"},
-		{"admin route but OPTIONS", http.MethodOptions, "/server/admin/users"},
+		{"admin route but GET", http.MethodGet, "/server/administration/users"},
+		{"admin route but OPTIONS", http.MethodOptions, "/server/administration/users"},
 	}
 
 	for _, tt := range tests {
@@ -232,7 +232,7 @@ func TestAuditLogger_WritesRowForMutatingAdminRequest(t *testing.T) {
 	handler := AuditLogger(db)(next)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/users", nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -283,7 +283,7 @@ func TestAuditLogger_ReportsFailedWrite(t *testing.T) {
 	handler := AuditLogger(db)(next)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/users", nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -325,7 +325,7 @@ func TestAuditLogger_WritesCanonicalTimestampText(t *testing.T) {
 	before := time.Now().UTC().Truncate(time.Second)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/server/admin/users", nil)
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/users", nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {

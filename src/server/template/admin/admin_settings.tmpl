@@ -86,6 +86,15 @@
                     title="{{t $lang "admin.settings.tab_weather_title"}}">🌤️ {{t $lang "admin.settings.tab_weather_label"}}</button>
             <button class="tab"
                     data-action="switch-settings-tab"
+                    data-tab="cache"
+                    id="cache-settings-tab"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="tab-cache"
+                    aria-label="{{t $lang "admin.settings.tab_cache_aria"}}"
+                    title="{{t $lang "admin.settings.tab_cache_title"}}">🗄️ {{t $lang "admin.settings.tab_cache_label"}}</button>
+            <button class="tab"
+                    data-action="switch-settings-tab"
                     data-tab="notifications"
                     role="tab"
                     aria-selected="false"
@@ -752,11 +761,14 @@
         <div id="tab-ratelimit" class="tab-content" role="tabpanel" aria-labelledby="tab-ratelimit">
             <div class="card">
                 <h2>🚦 {{t $lang "admin.settings.rate_limit_heading"}}</h2>
-                <form id="form-ratelimit" data-settings-category="ratelimit" role="form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                <form id="form-ratelimit" data-rate-limit-config-form method="post" action="{{.admin_path}}/config/settings/rate-limit"
+                      data-save-success="{{t $lang "admin.settings.rate_limit_save_success"}}"
+                      data-save-error="{{t $lang "admin.settings.rate_limit_save_error"}}"
+                      role="form" aria-label="{{t $lang "admin.settings.rate_limit_heading"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label class="toggle-label">
-                            <input type="checkbox" name="rate_limit.enabled" {{if .settings.rate_limit_enabled}}checked{{end}}
+                            <input type="checkbox" name="enabled" {{if .rate_limit_config.enabled}}checked{{end}}
                                    aria-label="{{t $lang "admin.settings.rate_limit_enabled_aria"}}" role="switch">
                             <span class="toggle-slider"></span>
                             <span class="toggle-text">{{t $lang "admin.settings.rate_limit_enabled_toggle"}}</span>
@@ -765,23 +777,44 @@
                     </div>
                     <div class="form-group">
                         <label for="rate_limit_global">{{t $lang "admin.settings.rate_limit_global_label"}}</label>
-                        <input type="number" id="rate_limit_global" name="rate_limit.global" value="{{.settings.rate_limit_global}}" min="1">
+                        <input type="number" id="rate_limit_global" name="global_burst" value="{{.rate_limit_config.global_burst}}" min="1" required>
                         <small>{{t $lang "admin.settings.rate_limit_global_help"}}</small>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_api">{{t $lang "admin.settings.rate_limit_api_label"}}</label>
-                        <input type="number" id="rate_limit_api" name="rate_limit.api" value="{{.settings.rate_limit_api}}" min="1">
-                        <small>{{t $lang "admin.settings.rate_limit_api_help"}}</small>
+                        <label for="rate_limit_read_requests">{{t $lang "admin.settings.rate_limit_read_requests_label"}}</label>
+                        <input type="number" id="rate_limit_read_requests" name="read_requests" value="{{.rate_limit_config.read_requests}}" min="1" required>
+                        <label for="rate_limit_read_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_read_window" name="read_window" value="{{.rate_limit_config.read_window}}" min="1" required>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_admin">{{t $lang "admin.settings.rate_limit_admin_label"}}</label>
-                        <input type="number" id="rate_limit_admin" name="rate_limit.admin" value="{{.settings.rate_limit_admin}}" min="1">
-                        <small>{{t $lang "admin.settings.rate_limit_admin_help"}}</small>
+                        <label for="rate_limit_write_requests">{{t $lang "admin.settings.rate_limit_write_requests_label"}}</label>
+                        <input type="number" id="rate_limit_write_requests" name="write_requests" value="{{.rate_limit_config.write_requests}}" min="1" required>
+                        <label for="rate_limit_write_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_write_window" name="write_window" value="{{.rate_limit_config.write_window}}" min="1" required>
                     </div>
                     <div class="form-group">
-                        <label for="rate_limit_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
-                        <input type="number" id="rate_limit_window" name="rate_limit.window" value="{{.settings.rate_limit_window}}" min="60">
-                        <small>{{t $lang "admin.settings.rate_limit_window_help"}}</small>
+                        <label for="rate_limit_health_requests">{{t $lang "admin.settings.rate_limit_health_requests_label"}}</label>
+                        <input type="number" id="rate_limit_health_requests" name="health_requests" value="{{.rate_limit_config.health_requests}}" min="1" required>
+                        <label for="rate_limit_health_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_health_window" name="health_window" value="{{.rate_limit_config.health_window}}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rate_limit_login_requests">{{t $lang "admin.settings.rate_limit_login_requests_label"}}</label>
+                        <input type="number" id="rate_limit_login_requests" name="login_requests" value="{{.rate_limit_config.login_requests}}" min="1" required>
+                        <label for="rate_limit_login_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_login_window" name="login_window" value="{{.rate_limit_config.login_window}}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rate_limit_password_reset_requests">{{t $lang "admin.settings.rate_limit_password_reset_requests_label"}}</label>
+                        <input type="number" id="rate_limit_password_reset_requests" name="password_reset_requests" value="{{.rate_limit_config.password_reset_requests}}" min="1" required>
+                        <label for="rate_limit_password_reset_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_password_reset_window" name="password_reset_window" value="{{.rate_limit_config.password_reset_window}}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rate_limit_registration_requests">{{t $lang "admin.settings.rate_limit_registration_requests_label"}}</label>
+                        <input type="number" id="rate_limit_registration_requests" name="registration_requests" value="{{.rate_limit_config.registration_requests}}" min="1" required>
+                        <label for="rate_limit_registration_window">{{t $lang "admin.settings.rate_limit_window_label"}}</label>
+                        <input type="number" id="rate_limit_registration_window" name="registration_window" value="{{.rate_limit_config.registration_window}}" min="1" required>
                     </div>
                     <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_ratelimit_action"}}</button>
                 </form>
@@ -1212,6 +1245,122 @@
                     <p><strong>📈 {{t $lang "admin.settings.history_footer_features_label"}}</strong> {{t $lang "admin.settings.history_footer_features_text"}}</p>
                     <p><strong>♿ {{t $lang "admin.settings.history_footer_a11y_label"}}</strong> {{t $lang "admin.settings.history_footer_a11y_text"}}</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Cache Tab -->
+        <div id="tab-cache" class="tab-content" role="tabpanel" aria-labelledby="cache-settings-tab">
+            <div class="card">
+                <h2>🗄️ {{t $lang "admin.settings.cache_config_heading"}}</h2>
+                <p>{{t $lang "admin.settings.cache_config_description"}}</p>
+                <form data-cache-config-form method="post" action="{{.admin_path}}/config/settings/cache"
+                      role="form"
+                      aria-label="{{t $lang "admin.settings.cache_config_form_aria"}}"
+                      data-save-success="{{t $lang "admin.settings.cache_save_success"}}"
+                      data-save-error="{{t $lang "admin.settings.cache_save_error"}}"
+                      data-restart-required="{{t $lang "admin.settings.cache_restart_required"}}">
+                    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <div class="form-group">
+                        <label for="cache_type">{{t $lang "admin.settings.cache_type_label"}}</label>
+                        <select id="cache_type" name="type" required>
+                            <option value="none" {{if eq .cache_config.type "none"}}selected{{end}}>{{t $lang "admin.settings.cache_type_none"}}</option>
+                            <option value="memory" {{if eq .cache_config.type "memory"}}selected{{end}}>{{t $lang "admin.settings.cache_type_memory"}}</option>
+                            <option value="valkey" {{if eq .cache_config.type "valkey"}}selected{{end}}>{{t $lang "admin.settings.cache_type_valkey"}}</option>
+                            <option value="redis" {{if eq .cache_config.type "redis"}}selected{{end}}>{{t $lang "admin.settings.cache_type_redis"}}</option>
+                        </select>
+                        <small>{{t $lang "admin.settings.cache_type_help"}}</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_url">{{t $lang "admin.settings.cache_url_label"}}</label>
+                        <input type="password" id="cache_url" name="url" value="" autocomplete="new-password">
+                        <small>{{if .cache_config.url_configured}}{{t $lang "admin.settings.cache_url_configured"}}{{else}}{{t $lang "admin.settings.cache_url_not_configured"}}{{end}} {{t $lang "admin.settings.cache_url_help"}}</small>
+                        <label class="toggle-label">
+                            <input type="checkbox" name="clear_url" role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_clear_url"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_host">{{t $lang "admin.settings.cache_host_label"}}</label>
+                        <input type="text" id="cache_host" name="host" value="{{.cache_config.host}}" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_port">{{t $lang "admin.settings.cache_port_label"}}</label>
+                        <input type="number" id="cache_port" name="port" value="{{.cache_config.port}}" min="1" max="65535" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_username">{{t $lang "admin.settings.cache_username_label"}}</label>
+                        <input type="password" id="cache_username" name="username" value="" autocomplete="new-password">
+                        <small>{{if .cache_config.username_configured}}{{t $lang "admin.settings.cache_username_configured"}}{{else}}{{t $lang "admin.settings.cache_username_not_configured"}}{{end}}</small>
+                        <label class="toggle-label">
+                            <input type="checkbox" name="clear_username" role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_clear_username"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_password">{{t $lang "admin.settings.cache_password_label"}}</label>
+                        <input type="password" id="cache_password" name="password" value="" autocomplete="new-password">
+                        <small>{{t $lang "admin.settings.cache_password_help"}}</small>
+                        <label class="toggle-label">
+                            <input type="checkbox" name="clear_password" role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_clear_password"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_db">{{t $lang "admin.settings.cache_db_label"}}</label>
+                        <input type="number" id="cache_db" name="db" value="{{.cache_config.db}}" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" name="tls" {{if .cache_config.tls}}checked{{end}} role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_tls_toggle"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" name="tls_skip_verify" {{if .cache_config.tls_skip_verify}}checked{{end}} role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_tls_skip_verify_toggle"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_pool_size">{{t $lang "admin.settings.cache_pool_size_label"}}</label>
+                        <input type="number" id="cache_pool_size" name="pool_size" value="{{.cache_config.pool_size}}" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_min_idle">{{t $lang "admin.settings.cache_min_idle_label"}}</label>
+                        <input type="number" id="cache_min_idle" name="min_idle" value="{{.cache_config.min_idle}}" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_timeout">{{t $lang "admin.settings.cache_timeout_label"}}</label>
+                        <input type="text" id="cache_timeout" name="timeout" value="{{.cache_config.timeout}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_prefix">{{t $lang "admin.settings.cache_prefix_label"}}</label>
+                        <input type="text" id="cache_prefix" name="prefix" value="{{.cache_config.prefix}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_ttl">{{t $lang "admin.settings.cache_ttl_label"}}</label>
+                        <input type="text" id="cache_ttl" name="ttl" value="{{.cache_config.ttl}}" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" name="cluster" {{if .cache_config.cluster}}checked{{end}} role="switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">{{t $lang "admin.settings.cache_cluster_toggle"}}</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="cache_cluster_nodes">{{t $lang "admin.settings.cache_cluster_nodes_label"}}</label>
+                        <input type="text" id="cache_cluster_nodes" name="cluster_nodes" value="{{.cache_config.cluster_nodes}}" autocomplete="off">
+                        <small>{{t $lang "admin.settings.cache_cluster_nodes_help"}}</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary">{{t $lang "admin.settings.save_cache_action"}}</button>
+                    <div class="alert alert-result hidden" data-cache-config-result role="status" aria-live="polite"></div>
+                </form>
             </div>
         </div>
 

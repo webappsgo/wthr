@@ -1,8 +1,9 @@
 {{template "head" .}}
+{{template "header" .}}
 
 {{template "navbar" .}}
 
-<div class="weather-container">
+<main class="weather-container" id="main-content" role="main">
     <h1 class="text-purple">{{t .server.Lang "about_heading"}}</h1>
 
     <div class="card margin-y-lg">
@@ -113,6 +114,6 @@
             </a>
         </div>
     </div>
-</div>
+</main>
 
 {{template "footer" .}}

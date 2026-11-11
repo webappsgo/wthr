@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
 // defaultHTTPPorts are the ports never included in a built URL: the scheme's
@@ -144,4 +146,21 @@ func portSeparatorFor(fqdn, port string) string {
 		return ":" + port
 	}
 	return net.JoinHostPort(fqdn, port)[len(fqdn):]
+}
+
+// OriginRelativePath returns the origin-relative URL for a same-origin link, form action or asset:
+// the configured {baseurl} prefix (empty for "/") followed by p (AI.md PART 1).
+func OriginRelativePath(cfg *config.AppConfig, p string) string {
+	base := "/"
+	if cfg != nil {
+		base = cfg.Server.BaseURL
+	}
+	base = strings.Trim(strings.TrimSpace(base), "/")
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	if base == "" {
+		return p
+	}
+	return "/" + base + p
 }

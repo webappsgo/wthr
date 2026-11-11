@@ -2,9 +2,8 @@ package middleware
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
+	"log"
 	"net/http"
 	"time"
 
@@ -86,10 +85,12 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			var adminID int
 			var storedExpiresAt interface{}
 			err = database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
-				SELECT admin_id, expires_at
-				FROM server_admin_sessions
-				WHERE id = ?
-			`, session).Scan(&adminID, &storedExpiresAt)
+				SELECT sessions.admin_id, sessions.expires_at
+				FROM server_admin_sessions AS sessions
+				INNER JOIN server_admin_credentials AS admins
+					ON admins.id = sessions.admin_id AND admins.is_active = 1
+				WHERE sessions.token_hash = ?
+			`, model.HashAdminSessionToken(session)).Scan(&adminID, &storedExpiresAt)
 
 			if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
 				// Invalid or expired session - show login
@@ -162,7 +163,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 		err := database.QueryRowContext(context.Background(), db, database.TimeoutSimpleSelect, `
 			SELECT id, password_hash
 			FROM server_admin_credentials
-			WHERE username = ?
+			WHERE username = ? AND is_active = 1
 		`, username).Scan(&adminID, &passwordHash)
 
 		if err == sql.ErrNoRows {
@@ -203,9 +204,6 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
-		// Generate real session token (secure random, AI.md requirement)
-		sessionToken := generateSessionToken()
-
 		// Calculate expiry time
 		// Remember me: 90 days, normal: 30 days per AI.md PART 18
 		// 30 days in seconds
@@ -215,19 +213,8 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			maxAge = 90 * 24 * 60 * 60
 		}
 
-		// Create session in server_admin_sessions table (AI.md PART 5).
-		//
-		// Both timestamps are bound as canonical UTC text produced in Go rather
-		// than by datetime(?, 'unixepoch')/CURRENT_TIMESTAMP: those are SQLite
-		// spellings that do not exist on PostgreSQL or MySQL, and binding the
-		// value keeps this writer in the one layout every reader parses.
-		now := time.Now()
-		expiresAt := now.Add(time.Duration(maxAge) * time.Second)
-		_, err = database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-			INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`, sessionToken, adminID, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(expiresAt), dbtime.FormatSQLTimestamp(now))
-
+		sessionModel := &model.AdminSessionModel{DB: db}
+		adminSession, err := sessionModel.CreateSession(int64(adminID), util.TrustedGetClientIP(r), r.UserAgent(), time.Duration(maxAge)*time.Second)
 		if err != nil {
 			RenderHTML(w, r, http.StatusInternalServerError, "admin/login.tmpl", map[string]interface{}{
 				"error": "Failed to create session. Please try again.",
@@ -238,12 +225,14 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 			})
 			return
 		}
+		sessionToken := adminSession.SessionID
+		now := time.Now()
 
 		// Detect if HTTPS is being used
 		isHTTPS := util.TrustedIsHTTPS(r)
 
 		// Get admin path from config (AI.md: use configurable admin_path)
-		adminPath := "/server/admin"
+		adminPath := "/server/administration"
 		if cfg != nil {
 			adminPath = "/server/" + cfg.GetAdminPath()
 		}
@@ -276,9 +265,15 @@ func AdminLogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get admin path from config (AI.md: use configurable admin_path)
 		cfg, _ := config.LoadConfig()
-		adminPath := "/server/admin"
+		adminPath := "/server/administration"
 		if cfg != nil {
 			adminPath = "/server/" + cfg.GetAdminPath()
+		}
+		if cookie, err := r.Cookie("admin_session"); err == nil && cookie.Value != "" {
+			sessionModel := &model.AdminSessionModel{DB: GetDB(r)}
+			if err := sessionModel.DeleteSession(cookie.Value); err != nil {
+				log.Printf("WARNING: admin-logout: failed to delete admin session: %v", err)
+			}
 		}
 
 		// Clear admin session cookie
@@ -295,28 +290,6 @@ func AdminLogoutHandler() http.HandlerFunc {
 		// Redirect to admin login
 		http.Redirect(w, r, adminPath, http.StatusFound)
 	}
-}
-
-// generateSessionToken generates a cryptographically secure session token
-// Per AI.md PART 18: session tokens must be secure random
-func generateSessionToken() string {
-	// Use UUID for session token (secure random)
-	// AI.md PART 18 requirement: cryptographically random session tokens
-	// 32 bytes = 256 bits
-	return generateSecureToken(32)
-}
-
-// generateSecureToken generates a secure random token of specified byte length.
-// Fails closed: panics if crypto/rand is unavailable rather than falling back to
-// a weak RNG. Per AI.md PART 18: session tokens MUST be cryptographically random.
-func generateSecureToken(byteLength int) string {
-	b := make([]byte, byteLength)
-	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand unavailable — cannot generate secure token: " + err.Error())
-	}
-	token := make([]byte, hex.EncodedLen(len(b)))
-	hex.Encode(token, b)
-	return string(token)
 }
 
 // verifyPasswordHash verifies a password against its Argon2id hash

@@ -29,6 +29,8 @@ tests/
 ├── run_tests.sh                        # Phase 2 entrypoint (Incus preferred, Docker fallback)
 ├── incus.sh                            # Phase 2 in Incus (debian/trixie, full systemd)
 ├── docker.sh                           # Phase 2 in Docker (alpine:latest)
+├── e2e.sh                              # Browser E2E: layout review matrix in headless Chromium (Playwright image)
+├── e2e/layout.mjs                      # Viewports x themes x LTR/RTL x pages checks used by e2e.sh
 ├── test-server.sh                      # Isolated manual dev server
 ├── lib/
 │   └── matrix.sh                       # Shared in-container route/header/auth/CLI matrix
@@ -141,6 +143,9 @@ make test
 
 # Incus integration matrix
 ./tests/incus.sh
+
+# Browser layout review matrix (AI.md PART 29)
+./tests/e2e.sh
 ```
 
 ### End-to-End Tests

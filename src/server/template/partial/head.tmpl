@@ -1,6 +1,6 @@
 {{define "head"}}
 <!DOCTYPE html>
-<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
+<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}" data-gpc-opt-out="{{.gpc_opt_out}}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,8 +69,10 @@
     <script src="/static/js/app.js" defer></script>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#282a36">
+    {{if .server.TrackingHTML}}{{.server.TrackingHTML}}{{end}}
 </head>
 <body>
+{{if .server.TrackingNoscript}}{{.server.TrackingNoscript}}{{end}}
 <!-- Accessibility: skip link must be the first focusable element inside <body> -->
 <a href="#main-content" class="skip-link">{{t .server.Lang "aria_skip_to_main"}}</a>
 <a href="#navigation" class="skip-link">{{t .server.Lang "aria_skip_to_nav"}}</a>

@@ -26,7 +26,7 @@ func newWeatherTestConfigFile(t *testing.T) string {
 // render path. No auth/data gating exists on this handler.
 func TestAdminWeatherHandler_ShowWeatherSettings(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: newWeatherTestConfigFile(t)}
-	c, w := newAPITestContext("/server/admin/config/weather")
+	c, w := newAPITestContext("/server/administration/config/weather")
 	defer htmlRenderGuard(t)
 	h.ShowWeatherSettings(w, c)
 	if w.Code != http.StatusOK {

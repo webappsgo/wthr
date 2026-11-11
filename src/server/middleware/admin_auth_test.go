@@ -99,7 +99,7 @@ func TestRequireAdminAuth_NoCookieShowsLoginPage(t *testing.T) {
 	handler := withDB(db, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -123,7 +123,7 @@ func TestRequireAdminAuth_NoDBReturns503(t *testing.T) {
 	handler := RequireAdminAuth()(next)
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: "whatever"})
 	handler.ServeHTTP(w, req)
 
@@ -147,7 +147,7 @@ func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
 	handler := withDB(serverDB, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: "does-not-exist"})
 	handler.ServeHTTP(w, req)
 
@@ -169,9 +169,9 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	// Both timestamps go in as canonical UTC text via dbtime, matching what
 	// AdminLoginHandler itself writes.
 	if _, err := serverDB.Exec(`
-		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, token, adminID, "127.0.0.1", "test-agent", dbtime.FormatSQLTimestamp(now.Add(time.Hour)), dbtime.FormatSQLTimestamp(now)); err != nil {
+		INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, "00000000-0000-4000-8000-000000000001", models.HashAdminSessionToken(token), adminID, "127.0.0.1", "test-agent", dbtime.FormatSQLTimestamp(now.Add(time.Hour)), dbtime.FormatSQLTimestamp(now)); err != nil {
 		t.Fatalf("seed admin session: %v", err)
 	}
 
@@ -188,7 +188,7 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	handler := withDB(serverDB, RequireAdminAuth()(next))
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
 	handler.ServeHTTP(w, req)
 
@@ -197,6 +197,33 @@ func TestRequireAdminAuth_ValidSessionReachesHandler(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "reached") {
 		t.Errorf("body = %q, want the wrapped handler's response", w.Body.String())
+	}
+}
+
+func TestRequireAdminAuthRejectsSessionForInactiveAdmin(t *testing.T) {
+	setAdminTestRenderer(t)
+	serverDB := openAdminAuthTestServerDB(t)
+	adminID := seedAdminCredential(t, serverDB, "disabled-admin", "hunter2-hunter2")
+	session, err := (&models.AdminSessionModel{DB: serverDB}).CreateSession(adminID, "127.0.0.1", "test-agent", time.Hour)
+	if err != nil {
+		t.Fatalf("create admin session: %v", err)
+	}
+	if _, err := serverDB.Exec(`UPDATE server_admin_credentials SET is_active = 0 WHERE id = ?`, adminID); err != nil {
+		t.Fatalf("disable admin: %v", err)
+	}
+
+	var reached bool
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+	})
+	handler := withDB(serverDB, RequireAdminAuth()(next))
+	request := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
+	request.AddCookie(&http.Cookie{Name: "admin_session", Value: session.SessionID})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	if reached {
+		t.Fatal("inactive admin session reached protected handler")
 	}
 }
 
@@ -264,9 +291,9 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 
 			const token = "zone-safety-session-token"
 			if _, err := serverDB.Exec(`
-				INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, token, adminID, "127.0.0.1", "test-agent", tc.expiresAt, dbtime.FormatSQLTimestamp(now)); err != nil {
+				INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, "00000000-0000-4000-8000-000000000002", models.HashAdminSessionToken(token), adminID, "127.0.0.1", "test-agent", tc.expiresAt, dbtime.FormatSQLTimestamp(now)); err != nil {
 				t.Fatalf("seed admin session: %v", err)
 			}
 
@@ -279,7 +306,7 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 			handler := withDB(serverDB, RequireAdminAuth()(next))
 
 			w := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/server/admin/", nil)
+			req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 			req.AddCookie(&http.Cookie{Name: "admin_session", Value: token})
 			handler.ServeHTTP(w, req)
 
@@ -307,7 +334,7 @@ func TestAdminLoginHandler(t *testing.T) {
 		handler := AdminLoginHandler(serverDB)
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(url.Values{}.Encode()))
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/login", strings.NewReader(url.Values{}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		handler.ServeHTTP(w, req)
 
@@ -322,7 +349,7 @@ func TestAdminLoginHandler(t *testing.T) {
 
 		form := url.Values{"username": {"nobody"}, "password": {"whatever123"}}
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		handler.ServeHTTP(w, req)
 
@@ -341,7 +368,7 @@ func TestAdminLoginHandler(t *testing.T) {
 
 		form := url.Values{"username": {"root"}, "password": {"wrong-password"}}
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		handler.ServeHTTP(w, req)
 
@@ -360,7 +387,7 @@ func TestAdminLoginHandler(t *testing.T) {
 
 		form := url.Values{"username": {"root"}, "password": {"correct-password-123"}}
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/login", strings.NewReader(form.Encode()))
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/login", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		handler.ServeHTTP(w, req)
 
@@ -368,14 +395,14 @@ func TestAdminLoginHandler(t *testing.T) {
 			t.Errorf("status = %d, want 302 redirect for correct credentials", w.Code)
 		}
 
-		var cookieFound bool
+		var sessionToken string
 		for _, c := range w.Result().Cookies() {
 			if c.Name == "admin_session" && c.Value != "" {
-				cookieFound = true
+				sessionToken = c.Value
 			}
 		}
-		if !cookieFound {
-			t.Error("admin_session cookie not set (or empty) after a successful login")
+		if !strings.HasPrefix(sessionToken, "adm:") {
+			t.Error("admin_session cookie is missing the adm: prefix after successful login")
 		}
 
 		var count int
@@ -384,6 +411,13 @@ func TestAdminLoginHandler(t *testing.T) {
 		}
 		if count != 1 {
 			t.Errorf("server_admin_sessions row count = %d, want 1 after a successful login", count)
+		}
+		var rowID, tokenHash string
+		if err := serverDB.QueryRow(`SELECT id, token_hash FROM server_admin_sessions`).Scan(&rowID, &tokenHash); err != nil {
+			t.Fatalf("read created admin session: %v", err)
+		}
+		if rowID == sessionToken || tokenHash != models.HashAdminSessionToken(sessionToken) {
+			t.Error("stored admin session must use a distinct row ID and the cookie token hash")
 		}
 	})
 }
@@ -394,7 +428,7 @@ func TestAdminLogoutHandler(t *testing.T) {
 	handler := AdminLogoutHandler()
 
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/server/admin/logout", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/logout", nil)
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusFound {

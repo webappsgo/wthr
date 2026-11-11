@@ -156,14 +156,20 @@ func (pm *PortManager) GetSavedPort(portType string) (int, error) {
 
 // GetServerPorts determines which ports to use for HTTP and HTTPS
 // Returns (httpPort, httpsPort, error)
-// Follows priority: 1) Database saved ports, 2) Config file port, 3) PORT env variable, 4) Random port
+// Follows priority: 1) PORT env variable, 2) Database saved ports, 3) Config file port, 4) Random port
 func (pm *PortManager) GetServerPorts() (int, int, error) {
 	return pm.GetServerPortsWithConfig(0)
 }
 
 // GetServerPortsWithConfig allows passing a config file port
-// Priority: 1) Database saved ports, 2) configPort (if > 0), 3) PORT env variable, 4) Random port
+// Priority: 1) PORT env variable, 2) Database saved ports, 3) configPort (if > 0), 4) Random port
 func (pm *PortManager) GetServerPortsWithConfig(configPort int) (int, int, error) {
+	// Explicit CLI/environment overrides must win over persisted and file defaults.
+	portEnv := os.Getenv("PORT")
+	if portEnv != "" {
+		return pm.ParsePortConfig(portEnv)
+	}
+
 	// Check for saved ports in database first
 	httpPort := pm.getIntSetting("server.http_port", 0)
 	httpsPort := pm.getIntSetting("server.https_port", 0)
@@ -178,13 +184,6 @@ func (pm *PortManager) GetServerPortsWithConfig(configPort int) (int, int, error
 		// Save to database for future use
 		pm.setIntSetting("server.http_port", configPort)
 		return configPort, 0, nil
-	}
-
-	// Check environment variable PORT
-	// AI.md PART 5: Environment Variables
-	portEnv := os.Getenv("PORT")
-	if portEnv != "" {
-		return pm.ParsePortConfig(portEnv)
 	}
 
 	// No configuration found, generate random port

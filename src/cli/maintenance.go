@@ -13,6 +13,7 @@ import (
 
 	"github.com/webappsgo/wthr/src/common/display"
 	"github.com/webappsgo/wthr/src/database"
+	projectpath "github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/util"
 	"golang.org/x/crypto/argon2"
 	_ "modernc.org/sqlite"
@@ -46,6 +47,10 @@ func MaintenanceCommand(args []string) error {
 	remainingArgs := args[1:]
 
 	switch cmd {
+	case "--help", "help":
+		printMaintenanceHelp()
+		return nil
+
 	case "backup":
 		// Per AI.md PART 22 (Backup & Restore)
 		return MaintenanceBackupCommand(remainingArgs)
@@ -71,7 +76,7 @@ func MaintenanceCommand(args []string) error {
 		return adminRecoverySetup(token)
 
 	case "update":
-		return updateServerConfig()
+		return UpdateCommand([]string{"yes"})
 
 	case "mode":
 		if len(remainingArgs) < 1 {
@@ -82,6 +87,32 @@ func MaintenanceCommand(args []string) error {
 	default:
 		return fmt.Errorf("unknown maintenance command: %s", cmd)
 	}
+}
+
+func printMaintenanceHelp() {
+	projectName := filepath.Base(os.Args[0])
+	fmt.Printf("%s\n", "Maintenance commands:")
+	fmt.Println("backup [file]                         - Create backup of all data")
+	fmt.Printf("                                        Default: %s/%s-{timestamp}.tar.gz\n", projectpath.GetBackupDir(), projectName)
+	fmt.Println("restore <file>                        - Restore from backup file")
+	fmt.Println("                                        Stops server, restores data, restarts server")
+	fmt.Println("update [cmd]                          - Manage updates")
+	fmt.Println("                                        check         - Check for available updates")
+	fmt.Println("                                        yes           - Download and install update")
+	fmt.Println("                                        branch <name> - Switch update branch (stable|beta|devel)")
+	fmt.Println("mode <mode>                           - Set application mode")
+	fmt.Println("                                        production    - Normal operation (default)")
+	fmt.Println("                                        development   - Relaxed dev defaults (does NOT enable debug; use --debug/DEBUG=true)")
+	fmt.Println("setup                                 - Run interactive setup wizard")
+	fmt.Println("                                        Creates primary Server Admin, configures server")
+	fmt.Println("\nExamples:")
+	fmt.Printf("  %s --maintenance backup\n", projectName)
+	fmt.Printf("  %s --maintenance backup /path/to/backup.tar.gz\n", projectName)
+	fmt.Printf("  %s --maintenance restore /path/to/backup.tar.gz\n", projectName)
+	fmt.Printf("  %s --maintenance update check\n", projectName)
+	fmt.Printf("  %s --maintenance update yes\n", projectName)
+	fmt.Printf("  %s --maintenance mode development\n", projectName)
+	fmt.Printf("  %s --maintenance setup\n", projectName)
 }
 
 func updateServerConfig() error {

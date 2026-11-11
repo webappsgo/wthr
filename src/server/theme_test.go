@@ -105,6 +105,16 @@ func TestSetThemeCookie(t *testing.T) {
 	})
 }
 
+func TestSetThemeCookieSkipsGPCRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/theme", nil)
+	req.Header.Set("Sec-GPC", "1")
+	rec := httptest.NewRecorder()
+	SetThemeCookie(rec, req, "light")
+	if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("SetThemeCookie() emitted cookies for GPC request: %+v", cookies)
+	}
+}
+
 func TestThemeClass(t *testing.T) {
 	tests := []struct {
 		mode string

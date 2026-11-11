@@ -40,7 +40,7 @@ const (
 )
 
 // NewServer creates a gqlgen GraphQL server for the provided resolver tree.
-func NewServer(resolver *Resolver) *gqlhandler.Server {
+func NewServer(resolver ResolverRoot) *gqlhandler.Server {
 	srv := gqlhandler.New(NewExecutableSchema(Config{Resolvers: resolver}))
 	srv.AddTransport(transport.Websocket{KeepAlivePingInterval: 10 * time.Second})
 	srv.AddTransport(transport.Options{})
@@ -188,10 +188,12 @@ func buildGraphQLAdminSessionContext(ctx context.Context, sessionID string) (con
 	var adminID int
 	var storedExpiresAt interface{}
 	err := database.QueryRowContext(ctx, serverDB, database.TimeoutSimpleSelect, `
-		SELECT admin_id, expires_at
-		FROM server_admin_sessions
-		WHERE id = ?
-	`, sessionID).Scan(&adminID, &storedExpiresAt)
+		SELECT sessions.admin_id, sessions.expires_at
+		FROM server_admin_sessions AS sessions
+		INNER JOIN server_admin_credentials AS admins
+			ON admins.id = sessions.admin_id AND admins.is_active = 1
+		WHERE sessions.token_hash = ?
+	`, models.HashAdminSessionToken(sessionID)).Scan(&adminID, &storedExpiresAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ctx, nil

@@ -5,7 +5,7 @@
 ## CRITICAL - NEVER DO
 - NEVER place Dockerfile or docker-compose.yml in project root — always `docker/`
 - NEVER modify ENTRYPOINT or CMD — all customization goes in `entrypoint.sh`
-- NEVER bake `MODE`/`DEBUG` into the image — binary defaults to production; only `docker-compose.dev.yml`/`docker-compose.test.yml` set them
+- NEVER bake `MODE`/`DEBUG` into the production image — binary defaults to production; compose files set `MODE` explicitly; only `Dockerfile.dev` (the `:devel` image) bakes `ENV MODE=development`
 - NEVER use `LABEL` blocks in the Dockerfile — all OCI metadata applied at build time by CI (`labels:`/`annotations:`)
 - NEVER include `build:` or `version:` in docker-compose.yml
 - NEVER use list-style env vars (`- KEY=value`) — always map style (`KEY: value`)

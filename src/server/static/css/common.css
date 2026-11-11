@@ -7897,3 +7897,36 @@ span a {
   font-size: 3rem;
   margin-bottom: var(--space-md);
 }
+
+/* Selectable and wrapping text helpers (AI.md PART 16 "Long Strings") */
+.select-all {
+  user-select: all;
+}
+
+.break-all {
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.pre-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+pre.select-all {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}

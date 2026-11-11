@@ -51,6 +51,9 @@ func ResolveTheme(r *http.Request) string {
 // saves a logged-in user's/admin's theme preference to the database, so
 // the cookie mirror always matches the stored preference.
 func SetThemeCookie(w http.ResponseWriter, r *http.Request, mode string) {
+	if r.Header.Get("Sec-GPC") == "1" {
+		return
+	}
 	if !IsValidTheme(mode) {
 		mode = DefaultTheme
 	}

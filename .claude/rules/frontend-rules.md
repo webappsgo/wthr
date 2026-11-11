@@ -40,7 +40,7 @@
 - ALWAYS provide a server-rendered flash-message fallback (POST-redirect-GET) for non-AJAX form submits — toasts are the JS enhancement layered on top, never the only feedback channel
 - ALWAYS give forms inline, accessible validation: HTML5 constraints first, `:user-invalid` for styling, `aria-describedby`/`role="alert"` for errors, trim whitespace (but reject — don't trim — password whitespace)
 - ALWAYS normalize URLs (strip trailing slash except root, 301 redirect) via middleware applied first in the chain
-- ALWAYS keep the admin panel isolated: separate session, separate auth (`admins` table, not `users` table), configurable `server.admin_path` (default `admin`), reachable only by typing the URL directly
+- ALWAYS keep the admin panel isolated: separate session, separate auth (`admins` table, not `users` table), configurable `server.admin_path` (default `administration`), reachable only by typing the URL directly
 - ALWAYS put admin's own account under `/server/{admin_path}/{admin_username}/*` (profile, preferences, notifications) and all server management under `/server/{admin_path}/config/*`
 - ALWAYS require the admin panel to exist for every project, be fully usable before the setup wizard runs (sane defaults, one-time setup token shown once at startup), and support TOTP + Passkey/WebAuthn MFA for every Server Admin
 - ALWAYS validate new admin routes/paths against reserved names and existing routes before accepting them

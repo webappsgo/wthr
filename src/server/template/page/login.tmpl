@@ -1,15 +1,7 @@
-<!DOCTYPE html>
-<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ .title }}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
-    <script src="/static/js/app.js" defer></script>
-</head>
-<body>
+{{template "head" .}}
+{{template "header" .}}
+{{template "navbar" .}}
+<main id="main-content" class="auth-container" role="main">
     <div class="login-container">
         <div class="login-header">
             <h1>🌤️ {{t .server.Lang "login_brand_heading"}}</h1>
@@ -91,6 +83,7 @@
             <a href="/">← {{t .server.Lang "login_back_to_weather_link"}}</a>
         </div>
     </div>
+</main>
 
     {{if .require_2fa}}
     <script type="application/json" id="login-data">
@@ -104,5 +97,4 @@
         }
     </script>
     {{end}}
-</body>
-</html>
+{{template "footer" .}}

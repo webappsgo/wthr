@@ -12,19 +12,19 @@
 
         <div class="stats-grid">
             <div class="stat-card">
-                <h3>{{t $lang "admin.dashboard.total_users"}}</h3>
+                <h2>{{t $lang "admin.dashboard.total_users"}}</h2>
                 <div class="stat-value">{{ .totalUsers }}</div>
             </div>
             <div class="stat-card">
-                <h3>{{t $lang "admin.dashboard.admin_users"}}</h3>
+                <h2>{{t $lang "admin.dashboard.admin_users"}}</h2>
                 <div class="stat-value">{{ .adminCount }}</div>
             </div>
             <div class="stat-card">
-                <h3>{{t $lang "admin.dashboard.total_locations"}}</h3>
+                <h2>{{t $lang "admin.dashboard.total_locations"}}</h2>
                 <div class="stat-value">{{ .totalLocations }}</div>
             </div>
             <div class="stat-card">
-                <h3>{{t $lang "admin.dashboard.system_status"}}</h3>
+                <h2>{{t $lang "admin.dashboard.system_status"}}</h2>
                 <div class="stat-value admin-stat-value-online">✓ {{t $lang "admin.dashboard.online"}}</div>
             </div>
         </div>
@@ -75,25 +75,25 @@
 
                 <div class="settings-form">
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.site_title"}}</label>
+                        <label class="form-label" for="web-title">{{t $lang "admin.dashboard.site_title"}}</label>
                         <input type="text" id="web-title" class="form-input" value="Weather">
                         <small class="text-comment">{{t $lang "admin.dashboard.site_title_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.site_tagline"}}</label>
+                        <label class="form-label" for="web-tagline">{{t $lang "admin.dashboard.site_tagline"}}</label>
                         <input type="text" id="web-tagline" class="form-input" value="Production-grade weather API">
                         <small class="text-comment">{{t $lang "admin.dashboard.site_tagline_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.footer_text"}}</label>
+                        <label class="form-label" for="web-footer">{{t $lang "admin.dashboard.footer_text"}}</label>
                         <textarea id="web-footer" class="form-input" rows="2">Production-grade forecasts, alerts, and you data</textarea>
                         <small class="text-comment">{{t $lang "admin.dashboard.footer_text_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.theme"}}</label>
+                        <label class="form-label" for="web-theme">{{t $lang "admin.dashboard.theme"}}</label>
                         <select id="web-theme" class="form-input">
                             <option value="dark" selected>{{t $lang "admin.dashboard.theme_dark"}}</option>
                             <option value="light">{{t $lang "admin.dashboard.theme_light"}}</option>
@@ -102,13 +102,13 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.items_per_page"}}</label>
+                        <label class="form-label" for="web-page-size">{{t $lang "admin.dashboard.items_per_page"}}</label>
                         <input type="number" id="web-page-size" class="form-input" value="50" min="10" max="500">
                         <small class="text-comment">{{t $lang "admin.dashboard.items_per_page_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="web-analytics">
                             <input type="checkbox" id="web-analytics" checked>
                             {{t $lang "admin.dashboard.enable_analytics"}}
                         </label>
@@ -126,10 +126,10 @@
                 </div>
 
                 <div class="settings-form">
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.rate_limiting"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.rate_limiting"}}</h2>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="sec-ratelimit-enabled">
                             <input type="checkbox" id="sec-ratelimit-enabled" checked>
                             {{t $lang "admin.dashboard.enable_rate_limiting"}}
                         </label>
@@ -137,19 +137,19 @@
 
                     <div class="form-grid">
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.global_rate_limit"}}</label>
+                            <label class="form-label" for="sec-global-limit">{{t $lang "admin.dashboard.global_rate_limit"}}</label>
                             <input type="number" id="sec-global-limit" class="form-input" value="100">
                             <small class="text-comment">{{t $lang "admin.dashboard.global_rate_limit_hint"}}</small>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.api_rate_limit"}}</label>
+                            <label class="form-label" for="sec-api-limit">{{t $lang "admin.dashboard.api_rate_limit"}}</label>
                             <input type="number" id="sec-api-limit" class="form-input" value="100">
                             <small class="text-comment">{{t $lang "admin.dashboard.rate_limit_15min_hint"}}</small>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.admin_rate_limit"}}</label>
+                            <label class="form-label" for="sec-admin-limit">{{t $lang "admin.dashboard.admin_rate_limit"}}</label>
                             <input type="number" id="sec-admin-limit" class="form-input" value="30">
                             <small class="text-comment">{{t $lang "admin.dashboard.rate_limit_15min_hint"}}</small>
                         </div>
@@ -157,10 +157,10 @@
 
                     <hr class="admin-hr">
 
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.security_headers"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.security_headers"}}</h2>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="sec-hsts">
                             <input type="checkbox" id="sec-hsts" checked>
                             {{t $lang "admin.dashboard.enable_hsts"}}
                         </label>
@@ -168,18 +168,18 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.csp"}}</label>
+                        <label class="form-label" for="sec-csp">{{t $lang "admin.dashboard.csp"}}</label>
                         <textarea id="sec-csp" class="form-input" rows="3">default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'</textarea>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.blocked_ips"}}</label>
+                        <label class="form-label" for="sec-blocked-ips">{{t $lang "admin.dashboard.blocked_ips"}}</label>
                         <textarea id="sec-blocked-ips" class="form-input" rows="4" placeholder="{{t $lang "admin.dashboard.blocked_ips_placeholder"}}"></textarea>
                         <small class="text-comment">{{t $lang "admin.dashboard.blocked_ips_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="sec-require-https">
                             <input type="checkbox" id="sec-require-https" checked>
                             {{t $lang "admin.dashboard.require_https"}}
                         </label>
@@ -197,28 +197,28 @@
 
                 <div class="stats-grid margin-bottom-2">
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.database_type"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.database_type"}}</h2>
                         <div class="stat-value admin-stat-value-medium">SQLite</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.database_size"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.database_size"}}</h2>
                         <div class="stat-value admin-stat-value-medium">2.4 MB</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.total_records"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.total_records"}}</h2>
                         <div class="stat-value admin-stat-value-medium">1,247</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.cache_hit_rate"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.cache_hit_rate"}}</h2>
                         <div class="stat-value admin-stat-value-medium-success">94%</div>
                     </div>
                 </div>
 
                 <div class="settings-form">
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.cache_settings"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.cache_settings"}}</h2>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="db-cache-enabled">
                             <input type="checkbox" id="db-cache-enabled" checked>
                             {{t $lang "admin.dashboard.enable_memory_cache"}}
                         </label>
@@ -226,13 +226,13 @@
 
                     <div class="form-grid">
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.weather_cache_ttl"}}</label>
+                            <label class="form-label" for="db-weather-ttl">{{t $lang "admin.dashboard.weather_cache_ttl"}}</label>
                             <input type="number" id="db-weather-ttl" class="form-input" value="1800">
                             <small class="text-comment">{{t $lang "admin.dashboard.weather_cache_ttl_hint"}}</small>
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.geoip_cache_ttl"}}</label>
+                            <label class="form-label" for="db-geoip-ttl">{{t $lang "admin.dashboard.geoip_cache_ttl"}}</label>
                             <input type="number" id="db-geoip-ttl" class="form-input" value="86400">
                             <small class="text-comment">{{t $lang "admin.dashboard.geoip_cache_ttl_hint"}}</small>
                         </div>
@@ -240,7 +240,7 @@
 
                     <hr class="admin-hr">
 
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.database_maintenance"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.database_maintenance"}}</h2>
 
                     <div class="form-group">
                         <button class="btn btn-warning" data-action="admin-dashboard-optimize-database">⚡ {{t $lang "admin.dashboard.optimize_database"}}</button>
@@ -249,11 +249,10 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.auto_cleanup"}}</label>
-                        <div class="checkbox-label">
+                        <label class="checkbox-label" for="db-auto-cleanup">
                             <input type="checkbox" id="db-auto-cleanup" checked>
                             {{t $lang "admin.dashboard.auto_cleanup_label"}}
-                        </div>
+                        </label>
                         <small class="text-comment">{{t $lang "admin.dashboard.auto_cleanup_hint"}}</small>
                     </div>
                 </div>
@@ -269,30 +268,30 @@
 
                 <div class="settings-form">
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="ssl-enabled">
                             <input type="checkbox" id="ssl-enabled">
                             {{t $lang "admin.dashboard.enable_ssl"}}
                         </label>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.cert_file_path"}}</label>
+                        <label class="form-label" for="ssl-cert">{{t $lang "admin.dashboard.cert_file_path"}}</label>
                         <input type="text" id="ssl-cert" class="form-input" placeholder="/etc/webappsgo/wthr/ssl/certs/cert.pem">
                         <small class="text-comment">{{t $lang "admin.dashboard.cert_file_path_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.key_file_path"}}</label>
+                        <label class="form-label" for="ssl-key">{{t $lang "admin.dashboard.key_file_path"}}</label>
                         <input type="text" id="ssl-key" class="form-input" placeholder="/etc/webappsgo/wthr/ssl/certs/key.pem">
                         <small class="text-comment">{{t $lang "admin.dashboard.key_file_path_hint"}}</small>
                     </div>
 
                     <hr class="admin-hr">
 
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.lets_encrypt"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.lets_encrypt"}}</h2>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="ssl-acme-enabled">
                             <input type="checkbox" id="ssl-acme-enabled">
                             {{t $lang "admin.dashboard.enable_auto_ssl"}}
                         </label>
@@ -300,19 +299,19 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.domain_name"}}</label>
+                        <label class="form-label" for="ssl-domain">{{t $lang "admin.dashboard.domain_name"}}</label>
                         <input type="text" id="ssl-domain" class="form-input" placeholder="weather.example.com">
                         <small class="text-comment">{{t $lang "admin.dashboard.domain_name_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.contact_email"}}</label>
+                        <label class="form-label" for="ssl-email">{{t $lang "admin.dashboard.contact_email"}}</label>
                         <input type="email" id="ssl-email" class="form-input" placeholder="admin@example.com">
                         <small class="text-comment">{{t $lang "admin.dashboard.contact_email_hint"}}</small>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.acme_provider"}}</label>
+                        <label class="form-label" for="ssl-provider">{{t $lang "admin.dashboard.acme_provider"}}</label>
                         <select id="ssl-provider" class="form-input">
                             <option value="letsencrypt">Let's Encrypt</option>
                             <option value="zerossl">ZeroSSL</option>
@@ -340,28 +339,28 @@
 
                 <div class="stats-grid margin-bottom-2">
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.last_backup"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.last_backup"}}</h2>
                         <div class="stat-value admin-stat-value-medium">2 hours ago</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.backup_size"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.backup_size"}}</h2>
                         <div class="stat-value admin-stat-value-medium">3.2 MB</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.total_backups"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.total_backups"}}</h2>
                         <div class="stat-value admin-stat-value-medium">12</div>
                     </div>
                     <div class="stat-card">
-                        <h3>{{t $lang "admin.dashboard.auto_backup"}}</h3>
+                        <h2>{{t $lang "admin.dashboard.auto_backup"}}</h2>
                         <div class="stat-value admin-stat-value-medium-success">✓ {{t $lang "admin.dashboard.enabled_word"}}</div>
                     </div>
                 </div>
 
                 <div class="settings-form">
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.auto_backup_settings"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.auto_backup_settings"}}</h2>
 
                     <div class="form-group">
-                        <label class="checkbox-label">
+                        <label class="checkbox-label" for="backup-enabled">
                             <input type="checkbox" id="backup-enabled" checked>
                             {{t $lang "admin.dashboard.enable_auto_backups"}}
                         </label>
@@ -369,7 +368,7 @@
 
                     <div class="form-grid">
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.backup_interval"}}</label>
+                            <label class="form-label" for="backup-interval">{{t $lang "admin.dashboard.backup_interval"}}</label>
                             <select id="backup-interval" class="form-input">
                                 <option value="3600">{{t $lang "admin.dashboard.interval_hourly"}}</option>
                                 <option value="21600" selected>{{t $lang "admin.dashboard.interval_6h"}}</option>
@@ -379,21 +378,21 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">{{t $lang "admin.dashboard.retention_count"}}</label>
+                            <label class="form-label" for="backup-retention">{{t $lang "admin.dashboard.retention_count"}}</label>
                             <input type="number" id="backup-retention" class="form-input" value="7" min="1" max="30">
                             <small class="text-comment">{{t $lang "admin.dashboard.retention_count_hint"}}</small>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.backup_directory"}}</label>
+                        <label class="form-label" for="backup-path">{{t $lang "admin.dashboard.backup_directory"}}</label>
                         <input type="text" id="backup-path" class="form-input" value="/mnt/Backups/webappsgo/wthr">
                         <small class="text-comment">{{t $lang "admin.dashboard.backup_directory_hint"}}</small>
                     </div>
 
                     <hr class="admin-hr">
 
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.available_backups"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.available_backups"}}</h2>
 
                     <div id="backup-list">
                         <p class="text-comment">{{t $lang "admin.dashboard.loading_backups"}}</p>
@@ -401,10 +400,10 @@
 
                     <hr class="admin-hr">
 
-                    <h3 class="admin-section-title">{{t $lang "admin.dashboard.restore_from_backup"}}</h3>
+                    <h2 class="admin-section-title">{{t $lang "admin.dashboard.restore_from_backup"}}</h2>
 
                     <div class="form-group">
-                        <label class="form-label">{{t $lang "admin.dashboard.upload_backup_file"}}</label>
+                        <label class="form-label" for="backup-upload">{{t $lang "admin.dashboard.upload_backup_file"}}</label>
                         <input type="file" id="backup-upload" class="form-input" accept=".tar.gz,.tgz">
                         <button class="btn btn-warning margin-top-05" data-action="admin-dashboard-restore-backup">📦 {{t $lang "admin.dashboard.restore_backup"}}</button>
                     </div>

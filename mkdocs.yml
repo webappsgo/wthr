@@ -110,6 +110,7 @@ nav:
   - Security: security.md
   - Development:
     - Contributing: development.md
+    - Translating: translating.md
 
 extra:
   social:

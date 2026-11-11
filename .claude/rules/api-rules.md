@@ -21,8 +21,13 @@
 - NEVER let the app renew certs under `/etc/letsencrypt/**` — that's system/certbot-managed; app only auto-renews its own `{config_dir}/ssl/letsencrypt/{fqdn}/` certs
 - NEVER enable `/healthz` root alias by default — it requires explicit `server.healthz.root.enabled: true` and must mount the same handler as `/server/healthz` (no redirect, no forked logic)
 
+- NEVER accept a credential anywhere but `Authorization: Bearer {token}` on native routes — `X-API-Key`, `X-Auth-Token`, Basic, Digest and `?token=` are ignored (anonymous); one-shot emailed link tokens are not credentials
+- NEVER apply CSRF to `/api/**` or compatibility-layer routes — CSRF and the `Sec-Fetch-*` checks are frontend-only
+
 ## CRITICAL - ALWAYS DO
 
+- ALWAYS return `401` with `WWW-Authenticate: Bearer realm="{project_name}"` for a missing, invalid, expired or revoked token (`error="invalid_token"` for the last three), and `403` for a valid token without scope
+- ALWAYS rate-limit anonymous requests per IP and Bearer-authenticated requests per token; failed authentication always counts per IP
 - ALWAYS version every API route: `/api/{api_version}/...`
 - ALWAYS use plural, lowercase, hyphenated resource names
 - ALWAYS keep frontend and API in the same route tree (`/users` ↔ `/api/{api_version}/users`) except for documented API-only or frontend-only exceptions

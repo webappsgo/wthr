@@ -46,7 +46,9 @@ func LoadTemplates() (*template.Template, error) {
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
 		"nextTheme": NextTheme,
-		"title":     func(s string) string { return cases.Title(language.English).String(s) },
+		// Placeholder: main registers the real {baseurl}-aware path helper
+		"path":  func(p string) string { return p },
+		"title": func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b
 		},

@@ -154,6 +154,9 @@ local: clean
 # =============================================================================
 # RELEASE - Manual local release (stable only)
 # =============================================================================
+# Release tag and name: numeric SemVer gets a v prefix, text versions never do (AI.md PART 26)
+RELEASE_TAG := $(shell echo "$(VERSION)" | grep -Eq "^[0-9]+[.][0-9]+[.][0-9]+" && echo "v$(VERSION)" || echo "$(VERSION)")
+
 release: build
 	@mkdir -p $(RELDIR)
 	@echo "Preparing release $(VERSION)..."
@@ -174,17 +177,17 @@ release: build
 		-czf $(RELDIR)/$(PROJECT_NAME)-$(VERSION)-source.tar.gz .
 
 	# Delete existing release/tag if exists
-	@gh release delete $(VERSION) --yes 2>/dev/null || true
-	@git tag -d $(VERSION) 2>/dev/null || true
-	@git push origin :refs/tags/$(VERSION) 2>/dev/null || true
+	@gh release delete $(RELEASE_TAG) --yes 2>/dev/null || true
+	@git tag -d $(RELEASE_TAG) 2>/dev/null || true
+	@git push origin :refs/tags/$(RELEASE_TAG) 2>/dev/null || true
 
 	# Create new release (stable)
-	@gh release create $(VERSION) $(RELDIR)/* \
-		--title "$(PROJECT_NAME) $(VERSION)" \
-		--notes "Release $(VERSION)" \
+	@gh release create $(RELEASE_TAG) $(RELDIR)/* \
+		--title "$(RELEASE_TAG)" \
+		--notes "Release $(RELEASE_TAG)" \
 		--latest
 
-	@echo "Release complete: $(VERSION)"
+	@echo "Release complete: $(RELEASE_TAG)"
 
 # =============================================================================
 # DOCKER - Build and push container to registry (set REGISTRY env var)
@@ -227,8 +230,7 @@ test:
 		COVDIR=\$$(mktemp -d \"\$${TMPDIR:-/tmp}/$(PROJECT_ORG)/$(PROJECT_NAME)-XXXXXX\") && \
 		go mod download && \
 		go test -v -cover -coverprofile=\$$COVDIR/coverage.out ./... && \
-		grep -v '/graphql/generated\.go:' \$$COVDIR/coverage.out > \$$COVDIR/coverage.filtered.out && \
-		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.filtered.out | awk '/^total:/{print \$$3}' | sed 's/%//') && \
+		COVERAGE=\$$(go tool cover -func=\$$COVDIR/coverage.out | awk '/^total:/{print \$$3}' | sed 's/%//') && \
 		echo \"Coverage: \$$COVERAGE%\" && \
 		if [ \$$(echo \"\$$COVERAGE < 60\" | bc -l) -eq 1 ]; then \
 			echo \"ERROR: Coverage is \$$COVERAGE%, must be >= 60%\"; exit 1; \

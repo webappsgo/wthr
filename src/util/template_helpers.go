@@ -141,11 +141,11 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 	robots := RobotsMetaForPath(r.URL.Path)
 
 	// Get configurable paths per AI.md PART 17
-	// Templates must use these instead of hardcoded "/server/admin/" or "/api/v1/server/admin/"
+	// Templates must use these instead of hardcoded "/server/administration/" or "/api/v1/server/administration/"
 	cfg, _ := config.LoadConfig()
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	apiPath := "/api/v1"
-	adminAPIPath := "/api/v1/server/admin"
+	adminAPIPath := "/api/v1/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 		apiPath = cfg.GetAPIPath()
@@ -175,6 +175,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 		"csrf_token":          csrfToken,
 		"current_url":         currentURL,
 		"robots":              robots,
+		"gpc_opt_out":         r.Header.Get("Sec-GPC") == "1",
 		"admin_path":          adminPath,
 		"api_path":            apiPath,
 		"admin_api_path":      adminAPIPath,

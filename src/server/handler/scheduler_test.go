@@ -28,7 +28,7 @@ func TestSchedulerHandler_GetAllTasks_Empty(t *testing.T) {
 	s := scheduler.NewScheduler(nil)
 	h := NewSchedulerHandler(s)
 
-	c, w := newAPITestContext("/server/admin/config/scheduler/tasks")
+	c, w := newAPITestContext("/server/administration/config/scheduler/tasks")
 	h.GetAllTasks(w, c)
 
 	if w.Code != http.StatusOK {

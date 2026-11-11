@@ -5,6 +5,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"syscall"
 )
 
 // replaceBinary replaces the running binary. Unix allows renaming over a
@@ -25,4 +26,12 @@ func replaceBinary(currentPath, newBinaryPath string) error {
 	}
 
 	return nil
+}
+
+func restartSelf() error {
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to locate updated executable: %w", err)
+	}
+	return syscall.Exec(executable, os.Args, os.Environ())
 }

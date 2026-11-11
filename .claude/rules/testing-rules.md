@@ -18,7 +18,7 @@
 - ALWAYS run BOTH test phases: Phase 1 `make test` (`go test`, ≥60% coverage, pre-commit gate) and Phase 2 `./tests/run_tests.sh` (compiled binary, 100% endpoint coverage, manual/developer-initiated)
 - ALWAYS create/update the matching `*_test.go` in the same work pass when adding or changing package logic — never defer to the end
 - ALWAYS test every route with all applicable Accept headers: frontend (`text/html`, `text/plain`), API (`application/json`, `text/plain`), plus every `.txt` endpoint
-- ALWAYS have `tests/run_tests.sh`, `tests/docker.sh`, `tests/incus.sh` (executable, WTFPL-licensed) — Incus preferred (full systemd), Docker fallback
+- ALWAYS have `tests/run_tests.sh`, `tests/docker.sh`, `tests/incus.sh`, `tests/e2e.sh` (executable, WTFPL-licensed; e2e.sh drives headless Chromium and runs the layout review matrix) — Incus preferred (full systemd), Docker fallback
 - ALWAYS build via Docker (`casjaysdev/go:latest`) with host `GO_CACHE`/`GO_BUILD` cache dirs mounted; output to `binaries/`
 - ALWAYS graceful process termination: identify exact PID first, `kill {pid}` (SIGTERM), wait, `kill -9` only if still running
 - ALWAYS host RTD documentation via MkDocs Material (`docs/` + `mkdocs.yml` + `.readthedocs.yaml`); required pages: index, installation, configuration, api, admin, security, integrations, development (+ cli if applicable)
@@ -84,7 +84,7 @@
 | Unsupported language | Silently falls back to `en` — never error/crash |
 | Key validation | Build-time check (`make i18n-validate`) — every language must match `en.json` key set |
 
-- Supported languages (all binaries, no partial support): `en`, `es`, `zh`, `fr`, `ar` (RTL), `de`, `ja`.
+- Supported languages (all binaries, no partial support): the required minimum is `en`, `es`, `fr`, `de`, `it`, `ar` (RTL); a project may add more (this one also ships `zh`, `ja`) but never fewer. A language is supported only if a complete locale file exists; one registry, the embedded locale files and the config defaults must list the same set. `docs/translating.md` is required. After adding, changing or removing a key, update every locale file in the same change.
 - Translation files: single source of truth at `src/common/i18n/locales/{lang}.json`, embedded via `go:embed` and shared by server/CLI/agent — never duplicated or subsetted per binary. WebUI JS fetches `/locales/{lang}.json` served from the same embedded files.
 - Key rules: no hardcoded strings anywhere; `http.Error()`/API JSON errors always use `t(r, "errors.*")`; dot-separated lowercase keys (`admin.dashboard.title`); `{variable}` interpolation; plurals nested under CLDR categories (`zero/one/two/few/many/other`).
 - CLI/agent send `Accept-Language` header on API requests derived from their own `--lang`/config/env resolution.

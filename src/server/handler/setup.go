@@ -18,6 +18,7 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/middleware"
+	"github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -32,12 +33,12 @@ func (h *SetupHandler) ShowSetupTokenEntry(w http.ResponseWriter, r *http.Reques
 		"Title": Translate(r, "setup.server_setup_enter_setup_token")}))
 }
 
-// VerifySetupTokenAtAdmin handles setup token verification at /server/admin/verify-token
-// AI.md: Step 2: User navigates to /server/admin → Step 3: User enters setup token → Step 4: Redirect to setup wizard
+// VerifySetupTokenAtAdmin handles setup token verification at /server/administration/verify-token
+// AI.md: Step 2: User navigates to /server/administration → Step 3: User enters setup token → Step 4: Redirect to setup wizard
 func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Request) {
 	// Get admin path from config
 	cfg, _ := config.LoadConfig()
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}
@@ -136,7 +137,7 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 	cfg, _ := config.LoadConfig()
 	setSetupVerifiedCookie(w, r, cfg)
 
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}
@@ -353,24 +354,10 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create admin session (auto-login) in server_admin_sessions
-	sessionID, err := generateSessionID()
-	if err != nil {
-		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_generate_session_id"))
-		return
-	}
-	// 7 days
-	expiresAt := time.Now().Add(7 * 24 * time.Hour)
-
-	// created_at/expires_at are bound as canonical UTC text. Binding a raw
-	// time.Time makes the SQLite driver serialize it as time.Time.String() in
-	// the host's LOCAL zone, which no reader can compare against a UTC instant
-	// without guessing the writer's offset.
-	_, err = database.ExecContext(context.Background(), database.GetServerDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, sessionID, adminID, util.TrustedGetClientIP(r), r.UserAgent(), dbtime.FormatSQLTimestamp(time.Now()), dbtime.FormatSQLTimestamp(expiresAt))
-
+	// Create the initial administrator's session through the shared model so
+	// the cookie token is hashed and the database row receives a UUID.
+	sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+	adminSession, err := sessionModel.CreateSession(adminID, util.TrustedGetClientIP(r), r.UserAgent(), 7*24*time.Hour)
 	if err != nil {
 		h.setupError(w, r, http.StatusInternalServerError, Translate(r, "errors.setup.failed_to_create_session"))
 		return
@@ -381,7 +368,7 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 	// Set admin_session cookie (separate from weather_session)
 	http.SetCookie(w, &http.Cookie{
 		Name:     "admin_session",
-		Value:    sessionID,
+		Value:    adminSession.SessionID,
 		MaxAge:   int(7 * 24 * time.Hour.Seconds()),
 		Path:     "/",
 		Secure:   isHTTPS,
@@ -477,16 +464,6 @@ func generateAPIToken() (string, error) {
 	}
 	// Encode as base64url without padding, prefix with adm_
 	return "adm_" + base64.RawURLEncoding.EncodeToString(bytes), nil
-}
-
-// generateSessionID generates a cryptographically secure random session ID
-func generateSessionID() (string, error) {
-	// Generate 48 random bytes and encode as base64 (results in 64 chars)
-	bytes := make([]byte, 48)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("failed to generate secure session ID: %w", err)
-	}
-	return base64.URLEncoding.EncodeToString(bytes), nil
 }
 
 // ShowAPIToken shows the API token page (Step 2)
@@ -806,7 +783,7 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 	// Current URL is /server/{admin_path}/config/setup/complete
 	reqPath := r.URL.Path
 	parts := strings.Split(reqPath, "/")
-	adminPath := "/server/admin" // default
+	adminPath := "/server/administration" // default
 	if len(parts) > 2 && parts[1] == "server" && parts[2] != "" {
 		adminPath = "/server/" + parts[2]
 	}
@@ -820,7 +797,7 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 // GetSetupStatus returns the current setup status as a healthz endpoint
 func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := config.LoadConfig()
-	adminPath := "/server/admin"
+	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
 	}

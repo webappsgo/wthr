@@ -68,6 +68,7 @@ Weather Service is a production-grade weather API providing global weather forec
 - [Security](security.md) - Authentication, public endpoints, and reporting
 - [Integrations](integrations.md) - External identity and discovery endpoints
 - [Development](development.md) - Building, testing, and contributing
+- [Translating](translating.md) - How to add or update a language
 
 ## Links
 

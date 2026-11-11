@@ -3,6 +3,7 @@ package graphql
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,6 +124,70 @@ func TestThemeCSS_DarkAndLightDiffer(t *testing.T) {
 
 	if dark == light {
 		t.Error("GetDarkThemeCSS() and GetLightThemeCSS() returned identical output")
+	}
+}
+
+func TestGraphQLHandlerExecutesHealthAndSchemaIntrospection(t *testing.T) {
+	server := NewServer(NewResolver(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil))
+	handler := GraphQLHandler(server)
+	queries := []struct {
+		name  string
+		query string
+		check func(map[string]interface{}) bool
+	}{
+		{
+			name: "health",
+			query: `query { health { status message database { status latency error } memory { used total percentage } disk { used total percentage } ` +
+				`ssl { enabled expiresAt daysRemaining } scheduler { running tasks lastRun } sessions { active total } ` +
+				`requests { total perSecond } locationDatabases { countries { loaded count lastUpdated } cities { loaded count lastUpdated } ` +
+				`zipcodes { loaded count lastUpdated } geoip { loaded count lastUpdated } } uptime timestamp } }`,
+			check: func(data map[string]interface{}) bool {
+				health, ok := data["health"].(map[string]interface{})
+				return ok && health["status"] != nil && health["memory"] != nil
+			},
+		},
+		{
+			name: "schema introspection",
+			query: `query { __schema { queryType { name } types { kind name description fields { name description args { name defaultValue type { kind name ofType { kind name ofType { kind name } } } ` +
+				`type { kind name ofType { kind name ofType { kind name } } } isDeprecated deprecationReason } } } } }`,
+			check: func(data map[string]interface{}) bool {
+				schema, ok := data["__schema"].(map[string]interface{})
+				if !ok {
+					return false
+				}
+				queryType, ok := schema["queryType"].(map[string]interface{})
+				return ok && queryType["name"] == "Query" && len(schema["types"].([]interface{})) > 0
+			},
+		},
+	}
+
+	for _, tc := range queries {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := json.Marshal(map[string]string{"query": tc.query})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/graphql", strings.NewReader(string(body)))
+			req.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, req)
+			if response.Code != http.StatusOK {
+				t.Fatalf("GraphQL status = %d, body=%s", response.Code, response.Body.String())
+			}
+			var result struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []interface{}          `json:"errors"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+				t.Fatalf("decode GraphQL response: %v; body=%s", err, response.Body.String())
+			}
+			if len(result.Errors) != 0 {
+				t.Fatalf("GraphQL errors: %v", result.Errors)
+			}
+			if !tc.check(result.Data) {
+				t.Fatalf("GraphQL response data failed check: %#v", result.Data)
+			}
+		})
 	}
 }
 
@@ -296,9 +361,9 @@ func TestBuildGraphQLAdminSessionContext_ExpiryIsJudgedByInstantNotText(t *testi
 
 			const token = "graphql-zone-safety-session"
 			if _, err := ddb.Server.Exec(`
-				INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, expires_at, created_at)
-				VALUES (?, ?, ?, ?, ?, ?)
-			`, token, admin.ID, "127.0.0.1", "test-agent", tc.expiresAt, now.UTC().Format("2006-01-02 15:04:05")); err != nil {
+				INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, expires_at, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, "00000000-0000-4000-8000-000000000004", models.HashAdminSessionToken(token), admin.ID, "127.0.0.1", "test-agent", tc.expiresAt, now.UTC().Format("2006-01-02 15:04:05")); err != nil {
 				t.Fatalf("seed admin session: %v", err)
 			}
 

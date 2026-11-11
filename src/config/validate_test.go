@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // validConfig returns an AppConfig whose PART 12 trees are all at their defaults
 func validConfig() *AppConfig {
@@ -8,7 +11,7 @@ func validConfig() *AppConfig {
 	cfg.Server.Port = 8080
 	cfg.Server.BaseURL = "/"
 	cfg.Server.Mode = "production"
-	cfg.Server.AdminPath = "admin"
+	cfg.Server.AdminPath = "administration"
 	cfg.Server.APIVersion = "v1"
 	cfg.Server.Limits = DefaultLimitsConfig()
 	cfg.Server.Compression = DefaultCompressionConfig()
@@ -112,8 +115,8 @@ func TestValidateConfigReplacesInvalidIdentity(t *testing.T) {
 	if cfg.Server.Mode != "production" {
 		t.Errorf("mode = %q, want production", cfg.Server.Mode)
 	}
-	if cfg.Server.AdminPath != "admin" {
-		t.Errorf("admin_path = %q, want admin", cfg.Server.AdminPath)
+	if cfg.Server.AdminPath != "administration" {
+		t.Errorf("admin_path = %q, want administration", cfg.Server.AdminPath)
 	}
 	if cfg.Server.APIVersion != "v1" {
 		t.Errorf("api_version = %q, want v1", cfg.Server.APIVersion)
@@ -179,6 +182,11 @@ func TestValidateConfigReplacesInvalidRateLimits(t *testing.T) {
 	cfg.Server.RateLimit.Write.Window = -1
 	cfg.Server.RateLimit.Auth.Login.Requests = -5
 	cfg.Server.RateLimit.GlobalBurst = 0
+	maxDurationSeconds := int64((time.Duration(1<<63 - 1)) / time.Second)
+	windowOverflowAvailable := int64(int(^uint(0)>>1)) > maxDurationSeconds
+	if windowOverflowAvailable {
+		cfg.Server.RateLimit.Health.Window = int(maxDurationSeconds + 1)
+	}
 
 	validateConfig(cfg)
 
@@ -196,12 +204,15 @@ func TestValidateConfigReplacesInvalidRateLimits(t *testing.T) {
 	if cfg.Server.RateLimit.GlobalBurst != defaults.GlobalBurst {
 		t.Errorf("global_burst = %d, want %d", cfg.Server.RateLimit.GlobalBurst, defaults.GlobalBurst)
 	}
+	if windowOverflowAvailable && cfg.Server.RateLimit.Health.Window != defaults.Health.Window {
+		t.Errorf("health.window = %d, want %d", cfg.Server.RateLimit.Health.Window, defaults.Health.Window)
+	}
 }
 
 func TestValidateConfigI18nFallsBackToEnglish(t *testing.T) {
 	cfg := validConfig()
 	cfg.Server.I18n.DefaultLanguage = "klingon"
-	cfg.Server.I18n.Supported = []string{"es", "fr"}
+	cfg.Server.I18n.AvailableLanguages = []string{"es", "fr"}
 
 	validateConfig(cfg)
 
@@ -210,13 +221,13 @@ func TestValidateConfigI18nFallsBackToEnglish(t *testing.T) {
 	}
 
 	found := false
-	for _, lang := range cfg.Server.I18n.Supported {
+	for _, lang := range cfg.Server.I18n.AvailableLanguages {
 		if lang == "en" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("en must be added to i18n.supported when it becomes the default")
+		t.Error("en must be restored in i18n.available_languages (required minimum)")
 	}
 }
 
@@ -293,5 +304,65 @@ func TestValidateConfigNormalizesCacheTypeCase(t *testing.T) {
 
 	if cfg.Server.Cache.Type != "valkey" {
 		t.Errorf("cache.type = %q, want valkey", cfg.Server.Cache.Type)
+	}
+}
+
+func TestValidateConfigAcceptsDisabledCache(t *testing.T) {
+	cfg := validConfig()
+	cfg.Server.Cache.Type = " NONE "
+
+	validateConfig(cfg)
+
+	if cfg.Server.Cache.Type != "none" {
+		t.Fatalf("cache.type = %q, want none", cfg.Server.Cache.Type)
+	}
+}
+
+func TestValidateConfigReplacesInvalidCacheConnectionSettings(t *testing.T) {
+	cfg := validConfig()
+	cfg.Server.Cache.Timeout = "-1s"
+	cfg.Server.Cache.TTL = "not-a-duration"
+	cfg.Server.Cache.URL = "http://cache.example"
+	cfg.Server.Cache.DB = -1
+	cfg.Server.Cache.Cluster = true
+	cfg.Server.Cache.ClusterNodes = []string{"invalid-node"}
+
+	validateConfig(cfg)
+
+	defaults := DefaultCacheConfig()
+	if cfg.Server.Cache.Timeout != defaults.Timeout || cfg.Server.Cache.TTL != defaults.TTL {
+		t.Fatalf("invalid durations not replaced: timeout=%q ttl=%q", cfg.Server.Cache.Timeout, cfg.Server.Cache.TTL)
+	}
+	if cfg.Server.Cache.URL != defaults.URL || cfg.Server.Cache.DB != defaults.DB {
+		t.Fatalf("invalid URL/db not replaced: url=%q db=%d", cfg.Server.Cache.URL, cfg.Server.Cache.DB)
+	}
+	if cfg.Server.Cache.Cluster || len(cfg.Server.Cache.ClusterNodes) != 0 {
+		t.Fatalf("invalid cluster nodes not replaced: cluster=%v nodes=%v", cfg.Server.Cache.Cluster, cfg.Server.Cache.ClusterNodes)
+	}
+}
+
+func TestIsValidAdminPath(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"administration", true},
+		{"my-admin", true},
+		{"a1", true},
+		{"a", false},
+		{"-admin-", false},
+		{"admin-", false},
+		{"Admin", false},
+		{"my admin", false},
+		{"a/b", false},
+		{"api", false},
+		{"security", false},
+		{"", false},
+		{"abcdefghijklmnopqrstuvwxyz0123456789", false},
+	}
+	for _, c := range cases {
+		if got := IsValidAdminPath(c.in); got != c.want {
+			t.Errorf("IsValidAdminPath(%q) = %v, want %v", c.in, got, c.want)
+		}
 	}
 }

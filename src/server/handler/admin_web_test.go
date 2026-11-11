@@ -45,7 +45,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	setGlobalTestDualDB(t, h.db.DB, newTestUsersDB(t))
 
 	t.Run("missing admin_id", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/admin/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
 			t.Fatalf("status = %d, want 302", w.Code)
@@ -53,7 +53,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	})
 
 	t.Run("non-int admin_id", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/admin/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
 		c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
@@ -62,7 +62,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	})
 
 	t.Run("admin not found", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/admin/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
 		c = withAdminID(c, 999999)
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
@@ -78,7 +78,7 @@ func TestAdminWebHandler_GetRobotsTxt_GetSecurityTxt(t *testing.T) {
 	resetGlobalConfig(t)
 
 	t.Run("robots", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/web/robots")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/web/robots")
 		h.GetRobotsTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", w.Code)
@@ -86,7 +86,7 @@ func TestAdminWebHandler_GetRobotsTxt_GetSecurityTxt(t *testing.T) {
 	})
 
 	t.Run("security", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/web/security")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/web/security")
 		h.GetSecurityTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", w.Code)
@@ -102,7 +102,7 @@ func TestAdminWebHandler_UpdateRobotsTxt(t *testing.T) {
 
 	t.Run("missing content", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/robots", map[string]interface{}{})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -111,7 +111,7 @@ func TestAdminWebHandler_UpdateRobotsTxt(t *testing.T) {
 
 	t.Run("global config not initialized", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/robots", map[string]interface{}{"content": "User-agent: *"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{"content": "User-agent: *"})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -120,7 +120,7 @@ func TestAdminWebHandler_UpdateRobotsTxt(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		withTestGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/robots", map[string]interface{}{"content": "User-agent: *\nDisallow: /admin"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{"content": "User-agent: *\nDisallow: /admin"})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -135,7 +135,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("missing content", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/security", map[string]interface{}{})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -144,7 +144,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("global config not initialized", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -153,7 +153,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		withTestGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/admin/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())

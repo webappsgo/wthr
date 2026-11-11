@@ -1,8 +1,8 @@
-# wthr - Development compose (DEBUG commented)
+# wthr - Development compose (debug enabled)
 # nginx proxy address - http://172.17.0.1:64580
 # Usage: docker compose -f docker-compose.dev.yml up -d
 
-name: wthr-dev
+name: wthr
 
 x-logging: &default-logging
   options:
@@ -13,19 +13,17 @@ x-logging: &default-logging
 services:
   wthr:
     image: ghcr.io/webappsgo/wthr:devel
-    container_name: wthr-dev
-    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    container_name: wthr-app
+    hostname: wthr
     restart: always
     pull_policy: always
     logging: *default-logging
     environment:
       # Development: relaxed security, verbose logging, no caching
-      # Does NOT enable debug endpoints - uncomment DEBUG to enable
       MODE: development
+      DEBUG: true
       PORT: 80
       TZ: ${TZ:-America/New_York}
-      # DEBUG: Uncomment to enable pprof, expvar, detailed request logging
-      # DEBUG: true
     ports:
       # Development: accessible from all interfaces
       - "64580:80"
@@ -41,9 +39,9 @@ services:
       retries: 3
       start_period: 90s
     networks:
-      - wthr-dev
+      - wthr
 
 networks:
-  wthr-dev:
-    name: wthr-dev
+  wthr:
+    name: wthr
     external: false

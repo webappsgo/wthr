@@ -35,11 +35,11 @@ func TestAdminPathFromData(t *testing.T) {
 	if got := adminPathFromData(map[string]interface{}{"admin_path": "/server/backoffice"}); got != "/server/backoffice" {
 		t.Errorf("adminPathFromData() = %q, want /server/backoffice", got)
 	}
-	if got := adminPathFromData(map[string]interface{}{}); got != "/server/admin" {
-		t.Errorf("adminPathFromData() fallback = %q, want /server/admin", got)
+	if got := adminPathFromData(map[string]interface{}{}); got != "/server/administration" {
+		t.Errorf("adminPathFromData() fallback = %q, want /server/administration", got)
 	}
-	if got := adminPathFromData(map[string]interface{}{"admin_path": ""}); got != "/server/admin" {
-		t.Errorf("adminPathFromData() empty = %q, want /server/admin", got)
+	if got := adminPathFromData(map[string]interface{}{"admin_path": ""}); got != "/server/administration" {
+		t.Errorf("adminPathFromData() empty = %q, want /server/administration", got)
 	}
 }
 
@@ -56,7 +56,7 @@ func TestAdminSearchPageCatalog(t *testing.T) {
 		t.Errorf("URL = %q, want /server/backoffice/config/security/firewall", results[0].URL)
 	}
 
-	if got := adminSearchPageCatalog(c, "no-such-page", "/server/admin"); len(got) != 0 {
+	if got := adminSearchPageCatalog(c, "no-such-page", "/server/administration"); len(got) != 0 {
 		t.Errorf("unmatched query returned %d results, want 0", len(got))
 	}
 }
@@ -64,9 +64,9 @@ func TestAdminSearchPageCatalog(t *testing.T) {
 // TestAdminSearchAllEmptyQuery proves an empty query returns nothing rather
 // than dumping every searchable row.
 func TestAdminSearchAllEmptyQuery(t *testing.T) {
-	c, _ := newTestContext(http.MethodGet, "/server/admin/config/search")
+	c, _ := newTestContext(http.MethodGet, "/server/administration/config/search")
 
-	if got := adminSearchAll(c, "", "/server/admin"); len(got) != 0 {
+	if got := adminSearchAll(c, "", "/server/administration"); len(got) != 0 {
 		t.Errorf("empty query returned %d results, want 0", len(got))
 	}
 }
@@ -74,7 +74,7 @@ func TestAdminSearchAllEmptyQuery(t *testing.T) {
 // TestAdminSearchAPIEnvelope covers the canonical success envelope of the JSON
 // search endpoint.
 func TestAdminSearchAPIEnvelope(t *testing.T) {
-	c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/search?q=firewall")
+	c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/search?q=firewall")
 	AdminSearchAPI(w, c)
 
 	if w.Code != http.StatusOK {

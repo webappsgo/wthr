@@ -251,10 +251,10 @@ func TestI2PPagePath(t *testing.T) {
 		path string
 		want string
 	}{
-		{"/server/admin/config/network/i2p", "/server/admin/config/network/i2p"},
-		{"/server/admin/config/network/i2p/regenerate", "/server/admin/config/network/i2p"},
-		{"/server/admin/config/network/i2p/restart", "/server/admin/config/network/i2p"},
-		{"/server/admin/config/network/i2p/validate", "/server/admin/config/network/i2p"},
+		{"/server/administration/config/network/i2p", "/server/administration/config/network/i2p"},
+		{"/server/administration/config/network/i2p/regenerate", "/server/administration/config/network/i2p"},
+		{"/server/administration/config/network/i2p/restart", "/server/administration/config/network/i2p"},
+		{"/server/administration/config/network/i2p/validate", "/server/administration/config/network/i2p"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(http.MethodPost, tc.path, nil)
@@ -268,25 +268,25 @@ func TestI2PPagePath(t *testing.T) {
 // including the optional rejected-fields query parameter.
 func TestRedirectToI2PPage(t *testing.T) {
 	t.Run("status only", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/config/network/i2p", nil)
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/config/network/i2p", nil)
 		rec := httptest.NewRecorder()
 		redirectToI2PPage(rec, req, "saved", "")
 
 		if rec.Code != http.StatusSeeOther {
 			t.Errorf("status = %d, want %d", rec.Code, http.StatusSeeOther)
 		}
-		want := "/server/admin/config/network/i2p?status=saved"
+		want := "/server/administration/config/network/i2p?status=saved"
 		if got := rec.Header().Get("Location"); got != want {
 			t.Errorf("Location = %q, want %q", got, want)
 		}
 	})
 
 	t.Run("status with rejected fields", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/server/admin/config/network/i2p/regenerate", nil)
+		req := httptest.NewRequest(http.MethodPost, "/server/administration/config/network/i2p/regenerate", nil)
 		rec := httptest.NewRecorder()
 		redirectToI2PPage(rec, req, "invalid", "virtual_port")
 
-		want := "/server/admin/config/network/i2p?status=invalid&fields=virtual_port"
+		want := "/server/administration/config/network/i2p?status=invalid&fields=virtual_port"
 		if got := rec.Header().Get("Location"); got != want {
 			t.Errorf("Location = %q, want %q", got, want)
 		}
@@ -377,7 +377,7 @@ func TestI2PAdminHandler_FormUpdateRejectsInvalid(t *testing.T) {
 	h := newI2PTestHandler(t)
 	withI2PGlobalConfig(t, config.DefaultI2PConfig())
 
-	req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p", "enabled=yes&virtual_port=0")
+	req := newI2PFormRequest(http.MethodPost, "/server/administration/config/network/i2p", "enabled=yes&virtual_port=0")
 	rec := httptest.NewRecorder()
 	h.UpdateSettings(rec, req)
 
@@ -399,7 +399,7 @@ func TestI2PAdminHandler_FormUpdateWithoutGlobalConfig(t *testing.T) {
 	config.SetGlobalConfig(nil)
 	t.Cleanup(func() { config.SetGlobalConfig(previous) })
 
-	req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p", "enabled=on&binary=%20i2pd%20&sam_address=127.0.0.1%3A7656")
+	req := newI2PFormRequest(http.MethodPost, "/server/administration/config/network/i2p", "enabled=on&binary=%20i2pd%20&sam_address=127.0.0.1%3A7656")
 	rec := httptest.NewRecorder()
 	h.UpdateSettings(rec, req)
 
@@ -476,8 +476,8 @@ func TestI2PAdminHandler_FormActionsWhenDisabled(t *testing.T) {
 		target string
 		invoke func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request)
 	}{
-		{"regenerate", "/server/admin/config/network/i2p/regenerate", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Regenerate(w, r) }},
-		{"restart", "/server/admin/config/network/i2p/restart", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Restart(w, r) }},
+		{"regenerate", "/server/administration/config/network/i2p/regenerate", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Regenerate(w, r) }},
+		{"restart", "/server/administration/config/network/i2p/restart", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Restart(w, r) }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -491,7 +491,7 @@ func TestI2PAdminHandler_FormActionsWhenDisabled(t *testing.T) {
 			if rec.Code != http.StatusSeeOther {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusSeeOther, rec.Body.String())
 			}
-			want := "/server/admin/config/network/i2p?status=disabled"
+			want := "/server/administration/config/network/i2p?status=disabled"
 			if got := rec.Header().Get("Location"); got != want {
 				t.Fatalf("Location = %q, want %q", got, want)
 			}
@@ -507,8 +507,8 @@ func TestI2PAdminHandler_ActionsReportProviderError(t *testing.T) {
 		target string
 		invoke func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request)
 	}{
-		{"regenerate", "/server/admin/config/network/i2p/regenerate", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Regenerate(w, r) }},
-		{"restart", "/server/admin/config/network/i2p/restart", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Restart(w, r) }},
+		{"regenerate", "/server/administration/config/network/i2p/regenerate", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Regenerate(w, r) }},
+		{"restart", "/server/administration/config/network/i2p/restart", func(h *I2PAdminHandler, w http.ResponseWriter, r *http.Request) { h.Restart(w, r) }},
 	}
 
 	enabled := config.DefaultI2PConfig()
@@ -548,7 +548,7 @@ func TestI2PAdminHandler_ActionsReportProviderError(t *testing.T) {
 			if rec.Code != http.StatusSeeOther {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusSeeOther, rec.Body.String())
 			}
-			want := "/server/admin/config/network/i2p?status=provider-error"
+			want := "/server/administration/config/network/i2p?status=provider-error"
 			if got := rec.Header().Get("Location"); got != want {
 				t.Fatalf("Location = %q, want %q", got, want)
 			}
@@ -564,7 +564,7 @@ func TestI2PAdminHandler_ValidateFormSubmission(t *testing.T) {
 	withI2PGlobalConfig(t, config.DefaultI2PConfig())
 
 	t.Run("valid values", func(t *testing.T) {
-		req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p/validate", "enabled=true&inbound_length=3&outbound_length=3")
+		req := newI2PFormRequest(http.MethodPost, "/server/administration/config/network/i2p/validate", "enabled=true&inbound_length=3&outbound_length=3")
 		rec := httptest.NewRecorder()
 		h.ValidateI2PConfig(rec, req)
 		if rec.Code != http.StatusOK {
@@ -573,7 +573,7 @@ func TestI2PAdminHandler_ValidateFormSubmission(t *testing.T) {
 	})
 
 	t.Run("rejected values", func(t *testing.T) {
-		req := newI2PFormRequest(http.MethodPost, "/server/admin/config/network/i2p/validate", "enabled=true&inbound_length=abc")
+		req := newI2PFormRequest(http.MethodPost, "/server/administration/config/network/i2p/validate", "enabled=true&inbound_length=abc")
 		rec := httptest.NewRecorder()
 		h.ValidateI2PConfig(rec, req)
 		if rec.Code != http.StatusBadRequest {

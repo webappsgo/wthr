@@ -19,6 +19,7 @@ var UsernameBlocklist = []string{
 	"firewall", "localhost", "local", "internal", "external", "public",
 	"private", "network", "database", "db", "cache", "redis", "mysql",
 	"postgres", "mongodb", "elastic", "nginx", "apache", "docker",
+	"healthz", "metrics", "swagger",
 
 	// Application & Service Names
 	"app", "application", "bot", "robot", "crawler", "spider", "scraper",
@@ -39,7 +40,7 @@ var UsernameBlocklist = []string{
 	"sales", "marketing", "ceo", "cto", "cfo", "coo", "founder", "cofounder",
 
 	// Common Reserved
-	"account", "accounts", "profile", "profiles", "settings", "config",
+	"account", "accounts", "profile", "profiles", "preferences", "settings", "config",
 	"configuration", "dashboard", "panel", "console", "portal", "home",
 	"index", "main", "default", "null", "nil", "undefined", "void",
 	"true", "false", "test", "debug", "demo", "example",
@@ -47,7 +48,7 @@ var UsernameBlocklist = []string{
 	"logs", "audit", "report", "reports", "analytics", "stats", "status",
 
 	// API & Endpoints
-	"api", "rest", "graphql", "grpc", "websocket", "ws", "wss", "http",
+	"api", "rest", "graphql", "mcp", "llms", "grpc", "websocket", "ws", "wss", "http",
 	"https", "endpoint", "endpoints", "route", "routes", "path", "url",
 	"uri", "callback", "hook", "hooks", "event", "events", "stream",
 
@@ -95,7 +96,7 @@ var UsernameBlocklist = []string{
 	"wthr", "webappsgo",
 }
 
-// Critical terms that block substrings per AI.md PART 22
+// Critical terms that block substrings per AI.md PART 34
 // These terms are blocked even if they appear anywhere in the username
 var criticalSubstringTerms = []string{
 	"admin", "root", "system", "mod", "official", "verified",
@@ -125,7 +126,7 @@ func IsUsernameBlocked(email string) bool {
 		}
 	}
 
-	// Check for critical terms as substrings per AI.md PART 22
+	// Check for critical terms as substrings per AI.md PART 34
 	// Block usernames containing "admin", "root", "system", "mod", "official", "verified"
 	for _, critical := range criticalSubstringTerms {
 		if strings.Contains(username, critical) {

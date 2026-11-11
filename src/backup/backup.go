@@ -489,6 +489,10 @@ func (s *BackupService) encrypt(data []byte, password string) ([]byte, error) {
 
 // Verify verifies backup integrity per AI.md PART 22 (Verification)
 func (s *BackupService) Verify(backupPath, password string) error {
+	return s.verifyWithLimits(backupPath, password, defaultRestoreLimits())
+}
+
+func (s *BackupService) verifyWithLimits(backupPath, password string, limits RestoreLimits) error {
 	// File exists check per AI.md PART 22 (Verification)
 	info, err := os.Stat(backupPath)
 	if err != nil {
@@ -499,13 +503,25 @@ func (s *BackupService) Verify(backupPath, password string) error {
 	if info.Size() == 0 {
 		return fmt.Errorf("backup file is empty")
 	}
+	if info.Size() > limits.MaxArchiveSize {
+		return fmt.Errorf("backup archive exceeds maximum size of %d bytes", limits.MaxArchiveSize)
+	}
 
 	// Read file
-	data, err := os.ReadFile(backupPath)
+	data, err := readBackupBounded(backupPath, limits.MaxArchiveSize)
 	if err != nil {
 		return fmt.Errorf("failed to read backup: %w", err)
 	}
+	return s.verifyDataWithLimits(backupPath, password, data, limits)
+}
 
+func (s *BackupService) verifyDataWithLimits(backupPath, password string, data []byte, limits RestoreLimits) error {
+	if len(data) == 0 {
+		return fmt.Errorf("backup file is empty")
+	}
+	if int64(len(data)) > limits.MaxArchiveSize {
+		return fmt.Errorf("backup archive exceeds maximum size of %d bytes", limits.MaxArchiveSize)
+	}
 	// Decrypt test if encrypted per AI.md PART 22 (Verification: decrypt test).
 	// Encryption is keyed off the .enc extension alone: a password supplied for
 	// a plaintext archive must not turn into a bogus decrypt failure.
@@ -529,7 +545,7 @@ func (s *BackupService) Verify(backupPath, password string) error {
 	}
 	defer os.RemoveAll(extractDir)
 
-	manifest, contentChecksum, err := extractArchive(data, extractDir)
+	manifest, contentChecksum, err := extractArchiveWithLimits(data, extractDir, limits)
 	if err != nil {
 		return err
 	}
@@ -560,6 +576,13 @@ func verifyTempDir() (string, error) {
 // extractArchive expands a gzip tar backup into destDir, returning the parsed
 // manifest and the recomputed content checksum of every non-manifest member
 func extractArchive(data []byte, destDir string) (*Manifest, string, error) {
+	return extractArchiveWithLimits(data, destDir, defaultRestoreLimits())
+}
+
+func extractArchiveWithLimits(data []byte, destDir string, limits RestoreLimits) (*Manifest, string, error) {
+	if int64(len(data)) > limits.MaxArchiveSize {
+		return nil, "", fmt.Errorf("backup archive exceeds maximum size")
+	}
 	gzReader, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, "", fmt.Errorf("backup is not a valid gzip archive: %w", err)
@@ -570,6 +593,9 @@ func extractArchive(data []byte, destDir string) (*Manifest, string, error) {
 	contentHasher := sha256.New()
 
 	var manifest *Manifest
+	var expanded int64
+	files := 0
+	maxRatioBytes := maxExpandedByRatio(int64(len(data)), limits.MaxRatio)
 	for {
 		header, readErr := tarReader.Next()
 		if readErr == io.EOF {
@@ -578,6 +604,17 @@ func extractArchive(data []byte, destDir string) (*Manifest, string, error) {
 		if readErr != nil {
 			return nil, "", fmt.Errorf("backup archive is corrupt: %w", readErr)
 		}
+		files++
+		if files > limits.MaxFiles {
+			return nil, "", fmt.Errorf("backup archive exceeds maximum file count of %d", limits.MaxFiles)
+		}
+		if header.Size < 0 || header.Size > limits.MaxFileSize {
+			return nil, "", fmt.Errorf("archive member %s exceeds maximum file size", header.Name)
+		}
+		if header.Size > limits.MaxExpandedSize-expanded || header.Size > maxRatioBytes-expanded {
+			return nil, "", fmt.Errorf("backup archive exceeds extraction limits")
+		}
+		expanded += header.Size
 
 		// Reject traversal and special members before touching the filesystem
 		target, pathErr := safeExtractPath(destDir, header.Name)

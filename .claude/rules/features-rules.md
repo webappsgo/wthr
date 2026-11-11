@@ -74,7 +74,7 @@
 - `{project_name} --maintenance backup [filename]`; always includes `server.yml`, `server.db`, `users.db`; templates/themes if present; SSL/data optional via flags
 - Encryption optional unless compliance mode is enabled (then mandatory); AES-256-GCM with Argon2id key derivation from password; password is never stored
 - Retention priority: yearly > monthly > weekly > daily (max_backups), oldest deleted first within each tier; `max_total_size` (percent or absolute) is a hard cap that overrides count limits after count-based pruning
-- Default footprint is 2 files (yesterday's full + daily incremental); every backup file matching the app's naming convention is subject to pruning — nothing is exempt
+- Default footprint is 3 files (new full + the previous full that today's cumulative incremental is based on + the incremental); a full that is the `base_backup` of a retained incremental is never pruned; every backup file matching the app's naming convention is subject to pruning — nothing is exempt
 - Cluster mode: every node keeps its own local backups with the same retention/encryption/schedule (staggered 5min/node); shared NFS/S3 storage is optional, not required
 - Restore requires PART 5 authorization; encrypted backups need a separate backup password (not admin auth); restoring to a new server forces Primary Admin re-authentication via one-time setup token, but preserves existing credentials
 - `{project_name} --maintenance setup` is the sole recovery path when an admin has lost password + API token + recovery keys — clears only admin credentials, generates a new one-time setup token, leaves all user data/accounts/config untouched

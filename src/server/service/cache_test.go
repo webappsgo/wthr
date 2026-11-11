@@ -1,374 +1,232 @@
 package service
 
 import (
-	"os"
-	"sync"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/webappsgo/wthr/src/config"
 )
 
-// cacheEnvVars lists every environment variable NewCacheManager reads, so
-// tests can save/restore them and avoid leaking state between subtests.
-var cacheEnvVars = []string{
-	"CACHE_ENABLED", "CACHE_HOST", "CACHE_PORT", "CACHE_PASSWORD", "CACHE_DB",
-}
-
-// withCacheEnv sets the given env vars for the duration of fn and restores
-// the previous values (including "unset") afterward. Not safe to run in
-// parallel with other tests that touch the same env vars.
-func withCacheEnv(t *testing.T, vars map[string]string, fn func()) {
-	t.Helper()
-	prev := make(map[string]string, len(cacheEnvVars))
-	prevSet := make(map[string]bool, len(cacheEnvVars))
-	for _, k := range cacheEnvVars {
-		prev[k], prevSet[k] = os.LookupEnv(k)
+func TestCacheManagerDefaultsToMemory(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cm := NewCacheManager()
+	if !cm.IsEnabled() || cm.backend != "memory" {
+		t.Fatalf("default manager = enabled %v, backend %q; want memory enabled", cm.IsEnabled(), cm.backend)
 	}
-	t.Cleanup(func() {
-		for _, k := range cacheEnvVars {
-			if prevSet[k] {
-				os.Setenv(k, prev[k])
-			} else {
-				os.Unsetenv(k)
-			}
-		}
-	})
-
-	for _, k := range cacheEnvVars {
-		os.Unsetenv(k)
+	if cm.BackendType() != "memory" {
+		t.Fatalf("BackendType() = %q, want memory", cm.BackendType())
 	}
-	for k, v := range vars {
-		os.Setenv(k, v)
+	if err := cm.SetCachedValue("weather", "sunny", 0); err != nil {
+		t.Fatal(err)
 	}
-	fn()
-}
-
-// TestCache_NewCacheManager_DisabledByDefault covers the zero-config case:
-// no CACHE_ENABLED set at all.
-func TestCache_NewCacheManager_DisabledByDefault(t *testing.T) {
-	withCacheEnv(t, nil, func() {
-		cm := NewCacheManager()
-		if cm == nil {
-			t.Fatal("NewCacheManager() = nil")
-		}
-		if cm.IsEnabled() {
-			t.Error("IsEnabled() = true, want false when CACHE_ENABLED is unset")
-		}
-	})
-}
-
-// TestCache_NewCacheManager_EnabledFlagParsing covers every value the
-// enabled-flag parser treats as "true" vs everything else (treated as
-// disabled), including empty string, garbage, and boundary values.
-func TestCache_NewCacheManager_EnabledFlagParsing(t *testing.T) {
-	tests := []struct {
-		name               string
-		value              string
-		wantEnabledAttempt bool
-	}{
-		{"unset", "", false},
-		{"true literal", "true", true},
-		{"one literal", "1", true},
-		{"false literal", "false", false},
-		{"zero literal", "0", false},
-		{"yes (not accepted)", "yes", false},
-		{"True capitalized (not accepted, case-sensitive)", "True", false},
-		{"garbage", "banana", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := map[string]string{
-				// Point at a closed/unreachable port so any "enabled attempt"
-				// fails fast and deterministically falls back to disabled.
-				"CACHE_HOST": "127.0.0.1",
-				"CACHE_PORT": "1",
-			}
-			if tt.value != "" {
-				env["CACHE_ENABLED"] = tt.value
-			}
-			withCacheEnv(t, env, func() {
-				cm := NewCacheManager()
-				if cm == nil {
-					t.Fatal("NewCacheManager() = nil")
-				}
-				// Regardless of wantEnabledAttempt, an unreachable Redis
-				// must always result in a gracefully disabled manager.
-				if cm.IsEnabled() {
-					t.Errorf("IsEnabled() = true for CACHE_ENABLED=%q pointed at unreachable host, want false", tt.value)
-				}
-			})
-		})
+	got, err := cm.GetCachedValue("weather")
+	if err != nil || got != "sunny" {
+		t.Fatalf("GetCachedValue() = %q, %v; want sunny, nil", got, err)
 	}
 }
 
-// TestCache_NewCacheManager_UnreachableServerDegradesGracefully verifies
-// that when caching is requested but the Redis server cannot be reached,
-// NewCacheManager does not panic or error, and simply returns a manager
-// with caching disabled.
-func TestCache_NewCacheManager_UnreachableServerDegradesGracefully(t *testing.T) {
-	env := map[string]string{
-		"CACHE_ENABLED": "true",
-		"CACHE_HOST":    "127.0.0.1",
-		"CACHE_PORT":    "1", // reserved port, connection refused immediately
+func TestCacheManagerMemoryCRUDAndPrefix(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cfg := config.DefaultCacheConfig()
+	cfg.Prefix = "wthr:"
+	cm := NewCacheManager(cfg)
+	if err := cm.SetCachedValue("weather", "rain", time.Minute); err != nil {
+		t.Fatal(err)
 	}
-	withCacheEnv(t, env, func() {
-		cm := NewCacheManager()
-		if cm == nil {
-			t.Fatal("NewCacheManager() = nil")
-		}
-		if cm.IsEnabled() {
-			t.Fatal("IsEnabled() = true, want false when Redis is unreachable")
-		}
-	})
-}
-
-// TestCache_NewCacheManager_InvalidDBValue verifies a non-numeric CACHE_DB
-// does not panic; it should fall back to DB 0 and still attempt (and fail)
-// the connection gracefully.
-func TestCache_NewCacheManager_InvalidDBValue(t *testing.T) {
-	env := map[string]string{
-		"CACHE_ENABLED": "true",
-		"CACHE_HOST":    "127.0.0.1",
-		"CACHE_PORT":    "1",
-		"CACHE_DB":      "not-a-number",
+	if _, ok := cm.entries["wthr:weather"]; !ok {
+		t.Fatal("configured prefix was not applied")
 	}
-	withCacheEnv(t, env, func() {
-		cm := NewCacheManager()
-		if cm == nil {
-			t.Fatal("NewCacheManager() = nil")
-		}
-		if cm.IsEnabled() {
-			t.Fatal("IsEnabled() = true, want false when Redis is unreachable")
-		}
-	})
-}
-
-// TestCache_NewCacheManager_DefaultHostPort verifies missing CACHE_HOST /
-// CACHE_PORT fall back to localhost:6379 without panicking (still expected
-// to gracefully disable in a test environment with no local Redis).
-func TestCache_NewCacheManager_DefaultHostPort(t *testing.T) {
-	env := map[string]string{
-		"CACHE_ENABLED": "true",
+	if ok, err := cm.Exists("weather"); err != nil || !ok {
+		t.Fatalf("Exists() = %v, %v; want true, nil", ok, err)
 	}
-	withCacheEnv(t, env, func() {
-		cm := NewCacheManager()
-		if cm == nil {
-			t.Fatal("NewCacheManager() = nil")
-		}
-		// This assertion holds in CI/sandboxed environments where no Redis
-		// listens on localhost:6379. If a local Redis happens to be
-		// running, caching may legitimately become enabled; we only assert
-		// that construction never panics or returns nil, which is checked
-		// above.
-	})
-}
-
-// --- Disabled-manager behavior: every method must degrade gracefully ---
-
-func disabledManager() *CacheManager {
-	return &CacheManager{enabled: false, ctx: nil}
-}
-
-// TestCache_DisabledManager_Get verifies Get returns an explicit error
-// (not a zero-value success) when caching is disabled, so callers cannot
-// mistake a disabled cache for a real cache miss.
-func TestCache_DisabledManager_Get(t *testing.T) {
-	cm := disabledManager()
-	val, err := cm.GetCachedValue("any-key")
-	if err == nil {
-		t.Error("Get() on disabled cache: err = nil, want error")
+	if err := cm.DeleteCachedValue("weather"); err != nil {
+		t.Fatal(err)
 	}
-	if val != "" {
-		t.Errorf("Get() on disabled cache: val = %q, want empty", val)
+	if ok, err := cm.Exists("weather"); err != nil || ok {
+		t.Fatalf("Exists() after delete = %v, %v; want false, nil", ok, err)
 	}
 }
 
-// TestCache_DisabledManager_Get_EmptyAndMissingKeys covers boundary key
-// inputs (empty string key) on a disabled manager.
-func TestCache_DisabledManager_Get_EmptyAndMissingKeys(t *testing.T) {
-	cm := disabledManager()
-	if _, err := cm.GetCachedValue(""); err == nil {
-		t.Error("Get(\"\") on disabled cache: want error")
+func TestCacheManagerMemoryTTLAndExpiration(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cfg := config.DefaultCacheConfig()
+	cfg.TTL = "40ms"
+	cm := NewCacheManager(cfg)
+	if err := cm.SetCachedValue("default", "value", 0); err != nil {
+		t.Fatal(err)
+	}
+	ttl, err := cm.TTL("default")
+	if err != nil || ttl <= 0 || ttl > 40*time.Millisecond {
+		t.Fatalf("TTL() = %v, %v; want positive TTL no greater than 40ms", ttl, err)
+	}
+	time.Sleep(60 * time.Millisecond)
+	if _, err := cm.GetCachedValue("default"); !errors.Is(err, redis.Nil) {
+		t.Fatalf("GetCachedValue() after expiration error = %v, want redis.Nil", err)
 	}
 }
 
-// TestCache_DisabledManager_Set verifies Set silently succeeds (by design,
-// per the source comment) so that callers using the cache as an optional
-// optimization are never broken by its absence.
-func TestCache_DisabledManager_Set(t *testing.T) {
-	cm := disabledManager()
+func TestCacheManagerMemoryIncrementExpirePatternAndFlush(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cm := NewCacheManager()
+	if n, err := cm.Increment("counter"); err != nil || n != 1 {
+		t.Fatalf("first Increment() = %d, %v; want 1, nil", n, err)
+	}
+	if n, err := cm.Increment("counter"); err != nil || n != 2 {
+		t.Fatalf("second Increment() = %d, %v; want 2, nil", n, err)
+	}
+	if err := cm.SetCachedValue("group:a", "a", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := cm.SetCachedValue("group:b", "b", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := cm.DeletePattern("group:*"); err != nil {
+		t.Fatal(err)
+	}
+	if ok, _ := cm.Exists("group:a"); ok {
+		t.Fatal("DeletePattern left a matching key")
+	}
+	if err := cm.Expire("counter", time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(3 * time.Millisecond)
+	if ok, err := cm.Exists("counter"); err != nil || ok {
+		t.Fatalf("Exists() after Expire = %v, %v; want false, nil", ok, err)
+	}
+	if err := cm.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	stats, err := cm.GetStats()
+	if err != nil || stats["entries"] != "0" {
+		t.Fatalf("GetStats() = %v, %v; want zero entries", stats, err)
+	}
+}
+
+func TestCacheManagerDisabledType(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cfg := config.DefaultCacheConfig()
+	cfg.Type = "none"
+	cm := NewCacheManager(cfg)
+	if cm.IsEnabled() || !cm.IsCacheHealthy() {
+		t.Fatalf("disabled manager enabled=%v healthy=%v; want false, true", cm.IsEnabled(), cm.IsCacheHealthy())
+	}
+	if _, err := cm.GetCachedValue("key"); err == nil {
+		t.Fatal("GetCachedValue() on disabled backend should report an error")
+	}
+}
+
+func TestCacheManagerUnavailableExternalBackendFailsHealthCheck(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cfg := config.DefaultCacheConfig()
+	cfg.Type = "redis"
+	cfg.Host = "127.0.0.1"
+	cfg.Port = 1
+	cfg.Timeout = "100ms"
+	cm := NewCacheManager(cfg)
+	if cm.IsEnabled() {
+		t.Fatal("unreachable external backend should be disabled")
+	}
+	if cm.IsCacheHealthy() {
+		t.Fatal("unreachable configured backend should fail the health check")
+	}
+}
+
+func TestCacheConfigPartialDefaultsAndEnvironmentURL(t *testing.T) {
+	t.Setenv("CACHE_URL", "valkey://env-user:env-pass@cache.example:6380/2")
+	cfg := mergeCacheConfig(config.CacheConfig{Password: "configured-password"})
+	if cfg.Type != "memory" || cfg.Prefix != "wthr:" || cfg.TTL != "1h" || cfg.Host != "localhost" || cfg.Port != 6379 || cfg.PoolSize != 10 || cfg.MinIdle != 2 {
+		t.Fatalf("partial config defaults not preserved: %#v", cfg)
+	}
+	cfg = cacheURLFromEnvironment(cfg)
+	if cfg.URL != "valkey://env-user:env-pass@cache.example:6380/2" || cfg.Type != "valkey" {
+		t.Fatalf("environment URL should activate valkey: %#v", cfg)
+	}
+	opts, err := redisOptions(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Addrs[0] != "cache.example:6380" || opts.Username != "env-user" || opts.Password != "env-pass" || opts.DB != 2 {
+		t.Fatalf("environment URL options = %#v", opts)
+	}
+	cfg.URL = "redis://config-user:config-pass@configured.example:6379/4"
+	cfg = cacheURLFromEnvironment(cfg)
+	if cfg.URL != "redis://config-user:config-pass@configured.example:6379/4" {
+		t.Fatalf("configured URL should take precedence: %q", cfg.URL)
+	}
+}
+
+func TestCacheStatsRemovesExpiredMemoryEntries(t *testing.T) {
+	t.Setenv("CACHE_URL", "")
+	cm := NewCacheManager()
+	cm.entries["expired"] = memoryCacheEntry{value: "stale", expiresAt: time.Now().Add(-time.Second)}
+	stats, err := cm.GetStats()
+	if err != nil || stats["entries"] != "0" {
+		t.Fatalf("GetStats() = %#v, %v; want expired entry cleaned", stats, err)
+	}
+}
+
+func TestRedisOptionsFromURLAndDiscreteConfig(t *testing.T) {
 	tests := []struct {
 		name string
-		key  string
-		val  string
-		ttl  time.Duration
+		cfg  config.CacheConfig
+		want redis.UniversalOptions
 	}{
-		{"normal", "k", "v", time.Minute},
-		{"empty key", "", "v", time.Minute},
-		{"empty value", "k", "", time.Minute},
-		{"zero ttl", "k", "v", 0},
-		{"negative ttl", "k", "v", -time.Second},
+		{
+			name: "URL takes precedence and supports valkey scheme",
+			cfg:  config.CacheConfig{Type: "valkey", URL: "valkey://alice:secret@cache.example:6380/3", Host: "ignored", Port: 1234, PoolSize: 20, MinIdle: 4, Timeout: "2s"},
+			want: redis.UniversalOptions{Addrs: []string{"cache.example:6380"}, Username: "alice", Password: "secret", DB: 3, PoolSize: 20, MinIdleConns: 4},
+		},
+		{
+			name: "discrete fields",
+			cfg:  config.CacheConfig{Type: "redis", Host: "cache.internal", Port: 6379, Username: "app", Password: "secret", DB: 5, PoolSize: 8, MinIdle: 2, Timeout: "3s"},
+			want: redis.UniversalOptions{Addrs: []string{"cache.internal:6379"}, Username: "app", Password: "secret", DB: 5, PoolSize: 8, MinIdleConns: 2},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := cm.SetCachedValue(tt.key, tt.val, tt.ttl); err != nil {
-				t.Errorf("Set(%q, %q, %v) = %v, want nil (silent success when disabled)", tt.key, tt.val, tt.ttl, err)
+			got, err := redisOptions(tt.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Addrs) != len(tt.want.Addrs) || got.Addrs[0] != tt.want.Addrs[0] || got.Username != tt.want.Username || got.Password != tt.want.Password || got.DB != tt.want.DB || got.PoolSize != tt.want.PoolSize || got.MinIdleConns != tt.want.MinIdleConns {
+				t.Fatalf("redisOptions() = %#v, want fields %#v", got, tt.want)
+			}
+			if got.DialTimeout != 2*time.Second && tt.name == "URL takes precedence and supports valkey scheme" {
+				t.Errorf("DialTimeout = %v, want 2s", got.DialTimeout)
 			}
 		})
 	}
 }
 
-// TestCache_DisabledManager_MutatingOpsAreNoOps checks that Delete,
-// DeletePattern, Expire, and Flush all silently succeed when the cache is
-// disabled, matching the documented "graceful no-op" contract.
-func TestCache_DisabledManager_MutatingOpsAreNoOps(t *testing.T) {
-	cm := disabledManager()
-
-	if err := cm.DeleteCachedValue("k"); err != nil {
-		t.Errorf("Delete() = %v, want nil", err)
-	}
-	if err := cm.DeleteCachedValue(""); err != nil {
-		t.Errorf("Delete(\"\") = %v, want nil", err)
-	}
-	if err := cm.DeletePattern("prefix:*"); err != nil {
-		t.Errorf("DeletePattern() = %v, want nil", err)
-	}
-	if err := cm.DeletePattern(""); err != nil {
-		t.Errorf("DeletePattern(\"\") = %v, want nil", err)
-	}
-	if err := cm.Expire("k", time.Minute); err != nil {
-		t.Errorf("Expire() = %v, want nil", err)
-	}
-	if err := cm.Expire("k", -time.Minute); err != nil {
-		t.Errorf("Expire() with negative ttl = %v, want nil", err)
-	}
-	if err := cm.Flush(); err != nil {
-		t.Errorf("Flush() = %v, want nil", err)
-	}
-}
-
-// TestCache_DisabledManager_Exists verifies Exists reports false with no
-// error (a disabled cache behaves as if every key is absent, never errors).
-func TestCache_DisabledManager_Exists(t *testing.T) {
-	cm := disabledManager()
-	exists, err := cm.Exists("any-key")
+func TestRedisOptionsClusterAndTLS(t *testing.T) {
+	cfg := config.DefaultCacheConfig()
+	cfg.Type = "valkey"
+	cfg.Cluster = true
+	cfg.ClusterNodes = []string{"node1:6379", "node2:6379"}
+	cfg.Password = "secret"
+	cfg.TLS = true
+	opts, err := redisOptions(cfg)
 	if err != nil {
-		t.Errorf("Exists() err = %v, want nil", err)
+		t.Fatal(err)
 	}
-	if exists {
-		t.Error("Exists() = true, want false on disabled cache")
+	if len(opts.Addrs) != 2 || opts.Password != "secret" || opts.TLSConfig == nil || opts.TLSConfig.MinVersion != 0x0303 {
+		t.Fatalf("cluster/TLS options = %#v, want nodes, password, and TLS 1.2+", opts)
 	}
-}
-
-// TestCache_DisabledManager_TTL verifies TTL returns a zero duration and an
-// explicit error when disabled.
-func TestCache_DisabledManager_TTL(t *testing.T) {
-	cm := disabledManager()
-	ttl, err := cm.TTL("k")
-	if err == nil {
-		t.Error("TTL() err = nil, want error on disabled cache")
-	}
-	if ttl != 0 {
-		t.Errorf("TTL() = %v, want 0", ttl)
+	cfg.ClusterNodes = nil
+	if _, err := redisOptions(cfg); err == nil {
+		t.Fatal("cluster without nodes should be rejected")
 	}
 }
 
-// TestCache_DisabledManager_Increment verifies Increment returns 0 and an
-// explicit error when disabled (never silently returns a fake counter).
-func TestCache_DisabledManager_Increment(t *testing.T) {
-	cm := disabledManager()
-	n, err := cm.Increment("counter")
-	if err == nil {
-		t.Error("Increment() err = nil, want error on disabled cache")
-	}
-	if n != 0 {
-		t.Errorf("Increment() = %v, want 0", n)
-	}
-}
-
-// TestCache_DisabledManager_GetStats verifies the stats map reports the
-// disabled status explicitly rather than an empty/nil map.
-func TestCache_DisabledManager_GetStats(t *testing.T) {
-	cm := disabledManager()
-	stats, err := cm.GetStats()
-	if err != nil {
-		t.Fatalf("GetStats() err = %v, want nil", err)
-	}
-	if stats["status"] != "disabled" {
-		t.Errorf("GetStats()[\"status\"] = %q, want \"disabled\"", stats["status"])
-	}
-}
-
-// TestCache_DisabledManager_Close verifies Close is a safe no-op even when
-// the underlying redis client is nil (guards against a nil-pointer panic).
-func TestCache_DisabledManager_Close(t *testing.T) {
-	cm := disabledManager()
-	if err := cm.Close(); err != nil {
-		t.Errorf("Close() = %v, want nil", err)
-	}
-	// Idempotent: closing twice must not panic.
-	if err := cm.Close(); err != nil {
-		t.Errorf("second Close() = %v, want nil", err)
-	}
-}
-
-// TestCache_DisabledManager_Ping verifies Ping returns an explicit error
-// rather than a false "healthy" signal.
-func TestCache_DisabledManager_Ping(t *testing.T) {
-	cm := disabledManager()
-	if err := cm.Ping(); err == nil {
-		t.Error("Ping() err = nil, want error on disabled cache")
-	}
-}
-
-// TestCache_DisabledManager_IsEnabled_Idempotent checks repeated calls to
-// IsEnabled are stable.
-func TestCache_DisabledManager_IsEnabled_Idempotent(t *testing.T) {
-	cm := disabledManager()
-	first := cm.IsEnabled()
-	for i := 0; i < 10; i++ {
-		if cm.IsEnabled() != first {
-			t.Fatalf("IsEnabled() not stable across repeated calls")
+func TestRedisOptionsRejectInvalidURLAndScheme(t *testing.T) {
+	for _, cacheURL := range []string{"not a URL", "http://cache.example"} {
+		cfg := config.DefaultCacheConfig()
+		cfg.Type = "redis"
+		cfg.URL = cacheURL
+		if _, err := redisOptions(cfg); err == nil {
+			t.Errorf("redisOptions(%q) returned nil error", cacheURL)
 		}
-	}
-	if first {
-		t.Error("IsEnabled() = true, want false for explicitly disabled manager")
-	}
-}
-
-// TestCache_DisabledManager_Concurrency drives many goroutines through the
-// full disabled-path API concurrently to catch data races (run with
-// `go test -race`) and ensure no method panics under concurrent use.
-func TestCache_DisabledManager_Concurrency(t *testing.T) {
-	cm := disabledManager()
-	const goroutines = 50
-
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
-		go func(n int) {
-			defer wg.Done()
-			key := "key"
-			_, _ = cm.GetCachedValue(key)
-			_ = cm.SetCachedValue(key, "value", time.Minute)
-			_, _ = cm.Exists(key)
-			_, _ = cm.TTL(key)
-			_, _ = cm.Increment(key)
-			_ = cm.Expire(key, time.Minute)
-			_ = cm.DeleteCachedValue(key)
-			_ = cm.DeletePattern("key:*")
-			_, _ = cm.GetStats()
-			_ = cm.IsEnabled()
-			_ = cm.Ping()
-		}(i)
-	}
-	wg.Wait()
-
-	// Flush/Close are safe to call once more after concurrent use.
-	if err := cm.Flush(); err != nil {
-		t.Errorf("Flush() after concurrent use = %v, want nil", err)
-	}
-	if err := cm.Close(); err != nil {
-		t.Errorf("Close() after concurrent use = %v, want nil", err)
 	}
 }

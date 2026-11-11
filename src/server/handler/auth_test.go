@@ -613,9 +613,9 @@ func TestShowLoginPage_AdminSessionExpiryComparedAsInstant(t *testing.T) {
 
 			adminID := seedAdmin(t, serverDB, "sessionadmin", "sessionadmin@example.com", "supersecret1")
 			if _, err := serverDB.Exec(`
-				INSERT INTO server_admin_sessions (id, admin_id, expires_at)
-				VALUES (?, ?, ?)
-			`, tc.sessionID, adminID, tc.expiresAt); err != nil {
+				INSERT INTO server_admin_sessions (id, token_hash, admin_id, expires_at)
+				VALUES (?, ?, ?, ?)
+			`, "00000000-0000-4000-8000-000000000003", models.HashAdminSessionToken(tc.sessionID), adminID, tc.expiresAt); err != nil {
 				t.Fatalf("seed admin session: %v", err)
 			}
 

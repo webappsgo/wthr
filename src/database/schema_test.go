@@ -97,8 +97,8 @@ func insertUserSession(t *testing.T, db *sql.DB, tokenHash, expiresAt string) {
 func insertAdminSession(t *testing.T, db *sql.DB, id, expiresAt string) {
 	t.Helper()
 	_, err := db.Exec(
-		"INSERT INTO server_admin_sessions (id, admin_id, expires_at) VALUES (?, ?, ?)",
-		id, 1, expiresAt,
+		"INSERT INTO server_admin_sessions (id, token_hash, admin_id, expires_at) VALUES (?, ?, ?, ?)",
+		id, "schema-test-hash-"+id, 1, expiresAt,
 	)
 	if err != nil {
 		t.Fatalf("seed server_admin_sessions row %q: %v", id, err)

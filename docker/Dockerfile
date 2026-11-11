@@ -84,8 +84,8 @@ EXPOSE 80
 # Stop signal for graceful shutdown
 STOPSIGNAL SIGRTMIN+3
 
-# Health check (long start period for services that need initialization)
-HEALTHCHECK --start-period=10m --interval=5m --timeout=15s --retries=3 \
+# Health check
+HEALTHCHECK --start-period=90s --interval=10s --timeout=5s --retries=3 \
     CMD /usr/local/bin/wthr --status || exit 1
 
 # Use tini as init with signal propagation

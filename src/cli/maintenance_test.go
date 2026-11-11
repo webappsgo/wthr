@@ -40,6 +40,19 @@ func TestMaintenanceCommand_Dispatch(t *testing.T) {
 	}
 }
 
+func TestMaintenanceCommandHelp(t *testing.T) {
+	output := captureStdout(t, func() {
+		if err := MaintenanceCommand([]string{"--help"}); err != nil {
+			t.Fatalf("MaintenanceCommand(--help) error = %v", err)
+		}
+	})
+	for _, expected := range []string{"Maintenance commands:", "backup [file]", "restore <file>", "update [cmd]", "mode <mode>", "setup", "--maintenance update yes"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("maintenance help output missing %q", expected)
+		}
+	}
+}
+
 // TestSplitKey covers the dotted-key splitter used to group settings rows
 // into YAML sections: single segment, nested segments, and empty string.
 func TestSplitKey(t *testing.T) {

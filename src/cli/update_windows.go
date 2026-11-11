@@ -5,6 +5,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"golang.org/x/sys/windows"
 )
@@ -31,4 +32,16 @@ func replaceBinary(currentPath, newBinaryPath string) error {
 	}
 
 	return nil
+}
+
+func restartSelf() error {
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to locate updated executable: %w", err)
+	}
+	command := exec.Command(executable, os.Args[1:]...)
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	return command.Start()
 }

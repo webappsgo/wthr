@@ -1,4 +1,4 @@
-name: Daily Build
+name: Devel Build
 
 on:
   schedule:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: daily-${{ github.ref }}-${{ github.event_name }}
+  group: devel-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/devel' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' }}
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
       - name: Compute version
         id: v
         run: |
-          # Daily identity is the commit, not a timestamp - the daily
+          # Devel identity is the commit, not a timestamp - the devel
           # release is a single rolling release, not a versioned tag
           VERSION="$(git rev-parse --short=7 HEAD)"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -192,18 +192,39 @@ jobs:
         with:
           subject-path: binaries/${{ env.PROJECT_NAME }}-*
 
-      - name: Delete previous daily release
+      - name: Delete previous devel release
         run: |
-          gh release delete daily --yes 2>/dev/null || true
-          git push origin :refs/tags/daily 2>/dev/null || true
+          response=$(curl --silent --show-error --write-out '\n%{http_code}' \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/devel")
+          status="${response##*$'\n'}"
+          body="${response%$'\n'*}"
+          if [ "$status" = "200" ]; then
+            release_id=$(printf '%s' "$body" | jq -r '.id // empty')
+            if [ -z "$release_id" ]; then
+              echo "GitHub returned a devel release without an id" >&2
+              exit 1
+            fi
+            curl --fail --silent --show-error --request DELETE \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id"
+          elif [ "$status" != "404" ]; then
+            echo "Failed to inspect the previous devel release (HTTP $status)" >&2
+            exit 1
+          fi
+          git push origin :refs/tags/devel 2>/dev/null || true
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Create Release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228  # v3.0.2
         with:
-          tag_name: daily
-          name: "Daily Build ${{ env.VERSION }}"
+          tag_name: devel
+          name: "Devel Build ${{ env.VERSION }}"
           files: binaries/*
           prerelease: true
-          body: "Daily build: ${{ env.VERSION }}"
+          body: "Devel build: ${{ env.VERSION }}"

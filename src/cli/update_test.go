@@ -18,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/webappsgo/wthr/src/config"
 )
 
 // helloWorldSHA256 is the SHA-256 digest of the literal bytes "hello world",
@@ -53,12 +55,52 @@ func TestUpdateCommand_Dispatch(t *testing.T) {
 	}
 }
 
+func TestUpdateBranchPersistsCanonicalChannel(t *testing.T) {
+	t.Setenv("CONFIG_DIR", t.TempDir())
+	if err := UpdateCommand([]string{"branch", "daily"}); err != nil {
+		t.Fatalf("UpdateCommand(branch daily) error = %v", err)
+	}
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.Server.Update.Branch != "devel" {
+		t.Fatalf("saved update branch = %q, want devel", cfg.Server.Update.Branch)
+	}
+}
+
+func TestUpdateHelpTextIncludesCurrentChannelAndExamples(t *testing.T) {
+	help := updateHelpText("wthr", "1.2.3", "beta", "1.2.4-beta")
+	for _, expected := range []string{"Update management:", "wthr --update check", "wthr --update branch beta", "Version:  1.2.3", "Branch:   beta", "Latest:   1.2.4-beta"} {
+		if !strings.Contains(help, expected) {
+			t.Errorf("update help missing %q", expected)
+		}
+	}
+}
+
 // TestMatchesBranch covers the cumulative channel rule from PART 23: stable
-// sees only stable, beta sees beta + stable, daily sees everything.
+// sees only stable, beta sees beta + stable, devel sees everything.
+func TestNormalizeUpdateBranch(t *testing.T) {
+	tests := map[string]string{
+		"stable":      "stable",
+		"beta":        "beta",
+		"devel":       "devel",
+		"daily":       "devel",
+		"rolling":     "devel",
+		"dev":         "devel",
+		"development": "devel",
+	}
+	for input, want := range tests {
+		if got := normalizeUpdateBranch(input); got != want {
+			t.Errorf("normalizeUpdateBranch(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
 func TestMatchesBranch(t *testing.T) {
 	stable := GitHubRelease{TagName: "v1.2.3"}
 	beta := GitHubRelease{TagName: "v1.3.0-beta", Prerelease: true}
-	daily := GitHubRelease{TagName: "daily", Prerelease: true}
+	devel := GitHubRelease{TagName: "devel", Prerelease: true}
 	prerelease := GitHubRelease{TagName: "v2.0.0-rc1", Prerelease: true}
 
 	tests := []struct {
@@ -69,13 +111,13 @@ func TestMatchesBranch(t *testing.T) {
 	}{
 		{"stable_channel_takes_stable", stable, "stable", true},
 		{"stable_channel_rejects_beta", beta, "stable", false},
-		{"stable_channel_rejects_daily", daily, "stable", false},
+		{"stable_channel_rejects_devel", devel, "stable", false},
 		{"beta_channel_takes_beta", beta, "beta", true},
 		{"beta_channel_takes_stable", stable, "beta", true},
-		{"beta_channel_rejects_daily", daily, "beta", false},
-		{"daily_channel_takes_daily", daily, "daily", true},
-		{"daily_channel_takes_beta", beta, "daily", true},
-		{"daily_channel_takes_stable", stable, "daily", true},
+		{"beta_channel_rejects_devel", devel, "beta", false},
+		{"devel_channel_takes_devel", devel, "devel", true},
+		{"devel_channel_takes_beta", beta, "devel", true},
+		{"devel_channel_takes_stable", stable, "devel", true},
 		{"prerelease_is_not_stable", prerelease, "stable", false},
 	}
 
@@ -89,7 +131,7 @@ func TestMatchesBranch(t *testing.T) {
 }
 
 // TestSelectRelease covers channel selection, the already-current
-// short-circuit, and the daily channel's BuildEpoch comparison.
+// short-circuit, and the devel channel's BuildEpoch comparison.
 func TestSelectRelease(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	stableOld := GitHubRelease{TagName: "v1.0.0", PublishedAt: base}
@@ -123,21 +165,21 @@ func TestSelectRelease(t *testing.T) {
 		}
 	})
 
-	t.Run("daily_compares_against_build_epoch", func(t *testing.T) {
+	t.Run("devel_compares_against_build_epoch", func(t *testing.T) {
 		published := base.Add(96 * time.Hour)
-		daily := []GitHubRelease{{TagName: "daily", Prerelease: true, PublishedAt: published}}
+		devel := []GitHubRelease{{TagName: "devel", Prerelease: true, PublishedAt: published}}
 
 		saved := BuildEpoch
 		defer func() { BuildEpoch = saved }()
 
 		BuildEpoch = fmt.Sprintf("%d", published.Add(-time.Hour).Unix())
-		if got := SelectRelease(daily, "daily", "v1.0.0"); got == nil {
-			t.Error("SelectRelease(daily) with older build = nil, want the daily release")
+		if got := SelectRelease(devel, "devel", "v1.0.0"); got == nil {
+			t.Error("SelectRelease(devel) with older build = nil, want the devel release")
 		}
 
 		BuildEpoch = fmt.Sprintf("%d", published.Add(time.Hour).Unix())
-		if got := SelectRelease(daily, "daily", "v1.0.0"); got != nil {
-			t.Errorf("SelectRelease(daily) with newer build = %v, want nil", got)
+		if got := SelectRelease(devel, "devel", "v1.0.0"); got != nil {
+			t.Errorf("SelectRelease(devel) with newer build = %v, want nil", got)
 		}
 	})
 }
@@ -167,6 +209,20 @@ func TestIsReleaseEligible(t *testing.T) {
 				t.Errorf("IsReleaseEligible(%v, %d) = %v, want %v", tt.publishedAt, tt.deferDays, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSelectScheduledReleaseUsesNewestEligibleVersion(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	current := now.Add(-90 * 24 * time.Hour)
+	releases := []GitHubRelease{
+		{TagName: "v1.0.0", PublishedAt: current},
+		{TagName: "v1.0.1", PublishedAt: now.Add(-40 * 24 * time.Hour)},
+		{TagName: "v1.0.2", PublishedAt: now.Add(-5 * 24 * time.Hour)},
+	}
+	got := selectScheduledRelease(releases, "stable", 30, now, current)
+	if got == nil || got.TagName != "v1.0.1" {
+		t.Fatalf("selectScheduledRelease() = %v, want eligible v1.0.1", got)
 	}
 }
 

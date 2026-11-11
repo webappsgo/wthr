@@ -31,30 +31,28 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	cfg := config.GetGlobalConfig()
 	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminModel := &models.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	robotsTxt := ""
 	securityTxt := ""
-	aiBots := config.AIBotsConfig{}
 	if cfg != nil {
 		robotsTxt = cfg.Web.RobotsTxt
 		securityTxt = cfg.Web.SecurityTxt
-		aiBots = cfg.Web.Robots.AIBots
 	}
 
 	// Get app URL for template variable replacement
@@ -65,6 +63,13 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	appURL := scheme + "://" + r.Host
 
 	serverCtx, _ := middleware.GetServerContext(r.Context())
+	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
+	mcpEnabledDefault := true
+	apiPath := "/api/v1"
+	if cfg != nil {
+		apiPath = cfg.GetAPIPath()
+		mcpEnabledDefault = cfg.Server.MCP.Enabled
+	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(r, map[string]interface{}{
 		"Title":          "Web Settings",
@@ -73,9 +78,8 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		"AppURL":         appURL,
 		"User":           admin,
 		"server":         serverCtx,
-		"AIBotsDefault":  aiBotsDefault(aiBots),
-		"AIBotPolicies":  aiBotPolicies(aiBots),
-		"RecognizedBots": config.RecognizedAIBots,
+		"MCPEnabled":     settingsModel.GetBool("server.mcp.enabled", mcpEnabledDefault),
+		"MCPEndpointURL": util.BuildURL(r, apiPath+"/server/mcp"),
 	}))
 }
 
@@ -84,48 +88,15 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	robotsTxt := ""
-	aiBots := config.AIBotsConfig{}
 
 	if cfg != nil {
 		robotsTxt = cfg.Web.RobotsTxt
-		aiBots = cfg.Web.Robots.AIBots
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":      true,
 		"content": robotsTxt,
-		"ai_bots": map[string]interface{}{
-			"default":    aiBotsDefault(aiBots),
-			"bots":       aiBotPolicies(aiBots),
-			"recognized": config.RecognizedAIBots,
-		},
 	})
-}
-
-// aiBotsDefault returns the effective ai_bots.default value, defaulting to allow
-func aiBotsDefault(aiBots config.AIBotsConfig) string {
-	if strings.EqualFold(strings.TrimSpace(aiBots.Default), "deny") {
-		return "deny"
-	}
-	return "allow"
-}
-
-// aiBotPolicies returns the effective allow/deny policy for every recognized AI crawler
-func aiBotPolicies(aiBots config.AIBotsConfig) map[string]string {
-	denied := make(map[string]bool, len(config.RecognizedAIBots))
-	for _, bot := range aiBots.DeniedAIBots() {
-		denied[bot] = true
-	}
-
-	policies := make(map[string]string, len(config.RecognizedAIBots))
-	for _, bot := range config.RecognizedAIBots {
-		if denied[bot] {
-			policies[bot] = "deny"
-			continue
-		}
-		policies[bot] = "allow"
-	}
-	return policies
 }
 
 // UpdateRobotsTxt updates robots.txt content
@@ -133,10 +104,6 @@ func aiBotPolicies(aiBots config.AIBotsConfig) map[string]string {
 func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Content string `json:"content" binding:"required"`
-		AIBots  *struct {
-			Default string            `json:"default"`
-			Bots    map[string]string `json:"bots"`
-		} `json:"ai_bots"`
 	}
 
 	if !DecodeAndValidate(w, r, &req) {
@@ -152,19 +119,6 @@ func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request
 			},
 		})
 		return
-	}
-
-	// AI.md PART 14: the AI crawler policy is edited alongside the robots.txt body
-	if req.AIBots != nil {
-		if err := config.UpdateWebRobotsAIBots(req.AIBots.Default, req.AIBots.Bots); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-				"error": map[string]interface{}{
-					"code":    "VALIDATION_FAILED",
-					"message": Translate(r, "errors.admin.web.robots_ai_bots_invalid"),
-				},
-			})
-			return
-		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -222,7 +176,10 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 func (h *AdminWebHandler) ServeRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	robotsTxt := `User-agent: *
-Allow: /`
+Allow: /
+Allow: /api
+Disallow: /server/{admin_path}
+Sitemap: {app_url}/sitemap.xml`
 
 	if cfg != nil && cfg.Web.RobotsTxt != "" {
 		robotsTxt = cfg.Web.RobotsTxt
@@ -236,14 +193,7 @@ Allow: /`
 	appURL := scheme + "://" + r.Host
 
 	robotsTxt = strings.ReplaceAll(robotsTxt, "{app_url}", appURL)
-
-	// AI.md PART 14: denied AI crawlers each get their own stanza; allowed ones
-	// stay covered by the wildcard User-agent block above
-	if cfg != nil {
-		if stanzas := cfg.Web.Robots.AIBots.AIBotStanzas(); stanzas != "" {
-			robotsTxt = strings.TrimRight(robotsTxt, "\n") + "\n\n" + stanzas
-		}
-	}
+	robotsTxt = strings.ReplaceAll(robotsTxt, "{admin_path}", cfg.GetAdminPath())
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	// Cache for 24 hours

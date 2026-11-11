@@ -1,0 +1,31 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <p><a href="{{path "/server/security"}}">{{t .server.Lang "security.back"}}</a></p>
+    <h1 class="text-purple">{{t .server.Lang "security.policy.title"}}</h1>
+
+    {{if .Policy}}
+    <section class="card margin-y-lg"><div class="pre-wrap">{{.Policy}}</div></section>
+    {{else}}
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.policy.window.heading"}}</h2>
+        <p>{{t .server.Lang "security.policy.window.text"}}</p>
+    </section>
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.policy.scope.heading"}}</h2>
+        <p>{{t .server.Lang "security.policy.scope.text"}}</p>
+    </section>
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.policy.out_of_scope.heading"}}</h2>
+        <p>{{t .server.Lang "security.policy.out_of_scope.text"}}</p>
+    </section>
+    <section class="card margin-y-lg">
+        <h2 class="text-cyan">{{t .server.Lang "security.policy.safe_harbor.heading"}}</h2>
+        <p>{{t .server.Lang "security.policy.safe_harbor.text"}}</p>
+    </section>
+    {{end}}
+</main>
+
+{{template "footer" .}}

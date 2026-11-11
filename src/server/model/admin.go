@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/webappsgo/wthr/src/database"
 	"golang.org/x/crypto/argon2"
 )
@@ -48,15 +49,29 @@ type Admin struct {
 // AdminSession represents an active admin session
 // Per TEMPLATE.md PART 22: Secure session management required
 type AdminSession struct {
-	ID      int64 `json:"id"`
-	AdminID int64 `json:"admin_id"`
-	// Secure random token
-	SessionID  string    `json:"session_id"`
+	ID         string    `json:"id"`
+	AdminID    int64     `json:"admin_id"`
+	SessionID  string    `json:"-"`
 	IPAddress  string    `json:"ip_address"`
 	UserAgent  string    `json:"user_agent"`
 	CreatedAt  time.Time `json:"created_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
 	LastUsedAt time.Time `json:"last_used_at"`
+}
+
+// GenerateAdminSessionToken creates a high-entropy admin cookie token with
+// the required adm: prefix.
+func GenerateAdminSessionToken() (string, error) {
+	rawToken, err := GenerateSessionID()
+	if err != nil {
+		return "", err
+	}
+	return "adm:" + rawToken, nil
+}
+
+// HashAdminSessionToken returns the SHA-256 digest stored for an admin session.
+func HashAdminSessionToken(rawToken string) string {
+	return HashToken(rawToken)
 }
 
 // AdminPreferences stores admin-specific settings
@@ -986,42 +1001,41 @@ func (m *AdminSessionModel) getDB() *sql.DB {
 
 // CreateSession creates a new admin session
 func (m *AdminSessionModel) CreateSession(adminID int64, ipAddress, userAgent string, duration time.Duration) (*AdminSession, error) {
-	sessionID, err := GenerateSessionID()
+	sessionToken, err := GenerateAdminSessionToken()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate session ID: %w", err)
+		return nil, fmt.Errorf("failed to generate admin session token: %w", err)
 	}
 
-	expiresAt := time.Now().Add(duration)
+	sessionRowID := uuid.NewString()
+	now := time.Now()
+	expiresAt := now.Add(duration)
 
 	// See AdminInviteModel.CreateInvite for why expires_at must be bound
 	// as SQLite's own canonical text format rather than a raw time.Time.
 	_, err = database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		INSERT INTO server_admin_sessions (id, admin_id, ip_address, user_agent, created_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, sessionID, adminID, ipAddress, userAgent, sqlTimestamp(time.Now()), sqlTimestamp(expiresAt))
+		INSERT INTO server_admin_sessions (id, token_hash, admin_id, ip_address, user_agent, created_at, expires_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, sessionRowID, HashAdminSessionToken(sessionToken), adminID, ipAddress, userAgent, sqlTimestamp(now), sqlTimestamp(expiresAt))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return &AdminSession{
-		ID:         0,
+		ID:         sessionRowID,
 		AdminID:    adminID,
-		SessionID:  sessionID,
+		SessionID:  sessionToken,
 		IPAddress:  ipAddress,
 		UserAgent:  userAgent,
-		CreatedAt:  time.Now(),
+		CreatedAt:  now,
 		ExpiresAt:  expiresAt,
-		LastUsedAt: time.Now(),
+		LastUsedAt: now,
 	}, nil
 }
 
-// GetSession retrieves a session by session ID
-// Note: server_admin_sessions has no session_id or last_used_at columns
-// (see src/database/server_schema.go) — the session token IS the "id"
-// primary key, and there is no separate last-used tracking column, so
-// LastUsedAt is approximated from CreatedAt.
-func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) {
+// GetSession retrieves a session by its raw cookie token. Only its hash is
+// used for lookup; ID is the UUID row identifier and SessionID is not exposed.
+func (m *AdminSessionModel) GetSession(rawToken string) (*AdminSession, error) {
 	var session AdminSession
 
 	// created_at and expires_at are parsed with parseStoredTimestamp instead of
@@ -1033,9 +1047,9 @@ func (m *AdminSessionModel) GetSession(sessionID string) (*AdminSession, error) 
 	err := database.QueryRowContext(context.Background(), m.getDB(), database.TimeoutSimpleSelect, `
 		SELECT id, admin_id, ip_address, user_agent, created_at, expires_at
 		FROM server_admin_sessions
-		WHERE id = ?
-	`, sessionID).Scan(
-		&session.SessionID,
+		WHERE token_hash = ?
+	`, HashAdminSessionToken(rawToken)).Scan(
+		&session.ID,
 		&session.AdminID,
 		&session.IPAddress,
 		&session.UserAgent,
@@ -1070,10 +1084,10 @@ func (m *AdminSessionModel) UpdateSessionLastUsed(sessionID string) error {
 }
 
 // DeleteSession deletes a session (logout)
-func (m *AdminSessionModel) DeleteSession(sessionID string) error {
+func (m *AdminSessionModel) DeleteSession(rawToken string) error {
 	_, err := database.ExecContext(context.Background(), m.getDB(), database.TimeoutWrite, `
-		DELETE FROM server_admin_sessions WHERE id = ?
-	`, sessionID)
+		DELETE FROM server_admin_sessions WHERE token_hash = ?
+	`, HashAdminSessionToken(rawToken))
 
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
@@ -1132,7 +1146,7 @@ func (m *AdminSessionModel) GetActiveSessions(adminID int64) ([]AdminSession, er
 		var session AdminSession
 		var storedCreatedAt, storedExpiresAt interface{}
 		err := rows.Scan(
-			&session.SessionID,
+			&session.ID,
 			&session.AdminID,
 			&session.IPAddress,
 			&session.UserAgent,

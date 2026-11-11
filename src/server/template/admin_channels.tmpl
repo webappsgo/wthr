@@ -2,9 +2,9 @@
 {{template "admin_header" .}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
-{{- $ap := "/server/admin" -}}
+{{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
-{{- $apiPath := "/api/v1/server/admin" -}}
+{{- $apiPath := "/api/v1/server/administration" -}}
 {{- if .admin_api_path}}{{$apiPath = .admin_api_path}}{{end -}}
   <div class="admin-header">
     <h1>{{t $lang "admin.channels.title"}}</h1>

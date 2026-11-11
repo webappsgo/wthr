@@ -107,6 +107,7 @@ func TokenAuthMiddleware(serverDB, usersDB *sql.DB) func(http.Handler) http.Hand
 					return
 				}
 				ctx = reqctx.SetValue(ctx, "admin", admin)
+				ctx = reqctx.SetValue(ctx, "admin_id", int(admin.ID))
 				ctx = reqctx.SetValue(ctx, "db", serverDB)
 				ctx = reqctx.SetValue(ctx, "auth_type", AuthTypeAdminToken)
 

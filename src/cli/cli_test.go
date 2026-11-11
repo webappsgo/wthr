@@ -65,6 +65,9 @@ func TestCLI_Parse_ServiceDispatch(t *testing.T) {
 		if len(gotArgs) != 1 || gotArgs[0] != "start" {
 			t.Errorf("service handler args = %v, want [start]", gotArgs)
 		}
+		if os.Getenv("CLI_COMMAND_HANDLED") != "1" {
+			t.Fatal("service command did not mark the process command as handled")
+		}
 	})
 
 	t.Run("unregistered_command_errors", func(t *testing.T) {
@@ -79,9 +82,8 @@ func TestCLI_Parse_ServiceDispatch(t *testing.T) {
 	})
 }
 
-// TestCLI_Parse_MaintenanceAndUpdateDispatch covers Parse routing
-// --maintenance/--update to their registered handlers with the remaining
-// positional args (not just the flag value, unlike --service).
+// TestCLI_Parse_MaintenanceAndUpdateDispatch covers Parse routing the flag
+// value and trailing positional args to their registered handlers.
 func TestCLI_Parse_MaintenanceAndUpdateDispatch(t *testing.T) {
 	t.Run("maintenance_dispatches_with_trailing_args", func(t *testing.T) {
 		c := NewCLI()
@@ -97,8 +99,44 @@ func TestCLI_Parse_MaintenanceAndUpdateDispatch(t *testing.T) {
 		if err := c.Parse([]string{"--maintenance", "backup", "extra-positional"}); err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
-		if len(gotArgs) != 1 || gotArgs[0] != "extra-positional" {
-			t.Errorf("maintenance handler args = %v, want [extra-positional]", gotArgs)
+		if strings.Join(gotArgs, ",") != "backup,extra-positional" {
+			t.Errorf("maintenance handler args = %v, want [backup extra-positional]", gotArgs)
+		}
+	})
+
+	t.Run("update_dispatches_with_flag_and_trailing_args", func(t *testing.T) {
+		c := NewCLI()
+		var gotArgs []string
+		c.RegisterCommand(&Command{
+			Name: "update",
+			Handler: func(args []string) error {
+				gotArgs = args
+				return nil
+			},
+		})
+		if err := c.Parse([]string{"--update", "branch", "beta"}); err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if strings.Join(gotArgs, ",") != "branch,beta" {
+			t.Errorf("update handler args = %v, want [branch beta]", gotArgs)
+		}
+	})
+
+	t.Run("bare_update_defaults_to_yes", func(t *testing.T) {
+		c := NewCLI()
+		var gotArgs []string
+		c.RegisterCommand(&Command{
+			Name: "update",
+			Handler: func(args []string) error {
+				gotArgs = args
+				return nil
+			},
+		})
+		if err := c.Parse([]string{"--update"}); err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		if strings.Join(gotArgs, ",") != "yes" {
+			t.Errorf("update handler args = %v, want [yes]", gotArgs)
 		}
 	})
 
@@ -264,6 +302,15 @@ func TestCLI_ShowVersion(t *testing.T) {
 	for _, want := range []string{"v" + Version, "Built:", "Go:", "OS/Arch:"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("ShowVersion() output missing %q; got %q", want, out)
+		}
+	}
+}
+
+func TestParseRejectsUnsafeDirectoryFlags(t *testing.T) {
+	for _, arg := range []string{"--config=/etc/../tmp", "--data=a\x00b", "--log=/var/log/../x"} {
+		c := NewCLI()
+		if err := c.Parse([]string{arg}); err == nil {
+			t.Errorf("Parse(%q) accepted an unsafe directory", arg)
 		}
 	}
 }

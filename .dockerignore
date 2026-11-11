@@ -11,7 +11,7 @@
 Jenkinsfile
 
 # Runtime volume data (NEVER include in image)
-rootfs/
+volumes/
 
 # Build output (container builds from source)
 binaries/
@@ -23,6 +23,8 @@ tests/
 # Documentation (not needed in container)
 docs/
 *.md
+# Builds and embedded tests read the root README, so keep it
+!README.md
 
 # Build files (not needed - build happens inside Docker)
 Makefile

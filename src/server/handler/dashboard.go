@@ -53,20 +53,20 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request) {
 	adminIDValue, exists := reqctx.GetValue(r.Context(), "admin_id")
 	if !exists {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminID, ok := adminIDValue.(int)
 	if !ok {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
 	adminModel := &model.AdminModel{DB: database.GetServerDB()}
 	admin, err := adminModel.GetByID(int64(adminID))
 	if err != nil {
-		http.Redirect(w, r, "/server/admin", http.StatusFound)
+		http.Redirect(w, r, "/server/administration", http.StatusFound)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (h *DashboardHandler) ShowAdminPanel(w http.ResponseWriter, r *http.Request
 	var totalLocations int
 	database.QueryRowContext(context.Background(), h.DB, database.TimeoutSimpleSelect, "SELECT COUNT(*) FROM user_saved_locations").Scan(&totalLocations)
 
-	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin.tmpl", util.TemplateData(r, map[string]interface{}{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin.tmpl", AdminTemplateData(r, map[string]interface{}{
 		"title":          "Admin Panel - Weather",
 		"user":           admin,
 		"totalUsers":     totalUsers,

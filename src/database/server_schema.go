@@ -25,6 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_token_hash ON server_admin_credentials(api_
 -- Admin Sessions table (admin panel sessions only)
 CREATE TABLE IF NOT EXISTS server_admin_sessions (
 	id TEXT PRIMARY KEY,
+	token_hash TEXT NOT NULL,
 	admin_id INTEGER NOT NULL,
 	data TEXT,
 	expires_at DATETIME NOT NULL,
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS server_audit_log (
 	details TEXT,
 	ip_address TEXT,
 	user_agent TEXT,
+	source TEXT DEFAULT 'api',
 	status TEXT,
 	error TEXT
 );

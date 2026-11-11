@@ -80,6 +80,14 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    },
+
+    setErrorMessage: function(container, className, message) {
+      if (!container) return;
+      const paragraph = document.createElement('p');
+      paragraph.className = className;
+      paragraph.textContent = message;
+      container.replaceChildren(paragraph);
     }
   };
 
@@ -138,6 +146,7 @@
         autoClose = 0,  // Auto-close after N seconds (0 = no auto-close)
         closeable = true
       } = options;
+      const safeSize = ['sm', 'md', 'lg', 'xl'].includes(size) ? size : 'md';
 
       const modalId = Utils.generateId();
       const autoCloseHtml = autoClose > 0
@@ -146,9 +155,9 @@
 
       const modalHTML = `
         <div id="${modalId}" class="modal-overlay">
-          <div class="modal modal-${size}">
+          <div class="modal modal-${safeSize}">
             <div class="modal-header">
-              <h3 class="modal-title">${title}</h3>
+              <h3 class="modal-title">${Utils.escapeHtml(title)}</h3>
               ${closeable ? `<button class="modal-close" data-action="modal-close" aria-label="Close">&times;</button>` : ''}
             </div>
             <div class="modal-body">
@@ -251,6 +260,7 @@
         duration = 5000,
         dismissible = true
       } = options;
+      const safeType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
 
       const icons = {
         success: '✓',
@@ -261,11 +271,11 @@
 
       const toastId = Utils.generateId();
       const toastHTML = `
-        <div id="${toastId}" class="toast toast-${type}">
-          <div class="toast-icon">${icons[type]}</div>
+        <div id="${toastId}" class="toast toast-${safeType}">
+          <div class="toast-icon">${icons[safeType]}</div>
           <div class="toast-content">
-            ${title ? `<div class="toast-title">${title}</div>` : ''}
-            <div class="toast-message">${message}</div>
+            ${title ? `<div class="toast-title">${Utils.escapeHtml(title)}</div>` : ''}
+            <div class="toast-message">${Utils.escapeHtml(message)}</div>
           </div>
           ${dismissible ? '<button class="toast-close" data-action="toast-dismiss" aria-label="Dismiss">&times;</button>' : ''}
         </div>
@@ -277,7 +287,7 @@
         setTimeout(() => this.dismiss(toastId), duration);
       }
 
-      Utils.dispatchEvent('toast:shown', { toastId, type, message });
+      Utils.dispatchEvent('toast:shown', { toastId, type: safeType, message });
       return toastId;
     },
 
@@ -329,6 +339,7 @@
         dismissible = true,
         container = null
       } = options;
+      const safeType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
 
       const icons = {
         success: '✓',
@@ -339,11 +350,11 @@
 
       const alertId = Utils.generateId();
       const alertHTML = `
-        <div id="${alertId}" class="alert alert-${type} ${dismissible ? 'alert-dismissible' : ''}">
-          <div class="alert-icon">${icons[type]}</div>
+        <div id="${alertId}" class="alert alert-${safeType} ${dismissible ? 'alert-dismissible' : ''}">
+          <div class="alert-icon">${icons[safeType]}</div>
           <div class="alert-content">
-            ${title ? `<div class="alert-title">${title}</div>` : ''}
-            <div class="alert-message">${message}</div>
+            ${title ? `<div class="alert-title">${Utils.escapeHtml(title)}</div>` : ''}
+            <div class="alert-message">${Utils.escapeHtml(message)}</div>
           </div>
           ${dismissible ? '<button class="alert-close" data-action="alert-dismiss" aria-label="Dismiss">&times;</button>' : ''}
         </div>
@@ -575,14 +586,16 @@
         var icon = n.type === 'error' ? '❌' : n.type === 'warning' ? '⚠️' : n.type === 'success' ? '✅' : 'ℹ️';
         var unreadClass = n.read ? '' : ' unread';
         var timeAgo = Notifications.formatTimeAgo(n.created_at);
-
-        return '<a href="' + (n.link || '/users/notifications') + '" class="notification-item' + unreadClass + '" data-id="' + n.id + '">' +
+        var link = typeof n.link === 'string' && (/^https?:\/\//i.test(n.link) || (n.link.charAt(0) === '/' && n.link.charAt(1) !== '/' && n.link.charAt(1) !== '\\'))
+          ? n.link
+          : '/users/notifications';
+        return '<a href="' + Utils.escapeAttr(link) + '" class="notification-item' + unreadClass + '" data-id="' + Utils.escapeAttr(n.id) + '">' +
           '<span class="notification-dot"></span>' +
           '<span class="notification-icon">' + icon + '</span>' +
           '<div class="notification-content">' +
-            '<span class="notification-title">' + (n.title || 'Notification') + '</span>' +
-            '<span class="notification-message">' + (n.message || '') + '</span>' +
-            '<span class="notification-time">' + timeAgo + '</span>' +
+            '<span class="notification-title">' + Utils.escapeHtml(n.title || 'Notification') + '</span>' +
+            '<span class="notification-message">' + Utils.escapeHtml(n.message || '') + '</span>' +
+            '<span class="notification-time">' + Utils.escapeHtml(timeAgo) + '</span>' +
           '</div>' +
         '</a>';
       }).join('');
@@ -885,7 +898,7 @@
     return new Promise((resolve) => {
       Modal.create({
         title: title,
-        body: `<p class="modal-body-text">${message}</p>`,
+        body: `<p class="modal-body-text">${Utils.escapeHtml(message)}</p>`,
         footer: `
           <button class="btn btn-primary" data-action="dialog-alert-ok">
             OK
@@ -905,7 +918,7 @@
     return new Promise((resolve) => {
       Modal.create({
         title: title,
-        body: `<p class="modal-body-text">${message}</p>`,
+        body: `<p class="modal-body-text">${Utils.escapeHtml(message)}</p>`,
         footer: `
           <button class="btn btn-secondary" data-action="dialog-confirm-cancel">
             Cancel
@@ -930,8 +943,8 @@
       const modalId = Modal.create({
         title: title,
         body: `
-          <p class="modal-body-text-spacing">${message}</p>
-          <input type="text" id="${inputId}" class="modal-input-full" value="${defaultValue}"
+          <p class="modal-body-text-spacing">${Utils.escapeHtml(message)}</p>
+          <input type="text" id="${inputId}" class="modal-input-full" value="${Utils.escapeAttr(defaultValue)}"
                  placeholder="Enter value...">
         `,
         footer: `
@@ -1236,11 +1249,130 @@
         });
     },
 
+    saveCacheConfig: async function(form) {
+      const field = function(name) {
+        return form.elements.namedItem(name);
+      };
+      const value = function(name) {
+        const input = field(name);
+        return input ? input.value.trim() : '';
+      };
+      const checked = function(name) {
+        const input = field(name);
+        return Boolean(input && input.checked);
+      };
+      const clearUrl = checked('clear_url');
+      const clearUsername = checked('clear_username');
+      const clearPassword = checked('clear_password');
+      const body = {
+        type: value('type'),
+        url: clearUrl ? '' : value('url'),
+        host: value('host'),
+        port: Number(value('port')),
+        username: clearUsername ? '' : value('username'),
+        password: clearPassword ? '' : value('password'),
+        db: Number(value('db')),
+        tls: checked('tls'),
+        tls_skip_verify: checked('tls_skip_verify'),
+        pool_size: Number(value('pool_size')),
+        min_idle: Number(value('min_idle')),
+        timeout: value('timeout'),
+        prefix: value('prefix'),
+        ttl: value('ttl'),
+        cluster: checked('cluster'),
+        cluster_nodes: value('cluster_nodes'),
+        clear_url: clearUrl,
+        clear_username: clearUsername,
+        clear_password: clearPassword
+      };
+      const result = form.querySelector('[data-cache-config-result]');
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      if (result) {
+        result.classList.add('hidden');
+        result.textContent = '';
+      }
+
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        const csrf = field('csrf_token');
+        if (csrf && csrf.value) headers['X-CSRF-Token'] = csrf.value;
+        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/config/settings/cache', {
+          method: 'PUT',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+        const payload = await response.json().catch(function() { return {}; });
+        if (!response.ok || payload.ok === false) throw new Error('cache configuration request failed');
+
+        const data = payload.data || payload;
+        const restart = data.requires_restart !== undefined ? data.requires_restart : data.restart_required;
+        const restartRequired = Array.isArray(restart) ? restart.length > 0 : Boolean(restart);
+        const message = restartRequired
+          ? form.dataset.saveSuccess + ' ' + form.dataset.restartRequired
+          : form.dataset.saveSuccess;
+        if (result) {
+          result.textContent = message;
+          result.classList.remove('hidden');
+        }
+        if (restartRequired) Toast.info(message);
+        else Toast.success(message);
+      } catch {
+        const message = form.dataset.saveError;
+        if (result) {
+          result.textContent = message;
+          result.classList.remove('hidden');
+        }
+        Toast.error(message);
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    },
+
+    saveRateLimitConfig: async function(form) {
+      const body = {};
+      for (const element of form.elements) {
+        if (!element.name || element.name === 'csrf_token') continue;
+        body[element.name] = element.type === 'checkbox' ? element.checked : Number(element.value);
+      }
+      const headers = { 'Content-Type': 'application/json' };
+      const csrf = form.elements.namedItem('csrf_token');
+      if (csrf && csrf.value) headers['X-CSRF-Token'] = csrf.value;
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/config/settings/rate-limit', {
+          method: 'PUT',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+        const payload = await response.json().catch(function() { return {}; });
+        if (!response.ok || payload.ok === false) throw new Error('rate limit update failed');
+        Toast.success(form.dataset.saveSuccess);
+      } catch {
+        Toast.error(form.dataset.saveError);
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    },
+
     init: function() {
       document.querySelectorAll('form[data-settings-category]').forEach(function(form) {
         form.addEventListener('submit', function(e) {
           e.preventDefault();
           AdminSettingsPage.saveSettings(form, form.dataset.settingsCategory);
+        });
+      });
+      document.querySelectorAll('form[data-cache-config-form]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          AdminSettingsPage.saveCacheConfig(form);
+        });
+      });
+      document.querySelectorAll('form[data-rate-limit-config-form]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          AdminSettingsPage.saveRateLimitConfig(form);
         });
       });
       if (document.getElementById('admin-settings-data')) {
@@ -1893,6 +2025,13 @@
           document.getElementById('autoBackup').checked = schedule.enabled !== false;
           document.getElementById('interval').value = schedule.interval;
           document.getElementById('retention').value = schedule.retention;
+          if (schedule.restore) {
+            document.getElementById('restoreMaxArchiveSize').value = schedule.restore.max_archive_size;
+            document.getElementById('restoreMaxExpandedSize').value = schedule.restore.max_expanded_size;
+            document.getElementById('restoreMaxFiles').value = schedule.restore.max_files;
+            document.getElementById('restoreMaxFileSize').value = schedule.restore.max_file_size;
+            document.getElementById('restoreMaxRatio').value = schedule.restore.max_ratio;
+          }
         })
         .catch(function(error) {
           AdminBackupPage.showError(text.loadFailed + ' ' + error.message);
@@ -1906,7 +2045,12 @@
       const payload = {
         enabled: document.getElementById('autoBackup').checked,
         interval: parseInt(document.getElementById('interval').value, 10),
-        retention: parseInt(document.getElementById('retention').value, 10)
+        retention: parseInt(document.getElementById('retention').value, 10),
+        restore_max_archive_size: document.getElementById('restoreMaxArchiveSize').value,
+        restore_max_expanded_size: document.getElementById('restoreMaxExpandedSize').value,
+        restore_max_files: parseInt(document.getElementById('restoreMaxFiles').value, 10),
+        restore_max_file_size: document.getElementById('restoreMaxFileSize').value,
+        restore_max_ratio: parseInt(document.getElementById('restoreMaxRatio').value, 10)
       };
       AdminBackupPage.request(AdminBackupPage.backupApi() + '/schedule', {
         method: 'POST',
@@ -2300,9 +2444,11 @@
           message = message.replace(regex, '<span class="search-highlight">$1</span>');
         }
 
+        const level = String(log.level || 'INFO');
+        const safeLevel = ['TRACE', 'DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL'].includes(level.toUpperCase()) ? level.toLowerCase() : 'info';
         html += '<div class="log-entry">' +
-          '<span class="log-timestamp">' + log.timestamp + '</span>' +
-          '<span class="log-level log-level-' + log.level + '">' + log.level + '</span>' +
+          '<span class="log-timestamp">' + AdminLogsPage.escapeHtml(log.timestamp) + '</span>' +
+          '<span class="log-level log-level-' + safeLevel + '">' + AdminLogsPage.escapeHtml(level) + '</span>' +
           '<span class="log-message">' + message + '</span>' +
           '</div>';
       });
@@ -2313,7 +2459,12 @@
 
     showNoLogs: function(message) {
       const container = document.getElementById('logsContainer');
-      container.innerHTML = '<div class="no-logs"><p>' + message + '</p></div>';
+      const paragraph = document.createElement('p');
+      paragraph.textContent = message;
+      const emptyState = document.createElement('div');
+      emptyState.className = 'no-logs';
+      emptyState.appendChild(paragraph);
+      container.replaceChildren(emptyState);
     },
 
     updateStats: function() {
@@ -2857,7 +3008,7 @@
       const box = document.getElementById('passkeyStatus');
       if (!box) return;
       box.className = 'status-box ' + cls;
-      box.innerHTML = msg;
+      box.textContent = msg;
     },
 
     run: function() {
@@ -2865,7 +3016,7 @@
       const adminPath = AdminPasskeyLoginPage.getData().adminPath;
 
       if (!pendingToken) {
-        AdminPasskeyLoginPage.setStatus('Session expired or invalid. <a href="/server/auth/login" class="inline-link">Please log in again.</a>', 'status-error');
+        AdminPasskeyLoginPage.setStatus('Session expired or invalid. Please log in again at /server/auth/login.', 'status-error');
         return;
       }
       if (!window.PublicKeyCredential || !navigator.credentials || !navigator.credentials.get) {
@@ -2889,7 +3040,7 @@
         })
         .then(function(data) {
           challengeData = data;
-          AdminPasskeyLoginPage.setStatus('<span class="spinner"></span> Touch your security key or use your device passkey to continue…', 'status-info');
+          AdminPasskeyLoginPage.setStatus('Touch your security key or use your device passkey to continue…', 'status-info');
           return navigator.credentials.get({
             publicKey: AdminPasskeyLoginPage.normalizeOptions(challengeData.options),
           });
@@ -2898,7 +3049,7 @@
           if (!credential) {
             throw new Error('Passkey authentication was cancelled');
           }
-          AdminPasskeyLoginPage.setStatus('<span class="spinner"></span> Verifying credential…', 'status-info');
+          AdminPasskeyLoginPage.setStatus('Verifying credential…', 'status-info');
           const payload = AdminPasskeyLoginPage.serializeAssertion(credential, challengeData.ceremony_token);
           return fetch('/api/v1/server/auth/admin/passkey/verify', {
             method: 'POST',
@@ -2917,7 +3068,7 @@
         })
         .catch(function(err) {
           AdminPasskeyLoginPage.setStatus('Passkey authentication failed: ' + (err.message || String(err)) +
-            ' <a href="/server/auth/login" class="inline-link">Try again</a>', 'status-error');
+            ' Try again at /server/auth/login.', 'status-error');
         });
     },
 
@@ -2965,7 +3116,13 @@
         description = 'Custom cron expression: ' + expr;
       }
 
-      preview.innerHTML = '<div class="cron-preview-title">Next Run:</div><div class="cron-preview-times">' + description + '</div>';
+      const title = document.createElement('div');
+      title.className = 'cron-preview-title';
+      title.textContent = 'Next Run:';
+      const nextRun = document.createElement('div');
+      nextRun.className = 'cron-preview-times';
+      nextRun.textContent = description;
+      preview.replaceChildren(title, nextRun);
       preview.classList.remove('hidden');
     },
 
@@ -3245,9 +3402,9 @@
                 '</div>' +
                 '<button type="button" class="btn btn-danger passkey-item-delete-btn" ' +
                 'data-action="delete-admin-passkey" ' +
-                'data-passkey-id="' + AdminSecurityPage.escHtml(id) + '" ' +
-                'data-passkey-name="' + AdminSecurityPage.escHtml(name) + '" ' +
-                'aria-label="Delete passkey ' + AdminSecurityPage.escHtml(name) + '"' +
+                'data-passkey-id="' + Utils.escapeAttr(id) + '" ' +
+                'data-passkey-name="' + Utils.escapeAttr(name) + '" ' +
+                'aria-label="Delete passkey ' + Utils.escapeAttr(name) + '"' +
                 '>Delete</button>' +
                 '</div>';
             }).join('');
@@ -3448,8 +3605,8 @@
         '<div class="status-badge ' + statusClass + '">' + statusText + '</div>' +
         '</div>' +
         '<div class="info-grid">' +
-        '<div class="info-row"><span class="info-label">Subject:</span><span class="info-value">' + (cert.subject || '-') + '</span></div>' +
-        '<div class="info-row"><span class="info-label">Issuer:</span><span class="info-value">' + (cert.issuer || '-') + '</span></div>' +
+        '<div class="info-row"><span class="info-label">Subject:</span><span class="info-value">' + Utils.escapeHtml(cert.subject || '-') + '</span></div>' +
+        '<div class="info-row"><span class="info-label">Issuer:</span><span class="info-value">' + Utils.escapeHtml(cert.issuer || '-') + '</span></div>' +
         '<div class="info-row"><span class="info-label">Valid From:</span><span class="info-value">' + new Date(cert.notBefore).toLocaleDateString() + '</span></div>' +
         '<div class="info-row"><span class="info-label">Valid Until:</span><span class="info-value">' + new Date(cert.notAfter).toLocaleDateString() + '</span></div>' +
         '<div class="info-row"><span class="info-label">Days Remaining:</span><span class="info-value">' + daysUntilExpiry + ' days</span></div>' +
@@ -3849,6 +4006,7 @@
         const toggleClass = task.enabled ? 'btn-danger' : 'btn-success';
         const toggleLabel = task.enabled ? '⏸️ Disable' : '▶️ Enable';
         const name = AdminTasksPage.escHtml(task.name);
+        const nameAttr = Utils.escapeAttr(task.name);
 
         return '' +
           '<div class="task-item">' +
@@ -3862,8 +4020,8 @@
           '<span>Next: ' + AdminTasksPage.escHtml(task.nextRun || '-') + '</span>' +
           '</div>' +
           '<div class="task-actions">' +
-          '<button class="btn btn-sm btn-primary" data-action="trigger-task" data-name="' + name + '">▶️ Run</button>' +
-          '<button class="btn btn-sm ' + toggleClass + '" data-action="toggle-task" data-name="' + name + '" data-enabled="' + task.enabled + '">' + toggleLabel + '</button>' +
+          '<button class="btn btn-sm btn-primary" data-action="trigger-task" data-name="' + nameAttr + '">▶️ Run</button>' +
+          '<button class="btn btn-sm ' + toggleClass + '" data-action="toggle-task" data-name="' + nameAttr + '" data-enabled="' + Boolean(task.enabled) + '">' + toggleLabel + '</button>' +
           '</div>' +
           '</div>';
       }).join('');
@@ -3884,8 +4042,9 @@
         const topBucket = index % 3;
         const runningClass = task.running ? ' running' : '';
         const name = AdminTasksPage.escHtml(task.name);
+        const nameAttr = Utils.escapeAttr(task.name);
 
-        return '<div class="timeline-task' + runningClass + ' timeline-left-' + hourPos + ' timeline-top-' + topBucket + '" title="' + name + '">' + name + '</div>';
+        return '<div class="timeline-task' + runningClass + ' timeline-left-' + hourPos + ' timeline-top-' + topBucket + '" title="' + nameAttr + '">' + name + '</div>';
       }).join('');
     },
 
@@ -3911,7 +4070,7 @@
         .then(function(response) { return response.json(); })
         .then(function(data) {
           const tbody = document.getElementById('historyTable').querySelector('tbody');
-          tbody.innerHTML = data.history.map(function(h) {
+          tbody.innerHTML = (Array.isArray(data.history) ? data.history : []).map(function(h) {
             const statusClass = h.status === 'success' ? 'success' : 'danger';
             return '' +
               '<tr>' +
@@ -3942,7 +4101,7 @@
         if (!confirmed) return;
 
         const adminApiPath = AdminTasksPage.getData().adminApiPath;
-        fetch(adminApiPath + '/server/tasks/' + name + '/trigger', { method: 'POST' })
+        fetch(adminApiPath + '/server/tasks/' + encodeURIComponent(name) + '/trigger', { method: 'POST' })
           .then(function(response) {
             if (!response.ok) throw new Error('Failed to trigger task');
 
@@ -3959,7 +4118,7 @@
       const action = currentlyEnabled ? 'disable' : 'enable';
       const adminApiPath = AdminTasksPage.getData().adminApiPath;
 
-      fetch(adminApiPath + '/server/tasks/' + name + '/' + action, { method: 'POST' })
+      fetch(adminApiPath + '/server/tasks/' + encodeURIComponent(name) + '/' + action, { method: 'POST' })
         .then(function(response) {
           if (!response.ok) throw new Error('Failed to ' + action + ' task');
 
@@ -4057,19 +4216,23 @@
 
     displaySearchResults: function(results) {
       const container = document.getElementById('searchResults');
-      AddLocationPage.searchResults = results || [];
+      const validResults = Array.isArray(results) ? results.filter(function(result) {
+        return result && typeof result.name === 'string' && typeof result.country === 'string' &&
+          Number.isFinite(result.latitude) && Number.isFinite(result.longitude);
+      }) : [];
+      AddLocationPage.searchResults = validResults;
 
-      if (!results || results.length === 0) {
+      if (validResults.length === 0) {
         container.innerHTML = '<div class="result-item">No results found</div>';
         container.classList.add('active');
         return;
       }
 
-      container.innerHTML = results.map(function(result, index) {
+      container.innerHTML = validResults.map(function(result, index) {
         return '<div class="result-item" data-action="add-location-select-result" data-index="' + index + '">' +
           '<div class="result-city">' + AddLocationPage.escHtml(result.name) + '</div>' +
           '<div class="result-details">' +
-          (result.admin1 ? AddLocationPage.escHtml(result.admin1) + ', ' : '') + AddLocationPage.escHtml(result.country) +
+          (typeof result.admin1 === 'string' && result.admin1 ? AddLocationPage.escHtml(result.admin1) + ', ' : '') + AddLocationPage.escHtml(result.country) +
           '<span class="add-location-result-opacity">• ' + result.latitude.toFixed(4) + ', ' + result.longitude.toFixed(4) + '</span>' +
           '</div>' +
           '</div>';
@@ -4262,80 +4425,6 @@
 
       form.addEventListener('submit', function(e) {
         AddLocationPage.handleSubmit(e);
-      });
-    }
-  };
-
-  const ContactPage = {
-    dataPayload: null,
-
-    getData: function() {
-      if (!ContactPage.dataPayload) {
-        const el = document.getElementById('contact-page-data');
-        ContactPage.dataPayload = el ? JSON.parse(el.textContent) : { apiPath: '' };
-      }
-      return ContactPage.dataPayload;
-    },
-
-    handleSubmit: function(event) {
-      event.preventDefault();
-
-      const form = event.target;
-      const submitBtn = document.getElementById('contact-submit');
-      const messageDiv = document.getElementById('contact-message');
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = '📤 Sending...';
-
-      const formData = {
-        name: form.name.value,
-        email: form.email.value,
-        subject: form.subject.value,
-        message: form.message.value
-      };
-
-      fetch(ContactPage.getData().apiPath + '/server/contact', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      })
-        .then(function(response) {
-          if (response.ok) {
-            Alert.create('Message sent successfully! We\'ll get back to you soon.', {
-              type: 'success',
-              container: '#contact-message'
-            });
-            form.reset();
-            Toast.success('Message sent!');
-            return;
-          }
-          return response.json().then(function(error) {
-            Alert.create(error.error || 'Failed to send message. Please try again.', {
-              type: 'error',
-              container: '#contact-message'
-            });
-          });
-        })
-        .catch(function() {
-          Alert.create('Network error. Please check your connection and try again.', {
-            type: 'error',
-            container: messageDiv ? '#contact-message' : undefined
-          });
-        })
-        .finally(function() {
-          submitBtn.disabled = false;
-          submitBtn.textContent = '📧 Send Message';
-        });
-    },
-
-    init: function() {
-      const form = document.getElementById('contact-form');
-      if (!form) return;
-
-      form.addEventListener('submit', function(e) {
-        ContactPage.handleSubmit(e);
       });
     }
   };
@@ -4702,8 +4791,13 @@
 
         const data = await response.json();
         SecurityPage.setup2FASecret = data.secret;
-
-        document.getElementById('qrCodeContainer').innerHTML = `<img src="${data.qr_code}" alt="QR Code">`;
+        if (typeof data.qr_code !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(data.qr_code)) {
+          throw new Error('Invalid QR code response');
+        }
+        const qrImage = document.createElement('img');
+        qrImage.src = data.qr_code;
+        qrImage.alt = 'QR Code';
+        document.getElementById('qrCodeContainer').replaceChildren(qrImage);
         document.getElementById('manualSecret').value = data.secret;
 
         document.getElementById('setup2FAModal').classList.add('active');
@@ -4769,7 +4863,7 @@
 
         if (finishPayload.recovery_keys) {
           SecurityPage.recoveryKeysList = finishPayload.recovery_keys;
-          document.getElementById('recoveryKeysContainer').innerHTML = SecurityPage.recoveryKeysList.map((key) => `<div class="recovery-key">${key}</div>`).join('');
+          SecurityPage.displayRecoveryKeys(SecurityPage.recoveryKeysList);
           document.getElementById('setup2FAModal').classList.add('active');
           document.getElementById('setupStep1').classList.add('d-none');
           document.getElementById('setupStep2').classList.add('d-none');
@@ -4783,7 +4877,7 @@
     },
 
     deletePasskey: async function(passkeyID, name) {
-      const confirmed = await showConfirm(`Delete passkey "${Utils.escapeHtml(name)}"?`, 'Delete Passkey');
+      const confirmed = await showConfirm(`Delete passkey "${name}"?`, 'Delete Passkey');
       if (!confirmed) {
         return;
       }
@@ -4804,8 +4898,15 @@
 
     displayRecoveryKeys: function(keys) {
       const container = document.getElementById('recoveryKeysContainer');
-      container.innerHTML = '<h4>Your Recovery Keys:</h4>' +
-        keys.map(key => `<div class="recovery-key">${key}</div>`).join('');
+      const heading = document.createElement('h4');
+      heading.textContent = 'Your Recovery Keys:';
+      const keyElements = (Array.isArray(keys) ? keys : []).map(function(key) {
+        const element = document.createElement('div');
+        element.className = 'recovery-key';
+        element.textContent = key;
+        return element;
+      });
+      container.replaceChildren(heading, ...keyElements);
     },
 
     downloadRecoveryKeys: function() {
@@ -4987,7 +5088,9 @@
         }
 
         Toast.success('Token revoked');
-        document.querySelector(`[data-token-id="${tokenId}"]`).remove();
+        document.querySelectorAll('[data-token-id]').forEach(function(element) {
+          if (element.dataset.tokenId === String(tokenId)) element.remove();
+        });
       } catch (error) {
         Toast.error('Failed to revoke token: ' + error.message);
       }
@@ -5438,18 +5541,6 @@
       });
     },
 
-    collectAIBots: function(form) {
-      const bots = {};
-      form.querySelectorAll('[data-ai-bot]').forEach(function(select) {
-        bots[select.getAttribute('data-ai-bot')] = select.value;
-      });
-      const defaultSelect = form.querySelector('#ai_bots_default');
-      return {
-        default: defaultSelect ? defaultSelect.value : 'allow',
-        bots: bots
-      };
-    },
-
     saveRobotsTxt: function(form) {
       const content = form.querySelector('#robots_txt');
       const adminApiPath = AdminWebPage.getData().adminApiPath;
@@ -5457,8 +5548,7 @@
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: content ? content.value : '',
-          ai_bots: AdminWebPage.collectAIBots(form)
+          content: content ? content.value : ''
         })
       }).then(function(response) {
         return response.json().then(function(data) {
@@ -5524,6 +5614,27 @@
         securityTxtForm.addEventListener('submit', function(e) {
           e.preventDefault();
           AdminWebPage.saveFormSettings(securityTxtForm, 'security.txt saved successfully');
+        });
+      }
+
+      const mcpForm = document.getElementById('mcp-form');
+      if (mcpForm) {
+        mcpForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const value = mcpForm.querySelector('#mcp_enabled');
+          const adminApiPath = AdminWebPage.getData().adminApiPath;
+          fetch(adminApiPath + '/config/web', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mcp_enabled: value ? value.value === 'true' : false })
+          }).then(function(response) {
+            return response.json().then(function(data) {
+              if (!response.ok) throw new Error(data.message || 'Failed to save MCP settings');
+              Toast.success('MCP settings saved successfully');
+            });
+          }).catch(function(error) {
+            Toast.error(error.message);
+          });
         });
       }
     }
@@ -5927,14 +6038,16 @@
             '</tr></thead><tbody>' +
             users.map(function(user) {
               const isFirstAdmin = user.id === 1;
+              const idAttr = Utils.escapeAttr(user.id);
               const actionButtons = isFirstAdmin
-                ? '<button data-action="admin-dashboard-edit-admin-user" data-user-id="' + user.id + '" data-user-email="' + user.email + '" class="btn-edit">Edit</button>'
-                : '<button data-action="admin-dashboard-delete-user" data-user-id="' + user.id + '" class="btn-delete">Delete</button>';
+                ? '<button data-action="admin-dashboard-edit-admin-user" data-user-id="' + idAttr + '" data-user-email="' + Utils.escapeAttr(user.email) + '" class="btn-edit">Edit</button>'
+                : '<button data-action="admin-dashboard-delete-user" data-user-id="' + idAttr + '" class="btn-delete">Delete</button>';
+              const role = user.role === 'admin' ? 'admin' : 'user';
 
               return '<tr class="admin-table-body-row">' +
-                '<td class="admin-table-body-cell">' + user.id + (isFirstAdmin ? ' <span class="admin-user-primary">(Primary)</span>' : '') + '</td>' +
-                '<td class="admin-table-body-cell">' + user.email + '</td>' +
-                '<td class="admin-table-body-cell"><span class="' + (user.role === 'admin' ? 'admin-role-badge-admin' : 'admin-role-badge') + '">' + user.role + '</span></td>' +
+                '<td class="admin-table-body-cell">' + Utils.escapeHtml(user.id) + (isFirstAdmin ? ' <span class="admin-user-primary">(Primary)</span>' : '') + '</td>' +
+                '<td class="admin-table-body-cell">' + Utils.escapeHtml(user.email) + '</td>' +
+                '<td class="admin-table-body-cell"><span class="' + (role === 'admin' ? 'admin-role-badge-admin' : 'admin-role-badge') + '">' + role + '</span></td>' +
                 '<td class="admin-table-body-cell">' + new Date(user.created_at).toLocaleDateString() + '</td>' +
                 '<td class="admin-table-body-cell-right">' + actionButtons + '</td>' +
                 '</tr>';
@@ -5971,7 +6084,7 @@
         body: '<form id="editAdminForm">' +
           '<div class="form-group">' +
           '<label for="editAdminEmail">Email Address</label>' +
-          '<input type="email" id="editAdminEmail" class="form-input" required value="' + currentEmail + '" placeholder="admin@example.com">' +
+          '<input type="email" id="editAdminEmail" class="form-input" required value="' + Utils.escapeAttr(currentEmail) + '" placeholder="admin@example.com">' +
           '<small class="text-comment">Update the email address for this account</small>' +
           '</div>' +
           '<div class="form-group">' +
@@ -6184,41 +6297,45 @@
             const categorySettings = grouped[category];
             const displayName = categoryNames[category] || category;
             html += '<div class="settings-category">' +
-              '<h3 class="settings-category-title">' + displayName + '</h3>' +
+              '<h3 class="settings-category-title">' + Utils.escapeHtml(displayName) + '</h3>' +
               '<div class="settings-grid">' +
               categorySettings.map(function(setting) {
                 const name = AdminDashboardPage.formatSettingLabel(setting.key);
-                const isBool = setting.value === 'true' || setting.value === 'false';
-                const isNumber = !isNaN(setting.value) && setting.value !== '' && setting.value !== null;
-                const isPassword = setting.key.indexOf('password') !== -1;
+                const key = String(setting.key || '');
+                const value = setting.value === null || setting.value === undefined ? '' : String(setting.value);
+                const escapedKey = Utils.escapeAttr(key);
+                const escapedValue = Utils.escapeAttr(value);
+                const isBool = value === 'true' || value === 'false';
+                const isNumber = value !== '' && !isNaN(value);
+                const isPassword = key.indexOf('password') !== -1;
 
                 let inputHtml = '';
 
                 if (isBool) {
                   const checked = setting.value === 'true' ? 'checked' : '';
                   inputHtml = '<label class="custom-checkbox">' +
-                    '<input type="checkbox" data-key="' + setting.key + '" ' + checked + '>' +
+                    '<input type="checkbox" data-key="' + escapedKey + '" ' + checked + '>' +
                     '<span class="checkbox-checkmark"></span>' +
                     '<span class="checkbox-label">' + (checked ? 'Enabled' : 'Disabled') + '</span>' +
                     '</label>';
-                } else if (enumFields[setting.key]) {
-                  const options = enumFields[setting.key].map(function(opt) {
+                } else if (enumFields[key]) {
+                  const options = enumFields[key].map(function(opt) {
                     return '<option value="' + opt + '" ' + (setting.value === opt ? 'selected' : '') + '>' + (opt.charAt(0).toUpperCase() + opt.slice(1)) + '</option>';
                   }).join('');
-                  inputHtml = '<select class="form-input" data-key="' + setting.key + '">' + options + '</select>';
+                  inputHtml = '<select class="form-input" data-key="' + escapedKey + '">' + options + '</select>';
                 } else if (isPassword) {
-                  inputHtml = '<input type="password" class="form-input" data-key="' + setting.key + '" value="' + setting.value + '" placeholder="••••••••">';
+                  inputHtml = '<input type="password" class="form-input" data-key="' + escapedKey + '" value="' + escapedValue + '" placeholder="••••••••">';
                 } else if (isNumber) {
-                  inputHtml = '<input type="number" class="form-input" data-key="' + setting.key + '" value="' + setting.value + '" min="0">';
+                  inputHtml = '<input type="number" class="form-input" data-key="' + escapedKey + '" value="' + escapedValue + '" min="0">';
                 } else {
-                  inputHtml = '<input type="text" class="form-input" data-key="' + setting.key + '" value="' + setting.value + '">';
+                  inputHtml = '<input type="text" class="form-input" data-key="' + escapedKey + '" value="' + escapedValue + '">';
                 }
 
                 return '<div class="setting-item">' +
                   '<div class="setting-info">' +
-                  '<div class="setting-name">' + name + '</div>' +
-                  '<div class="setting-key">' + setting.key + '</div>' +
-                  (setting.description ? '<div class="setting-description">' + setting.description + '</div>' : '') +
+                  '<div class="setting-name">' + Utils.escapeHtml(name) + '</div>' +
+                  '<div class="setting-key">' + Utils.escapeHtml(key) + '</div>' +
+                  (setting.description ? '<div class="setting-description">' + Utils.escapeHtml(setting.description) + '</div>' : '') +
                   '</div>' +
                   '<div class="setting-value">' + inputHtml + '</div>' +
                   '</div>';
@@ -6228,8 +6345,8 @@
 
           document.getElementById('settings-list').innerHTML = html;
         })
-        .catch(function(error) {
-          document.getElementById('settings-list').innerHTML = '<p class="text-error text-center">Error loading settings: ' + error.message + '</p>';
+        .catch(function() {
+          Utils.setErrorMessage(document.getElementById('settings-list'), 'text-error text-center', 'Error loading settings.');
         });
     },
 
@@ -6324,21 +6441,22 @@
             '<th class="admin-table-head-cell-right">Actions</th>' +
             '</tr></thead><tbody>' +
             tokens.map(function(token) {
+              const id = Utils.escapeAttr(token.id);
               return '<tr class="admin-table-body-row">' +
-                '<td class="admin-table-body-cell">' + token.id + '</td>' +
-                '<td class="admin-table-body-cell">' + (token.user_email || 'N/A') + '</td>' +
-                '<td class="admin-table-body-cell">' + token.name + '</td>' +
+                '<td class="admin-table-body-cell">' + Utils.escapeHtml(token.id) + '</td>' +
+                '<td class="admin-table-body-cell">' + Utils.escapeHtml(token.user_email || 'N/A') + '</td>' +
+                '<td class="admin-table-body-cell">' + Utils.escapeHtml(token.name) + '</td>' +
                 '<td class="admin-table-body-cell">' + new Date(token.created_at).toLocaleDateString() + '</td>' +
                 '<td class="admin-table-body-cell">' + (token.last_used_at ? new Date(token.last_used_at).toLocaleDateString() : 'Never') + '</td>' +
                 '<td class="admin-table-body-cell-right">' +
-                '<button data-action="admin-dashboard-revoke-token" data-token-id="' + token.id + '" class="admin-token-button">Revoke</button>' +
+                '<button data-action="admin-dashboard-revoke-token" data-token-id="' + id + '" class="admin-token-button">Revoke</button>' +
                 '</td></tr>';
             }).join('') +
             '</tbody></table>';
           document.getElementById('tokens-list').innerHTML = html;
         })
-        .catch(function(error) {
-          document.getElementById('tokens-list').innerHTML = '<p class="admin-error-text">Error loading tokens: ' + error.message + '</p>';
+        .catch(function() {
+          Utils.setErrorMessage(document.getElementById('tokens-list'), 'admin-error-text', 'Error loading tokens.');
         });
     },
 
@@ -6363,7 +6481,7 @@
         .then(function(response) { return response.json(); })
         .then(function(users) {
           const userOptions = users.map(function(u) {
-            return '<option value="' + u.id + '">' + u.email + '</option>';
+            return '<option value="' + Utils.escapeAttr(u.id) + '">' + Utils.escapeHtml(u.email) + '</option>';
           }).join('');
 
           const modalId = 'generate-token-modal-' + Date.now();
@@ -6429,9 +6547,9 @@
         body: '<div class="margin-bottom-1">' +
           '<p class="text-orange margin-bottom-1">⚠️ <strong>Important:</strong> Copy this token now. For security reasons, it will not be shown again!</p>' +
           '<div class="admin-settings-note">' +
-          '<code class="font-monospace word-break-all text-green font-size-09">' + token + '</code>' +
+          '<code class="font-monospace word-break-all text-green font-size-09">' + Utils.escapeHtml(token) + '</code>' +
           '</div></div>',
-        footer: '<button class="btn btn-primary" data-action="admin-dashboard-copy-token" data-token="' + token + '">📋 Copy to Clipboard</button>' +
+        footer: '<button class="btn btn-primary" data-action="admin-dashboard-copy-token" data-token="' + Utils.escapeAttr(token) + '">📋 Copy to Clipboard</button>' +
           '<button class="btn btn-secondary" data-action="modal-close">Close</button>',
         size: 'lg'
       });
@@ -6476,18 +6594,18 @@
             '</tr></thead><tbody>' +
             logs.map(function(log) {
               return '<tr class="admin-table-body-row">' +
-                '<td class="admin-logs-cell-mono">' + new Date(log.created_at).toLocaleString() + '</td>' +
-                '<td class="admin-logs-cell">' + (log.user_email || 'Anonymous') + '</td>' +
-                '<td class="admin-logs-cell-cyan">' + log.action + '</td>' +
-                '<td class="admin-logs-cell-comment">' + (log.resource || '-') + '</td>' +
-                '<td class="admin-logs-cell-mono">' + (log.ip_address || '-') + '</td>' +
+                '<td class="admin-logs-cell-mono">' + Utils.escapeHtml(new Date(log.created_at).toLocaleString()) + '</td>' +
+                '<td class="admin-logs-cell">' + Utils.escapeHtml(log.user_email || 'Anonymous') + '</td>' +
+                '<td class="admin-logs-cell-cyan">' + Utils.escapeHtml(log.action) + '</td>' +
+                '<td class="admin-logs-cell-comment">' + Utils.escapeHtml(log.resource || '-') + '</td>' +
+                '<td class="admin-logs-cell-mono">' + Utils.escapeHtml(log.ip_address || '-') + '</td>' +
                 '</tr>';
             }).join('') +
             '</tbody></table>';
           document.getElementById('logs-list').innerHTML = html;
         })
-        .catch(function(error) {
-          document.getElementById('logs-list').innerHTML = '<p class="admin-error-text">Error loading logs: ' + error.message + '</p>';
+        .catch(function() {
+          Utils.setErrorMessage(document.getElementById('logs-list'), 'admin-error-text', 'Error loading logs.');
         });
     },
 
@@ -6605,17 +6723,20 @@
             '<th class="admin-table-head-cell">Actions</th>' +
             '</tr></thead><tbody>' +
             tasks.map(function(task) {
+              const name = Utils.escapeHtml(task.name);
+              const nameAttr = Utils.escapeAttr(task.name);
+              const interval = Utils.escapeHtml(task.interval);
               const lastRunInfo = task.last_run
-                ? new Date(task.last_run.start_time).toLocaleString() + '<br>' +
+                ? Utils.escapeHtml(new Date(task.last_run.start_time).toLocaleString()) + '<br>' +
                   '<small class="' + (task.last_run.status === 'success' ? 'status-success' : 'status-error') + '">' +
-                  (task.last_run.status === 'success' ? '✓' : '✗') + ' ' + task.last_run.duration_ms + 'ms</small>'
+                  (task.last_run.status === 'success' ? '✓' : '✗') + ' ' + Number(task.last_run.duration_ms || 0) + 'ms</small>'
                 : 'Never';
               const nextRun = task.next_run ? new Date(task.next_run).toLocaleString() : 'N/A';
               const countdown = task.next_run ? AdminDashboardPage.formatRelativeTime(task.next_run) : '';
 
               return '<tr class="admin-table-body-row">' +
-                '<td class="admin-task-name">' + task.name + '</td>' +
-                '<td class="admin-table-body-cell">' + task.interval + '</td>' +
+                '<td class="admin-task-name">' + name + '</td>' +
+                '<td class="admin-table-body-cell">' + interval + '</td>' +
                 '<td class="admin-table-body-cell"><span class="' + (task.enabled ? 'status-enabled' : 'status-disabled') + '">' +
                 (task.enabled ? '✓ Enabled' : '○ Disabled') + '</span></td>' +
                 '<td class="admin-table-body-cell"><span class="' + (task.running ? 'admin-task-status-running' : 'admin-task-status-idle') + '">' +
@@ -6624,21 +6745,21 @@
                 '<td class="admin-table-body-cell"><div class="admin-task-next-run">' + nextRun + '</div>' +
                 (countdown ? '<div class="admin-task-countdown">' + countdown + '</div>' : '') + '</td>' +
                 '<td class="admin-table-body-cell">' +
-                '<small>' + task.success_count + '✓ / ' + task.error_count + '✗</small><br>' +
-                '<small>' + task.run_count + ' total runs</small></td>' +
+                '<small>' + Number(task.success_count || 0) + '✓ / ' + Number(task.error_count || 0) + '✗</small><br>' +
+                '<small>' + Number(task.run_count || 0) + ' total runs</small></td>' +
                 '<td class="admin-table-body-cell">' +
-                '<button data-action="admin-dashboard-trigger-task" data-task-name="' + task.name + '" class="btn-primary btn-task-action">▶ Run Now</button>' +
+                '<button data-action="admin-dashboard-trigger-task" data-task-name="' + nameAttr + '" class="btn-primary btn-task-action">▶ Run Now</button>' +
                 (task.enabled
-                  ? '<button data-action="admin-dashboard-disable-task" data-task-name="' + task.name + '" class="btn-danger btn-task-action">⏸ Disable</button>'
-                  : '<button data-action="admin-dashboard-enable-task" data-task-name="' + task.name + '" class="btn-success btn-task-action">▶ Enable</button>') +
-                '<button data-action="admin-dashboard-view-task-history" data-task-name="' + task.name + '" class="btn-secondary btn-task-action">📊 History</button>' +
+                  ? '<button data-action="admin-dashboard-disable-task" data-task-name="' + nameAttr + '" class="btn-danger btn-task-action">⏸ Disable</button>'
+                  : '<button data-action="admin-dashboard-enable-task" data-task-name="' + nameAttr + '" class="btn-success btn-task-action">▶ Enable</button>') +
+                '<button data-action="admin-dashboard-view-task-history" data-task-name="' + nameAttr + '" class="btn-secondary btn-task-action">📊 History</button>' +
                 '</td></tr>';
             }).join('') +
             '</tbody></table>';
           document.getElementById('tasks-list').innerHTML = html;
         })
-        .catch(function(error) {
-          document.getElementById('tasks-list').innerHTML = '<p class="admin-error-text">Error loading scheduled tasks: ' + error.message + '</p>';
+        .catch(function() {
+          Utils.setErrorMessage(document.getElementById('tasks-list'), 'admin-error-text', 'Error loading scheduled tasks.');
         });
     },
 
@@ -6706,11 +6827,11 @@
             '</tr></thead><tbody>' +
             history.map(function(run) {
               return '<tr class="admin-table-body-row">' +
-                '<td>' + new Date(run.start_time).toLocaleString() + '</td>' +
-                '<td>' + run.duration_ms + 'ms</td>' +
+              '<td>' + Utils.escapeHtml(new Date(run.start_time).toLocaleString()) + '</td>' +
+              '<td>' + Number(run.duration_ms || 0) + 'ms</td>' +
                 '<td class="' + (run.status === 'success' ? 'status-success' : 'status-error') + '">' +
                 (run.status === 'success' ? '✓ Success' : '✗ Error') + '</td>' +
-                '<td>' + (run.error || '-') + '</td></tr>';
+          '<td>' + Utils.escapeHtml(run.error || '-') + '</td></tr>';
             }).join('') +
             '</tbody></table></div>';
 
@@ -7649,7 +7770,6 @@
     AdminSystemPage.init();
     AdminTasksPage.init();
     AddLocationPage.init();
-    ContactPage.init();
     EarthquakeDetailPage.init();
     EarthquakePage.init();
     EditLocationPage.init();
@@ -8078,7 +8198,7 @@
   window.confirmAction = function(message, callback) {
     Modal.create({
       title: 'Confirm Action',
-      body: `<p class="modal-body-text">${message}</p>`,
+      body: `<p class="modal-body-text">${Utils.escapeHtml(message)}</p>`,
       footer: `
         <button class="btn btn-secondary" data-action="modal-cancel">Cancel</button>
         <button class="btn btn-danger" id="confirmActionBtn">Confirm</button>
@@ -8179,6 +8299,9 @@
      * reload while staying server-readable on the next navigation
      */
     setCookie: function(theme) {
+      if (document.documentElement.dataset.gpcOptOut === 'true') {
+        return;
+      }
       var secure = window.location.protocol === 'https:' ? '; Secure' : '';
       document.cookie = this.COOKIE_NAME + '=' + encodeURIComponent(theme) +
         '; path=/; max-age=31536000; SameSite=Strict' + secure;

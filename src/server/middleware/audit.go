@@ -12,6 +12,7 @@ import (
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/util"
 
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -44,6 +45,10 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 			// Get client info
 			clientIP := util.TrustedGetClientIP(r)
 			userAgent := r.UserAgent()
+			source := "api"
+			if value, ok := reqctx.GetValue(r.Context(), "request_source"); ok && value == "mcp" {
+				source = "mcp"
+			}
 
 			// Capture the response
 			ww := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
@@ -77,9 +82,9 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 			// no SQL-side comparison or ORDER BY can reconcile - format through dbtime
 			// so every producer of this column agrees.
 			_, err := database.ExecContext(context.Background(), db, database.TimeoutWrite, `
-				INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, status)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, id, dbtime.FormatSQLTimestamp(now), actorType, actorID, action, resource, "", clientIP, userAgent, status)
+				INSERT INTO server_audit_log (ulid, timestamp, actor_type, actor_id, action, resource_type, resource_id, ip_address, user_agent, source, status)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, id, dbtime.FormatSQLTimestamp(now), actorType, actorID, action, resource, "", clientIP, userAgent, source, status)
 
 			if err != nil {
 				// A failed audit write must never fail the request, but it must
@@ -99,7 +104,7 @@ func AuditLogger(db *sql.DB) func(http.Handler) http.Handler {
 
 // isAdminRoute checks if the path is an admin route, using the configured
 // admin.path (AI.md config-rules.md: admin path is configurable, default
-// "admin") rather than a hardcoded "/server/admin" prefix - matching the
+// "admin") rather than a hardcoded "/server/administration" prefix - matching the
 // resolution pattern already used by auth.go's RestrictAdminToAdminRoutes.
 func isAdminRoute(path string) bool {
 	webPrefix, apiPrefix := adminRoutePrefixes()
@@ -109,11 +114,11 @@ func isAdminRoute(path string) bool {
 // adminRoutePrefixes returns the browser and API admin route prefixes for the
 // currently configured admin path, in that order. Both the route test and the
 // resource extraction below must agree on these strings: if one of them used a
-// hardcoded "/server/admin" while the operator had configured a different
+// hardcoded "/server/administration" while the operator had configured a different
 // admin.path, the middleware would either log nothing at all or strip the wrong
 // number of characters and report a garbled resource name.
 func adminRoutePrefixes() (webPrefix, apiPrefix string) {
-	webPrefix = "/server/admin"
+	webPrefix = "/server/administration"
 	if cfg, err := config.LoadConfig(); err == nil && cfg != nil {
 		webPrefix = "/server/" + cfg.GetAdminPath()
 	}

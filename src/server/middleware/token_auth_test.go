@@ -164,6 +164,36 @@ func TestTokenAuthMiddleware_RejectsUnvalidatedAdminToken(t *testing.T) {
 	}
 }
 
+func TestTokenAuthMiddleware_AdminTokenSetsAdminIDContext(t *testing.T) {
+	serverDB, usersDB := openTokenAuthTestDBs(t)
+	adminModel := &model.AdminModel{DB: serverDB}
+	admin, err := adminModel.CreateAdminAccount("contextadmin", "contextadmin@example.com", "StrongPassword123!", true)
+	if err != nil {
+		t.Fatalf("CreateAdminAccount: %v", err)
+	}
+	token, err := adminModel.RegenerateAPIToken(admin.ID)
+	if err != nil {
+		t.Fatalf("RegenerateAPIToken: %v", err)
+	}
+
+	var gotAdminID interface{}
+	handler := TokenAuthMiddleware(serverDB, usersDB)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAdminID, _ = reqctx.GetValue(r.Context(), "admin_id")
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+	}
+	if gotAdminID != int(admin.ID) {
+		t.Errorf("admin_id context = %v, want %d", gotAdminID, admin.ID)
+	}
+}
+
 // TestTokenAuthMiddleware_RejectsAgentAndOrgTokens verifies the
 // not-yet-implemented token types (agent/org - PART 35/36 explicitly not
 // implemented per this project's optional-rules.md) are always rejected

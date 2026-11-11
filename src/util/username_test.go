@@ -59,6 +59,9 @@ func TestValidateUsername(t *testing.T) {
 		{"blocklist_root", "root", true, "reserved and cannot be used"},
 		{"blocklist_system", "system", true, "reserved and cannot be used"},
 		{"blocklist_mod", "mod", true, "reserved and cannot be used"},
+		{"blocklist_mcp", "mcp", true, "reserved and cannot be used"},
+		{"blocklist_llms", "llms", true, "reserved and cannot be used"},
+		{"blocklist_preferences", "preferences", true, "reserved and cannot be used"},
 
 		// Invalid: Blocklist - critical substring terms
 		{"substring_admin", "myadmin", true, "reserved and cannot be used"},

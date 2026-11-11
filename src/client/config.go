@@ -24,12 +24,22 @@ type CLIConfig struct {
 	Logging LoggingConfig `yaml:"logging,omitempty"`
 	// Cache
 	Cache CacheConfig `yaml:"cache,omitempty"`
+	// Update controls per-invocation CLI release checks.
+	Update ClientUpdateConfig `yaml:"update,omitempty"`
 	// Debug mode
 	Debug bool `yaml:"debug,omitempty"`
 	// Default location for weather queries
 	Location string `yaml:"location,omitempty"`
 	// User/org context (--user flag value)
 	User string `yaml:"user,omitempty"`
+	// Language override for client output.
+	Language string `yaml:"lang,omitempty"`
+}
+
+type ClientUpdateConfig struct {
+	Auto          bool   `yaml:"auto,omitempty"`
+	CheckInterval string `yaml:"check_interval,omitempty"`
+	Channel       string `yaml:"channel,omitempty"`
 }
 
 // ServerConfig holds server connection settings
@@ -148,7 +158,7 @@ func DefaultConfig() *CLIConfig {
 		Server: ServerConfig{
 			Primary:    OfficialSite,
 			APIVersion: "v1",
-			AdminPath:  "admin",
+			AdminPath:  "administration",
 			Timeout:    "30s",
 			Retry:      3,
 			RetryDelay: "1s",
@@ -174,6 +184,8 @@ func DefaultConfig() *CLIConfig {
 			TTL:     "5m",
 			MaxSize: "100MB",
 		},
+		Update:   ClientUpdateConfig{CheckInterval: "per_invocation", Channel: "stable"},
+		Language: "auto",
 	}
 }
 
@@ -226,11 +238,10 @@ func LoadConfigFromProfile(profile string) (*CLIConfig, error) {
 	// If profile specified, use profile-specific config
 	if profile != "" {
 		configDir := filepath.Dir(configPath)
-		// Handle extension per line 45193-45195
-		if !strings.HasSuffix(profile, ".yml") && !strings.HasSuffix(profile, ".yaml") {
-			profile = profile + ".yml"
+		configPath, err = configProfilePath(configDir, profile)
+		if err != nil {
+			return nil, err
 		}
-		configPath = filepath.Join(configDir, profile)
 	}
 
 	// Start with defaults
@@ -315,7 +326,50 @@ func SaveConfig(config *CLIConfig) error {
 	if err != nil {
 		return NewConfigError(fmt.Sprintf("failed to get config path: %v", err))
 	}
+	return writeConfigFile(configPath, config)
+}
 
+func SaveConfigToProfile(config *CLIConfig, profile string) error {
+	configPath, err := ConfigPath()
+	if err != nil {
+		return NewConfigError(fmt.Sprintf("failed to get config path: %v", err))
+	}
+	if profile != "" {
+		configPath, err = configProfilePath(filepath.Dir(configPath), profile)
+		if err != nil {
+			return err
+		}
+	}
+	return writeConfigFile(configPath, config)
+}
+
+func configProfilePath(configDir, profile string) (string, error) {
+	profileName, err := normalizeConfigProfile(profile)
+	if err != nil {
+		return "", err
+	}
+	configPath := filepath.Join(configDir, profileName)
+	info, err := os.Lstat(configPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", NewConfigError(fmt.Sprintf("failed to inspect config profile: %v", err))
+	}
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", NewConfigError("config profile must not be a symbolic link")
+	}
+	return configPath, nil
+}
+
+func normalizeConfigProfile(profile string) (string, error) {
+	if profile == "" || filepath.Base(profile) != profile || strings.ContainsAny(profile, "/\\\x00") {
+		return "", NewConfigError("config profile must be a file name")
+	}
+	if !strings.HasSuffix(profile, ".yml") && !strings.HasSuffix(profile, ".yaml") {
+		profile += ".yml"
+	}
+	return profile, nil
+}
+
+func writeConfigFile(configPath string, config *CLIConfig) error {
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return NewConfigError(fmt.Sprintf("failed to create config directory: %v", err))

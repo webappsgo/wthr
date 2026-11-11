@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -94,8 +93,8 @@ func TestAppConfig_GetAdminPath(t *testing.T) {
 		cfg  *AppConfig
 		want string
 	}{
-		{"nil receiver defaults", nil, "admin"},
-		{"empty admin path defaults", &AppConfig{}, "admin"},
+		{"nil receiver defaults", nil, "administration"},
+		{"empty admin path defaults", &AppConfig{}, "administration"},
 		{"custom admin path kept", &AppConfig{Server: ServerConfig{AdminPath: "backoffice"}}, "backoffice"},
 	}
 
@@ -147,9 +146,26 @@ func TestAppConfig_GetAdminAPIPath(t *testing.T) {
 	}
 
 	cfg = &AppConfig{}
-	if got := cfg.GetAdminAPIPath(); got != "/api/v1/server/admin" {
-		t.Errorf("GetAdminAPIPath() = %q, want /api/v1/server/admin (defaults)", got)
+	if got := cfg.GetAdminAPIPath(); got != "/api/v1/server/administration" {
+		t.Errorf("GetAdminAPIPath() = %q, want /api/v1/server/administration (defaults)", got)
 	}
+}
+
+func TestValidateServerUpdate(t *testing.T) {
+	t.Run("normalizes legacy channels", func(t *testing.T) {
+		cfg := &AppConfig{Server: ServerConfig{Update: UpdateConfig{Branch: "daily"}}}
+		validateServerUpdate(cfg)
+		if cfg.Server.Update.Branch != "devel" {
+			t.Fatalf("branch = %q, want devel", cfg.Server.Update.Branch)
+		}
+	})
+	t.Run("resets invalid values", func(t *testing.T) {
+		cfg := &AppConfig{Server: ServerConfig{Update: UpdateConfig{Branch: "unknown", DeferDays: 366}}}
+		validateServerUpdate(cfg)
+		if cfg.Server.Update.Branch != "stable" || cfg.Server.Update.DeferDays != 0 {
+			t.Fatalf("update config = %#v, want stable with zero defer days", cfg.Server.Update)
+		}
+	})
 }
 
 func TestGetConfigPath(t *testing.T) {
@@ -384,8 +400,8 @@ func TestLoadConfig_MalformedYAMLFallsBackToDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig() must not fail on malformed YAML, got: %v", err)
 	}
-	if cfg.Server.AdminPath != "admin" {
-		t.Errorf("LoadConfig() admin_path = %q, want the default admin", cfg.Server.AdminPath)
+	if cfg.Server.AdminPath != "administration" {
+		t.Errorf("LoadConfig() admin_path = %q, want the default administration", cfg.Server.AdminPath)
 	}
 	if cfg.Server.Cache.Type != "memory" {
 		t.Errorf("LoadConfig() cache.type = %q, want the default memory", cfg.Server.Cache.Type)
@@ -411,8 +427,8 @@ func TestLoadConfig_DefaultsWhenNoFileFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig() unexpected error: %v", err)
 	}
-	if cfg.Server.AdminPath != "admin" {
-		t.Errorf("LoadConfig() default AdminPath = %q, want admin", cfg.Server.AdminPath)
+	if cfg.Server.AdminPath != "administration" {
+		t.Errorf("LoadConfig() default AdminPath = %q, want administration", cfg.Server.AdminPath)
 	}
 	if cfg.Users.Registration.Mode != "open" {
 		t.Errorf("LoadConfig() default registration mode = %q, want open", cfg.Users.Registration.Mode)
@@ -594,9 +610,9 @@ func TestGetUserInviteExpirationDays(t *testing.T) {
 
 func TestRegistrationModeQueries(t *testing.T) {
 	tests := []struct {
-		mode         string
-		wantOpen     bool
-		wantPrivate  bool
+		mode        string
+		wantOpen    bool
+		wantPrivate bool
 	}{
 		{"open", true, false},
 		{"private", false, true},
@@ -618,133 +634,6 @@ func TestRegistrationModeQueries(t *testing.T) {
 				t.Errorf("IsRegistrationPrivate() = %v, want %v", got, tt.wantPrivate)
 			}
 		})
-	}
-}
-
-// TestDeniedAIBots covers the AI crawler policy resolution per AI.md PART 16
-func TestDeniedAIBots(t *testing.T) {
-	tests := []struct {
-		name   string
-		config AIBotsConfig
-		want   []string
-	}{
-		{
-			name:   "default allow with no overrides denies nothing",
-			config: AIBotsConfig{Default: "allow"},
-			want:   nil,
-		},
-		{
-			name:   "empty default behaves as allow",
-			config: AIBotsConfig{},
-			want:   nil,
-		},
-		{
-			name:   "explicit deny wins over allow default",
-			config: AIBotsConfig{Default: "allow", Bots: map[string]string{"GPTBot": "deny"}},
-			want:   []string{"GPTBot"},
-		},
-		{
-			name:   "default deny flips every unlisted bot",
-			config: AIBotsConfig{Default: "deny"},
-			want:   RecognizedAIBots,
-		},
-		{
-			name:   "explicit allow wins over deny default",
-			config: AIBotsConfig{Default: "deny", Bots: map[string]string{"GPTBot": "allow"}},
-			want:   nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.config.DeniedAIBots()
-			if tt.name == "default deny flips every unlisted bot" {
-				if len(got) != len(RecognizedAIBots) {
-					t.Fatalf("DeniedAIBots() returned %d bots, want %d", len(got), len(RecognizedAIBots))
-				}
-				return
-			}
-			if tt.name == "explicit allow wins over deny default" {
-				for _, bot := range got {
-					if bot == "GPTBot" {
-						t.Fatalf("DeniedAIBots() denied GPTBot despite an explicit allow")
-					}
-				}
-				return
-			}
-			if len(got) != len(tt.want) {
-				t.Fatalf("DeniedAIBots() = %v, want %v", got, tt.want)
-			}
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("DeniedAIBots()[%d] = %q, want %q", i, got[i], tt.want[i])
-				}
-			}
-		})
-	}
-}
-
-// TestAIBotStanzas verifies the robots.txt stanza rendering per AI.md PART 16
-func TestAIBotStanzas(t *testing.T) {
-	empty := AIBotsConfig{Default: "allow"}
-	if got := empty.AIBotStanzas(); got != "" {
-		t.Errorf("AIBotStanzas() with nothing denied = %q, want empty string", got)
-	}
-
-	denied := AIBotsConfig{Default: "allow", Bots: map[string]string{"GPTBot": "deny", "CCBot": "deny"}}
-	got := denied.AIBotStanzas()
-	for _, want := range []string{"User-agent: GPTBot", "User-agent: CCBot", "Disallow: /"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("AIBotStanzas() = %q, missing %q", got, want)
-		}
-	}
-	if strings.Contains(got, "User-agent: *") {
-		t.Error("AIBotStanzas() must not emit the wildcard group; allowed bots fall under the existing one")
-	}
-}
-
-// TestNormalizeAIBotPolicy covers policy value validation
-func TestNormalizeAIBotPolicy(t *testing.T) {
-	tests := []struct {
-		input   string
-		want    string
-		wantErr bool
-	}{
-		{"allow", "allow", false},
-		{"ALLOW", "allow", false},
-		{"  deny  ", "deny", false},
-		{"", "allow", false},
-		{"block", "", true},
-		{"true", "", true},
-	}
-
-	for _, tt := range tests {
-		got, err := normalizeAIBotPolicy(tt.input)
-		if tt.wantErr {
-			if err == nil {
-				t.Errorf("normalizeAIBotPolicy(%q) expected an error, got %q", tt.input, got)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("normalizeAIBotPolicy(%q) unexpected error: %v", tt.input, err)
-			continue
-		}
-		if got != tt.want {
-			t.Errorf("normalizeAIBotPolicy(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
-// TestUpdateWebRobotsAIBotsRejectsUnknownBot verifies unrecognized crawler
-// names are refused rather than silently persisted
-func TestUpdateWebRobotsAIBotsRejectsUnknownBot(t *testing.T) {
-	withGlobalConfig(t, &AppConfig{})
-	if err := UpdateWebRobotsAIBots("allow", map[string]string{"NotARealBot": "deny"}); err == nil {
-		t.Error("UpdateWebRobotsAIBots() accepted an unrecognized bot name")
-	}
-	if err := UpdateWebRobotsAIBots("maybe", nil); err == nil {
-		t.Error("UpdateWebRobotsAIBots() accepted an invalid default policy")
 	}
 }
 
@@ -871,5 +760,25 @@ func TestUpdateI2PConfigRejectsInvalid(t *testing.T) {
 	}
 	if GetGlobalConfig().Server.I2P.VirtualPort != want {
 		t.Error("UpdateI2PConfig() mutated the global config despite rejecting the update")
+	}
+}
+
+func TestApplyEnvOverridesI2P(t *testing.T) {
+	cfg := &AppConfig{}
+	t.Setenv("I2P_ENABLED", "yes")
+	applyEnvOverrides(cfg)
+	if !cfg.Server.I2P.Enabled || !cfg.Server.Features.I2P {
+		t.Error("I2P_ENABLED=yes must enable the eepsite")
+	}
+	t.Setenv("I2P_ENABLED", "off")
+	applyEnvOverrides(cfg)
+	if cfg.Server.I2P.Enabled {
+		t.Error("I2P_ENABLED=off must disable the eepsite")
+	}
+	t.Setenv("I2P_ENABLED", "")
+	cfg.Server.I2P.Enabled = true
+	applyEnvOverrides(cfg)
+	if !cfg.Server.I2P.Enabled {
+		t.Error("an unset I2P_ENABLED must leave server.i2p.enabled alone")
 	}
 }

@@ -2,8 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -38,23 +40,25 @@ func SetBuildInfo(version, buildDate, commitID string) {
 func pageServerData(r *http.Request, extra map[string]interface{}) map[string]interface{} {
 	ctx, _ := middleware.GetServerContext(r.Context())
 	data := map[string]interface{}{
-		"Title":           ctx.Title,
-		"Tagline":         ctx.Tagline,
-		"Description":     ctx.Description,
-		"Version":         ctx.Version,
-		"Lang":            ctx.Lang,
-		"ThemeClass":      ctx.ThemeClass,
-		"Theme":           ctx.Theme,
-		"Keywords":        ctx.Keywords,
-		"Author":          ctx.Author,
-		"OGImage":         ctx.OGImage,
-		"TwitterHandle":   ctx.TwitterHandle,
-		"VerifyGoogle":    ctx.VerifyGoogle,
-		"VerifyBing":      ctx.VerifyBing,
-		"VerifyYandex":    ctx.VerifyYandex,
-		"VerifyBaidu":     ctx.VerifyBaidu,
-		"VerifyPinterest": ctx.VerifyPinterest,
-		"VerifyFacebook":  ctx.VerifyFacebook,
+		"Title":            ctx.Title,
+		"Tagline":          ctx.Tagline,
+		"Description":      ctx.Description,
+		"Version":          ctx.Version,
+		"Lang":             ctx.Lang,
+		"ThemeClass":       ctx.ThemeClass,
+		"Theme":            ctx.Theme,
+		"Keywords":         ctx.Keywords,
+		"Author":           ctx.Author,
+		"OGImage":          ctx.OGImage,
+		"TwitterHandle":    ctx.TwitterHandle,
+		"VerifyGoogle":     ctx.VerifyGoogle,
+		"VerifyBing":       ctx.VerifyBing,
+		"VerifyYandex":     ctx.VerifyYandex,
+		"VerifyBaidu":      ctx.VerifyBaidu,
+		"VerifyPinterest":  ctx.VerifyPinterest,
+		"VerifyFacebook":   ctx.VerifyFacebook,
+		"TrackingHTML":     ctx.TrackingHTML,
+		"TrackingNoscript": ctx.TrackingNoscript,
 	}
 	for key, value := range extra {
 		data[key] = value
@@ -89,8 +93,6 @@ func buildI2PPageData(cfg *config.AppConfig) map[string]interface{} {
 // ShowAboutPage renders the about page with content negotiation (AI.md PART 14)
 func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
-
 		// Get server configuration
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
@@ -99,7 +101,6 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		onionAddress := settingsModel.GetString("tor.onion_address", "")
 
 		data := map[string]interface{}{
-			"user": user,
 			"page": "about",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":       cfg.Server.Branding.Title,
@@ -126,10 +127,7 @@ func ShowAboutPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowPrivacyPage renders the privacy policy page with content negotiation (AI.md PART 14)
 func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
-
 		data := map[string]interface{}{
-			"user": user,
 			"page": "privacy",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
@@ -146,10 +144,15 @@ func ShowPrivacyPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowContactPage renders the contact form page with content negotiation (AI.md PART 14)
 func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
-
+		provider := cfg.Server.Pages.Contact.EffectiveCaptcha(util.OverlayHostFromRequest(r) != "")
+		captcha := map[string]interface{}{"Provider": provider}
+		if provider == config.CaptchaSimple {
+			id, a, b := contactCaptcha.New()
+			captcha["ID"], captcha["A"], captcha["B"] = id, a, b
+		} else {
+			captcha["SiteKey"] = cfg.Server.Pages.Contact.CaptchaSiteKey
+		}
 		data := map[string]interface{}{
-			"user": user,
 			"page": "contact",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
@@ -157,6 +160,8 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				"GitRepo": "wthr",
 			}),
 			"HostInfo": util.GetHostInfo(r),
+			"flash":    TakeFlash(w, r),
+			"Captcha":  captcha,
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -167,10 +172,7 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowHelpPage renders the help & documentation page with content negotiation (AI.md PART 14)
 func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
-
 		data := map[string]interface{}{
-			"user": user,
 			"page": "help",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":   cfg.Server.Branding.Title,
@@ -178,7 +180,8 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				"GitRepo": "wthr",
 				"I2P":     buildI2PPageData(cfg),
 			}),
-			"HostInfo": util.GetHostInfo(r),
+			"HostInfo":   util.GetHostInfo(r),
+			"MCPEnabled": mcpEnabled(cfg),
 		}
 
 		// AI.md PART 14: Content negotiation - JSON or HTML
@@ -189,10 +192,7 @@ func ShowHelpPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // ShowTermsPage renders the terms of service page with content negotiation (AI.md PART 16)
 func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
-
 		data := map[string]interface{}{
-			"user": user,
 			"page": "terms",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
@@ -211,7 +211,6 @@ func ShowTermsPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 // stays correct across hostnames and API versions.
 func ShowExamplesPage(cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user, _ := reqctx.GetValue(r.Context(), "user")
 		host := util.GetHostInfo(r).FullHost
 		apiPath := cfg.GetAPIPath()
 
@@ -229,7 +228,6 @@ func ShowExamplesPage(cfg *config.AppConfig) http.HandlerFunc {
 		}
 
 		data := map[string]interface{}{
-			"user": user,
 			"page": "examples",
 			"server": pageServerData(r, map[string]interface{}{
 				"Title":     cfg.Server.Branding.Title,
@@ -430,66 +428,185 @@ func GetTermsAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	}
 }
 
-// HandleContactFormSubmission handles the contact form POST request (API endpoint)
+// contactCaptcha is the built-in captcha challenge store shared by the contact page and the contact API.
+var contactCaptcha = service.NewSimpleCaptcha()
+
+// contactForm is one contact submission after trimming.
+type contactForm struct {
+	Name    string
+	Email   string
+	Subject string
+	Message string
+	// Built-in captcha answer and challenge id
+	CaptchaID     string
+	CaptchaAnswer string
+	// recaptcha / hcaptcha response token
+	CaptchaToken string
+}
+
+// Result keys of a contact submission; the API and the web form map them to responses.
+const (
+	contactSent           = "sent"
+	contactSaved          = "saved"
+	contactFailed         = "failed"
+	contactInvalid        = "invalid"
+	contactCaptchaFailed  = "captcha_failed"
+	contactCaptchaOffline = "captcha_unavailable"
+)
+
+// validateContactForm trims every field and reports whether all required fields are present and well formed.
+func validateContactForm(f *contactForm) bool {
+	f.Name, f.Email = strings.TrimSpace(f.Name), strings.TrimSpace(f.Email)
+	f.Subject, f.Message = strings.TrimSpace(f.Subject), strings.TrimSpace(f.Message)
+	if f.Name == "" || f.Subject == "" || f.Message == "" || len(f.Name) > 100 || len(f.Subject) > 200 || len(f.Message) > 5000 {
+		return false
+	}
+	if strings.ContainsAny(f.Name+f.Email+f.Subject, "\r\n") {
+		return false
+	}
+	addr, err := mail.ParseAddress(f.Email)
+	return err == nil && addr.Address == f.Email
+}
+
+// checkContactCaptcha verifies the captcha for this request: every submission, no failed-attempt
+// state (AI.md PART 16 "/server/contact"). Overlay requests always use the built-in challenge.
+func checkContactCaptcha(r *http.Request, cfg *config.AppConfig, f contactForm) string {
+	pages := config.PagesContactConfig{}
+	if cfg != nil {
+		pages = cfg.Server.Pages.Contact
+	}
+	provider := pages.EffectiveCaptcha(util.OverlayHostFromRequest(r) != "")
+	if provider == config.CaptchaSimple {
+		if !contactCaptcha.Verify(f.CaptchaID, f.CaptchaAnswer) {
+			return contactCaptchaFailed
+		}
+		return ""
+	}
+	switch err := service.VerifyProvider(r.Context(), nil, provider, pages.CaptchaSecretKey, f.CaptchaToken, util.TrustedGetClientIP(r)); err {
+	case nil:
+		return ""
+	case service.ErrCaptchaUnavailable:
+		return contactCaptchaOffline
+	default:
+		return contactCaptchaFailed
+	}
+}
+
+// deliverContact validates, captcha-checks and delivers one submission. It returns one of the contact* result keys.
+func deliverContact(r *http.Request, cfg *config.AppConfig, f contactForm) string {
+	if !validateContactForm(&f) {
+		return contactInvalid
+	}
+	if result := checkContactCaptcha(r, cfg, f); result != "" {
+		return result
+	}
+
+	smtpService := GetSMTPService(r)
+	recipient := ""
+	if cfg != nil {
+		recipient = cfg.Server.Contact.ResolveContactEmail("general")
+	}
+	if smtpService == nil || recipient == "" {
+		if err := saveContactToDB(r, f.Name, f.Email, f.Subject, f.Message); err != nil {
+			return contactFailed
+		}
+		return contactSaved
+	}
+
+	emailBody := fmt.Sprintf("%s\n\n%s: %s <%s>\n%s: %s\n\n%s:\n%s\n\n---\n%s: %s\n%s: %s\n%s: %s",
+		Translate(r, "email.contact_notification.title"),
+		Translate(r, "email.contact_notification.label_from"), f.Name, f.Email,
+		Translate(r, "email.contact_notification.label_subject"), f.Subject,
+		Translate(r, "email.contact_notification.label_message"), f.Message,
+		Translate(r, "email.contact_notification.label_ip"), util.TrustedGetClientIP(r),
+		Translate(r, "email.contact_notification.label_user_agent"), r.UserAgent(),
+		Translate(r, "email.contact_notification.label_time"), time.Now().Format("2006-01-02 15:04:05"))
+	if err := smtpService.SendEmail(recipient, Translate(r, "email.contact_notification.subject_prefix")+f.Subject, emailBody); err != nil {
+		if err := saveContactToDB(r, f.Name, f.Email, f.Subject, f.Message); err != nil {
+			return contactFailed
+		}
+		return contactSaved
+	}
+	return contactSent
+}
+
+// HandleContactFormSubmission handles the contact form POST request (API endpoint).
+// POST /api/{api_version}/server/contact
 func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var form struct {
-			Name    string `json:"name" binding:"required"`
-			Email   string `json:"email" binding:"required,email"`
-			Subject string `json:"subject" binding:"required"`
-			Message string `json:"message" binding:"required"`
+		var body struct {
+			Name          string `json:"name"`
+			Email         string `json:"email"`
+			Subject       string `json:"subject"`
+			Message       string `json:"message"`
+			CaptchaID     string `json:"captcha_id"`
+			CaptchaAnswer string `json:"captcha_answer"`
+			CaptchaToken  string `json:"captcha_response"`
 		}
-
-		if !DecodeAndValidate(w, r, &form) {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "BAD_REQUEST", "message": Translate(r, "errors.contact.invalid")})
 			return
 		}
-
-		// Try to send email via SMTP if configured (AI.md PART 26)
-		smtpService := GetSMTPService(r)
-		if smtpService != nil {
-			// SMTP available - send email
-			emailBody := fmt.Sprintf("%s\n\n%s: %s <%s>\n%s: %s\n\n%s:\n%s\n\n---\n%s: %s\n%s: %s\n%s: %s",
-				Translate(r, "email.contact_notification.title"),
-				Translate(r, "email.contact_notification.label_from"), form.Name, form.Email,
-				Translate(r, "email.contact_notification.label_subject"), form.Subject,
-				Translate(r, "email.contact_notification.label_message"), form.Message,
-				Translate(r, "email.contact_notification.label_ip"), util.TrustedGetClientIP(r),
-				Translate(r, "email.contact_notification.label_user_agent"), r.UserAgent(),
-				Translate(r, "email.contact_notification.label_time"), time.Now().Format("2006-01-02 15:04:05"))
-
-			adminEmail := ""
-			if cfg != nil {
-				adminEmail = strings.TrimSpace(cfg.Server.Admin.Email)
-			}
-			if adminEmail == "" {
-				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_save_message")})
-					return
-				}
-				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
-				return
-			}
-
-			err := smtpService.SendEmail(adminEmail, Translate(r, "email.contact_notification.subject_prefix")+form.Subject, emailBody)
-			if err != nil {
-				// Email failed - save to database as fallback
-				if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-					writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_send_message")})
-					return
-				}
-				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
-				return
-			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_sent")})
-		} else {
-			// No SMTP - save to database (AI.md PART 26)
-			if err := saveContactToDB(r, form.Name, form.Email, form.Subject, form.Message); err != nil {
-				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": Translate(r, "errors.contact.failed_to_save_message")})
-				return
-			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": Translate(r, "success.contact.message_saved")})
+		result := deliverContact(r, cfg, contactForm{Name: body.Name, Email: body.Email, Subject: body.Subject, Message: body.Message,
+			CaptchaID: body.CaptchaID, CaptchaAnswer: body.CaptchaAnswer, CaptchaToken: body.CaptchaToken})
+		switch result {
+		case contactSent:
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_sent")}})
+		case contactSaved:
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_saved")}})
+		case contactInvalid:
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": Translate(r, "errors.contact.invalid")})
+		case contactCaptchaFailed:
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "CAPTCHA_FAILED", "message": Translate(r, "errors.contact.captcha_failed")})
+		case contactCaptchaOffline:
+			w.Header().Set("Retry-After", "30")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]interface{}{"ok": false, "error": "CAPTCHA_UNAVAILABLE", "message": Translate(r, "errors.contact.captcha_unavailable")})
+		default:
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "INTERNAL_ERROR", "message": Translate(r, "errors.contact.failed_to_send_message")})
 		}
 	}
+}
+
+// HandleContactFormWeb is the no-JavaScript form handler: POST, then redirect back with a flash message.
+// POST /server/contact
+func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
+		if err := r.ParseForm(); err != nil {
+			SetFlash(w, r, "error", "flash_contact_invalid")
+			http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
+			return
+		}
+		result := deliverContact(r, cfg, contactForm{
+			Name: r.PostFormValue("name"), Email: r.PostFormValue("email"), Subject: r.PostFormValue("subject"), Message: r.PostFormValue("message"),
+			CaptchaID: r.PostFormValue("captcha_id"), CaptchaAnswer: r.PostFormValue("captcha_answer"),
+			CaptchaToken: firstNonEmpty(r.PostFormValue("g-recaptcha-response"), r.PostFormValue("h-captcha-response")),
+		})
+		kind, key := "error", "flash_contact_failed"
+		switch result {
+		case contactSent:
+			kind, key = "success", "flash_contact_sent"
+		case contactSaved:
+			kind, key = "success", "flash_contact_saved"
+		case contactInvalid:
+			key = "flash_contact_invalid"
+		case contactCaptchaFailed:
+			key = "flash_contact_captcha_failed"
+		case contactCaptchaOffline:
+			key = "flash_contact_captcha_unavailable"
+		}
+		SetFlash(w, r, kind, key)
+		http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // saveContactToDB saves contact form submission to database when SMTP unavailable
@@ -541,4 +658,13 @@ func GetSMTPService(r *http.Request) *service.SMTPService {
 		}
 	}
 	return nil
+}
+
+// mcpEnabled reports whether the MCP endpoint is switched on (admin setting first, config default second).
+func mcpEnabled(cfg *config.AppConfig) bool {
+	enabled := cfg != nil && cfg.Server.MCP.Enabled
+	if db := database.GetServerDB(); db != nil {
+		enabled = (&model.SettingsModel{DB: db}).GetBool("server.mcp.enabled", enabled)
+	}
+	return enabled
 }

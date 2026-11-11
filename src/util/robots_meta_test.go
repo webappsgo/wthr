@@ -34,9 +34,9 @@ func TestRobotsMetaForPath(t *testing.T) {
 		{"terms", "/server/terms", RobotsIndexFollow},
 
 		// Admin panel
-		{"admin root", "/server/admin", RobotsNoIndexNoFollow},
-		{"admin dashboard", "/server/admin/dashboard", RobotsNoIndexNoFollow},
-		{"admin config", "/server/admin/config/settings", RobotsNoIndexNoFollow},
+		{"admin root", "/server/administration", RobotsNoIndexNoFollow},
+		{"admin dashboard", "/server/administration/dashboard", RobotsNoIndexNoFollow},
+		{"admin config", "/server/administration/config/settings", RobotsNoIndexNoFollow},
 		{"admin custom path", "/server/controlpanel/dashboard", RobotsNoIndexNoFollow},
 
 		// API routes
@@ -57,7 +57,7 @@ func TestRobotsMetaForPath(t *testing.T) {
 		{"logout", "/server/auth/logout", RobotsNoIndexNoFollow},
 
 		// Setup routes
-		{"admin setup", "/server/admin/config/setup", RobotsNoIndexNoFollow},
+		{"admin setup", "/server/administration/config/setup", RobotsNoIndexNoFollow},
 		{"server setup", "/server/setup", RobotsNoIndexNoFollow},
 
 		// Debug, health, and internal endpoints
@@ -84,7 +84,7 @@ func TestRobotsMetaForPath(t *testing.T) {
 		{"moon trailing slash", "/moon/", RobotsIndexFollow},
 		{"about trailing slash", "/server/about/", RobotsIndexFollow},
 		{"earthquakes trailing slash", "/earthquakes/", RobotsIndexFollow},
-		{"admin trailing slash", "/server/admin/", RobotsNoIndexNoFollow},
+		{"admin trailing slash", "/server/administration/", RobotsNoIndexNoFollow},
 		{"api trailing slash", "/api/v1/", RobotsNoIndexNoFollow},
 
 		// Case variations resolve to the same decision
@@ -107,7 +107,7 @@ func TestRobotsMetaForPath(t *testing.T) {
 
 		// Query strings and fragments are ignored for the decision
 		{"public path with query", "/moon?units=metric", RobotsIndexFollow},
-		{"private path with query", "/server/admin?tab=users", RobotsNoIndexNoFollow},
+		{"private path with query", "/server/administration?tab=users", RobotsNoIndexNoFollow},
 		{"public path with fragment", "/server/help#api", RobotsIndexFollow},
 	}
 

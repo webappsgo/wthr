@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -59,6 +60,9 @@ func AdminNavOpenSections(r *http.Request) map[string]bool {
 // name is allow-listed before it is written, and an empty list clears the
 // cookie so the sidebar falls back to all-open.
 func SetAdminNavCollapsed(w http.ResponseWriter, r *http.Request, collapsed []string) {
+	if middleware.GPCOptOut(r) {
+		return
+	}
 	kept := make([]string, 0, len(collapsed))
 	for _, name := range collapsed {
 		name = strings.TrimSpace(name)

@@ -1,0 +1,25 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <h1 class="text-purple">{{t .server.Lang "dpo.title"}}</h1>
+
+    <section class="card margin-y-lg">
+        <p>{{t .server.Lang "dpo.intro"}}</p>
+        {{if .name}}
+        <p><strong>{{t .server.Lang "dpo.name_label"}}:</strong> {{.name}}</p>
+        {{end}}
+        {{if .email}}
+        <p><strong>{{t .server.Lang "dpo.email_label"}}:</strong> <a href="mailto:{{.email}}">{{.email}}</a></p>
+        {{else}}
+        <p>{{t .server.Lang "dpo.no_email"}}</p>
+        {{end}}
+        <div class="actions">
+            <a href="{{path "/server/contact"}}" class="btn btn-primary">{{t .server.Lang "dpo.contact_form"}}</a>
+            <a href="{{path "/server/privacy"}}" class="btn btn-secondary">{{t .server.Lang "dpo.privacy_link"}}</a>
+        </div>
+    </section>
+</main>
+
+{{template "footer" .}}

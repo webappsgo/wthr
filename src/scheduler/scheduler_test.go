@@ -954,7 +954,7 @@ func TestCleanupOldAuditLogs(t *testing.T) {
 		// enough from UTC that their wall-clock text orders the opposite way from
 		// the instants they represent, so a text comparison keeps the expired row
 		// and deletes the live one no matter what timezone the host runs in.
-		cutoff := time.Now().AddDate(0, 0, -90)
+		cutoff := time.Now().UTC().AddDate(0, 0, -90)
 		fixtures := []expiryFixture{
 			{id: 1, name: "100 days old", value: time.Now().AddDate(0, 0, -100), survives: false},
 			{id: 2, name: "10 days old", value: time.Now().AddDate(0, 0, -10), survives: true},

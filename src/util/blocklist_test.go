@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// TestIsUsernameBlocked tests the username blocklist per AI.md PART 22
+// TestIsUsernameBlocked tests the username blocklist per AI.md PART 34
 func TestIsUsernameBlocked(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -16,6 +16,9 @@ func TestIsUsernameBlocked(t *testing.T) {
 		{"root", "root@example.com", true},
 		{"system", "system@example.com", true},
 		{"moderator", "moderator@example.com", true},
+		{"healthz_route", "healthz@example.com", true},
+		{"metrics_route", "metrics@example.com", true},
+		{"swagger_route", "swagger@example.com", true},
 		{"official", "official@example.com", true},
 		{"verified", "verified@example.com", true},
 

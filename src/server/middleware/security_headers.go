@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/mode"
+	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
 
@@ -234,6 +236,17 @@ func cspHeaderName(cfg CSPConfig) string {
 // per-directive extras appended.
 func buildCSP(cfg SecurityHeadersConfig, secure bool) string {
 	c := cfg.CSP
+	// Only the configured analytics provider's hosts are added; never 'unsafe-inline', a nonce or a hash
+	if gc := config.GetGlobalConfig(); gc != nil {
+		scriptConnect, img := service.TrackingCSPSources(gc.Server.Tracking)
+		if len(scriptConnect) > 0 {
+			c.ScriptSrcExtra = strings.TrimSpace(c.ScriptSrcExtra + " " + strings.Join(scriptConnect, " "))
+			c.ConnectSrcExtra = strings.TrimSpace(c.ConnectSrcExtra + " " + strings.Join(scriptConnect, " "))
+		}
+		if len(img) > 0 {
+			c.ImgSrcExtra = strings.TrimSpace(c.ImgSrcExtra + " " + strings.Join(img, " "))
+		}
+	}
 	directives := []cspDirective{
 		{"default-src", "'self'"},
 		{"script-src", appendSources("'self'", c.ScriptSrcExtra)},

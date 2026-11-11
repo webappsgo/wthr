@@ -260,9 +260,9 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 		// robots.txt
 		"web.robots_txt": {Value: `User-agent: *
 Allow: /
-Disallow: /admin/
-Disallow: /api/
-Sitemap: {app_url}/sitemap.xml`, Type: "text", Description: "robots.txt content - {app_url} will be replaced with actual URL"},
+Allow: /api
+Disallow: /server/{admin_path}
+Sitemap: {app_url}/sitemap.xml`, Type: "text", Description: "robots.txt content - {app_url} and {admin_path} are replaced with the actual values"},
 
 		// security.txt (RFC 9116)
 		"web.security_txt": {Value: fmt.Sprintf("Contact: mailto:%s\nExpires: %s\nPreferred-Languages: en\nCanonical: {app_url}/.well-known/security.txt", config.DefaultEmailAddress("security", config.GetGlobalConfig()), time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)), Type: "text", Description: "security.txt content (RFC 9116) - {app_url} will be replaced with actual URL"},

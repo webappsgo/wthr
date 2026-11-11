@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +40,40 @@ func TestSaveLocationCookies_RoundTripsThroughGetLocationFromCookies(t *testing.
 	}
 	if name != "London" {
 		t.Errorf("name = %q, want %q", name, "London")
+	}
+}
+
+func TestSaveLocationCookiesSkipsGPCRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/weather", nil)
+	req.Header.Set("Sec-GPC", "1")
+	rec := httptest.NewRecorder()
+	SaveLocationCookies(rec, req, 51.5074, -0.1278, "London")
+	if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("SaveLocationCookies() emitted optional cookies for GPC request: %+v", cookies)
+	}
+}
+
+func TestSaveLocationCookiesRejectsInvalidCoordinates(t *testing.T) {
+	tests := []struct {
+		name      string
+		latitude  float64
+		longitude float64
+	}{
+		{name: "latitude below range", latitude: -90.1, longitude: 0},
+		{name: "latitude above range", latitude: 90.1, longitude: 0},
+		{name: "longitude below range", latitude: 0, longitude: -180.1},
+		{name: "longitude above range", latitude: 0, longitude: 180.1},
+		{name: "non-finite latitude", latitude: math.NaN(), longitude: 0},
+		{name: "non-finite longitude", latitude: 0, longitude: math.Inf(1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			SaveLocationCookies(rec, httptest.NewRequest(http.MethodGet, "/weather", nil), tt.latitude, tt.longitude, "Somewhere")
+			if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+				t.Fatalf("SaveLocationCookies() emitted cookies for invalid coordinates: %+v", cookies)
+			}
+		})
 	}
 }
 
@@ -85,6 +120,30 @@ func TestGetLocationFromCookies_PartialOrCorruptCookies(t *testing.T) {
 			cookies: map[string]string{
 				"user_lat":           "51.5074",
 				"user_lon":           "not-a-number",
+				"user_location_name": "London",
+			},
+		},
+		{
+			name: "out-of-range latitude",
+			cookies: map[string]string{
+				"user_lat":           "90.1",
+				"user_lon":           "-0.1278",
+				"user_location_name": "London",
+			},
+		},
+		{
+			name: "out-of-range longitude",
+			cookies: map[string]string{
+				"user_lat":           "51.5074",
+				"user_lon":           "180.1",
+				"user_location_name": "London",
+			},
+		},
+		{
+			name: "non-finite coordinate",
+			cookies: map[string]string{
+				"user_lat":           "NaN",
+				"user_lon":           "-0.1278",
 				"user_location_name": "London",
 			},
 		},

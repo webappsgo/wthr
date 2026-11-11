@@ -10,13 +10,39 @@ https://wthr.top/api/v1
 
 ## Authentication
 
-Most endpoints are public and don't require authentication. User-specific endpoints require authentication via session cookie.
+Most endpoints are public and don't require authentication.
+
+Tokens are presented one way on every API route: `Authorization: Bearer {token}`. Other
+headers (`X-API-Key`, `X-Auth-Token`, Basic, Digest) and a `?token=` query parameter are
+ignored, so a request that uses them is anonymous. A missing, invalid, expired or revoked token
+returns `401` with `WWW-Authenticate: Bearer realm="wthr"` (plus `error="invalid_token"` for an
+invalid, expired or revoked token). A valid token without the needed scope returns `403`.
+
+Browser sessions use a cookie; the API never needs or checks a CSRF token.
 
 ### Authentication Flow
 
 1. **Login** - `POST /api/v1/server/auth/login`
-2. **Access Protected Endpoints** - Include session cookie
+2. **Access Protected Endpoints** - `Authorization: Bearer {token}` (API) or the session cookie (browser)
 3. **Logout** - `POST /api/v1/server/auth/logout`
+
+### Server information endpoints
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/v1/server/about`, `/privacy`, `/terms`, `/help` | Page content as JSON |
+| `GET /api/v1/server/help/mcp` | How to connect an MCP client (404 when MCP is disabled) |
+| `GET /api/v1/server/dpo` | Data protection officer contact: `name`, `email`, `privacy_url` |
+| `GET /api/v1/server/security` | Security contacts, expiry, PGP state, policy and thanks links |
+| `GET /api/v1/server/security/policy` | Disclosure policy (`policy`, Markdown) |
+| `GET /api/v1/server/security/thanks` | Acknowledgments (`entries`) |
+| `POST /api/v1/server/contact` | Contact form; needs a solved captcha (see below) |
+| `POST /api/v1/server/mcp` | MCP endpoint (Streamable HTTP); aliases `/api/mcp` and `/mcp` |
+
+The contact form needs a captcha on every submission. The built-in challenge is the default
+(`captcha_id` from the contact page plus `captcha_answer`); with `recaptcha` or `hcaptcha`
+configured, send the provider token as `captcha_response`. A failed captcha returns `400
+CAPTCHA_FAILED`; an unreachable provider returns `503 CAPTCHA_UNAVAILABLE` with `Retry-After`.
 
 ## API Endpoints
 
@@ -475,11 +501,16 @@ mounted only when `server.healthz.root.enabled` is true (default: false).
 
 API endpoints are rate-limited:
 
-| Endpoint Type | Limit |
-|---------------|-------|
-| Public endpoints | 60 requests/minute |
-| Authenticated endpoints | 100 requests/minute |
-| Admin endpoints | 200 requests/minute |
+| Endpoint Type | Default limit |
+|---------------|---------------|
+| Reads (GET, HEAD) | 120 requests/minute |
+| Writes (POST, PUT, PATCH, DELETE) | 10 requests/minute |
+| Health | 120 requests/minute |
+| Global burst | 240 requests/minute |
+
+Anonymous requests are limited per IP. Requests with a valid Bearer token are limited per
+token, so clients that share an egress IP do not throttle each other. Failed authentication is
+always counted per IP. Every limit is editable in the admin panel.
 
 Rate limit headers:
 

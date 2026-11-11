@@ -31,6 +31,8 @@ https://wthr.top
 - I2P eepsite support (opt-in, admin-configurable)
 - User accounts with saved locations and alert subscriptions (password auth, optional TOTP/passkey 2FA)
 - Guest and per-user theme/language preferences (`/server/preferences`)
+- Eight languages: English, Spanish, French, German, Italian, Arabic (right-to-left), Chinese, Japanese; see [Translating](docs/translating.md)
+- MCP server (Streamable HTTP) so AI assistants can use the weather API; help at `/server/help/mcp`
 - Passkey-only authentication for Server Admins (no admin passwords)
 - TOTP and WebAuthn/passkey two-factor enrollment for regular users
 - One-time recovery keys for account recovery (shown once, hashed at rest)
@@ -128,11 +130,21 @@ wthr-cli --server https://wthr.top --token YOUR_API_TOKEN
 
 ```bash
 wthr-cli --help
+wthr-cli --lang es --help
+wthr-cli --update check
+wthr-cli --update
 wthr-cli current --location "Brooklyn,NY"
 wthr-cli forecast --zip 10001
 wthr-cli alerts
 wthr-cli moon
 ```
+
+The client checks for a newer version on each invocation. It offers an update
+in an interactive terminal; `--update check` reports availability and bare
+`--update` installs the verified build and restarts the client. Updates
+use the connected server's HTTPS autodiscovery endpoint and SHA-256 checksum.
+Use `--lang CODE` to choose the output language; `auto` detects the locale.
+See the [CLI reference](docs/cli.md) for configuration and details.
 
 ## Configuration
 
@@ -155,7 +167,7 @@ server:
   port: 0
   address: "[::]"
   mode: production
-  admin_path: admin
+  admin_path: administration
   api_version: v1
 
 weather:

@@ -39,6 +39,7 @@ func buildProductionLikeTemplate(t *testing.T) map[string]bool {
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
 		"nextTheme": NextTheme,
+		"path":      func(p string) string { return p },
 		"title":     func(s string) string { return s },
 		"add":       func(a, b int) int { return a + b },
 		"sub":       func(a, b int) int { return a - b },

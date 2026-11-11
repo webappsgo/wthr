@@ -13,6 +13,27 @@
                 <strong>{{t $lang "admin.web.note_label"}}</strong> {{t $lang "admin.web.note_text"}}
             </div>
 
+            <section class="admin-card" aria-labelledby="mcp-heading">
+                <div class="card-header">
+                    <h2 id="mcp-heading">{{t $lang "admin.web.mcp_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.mcp_desc"}}</p>
+                </div>
+                <div class="card-body">
+                    <form id="mcp-form" class="settings-form">
+                        <div class="form-group">
+                            <label for="mcp_enabled">{{t $lang "admin.web.mcp_enabled_label"}}</label>
+                            <select id="mcp_enabled" name="mcp_enabled" class="form-control">
+                                <option value="true" {{if .MCPEnabled}}selected{{end}}>{{t $lang "admin.web.mcp_enabled"}}</option>
+                                <option value="false" {{if not .MCPEnabled}}selected{{end}}>{{t $lang "admin.web.mcp_disabled"}}</option>
+                            </select>
+                            <small class="form-text">{{t $lang "admin.web.mcp_url_label"}} <a href="{{.MCPEndpointURL}}">{{.MCPEndpointURL}}</a></small>
+                        </div>
+                        <p class="form-text">{{t $lang "admin.web.mcp_auth_note"}}</p>
+                        <button type="submit" class="btn btn-primary">{{t $lang "admin.web.mcp_save"}}</button>
+                    </form>
+                </div>
+            </section>
+
             <!-- Branding Section -->
             <section class="admin-card" aria-labelledby="branding-heading">
                 <div class="card-header">
@@ -165,40 +186,17 @@
                                 spellcheck="false"
                             >User-agent: *
 Allow: /
-Disallow: /admin/
-Disallow: /api/
+Allow: /api
+Disallow: /server/{admin_path}
 Sitemap: {app_url}/sitemap.xml</textarea>
                             <small id="robots_txt_help" class="form-text">
                                 <strong>{{t $lang "admin.web.common_directives_label"}}</strong><br>
                                 • <code>User-agent: *</code> - {{t $lang "admin.web.directive_all_crawlers"}}<br>
                                 • <code>Allow: /</code> - {{t $lang "admin.web.directive_allow_all"}}<br>
-                                • <code>Disallow: /admin/</code> - {{t $lang "admin.web.directive_block_admin"}}<br>
+                                • <code>Disallow: /server/{admin_path}</code> - {{t $lang "admin.web.directive_block_admin"}}<br>
                                 • <code>Sitemap:</code> - {{t $lang "admin.web.directive_sitemap_link"}}
                             </small>
                         </div>
-
-                        <fieldset class="form-group" id="ai-bots">
-                            <legend>{{t $lang "admin.web.ai_bots_heading"}}</legend>
-                            <p class="form-text">{{t $lang "admin.web.ai_bots_desc"}}</p>
-
-                            <div class="form-group">
-                                <label for="ai_bots_default">{{t $lang "admin.web.ai_bots_default_label"}}</label>
-                                <select id="ai_bots_default" name="web.robots.ai_bots.default" class="form-control">
-                                    <option value="allow"{{if eq $.AIBotsDefault "allow"}} selected{{end}}>{{t $lang "admin.web.ai_bots_allow"}}</option>
-                                    <option value="deny"{{if eq $.AIBotsDefault "deny"}} selected{{end}}>{{t $lang "admin.web.ai_bots_deny"}}</option>
-                                </select>
-                            </div>
-
-                            {{range $bot := $.RecognizedBots}}
-                            <div class="form-group">
-                                <label for="ai_bot_{{$bot}}">{{$bot}}</label>
-                                <select id="ai_bot_{{$bot}}" name="web.robots.ai_bots.bots.{{$bot}}" class="form-control" data-ai-bot="{{$bot}}">
-                                    <option value="allow"{{if eq (index $.AIBotPolicies $bot) "allow"}} selected{{end}}>{{t $lang "admin.web.ai_bots_allow"}}</option>
-                                    <option value="deny"{{if eq (index $.AIBotPolicies $bot) "deny"}} selected{{end}}>{{t $lang "admin.web.ai_bots_deny"}}</option>
-                                </select>
-                            </div>
-                            {{end}}
-                        </fieldset>
 
                         <div class="button-group">
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_robots_aria"}}">

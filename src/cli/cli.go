@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+
+	wpath "github.com/webappsgo/wthr/src/path"
 )
 
 // Version information (set via ldflags during build per AI.md PART 6)
@@ -17,11 +20,6 @@ var (
 	// Default to 0 (static binary requirement)
 	CGOEnabled = "0"
 )
-
-// PortEnvVar is the project-scoped listen-port environment variable named by
-// AI.md PART 8 ({PROJECT_NAME}_PORT). The project name is frozen here on
-// purpose - renaming the binary must not change the env var it reads.
-const PortEnvVar = "WTHR_PORT"
 
 // Command represents a CLI command
 type Command struct {
@@ -55,10 +53,12 @@ func (c *CLI) RegisterCommand(cmd *Command) {
 
 // Parse parses command line arguments
 func (c *CLI) Parse(args []string) error {
+	_ = os.Unsetenv("CLI_COMMAND_HANDLED")
 	// Preprocess args to handle short flags -h and -v (AI.md line 150)
 	// Only -h (help) and -v (version) may have short flags
 	preprocessedArgs := make([]string, len(args))
 	copy(preprocessedArgs, args)
+	preprocessedArgs = normalizeUpdateFlagArgs(preprocessedArgs)
 	for i, arg := range preprocessedArgs {
 		if arg == "-h" {
 			preprocessedArgs[i] = "--help"
@@ -73,8 +73,9 @@ func (c *CLI) Parse(args []string) error {
 		showVersion    = c.flags.Bool("version", false, "Show version information")
 		showStatus     = c.flags.Bool("status", false, "Show server status and health")
 		debug          = c.flags.Bool("debug", false, "Enable debug mode (verbose logging, debug endpoints)")
+		i2p            = c.flags.Bool("i2p", false, "Enable the I2P eepsite (opt-in)")
 		colorMode      = c.flags.String("color", "auto", "Color output: auto, yes, no (default: auto, respects NO_COLOR)")
-		lang           = c.flags.String("lang", "", "Language for output: auto, en, es, zh, fr, ar, de, ja (default: auto)")
+		lang           = c.flags.String("lang", "", "Language for output: auto or a supported code such as en, es, fr, de, it, ar, zh, ja (default: auto)")
 		mode           = c.flags.String("mode", "", "Application mode: production or development (aliases: prod, dev, devel, debug)")
 		configDir      = c.flags.String("config", "", "Configuration directory")
 		dataDir        = c.flags.String("data", "", "Data directory")
@@ -83,17 +84,37 @@ func (c *CLI) Parse(args []string) error {
 		backupDir      = c.flags.String("backup", "", "Backup directory")
 		pidFile        = c.flags.String("pid", "", "PID file path")
 		address        = c.flags.String("address", "", "Listen address")
-		port           = c.flags.String("port", "", "Listen port (env: WTHR_PORT)")
+		port           = c.flags.String("port", "", "Listen port (env: PORT)")
 		baseURL        = c.flags.String("baseurl", "", "URL path prefix (default: /)")
 		daemon         = c.flags.Bool("daemon", false, "Daemonize (detach from terminal, Unix only)")
 		serviceCmd     = c.flags.String("service", "", "Service management: start, stop, restart, reload, --install, --uninstall")
 		maintenanceCmd = c.flags.String("maintenance", "", "Maintenance: backup, restore, update, mode, setup")
-		updateCmd      = c.flags.String("update", "", "Update: check, yes, branch {stable|beta|daily}")
+		updateCmd      = c.flags.String("update", "", "Update: check, yes, branch {stable|beta|devel}")
 		shellCmd       = c.flags.String("shell", "", "Shell integration: completions, init, --help")
 	)
 
 	if err := c.flags.Parse(preprocessedArgs); err != nil {
 		return err
+	}
+	// AI.md PART 5: directory overrides are real filesystem paths, validated with SafeDirPath
+	// (absolute paths preserved; control characters and ".." segments rejected)
+	for _, dir := range []struct {
+		flagName string
+		value    *string
+	}{{"config", configDir}, {"data", dataDir}, {"cache", cacheDir}, {"log", logDir}, {"backup", backupDir}} {
+		// --help and --version always exit immediately and never fail on other flags
+		if *dir.value == "" || *showHelp || *showVersion {
+			continue
+		}
+		safe, err := wpath.SafeDirPath(*dir.value)
+		if err != nil {
+			return fmt.Errorf("invalid --%s value: %w", dir.flagName, err)
+		}
+		*dir.value = safe
+	}
+
+	if *configDir != "" {
+		os.Setenv("CONFIG_DIR", *configDir)
 	}
 
 	// Handle help flag
@@ -118,13 +139,21 @@ func (c *CLI) Parse(args []string) error {
 	// Phase 1 immediate-exit flag - dispatched before the service, maintenance
 	// and update subcommand phases
 	if *shellCmd != "" {
-		return c.handleShellCommand(*shellCmd, c.flags.Args())
+		if err := c.handleShellCommand(*shellCmd, c.flags.Args()); err != nil {
+			return err
+		}
+		_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+		return nil
 	}
 
 	// Handle service command
 	if *serviceCmd != "" {
 		if cmd, ok := c.commands["service"]; ok {
-			return cmd.Handler([]string{*serviceCmd})
+			if err := cmd.Handler([]string{*serviceCmd}); err != nil {
+				return err
+			}
+			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			return nil
 		}
 		return fmt.Errorf("service command not registered")
 	}
@@ -132,7 +161,11 @@ func (c *CLI) Parse(args []string) error {
 	// Handle maintenance command
 	if *maintenanceCmd != "" {
 		if cmd, ok := c.commands["maintenance"]; ok {
-			return cmd.Handler(c.flags.Args())
+			if err := cmd.Handler(commandWithArgs(*maintenanceCmd, c.flags.Args())); err != nil {
+				return err
+			}
+			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			return nil
 		}
 		return fmt.Errorf("maintenance command not registered")
 	}
@@ -140,7 +173,11 @@ func (c *CLI) Parse(args []string) error {
 	// Handle update command
 	if *updateCmd != "" {
 		if cmd, ok := c.commands["update"]; ok {
-			return cmd.Handler(c.flags.Args())
+			if err := cmd.Handler(commandWithArgs(*updateCmd, c.flags.Args())); err != nil {
+				return err
+			}
+			_ = os.Setenv("CLI_COMMAND_HANDLED", "1")
+			return nil
 		}
 		return fmt.Errorf("update command not registered")
 	}
@@ -152,12 +189,12 @@ func (c *CLI) Parse(args []string) error {
 	if *debug {
 		os.Setenv("DEBUG", "true")
 	}
-	// AI.md PART 8: --port falls back to the {PROJECT_NAME}_PORT env var
-	// before the generic PORT value, so precedence is flag > WTHR_PORT > PORT
+	// AI.md PART 8: --port falls back to the PORT env var, so precedence is flag > PORT
 	if *port != "" {
 		os.Setenv("PORT", *port)
-	} else if envPort := os.Getenv(PortEnvVar); envPort != "" {
-		os.Setenv("PORT", envPort)
+	}
+	if *i2p {
+		os.Setenv("I2P_ENABLED", "true")
 	}
 	if *address != "" {
 		os.Setenv("LISTEN", *address)
@@ -196,6 +233,24 @@ func (c *CLI) Parse(args []string) error {
 	}
 
 	return nil
+}
+
+func normalizeUpdateFlagArgs(args []string) []string {
+	normalized := make([]string, 0, len(args))
+	for index, argument := range args {
+		if argument == "--update" && (index+1 == len(args) || strings.HasPrefix(args[index+1], "-") && args[index+1] != "--help") {
+			normalized = append(normalized, "--update=yes")
+			continue
+		}
+		normalized = append(normalized, argument)
+	}
+	return normalized
+}
+
+func commandWithArgs(command string, args []string) []string {
+	result := make([]string, 1, len(args)+1)
+	result[0] = command
+	return append(result, args...)
 }
 
 // ShowHelp displays help information per AI.md PART 8 spec
@@ -240,6 +295,7 @@ func (c *CLI) ShowHelp() {
 	fmt.Println(T("cli.help.flag_baseurl"))
 	fmt.Println(T("cli.help.flag_daemon"))
 	fmt.Println(T("cli.help.flag_debug"))
+	fmt.Println(T("cli.help.flag_i2p"))
 	fmt.Println(T("cli.help.flag_color"))
 	fmt.Println(T("cli.help.flag_lang"))
 	fmt.Println()

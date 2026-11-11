@@ -74,9 +74,12 @@ func (h *AuthHandler) ShowLoginPage(w http.ResponseWriter, r *http.Request) {
 		var adminID int
 		var storedExpiresAt interface{}
 		err := database.QueryRowContext(context.Background(), database.GetServerDB(), database.TimeoutSimpleSelect, `
-			SELECT admin_id, expires_at FROM server_admin_sessions
-			WHERE id = ?
-		`, adminSessionID).Scan(&adminID, &storedExpiresAt)
+			SELECT sessions.admin_id, sessions.expires_at
+			FROM server_admin_sessions AS sessions
+			INNER JOIN server_admin_credentials AS admins
+				ON admins.id = sessions.admin_id AND admins.is_active = 1
+			WHERE sessions.token_hash = ?
+		`, model.HashAdminSessionToken(adminSessionID)).Scan(&adminID, &storedExpiresAt)
 		if err == nil && dbtime.IsAfter(storedExpiresAt, time.Now()) {
 			http.Redirect(w, r, adminPath, http.StatusFound)
 			return
@@ -511,7 +514,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Honor ?redirect= param, but never redirect to admin routes
 		redirect := r.URL.Query().Get("redirect")
-		if redirect == "" || strings.HasPrefix(redirect, "/server/admin") {
+		if redirect == "" || strings.HasPrefix(redirect, "/server/administration") {
 			redirect = "/users"
 		}
 		http.Redirect(w, r, redirect, http.StatusFound)

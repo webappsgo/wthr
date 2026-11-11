@@ -301,6 +301,7 @@ func TestPortManager_ParsePortConfig(t *testing.T) {
 // in the database yet.
 func TestPortManager_GetServerPorts_UsesConfigPort(t *testing.T) {
 	pm := newTestPortManager(t)
+	t.Setenv("PORT", "")
 	configPort := freeTCPPort(t)
 
 	httpPort, httpsPort, err := pm.GetServerPortsWithConfig(configPort)
@@ -337,6 +338,26 @@ func TestPortManager_GetServerPorts_UsesPortEnv(t *testing.T) {
 	httpPort, _, err := pm.GetServerPorts()
 	if err != nil {
 		t.Fatalf("GetServerPorts: %v", err)
+	}
+	if httpPort != envPort {
+		t.Errorf("httpPort = %d, want PORT env value %d", httpPort, envPort)
+	}
+}
+
+// TestPortManager_GetServerPorts_PortEnvOverridesSavedPort verifies an
+// explicit runtime port overrides the port persisted by an earlier start.
+func TestPortManager_GetServerPorts_PortEnvOverridesSavedPort(t *testing.T) {
+	pm := newTestPortManager(t)
+	savedPort := freeTCPPort(t)
+	if err := pm.setIntSetting("server.http_port", savedPort); err != nil {
+		t.Fatalf("set saved port: %v", err)
+	}
+	envPort := freeTCPPort(t)
+	t.Setenv("PORT", fmt.Sprintf("%d", envPort))
+
+	httpPort, _, err := pm.GetServerPortsWithConfig(freeTCPPort(t))
+	if err != nil {
+		t.Fatalf("GetServerPortsWithConfig: %v", err)
 	}
 	if httpPort != envPort {
 		t.Errorf("httpPort = %d, want PORT env value %d", httpPort, envPort)

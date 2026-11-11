@@ -32,7 +32,7 @@
   amd64/arm64 (windows/arm64 uses `.exe` ext).
 - Always add workflow concurrency with `cancel-in-progress` for branch-push
   workflows targeting `main`, `master`, `devel`, `dev`, or `beta` (`beta.yml`,
-  `daily.yml`, `docker.yml`, and any project-specific branch-push workflow).
+  `devel.yml`, `docker.yml`, and any project-specific branch-push workflow).
 - Always scope tag-release concurrency (`release.yml`) per exact tag ref.
 - Always build CLI binaries (`-cli` suffix) only when `src/client/` exists, and
   Agent binaries only when `src/agent/` exists (`if: hashFiles(...) != ''`).
@@ -45,7 +45,7 @@
 | `ci.yml` | push/PR to default branch; security jobs also weekly cron | build+test+lint+coverage+secret-scan+image-scan+workflow-policy |
 | `release.yml` | tag push (`v*`, `*.*.*`) | production release, 8-platform matrix |
 | `beta.yml` | push to `beta` | prerelease build |
-| `daily.yml` | daily 3am UTC + push to main/master | rolling `daily` tag, deletes previous release |
+| `devel.yml` | daily 3am UTC + push to main/master | devel builds (rolling prerelease, deletes previous) |
 | `docker.yml` | any branch push + version tags + daily schedule | standard (alpine) + devel images to `ghcr.io` |
 | `docker-aio.yml` | any branch push + version tags | all-in-one (debian, postgres+valkey+tor) image to `ghcr.io` |
 
@@ -57,7 +57,7 @@ Config locations by provider:
 | Gitea | `.gitea/workflows/*.yml` |
 | Forgejo | `.forgejo/workflows/*.yml` (or `.gitea/workflows/`, compatible) |
 | GitLab | single `.gitlab-ci.yml` with stages |
-| Jenkins | `Jenkinsfile`, `BUILD_TYPE` var selects release/beta/daily; needs amd64+arm64 agents |
+| Jenkins | `Jenkinsfile`, `BUILD_TYPE` var selects release/beta/devel; needs amd64+arm64 agents |
 
 ## Local Dev vs CI/CD
 

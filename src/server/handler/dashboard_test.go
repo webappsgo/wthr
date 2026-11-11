@@ -30,14 +30,14 @@ func TestDashboardHandler_ShowDashboard_Unauthenticated(t *testing.T) {
 func TestDashboardHandler_ShowAdminPanel_MissingAdminID(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
-	c, w := newAPITestContext("/server/admin")
+	c, w := newAPITestContext("/server/administration")
 	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
-	if location := w.Header().Get("Location"); location != "/server/admin" {
-		t.Errorf("expected redirect to /server/admin, got %q", location)
+	if location := w.Header().Get("Location"); location != "/server/administration" {
+		t.Errorf("expected redirect to /server/administration, got %q", location)
 	}
 }
 
@@ -47,15 +47,15 @@ func TestDashboardHandler_ShowAdminPanel_MissingAdminID(t *testing.T) {
 func TestDashboardHandler_ShowAdminPanel_WrongAdminIDType(t *testing.T) {
 	h := &DashboardHandler{DB: newTestServerDB(t)}
 
-	c, w := newAPITestContext("/server/admin")
+	c, w := newAPITestContext("/server/administration")
 	c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
 	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
-	if location := w.Header().Get("Location"); location != "/server/admin" {
-		t.Errorf("expected redirect to /server/admin, got %q", location)
+	if location := w.Header().Get("Location"); location != "/server/administration" {
+		t.Errorf("expected redirect to /server/administration, got %q", location)
 	}
 }
 
@@ -68,14 +68,14 @@ func TestDashboardHandler_ShowAdminPanel_AdminNotFound(t *testing.T) {
 
 	h := &DashboardHandler{DB: serverDB}
 
-	c, w := newAPITestContext("/server/admin")
+	c, w := newAPITestContext("/server/administration")
 	c = withAdminID(c, 999999)
 	h.ShowAdminPanel(w, c)
 
 	if w.Code != http.StatusFound {
 		t.Fatalf("expected status 302, got %d", w.Code)
 	}
-	if location := w.Header().Get("Location"); location != "/server/admin" {
-		t.Errorf("expected redirect to /server/admin, got %q", location)
+	if location := w.Header().Get("Location"); location != "/server/administration" {
+		t.Errorf("expected redirect to /server/administration, got %q", location)
 	}
 }

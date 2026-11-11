@@ -1,25 +1,16 @@
-<!DOCTYPE html>
-<html lang="{{if .server.Lang}}{{.server.Lang}}{{else}}en{{end}}" dir="{{if eq (printf "%v" .server.Lang) "ar"}}rtl{{else}}ltr{{end}}" class="{{if .server.ThemeClass}}{{.server.ThemeClass}}{{else}}theme-dark{{end}}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
-    <script src="/static/js/app.js" defer></script>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌤️</text></svg>">
-</head>
-<body>
-    {{template "navbar" .}}
+{{template "head" .}}
+{{template "header" .}}
+{{template "navbar" .}}
 
-    <div class="weather-container">
+    <main class="weather-container" id="main-content" role="main">
+        <h1 class="text-purple">{{.Title}}</h1>
 
         <!-- Location Search Form -->
         <form id="weather-form" class="search-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="search-row-single">
                 <div class="search-input-wrapper">
+                    <label for="location-input" class="sr-only">{{t .server.Lang "label_location"}}</label>
                     <input
                         type="text"
                         id="location-input"
@@ -31,6 +22,7 @@
                     >
                     <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
                 </div>
+                <label for="units-select" class="sr-only">{{t .server.Lang "index_temperature_unit_label"}}</label>
                 <select name="units" id="units-select" class="units-select">
                     <option value="imperial"{{if eq .Units "imperial"}} selected{{end}}>°F</option>
                     <option value="metric"{{if eq .Units "metric"}} selected{{end}}>°C</option>
@@ -177,7 +169,7 @@
 
             <!-- Console Command Examples -->
             <div class="console-section">
-                <h3 class="console-section__title">{{t .server.Lang "weather_console_access"}}</h3>
+                <h2 class="console-section__title">{{t .server.Lang "weather_console_access"}}</h2>
                 <div class="console-commands">
                     <div class="command-item">
                         <strong class="console-section__label">{{t .server.Lang "weather_console_weather_label"}}</strong>
@@ -227,7 +219,7 @@
                     <a href="?location=Sydney" class="city-link">🇦🇺 Sydney</a>
                 </div>
                 <div class="console-section margin-y-md">
-                    <h4 class="console-section__title">{{t .server.Lang "weather_quick_console_examples"}}</h4>
+                    <h3 class="console-section__title">{{t .server.Lang "weather_quick_console_examples"}}</h3>
                     <div class="console-commands">
                         <div class="command-item">
                             <strong class="console-section__label">{{t .server.Lang "weather_console_london_label"}}</strong>
@@ -248,7 +240,7 @@
             </div>
         {{end}}
 
-    </div>
+    </main>
 
     <script type="application/json" id="index-data">
         {

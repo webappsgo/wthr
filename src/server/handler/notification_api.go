@@ -809,7 +809,7 @@ func RegisterNotificationAPIRoutes(router chi.Router, handlers *NotificationAPIH
 	})
 
 	// Admin notification endpoints
-	router.Route("/api/v1/server/admin", func(adminAPI chi.Router) {
+	router.Route("/api/v1/server/administration", func(adminAPI chi.Router) {
 		if adminAuth != nil {
 			adminAPI.Use(adminAuth)
 		}

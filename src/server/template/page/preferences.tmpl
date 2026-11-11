@@ -6,6 +6,10 @@
   <h1 class="text-purple">{{t .lang "preferences.heading"}}</h1>
   <p>{{t .lang "preferences.description"}}</p>
 
+  {{if .gpc_received}}
+  <p class="notice notice-info" role="status" aria-live="polite">{{t .lang "privacy_gpc_notice"}}</p>
+  {{end}}
+
   <div class="card margin-y-lg">
     <h2 class="text-cyan">{{t .lang "preferences.theme_heading"}}</h2>
     <p class="preferences-current">{{t .lang "preferences.current_theme"}} <strong>{{t .lang (printf "theme.%s" .theme)}}</strong></p>
@@ -43,13 +47,22 @@
         </label>
       </fieldset>
 
+      <div class="form-group">
+        <label class="preferences-label" for="wthr-pref-units">Weather units</label>
+        <select id="wthr-pref-units" name="wthr_pref_units">
+          <option value="metric" {{if eq .weather_units "metric"}}selected{{end}}>Metric (°C, km/h)</option>
+          <option value="imperial" {{if eq .weather_units "imperial"}}selected{{end}}>Imperial (°F, mph)</option>
+        </select>
+      </div>
+
       <button type="submit" class="btn btn-primary preferences-save">{{t .lang "preferences.save"}}</button>
     </form>
   </div>
 
   <div class="card margin-y-lg">
     <h2 class="text-cyan">{{t .lang "preferences.language_heading"}}</h2>
-    <form action="/server/preferences" method="get" class="preferences-form">
+    <form action="/server/preferences" method="post" class="preferences-form">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       <label class="preferences-label" for="preferences-lang">{{t .lang "common.select_language"}}</label>
       <select id="preferences-lang" name="lang" class="lang-select">
         {{range .available_languages}}
@@ -57,6 +70,56 @@
         {{end}}
       </select>
       <button type="submit" class="btn btn-primary preferences-save">{{t .lang "preferences.save"}}</button>
+    </form>
+  </div>
+
+  {{if .preferences_url}}
+  <div class="card margin-y-lg">
+    <h2 class="text-cyan">Copy preferences to another device</h2>
+    <label for="preferences-share-url">Full URL</label>
+    <input id="preferences-share-url" type="text" value="{{.preferences_url}}" readonly>
+    <button type="button" data-action="copy-to-clipboard" data-text="{{.preferences_url}}">Copy URL</button>
+    <label for="preferences-share-code">Short code</label>
+    <input id="preferences-share-code" type="text" value="{{.preferences_code}}" readonly>
+    <button type="button" data-action="copy-to-clipboard" data-text="{{.preferences_code}}">Copy code</button>
+  </div>
+  {{end}}
+
+  <div class="card margin-y-lg">
+    <h2 class="text-cyan">Cookie consent</h2>
+    <p>Essential cookies are always enabled. Optional preferences and analytics cookies can be managed here.</p>
+    <form action="/server/consent" method="post">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <input type="hidden" name="choice" value="save">
+      <label><input type="checkbox" name="preferences" {{if .cookie_preferences.Preferences}}checked{{end}}> Preferences cookies</label>
+      <label><input type="checkbox" name="analytics" {{if .cookie_preferences.Analytics}}checked{{end}}> Analytics cookies</label>
+      <button type="submit" class="btn btn-primary">Save cookie preferences</button>
+    </form>
+  </div>
+
+  {{if .ccpa_enabled}}
+  <div class="card margin-y-lg">
+    <h2 class="text-cyan">California privacy choices</h2>
+    <p>Choose whether this browser opts out of the sale or sharing of personal data.</p>
+    <form action="/server/ccpa" method="post">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      {{if .ccpa_opted_out}}
+      <input type="hidden" name="choice" value="opt-in">
+      <button type="submit" class="btn btn-secondary">Allow sale or sharing</button>
+      {{else}}
+      <input type="hidden" name="choice" value="opt-out">
+      <button type="submit" class="btn btn-primary">Do not sell or share my personal information</button>
+      {{end}}
+    </form>
+  </div>
+  {{end}}
+
+  <div class="card margin-y-lg">
+    <h2 class="text-cyan">Import preferences</h2>
+    <form action="/server/preferences/import" method="get">
+      <label for="preferences-import-code">Preference code or full URL</label>
+      <input id="preferences-import-code" name="code" type="text" maxlength="2048" autocomplete="off">
+      <button type="submit" class="btn btn-primary">Import</button>
     </form>
   </div>
 </div>

@@ -1,7 +1,7 @@
 {{define "admin_header"}}
 {{- /* AI.md PART 17 admin shell: header + collapsible sidebar + breadcrumb. */ -}}
 {{- /* Every href is built from the configurable admin path, never hardcoded. */ -}}
-{{- $ap := "/server/admin" -}}
+{{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
 {{- /* AI.md PART 17: the admin's own account lives under {admin_path}/{admin_username}. */ -}}
 {{- $self := $ap -}}
@@ -152,7 +152,7 @@
 {{end}}
 
 {{define "admin_footer"}}
-{{- $ap := "/server/admin" -}}
+{{- $ap := "/server/administration" -}}
 {{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}

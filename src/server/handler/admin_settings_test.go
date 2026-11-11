@@ -37,7 +37,7 @@ func TestAdminSettingsHandler_GetAllSettings(t *testing.T) {
 		seedServerConfigRow(t, db, "smtp.host", "smtp.example.com", "string")
 		seedServerConfigRow(t, db, "smtp.enabled", "true", "boolean")
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings")
 		h.GetAllSettings(w, c)
 
 		if w.Code != http.StatusOK {
@@ -49,7 +49,7 @@ func TestAdminSettingsHandler_GetAllSettings(t *testing.T) {
 		h, db := newAdminSettingsTestHandler(t)
 		db.Close()
 
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings")
 		h.GetAllSettings(w, c)
 
 		if w.Code != http.StatusInternalServerError {
@@ -72,7 +72,7 @@ func TestAdminSettingsHandler_UpdateSettings(t *testing.T) {
 				"does.not.exist": "x",
 			},
 		}
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/admin/config/settings", body)
+		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/settings", body)
 		h.UpdateSettings(w, c)
 
 		if w.Code != http.StatusOK {
@@ -89,7 +89,7 @@ func TestAdminSettingsHandler_UpdateSettings(t *testing.T) {
 
 	t.Run("malformed JSON", func(t *testing.T) {
 		h, _ := newAdminSettingsTestHandler(t)
-		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/admin/config/settings", "not json")
+		c, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/settings", "not json")
 		h.UpdateSettings(w, c)
 
 		if w.Code != http.StatusBadRequest {
@@ -104,7 +104,7 @@ func TestAdminSettingsHandler_ResetSettings(t *testing.T) {
 	h, db := newAdminSettingsTestHandler(t)
 	seedServerConfigRow(t, db, "custom.key", "custom.value", "string")
 
-	c, w := newTestContext(http.MethodPost, "/api/v1/server/admin/config/settings/reset")
+	c, w := newTestContext(http.MethodPost, "/api/v1/server/administration/config/settings/reset")
 	h.ResetSettings(w, c)
 
 	if w.Code != http.StatusOK {
@@ -126,7 +126,7 @@ func TestAdminSettingsHandler_ExportSettings(t *testing.T) {
 	h, db := newAdminSettingsTestHandler(t)
 	seedServerConfigRow(t, db, "smtp.host", "smtp.example.com", "string")
 
-	c, w := newTestContext(http.MethodGet, "/api/v1/server/admin/config/settings/export")
+	c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings/export")
 	h.ExportSettings(w, c)
 
 	if w.Code != http.StatusOK {
@@ -147,7 +147,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 		body := map[string]interface{}{
 			"settings": map[string]string{"smtp.host": "imported.example.com"},
 		}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/settings/import", body)
+		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/settings/import", body)
 		h.ImportSettings(w, c)
 
 		if w.Code != http.StatusOK {
@@ -158,7 +158,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 	t.Run("empty settings map", func(t *testing.T) {
 		h, _ := newAdminSettingsTestHandler(t)
 		body := map[string]interface{}{"settings": map[string]string{}}
-		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/admin/config/settings/import", body)
+		c, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/settings/import", body)
 		h.ImportSettings(w, c)
 
 		if w.Code != http.StatusOK {
@@ -171,7 +171,7 @@ func TestAdminSettingsHandler_ImportSettings(t *testing.T) {
 // acknowledgement path.
 func TestAdminSettingsHandler_ReloadConfig(t *testing.T) {
 	h, _ := newAdminSettingsTestHandler(t)
-	c, w := newTestContext(http.MethodPost, "/api/v1/server/admin/config/settings/reload")
+	c, w := newTestContext(http.MethodPost, "/api/v1/server/administration/config/settings/reload")
 	h.ReloadConfig(w, c)
 
 	if w.Code != http.StatusOK {

@@ -2,9 +2,12 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // validateConfig checks every loaded config value and replaces invalid ones
@@ -18,9 +21,28 @@ func validateConfig(cfg *AppConfig) bool {
 	validateServerSession(cfg)
 	validateServerRateLimit(cfg)
 	validateServerI18n(cfg)
+	validateServerPages(cfg)
 	validateServerTracking(cfg)
 	validateServerCache(cfg)
+	validateServerUpdate(cfg)
 	return portReplaced
+}
+
+func validateServerUpdate(cfg *AppConfig) {
+	branch := strings.ToLower(strings.TrimSpace(cfg.Server.Update.Branch))
+	switch branch {
+	case "daily", "rolling", "dev", "development":
+		cfg.Server.Update.Branch = "devel"
+	case "stable", "beta", "devel":
+		cfg.Server.Update.Branch = branch
+	default:
+		warnConfig("invalid update.branch %q, using default %q", cfg.Server.Update.Branch, "stable")
+		cfg.Server.Update.Branch = "stable"
+	}
+	if cfg.Server.Update.DeferDays < 0 || cfg.Server.Update.DeferDays > 365 {
+		warnConfig("invalid update.defer_days %d, using default 0", cfg.Server.Update.DeferDays)
+		cfg.Server.Update.DeferDays = 0
+	}
 }
 
 // warnConfig reports a replaced config value on stderr
@@ -48,9 +70,9 @@ func validateServerIdentity(cfg *AppConfig) bool {
 		cfg.Server.Mode = "production"
 	}
 
-	if strings.TrimSpace(cfg.Server.AdminPath) == "" || strings.Contains(cfg.Server.AdminPath, "/") {
-		warnConfig("invalid admin_path %q, using default %q", cfg.Server.AdminPath, "admin")
-		cfg.Server.AdminPath = "admin"
+	if !IsValidAdminPath(cfg.Server.AdminPath) {
+		warnConfig("invalid admin_path %q, using default %q", cfg.Server.AdminPath, DefaultAdminPath)
+		cfg.Server.AdminPath = DefaultAdminPath
 	}
 
 	if strings.TrimSpace(cfg.Server.APIVersion) == "" || strings.Contains(cfg.Server.APIVersion, "/") {
@@ -200,6 +222,9 @@ func validateRateLimitBucket(bucket *RateLimitBucket, def RateLimitBucket, name 
 	if bucket.Window < 1 {
 		warnConfig("invalid %s.window %d, using default %d", name, bucket.Window, def.Window)
 		bucket.Window = def.Window
+	} else if int64(bucket.Window) > int64((time.Duration(1<<63-1))/time.Second) {
+		warnConfig("invalid %s.window %d overflows time.Duration, using default %d", name, bucket.Window, def.Window)
+		bucket.Window = def.Window
 	}
 }
 
@@ -213,24 +238,49 @@ func validateServerI18n(cfg *AppConfig) {
 		cfg.Server.I18n.DefaultLanguage = defaults.DefaultLanguage
 	}
 
-	if len(cfg.Server.I18n.Supported) == 0 {
-		cfg.Server.I18n.Supported = defaults.Supported
+	// AI.md PART 31: the operator may narrow the list but never below the required six
+	enabled := make(map[string]bool, len(cfg.Server.I18n.AvailableLanguages))
+	for _, lang := range cfg.Server.I18n.AvailableLanguages {
+		enabled[strings.ToLower(strings.TrimSpace(lang))] = true
+	}
+	for _, lang := range RequiredLanguages {
+		if !enabled[lang] {
+			warnConfig("i18n.available_languages is missing required language %q, restoring it", lang)
+			cfg.Server.I18n.AvailableLanguages = append(cfg.Server.I18n.AvailableLanguages, lang)
+		}
 	}
 
 	// AI.md PART 31: an unsupported default language silently falls back to
 	// English rather than erroring
 	found := false
-	for _, lang := range cfg.Server.I18n.Supported {
+	for _, lang := range cfg.Server.I18n.AvailableLanguages {
 		if lang == cfg.Server.I18n.DefaultLanguage {
 			found = true
 			break
 		}
 	}
 	if !found {
-		warnConfig("i18n.default_language %q is not in i18n.supported, using %q",
+		warnConfig("i18n.default_language %q is not in i18n.available_languages, using %q",
 			cfg.Server.I18n.DefaultLanguage, defaults.DefaultLanguage)
 		cfg.Server.I18n.DefaultLanguage = defaults.DefaultLanguage
-		cfg.Server.I18n.Supported = append(cfg.Server.I18n.Supported, defaults.DefaultLanguage)
+	}
+}
+
+// validateServerPages validates the contact captcha settings (AI.md PART 16 "Captcha providers")
+func validateServerPages(cfg *AppConfig) {
+	c := &cfg.Server.Pages.Contact
+	switch c.Captcha {
+	case "":
+		c.Captcha = CaptchaSimple
+	case CaptchaSimple:
+	case CaptchaReCaptcha, CaptchaHCaptcha:
+		if c.CaptchaSiteKey == "" || c.CaptchaSecretKey == "" {
+			warnConfig("pages.contact.captcha %q needs captcha_site_key and captcha_secret_key, using %q", c.Captcha, CaptchaSimple)
+			c.Captcha = CaptchaSimple
+		}
+	default:
+		warnConfig("invalid pages.contact.captcha %q, using %q", c.Captcha, CaptchaSimple)
+		c.Captcha = CaptchaSimple
 	}
 }
 
@@ -276,7 +326,7 @@ func validateServerCache(cfg *AppConfig) {
 	c := &cfg.Server.Cache
 
 	switch strings.ToLower(strings.TrimSpace(c.Type)) {
-	case "memory", "valkey", "redis":
+	case "none", "memory", "valkey", "redis":
 		c.Type = strings.ToLower(strings.TrimSpace(c.Type))
 	default:
 		warnConfig("invalid cache.type %q, using default %q", c.Type, defaults.Type)
@@ -300,13 +350,72 @@ func validateServerCache(cfg *AppConfig) {
 
 	if strings.TrimSpace(c.Timeout) == "" {
 		c.Timeout = defaults.Timeout
+	} else if d, err := time.ParseDuration(strings.TrimSpace(c.Timeout)); err != nil || d <= 0 {
+		warnConfig("invalid cache.timeout, using default %q", defaults.Timeout)
+		c.Timeout = defaults.Timeout
 	}
 
 	if strings.TrimSpace(c.TTL) == "" {
+		c.TTL = defaults.TTL
+	} else if d, err := time.ParseDuration(strings.TrimSpace(c.TTL)); err != nil || d <= 0 {
+		warnConfig("invalid cache.ttl, using default %q", defaults.TTL)
 		c.TTL = defaults.TTL
 	}
 
 	if strings.TrimSpace(c.Prefix) == "" {
 		c.Prefix = defaults.Prefix
 	}
+
+	if rawURL := strings.TrimSpace(c.URL); rawURL != "" {
+		u, err := url.Parse(rawURL)
+		if err != nil || u.Hostname() == "" || (u.Scheme != "redis" && u.Scheme != "rediss" && u.Scheme != "valkey") {
+			warnConfig("invalid cache.url, using host and port settings")
+			c.URL = defaults.URL
+		}
+	}
+
+	if c.DB < 0 {
+		warnConfig("invalid cache.db %d, using default %d", c.DB, defaults.DB)
+		c.DB = defaults.DB
+	}
+	if c.Cluster {
+		validNodes := len(c.ClusterNodes) > 0
+		for _, node := range c.ClusterNodes {
+			if _, _, err := net.SplitHostPort(strings.TrimSpace(node)); err != nil {
+				validNodes = false
+				break
+			}
+		}
+		if !validNodes {
+			warnConfig("invalid cache.cluster_nodes, disabling cache cluster mode")
+			c.Cluster = defaults.Cluster
+			c.ClusterNodes = defaults.ClusterNodes
+		}
+	}
+}
+
+// reservedAdminPaths are route segments an admin_path may never take (AI.md PART 17).
+// DefaultAdminPath is deliberately absent: the revert-on-error fallback depends on it.
+var reservedAdminPaths = map[string]bool{
+	"api": true, "health": true, "healthz": true, "metrics": true, "version": true,
+	".well-known": true, "about": true, "privacy": true, "contact": true, "help": true,
+	"terms": true, "preferences": true, "docs": true, "auth": true, "security": true,
+	"static": true, "assets": true,
+}
+
+// IsValidAdminPath reports whether v is an acceptable admin_path: one segment of
+// [a-z0-9-], 2-32 characters, no leading or trailing hyphen, not reserved.
+func IsValidAdminPath(v string) bool {
+	if len(v) < 2 || len(v) > 32 || reservedAdminPaths[v] {
+		return false
+	}
+	if v[0] == '-' || v[len(v)-1] == '-' {
+		return false
+	}
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '-' {
+			return false
+		}
+	}
+	return true
 }

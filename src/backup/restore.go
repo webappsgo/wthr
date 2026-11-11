@@ -22,12 +22,59 @@ type RestoreOptions struct {
 	ConfigDir  string
 	DataDir    string
 	Force      bool
+	Limits     RestoreLimits
+}
+
+// RestoreLimits bounds archive input and extraction work before any restore
+// destination is modified.
+type RestoreLimits struct {
+	MaxArchiveSize  int64
+	MaxExpandedSize int64
+	MaxFiles        int
+	MaxFileSize     int64
+	MaxRatio        int64
+}
+
+func defaultRestoreLimits() RestoreLimits {
+	return RestoreLimits{MaxArchiveSize: 1 << 30, MaxExpandedSize: 4 << 30, MaxFiles: 10000, MaxFileSize: 512 << 20, MaxRatio: 100}
+}
+
+func (l RestoreLimits) withDefaults() RestoreLimits {
+	d := defaultRestoreLimits()
+	if l.MaxArchiveSize <= 0 {
+		l.MaxArchiveSize = d.MaxArchiveSize
+	}
+	if l.MaxExpandedSize <= 0 {
+		l.MaxExpandedSize = d.MaxExpandedSize
+	}
+	if l.MaxFiles <= 0 {
+		l.MaxFiles = d.MaxFiles
+	}
+	if l.MaxFileSize <= 0 {
+		l.MaxFileSize = d.MaxFileSize
+	}
+	if l.MaxRatio <= 0 {
+		l.MaxRatio = d.MaxRatio
+	}
+	return l
+}
+
+func maxExpandedByRatio(archiveSize, ratio int64) int64 {
+	maxInt64 := int64(^uint64(0) >> 1)
+	if archiveSize <= 0 || ratio <= 0 {
+		return 0
+	}
+	if archiveSize > maxInt64/ratio {
+		return maxInt64
+	}
+	return archiveSize * ratio
 }
 
 // Restore restores from a backup file per AI.md PART 22 (Restore Verification,
 // Restore Behavior). Verification runs first and a failure aborts the restore
 // before anything on disk is touched.
 func (s *BackupService) Restore(opts RestoreOptions) error {
+	limits := opts.Limits.withDefaults()
 	// Set defaults
 	if opts.ConfigDir == "" {
 		opts.ConfigDir = s.configDir
@@ -36,17 +83,17 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 		opts.DataDir = s.dataDir
 	}
 
-	// Per AI.md PART 22 Restore Verification: "Only proceed with restore if ALL
-	// verification checks pass." Verify covers file exists/readable, format,
-	// decrypt test, checksum vs manifest, manifest parse and database integrity.
-	if err := s.Verify(opts.BackupPath, opts.Password); err != nil {
-		return fmt.Errorf("backup verification failed, restore aborted: %w", err)
-	}
-
-	// Read backup file
-	data, err := os.ReadFile(opts.BackupPath)
+	// Read once, then verify and restore these exact bytes to avoid a
+	// verification-to-use race if the archive path changes during restore.
+	data, err := readBackupBounded(opts.BackupPath, limits.MaxArchiveSize)
 	if err != nil {
 		return fmt.Errorf("failed to read backup: %w", err)
+	}
+	// Per AI.md PART 22 Restore Verification: "Only proceed with restore if ALL
+	// verification checks pass." Verify covers format, decryption, checksum,
+	// manifest parsing, and database integrity before the destination is touched.
+	if err := s.verifyDataWithLimits(opts.BackupPath, opts.Password, data, limits); err != nil {
+		return fmt.Errorf("backup verification failed, restore aborted: %w", err)
 	}
 
 	// Decrypt if encrypted per AI.md PART 22 (Encryption)
@@ -74,7 +121,7 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 		manifest.AppVersion)
 
 	// Extract archive
-	if err := s.extractArchive(data, opts.ConfigDir, opts.DataDir); err != nil {
+	if err := s.extractArchiveWithLimits(data, opts.ConfigDir, opts.DataDir, limits); err != nil {
 		return fmt.Errorf("failed to extract archive: %w", err)
 	}
 
@@ -104,6 +151,22 @@ func (s *BackupService) Restore(opts RestoreOptions) error {
 	fmt.Println(strings.Repeat("=", 70))
 
 	return nil
+}
+
+func readBackupBounded(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("backup archive exceeds maximum size of %d bytes", limit)
+	}
+	return data, nil
 }
 
 // extractManifest reads manifest.json from archive
@@ -148,6 +211,13 @@ func (s *BackupService) extractManifest(archiveData []byte) (*Manifest, error) {
 
 // extractArchive extracts all files from archive to destination directories
 func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir string) error {
+	return s.extractArchiveWithLimits(archiveData, configDir, dataDir, defaultRestoreLimits())
+}
+
+func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, dataDir string, limits RestoreLimits) error {
+	if int64(len(archiveData)) > limits.MaxArchiveSize {
+		return fmt.Errorf("backup archive exceeds maximum size")
+	}
 	// Create gzip reader
 	gzReader, err := gzip.NewReader(bytes.NewReader(archiveData))
 	if err != nil {
@@ -158,6 +228,9 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 	// Create tar reader
 	tarReader := tar.NewReader(gzReader)
 
+	var expanded int64
+	files := 0
+	maxRatioBytes := maxExpandedByRatio(int64(len(archiveData)), limits.MaxRatio)
 	// Extract each file
 	for {
 		header, err := tarReader.Next()
@@ -167,16 +240,30 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 		if err != nil {
 			return err
 		}
-
-		// Skip manifest.json (already extracted)
-		if header.Name == "manifest.json" {
-			continue
+		files++
+		if files > limits.MaxFiles {
+			return fmt.Errorf("backup archive exceeds maximum file count of %d", limits.MaxFiles)
 		}
+		if header.Size < 0 || header.Size > limits.MaxFileSize {
+			return fmt.Errorf("archive member %s exceeds maximum file size", header.Name)
+		}
+		if header.Size > limits.MaxExpandedSize-expanded || header.Size > maxRatioBytes-expanded {
+			return fmt.Errorf("backup archive exceeds extraction limits")
+		}
+		expanded += header.Size
 
 		// Reject symlinks and hard links: an archive member that resolves to a
 		// link can redirect a later write outside the destination entirely.
 		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
 			return fmt.Errorf("backup archive contains a link entry (%s)", header.Name)
+		}
+		if header.Typeflag != tar.TypeDir && header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+			return fmt.Errorf("backup archive contains a special entry (%s)", header.Name)
+		}
+
+		// Skip manifest.json (already extracted)
+		if header.Name == "manifest.json" {
+			continue
 		}
 
 		// Determine destination path per AI.md PART 22 backup contents
@@ -196,10 +283,16 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 		if err != nil {
 			return err
 		}
+		if err := rejectRestoreSymlinkPath(baseDir, destPath); err != nil {
+			return err
+		}
 
 		// Create directory if needed
 		if header.Typeflag == tar.TypeDir {
 			if err := os.MkdirAll(destPath, os.FileMode(header.Mode)); err != nil {
+				return err
+			}
+			if err := rejectRestoreSymlinkPath(baseDir, destPath); err != nil {
 				return err
 			}
 			continue
@@ -207,6 +300,9 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 
 		// Ensure parent directory exists
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return err
+		}
+		if err := rejectRestoreSymlinkPath(baseDir, destPath); err != nil {
 			return err
 		}
 
@@ -217,12 +313,14 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 			return err
 		}
 
-		if _, err := io.Copy(outFile, tarReader); err != nil {
-			outFile.Close()
-			return err
+		_, copyErr := io.Copy(outFile, tarReader)
+		closeErr := outFile.Close()
+		if copyErr != nil {
+			return copyErr
 		}
-
-		outFile.Close()
+		if closeErr != nil {
+			return fmt.Errorf("failed to close restored file: %w", closeErr)
+		}
 
 		// Set file permissions
 		if err := os.Chmod(destPath, os.FileMode(header.Mode)); err != nil {
@@ -230,5 +328,38 @@ func (s *BackupService) extractArchive(archiveData []byte, configDir, dataDir st
 		}
 	}
 
+	return nil
+}
+
+func rejectRestoreSymlinkPath(baseDir, targetPath string) error {
+	base, err := filepath.Abs(baseDir)
+	if err != nil {
+		return err
+	}
+	target, err := filepath.Abs(targetPath)
+	if err != nil {
+		return err
+	}
+	relative, err := filepath.Rel(base, target)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("restore path escapes its destination directory")
+	}
+	current := base
+	paths := append([]string{current}, strings.Split(relative, string(filepath.Separator))...)
+	for _, path := range paths {
+		if path != current {
+			current = filepath.Join(current, path)
+		}
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("inspect restore path %s: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("restore path contains a symbolic link: %s", current)
+		}
+	}
 	return nil
 }

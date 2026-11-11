@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,65 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 )
+
+type fakeDistributedRateCache struct {
+	count int64
+	ttl   time.Duration
+}
+
+func (c *fakeDistributedRateCache) IsEnabled() bool { return true }
+func (c *fakeDistributedRateCache) Increment(string) (int64, error) {
+	c.count++
+	return c.count, nil
+}
+func (c *fakeDistributedRateCache) Expire(_ string, ttl time.Duration) error {
+	c.ttl = ttl
+	return nil
+}
+func (c *fakeDistributedRateCache) TTL(string) (time.Duration, error) { return c.ttl, nil }
+
+func TestServeDistributedRateLimitUsesSharedCacheCounter(t *testing.T) {
+	cache := &fakeDistributedRateCache{}
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.RemoteAddr = "203.0.113.42:12345"
+	request = request.WithContext(reqctx.SetValue(context.Background(), "cache", cache))
+	called := 0
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called++ })
+	buckets := rateLimitBuckets{ReadLimit: 2, ReadWindow: time.Minute}
+
+	for i := 0; i < 3; i++ {
+		response := httptest.NewRecorder()
+		if !serveDistributedRateLimit(response, request, next, rateLimitRead, buckets, time.Minute) {
+			t.Fatal("distributed cache path was not used")
+		}
+		wantStatus := http.StatusOK
+		if i == 2 {
+			wantStatus = http.StatusTooManyRequests
+		}
+		if response.Code != wantStatus {
+			t.Errorf("request %d status = %d, want %d", i+1, response.Code, wantStatus)
+		}
+	}
+	if called != 2 {
+		t.Errorf("next handler called %d times, want 2", called)
+	}
+	if cache.ttl != time.Minute {
+		t.Errorf("cache TTL = %s, want 1m", cache.ttl)
+	}
+}
+
+func TestRateLimitClientIPIgnoresForwardedHeaderFromUntrustedPeer(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.RemoteAddr = "203.0.113.8:12345"
+	request.Header.Set("X-Forwarded-For", "198.51.100.99")
+	got, err := rateLimitClientIP(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "203.0.113.8" {
+		t.Fatalf("rate limit key IP = %q, want immediate peer 203.0.113.8", got)
+	}
+}
 
 // uniqueTestIP returns a distinct RemoteAddr per call so tests exercising
 // the package-level, init()-time httprate limiters (shared/cumulative state

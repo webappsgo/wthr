@@ -19,11 +19,15 @@
 - NEVER use Redis/Valkey as the only cache option — `memory` must work standalone for Single Instance mode; Valkey/Redis is REQUIRED only for Cluster/Mixed Mode.
 - NEVER specify both `cache.url` and individual `host`/`port`/`password` fields as if independent — `url` takes precedence when both are set.
 
+- NEVER default `server.admin_path` to anything but `administration` (valid: `[a-z0-9-]`, 2-32 chars, no leading/trailing hyphen, not reserved) — an invalid value reverts to `administration`
+- NEVER let `/debug/*` (pprof and expvar included) answer without the operator token (`server.token`) as a Bearer credential, even with `--debug`
+
 ## CRITICAL - ALWAYS DO
 
 - ALWAYS keep config comments single-line, under 140 characters, placed above the setting they describe.
 - ALWAYS run untrusted path input through the full path-security pipeline (`normalizePath` → `validatePathSegment` → `validatePath` → `SafePath`/`SafeFilePath`) before any filesystem operation; wrap the result in `PathSecurityMiddleware` for HTTP-facing paths.
-- ALWAYS resolve mode via: `--mode` flag > `MODE` env > default `production`; resolve debug via: `--debug` flag > `DEBUG` env (truthy) > `--mode debug`/`MODE=debug` alias > default `false`. An explicit `--debug`/`DEBUG` always wins over the `debug` mode alias (`MODE=debug DEBUG=false` → development mode, debug off).
+- ALWAYS apply the directory variables (`CONFIG_DIR`, `DATA_DIR`, `LOG_DIR`, `DATABASE_DIR`, `BACKUP_DIR`) on EVERY startup (flag, then env, then platform default; never written to `server.yml`); `--config/--data/--cache/--log/--backup` use `SafeDirPath`, never `SafePath`
+- ALWAYS resolve mode via: `--mode` flag > `MODE` env > `server.mode` in `server.yml` > default `production`; resolve debug via: `--debug` flag > `DEBUG` env (truthy) > `--mode debug`/`MODE=debug` alias > default `false`. An explicit `--debug`/`DEBUG` always wins over the `debug` mode alias (`MODE=debug DEBUG=false` → development mode, debug off).
 - ALWAYS treat Single Instance mode's `server.yml` as the configuration source of truth, and Cluster Mode's remote database as the source of truth with `server.yml` demoted to a synced cache/backup (`_cache:` block) used only in read-only fallback when the DB is unreachable.
 - ALWAYS sync every database config change to local `server.yml` immediately, on startup, and every 5 minutes to catch drift.
 - ALWAYS treat only two error classes as critical (DB connection failure, cannot write files) — enter Maintenance Mode (read-only, admin panel still reachable with fix guidance, self-healing retries every 30s) for these; everything else is recoverable in place.

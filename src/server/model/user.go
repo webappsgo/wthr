@@ -1126,6 +1126,8 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 	var sessions []UserSession
 	for rows.Next() {
 		var session UserSession
+		var storedIPAddress sql.NullString
+		var storedUserAgent sql.NullString
 		var storedCreatedAt interface{}
 		var storedExpiresAt interface{}
 		var storedLastUsedAt interface{}
@@ -1133,14 +1135,20 @@ func (m *UserSessionModel) GetActiveSessions(userID int64) ([]UserSession, error
 			&session.ID,
 			&session.UserID,
 			&session.SessionID,
-			&session.IPAddress,
-			&session.UserAgent,
+			&storedIPAddress,
+			&storedUserAgent,
 			&storedCreatedAt,
 			&storedExpiresAt,
 			&storedLastUsedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
+		}
+		if storedIPAddress.Valid {
+			session.IPAddress = storedIPAddress.String
+		}
+		if storedUserAgent.Valid {
+			session.UserAgent = storedUserAgent.String
 		}
 
 		expiresAt, ok := parseStoredTimestamp(storedExpiresAt)
