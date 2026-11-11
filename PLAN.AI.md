@@ -6,6 +6,7 @@ missing. Order: items marked (blocks) come first.
 
 ## Done in the current pass
 
+- `WWW-Authenticate` on 401 and `/debug/*` operator token (`server.token`), `/debug/ip` removed in favor of `/api/v1/weather/locations`
 - admin_path default `administration` (config, validation, docs, tests, scripts)
 - AI-bot blocking removed (robots.txt has no ai_bots; admin UI, config, locale keys removed)
 - robots.txt default per PART 16 (`Allow: /api`, `Disallow: /server/{admin_path}`)
@@ -28,19 +29,14 @@ missing. Order: items marked (blocks) come first.
 
 ## PART 5/6/8 configuration and CLI
 
-- `SafeDirPath` for `--config/--data/--cache/--log/--backup` (currently unvalidated)
-- `/debug/*` must require the operator token (`server.token`) even with `--debug`
 - mode precedence must read `server.mode` from `server.yml` after `MODE`
-- `PORT` env replaces `WTHR_PORT` (`src/cli/cli.go`)
-- `--i2p` flag and `I2P_ENABLED` env; `--shell --help` instead of `--shell help`; `--version` first line `{name} {version} ({short_commit})`
+- `--shell --help` instead of `--shell help`; `--version` first line `{name} {version} ({short_commit})`
 - graceful shutdown order (readiness, long-lived connections with `event: shutdown`, drain, flush)
 - systemd containers (Incus/LXC) detected via `INVOCATION_ID` before generic container detection
 - `server.baseurl` / `X-Forwarded-Prefix` per request for the `path` template helper (helper currently reads only configured baseurl); migrate hardcoded same-origin links in the 136 templates to `{{ path "..." }}`
 
 ## PART 11/14 security and API
 
-- tokens only via `Authorization: Bearer` (drop `X-API-Key`, `X-Auth-Token`, `?token=` acceptance); `WWW-Authenticate: Bearer realm="wthr"` on 401 and `error="insufficient_scope"` on 403
-- CSRF and `Sec-Fetch-*` checks must be frontend-only (never `/api/**`)
 - rate limits per token when a valid Bearer token is present
 - GeoIP deny-only ordering (blocklist, rate limiter, GeoIP, then authentication)
 - `security_id` rotating one-shot token, `/server/contact?security_id=`, security report pipeline (`/server/security/report/{tracking_id}`), PGP keypair management, admin pages for reports, policy, thanks, keypair

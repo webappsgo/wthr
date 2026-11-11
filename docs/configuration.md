@@ -44,7 +44,7 @@ re-read on every start.
 |----------|---------|
 | `DOMAIN` | FQDN used for displayed/embedded URLs |
 | `MODE` / `APP_MODE` / `ENVIRONMENT` | Application mode (`production` or `development`) |
-| `DEBUG` | Enable debug diagnostics (verbosity only, never bypasses auth) |
+| `DEBUG` | Enable debug diagnostics (verbosity only, never bypasses auth). Every `/debug/*` endpoint, pprof and expvar included, also requires the operator token `server.token` as `Authorization: Bearer`; when unset a random token is printed once on the console at startup |
 | `PORT` | Listen port |
 | `LISTEN` / `SERVER_ADDRESS` | Listen address (legacy fallback for `PORT`) |
 | `REVERSE_PROXY` | Trust reverse-proxy forwarding headers |

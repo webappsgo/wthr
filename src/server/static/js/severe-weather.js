@@ -100,11 +100,11 @@
         setTimeout(updateLocation, 500);
       } catch {
         try {
-          const response = await fetch('/debug/ip');
+          const response = await fetch('/api/v1/weather/locations');
           if (!response.ok) throw new Error('IP location lookup failed');
           const result = await response.json();
-          if (typeof result.location?.value !== 'string' || !result.location.value) throw new Error('IP location unavailable');
-          locationInput.value = result.location.value;
+          if (typeof result.location?.shortName !== 'string' || !result.location.shortName) throw new Error('IP location unavailable');
+          locationInput.value = result.location.shortName;
           this.textContent = `📍 ${pageData.foundLocation}`;
           setTimeout(updateLocation, 500);
         } catch {

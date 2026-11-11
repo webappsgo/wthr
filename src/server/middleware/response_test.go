@@ -72,3 +72,27 @@ func TestBodySizeLimitMiddleware_CanonicalErrorBody(t *testing.T) {
 
 	assertCanonicalError(t, decodeErrorBody(t, w.Body.Bytes()), "PAYLOAD_TOO_LARGE")
 }
+
+func TestWriteAPIErrorBearerChallenge(t *testing.T) {
+	cases := []struct {
+		code string
+		want string
+	}{
+		{"UNAUTHORIZED", `Bearer realm="wthr"`},
+		{"TOKEN_INVALID", `Bearer realm="wthr", error="invalid_token"`},
+		{"TOKEN_EXPIRED", `Bearer realm="wthr", error="invalid_token"`},
+	}
+	for _, c := range cases {
+		rec := httptest.NewRecorder()
+		writeAPIError(rec, http.StatusUnauthorized, c.code, "x")
+		if got := rec.Header().Get("WWW-Authenticate"); got != c.want {
+			t.Errorf("%s: WWW-Authenticate = %q, want %q", c.code, got, c.want)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	writeAPIError(rec, http.StatusForbidden, "FORBIDDEN", "x")
+	if got := rec.Header().Get("WWW-Authenticate"); got != "" {
+		t.Errorf("403 must not set a challenge here, got %q", got)
+	}
+}

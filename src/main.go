@@ -1633,15 +1633,26 @@ func main() {
 	// Debug endpoints (only enabled when --debug flag or DEBUG=true)
 	// Per AI.md PART 6: Debug endpoints only available when debug mode enabled
 	if mode.IsDebugEnabled() {
-		// Debug endpoints expose operational state and can mutate configuration;
-		// keep them behind the same admin session gate as other sensitive routes.
-		r.With(middleware.RequireAdminAuth()).Route("/debug", func(debug chi.Router) {
+		// AI.md PART 6: every /debug endpoint requires the operator token as a
+		// Bearer credential; an unset server.token yields a per-run random one
+		operatorToken := cfg.Server.Token
+		if operatorToken == "" {
+			generated, tokenErr := middleware.NewOperatorToken()
+			if tokenErr != nil {
+				log.Fatalf("ERROR: cannot generate operator token: %v", tokenErr)
+			}
+			operatorToken = generated
+			fmt.Printf("Debug operator token (shown once, this run only, send as Bearer): %s\n", operatorToken)
+		}
+		requireOperator := middleware.RequireOperatorToken(operatorToken)
+
+		r.With(requireOperator).Route("/debug", func(debug chi.Router) {
 			debugHandlers := handler.NewDebugHandlers(db.DB, r)
 			debugHandlers.RegisterDebugRoutes(debug)
 		})
 
 		// pprof + expvar endpoints per AI.md PART 6's canonical chi debug pattern
-		r.With(middleware.RequireAdminAuth()).Route("/debug/pprof", func(r chi.Router) {
+		r.With(requireOperator).Route("/debug/pprof", func(r chi.Router) {
 			r.HandleFunc("/", pprof.Index)
 			r.HandleFunc("/cmdline", pprof.Cmdline)
 			r.HandleFunc("/profile", pprof.Profile)
@@ -1656,7 +1667,7 @@ func main() {
 		})
 
 		// expvar endpoint per AI.md PART 6
-		r.With(middleware.RequireAdminAuth()).Handle("/debug/vars", http.DefaultServeMux)
+		r.With(requireOperator).Handle("/debug/vars", http.DefaultServeMux)
 
 		log.Println("INFO: Debug endpoints enabled:")
 		log.Println("   GET  /debug/routes  - List all routes")
@@ -1670,41 +1681,6 @@ func main() {
 		log.Println("   GET  /debug/pprof/goroutine - Goroutine dump")
 		log.Println("   GET  /debug/vars    - expvar metrics")
 	}
-
-	// IP detection endpoint (always available for My Location feature)
-	r.Get("/debug/ip", func(w http.ResponseWriter, r *http.Request) {
-		// IP detection for My Location button
-		clientIP := util.TrustedGetClientIP(r)
-
-		// Try to get location from IP
-		coords, err := weatherService.GetCoordinatesFromIP(clientIP)
-		if err != nil {
-			// Empty means fallback to manual entry
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"clientIP": clientIP,
-				"location": map[string]interface{}{
-					"value": "",
-				},
-				"error": err.Error(),
-			})
-			return
-		}
-
-		// Enhance location
-		enhanced := locationEnhancer.EnhanceLocation(coords)
-
-		// e.g., "Albany, NY"
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"clientIP": clientIP,
-			"location": map[string]interface{}{
-				"value": enhanced.ShortName,
-			},
-			"coordinates": map[string]interface{}{
-				"latitude":  coords.Latitude,
-				"longitude": coords.Longitude,
-			},
-		})
-	})
 
 	// Server setup routes at /server/{admin_path}/config/setup (requires verified setup token)
 	// AI.md: Setup flow is at /server/{admin_path}/config/setup, creates Primary Admin

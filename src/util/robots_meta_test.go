@@ -63,7 +63,6 @@ func TestRobotsMetaForPath(t *testing.T) {
 		// Debug, health, and internal endpoints
 		{"debug pprof", "/debug/pprof/", RobotsNoIndexNoFollow},
 		{"debug vars", "/debug/vars", RobotsNoIndexNoFollow},
-		{"debug ip", "/debug/ip", RobotsNoIndexNoFollow},
 		{"healthz", "/server/healthz", RobotsNoIndexNoFollow},
 		{"healthz root alias", "/healthz", RobotsNoIndexNoFollow},
 		{"healthz unversioned alias", "/api/healthz", RobotsNoIndexNoFollow},

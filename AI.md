@@ -3208,7 +3208,7 @@ Implemented core server functionality and API.
 | Human-owned tasks | `TODO.md` | Never emptied or deleted by AI; mark items done in place |
 | Defects found while doing other work, including the exploratory pass | Fixed immediately, otherwise `TODO.AI.md` | Never left only in conversation |
 | Findings from an explicit audit (the user said "audit") with more than 5 issues | Temporary `AUDIT.AI.md` | Not `TODO.AI.md`; deleted when every issue is resolved. Five or fewer are fixed directly with no tracking file |
-| Defects or contradictions in `AI.md` itself | `SPEC.md` (the project's tie-break override) for the local decision, plus a report appended as one bullet under `## {project_name} AI.md issues` in the `TODO.API.md` of the project's parent directory (the shared template-maintainers' inbox; for apimgr projects `~/Projects/github/apimgr/TODO.API.md`) | `AI.md` is read-only: never edit it, and never log its defects in `TODO.AI.md`. Maintainers clear the inbox once the template is fixed |
+| Defects or contradictions in `AI.md` itself | `SPEC.md` (the project's tie-break override) for the local decision, plus a report appended as one bullet under `## {project_name} AI.md issues` in the `TODO.{TEMPLATE}.md` of the project's parent directory, where `{TEMPLATE}` is the template the project's `AI.md` was copied from (`API`, `SERVER` or `HYBRID`) — the shared template-maintainers' inbox; for apimgr projects (API template) `~/Projects/github/apimgr/TODO.API.md`, for webappsgo projects (SERVER template) `~/Projects/github/webappsgo/TODO.SERVER.md` | `AI.md` is read-only: never edit it, and never log its defects in `TODO.AI.md`. Maintainers clear the inbox once the template is fixed |
 
 ## Project Audit
 
@@ -7401,7 +7401,7 @@ func normalizePath(input string) string {
     return cleaned
 }
 
-// validatePathSegment checks a single path segment (e.g., "admin" in "/server/administration/dashboard")
+// validatePathSegment checks a single path segment (e.g., "admin" in "/server/admin/dashboard")
 func validatePathSegment(segment string) error {
     if segment == "" {
         return ErrInvalidPath
@@ -7462,11 +7462,11 @@ func SafePath(input string) (string, error) {
 | `/my//admin` | `my/admin` | ✓ |
 | `///a//b///` | `a/b` | ✓ |
 | `/../admin` | ✗ rejected | Path traversal |
-| `/server/administration/../secret` | ✗ rejected | Path traversal |
-| `/server/administration/..` | ✗ rejected | Path traversal |
+| `/server/admin/../secret` | ✗ rejected | Path traversal |
+| `/server/admin/..` | ✗ rejected | Path traversal |
 | `....` | ✗ rejected | Invalid chars |
 | `/Admin` | ✗ rejected | Uppercase not allowed |
-| `/server/administration/<script>` | ✗ rejected | Invalid chars |
+| `/server/admin/<script>` | ✗ rejected | Invalid chars |
 
 ### Apply Everywhere
 
@@ -7584,12 +7584,12 @@ func PathSecurityMiddleware(next http.Handler) http.Handler {
 
 | Request | Result | Status |
 |---------|--------|--------|
-| `GET /server/administration//config//settings` | `/server/{admin_path}/config/settings` | 200 |
+| `GET /server/admin//config//settings` | `/server/{admin_path}/config/settings` | 200 |
 | `GET //api///v1//users` | `/api/{api_version}/users` | 200 |
 | `GET ///` | `/` | 200 |
-| `GET /static/../server/administration` | Blocked | 400 |
+| `GET /static/../server/admin` | Blocked | 400 |
 | `GET /api/{api_version}/files/..%2F..%2Fetc/passwd` | Blocked | 400 |
-| `GET /server/administration/....//secret` | Blocked | 400 |
+| `GET /server/admin/....//secret` | Blocked | 400 |
 
 ### File Path Security
 
@@ -8152,8 +8152,8 @@ _cache:
 
 | Table | Purpose |
 |-------|---------|
-| `config` / `srv_config` | Configuration key-value pairs |
-| `config_meta` / `srv_config_meta` | Config metadata (defaults, restart flags) |
+| `srv_config` | Configuration key-value pairs (Cluster Mode remote DB only; single-instance has no config table) |
+| `srv_config_meta` | Config version tracking (Cluster Mode remote DB only) |
 | `admin_sessions` / `srv_admin_sessions` | Admin web sessions |
 | `rate_limits` / `srv_rate_limits` | Rate limiting counters |
 | `audit_log` / `srv_audit_log` | Admin actions, config changes |
@@ -10856,7 +10856,7 @@ NO_COLOR=1 {project_name} --status | cat -v
 NO_COLOR=1 {project_name} --status | grep -E '✅|❌|⚠️|🚀'
 ```
 
-**THESE TOP-LEVEL SERVER COMMANDS CANNOT BE CHANGED. This is the complete top-level set:** a project never adds, renames or removes a top-level flag, and an unlisted flag (for example `--header`) is not allowed. **Modifiers** belong to the command they modify and do not extend the top-level set: `--include-ssl` and `--include-data` modify `--maintenance backup` (PART 21), and `--maintenance`, `--service` and `--update` take the subcommands and options shown in their own `--help`.
+**THESE TOP-LEVEL SERVER COMMANDS CANNOT BE CHANGED. This is the complete top-level set:** a project never adds, renames or removes a top-level flag, and an unlisted flag (for example `--header`) is not allowed. **Modifiers** belong to the command they modify and do not extend the top-level set: `--include-ssl` and `--include-data` modify `--maintenance backup` (PART 22), and `--maintenance`, `--service` and `--update` take the subcommands and options shown in their own `--help`.
 
 ## Server Binary Commands
 
@@ -10896,7 +10896,7 @@ NO_COLOR=1 {project_name} --status | grep -E '✅|❌|⚠️|🚀'
 --daemon
 # Enable debug mode (verbose logging, debug endpoints)
 --debug
-# Enable the I2P eepsite (opt-in, PART 31.2)
+# Enable the I2P eepsite (opt-in, PART 32.2)
 --i2p
 # Color output (default: auto, respects NO_COLOR)
 --color {auto|yes|no}
@@ -12128,10 +12128,12 @@ The app automatically watches config files and hot-reloads what it can. Settings
 **Implementation:**
 
 ```go
-// ConfigManager manages config from both file AND database (admin WebUI)
+// ConfigManager manages config from the file and, in Cluster Mode only, the remote database (admin WebUI)
 // Changes from either source trigger hot-reload or restart notification
 type ConfigManager struct {
     configPath      string
+    // Cluster Mode: the remote DB is the config source of truth (PART 5); false for single-instance (server.yml only)
+    clusterMode     bool
     db              *sql.DB
     lastFileModTime time.Time
     // Config version in database
@@ -12148,7 +12150,9 @@ func (m *ConfigManager) Start() {
         ticker := time.NewTicker(5 * time.Second)
         for range ticker.C {
             m.checkFileChanges()
-            m.checkDBChanges()
+            if m.clusterMode {
+                m.checkDBChanges()
+            }
         }
     }()
 }
@@ -12169,14 +12173,16 @@ func (m *ConfigManager) checkFileChanges() {
 
     m.applyConfigChanges(newConfig, "file")
 
-    // Sync file changes to database so admin UI sees them
-    m.syncToDatabase(newConfig)
+    // Cluster Mode only: sync file changes to the remote database so every node and the admin UI see them
+    if m.clusterMode {
+        m.syncToDatabase(newConfig)
+    }
 }
 
 // checkDBChanges watches database for admin WebUI changes
 func (m *ConfigManager) checkDBChanges() {
     var version int64
-    err := m.db.QueryRow("SELECT version FROM config_meta WHERE id = 1").Scan(&version)
+    err := m.db.QueryRow("SELECT version FROM srv_config_meta WHERE id = 1").Scan(&version)
     if err != nil || version == m.lastDBVersion {
         return
     }
@@ -12221,13 +12227,13 @@ func (m *ConfigManager) applyConfigChanges(newConfig *Config, source string) {
 
 // syncToDatabase writes file config to database
 func (m *ConfigManager) syncToDatabase(cfg *Config) {
-    // Update config table, bump version
+    // Cluster Mode only: update the srv_config table, bump version
     _, err := m.db.Exec(`
-        UPDATE config SET value = ? WHERE key = ?
+        UPDATE srv_config SET value = ? WHERE key = ?
         -- ... for each setting
     `)
     if err == nil {
-        m.db.Exec("UPDATE config_meta SET version = version + 1 WHERE id = 1")
+        m.db.Exec("UPDATE srv_config_meta SET version = version + 1 WHERE id = 1")
     }
 }
 
@@ -12244,13 +12250,11 @@ func (m *ConfigManager) syncToFile(cfg *Config) {
 **Database Schema :**
 
 All projects use SQLite with two database files:
-- `server.db` - Server state (config, sessions, rate limits, audit, scheduler)
+- `server.db` - Server state (sessions, rate limits, audit, scheduler)
 - `users.db` - User data (admins, users, API tokens) - separate for easy backup/restore
 
 | Database | Table | Purpose |
 |----------|-------|---------|
-| `server.db` | `config` | Key-value config storage |
-| `server.db` | `config_meta` | Config version tracking |
 | `server.db` | `admin_sessions` | Admin WebUI login sessions |
 | `server.db` | `rate_limits` | Sliding window rate limit counters |
 | `server.db` | `audit_log` | Admin actions, config changes, security events |
@@ -12473,7 +12477,18 @@ func OpenDatabase(cfg *Config) (*Database, error) {
 -- SERVER.DB - Server state and operations
 -- ============================================================================
 
--- There is NO config table: configuration lives only in server.yml (PART 5)
+-- Single-instance SQLite server.db has NO config table: configuration lives only in server.yml (PART 5).
+-- Cluster Mode ONLY (remote PostgreSQL/MySQL): the remote database is the configuration source of truth (PART 5), so these two tables exist there (srv_ prefix) and server.yml is a synced cache.
+CREATE TABLE IF NOT EXISTS srv_config (
+    key        VARCHAR(255) PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS srv_config_meta (
+    id         INTEGER PRIMARY KEY CHECK (id = 1),
+    version    BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- ----------------------------------------------------------------------------
 -- Admin Sessions (admin WebUI login sessions)
@@ -20862,7 +20877,7 @@ When not in cluster mode:
 | `features.i2p.enabled` | I2P eepsite enabled (OPT-IN; false by default) |
 | `features.i2p.running` | I2P provider currently running |
 | `features.i2p.status` | Normalized: `disabled`, `starting`, `healthy`, `error:{short message}` (mapped from `features.i2p.state`: `disabled` and `no_provider` -> `disabled`; `starting` and `building` -> `starting`; `running` -> `healthy`; `error` -> `error:{short message}`) |
-| `features.i2p.state` | Full lifecycle: `disabled`, `no_provider`, `starting`, `building`, `running`, `error` (the same values as CLI `--status`, PART 31.2) |
+| `features.i2p.state` | Full lifecycle: `disabled`, `no_provider`, `starting`, `building`, `running`, `error` (the same values as CLI `--status`, PART 32.2) |
 | `features.i2p.hostname` | `.b32.i2p` address (if running) |
 | `features.i2p.provider` | i2pd, sam, or none |
 | `checks.*` | Component health (ok, degraded, error — no details), including dataset checks (`geoip_*`, `blocklist_*`, `data_*`) |

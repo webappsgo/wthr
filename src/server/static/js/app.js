@@ -7361,12 +7361,12 @@
       const strings = IndexPage.strings;
       button.textContent = '📍 ' + strings.ipLocation;
 
-      fetch('/debug/ip')
+      fetch('/api/v1/weather/locations')
         .then(function(response) { return response.json(); })
         .then(function(data) {
-          if (!data.location || !data.location.value) throw new Error(strings.locationUnavailable);
+          if (!data.location || !data.location.shortName) throw new Error(strings.locationUnavailable);
           const target = window.location.origin + '/' +
-            data.location.value.replace(/ /g, '+') + IndexPage.unitsParam();
+            data.location.shortName.replace(/ /g, '+') + IndexPage.unitsParam();
           button.textContent = '📍 ' + strings.found;
           setTimeout(function() { window.location.href = target; }, 800);
         })
@@ -7575,12 +7575,12 @@
           setTimeout(function() { MoonPage.navigate(coords); }, 500);
         })
         .catch(function() {
-          fetch('/debug/ip')
+          fetch('/api/v1/weather/locations')
             .then(function(response) { return response.json(); })
             .then(function(data) {
-              if (!data.location || !data.location.value) throw new Error('no location');
+              if (!data.location || !data.location.shortName) throw new Error('no location');
               button.textContent = '📍 ' + strings.foundLocation;
-              const detected = data.location.value.replace(/ /g, '+');
+              const detected = data.location.shortName.replace(/ /g, '+');
               setTimeout(function() { MoonPage.navigate(detected); }, 500);
             })
             .catch(function() {

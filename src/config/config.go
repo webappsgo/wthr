@@ -71,6 +71,8 @@ type ServerConfig struct {
 	Address string `yaml:"address"`
 	// production or development
 	Mode string `yaml:"mode"`
+	// AI.md PART 6: operator token required as a Bearer credential on every /debug endpoint; empty generates a random one at each debug startup
+	Token string `yaml:"token"`
 	// AI.md PART 17: Admin panel URL path (configurable, default: "administration")
 	AdminPath string `yaml:"admin_path"`
 	// AI.md: API version prefix (default: "v1")

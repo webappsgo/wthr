@@ -166,6 +166,7 @@ func RequireAdminToken() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authType, exists := reqctx.GetValue(r.Context(), "auth_type")
 			if !exists || authType != AuthTypeAdminToken {
+				w.Header().Set("WWW-Authenticate", bearerChallenge("FORBIDDEN"))
 				writeAPIError(w, http.StatusForbidden, "FORBIDDEN", "Admin access required")
 				return
 			}
