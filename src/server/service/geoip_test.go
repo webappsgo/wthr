@@ -54,7 +54,7 @@ func waitGeoIPEnabled(t *testing.T, gs *GeoIPService) {
 func TestGeoIP_NewGeoIPService(t *testing.T) {
 	t.Run("normal dir", func(t *testing.T) {
 		dir := t.TempDir()
-		seedGeoIPFixtureFiles(t, filepath.Join(dir, "geoip"))
+		seedGeoIPFixtureFiles(t, filepath.Join(dir, "security", "geoip"))
 
 		gs := NewGeoIPService(dir)
 		if gs == nil {
@@ -62,7 +62,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		}
 		waitGeoIPEnabled(t, gs)
 
-		wantDir := filepath.Join(dir, "geoip")
+		wantDir := filepath.Join(dir, "security", "geoip")
 		if gs.cityIPv4Path != filepath.Join(wantDir, "dbip-city-ipv4.mmdb") {
 			t.Errorf("cityIPv4Path = %q, want under %q", gs.cityIPv4Path, wantDir)
 		}
@@ -85,7 +85,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 
 	t.Run("nested path", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "a", "b", "c")
-		seedGeoIPFixtureFiles(t, filepath.Join(dir, "geoip"))
+		seedGeoIPFixtureFiles(t, filepath.Join(dir, "security", "geoip"))
 
 		gs := NewGeoIPService(dir)
 		if gs == nil {
@@ -93,7 +93,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		}
 		waitGeoIPEnabled(t, gs)
 
-		wantDir := filepath.Join(dir, "geoip")
+		wantDir := filepath.Join(dir, "security", "geoip")
 		if gs.cityIPv4Path != filepath.Join(wantDir, "dbip-city-ipv4.mmdb") {
 			t.Errorf("cityIPv4Path = %q, want under %q", gs.cityIPv4Path, wantDir)
 		}
@@ -102,7 +102,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 	t.Run("empty configDir uses relative geoip dir", func(t *testing.T) {
 		cwd := t.TempDir()
 		t.Chdir(cwd)
-		seedGeoIPFixtureFiles(t, filepath.Join(cwd, "geoip"))
+		seedGeoIPFixtureFiles(t, filepath.Join(cwd, "security", "geoip"))
 
 		gs := NewGeoIPService("")
 		if gs == nil {
@@ -110,7 +110,7 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		}
 		waitGeoIPEnabled(t, gs)
 
-		want := filepath.Join("geoip", "dbip-city-ipv4.mmdb")
+		want := filepath.Join("security", "geoip", "dbip-city-ipv4.mmdb")
 		if gs.cityIPv4Path != want {
 			t.Errorf("cityIPv4Path = %q, want %q", gs.cityIPv4Path, want)
 		}
@@ -338,7 +338,10 @@ func TestGeoIP_IsEnabled_ReflectsInternalState(t *testing.T) {
 // be flaky/wrong.
 func TestGeoIP_Reload_FailsWithoutDownloadableDatabases(t *testing.T) {
 	dir := t.TempDir()
-	blocker := filepath.Join(dir, "geoip")
+	blocker := filepath.Join(dir, "security", "geoip")
+	if err := os.MkdirAll(filepath.Dir(blocker), 0755); err != nil {
+		t.Fatalf("failed to create parent: %v", err)
+	}
 	if err := os.WriteFile(blocker, []byte("not a directory"), 0644); err != nil {
 		t.Fatalf("failed to write blocker file: %v", err)
 	}
@@ -368,7 +371,7 @@ func TestGeoIP_Reload_FailsWithoutDownloadableDatabases(t *testing.T) {
 // the service enabled.
 func TestGeoIP_Reload_SucceedsWithPreSeededDatabases(t *testing.T) {
 	dir := t.TempDir()
-	geoipDir := filepath.Join(dir, "geoip")
+	geoipDir := filepath.Join(dir, "security", "geoip")
 	seedGeoIPFixtureFiles(t, geoipDir)
 
 	gs := &GeoIPService{
@@ -404,7 +407,7 @@ func TestGeoIP_Reload_SucceedsWithPreSeededDatabases(t *testing.T) {
 // exercised directly (not via NewGeoIPService's goroutine) for determinism.
 func TestGeoIP_LoadDatabases_AllFilesPresentEnablesService(t *testing.T) {
 	dir := t.TempDir()
-	geoipDir := filepath.Join(dir, "geoip")
+	geoipDir := filepath.Join(dir, "security", "geoip")
 	if err := os.MkdirAll(geoipDir, 0755); err != nil {
 		t.Fatalf("failed to create geoip dir: %v", err)
 	}

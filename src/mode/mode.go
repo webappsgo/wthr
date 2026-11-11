@@ -120,3 +120,16 @@ func FromEnv() {
 		SetDebugEnabled(config.IsTruthy(d))
 	}
 }
+
+// FromConfig applies server.mode from server.yml when neither the --mode flag
+// nor the MODE env var was given (the flag exports MODE). An explicit DEBUG env
+// var still wins over the debug alias, as in FromEnv.
+func FromConfig(serverMode string) {
+	if os.Getenv("MODE") != "" || strings.TrimSpace(serverMode) == "" {
+		return
+	}
+	SetAppMode(serverMode)
+	if d, ok := os.LookupEnv("DEBUG"); ok && d != "" {
+		SetDebugEnabled(config.IsTruthy(d))
+	}
+}

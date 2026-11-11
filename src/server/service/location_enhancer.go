@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/server/health"
 )
 
 // locationDataFS embeds the vendored GeoNames country and city reference
@@ -31,6 +32,7 @@ type LocationEnhancer struct {
 	citiesData     []City
 	mu             sync.RWMutex
 	initialized    bool
+	citiesDone     bool
 	onInitComplete func(countries, cities bool)
 }
 
@@ -81,10 +83,38 @@ func NewLocationEnhancer(db *sql.DB) *LocationEnhancer {
 		initialized:   false,
 	}
 
+	registerLocationHealthChecks(le)
+
 	// Load data in background
 	go le.loadData()
 
 	return le
+}
+
+// registerLocationHealthChecks registers the embedded country and city data
+// sets with the health registry (AI.md PART 13). A set that has not finished
+// loading reports degraded; an empty set after loading is an error.
+func registerLocationHealthChecks(le *LocationEnhancer) {
+	status := func(count func() int, ready func() bool) func() health.Status {
+		return func() health.Status {
+			if !ready() {
+				return health.StatusDegraded
+			}
+			if count() == 0 {
+				return health.StatusError
+			}
+
+			return health.StatusOK
+		}
+	}
+	health.Register("data_countries", false, status(
+		func() int { le.mu.RLock(); defer le.mu.RUnlock(); return len(le.countriesData) },
+		func() bool { le.mu.RLock(); defer le.mu.RUnlock(); return le.initialized },
+	))
+	health.Register("data_cities", false, status(
+		func() int { le.mu.RLock(); defer le.mu.RUnlock(); return len(le.citiesData) },
+		func() bool { le.mu.RLock(); defer le.mu.RUnlock(); return le.citiesDone },
+	))
 }
 
 // loadData loads external data in parallel
@@ -120,6 +150,7 @@ func (le *LocationEnhancer) loadData() {
 	le.mu.Lock()
 	le.initialized = true
 	le.mu.Unlock()
+	health.Refresh()
 
 	totalElapsed := time.Since(startTime)
 	fmt.Printf("%s Core databases loaded in %s (cities loading in background)\n", display.Emoji("🎉", "[OK]"), totalElapsed)
@@ -137,6 +168,11 @@ func (le *LocationEnhancer) loadData() {
 			fmt.Printf("%s Cities database loaded in %s (%d cities)\n", display.Emoji("✅", "[OK]"), elapsed, len(le.citiesData))
 			citiesLoaded = true
 		}
+
+		le.mu.Lock()
+		le.citiesDone = true
+		le.mu.Unlock()
+		health.Refresh()
 
 		// Notify completion via callback
 		if le.onInitComplete != nil {

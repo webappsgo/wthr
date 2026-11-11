@@ -572,7 +572,7 @@ func verifySystem() error {
 
 	// 7. Check GeoIP databases (optional)
 	fmt.Print(T("cli.maintenance.checking_geoip"))
-	geoipDir := filepath.Join(dataDir, "geoip")
+	geoipDir := filepath.Join(dataDir, "security", "geoip")
 	if _, err := os.Stat(geoipDir); os.IsNotExist(err) {
 		fmt.Printf(T("cli.maintenance.geoip_not_found")+"\n", display.Emoji("⚠️", "WARNING:"))
 	} else {

@@ -157,6 +157,8 @@ func TestCheckmark(t *testing.T) {
 // workaround for the underlying bug (see final report).
 func TestAPIHealthCheck(t *testing.T) {
 	t.Run("healthy when initialized and db reachable", func(t *testing.T) {
+		t.Setenv("DATA_DIR", t.TempDir())
+		t.Setenv("LOG_DIR", t.TempDir())
 		resetInitStatus(t)
 		SetInitStatus(true, true, true)
 		serverDB := newTestServerDB(t)

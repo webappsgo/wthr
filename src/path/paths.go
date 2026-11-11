@@ -357,7 +357,7 @@ func (p *Paths) Override() {
 func (p *Paths) initializeSubdirectories() {
 	// ConfigDir: User-editable configuration and security data
 	p.SSLDir = filepath.Join(p.ConfigDir, "ssl")
-	p.GeoIPDir = filepath.Join(p.ConfigDir, "security", "geoip")
+	p.GeoIPDir = filepath.Join(p.DataDir, "security", "geoip")
 	p.BlocklistDir = filepath.Join(p.ConfigDir, "security", "blocklists")
 
 	// DataDir: Application-managed runtime data

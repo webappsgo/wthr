@@ -42,9 +42,8 @@ missing. Order: items marked (blocks) come first.
 
 ## PART 13 health
 
-- dataset and dependency checks registry (`health.Register`), `ok|degraded|error`, `geoip_*`, `blocklist_*`, `data_*`
-- frontend text and HTML human-readable formatting, one feature per line, `features.i2p.state`
-- API text format with `features.{name}: {status}` lines
+- API text format with `features.{name}: {status}` lines; `features.i2p.state`
+- blocklist dataset checks (`blocklist_{id}`) once blocklist sources are stored as files
 
 ## PART 16/17 frontend and admin
 

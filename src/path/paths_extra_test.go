@@ -98,7 +98,7 @@ func TestInitializeSubdirectories(t *testing.T) {
 	if want := filepath.Join(p.ConfigDir, "ssl"); p.SSLDir != want {
 		t.Errorf("SSLDir = %q, want %q", p.SSLDir, want)
 	}
-	if want := filepath.Join(p.ConfigDir, "security", "geoip"); p.GeoIPDir != want {
+	if want := filepath.Join(p.DataDir, "security", "geoip"); p.GeoIPDir != want {
 		t.Errorf("GeoIPDir = %q, want %q", p.GeoIPDir, want)
 	}
 	if want := filepath.Join(p.ConfigDir, "security", "blocklists"); p.BlocklistDir != want {

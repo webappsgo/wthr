@@ -4228,5 +4228,10 @@
   "tz.central": "Centre",
   "tz.eastern": "Est",
   "tz.mountain": "Montagne",
-  "tz.pacific": "Pacifique"
+  "tz.pacific": "Pacifique",
+  "health.check.geoip_country": "GeoIP : pays",
+  "health.check.geoip_city": "GeoIP : ville",
+  "health.check.geoip_asn": "GeoIP : ASN",
+  "health.check.data_countries": "Données : pays",
+  "health.check.data_cities": "Données : villes"
 }

@@ -170,3 +170,30 @@ func TestAppModeString(t *testing.T) {
 		}
 	}
 }
+
+func TestFromConfigPrecedence(t *testing.T) {
+	t.Setenv("MODE", "")
+	t.Setenv("DEBUG", "")
+	SetAppMode("production")
+	SetDebugEnabled(false)
+	FromConfig("development")
+	if !IsAppModeDev() {
+		t.Fatalf("server.mode development must apply when MODE is unset, got %s", GetAppModeString())
+	}
+
+	t.Setenv("MODE", "production")
+	SetAppMode("production")
+	FromConfig("development")
+	if !IsAppModeProd() {
+		t.Fatalf("MODE env must win over server.mode, got %s", GetAppModeString())
+	}
+
+	t.Setenv("MODE", "")
+	t.Setenv("DEBUG", "false")
+	FromConfig("debug")
+	if IsDebugEnabled() {
+		t.Fatalf("explicit DEBUG=false must win over the debug alias")
+	}
+	SetAppMode("production")
+	SetDebugEnabled(false)
+}

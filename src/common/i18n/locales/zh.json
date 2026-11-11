@@ -4228,5 +4228,10 @@
   "tz.central": "中部",
   "tz.eastern": "东部",
   "tz.mountain": "山地",
-  "tz.pacific": "太平洋"
+  "tz.pacific": "太平洋",
+  "health.check.geoip_country": "GeoIP：国家",
+  "health.check.geoip_city": "GeoIP：城市",
+  "health.check.geoip_asn": "GeoIP：ASN",
+  "health.check.data_countries": "数据：国家",
+  "health.check.data_cities": "数据：城市"
 }

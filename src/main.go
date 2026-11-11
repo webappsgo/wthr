@@ -45,6 +45,7 @@ import (
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/handler"
+	"github.com/webappsgo/wthr/src/server/health"
 	"github.com/webappsgo/wthr/src/server/metric"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -329,17 +330,6 @@ func main() {
 	// Handles MODE and DEBUG environment variables (set by CLI or directly)
 	mode.FromEnv()
 
-	if mode.IsDebugEnabled() {
-		log.Println("DEBUG MODE ENABLED")
-		log.Println("This mode should NEVER be used in production!")
-		fmt.Printf("%s DEBUG MODE ENABLED\n", display.Emoji("⚠️", "WARNING:"))
-		fmt.Printf("%s This mode should NEVER be used in production!\n", display.Emoji("⚠️", "WARNING:"))
-	}
-
-	// Log the current mode
-	log.Printf("Running in mode: %s", mode.ModeString())
-	fmt.Printf("%s Running in mode: %s\n", display.Emoji("🔒", "*"), mode.ModeString())
-
 	// Initialize Prometheus metrics (AI.md PART 21 - NON-NEGOTIABLE)
 	metric.InitMetricsAppInfo(Version, CommitID, BuildDate)
 
@@ -524,6 +514,20 @@ func main() {
 
 	// Set global config for handler access
 	config.SetGlobalConfig(cfg)
+
+	// AI.md PART 6: --mode flag > MODE env > server.mode in server.yml > production
+	mode.FromConfig(cfg.Server.Mode)
+
+	if mode.IsDebugEnabled() {
+		log.Println("DEBUG MODE ENABLED")
+		log.Println("This mode should NEVER be used in production!")
+		fmt.Printf("%s DEBUG MODE ENABLED\n", display.Emoji("⚠️", "WARNING:"))
+		fmt.Printf("%s This mode should NEVER be used in production!\n", display.Emoji("⚠️", "WARNING:"))
+	}
+
+	// Log the current mode
+	log.Printf("Running in mode: %s", mode.ModeString())
+	fmt.Printf("%s Running in mode: %s\n", display.Emoji("🔒", "*"), mode.ModeString())
 
 	// AI.md PART 12: all rate limits are configurable under server.rate_limit.*;
 	// log the effective values so an admin can confirm the loaded config is the
@@ -993,7 +997,12 @@ func main() {
 	})
 
 	// Initialize GeoIP service (downloads database on first run, updates weekly)
-	geoipService := service.NewGeoIPService(dirPaths.Config)
+	geoipService := service.NewGeoIPService(dirPaths.Data)
+
+	// AI.md PART 13: dataset checks are re-run at most every 60 seconds; requests read cached results
+	healthCtx, stopHealth := context.WithCancel(context.Background())
+	defer stopHealth()
+	go health.Run(healthCtx)
 
 	weatherService := service.NewWeatherService(locationEnhancer, geoipService)
 

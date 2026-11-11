@@ -160,6 +160,12 @@
                 <div class="stat-box__value">{{.health.Checks.I2P}}</div>
             </div>
             {{end}}
+            {{range .health.Checks.Datasets}}
+            <div class="stat-box margin-y-md">
+                <div class="stat-box__label">{{.Label}}</div>
+                <div class="stat-box__value">{{.Status}}</div>
+            </div>
+            {{end}}
         </div>
 
         <div class="card">

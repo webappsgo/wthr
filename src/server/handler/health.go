@@ -15,9 +15,12 @@ import (
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
+	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
+	"github.com/webappsgo/wthr/src/server/health"
 	models "github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
 )
@@ -205,6 +208,91 @@ type publicHealthChecks struct {
 	Cluster   string `json:"cluster,omitempty"`
 	Tor       string `json:"tor,omitempty"`
 	I2P       string `json:"i2p,omitempty"`
+
+	// Datasets are the registered dataset and dependency checks (AI.md PART 13),
+	// emitted after the core checks in registration order
+	Datasets []publicDatasetCheck `json:"-"`
+}
+
+type publicDatasetCheck struct {
+	Key    string
+	Label  string
+	Status string
+}
+
+// MarshalJSON emits the core checks first and the dataset checks after them in
+// registration order, which a plain struct or map cannot guarantee.
+func (c publicHealthChecks) MarshalJSON() ([]byte, error) {
+	var out bytes.Buffer
+	out.WriteByte('{')
+	first := true
+	add := func(key, value string) {
+		if value == "" {
+			return
+		}
+		if !first {
+			out.WriteByte(',')
+		}
+		first = false
+		k, _ := json.Marshal(key)
+		v, _ := json.Marshal(value)
+		out.Write(k)
+		out.WriteByte(':')
+		out.Write(v)
+	}
+	add("database", c.Database)
+	add("cache", c.Cache)
+	add("disk", c.Disk)
+	add("scheduler", c.Scheduler)
+	add("cluster", c.Cluster)
+	add("tor", c.Tor)
+	add("i2p", c.I2P)
+	for _, d := range c.Datasets {
+		add(d.Key, d.Status)
+	}
+	out.WriteByte('}')
+
+	return out.Bytes(), nil
+}
+
+// datasetChecks returns the cached dataset checks with display labels from the
+// health.check.{key} translation, falling back to a humanized key.
+func datasetChecks(r *http.Request) []publicDatasetCheck {
+	lang := "en"
+	if r != nil {
+		if value, ok := reqctx.GetValue(r.Context(), "lang"); ok {
+			if code, ok := value.(string); ok && code != "" {
+				lang = code
+			}
+		}
+	}
+	instance := i18n.GetGlobalI18n()
+
+	results := health.Results()
+	out := make([]publicDatasetCheck, 0, len(results))
+	for _, res := range results {
+		label := res.Key
+		translationKey := "health.check." + res.Key
+		if instance != nil {
+			label = instance.T(lang, translationKey)
+		}
+		if label == translationKey || label == res.Key {
+			label = humanizeCheckKey(res.Key)
+		}
+		out = append(out, publicDatasetCheck{Key: res.Key, Label: label, Status: string(res.Status)})
+	}
+
+	return out
+}
+
+// humanizeCheckKey turns blocklist_ads into "Blocklist: ads".
+func humanizeCheckKey(key string) string {
+	kind, id, found := strings.Cut(key, "_")
+	if !found {
+		return strings.ToUpper(key[:1]) + key[1:]
+	}
+
+	return strings.ToUpper(kind[:1]) + kind[1:] + ": " + strings.ReplaceAll(id, "_", " ")
 }
 
 type publicHealthStats struct {
@@ -543,6 +631,9 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		response.Checks.I2P = ""
 	}
 
+	response.Checks.Datasets = datasetChecks(r)
+	datasetUnhealthy, datasetDegraded := health.Worst()
+
 	pendingRestart, restartReasons := service.GetRestartRequired()
 	response.PendingRestart = pendingRestart
 	response.RestartReason = restartReasons
@@ -557,10 +648,10 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 			Message: "Server is in maintenance mode",
 		}
 		statusCode = http.StatusServiceUnavailable
-	case !IsInitialized() || dbCheck == "error":
+	case !IsInitialized() || dbCheck == "error" || response.Checks.Disk == "error" || datasetUnhealthy:
 		response.Status = "unhealthy"
 		statusCode = http.StatusServiceUnavailable
-	case response.Checks.Disk == "error" ||
+	case datasetDegraded ||
 		response.Checks.Scheduler == "error" ||
 		response.Checks.Cluster == "error" ||
 		response.Checks.Cache == "error" ||
@@ -821,6 +912,9 @@ func formatPublicHealthText(health publicHealthResponse) string {
 	}
 	if health.Checks.I2P != "" {
 		fmt.Fprintf(&out, "checks.i2p: %s\n", health.Checks.I2P)
+	}
+	for _, dataset := range health.Checks.Datasets {
+		fmt.Fprintf(&out, "checks.%s: %s\n", dataset.Key, dataset.Status)
 	}
 	fmt.Fprintf(&out, "\n")
 

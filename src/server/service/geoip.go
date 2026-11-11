@@ -8,10 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/oschwald/maxminddb-golang"
 
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/server/health"
 )
 
 // countryRecord maps the ip-location-db country MMDB fields
@@ -68,8 +70,8 @@ const (
 
 // NewGeoIPService creates a new GeoIP service
 // Downloads 4 databases from sapics/ip-location-db on first run, updates weekly
-func NewGeoIPService(configDir string) *GeoIPService {
-	geoipDir := filepath.Join(configDir, "geoip")
+func NewGeoIPService(dataDir string) *GeoIPService {
+	geoipDir := filepath.Join(dataDir, "security", "geoip")
 
 	gs := &GeoIPService{
 		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
@@ -80,14 +82,44 @@ func NewGeoIPService(configDir string) *GeoIPService {
 		cacheTime:    make(map[string]int64),
 	}
 
+	registerGeoIPHealthChecks(gs)
+
 	// Try to load databases in background
 	go gs.loadDatabases()
 
 	return gs
 }
 
+// geoIPMaxAge is how old a GeoIP file may get before health reports degraded:
+// the weekly update plus a day of slack.
+const geoIPMaxAge = 8 * 24 * time.Hour
+
+// registerGeoIPHealthChecks registers one health check per GeoIP database
+// (AI.md PART 13): geoip_city covers the IPv4 and IPv6 city files.
+func registerGeoIPHealthChecks(gs *GeoIPService) {
+	country := health.FileCheck(gs.countryPath, geoIPMaxAge, nil)
+	asn := health.FileCheck(gs.asnPath, geoIPMaxAge, nil)
+	cityV4 := health.FileCheck(gs.cityIPv4Path, geoIPMaxAge, nil)
+	cityV6 := health.FileCheck(gs.cityIPv6Path, geoIPMaxAge, nil)
+
+	health.Register("geoip_country", false, country)
+	health.Register("geoip_city", false, func() health.Status {
+		a, b := cityV4(), cityV6()
+		if a == health.StatusError || b == health.StatusError {
+			return health.StatusError
+		}
+		if a == health.StatusDegraded || b == health.StatusDegraded {
+			return health.StatusDegraded
+		}
+
+		return health.StatusOK
+	})
+	health.Register("geoip_asn", false, asn)
+}
+
 // loadDatabases downloads and prepares all 4 GeoIP databases from sapics/ip-location-db
 func (gs *GeoIPService) loadDatabases() {
+	defer health.Refresh()
 	fmt.Printf("%s Loading GeoIP databases (sapics/ip-location-db)...\n", display.Emoji("🌍", "->"))
 
 	// Create directory if needed
