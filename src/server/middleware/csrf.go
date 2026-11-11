@@ -162,11 +162,7 @@ func writeCSRFForbidden(w http.ResponseWriter, message string) {
 // browser does not attach on its own. AI.md PART 16 bypasses CSRF for these,
 // because a cross-site page cannot make the victim's browser send them.
 func hasBearerCredential(r *http.Request) bool {
-	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		return true
-	}
-
-	return false
+	return strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ")
 }
 
 // isBackendRoute reports whether the path belongs to the backend (every /api/**

@@ -275,7 +275,7 @@ type distributedRateCache interface {
 }
 
 func serveDistributedRateLimit(w http.ResponseWriter, r *http.Request, next http.Handler, name rateLimiterName, buckets rateLimitBuckets, window time.Duration) bool {
-	value, ok := reqctx.GetValue(r.Context(), "cache")
+	value, _ := reqctx.GetValue(r.Context(), "cache")
 	cache, ok := value.(distributedRateCache)
 	if !ok || !cache.IsEnabled() {
 		return false

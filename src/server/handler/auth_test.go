@@ -662,7 +662,7 @@ func TestRequiresEmailVerification(t *testing.T) {
 			Users: config.UsersConfig{
 				Enabled: true,
 				Registration: config.RegistrationConfig{
-					Mode:                      "open",
+					Mode:                     "open",
 					RequireEmailVerification: false,
 				},
 			},
@@ -683,7 +683,7 @@ func TestRequiresEmailVerification(t *testing.T) {
 			Users: config.UsersConfig{
 				Enabled: true,
 				Registration: config.RegistrationConfig{
-					Mode:                      "open",
+					Mode:                     "open",
 					RequireEmailVerification: true,
 				},
 			},
@@ -706,7 +706,7 @@ func TestRequiresEmailVerification(t *testing.T) {
 			Users: config.UsersConfig{
 				Enabled: true,
 				Registration: config.RegistrationConfig{
-					Mode:                      "open",
+					Mode:                     "open",
 					RequireEmailVerification: true,
 				},
 			},

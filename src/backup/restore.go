@@ -257,7 +257,7 @@ func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, 
 		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
 			return fmt.Errorf("backup archive contains a link entry (%s)", header.Name)
 		}
-		if header.Typeflag != tar.TypeDir && header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeRegA {
+		if header.Typeflag != tar.TypeDir && header.Typeflag != tar.TypeReg {
 			return fmt.Errorf("backup archive contains a special entry (%s)", header.Name)
 		}
 

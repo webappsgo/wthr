@@ -301,12 +301,12 @@ func TestSMTP_LoadConfig(t *testing.T) {
 
 		svc := NewSMTPService(db)
 		for key, value := range map[string]string{
-			"smtp.host":        "db.example.com",
-			"smtp.port":        "25",
-			"smtp.username":    "db-user",
-			"smtp.password":    "db-pass",
-			"smtp.use_tls":     "false",
-			"smtp.from_name":   "DB Name",
+			"smtp.host":         "db.example.com",
+			"smtp.port":         "25",
+			"smtp.username":     "db-user",
+			"smtp.password":     "db-pass",
+			"smtp.use_tls":      "false",
+			"smtp.from_name":    "DB Name",
 			"smtp.from_address": "db@example.com",
 		} {
 			if err := svc.saveSetting(key, value); err != nil {

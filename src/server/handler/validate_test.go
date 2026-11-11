@@ -13,15 +13,15 @@ type formNestedPayload struct {
 }
 
 type formPayload struct {
-	Name     string            `json:"name" binding:"required"`
-	Count    int               `json:"count"`
-	Ratio    float64           `json:"ratio"`
-	Active   bool              `json:"active"`
-	AltNames []string          `json:"alt_names"`
-	Config   map[string]string `json:"config"`
+	Name     string             `json:"name" binding:"required"`
+	Count    int                `json:"count"`
+	Ratio    float64            `json:"ratio"`
+	Active   bool               `json:"active"`
+	AltNames []string           `json:"alt_names"`
+	Config   map[string]string  `json:"config"`
 	Nested   *formNestedPayload `json:"nested"`
-	Optional *string           `json:"optional"`
-	Ignored  string            `json:"-"`
+	Optional *string            `json:"optional"`
+	Ignored  string             `json:"-"`
 	private  string
 }
 

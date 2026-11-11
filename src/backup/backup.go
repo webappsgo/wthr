@@ -573,12 +573,6 @@ func verifyTempDir() (string, error) {
 	return os.MkdirTemp(base, "wthr-verify-*")
 }
 
-// extractArchive expands a gzip tar backup into destDir, returning the parsed
-// manifest and the recomputed content checksum of every non-manifest member
-func extractArchive(data []byte, destDir string) (*Manifest, string, error) {
-	return extractArchiveWithLimits(data, destDir, defaultRestoreLimits())
-}
-
 func extractArchiveWithLimits(data []byte, destDir string, limits RestoreLimits) (*Manifest, string, error) {
 	if int64(len(data)) > limits.MaxArchiveSize {
 		return nil, "", fmt.Errorf("backup archive exceeds maximum size")
