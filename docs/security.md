@@ -52,7 +52,9 @@ user-facing flows.
 
 ## Rate Limiting
 
-All endpoints are rate-limited with a per-IP sliding window. The defaults below live under
+All endpoints are rate-limited with a sliding window: per IP for anonymous requests, and per token
+for requests carrying a valid Bearer token, so clients behind a shared IP never throttle one another.
+Failed authentication is always counted per IP. The defaults below live under
 `server.rate_limit` in `server.yml` and are editable from the admin panel.
 
 | Bucket | Default limit |

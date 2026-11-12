@@ -793,6 +793,9 @@ func main() {
 		})
 	})
 
+	// AI.md PART 12: valid Bearer tokens are limited per token, not per IP
+	middleware.SetRateLimitTokenDBs(database.GetServerDB(), database.GetUsersDB())
+
 	// Global rate limiting middleware (100 req/s)
 	r.Use(middleware.GlobalRateLimitMiddleware())
 

@@ -157,18 +157,19 @@ func getRateLimiters(b rateLimitBuckets) rateLimiterSet {
 		return limiters
 	}
 
-	newLimiter := func(limit int, window time.Duration) *httprate.RateLimiter {
-		return httprate.NewRateLimiter(limit, window, httprate.WithKeyFuncs(rateLimitClientIP))
+	newLimiter := func(name rateLimiterName) *httprate.RateLimiter {
+		limit, window := b.bucket(name)
+		return httprate.NewRateLimiter(limit, window, httprate.WithKeyFuncs(rateLimitKeyFor(name)))
 	}
 	limiters = rateLimiterSet{
-		global:        newLimiter(b.GlobalLimit, b.GlobalWindow),
-		read:          newLimiter(b.ReadLimit, b.ReadWindow),
-		health:        newLimiter(b.HealthLimit, b.HealthWindow),
-		write:         newLimiter(b.WriteLimit, b.WriteWindow),
-		login:         newLimiter(b.LoginLimit, b.LoginWindow),
-		passwordReset: newLimiter(b.PasswordReset, b.PasswordResetT),
-		registration:  newLimiter(b.Registration, b.RegistrationT),
-		fileUpload:    newLimiter(b.FileUpload, b.FileUploadT),
+		global:        newLimiter(rateLimitGlobal),
+		read:          newLimiter(rateLimitRead),
+		health:        newLimiter(rateLimitHealth),
+		write:         newLimiter(rateLimitWrite),
+		login:         newLimiter(rateLimitLogin),
+		passwordReset: newLimiter(rateLimitPasswordReset),
+		registration:  newLimiter(rateLimitRegistration),
+		fileUpload:    newLimiter(rateLimitFileUpload),
 	}
 	cachedBuckets = b
 	return limiters
@@ -280,7 +281,7 @@ func serveDistributedRateLimit(w http.ResponseWriter, r *http.Request, next http
 	if !ok || !cache.IsEnabled() {
 		return false
 	}
-	clientIP, err := rateLimitClientIP(r)
+	clientIP, err := rateLimitKeyFor(name)(r)
 	if err != nil || clientIP == "" {
 		return false
 	}
@@ -308,6 +309,18 @@ func serveDistributedRateLimit(w http.ResponseWriter, r *http.Request, next http
 	}
 	next.ServeHTTP(w, r)
 	return true
+}
+
+// rateLimitKeyFor returns the bucket key function of one limiter class. The
+// general classes (global, read, write, health) key by valid Bearer token; the
+// auth classes (login, password reset, registration, upload) always key by IP.
+func rateLimitKeyFor(name rateLimiterName) func(*http.Request) (string, error) {
+	switch name {
+	case rateLimitGlobal, rateLimitRead, rateLimitHealth, rateLimitWrite:
+		return rateLimitKey
+	}
+
+	return rateLimitClientIP
 }
 
 func rateLimitClientIP(r *http.Request) (string, error) {

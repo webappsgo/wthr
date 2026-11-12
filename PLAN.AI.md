@@ -34,7 +34,6 @@ missing. Order: items marked (blocks) come first.
 
 ## PART 11/14 security and API
 
-- rate limits per token when a valid Bearer token is present
 - GeoIP deny-only ordering (blocklist, rate limiter, GeoIP, then authentication)
 - `security_id` rotating one-shot token, `/server/contact?security_id=`, security report pipeline (`/server/security/report/{tracking_id}`), PGP keypair management, admin pages for reports, policy, thanks, keypair
 - `Referrer-Policy: no-referrer` and `Cache-Control: no-store` on one-shot link pages; token redaction in logs
