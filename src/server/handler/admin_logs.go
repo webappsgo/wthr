@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/webappsgo/wthr/src/server/lifecycle"
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
@@ -156,9 +157,17 @@ func (h *LogsHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	// AI.md PART 8: clients reconnect with a 3s base delay after a clean close
+	fmt.Fprint(w, "retry: 3000\n\n")
+	flusher.Flush()
+
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-lifecycle.Done():
+			fmt.Fprint(w, "event: shutdown\ndata: {}\n\n")
+			flusher.Flush()
 			return
 		case <-ticker.C:
 			// Check for new content

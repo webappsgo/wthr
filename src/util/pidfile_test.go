@@ -195,3 +195,103 @@ func TestNewPIDFile_RootBranch(t *testing.T) {
 		t.Errorf("NewPIDFile(root).Path = %q, want %q", pf.Path, want)
 	}
 }
+
+// TestPIDFile_CheckReusedPID verifies a PID owned by a different program is
+// treated as stale and its file is removed.
+func TestPIDFile_CheckReusedPID(t *testing.T) {
+	pf := newTestPIDFile(t)
+	if err := os.MkdirAll(filepath.Dir(pf.Path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pf.Path, []byte("1"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if executableBaseName() == baseName(mustReadlink(t, "/proc/1/exe")) {
+		t.Skip("pid 1 runs the test binary")
+	}
+
+	running, _, err := pf.CheckStalePID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if running {
+		t.Error("a PID owned by another binary must not count as running")
+	}
+	if _, err := os.Stat(pf.Path); !os.IsNotExist(err) {
+		t.Error("stale PID file was not removed")
+	}
+}
+
+func mustReadlink(t *testing.T, path string) string {
+	t.Helper()
+	target, err := os.Readlink(path)
+	if err != nil {
+		t.Skip("no /proc")
+	}
+
+	return target
+}
+
+// TestStartPIDFile_SkippedInContainer verifies containers never get a PID file.
+func TestStartPIDFile_SkippedInContainer(t *testing.T) {
+	old := IsContainer
+	IsContainer = func() bool { return true }
+	defer func() { IsContainer = old }()
+
+	t.Setenv("PID_FILE", filepath.Join(t.TempDir(), "x.pid"))
+	pf, err := StartPIDFile(t.TempDir())
+	if err != nil || pf != nil {
+		t.Fatalf("StartPIDFile in a container = %v, %v; want nil, nil", pf, err)
+	}
+}
+
+// TestStartPIDFile_HonorsPIDFileEnv verifies PID_FILE picks the path.
+func TestStartPIDFile_HonorsPIDFileEnv(t *testing.T) {
+	old := IsContainer
+	IsContainer = func() bool { return false }
+	defer func() { IsContainer = old }()
+
+	path := filepath.Join(t.TempDir(), "run", "x.pid")
+	t.Setenv("PID_FILE", path)
+	pf, err := StartPIDFile(t.TempDir())
+	if err != nil || pf == nil || pf.Path != path {
+		t.Fatalf("StartPIDFile = %v, %v", pf, err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDetectServiceManager_SystemdBeatsContainer verifies INVOCATION_ID wins
+// over container detection (Incus/LXC/nspawn system containers).
+func TestDetectServiceManager_SystemdBeatsContainer(t *testing.T) {
+	old := IsContainer
+	IsContainer = func() bool { return true }
+	defer func() { IsContainer = old }()
+
+	t.Setenv("INVOCATION_ID", "abc")
+	if got := DetectServiceManager(); got != "systemd" {
+		t.Fatalf("with INVOCATION_ID = %q, want systemd", got)
+	}
+	t.Setenv("INVOCATION_ID", "")
+	if got := DetectServiceManager(); got != "container" {
+		t.Fatalf("in a container = %q, want container", got)
+	}
+}
+
+// TestShouldDaemonize verifies manual starts honor flag and config.
+func TestShouldDaemonize(t *testing.T) {
+	old := IsContainer
+	IsContainer = func() bool { return true }
+	defer func() { IsContainer = old }()
+
+	if ShouldDaemonize(true, true, true) {
+		t.Error("service start in a container must stay foreground")
+	}
+	if !ShouldDaemonize(false, true, false) || !ShouldDaemonize(false, false, true) {
+		t.Error("manual start must honor the flag and config")
+	}
+	if ShouldDaemonize(false, false, false) {
+		t.Error("default is foreground")
+	}
+}

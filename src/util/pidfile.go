@@ -1,8 +1,10 @@
 package util
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -19,7 +21,9 @@ type PIDFile struct {
 func NewPIDFile(dataDir string) *PIDFile {
 	var pidPath string
 
-	if os.Geteuid() == 0 {
+	if custom := strings.TrimSpace(os.Getenv("PID_FILE")); custom != "" {
+		pidPath = custom
+	} else if os.Geteuid() == 0 {
 		// Running as root - use /var/run or /run
 		if _, err := os.Stat("/run"); err == nil {
 			pidPath = "/run/webappsgo/wthr.pid"
@@ -68,8 +72,14 @@ func (p *PIDFile) CheckStalePID() (bool, int, error) {
 
 	// On Unix-like systems, sending signal 0 checks if process exists
 	err = process.Signal(syscall.Signal(0))
-	if err != nil {
+	if err != nil && !errors.Is(err, syscall.EPERM) {
 		// Process doesn't exist - remove stale PID file
+		os.Remove(p.Path)
+		return false, pid, nil
+	}
+
+	// The PID may have been reused by another program; only our own binary counts
+	if !isOurProcess(pid) {
 		os.Remove(p.Path)
 		return false, pid, nil
 	}
@@ -136,4 +146,41 @@ func (p *PIDFile) GetPID() (int, error) {
 	}
 
 	return pid, nil
+}
+
+// isOurProcess verifies pid runs this same binary. The comparison is an exact
+// match on the executable name, never a substring, so the companion
+// {project_name}-cli binary is not mistaken for the server (AI.md PART 8).
+func isOurProcess(pid int) bool {
+	own := executableBaseName()
+	if own == "" {
+		return true
+	}
+
+	if exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+		return baseName(strings.TrimSuffix(exe, " (deleted)")) == own
+	}
+
+	output, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "comm=").Output()
+	if err != nil {
+		return false
+	}
+
+	return baseName(strings.TrimSpace(string(output))) == own
+}
+
+// StartPIDFile creates the PID file for this process. Containers skip it
+// entirely: PIDs are namespace-local and the runtime supervises the process
+// (AI.md PART 8). The returned file is nil when none was created.
+func StartPIDFile(dataDir string) (*PIDFile, error) {
+	if IsContainer() {
+		return nil, nil
+	}
+
+	pf := NewPIDFile(dataDir)
+	if err := pf.CreatePIDFile(); err != nil {
+		return nil, err
+	}
+
+	return pf, nil
 }

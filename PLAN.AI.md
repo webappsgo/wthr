@@ -28,8 +28,6 @@ missing. Order: items marked (blocks) come first.
 
 - mode precedence must read `server.mode` from `server.yml` after `MODE`
 - `--shell --help` instead of `--shell help`; `--version` first line `{name} {version} ({short_commit})`
-- graceful shutdown order (readiness, long-lived connections with `event: shutdown`, drain, flush)
-- systemd containers (Incus/LXC) detected via `INVOCATION_ID` before generic container detection
 - `server.baseurl` / `X-Forwarded-Prefix` per request for the `path` template helper (helper currently reads only configured baseurl); migrate hardcoded same-origin links in the 136 templates to `{{ path "..." }}`
 
 ## PART 11/14 security and API

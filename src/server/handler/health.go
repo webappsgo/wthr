@@ -19,6 +19,7 @@ import (
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/health"
+	"github.com/webappsgo/wthr/src/server/lifecycle"
 	models "github.com/webappsgo/wthr/src/server/model"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
@@ -640,6 +641,9 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 
 	statusCode := http.StatusOK
 	switch {
+	case lifecycle.IsShuttingDown():
+		response.Status = "shutting_down"
+		statusCode = http.StatusServiceUnavailable
 	case maintenanceMode:
 		response.Status = "maintenance"
 		response.Mode = "maintenance"

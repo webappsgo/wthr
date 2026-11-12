@@ -46,6 +46,7 @@ import (
 	"github.com/webappsgo/wthr/src/server"
 	"github.com/webappsgo/wthr/src/server/handler"
 	"github.com/webappsgo/wthr/src/server/health"
+	"github.com/webappsgo/wthr/src/server/lifecycle"
 	"github.com/webappsgo/wthr/src/server/metric"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
@@ -4463,6 +4464,20 @@ func main() {
 		MaxHeaderBytes: 1 << 20,
 	}
 
+	// AI.md PART 8: PID file with stale-PID detection; containers and Windows
+	// (service control manager) skip it, and server.pidfile: false disables it.
+	if runtime.GOOS != "windows" && pidFileEnabled(cfg.Server.PIDFile) {
+		pidFile, pidErr := util.StartPIDFile(dirPaths.Data)
+		if pidErr != nil {
+			log.Printf("PID file: %v", pidErr)
+			fmt.Fprintf(os.Stderr, "%v\n", pidErr)
+			os.Exit(1)
+		}
+		if pidFile != nil {
+			defer func() { _ = pidFile.Remove() }()
+		}
+	}
+
 	// Start server in goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -4549,115 +4564,69 @@ func main() {
 
 	signal.Notify(sigChan, allSignals...)
 
+	// AI.md PART 8 shutdown flow: (a) stop accepting and report not-ready,
+	// (b) close long-lived connections cleanly, (c) drain in-flight requests,
+	// (d) stop background services and let the deferred database close and
+	// PID file removal run.
+	shutdownGracefully := func() {
+		lifecycle.BeginShutdown()
+		wsHub.StopWebSocketHub()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			log.Printf("Server forced to shutdown: %v", err)
+			fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+
+		taskScheduler.StopScheduler()
+
+		if systemCollector != nil {
+			systemCollector.StopSystemCollector()
+		}
+
+		if err := torService.StopTorService(); err != nil {
+			log.Printf("Tor shutdown error: %v", err)
+			fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+
+		if i2pManager != nil {
+			if err := i2pManager.Close(); err != nil {
+				log.Printf("I2P shutdown error: %v", err)
+				fmt.Printf("%s I2P shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
+		}
+
+		if configWatcher != nil {
+			if err := configWatcher.StopConfigWatcher(); err != nil {
+				log.Printf("Config watcher shutdown error: %v", err)
+				fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+			}
+		}
+
+		if err := cacheManager.Close(); err != nil {
+			log.Printf("Cache shutdown error: %v", err)
+			fmt.Printf("%s Cache shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
+		}
+
+		log.Println("Server exited gracefully")
+		fmt.Printf("%s Server exited gracefully\n", display.Emoji("✅", "[OK]"))
+	}
+
 	// Handle signals
 	for sig := range sigChan {
 		switch sig {
 		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
 			log.Println("INFO: Received shutdown signal, shutting down gracefully...")
-
-			// Stop scheduler
-			taskScheduler.StopScheduler()
-
-			// Stop system metric collection (AI.md PART 21)
-			if systemCollector != nil {
-				systemCollector.StopSystemCollector()
-			}
-
-			// Stop Tor service
-			if err := torService.StopTorService(); err != nil {
-				log.Printf("Tor shutdown error: %v", err)
-				fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-			}
-
-			// Stop I2P eepsite (AI.md PART 32.2)
-			if i2pManager != nil {
-				if err := i2pManager.Close(); err != nil {
-					log.Printf("I2P shutdown error: %v", err)
-					fmt.Printf("%s I2P shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-				}
-			}
-
-			// Stop config watcher
-			if configWatcher != nil {
-				if err := configWatcher.StopConfigWatcher(); err != nil {
-					log.Printf("Config watcher shutdown error: %v", err)
-					fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-				}
-			}
-
-			// Close cache connection
-			if err := cacheManager.Close(); err != nil {
-				log.Printf("Cache shutdown error: %v", err)
-				fmt.Printf("%s Cache shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-			}
-
-			// Shutdown HTTP server with 5 second timeout
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			if err := srv.Shutdown(ctx); err != nil {
-				log.Printf("Server forced to shutdown: %v", err)
-				fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-			}
-
-			log.Println("Server exited gracefully")
-			fmt.Printf("%s Server exited gracefully\n", display.Emoji("✅", "[OK]"))
+			shutdownGracefully()
 			return
 
 		default:
 			// Handle platform-specific signals (SIGHUP, SIGUSR1, SIGUSR2, SIGRTMIN+3 on Unix)
 			// Returns true if shutdown requested (e.g., SIGRTMIN+3 Docker signal)
 			if handlePlatformSignal(sig, db, appLogger, dirPaths) {
-				// Shutdown requested - execute same graceful shutdown as SIGTERM
 				log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
-
-				// Stop scheduler
-				taskScheduler.StopScheduler()
-
-				// Stop system metric collection (AI.md PART 21)
-				if systemCollector != nil {
-					systemCollector.StopSystemCollector()
-				}
-
-				// Stop Tor service
-				if err := torService.StopTorService(); err != nil {
-					log.Printf("Tor shutdown error: %v", err)
-					fmt.Printf("%s Tor shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-				}
-
-				// Stop I2P eepsite (AI.md PART 32.2)
-				if i2pManager != nil {
-					if err := i2pManager.Close(); err != nil {
-						log.Printf("I2P shutdown error: %v", err)
-						fmt.Printf("%s I2P shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-					}
-				}
-
-				// Stop config watcher
-				if configWatcher != nil {
-					if err := configWatcher.StopConfigWatcher(); err != nil {
-						log.Printf("Config watcher shutdown error: %v", err)
-						fmt.Printf("%s Config watcher shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-					}
-				}
-
-				// Close cache connection
-				if err := cacheManager.Close(); err != nil {
-					log.Printf("Cache shutdown error: %v", err)
-					fmt.Printf("%s Cache shutdown error: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-				}
-
-				// Shutdown HTTP server with 5 second timeout
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-
-				if err := srv.Shutdown(ctx); err != nil {
-					log.Printf("Server forced to shutdown: %v", err)
-					fmt.Printf("%s Server forced to shutdown: %v\n", display.Emoji("⚠️", "WARNING:"), err)
-				}
-
-				log.Println("Server exited gracefully")
-				fmt.Printf("%s Server exited gracefully\n", display.Emoji("✅", "[OK]"))
+				shutdownGracefully()
 				return
 			}
 		}
@@ -4936,4 +4905,19 @@ func (m mcpHelpSource) PublicToolList() []handler.MCPToolInfo {
 		out = append(out, handler.MCPToolInfo{Name: t.Name, Description: t.Description})
 	}
 	return out
+}
+
+// pidFileEnabled reports whether server.pidfile asks for a PID file; the
+// default (unset) is true, and any value config.ParseBool reads as false
+// disables it.
+func pidFileEnabled(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+	if enabled, ok := value.(bool); ok {
+		return enabled
+	}
+	enabled, err := config.ParseBool(fmt.Sprint(value), true)
+
+	return err != nil || enabled
 }
