@@ -26,6 +26,7 @@ func GetSwaggerUIAuto() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSuffix(r.URL.Path, "/") == "/server/docs/swagger" {
 			r.URL.Path = "/server/docs/swagger/index.html"
+			r.RequestURI = r.URL.Path
 		}
 		ui(w, r)
 	}

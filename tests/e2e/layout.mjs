@@ -31,7 +31,17 @@ for (const [width, height] of viewports) {
       for (const path of pages) {
         const page = await context.newPage();
         const label = `${path} @${width}x${height} ${theme} ${lang}`;
-        const response = await page.goto(base + path, { waitUntil: 'load' });
+        const pageProblems = [];
+        page.on('pageerror', error => pageProblems.push(`script error: ${error.message}`));
+        page.on('console', message => {
+          if (message.type() === 'error') pageProblems.push(`console error: ${message.text().slice(0, 120)}`);
+        });
+        page.on('response', reply => {
+          if (reply.status() >= 400 && reply.url().startsWith(base) && reply.url() !== base + path) {
+            pageProblems.push(`subresource ${reply.status()}: ${reply.url().replace(base, '')}`);
+          }
+        });
+        const response = await page.goto(base + path, { waitUntil: 'networkidle' });
         if (!response || response.status() >= 500) {
           failures.push(`${label}: status ${response ? response.status() : 'none'}`);
           await page.close();
@@ -91,7 +101,7 @@ for (const [width, height] of viewports) {
           if (document.documentElement.lang === 'ar' && dir !== 'rtl') out.push('Arabic page is not dir=rtl');
           return out;
         });
-        for (const problem of problems) failures.push(`${label}: ${problem}`);
+        for (const problem of [...problems, ...pageProblems]) failures.push(`${label}: ${problem}`);
         await page.close();
       }
       await context.close();
