@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
+    <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
 </head>
 <body>
@@ -28,7 +28,7 @@
                 </div>
             </a>
 
-            <a href="/graphql" class="info-box api-docs-link-box">
+            <a href="/server/docs/graphql" class="info-box api-docs-link-box">
                 <h3 class="info-box__title info-box__title--graphql">🔷 {{t .server.Lang "api.docs_graphql_title"}}</h3>
                 <div class="info-box__content">
                     <p>{{t .server.Lang "api.docs_graphql_desc"}}</p>
@@ -59,8 +59,8 @@
                 <div class="command-item">
                     <strong class="console-section__label">{{t .server.Lang "api.docs_graphql_query_label"}}</strong>
                     <div class="code-wrapper">
-                        <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/graphql -d '{query}'</code>
-                        <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/graphql">{{t .server.Lang "admin.tor.copy_action"}}</button>
+                        <code class="mobile-code">curl -q -LSsf {{.HostInfo.FullHost}}/api/graphql -d '{query}'</code>
+                        <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSsf {{.HostInfo.FullHost}}/api/graphql">{{t .server.Lang "admin.tor.copy_action"}}</button>
                     </div>
                 </div>
             </div>
@@ -92,7 +92,7 @@
             <div class="grid-auto-fit-300">
                 <a href="https://webappsgo-wthr.readthedocs.io" target="_blank" class="btn btn-secondary btn-block">📚 {{t .server.Lang "api.docs_readthedocs"}}</a>
                 <a href="https://github.com/webappsgo/wthr" target="_blank" class="btn btn-secondary btn-block">💻 {{t .server.Lang "about.github_repository"}}</a>
-                <a href="/api/openapi.json" class="btn btn-secondary btn-block">📄 {{t .server.Lang "api.docs_openapi_spec"}}</a>
+                <a href="/api/swagger" class="btn btn-secondary btn-block">📄 {{t .server.Lang "api.docs_openapi_spec"}}</a>
             </div>
         </div>
     </div>

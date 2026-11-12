@@ -110,7 +110,7 @@
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.feature_earthquake_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help.feature_earthquake_intro"}} <a href="/earthquake" class="text-cyan">{{t .server.Lang "help.feature_earthquake_page_link"}}</a> {{t .server.Lang "help.feature_earthquake_shows"}}</p>
+                <p>{{t .server.Lang "help.feature_earthquake_intro"}} <a href="/earthquakes" class="text-cyan">{{t .server.Lang "help.feature_earthquake_page_link"}}</a> {{t .server.Lang "help.feature_earthquake_shows"}}</p>
                 <ul>
                     <li>{{t .server.Lang "help.feature_earthquake_filter_time"}}</li>
                     <li>{{t .server.Lang "help.feature_earthquake_filter_magnitude"}}</li>
@@ -185,14 +185,14 @@
                     <li><code>Accept: text/plain</code> - {{t .server.Lang "help.response_format_text"}}</li>
                     <li><code>Accept: text/html</code> - {{t .server.Lang "help.response_format_html"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help.graphql_endpoint_intro"}} <a href="/graphql" class="text-cyan"><code>/graphql</code></a>. {{t .server.Lang "help.graphql_endpoint_suffix"}}</p>
+                <p>{{t .server.Lang "help.graphql_endpoint_intro"}} <a href="/server/docs/graphql" class="text-cyan"><code>/server/docs/graphql</code></a>. {{t .server.Lang "help.graphql_endpoint_suffix"}}</p>
             </div>
         </details>
 
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.graphql_api_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help.graphql_send_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
+                <p>{{t .server.Lang "help.graphql_send_intro"}} <code>POST /api/graphql</code> {{t .server.Lang "help.graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
                 <p><strong>{{t .server.Lang "help.graphql_key_queries_heading"}}</strong></p>
                 <ul>
                     <li><code>weather(location: String!)</code> - {{t .server.Lang "help.graphql_query_weather"}}</li>
@@ -231,7 +231,7 @@
                     <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help.graphql_mutation_begin_admin_passkey_login"}}</li>
                     <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_admin_passkey_login"}}</li>
                 </ul>
-                <p>{{t .server.Lang "help.graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_introspection_middle"}} <a href="/graphql" class="text-cyan">{{t .server.Lang "help.graphql_playground_link"}}</a>.</p>
+                <p>{{t .server.Lang "help.graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_introspection_middle"}} <a href="/server/docs/graphql" class="text-cyan">{{t .server.Lang "help.graphql_playground_link"}}</a>.</p>
             </div>
         </details>
     </div>

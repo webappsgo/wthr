@@ -277,7 +277,7 @@
             <div id="test-result" class="alert d-none" role="status" aria-live="polite"></div>
 
     <script type="application/json" id="admin-email-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}}</script>
-    <script src="/static/js/app.js"></script>
+    <script src="{{asset "/static/js/app.js"}}"></script>
 
 {{template "admin_footer" .}}
 {{end}}

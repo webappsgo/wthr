@@ -186,7 +186,7 @@ func isPublicEndpoint(requestPath string) bool {
 		"/server/healthz",
 		"/healthz",
 		"/metrics",
-		"/openapi",
+		"/server/docs",
 	}
 	for _, prefix := range publicPrefixes {
 		if strings.HasPrefix(requestPath, prefix) {

@@ -2,7 +2,7 @@
   "use strict";
 
   var container = document.getElementById("graphiql");
-  var endpoint = container.dataset.endpoint || "/graphql";
+  var endpoint = container.dataset.endpoint || "/api/graphql";
 
   var url = location.protocol + "//" + location.host + endpoint;
   var wsProto = location.protocol === "https:" ? "wss:" : "ws:";

@@ -12,7 +12,7 @@
             <a href="/" class="navbar-link {{if eq .page "weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.home"}}" title="View current weather conditions">{{t .lang "nav.home"}}</a>
             <a href="/moon" class="navbar-link {{if eq .page "moon"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.moon"}}" title="View moon phases and lunar information">{{t .lang "nav.moon"}}</a>
             <a href="/severe-weather" class="navbar-link {{if eq .page "severe-weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.alerts"}}" title="View severe weather alerts and warnings">{{t .lang "nav.alerts"}}</a>
-            <a href="/earthquake" class="navbar-link {{if eq .page "earthquake"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.earthquakes"}}" title="View recent earthquake activity">{{t .lang "nav.earthquakes"}}</a>
+            <a href="/earthquakes" class="navbar-link {{if eq .page "earthquake"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.earthquakes"}}" title="View recent earthquake activity">{{t .lang "nav.earthquakes"}}</a>
             <a href="/users/dashboard" class="navbar-link {{if eq .page "dashboard"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.settings"}}" title="View your saved locations and preferences">{{t .lang "nav.settings"}}</a>
         </div>
 
@@ -153,7 +153,7 @@
         <a href="/" class="mobile-menu-item" role="menuitem" title="View current weather">{{t .lang "nav.home"}}</a>
         <a href="/moon" class="mobile-menu-item" role="menuitem" title="View moon phases">{{t .lang "nav.moon"}}</a>
         <a href="/severe-weather" class="mobile-menu-item" role="menuitem" title="View severe weather alerts">{{t .lang "nav.alerts"}}</a>
-        <a href="/earthquake" class="mobile-menu-item" role="menuitem" title="View earthquakes">{{t .lang "nav.earthquakes"}}</a>
+        <a href="/earthquakes" class="mobile-menu-item" role="menuitem" title="View earthquakes">{{t .lang "nav.earthquakes"}}</a>
         <a href="/users/dashboard" class="mobile-menu-item" role="menuitem" title="View your dashboard">{{t .lang "nav.settings"}}</a>
         <a href="/server/preferences" class="mobile-menu-item" role="menuitem" title="{{t .lang "preferences.description"}}">{{t .lang "nav.preferences"}}</a>
     </div>

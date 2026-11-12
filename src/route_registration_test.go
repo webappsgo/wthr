@@ -114,8 +114,8 @@ func TestRegisterHealthRoutesHasNoUndocumentedRoutes(t *testing.T) {
 	}
 }
 
-// TestRegisterGraphQLRoutes covers AI.md PART 14: the API-path GraphQL alias
-// must mount the same handlers as /graphql instead of redirecting to it.
+// TestRegisterGraphQLRoutes covers AI.md PART 14: GraphiQL lives under /server/docs, and the
+// unversioned /api/graphql alias mounts the same query handler as the versioned route.
 func TestRegisterGraphQLRoutes(t *testing.T) {
 	query := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("query")) }
 	playground := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("playground")) }
@@ -126,23 +126,47 @@ func TestRegisterGraphQLRoutes(t *testing.T) {
 	registered := routeMethodPaths(r)
 
 	for _, want := range []string{
-		"POST /graphql",
-		"GET /graphql",
-		"GET /graphql/assets/*",
-		"POST /api/v1/graphql",
-		"GET /api/v1/graphql",
+		"GET /server/docs/graphql",
+		"GET /server/docs/graphql/assets/*",
+		"POST /api/v1/server/graphql",
+		"POST /api/graphql",
 	} {
 		if !registered[want] {
 			t.Fatalf("route %q not registered, got %v", want, registered)
 		}
 	}
+	for _, old := range []string{"POST /graphql", "GET /graphql", "GET /api/v1/graphql", "POST /api/v1/graphql"} {
+		if registered[old] {
+			t.Fatalf("removed route %q is still registered", old)
+		}
+	}
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/graphql", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("GET /api/v1/graphql status = %d, want %d (alias must not redirect)", w.Code, http.StatusOK)
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/graphql", nil))
+	if w.Code != http.StatusOK || w.Body.String() != "query" {
+		t.Fatalf("POST /api/graphql = %d %q, want the query handler (alias must not redirect)", w.Code, w.Body.String())
 	}
-	if w.Body.String() != "playground" {
-		t.Fatalf("GET /api/v1/graphql body = %q, want the playground output %q", w.Body.String(), "playground")
+}
+
+// TestRegisterSwaggerRoutes covers AI.md PART 14: the spec alias serves the same handler.
+func TestRegisterSwaggerRoutes(t *testing.T) {
+	spec := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("spec")) }
+	ui := func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("ui")) }
+
+	r := chi.NewRouter()
+	registerSwaggerRoutes(r, "/api/v1", spec, ui)
+	registered := routeMethodPaths(r)
+
+	for _, want := range []string{"GET /server/docs/swagger", "GET /api/v1/server/swagger", "GET /api/swagger"} {
+		if !registered[want] {
+			t.Fatalf("route %q not registered, got %v", want, registered)
+		}
+	}
+	for _, path := range []string{"/api/swagger", "/api/v1/server/swagger"} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != http.StatusOK || w.Body.String() != "spec" {
+			t.Fatalf("GET %s = %d %q, want the spec handler", path, w.Code, w.Body.String())
+		}
 	}
 }

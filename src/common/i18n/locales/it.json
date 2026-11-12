@@ -4233,5 +4233,8 @@
   "health.check.geoip_city": "GeoIP: città",
   "health.check.geoip_asn": "GeoIP: ASN",
   "health.check.data_countries": "Dati: paesi",
-  "health.check.data_cities": "Dati: città"
+  "health.check.data_cities": "Dati: città",
+  "pwa.update_available": "È disponibile una nuova versione",
+  "pwa.update_now": "Aggiorna ora",
+  "pwa.later": "Più tardi"
 }

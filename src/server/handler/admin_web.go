@@ -277,7 +277,7 @@ func (h *AdminWebHandler) ServeSitemap(w http.ResponseWriter, r *http.Request) {
 	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/moon</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
 
 	// OpenAPI docs - priority 0.7, weekly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/openapi</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
+	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/server/docs/swagger</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
 
 	// GraphQL endpoint - priority 0.7, weekly
 	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/graphql</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))

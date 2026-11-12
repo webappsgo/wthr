@@ -8437,4 +8437,139 @@
   // Initialize theme system
   Theme.init();
 
+  // PWA: service worker registration, update prompt, and boot watchdog (AI.md PART 16)
+  const Pwa = {
+    recoveredFlag: 'wthr_recovered',
+
+    strings: {
+      'pwa.update_available': 'A new version is available',
+      'pwa.update_now': 'Update now',
+      'pwa.later': 'Later'
+    },
+
+    async loadStrings() {
+      const lang = (document.documentElement.lang || 'en').split('-')[0];
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(function() { controller.abort(); }, 30000);
+        const response = await fetch('/locales/' + encodeURIComponent(lang) + '.json', { signal: controller.signal });
+        clearTimeout(timer);
+        if (response.ok) {
+          const messages = await response.json();
+          Object.keys(Pwa.strings).forEach(function(key) {
+            if (typeof messages[key] === 'string' && messages[key] !== '') {
+              Pwa.strings[key] = messages[key];
+            }
+          });
+        }
+      } catch (e) {
+        // English fallback strings stay in place
+      }
+    },
+
+    async showUpdate() {
+      if (document.querySelector('.update-banner')) {
+        return;
+      }
+      await Pwa.loadStrings();
+      const banner = document.createElement('div');
+      banner.className = 'update-banner';
+      banner.setAttribute('role', 'status');
+      banner.setAttribute('aria-live', 'polite');
+      const label = document.createElement('span');
+      label.textContent = Pwa.strings['pwa.update_available'];
+      const update = document.createElement('button');
+      update.type = 'button';
+      update.className = 'btn btn-primary';
+      update.textContent = Pwa.strings['pwa.update_now'];
+      update.addEventListener('click', function() {
+        navigator.serviceWorker.ready.then(function(registration) {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          } else {
+            window.location.reload();
+          }
+        });
+      });
+      const later = document.createElement('button');
+      later.type = 'button';
+      later.className = 'btn';
+      later.textContent = Pwa.strings['pwa.later'];
+      later.addEventListener('click', function() { banner.remove(); });
+      banner.append(label, update, later);
+      document.body.appendChild(banner);
+    },
+
+    register() {
+      if (!('serviceWorker' in navigator)) {
+        return;
+      }
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (reloaded || !Pwa.hadController) {
+          return;
+        }
+        reloaded = true;
+        window.location.reload();
+      });
+      Pwa.hadController = !!navigator.serviceWorker.controller;
+      window.addEventListener('load', async function() {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          registration.addEventListener('updatefound', function() {
+            const worker = registration.installing;
+            if (!worker) {
+              return;
+            }
+            worker.addEventListener('statechange', function() {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                Pwa.showUpdate();
+              }
+            });
+          });
+          setInterval(function() { registration.update(); }, 60 * 60 * 1000);
+        } catch (e) {
+          // The site is fully usable without a service worker
+        }
+      });
+    },
+
+    // Boot watchdog: if the first render never completes, unregister every
+    // service worker, drop every cache and reload once per tab; a second
+    // expiry leaves the page as is instead of looping.
+    watchdog() {
+      const timer = setTimeout(async function() {
+        try {
+          if (sessionStorage.getItem(Pwa.recoveredFlag)) {
+            return;
+          }
+          sessionStorage.setItem(Pwa.recoveredFlag, '1');
+        } catch (e) {
+          return;
+        }
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(function(r) { return r.unregister(); }));
+          }
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(function(k) { return caches.delete(k); }));
+          }
+        } finally {
+          window.location.reload();
+        }
+      }, 10000);
+      const done = function() { clearTimeout(timer); };
+      if (document.readyState === 'complete') {
+        done();
+      } else {
+        window.addEventListener('load', done);
+      }
+    }
+  };
+
+  Pwa.watchdog();
+  Pwa.register();
+
 })();

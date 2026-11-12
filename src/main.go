@@ -44,12 +44,14 @@ import (
 	"github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/scheduler"
 	"github.com/webappsgo/wthr/src/server"
+	"github.com/webappsgo/wthr/src/server/buildstamp"
 	"github.com/webappsgo/wthr/src/server/handler"
 	"github.com/webappsgo/wthr/src/server/health"
 	"github.com/webappsgo/wthr/src/server/lifecycle"
 	"github.com/webappsgo/wthr/src/server/metric"
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"github.com/webappsgo/wthr/src/server/model"
+	"github.com/webappsgo/wthr/src/server/pwa"
 	"github.com/webappsgo/wthr/src/server/reqctx"
 	"github.com/webappsgo/wthr/src/server/service"
 	"github.com/webappsgo/wthr/src/util"
@@ -214,20 +216,30 @@ func registerMetricsRoutes(r chi.Router, apiPath string, rootAliasEnabled bool, 
 	}
 }
 
-// registerGraphQLRoutes mounts the GraphQL endpoint and its API-path alias per AI.md PART 14
-// The alias mounts the SAME handlers as /graphql — an alias is never a redirect
+// registerGraphQLRoutes mounts the GraphQL surfaces of AI.md PART 14: the GraphiQL UI at
+// /server/docs/graphql, and the query endpoint at /api/{api_version}/server/graphql with its
+// /api/graphql alias. The alias mounts the SAME handler - an alias is never a redirect.
 func registerGraphQLRoutes(r chi.Router, apiPath string, query, playground, assets http.HandlerFunc) {
-	r.Post("/graphql", query)
-	r.Get("/graphql", playground)
+	r.Get("/server/docs/graphql", playground)
 	// Locally embedded playground assets (React/GraphiQL/theme/init script) -
 	// never loaded from a CDN, see src/graphql/playground.go.
-	r.Get("/graphql/assets/*", assets)
-	aliasPath := apiPath + "/graphql"
-	r.Post(aliasPath, query)
-	r.Get(aliasPath, playground)
+	r.Get("/server/docs/graphql/assets/*", assets)
+	r.Post(apiPath+"/server/graphql", query)
+	r.Post("/api/graphql", query)
+}
+
+// registerSwaggerRoutes mounts the OpenAPI surfaces of AI.md PART 14: the Swagger UI at
+// /server/docs/swagger, and the JSON spec at /api/{api_version}/server/swagger with its
+// /api/swagger alias served by the same handler.
+func registerSwaggerRoutes(r chi.Router, apiPath string, spec, ui http.HandlerFunc) {
+	r.Get("/server/docs/swagger", ui)
+	r.Get("/server/docs/swagger/*", ui)
+	r.Get(apiPath+"/server/swagger", spec)
+	r.Get("/api/swagger", spec)
 }
 
 func main() {
+	buildstamp.Set(Version, CommitID)
 	// Initialize CLI
 	cliInstance := cli.NewCLI()
 
@@ -875,8 +887,12 @@ func main() {
 		log.Printf("Failed to get static subdirectory: %v", err)
 		os.Exit(1)
 	}
-	staticFileServer := http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS)))
+	staticFileServer := pwa.StaticCache(http.StripPrefix("/static", http.FileServer(http.FS(staticSubFS))))
 	r.Handle("/static/*", staticFileServer)
+	r.Get("/sw.js", pwa.ServiceWorker)
+	r.Get("/manifest.json", pwa.Manifest)
+	r.Get("/offline.html", pwa.Offline)
+	r.Get("/locales/{file}", serveLocale)
 
 	// Load embedded templates with custom functions from server package
 	// Get embedded templates filesystem
@@ -915,6 +931,7 @@ func main() {
 		// path builds an origin-relative same-origin URL: the configured {baseurl} prefix plus the
 		// given path (AI.md PART 1 "Auto-config for clients")
 		"path":      func(p string) string { return util.OriginRelativePath(config.GetGlobalConfig(), p) },
+		"asset":     buildstamp.Asset,
 		"lower":     strings.ToLower,
 		"nextTheme": server.NextTheme,
 		"title":     func(s string) string { return cases.Title(language.English).String(s) },
@@ -4175,9 +4192,9 @@ func main() {
 			},
 			"current_version": cfg.GetAPIVersion(),
 			"documentation":   "http://" + r.Host + "/docs",
-			"openapi":         "http://" + r.Host + "/openapi.json",
-			"swagger":         "http://" + r.Host + "/openapi",
-			"graphql":         "http://" + r.Host + "/graphql",
+			"openapi":         "http://" + r.Host + "/api/swagger",
+			"swagger":         "http://" + r.Host + "/server/docs/swagger",
+			"graphql":         "http://" + r.Host + "/api/graphql",
 		})
 	})
 
@@ -4278,14 +4295,7 @@ func main() {
 	})
 
 	// OpenAPI/Swagger documentation (AI.md PART 14)
-	// Root-level endpoints per AI.md specification
-	r.Get("/openapi", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/openapi/index.html", http.StatusMovedPermanently)
-	})
-	// Swagger UI + JSON spec (auto-generated)
-	r.Get("/openapi/doc.json", mcpServer.OpenAPI)
-	r.Get("/openapi/*", handler.GetSwaggerUIAuto())
-	r.Get("/openapi.json", mcpServer.OpenAPI)
+	registerSwaggerRoutes(r, cfg.GetAPIPath(), mcpServer.OpenAPI, handler.GetSwaggerUIAuto())
 	r.Get("/.well-known/llms.txt", mcpServer.LLMS)
 	r.Get("/llms.txt", mcpServer.LLMS)
 
@@ -4313,11 +4323,11 @@ func main() {
 	// mounting the same handlers (never a redirect).
 	registerGraphQLRoutes(r, cfg.GetAPIPath(),
 		appgraphql.GraphQLHandler(graphqlServer),
-		appgraphql.PlaygroundHandler("/graphql"),
+		appgraphql.PlaygroundHandler("/api/graphql"),
 		appgraphql.PlaygroundAssetHandler())
 
-	appLogger.Printf("GraphQL API enabled at /graphql")
-	fmt.Printf("%s GraphQL API enabled at /graphql\n", display.Emoji("✅", "[OK]"))
+	appLogger.Printf("GraphQL API enabled at /api/graphql")
+	fmt.Printf("%s GraphQL API enabled at /api/graphql\n", display.Emoji("✅", "[OK]"))
 
 	// HTML documentation page at /docs
 	r.Get("/docs", apiHandler.GetDocsHTML)
@@ -4367,12 +4377,8 @@ func main() {
 
 	// Earthquake routes (plural per AI.md PART 14)
 	r.Get("/earthquakes", earthquakeHandler.HandleEarthquakeRequest)
+	r.Get("/earthquakes/detail/{id}", earthquakeHandler.HandleEarthquakeDetail)
 	r.Get("/earthquakes/{location}", earthquakeHandler.HandleEarthquakeRequest)
-
-	// Backwards compatibility: singular -> plural redirect
-	r.Get("/earthquake", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/earthquakes", http.StatusMovedPermanently)
-	})
 
 	// Hurricane tracking page - AI.md PART 14 frontend content negotiation
 	r.Get("/hurricanes", hurricaneHandler.HandleHurricaneRequest)
@@ -4920,4 +4926,27 @@ func pidFileEnabled(value interface{}) bool {
 	enabled, err := config.ParseBool(fmt.Sprint(value), true)
 
 	return err != nil || enabled
+}
+
+// serveLocale serves /locales/{lang}.json from the embedded locale files so the
+// WebUI fetches the same translations the server uses (AI.md PART 31). An
+// unsupported language silently falls back to English.
+func serveLocale(w http.ResponseWriter, r *http.Request) {
+	lang := strings.TrimSuffix(chi.URLParam(r, "file"), ".json")
+	if lang == "" || strings.ContainsAny(lang, "/\\.") || !i18n.IsRegisteredCode(lang) {
+		lang = "en"
+	}
+	data, err := localesFS.ReadFile("common/i18n/locales/" + lang + ".json")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("ETag", buildstamp.ETag())
+	if r.Header.Get("If-None-Match") == buildstamp.ETag() {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	_, _ = w.Write(data)
 }

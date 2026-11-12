@@ -325,8 +325,11 @@ a:hover {
 
 .navbar-container {
   display: flex;
+  /* Zones wrap onto a second row on narrow screens instead of overflowing */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-sm);
   padding: var(--space-md);
   max-width: 1400px;
   margin: 0 auto;
@@ -383,8 +386,18 @@ a:hover {
 
 .navbar-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-md);
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .navbar-actions {
+    gap: var(--space-md);
+  }
 }
 
 /* Language Selector (PART 31) */
@@ -2547,6 +2560,7 @@ textarea:user-invalid {
 .code-wrapper {
   position: relative;
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -2563,6 +2577,7 @@ textarea:user-invalid {
   display: block;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
@@ -3668,9 +3683,10 @@ textarea:user-invalid {
   margin: 0;
   font-size: 0.875rem;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-sm) var(--space-lg);
 }
 
 .page-footer__divider {
@@ -7929,4 +7945,9 @@ pre.select-all {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-md);
+}
+
+/* Long inline code (identifiers, URLs) wraps instead of widening the page */
+code {
+  overflow-wrap: anywhere;
 }

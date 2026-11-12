@@ -4233,5 +4233,8 @@
   "health.check.geoip_city": "GeoIP：都市",
   "health.check.geoip_asn": "GeoIP：ASN",
   "health.check.data_countries": "データ：国",
-  "health.check.data_cities": "データ：都市"
+  "health.check.data_cities": "データ：都市",
+  "pwa.update_available": "新しいバージョンが利用可能です",
+  "pwa.update_now": "今すぐ更新",
+  "pwa.later": "後で"
 }

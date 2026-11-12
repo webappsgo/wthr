@@ -20,7 +20,7 @@ var playgroundAssets embed.FS
 // playgroundAssetPrefix is the route prefix the embedded playground assets
 // are served under. Kept local (never a CDN) per the project's CSP
 // (script-src 'self'), offline-first, and self-contained-binary rules.
-const playgroundAssetPrefix = "/graphql/assets/"
+const playgroundAssetPrefix = "/server/docs/graphql/assets/"
 
 // playgroundAssetContentType maps served file extensions to their MIME type;
 // embed.FS carries no metadata and minimal container images may lack a

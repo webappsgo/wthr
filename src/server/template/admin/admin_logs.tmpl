@@ -106,6 +106,6 @@
     </div>
 
     <script type="application/json" id="admin-logs-data">{"adminApiPath": {{.admin_api_path}}}</script>
-    <script src="/static/js/app.js"></script>
+    <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

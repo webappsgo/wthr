@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/webappsgo/wthr/src/server/buildstamp"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -48,6 +49,7 @@ func LoadTemplates() (*template.Template, error) {
 		"nextTheme": NextTheme,
 		// Placeholder: main registers the real {baseurl}-aware path helper
 		"path":  func(p string) string { return p },
+		"asset": buildstamp.Asset,
 		"title": func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b

@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🌍 {{t .server.Lang "earthquake.page_title"}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
-    <script src="/static/js/app.js" defer></script>
+    <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
+    <script src="{{asset "/static/js/app.js"}}" defer></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
@@ -97,7 +97,7 @@
                 <button type="button"
                         class="search-button secondary flex-1"
                         data-action="navigate"
-                        data-href="/earthquake?feed={{.FeedType}}"
+                        data-href="/earthquakes?feed={{.FeedType}}"
                         aria-label="{{t .server.Lang "earthquake.view_all_aria"}}"
                         title="{{t .server.Lang "earthquake.view_all_title"}}">
                     🗺️ {{t .server.Lang "earthquake.view_all_label"}}
@@ -189,7 +189,7 @@
                                 {{if .MMI}}<div><strong>MMI:</strong> {{printf "%.1f" .MMI}}</div>{{end}}
                             </div>
                         </div>
-                        <a href="/earthquake/detail/{{.ID}}" data-action="stop-propagation" class="text-cyan font-medium">{{t $.server.Lang "earthquake.details_link"}} →</a>
+                        <a href="/earthquakes/detail/{{.ID}}" data-action="stop-propagation" class="text-cyan font-medium">{{t $.server.Lang "earthquake.details_link"}} →</a>
                     </div>
                 </div>
                 {{else}}

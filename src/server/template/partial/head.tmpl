@@ -61,12 +61,12 @@
     }
     </script>
 
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
     <!-- AI.md PART 16: All JavaScript in ONE file -->
-    <script src="/static/js/app.js" defer></script>
+    <script src="{{asset "/static/js/app.js"}}" defer></script>
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#282a36">
     {{if .server.TrackingHTML}}{{.server.TrackingHTML}}{{end}}

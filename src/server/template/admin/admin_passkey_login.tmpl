@@ -7,9 +7,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{t $lang "admin.passkey_login.heading"}} — {{.app_name}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
+    <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/admin.css"}}">
 </head>
 <body>
     <main id="main-content" class="auth-container">
@@ -32,7 +32,7 @@
             </div>
 
             <script type="application/json" id="admin-passkey-login-data">{"pendingToken": {{.pending_session_token}}, "adminPath": {{.admin_path}}}</script>
-            <script src="/static/js/app.js"></script>
+            <script src="{{asset "/static/js/app.js"}}"></script>
             {{end}}
         </div>
     </main>

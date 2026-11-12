@@ -4233,5 +4233,8 @@
   "health.check.geoip_city": "GeoIP：城市",
   "health.check.geoip_asn": "GeoIP：ASN",
   "health.check.data_countries": "数据：国家",
-  "health.check.data_cities": "数据：城市"
+  "health.check.data_cities": "数据：城市",
+  "pwa.update_available": "有新版本可用",
+  "pwa.update_now": "立即更新",
+  "pwa.later": "稍后"
 }

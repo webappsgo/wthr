@@ -27,10 +27,10 @@
     <nav class="eq-detail-nav">
         <a href="/" class="eq-detail-nav__link eq-detail-nav__link--home">🏠 {{t .server.Lang "earthquake.detail_nav_home"}}</a>
         <a href="/moon" class="eq-detail-nav__link eq-detail-nav__link--moon">🌙 {{t .server.Lang "earthquake.detail_nav_moon"}}</a>
-        <a href="/earthquake" class="eq-detail-nav__link eq-detail-nav__link--earthquake">🌍 {{t .server.Lang "earthquake.detail_nav_earthquakes"}}</a>
+        <a href="/earthquakes" class="eq-detail-nav__link eq-detail-nav__link--earthquake">🌍 {{t .server.Lang "earthquake.detail_nav_earthquakes"}}</a>
     </nav>
 
-    <a href="/earthquake" class="eq-detail-back-link">← {{t .server.Lang "earthquake.detail_back_link"}}</a>
+    <a href="/earthquakes" class="eq-detail-back-link">← {{t .server.Lang "earthquake.detail_back_link"}}</a>
 
     <section class="eq-detail-card">
         <h1 class="eq-detail-title {{$titleClass}}">{{.Earthquake.Place}}</h1>
@@ -117,8 +117,8 @@
             <div class="command-item">
                 <strong class="console-section__label">{{t .server.Lang "earthquake.detail_command_label"}}</strong>
                 <div class="code-wrapper">
-                    <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}</code>
-                    <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/earthquake/detail/{{.Earthquake.ID}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
+                    <code class="mobile-code">curl -q -LSs {{.HostInfo.FullHost}}/earthquakes/detail/{{.Earthquake.ID}}</code>
+                    <button class="copy-btn" data-action="copy-command" data-text="curl -q -LSs {{.HostInfo.FullHost}}/earthquakes/detail/{{.Earthquake.ID}}">{{t .server.Lang "admin.tor.copy_action"}}</button>
                 </div>
             </div>
         </div>

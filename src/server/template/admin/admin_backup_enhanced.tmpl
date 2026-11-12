@@ -119,6 +119,6 @@
     </div>
 
     <script type="application/json" id="admin-backup-data">{"adminApiPath": {{.admin_api_path}}, "text": {"never": {{t $lang "admin.backup.msg_never"}}, "empty": {{t $lang "admin.backup.empty_message"}}, "created": {{t $lang "admin.backup.msg_created"}}, "creating": {{t $lang "admin.backup.msg_creating"}}, "createFailed": {{t $lang "admin.backup.msg_create_failed"}}, "deleteConfirm": {{t $lang "admin.backup.msg_delete_confirm"}}, "deleted": {{t $lang "admin.backup.msg_deleted"}}, "deleteFailed": {{t $lang "admin.backup.msg_delete_failed"}}, "restoreConfirm": {{t $lang "admin.backup.msg_restore_confirm"}}, "restored": {{t $lang "admin.backup.msg_restored"}}, "restoreFailed": {{t $lang "admin.backup.msg_restore_failed"}}, "loadFailed": {{t $lang "admin.backup.msg_load_failed"}}, "scheduleSaved": {{t $lang "admin.backup.msg_schedule_saved"}}, "scheduleFailed": {{t $lang "admin.backup.msg_schedule_failed"}}, "createAction": {{t $lang "admin.backup.create_action"}}, "downloadAction": {{t $lang "admin.backup.download_action"}}, "restoreAction": {{t $lang "admin.backup.restore_action"}}, "deleteAction": {{t $lang "admin.backup.delete_action"}}, "saveScheduleAction": {{t $lang "admin.backup.save_schedule_action"}}, "encryptedYes": {{t $lang "admin.backup.encrypted_yes"}}, "encryptedNo": {{t $lang "admin.backup.encrypted_no"}}}}</script>
-    <script src="/static/js/app.js"></script>
+    <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

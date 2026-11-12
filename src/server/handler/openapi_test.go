@@ -15,7 +15,7 @@ func TestGetSwaggerUIAuto(t *testing.T) {
 		t.Fatal("GetSwaggerUIAuto() returned a nil handler")
 	}
 
-	r := httptest.NewRequest(http.MethodGet, "/openapi/index.html", nil)
+	r := httptest.NewRequest(http.MethodGet, "/server/docs/swagger", nil)
 	w := httptest.NewRecorder()
 
 	handlerFunc(w, r)

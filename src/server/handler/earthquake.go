@@ -175,7 +175,7 @@ func (h *EarthquakeHandler) HandleEarthquakesByLocation(w http.ResponseWriter, r
 
 	locationInput := chi.URLParam(r, "location")
 	if locationInput == "" {
-		http.Redirect(w, r, "/earthquake", http.StatusFound)
+		http.Redirect(w, r, "/earthquakes", http.StatusFound)
 		return
 	}
 
@@ -436,16 +436,6 @@ func (h *EarthquakeHandler) HandleEarthquakeRequest(w http.ResponseWriter, r *ht
 	location := chi.URLParam(r, "location")
 	if location != "" {
 		location = strings.TrimPrefix(location, "/")
-	}
-
-	// Check if this is a detail request
-	if strings.HasPrefix(location, "detail/") {
-		earthquakeID := strings.TrimPrefix(location, "detail/")
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add("id", earthquakeID)
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
-		h.HandleEarthquakeDetail(w, r)
-		return
 	}
 
 	isBrowser := util.IsBrowser(r)

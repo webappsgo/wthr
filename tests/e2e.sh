@@ -61,9 +61,11 @@ docker run --rm \
   --ipc=host \
   -v "$BUILD_DIR:/artifacts:ro" \
   -e "PROJECTNAME=$PROJECTNAME" \
-  mcr.microsoft.com/playwright:latest bash -c '
+  mcr.microsoft.com/playwright:v1.49.1-jammy bash -c '
     set -euo pipefail
     mkdir -p /tmp/e2e/config /tmp/e2e/data /tmp/e2e/log
+    # The matrix loads thousands of pages from one IP; per-IP rate limiting is covered by unit tests
+    printf "server:\n  rate_limit:\n    enabled: false\n" > /tmp/e2e/config/server.yml
     cp "/artifacts/$PROJECTNAME" /tmp/e2e/server
     chmod +x /tmp/e2e/server
     /tmp/e2e/server --config /tmp/e2e/config --data /tmp/e2e/data --log /tmp/e2e/log --port 64999 >/tmp/e2e/server.out 2>&1 &
@@ -75,7 +77,7 @@ docker run --rm \
     done
     cd /tmp/e2e
     npm init -y >/dev/null 2>&1
-    npm install --silent playwright >/dev/null 2>&1
+    npm install --silent playwright@1.49.1 >/dev/null 2>&1
     cp /artifacts/layout.mjs /tmp/e2e/layout.mjs
     BASE_URL=http://127.0.0.1:64999 node /tmp/e2e/layout.mjs
   '

@@ -38,6 +38,11 @@ for (const [width, height] of viewports) {
           continue;
         }
         // The disabled MCP page is a legitimate 404; every other page must render
+        if (response.status() >= 400 && response.status() !== 404) {
+          failures.push(`${label}: status ${response.status()}`);
+          await page.close();
+          continue;
+        }
         if (response.status() === 404) {
           await page.close();
           continue;
@@ -47,13 +52,26 @@ for (const [width, height] of viewports) {
           const root = document.documentElement;
           if (root.scrollWidth > window.innerWidth) {
             out.push(`horizontal overflow (${root.scrollWidth} > ${window.innerWidth})`);
+            let widest = null;
+            for (const el of document.querySelectorAll('body *')) {
+              const rect = el.getBoundingClientRect();
+              if (rect.width > 0 && (!widest || rect.right > widest.right)) widest = { right: rect.right, el };
+            }
+            const wide = [];
+            for (const el of document.querySelectorAll('body, body *')) {
+              if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && getComputedStyle(el).overflowX === 'visible') {
+                wide.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]}(${el.scrollWidth}>${el.clientWidth})`);
+              }
+            }
+            if (wide.length) out.push(`scroll-wider elements: ${wide.slice(0, 6).join(', ')}`);
+            if (widest) out.push(`widest element: ${widest.el.tagName.toLowerCase()}.${String(widest.el.className).split(' ')[0]} right=${Math.round(widest.right)}`);
           }
           for (const el of document.querySelectorAll('body *')) {
             const rect = el.getBoundingClientRect();
             const style = getComputedStyle(el);
             if (style.position === 'fixed' || style.display === 'none' || rect.width === 0) continue;
             if (rect.right > window.innerWidth + 1 && rect.left >= 0 && !el.closest('.table-scroll, pre, .nav-panel')) {
-              out.push(`element past viewport: ${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).split(' ')[0] : ''}`);
+              out.push(`element past viewport: ${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).split(' ')[0] : ''} in ${el.parentElement ? el.parentElement.tagName.toLowerCase() + '.' + String(el.parentElement.className).split(' ')[0] : ''} (${Math.round(rect.right)}px) ${el.textContent.trim().slice(0, 30)}`);
               break;
             }
           }

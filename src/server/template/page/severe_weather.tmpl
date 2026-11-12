@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
-    <link rel="stylesheet" href="/static/css/common.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/public.css">
-    <script src="/static/js/app.js" defer></script>
+    <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
+    <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
+    <script src="{{asset "/static/js/app.js"}}" defer></script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚠️</text></svg>">
 </head>
 <body>
@@ -471,7 +471,7 @@
     </div>
 
     <script type="application/json" id="severe-weather-page-data">{"apiPath": {{.api_path}}, "gettingLocation": {{t .server.Lang "severe.weather_getting_location_button"}}, "foundLocation": {{t .server.Lang "severe.weather_location_found_button"}}, "locationError": {{t .server.Lang "severe.weather_location_error_message"}}}</script>
-    <script src="/static/js/severe-weather.js" defer></script>
+    <script src="{{asset "/static/js/severe-weather.js"}}" defer></script>
 
 {{if not .HideFooter}}
 {{template "footer" .}}

@@ -53,7 +53,7 @@ func TestCSRFProtection_SkipsSafeMethods(t *testing.T) {
 func TestCSRFProtection_SkipsUnauthenticatedPublicEndpoints(t *testing.T) {
 	cfg := DefaultCSRFConfig()
 
-	for _, requestPath := range []string{"/server/healthz", "/healthz", "/metrics", "/openapi.json"} {
+	for _, requestPath := range []string{"/server/healthz", "/healthz", "/metrics", "/server/docs/swagger"} {
 		t.Run(requestPath, func(t *testing.T) {
 			handler := CSRFProtection(cfg)(okHandler)
 

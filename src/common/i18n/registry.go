@@ -34,3 +34,14 @@ func RegistryCodes() []string {
 
 	return codes
 }
+
+// IsRegisteredCode reports whether code is a registry language code.
+func IsRegisteredCode(code string) bool {
+	for _, spec := range Registry {
+		if spec.Code == code {
+			return true
+		}
+	}
+
+	return false
+}

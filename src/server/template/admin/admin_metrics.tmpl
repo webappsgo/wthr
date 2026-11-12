@@ -192,6 +192,6 @@
     </div>
 
     <script type="application/json" id="admin-metrics-data">{"apiPath": {{.api_path}}, "adminApiPath": {{.admin_api_path}}, "csrfToken": {{.csrf_token}}, "msgLoadError": {{t $lang "admin.metrics.load_error"}}, "msgExportError": {{t $lang "admin.metrics.export_error"}}, "registeredEmpty": {{t $lang "admin.metrics.registered_empty"}}}</script>
-    <script src="/static/js/app.js"></script>
+    <script src="{{asset "/static/js/app.js"}}"></script>
 {{template "admin_footer" .}}
 {{end}}

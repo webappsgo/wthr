@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
@@ -14,11 +15,18 @@ import (
 // Serves Swagger UI at /openapi per AI.md PART 14
 func GetSwaggerUIAuto() http.HandlerFunc {
 	// Swagger UI inherits the shared theme system per AI.md PART 16
-	return httpSwagger.Handler(
-		// Relative URL for the JSON spec
-		httpSwagger.URL("doc.json"),
+	ui := httpSwagger.Handler(
+		// The spec is fetched from the unversioned alias (AI.md PART 14)
+		httpSwagger.URL("/api/swagger"),
 		httpSwagger.DocExpansion("list"),
 		httpSwagger.DeepLinking(true),
 		httpSwagger.PersistAuthorization(true),
 	)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSuffix(r.URL.Path, "/") == "/server/docs/swagger" {
+			r.URL.Path = "/server/docs/swagger/index.html"
+		}
+		ui(w, r)
+	}
 }
