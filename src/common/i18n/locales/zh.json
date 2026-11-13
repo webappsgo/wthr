@@ -4244,5 +4244,16 @@
   "location.timezone": "时区",
   "location.population": "人口",
   "location.unknown": "未知",
-  "severe.weather_heading": "恶劣天气警报"
+  "severe.weather_heading": "恶劣天气警报",
+  "nav.main_aria": "主导航",
+  "nav.mobile_aria": "移动导航",
+  "nav.notifications": "通知",
+  "nav.user_menu": "用户菜单",
+  "nav.menu_toggle": "切换导航菜单",
+  "nav.no_notifications": "没有通知",
+  "nav.view_all": "查看全部",
+  "nav.profile": "个人资料",
+  "nav.security": "安全",
+  "nav.api_tokens": "API 令牌",
+  "nav.help": "帮助"
 }

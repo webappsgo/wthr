@@ -1,19 +1,19 @@
 {{define "navbar"}}
-<nav id="navigation" class="navbar" role="navigation" aria-label="Main navigation">
+<nav id="navigation" class="navbar" role="navigation" aria-label="{{t .lang "nav.main_aria"}}">
     <div class="navbar-container">
         <!-- Zone A: Brand Logo -->
-        <a href="/" class="navbar-brand" aria-label="{{.server.Title}} home page" title="Go to home page">
+        <a href="/" class="navbar-brand" aria-label="{{.server.Title}} — {{t .lang "nav.home"}}">
             <span class="navbar-brand-icon" aria-hidden="true">🌤️</span>
             <span class="navbar-brand-text">{{.server.Title}}</span>
         </a>
 
         <!-- Zone B: Centered Navigation Menu -->
         <div class="navbar-menu" role="menubar">
-            <a href="/" class="navbar-link {{if eq .page "weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.home"}}" title="View current weather conditions">{{t .lang "nav.home"}}</a>
-            <a href="/moon" class="navbar-link {{if eq .page "moon"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.moon"}}" title="View moon phases and lunar information">{{t .lang "nav.moon"}}</a>
-            <a href="/severe-weather" class="navbar-link {{if eq .page "severe-weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.alerts"}}" title="View severe weather alerts and warnings">{{t .lang "nav.alerts"}}</a>
-            <a href="/earthquakes" class="navbar-link {{if eq .page "earthquake"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.earthquakes"}}" title="View recent earthquake activity">{{t .lang "nav.earthquakes"}}</a>
-            <a href="/users/dashboard" class="navbar-link {{if eq .page "dashboard"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.settings"}}" title="View your saved locations and preferences">{{t .lang "nav.settings"}}</a>
+            <a href="/" class="navbar-link {{if eq .page "weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.home"}}">{{t .lang "nav.home"}}</a>
+            <a href="/moon" class="navbar-link {{if eq .page "moon"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.moon"}}">{{t .lang "nav.moon"}}</a>
+            <a href="/severe-weather" class="navbar-link {{if eq .page "severe-weather"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.alerts"}}">{{t .lang "nav.alerts"}}</a>
+            <a href="/earthquakes" class="navbar-link {{if eq .page "earthquake"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.earthquakes"}}">{{t .lang "nav.earthquakes"}}</a>
+            <a href="/users/dashboard" class="navbar-link {{if eq .page "dashboard"}}active{{end}}" role="menuitem" aria-label="{{t .lang "nav.settings"}}">{{t .lang "nav.settings"}}</a>
         </div>
 
         <!-- Zone C: Profile & Preferences -->
@@ -33,8 +33,8 @@
 
             {{if .user.Email}}
             <!-- Notification Bell per AI.md lines 21581-21650 -->
-            <div class="notification-bell" aria-label="Notifications">
-                <button class="bell-button" data-action="nav-dropdown-toggle" data-dropdown-id="notification-dropdown" data-trigger-id="notification-bell" aria-haspopup="true" aria-expanded="false" title="View notifications">
+            <div class="notification-bell" aria-label="{{t .lang "nav.notifications"}}">
+                <button class="bell-button" data-action="nav-dropdown-toggle" data-dropdown-id="notification-dropdown" data-trigger-id="notification-bell" aria-haspopup="true" aria-expanded="false">
                     <svg class="bell-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
                     </svg>
@@ -42,19 +42,19 @@
                 </button>
                 <div class="notification-dropdown" id="notification-dropdown" role="menu" hidden>
                     <div class="dropdown-header">
-                        <span>Notifications</span>
-                        <button class="mark-all-read" data-action="nav-notifications-mark-all-read">Mark all read</button>
+                        <span>{{t .lang "nav.notifications"}}</span>
+                        <button class="mark-all-read" data-action="nav-notifications-mark-all-read">{{t .lang "notifications.mark_all_read"}}</button>
                     </div>
                     <div class="notification-list" id="notification-list">
-                        <div class="notification-empty">No notifications</div>
+                        <div class="notification-empty">{{t .lang "nav.no_notifications"}}</div>
                     </div>
-                    <a href="/users/notifications" class="dropdown-footer">View all</a>
+                    <a href="/users/notifications" class="dropdown-footer">{{t .lang "nav.view_all"}}</a>
                 </div>
             </div>
 
             <!-- Profile Avatar with Dropdown -->
             <div class="profile-avatar">
-                <button class="avatar" data-action="nav-dropdown-toggle" data-dropdown-id="profile-dropdown" data-trigger-id="profile-avatar" id="profile-avatar" aria-label="User menu" aria-haspopup="true" aria-expanded="false" title="Open user menu - Access profile, preferences, and logout">
+                <button class="avatar" data-action="nav-dropdown-toggle" data-dropdown-id="profile-dropdown" data-trigger-id="profile-avatar" id="profile-avatar" aria-label="{{t .lang "nav.user_menu"}}" aria-haspopup="true" aria-expanded="false">
                     {{ index .user.Email 0 | printf "%c" | upper }}
                 </button>
                 <div class="profile-dropdown" id="profile-dropdown" role="menu" aria-labelledby="profile-avatar">
@@ -81,10 +81,10 @@
                         </div>
                     </div>
                     <nav class="profile-dropdown-menu">
-                        <a href="/users/profile" class="profile-dropdown-item" role="menuitem" title="View and edit your profile settings">👤 Profile</a>
-                        <a href="/users/settings" class="profile-dropdown-item" role="menuitem" title="Account settings">⚙️ {{t .lang "nav.settings"}}</a>
-                        <a href="/users/security" class="profile-dropdown-item" role="menuitem" title="Password, 2FA, sessions">🔒 Security</a>
-                        <a href="/users/tokens" class="profile-dropdown-item" role="menuitem" title="Manage API tokens">🔑 API Tokens</a>
+                        <a href="/users/profile" class="profile-dropdown-item" role="menuitem">👤 {{t .lang "nav.profile"}}</a>
+                        <a href="/users/settings" class="profile-dropdown-item" role="menuitem">⚙️ {{t .lang "nav.settings"}}</a>
+                        <a href="/users/security" class="profile-dropdown-item" role="menuitem">🔒 {{t .lang "nav.security"}}</a>
+                        <a href="/users/tokens" class="profile-dropdown-item" role="menuitem">🔑 {{t .lang "nav.api_tokens"}}</a>
                         <a href="/server/preferences" class="profile-dropdown-item" role="menuitem" title="{{t .lang "preferences.description"}}">🎨 {{t .lang "nav.preferences"}}</a>
                         <div class="dropdown-divider" role="separator"></div>
                         <!-- Theme toggle per AI.md PART 16: the POST value is the server-computed next mode, never a fixed value -->
@@ -97,8 +97,8 @@
                             </button>
                         </form>
                         <div class="dropdown-divider" role="separator"></div>
-                        <a href="/server/help" class="profile-dropdown-item" role="menuitem" title="Help documentation">❓ Help</a>
-                        <a href="/server/auth/logout" class="profile-dropdown-item" role="menuitem" title="Sign out of your account">🚪 {{t .lang "nav.logout"}}</a>
+                        <a href="/server/help" class="profile-dropdown-item" role="menuitem">❓ {{t .lang "nav.help"}}</a>
+                        <a href="/server/auth/logout" class="profile-dropdown-item" role="menuitem">🚪 {{t .lang "nav.logout"}}</a>
                     </nav>
                 </div>
             </div>
@@ -112,49 +112,30 @@
             {{end}}
 
             <!-- Mobile Menu Toggle -->
-            <button class="mobile-menu-toggle" data-action="nav-dropdown-toggle" data-dropdown-id="mobile-menu" data-trigger-id="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle mobile navigation menu" aria-expanded="false" aria-controls="mobile-menu" title="Open mobile navigation menu">
+            <button class="mobile-menu-toggle" data-action="nav-dropdown-toggle" data-dropdown-id="mobile-menu" data-trigger-id="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="{{t .lang "nav.menu_toggle"}}" aria-expanded="false" aria-controls="mobile-menu">
                 ☰
             </button>
         </div>
 
         <!-- Zone D: Theme toggle, far right, fully functional without JavaScript -->
         <div class="navbar-theme">
-            {{if .user.Email}}
             <form action="/server/preferences" method="post" class="theme-toggle-form">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <input type="hidden" name="theme" value="{{nextTheme (or .server.Theme "dark")}}">
-                <button type="submit" class="theme-button" data-action="theme-cycle" title="{{t .lang "theme.switch"}}">
-                    <span aria-hidden="true">🎨</span>
-                    <span class="sr-only">{{t .lang "theme.switch"}}</span>
+                <button type="submit" class="theme-button" data-action="theme-cycle" aria-label="{{t .lang "theme.switch"}} ({{t .lang (printf "theme.%s" (or .server.Theme "dark"))}})" title="{{t .lang "theme.switch"}}">
+                    <span aria-hidden="true">{{if eq (or .server.Theme "dark") "light"}}☀️{{else if eq (or .server.Theme "dark") "auto"}}🔄{{else}}🌙{{end}}</span>
                 </button>
             </form>
-            {{else}}
-            <form action="/server/preferences" method="post" class="theme-toggle-inline" aria-label="{{t .lang "theme.label"}}">
-                <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
-                <button type="submit" name="theme" value="dark" class="theme-button {{if eq (or .server.Theme "dark") "dark"}}active{{end}}" title="{{t .lang "theme.dark"}}">
-                    <span aria-hidden="true">🌙</span>
-                    <span class="sr-only">{{t .lang "theme.dark"}}</span>
-                </button>
-                <button type="submit" name="theme" value="light" class="theme-button {{if eq (or .server.Theme "dark") "light"}}active{{end}}" title="{{t .lang "theme.light"}}">
-                    <span aria-hidden="true">☀️</span>
-                    <span class="sr-only">{{t .lang "theme.light"}}</span>
-                </button>
-                <button type="submit" name="theme" value="auto" class="theme-button {{if eq (or .server.Theme "dark") "auto"}}active{{end}}" title="{{t .lang "theme.auto"}}">
-                    <span aria-hidden="true">🔄</span>
-                    <span class="sr-only">{{t .lang "theme.auto"}}</span>
-                </button>
-            </form>
-            {{end}}
         </div>
     </div>
 
     <!-- Mobile Navigation Menu -->
-    <div class="mobile-menu" id="mobile-menu" role="menu" aria-label="Mobile navigation">
-        <a href="/" class="mobile-menu-item" role="menuitem" title="View current weather">{{t .lang "nav.home"}}</a>
-        <a href="/moon" class="mobile-menu-item" role="menuitem" title="View moon phases">{{t .lang "nav.moon"}}</a>
-        <a href="/severe-weather" class="mobile-menu-item" role="menuitem" title="View severe weather alerts">{{t .lang "nav.alerts"}}</a>
-        <a href="/earthquakes" class="mobile-menu-item" role="menuitem" title="View earthquakes">{{t .lang "nav.earthquakes"}}</a>
-        <a href="/users/dashboard" class="mobile-menu-item" role="menuitem" title="View your dashboard">{{t .lang "nav.settings"}}</a>
+    <div class="mobile-menu" id="mobile-menu" role="menu" aria-label="{{t .lang "nav.mobile_aria"}}">
+        <a href="/" class="mobile-menu-item" role="menuitem">{{t .lang "nav.home"}}</a>
+        <a href="/moon" class="mobile-menu-item" role="menuitem">{{t .lang "nav.moon"}}</a>
+        <a href="/severe-weather" class="mobile-menu-item" role="menuitem">{{t .lang "nav.alerts"}}</a>
+        <a href="/earthquakes" class="mobile-menu-item" role="menuitem">{{t .lang "nav.earthquakes"}}</a>
+        <a href="/users/dashboard" class="mobile-menu-item" role="menuitem">{{t .lang "nav.settings"}}</a>
         <a href="/server/preferences" class="mobile-menu-item" role="menuitem" title="{{t .lang "preferences.description"}}">{{t .lang "nav.preferences"}}</a>
     </div>
 </nav>

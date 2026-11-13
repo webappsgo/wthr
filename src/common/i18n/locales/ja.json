@@ -4244,5 +4244,16 @@
   "location.timezone": "タイムゾーン",
   "location.population": "人口",
   "location.unknown": "不明",
-  "severe.weather_heading": "悪天候警報"
+  "severe.weather_heading": "悪天候警報",
+  "nav.main_aria": "メインナビゲーション",
+  "nav.mobile_aria": "モバイルナビゲーション",
+  "nav.notifications": "通知",
+  "nav.user_menu": "ユーザーメニュー",
+  "nav.menu_toggle": "ナビゲーションメニューを切り替え",
+  "nav.no_notifications": "通知はありません",
+  "nav.view_all": "すべて表示",
+  "nav.profile": "プロフィール",
+  "nav.security": "セキュリティ",
+  "nav.api_tokens": "APIトークン",
+  "nav.help": "ヘルプ"
 }

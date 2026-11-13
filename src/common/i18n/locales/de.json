@@ -4244,5 +4244,16 @@
   "location.timezone": "Zeitzone",
   "location.population": "Einwohner",
   "location.unknown": "Unbekannt",
-  "severe.weather_heading": "Unwetterwarnungen"
+  "severe.weather_heading": "Unwetterwarnungen",
+  "nav.main_aria": "Hauptnavigation",
+  "nav.mobile_aria": "Mobile Navigation",
+  "nav.notifications": "Benachrichtigungen",
+  "nav.user_menu": "Benutzermenü",
+  "nav.menu_toggle": "Navigationsmenü umschalten",
+  "nav.no_notifications": "Keine Benachrichtigungen",
+  "nav.view_all": "Alle anzeigen",
+  "nav.profile": "Profil",
+  "nav.security": "Sicherheit",
+  "nav.api_tokens": "API-Token",
+  "nav.help": "Hilfe"
 }

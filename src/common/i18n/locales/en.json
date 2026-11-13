@@ -4244,5 +4244,16 @@
   "location.timezone": "Timezone",
   "location.population": "Population",
   "location.unknown": "Unknown",
-  "severe.weather_heading": "Severe Weather Alerts"
+  "severe.weather_heading": "Severe Weather Alerts",
+  "nav.main_aria": "Main navigation",
+  "nav.mobile_aria": "Mobile navigation",
+  "nav.notifications": "Notifications",
+  "nav.user_menu": "User menu",
+  "nav.menu_toggle": "Toggle navigation menu",
+  "nav.no_notifications": "No notifications",
+  "nav.view_all": "View all",
+  "nav.profile": "Profile",
+  "nav.security": "Security",
+  "nav.api_tokens": "API Tokens",
+  "nav.help": "Help"
 }

@@ -4244,5 +4244,16 @@
   "location.timezone": "Fuseau horaire",
   "location.population": "Population",
   "location.unknown": "Inconnu",
-  "severe.weather_heading": "Alertes météo sévères"
+  "severe.weather_heading": "Alertes météo sévères",
+  "nav.main_aria": "Navigation principale",
+  "nav.mobile_aria": "Navigation mobile",
+  "nav.notifications": "Notifications",
+  "nav.user_menu": "Menu utilisateur",
+  "nav.menu_toggle": "Afficher ou masquer le menu",
+  "nav.no_notifications": "Aucune notification",
+  "nav.view_all": "Tout afficher",
+  "nav.profile": "Profil",
+  "nav.security": "Sécurité",
+  "nav.api_tokens": "Jetons d'API",
+  "nav.help": "Aide"
 }

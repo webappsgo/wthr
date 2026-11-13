@@ -4244,5 +4244,16 @@
   "location.timezone": "المنطقة الزمنية",
   "location.population": "عدد السكان",
   "location.unknown": "غير معروف",
-  "severe.weather_heading": "تنبيهات الطقس القاسي"
+  "severe.weather_heading": "تنبيهات الطقس القاسي",
+  "nav.main_aria": "التنقل الرئيسي",
+  "nav.mobile_aria": "التنقل للجوال",
+  "nav.notifications": "الإشعارات",
+  "nav.user_menu": "قائمة المستخدم",
+  "nav.menu_toggle": "تبديل قائمة التنقل",
+  "nav.no_notifications": "لا توجد إشعارات",
+  "nav.view_all": "عرض الكل",
+  "nav.profile": "الملف الشخصي",
+  "nav.security": "الأمان",
+  "nav.api_tokens": "رموز API",
+  "nav.help": "مساعدة"
 }
