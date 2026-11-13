@@ -497,6 +497,24 @@ mounted only when `server.healthz.root.enabled` is true (default: false).
 }
 ```
 
+## Content Negotiation
+
+`/api/**` routes pick the response format in this order:
+
+1. `.txt` extension: plain text.
+2. `Accept: application/json`: JSON, even for curl or wget.
+3. `Accept: text/plain`: plain text.
+4. A non-interactive client (curl, wget, httpie, empty User-Agent) that sent no explicit `Accept`: plain text.
+5. Everything else: JSON.
+
+Frontend routes (`/`, `/server/*`) follow a similar order: `Accept: application/json` returns the same data as the API route, `Accept: text/html` returns HTML, `Accept: text/plain` returns formatted text, browsers get HTML and curl, wget and httpie get the page rendered as formatted terminal text. `/server/healthz`, `/healthz` and `/api/{api_version}/server/healthz` share one health result, so the JSON is identical on all three.
+
+```bash
+curl -q -LSsf -H 'Accept: application/json' https://wthr.example.com/server/healthz
+curl -q -LSsf https://wthr.example.com/server/healthz
+curl -q -LSsf https://wthr.example.com/api/v1/server/healthz.txt
+```
+
 ## Rate Limiting
 
 API endpoints are rate-limited:

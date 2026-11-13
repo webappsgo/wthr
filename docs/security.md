@@ -137,7 +137,7 @@ Audit logs are append-only and never contain raw credentials or tokens.
 | Path | Purpose |
 |------|---------|
 | `/.well-known/acme-challenge/` | Let's Encrypt HTTP-01 ACME challenge (automatic TLS) |
-| `/server/healthz` | Health status — content-negotiated (HTML for browsers, JSON for API clients, text for CLI) |
+| `/server/healthz` | Health status — content-negotiated (HTML for browsers, JSON for `Accept: application/json`, text for curl and wget) |
 | `/api/{api_version}/server/healthz` | API health status — JSON by default, text via standard API text rules |
 | `/api/healthz` | Unversioned alias for machine-friendly versionless probing |
 | `/metrics` | Prometheus-compatible metrics (configurable auth) |
