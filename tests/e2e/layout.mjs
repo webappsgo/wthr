@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 const base = process.env.BASE_URL || 'http://127.0.0.1:64999';
 
 const viewports = [
-  [320, 640], [375, 812], [390, 844], [768, 1024], [820, 1180],
+  [320, 640], [375, 812], [390, 844], [768, 1024], [800, 1280], [820, 1180], [912, 1368], [1099, 800],
   [1024, 768], [1280, 800], [1440, 900], [1920, 1080],
 ];
 const themes = ['dark', 'light'];
@@ -80,7 +80,7 @@ for (const [width, height] of viewports) {
             const rect = el.getBoundingClientRect();
             const style = getComputedStyle(el);
             if (style.position === 'fixed' || style.display === 'none' || rect.width === 0) continue;
-            if (rect.right > window.innerWidth + 1 && rect.left >= 0 && !el.closest('.table-scroll, pre, .nav-panel')) {
+            if ((rect.right > window.innerWidth + 1 || rect.left < -1) && !el.closest('.table-scroll, pre, .nav-panel')) {
               out.push(`element past viewport: ${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).split(' ')[0] : ''} in ${el.parentElement ? el.parentElement.tagName.toLowerCase() + '.' + String(el.parentElement.className).split(' ')[0] : ''} (${Math.round(rect.right)}px) ${el.textContent.trim().slice(0, 30)}`);
               break;
             }

@@ -347,11 +347,12 @@ a:hover {
 
 .navbar-menu {
   display: none;
+  min-width: 0;
   gap: var(--space-lg);
   align-items: center;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1100px) {
   .navbar-menu {
     display: flex;
     /* Zone B fills the space between brand and actions so the links
@@ -2129,7 +2130,14 @@ textarea:user-invalid {
 @media (min-width: 768px) {
   .hide-desktop { display: none !important; }
   .hide-mobile { display: initial !important; }
-  .mobile-menu-toggle { display: none; }
+}
+
+/* Inline links need ~1100px; below that the hamburger drawer carries them */
+@media (min-width: 1100px) {
+  .mobile-menu-toggle,
+  .mobile-menu.active {
+    display: none;
+  }
 }
 
 /* ============================================
