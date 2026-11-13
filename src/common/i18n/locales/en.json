@@ -4243,5 +4243,6 @@
   "location.coordinates": "Coordinates",
   "location.timezone": "Timezone",
   "location.population": "Population",
-  "location.unknown": "Unknown"
+  "location.unknown": "Unknown",
+  "severe.weather_heading": "Severe Weather Alerts"
 }

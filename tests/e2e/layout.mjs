@@ -14,6 +14,7 @@ const languages = ['en', 'ar'];
 const pages = [
   '/', '/server/about', '/server/help', '/server/help/mcp', '/server/contact',
   '/server/security', '/server/security/policy', '/server/security/thanks',
+  '/?location=Summerville%2C%20SC', '/moon?location=Summerville%2C%20SC', '/severe-weather?location=Summerville%2C%20SC', '/earthquakes',
   '/server/dpo', '/server/privacy', '/server/terms', '/server/preferences', '/server/healthz',
 ];
 
@@ -80,7 +81,7 @@ for (const [width, height] of viewports) {
             const rect = el.getBoundingClientRect();
             const style = getComputedStyle(el);
             if (style.position === 'fixed' || style.display === 'none' || rect.width === 0) continue;
-            if ((rect.right > window.innerWidth + 1 || rect.left < -1) && !el.closest('.table-scroll, pre, .nav-panel')) {
+            if ((rect.right > window.innerWidth + 1 || rect.left < -1) && !el.closest('.table-scroll, pre, .nav-panel, .leaflet-container')) {
               out.push(`element past viewport: ${el.tagName.toLowerCase()}${el.className ? '.' + String(el.className).split(' ')[0] : ''} in ${el.parentElement ? el.parentElement.tagName.toLowerCase() + '.' + String(el.parentElement.className).split(' ')[0] : ''} (${Math.round(rect.right)}px) ${el.textContent.trim().slice(0, 30)}`);
               break;
             }

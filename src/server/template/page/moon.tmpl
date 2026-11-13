@@ -11,9 +11,11 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌙</text></svg>">
 </head>
 <body>
+    {{template "header" .}}
     {{template "navbar" .}}
 
-    <div class="weather-container">
+    <main class="weather-container" id="main-content" role="main">
+        <h1 class="text-purple">{{t .server.Lang "moon.title"}}</h1>
 
         <!-- Location Search Form - Mobile First -->
         <form id="moon-form" class="moon-form">
@@ -22,6 +24,7 @@
                 <!-- First row: Location input and units -->
                 <div class="moon-form__row">
                     <div class="moon-form__input-wrapper">
+                        <label for="moon-location-input" class="sr-only">{{t .server.Lang "index.location_label"}}</label>
                         <input
                             type="text"
                             id="moon-location-input"
@@ -33,6 +36,7 @@
                         >
                         <div id="moon-autocomplete-dropdown" class="autocomplete-dropdown"></div>
                     </div>
+                    <label for="moon-units-select" class="sr-only">{{t .server.Lang "index.temperature_unit_label"}}</label>
                     <select name="units" id="moon-units-select" class="location-input moon-form__units">
                         <option value="imperial"{{if eq .Units "imperial"}} selected{{end}}>°F</option>
                         <option value="metric"{{if eq .Units "metric"}} selected{{end}}>°C</option>
@@ -200,7 +204,7 @@
             </div>
         {{end}}
 
-    </div>
+    </main>
 
     <script type="application/json" id="moon-data">
         {

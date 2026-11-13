@@ -4243,5 +4243,6 @@
   "location.coordinates": "Coordinate",
   "location.timezone": "Fuso orario",
   "location.population": "Popolazione",
-  "location.unknown": "Sconosciuto"
+  "location.unknown": "Sconosciuto",
+  "severe.weather_heading": "Allerte meteo severe"
 }

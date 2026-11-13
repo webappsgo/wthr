@@ -4243,5 +4243,6 @@
   "location.coordinates": "座標",
   "location.timezone": "タイムゾーン",
   "location.population": "人口",
-  "location.unknown": "不明"
+  "location.unknown": "不明",
+  "severe.weather_heading": "悪天候警報"
 }

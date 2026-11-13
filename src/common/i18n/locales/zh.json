@@ -4243,5 +4243,6 @@
   "location.coordinates": "坐标",
   "location.timezone": "时区",
   "location.population": "人口",
-  "location.unknown": "未知"
+  "location.unknown": "未知",
+  "severe.weather_heading": "恶劣天气警报"
 }

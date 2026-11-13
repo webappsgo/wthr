@@ -4243,5 +4243,6 @@
   "location.coordinates": "الإحداثيات",
   "location.timezone": "المنطقة الزمنية",
   "location.population": "عدد السكان",
-  "location.unknown": "غير معروف"
+  "location.unknown": "غير معروف",
+  "severe.weather_heading": "تنبيهات الطقس القاسي"
 }

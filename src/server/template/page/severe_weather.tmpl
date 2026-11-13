@@ -11,9 +11,11 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚠️</text></svg>">
 </head>
 <body>
+    {{template "header" .}}
     {{template "navbar" .}}
 
-    <div class="weather-container">
+    <main class="weather-container" id="main-content" role="main">
+        <h1 class="text-purple">{{t .server.Lang "severe.weather_heading"}}</h1>
 
         <!-- Location Search Form - Mobile First (matching moon.html) -->
         <form id="severe-weather-form" class="moon-form" role="form" aria-label="{{t .server.Lang "severe.weather_form_aria_label"}}">
@@ -468,10 +470,9 @@
             </div>
         {{end}}
 
-    </div>
+    </main>
 
     <script type="application/json" id="severe-weather-page-data">{"apiPath": {{.api_path}}, "gettingLocation": {{t .server.Lang "severe.weather_getting_location_button"}}, "foundLocation": {{t .server.Lang "severe.weather_location_found_button"}}, "locationError": {{t .server.Lang "severe.weather_location_error_message"}}}</script>
-    <script src="{{asset "/static/js/severe-weather.js"}}" defer></script>
 
 {{if not .HideFooter}}
 {{template "footer" .}}
