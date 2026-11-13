@@ -52,6 +52,7 @@ func newAPIRequest(t *testing.T, method, target string, body interface{}) (*http
 	}
 
 	req := httptest.NewRequest(method, target, bodyReader)
+	req.Header.Set("User-Agent", "Mozilla/5.0 Chrome/120")
 	req.Header.Set("Content-Type", "application/json")
 	return req, httptest.NewRecorder()
 }
@@ -583,6 +584,7 @@ func TestRegisterNotificationAPIRoutes(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/user/notifications/", nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 Chrome/120")
 	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {

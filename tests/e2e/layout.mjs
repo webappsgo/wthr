@@ -14,23 +14,54 @@ const languages = ['en', 'ar'];
 const pages = [
   '/', '/server/about', '/server/help', '/server/help/mcp', '/server/contact',
   '/server/security', '/server/security/policy', '/server/security/thanks',
-  '/?location=Summerville%2C%20SC', '/moon?location=Summerville%2C%20SC', '/severe-weather?location=Summerville%2C%20SC', '/earthquakes',
-  '/server/auth/login', '/server/auth/register', '/server/administration',
+  '/?location=Summerville%2C%20SC', '/moon?location=Summerville%2C%20SC', '/severe-weather?location=Summerville%2C%20SC', '/earthquakes', '/earthquakes?location=Miami', '/severe-weather?type=tornadoes&location=Miami',
+  '/docs', '/history', '/hurricanes', '/does-not-exist', '/server/auth/password/forgot', '/server/auth/username/forgot', '/server/auth/login', '/server/auth/register', '/server/administration',
   '/server/dpo', '/server/privacy', '/server/terms', '/server/preferences', '/server/healthz',
 ];
+
+// SIGNED_IN=1 registers a fresh user per context and reviews the account pages instead
+const signedIn = process.env.SIGNED_IN === '1';
+const userPages = [
+  '/users/dashboard', '/users/profile', '/users/settings', '/users/security', '/users/tokens',
+  '/users/notifications', '/users/preferences', '/users/locations/new',
+];
+const activeViewports = signedIn ? [[375, 812], [820, 1180], [1280, 800]] : viewports;
+const activeLanguages = signedIn ? ['en'] : languages;
+const activePages = signedIn ? userPages : pages;
+let userCounter = 0;
 
 const failures = [];
 const browser = await chromium.launch();
 
-for (const [width, height] of viewports) {
+for (const [width, height] of activeViewports) {
   for (const theme of themes) {
-    for (const lang of languages) {
+    for (const lang of activeLanguages) {
       const context = await browser.newContext({ viewport: { width, height } });
       await context.addCookies([
         { name: 'theme', value: theme, url: base },
         { name: 'lang', value: lang, url: base },
       ]);
-      for (const path of pages) {
+      if (signedIn) {
+        const signup = await context.newPage();
+        const name = `e2e${process.pid}x${++userCounter}`;
+        await signup.goto(base + '/server/auth/register', { waitUntil: 'networkidle' });
+        await signup.fill('input[name=username]', name);
+        await signup.fill('input[name=email]', `${name}@example.com`);
+        await signup.fill('input[name=password]', 'Wthr-E2e-Pass-93!xq');
+        await signup.fill('input[name=confirm_password]', 'Wthr-E2e-Pass-93!xq');
+        await Promise.all([
+          signup.waitForLoadState('networkidle'),
+          signup.click('#registerForm button[type=submit], #registerForm input[type=submit]'),
+        ]);
+        if (signup.url().includes('/server/auth/register')) {
+          failures.push(`registration failed @${width}x${height} ${theme}: still on ${signup.url().replace(base, '')}`);
+          await signup.close();
+          await context.close();
+          continue;
+        }
+        await signup.close();
+      }
+      for (const path of activePages) {
         const page = await context.newPage();
         const label = `${path} @${width}x${height} ${theme} ${lang}`;
         const pageProblems = [];
@@ -52,6 +83,11 @@ for (const [width, height] of viewports) {
         // The disabled MCP page is a legitimate 404; every other page must render
         if (response.status() >= 400 && response.status() !== 404) {
           failures.push(`${label}: status ${response.status()}`);
+          await page.close();
+          continue;
+        }
+        if (signedIn && page.url().includes('/server/auth/login')) {
+          failures.push(`${label}: redirected to login although signed in`);
           await page.close();
           continue;
         }

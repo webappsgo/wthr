@@ -6,7 +6,7 @@
         <h1 class="text-purple">{{.Title}}</h1>
 
         <!-- Location Search Form -->
-        <form id="weather-form" class="search-form">
+        <form id="weather-form" class="search-form" action="/" method="get" role="search">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="search-row-single">
                 <div class="search-input-wrapper">

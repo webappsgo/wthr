@@ -110,10 +110,10 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			configDir := path.GetConfigDir()
 			if !util.SetupTokenExists(configDir) {
 				// No setup token file - setup was somehow skipped, show error
-				renderHTML(w, http.StatusServiceUnavailable, "page/error.tmpl", map[string]interface{}{
+				renderHTML(w, http.StatusServiceUnavailable, "page/error.tmpl", util.TemplateData(r, map[string]interface{}{
 					"error":   setupTranslate(r, "errors.setup.incomplete"),
 					"message": setupTranslate(r, "errors.setup.restart_required"),
-				})
+				}))
 				return
 			}
 

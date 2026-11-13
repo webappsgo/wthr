@@ -134,7 +134,7 @@
                 <details class="margin-y-md">
                     <summary class="text-comment">{{t .server.Lang "security.cant_scan_enter_manually"}}</summary>
                     <div class="margin-y-sm">
-                        <label class="form-label">{{t .server.Lang "security.secret_key_label"}}</label>
+                        <label class="form-label" for="manualSecret">{{t .server.Lang "security.secret_key_label"}}</label>
                         <input type="text" id="manualSecret" class="form-input" readonly>
                         <small class="text-comment">{{t .server.Lang "security.secret_key_hint"}}</small>
                     </div>
@@ -148,7 +148,7 @@
                 <form id="verify2FAForm" class="margin-y-md">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
-                        <label class="form-label">{{t .server.Lang "security.verification_code_label"}}</label>
+                        <label class="form-label" for="verificationCode">{{t .server.Lang "security.verification_code_label"}}</label>
                         <input type="text" id="verificationCode" class="form-input" maxlength="6" pattern="[0-9]{6}" required autocomplete="off">
                     </div>
                     <button type="submit" class="btn btn-primary">{{t .server.Lang "security.verify_and_enable"}}</button>
@@ -185,7 +185,7 @@
             <form id="disable2FAForm">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <div class="form-group">
-                    <label class="form-label">{{t .server.Lang "security.confirm_password_label"}}</label>
+                    <label class="form-label" for="disablePassword">{{t .server.Lang "security.confirm_password_label"}}</label>
                     <input type="password" id="disablePassword" class="form-input" required>
                 </div>
                 <button type="submit" class="btn btn-danger">{{t .server.Lang "security.disable_2fa"}}</button>

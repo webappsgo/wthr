@@ -48,10 +48,10 @@
       </fieldset>
 
       <div class="form-group">
-        <label class="preferences-label" for="wthr-pref-units">Weather units</label>
+        <label class="preferences-label" for="wthr-pref-units">{{t .lang "preferences.units_label"}}</label>
         <select id="wthr-pref-units" name="wthr_pref_units">
-          <option value="metric" {{if eq .weather_units "metric"}}selected{{end}}>Metric (°C, km/h)</option>
-          <option value="imperial" {{if eq .weather_units "imperial"}}selected{{end}}>Imperial (°F, mph)</option>
+          <option value="metric" {{if eq .weather_units "metric"}}selected{{end}}>{{t .lang "preferences.units_metric"}}</option>
+          <option value="imperial" {{if eq .weather_units "imperial"}}selected{{end}}>{{t .lang "preferences.units_imperial"}}</option>
         </select>
       </div>
 
@@ -75,51 +75,51 @@
 
   {{if .preferences_url}}
   <div class="card margin-y-lg">
-    <h2 class="text-cyan">Copy preferences to another device</h2>
-    <label for="preferences-share-url">Full URL</label>
+    <h2 class="text-cyan">{{t .lang "preferences.share_heading"}}</h2>
+    <label for="preferences-share-url">{{t .lang "preferences.full_url"}}</label>
     <input id="preferences-share-url" type="text" value="{{.preferences_url}}" readonly>
-    <button type="button" data-action="copy-to-clipboard" data-text="{{.preferences_url}}">Copy URL</button>
-    <label for="preferences-share-code">Short code</label>
+    <button type="button" class="btn btn-secondary" data-action="copy-to-clipboard" data-text="{{.preferences_url}}">{{t .lang "preferences.copy_url"}}</button>
+    <label for="preferences-share-code">{{t .lang "preferences.short_code"}}</label>
     <input id="preferences-share-code" type="text" value="{{.preferences_code}}" readonly>
-    <button type="button" data-action="copy-to-clipboard" data-text="{{.preferences_code}}">Copy code</button>
+    <button type="button" class="btn btn-secondary" data-action="copy-to-clipboard" data-text="{{.preferences_code}}">{{t .lang "preferences.copy_code"}}</button>
   </div>
   {{end}}
 
   <div class="card margin-y-lg">
-    <h2 class="text-cyan">Cookie consent</h2>
-    <p>Essential cookies are always enabled. Optional preferences and analytics cookies can be managed here.</p>
+    <h2 class="text-cyan">{{t .lang "preferences.cookie_heading"}}</h2>
+    <p>{{t .lang "preferences.cookie_intro"}}</p>
     <form action="/server/consent" method="post">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       <input type="hidden" name="choice" value="save">
-      <label><input type="checkbox" name="preferences" {{if .cookie_preferences.Preferences}}checked{{end}}> Preferences cookies</label>
-      <label><input type="checkbox" name="analytics" {{if .cookie_preferences.Analytics}}checked{{end}}> Analytics cookies</label>
-      <button type="submit" class="btn btn-primary">Save cookie preferences</button>
+      <label><input type="checkbox" name="preferences" {{if .cookie_preferences.Preferences}}checked{{end}}> {{t .lang "preferences.cookie_preferences"}}</label>
+      <label><input type="checkbox" name="analytics" {{if .cookie_preferences.Analytics}}checked{{end}}> {{t .lang "preferences.cookie_analytics"}}</label>
+      <button type="submit" class="btn btn-primary">{{t .lang "preferences.cookie_save"}}</button>
     </form>
   </div>
 
   {{if .ccpa_enabled}}
   <div class="card margin-y-lg">
-    <h2 class="text-cyan">California privacy choices</h2>
-    <p>Choose whether this browser opts out of the sale or sharing of personal data.</p>
+    <h2 class="text-cyan">{{t .lang "preferences.ccpa_heading"}}</h2>
+    <p>{{t .lang "preferences.ccpa_intro"}}</p>
     <form action="/server/ccpa" method="post">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       {{if .ccpa_opted_out}}
       <input type="hidden" name="choice" value="opt-in">
-      <button type="submit" class="btn btn-secondary">Allow sale or sharing</button>
+      <button type="submit" class="btn btn-secondary">{{t .lang "preferences.ccpa_allow"}}</button>
       {{else}}
       <input type="hidden" name="choice" value="opt-out">
-      <button type="submit" class="btn btn-primary">Do not sell or share my personal information</button>
+      <button type="submit" class="btn btn-primary">{{t .lang "preferences.ccpa_opt_out"}}</button>
       {{end}}
     </form>
   </div>
   {{end}}
 
   <div class="card margin-y-lg">
-    <h2 class="text-cyan">Import preferences</h2>
+    <h2 class="text-cyan">{{t .lang "preferences.import_heading"}}</h2>
     <form action="/server/preferences/import" method="get">
-      <label for="preferences-import-code">Preference code or full URL</label>
+      <label for="preferences-import-code">{{t .lang "preferences.import_label"}}</label>
       <input id="preferences-import-code" name="code" type="text" maxlength="2048" autocomplete="off">
-      <button type="submit" class="btn btn-primary">Import</button>
+      <button type="submit" class="btn btn-primary">{{t .lang "preferences.import_button"}}</button>
     </form>
   </div>
 </div>

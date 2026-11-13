@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weather - Initializing</title>
+    <title>{{t .server.Lang "loading.title"}}</title>
     <link rel="stylesheet" href="{{asset "/static/css/common.css"}}">
     <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
@@ -12,53 +12,51 @@
 <body>
     <div class="weather-container">
         <div class="weather-header">
-            ☕ Weather
+            ☕ {{t .server.Lang "loading.brand"}}
         </div>
 
         <div class="loading-page-container">
             <div class="coffee-spinner">☕</div>
 
             <h2 class="loading-page-title">
-                Warming up the weather service<span class="loading-dots"></span>
+                {{t .server.Lang "loading.heading"}}<span class="loading-dots"></span>
             </h2>
 
             <div class="status-info">
                 <div class="loading-page-status-item--yellow">
-                    🌍 Loading global location database...
+                    🌍 {{t .server.Lang "loading.step_locations"}}
                 </div>
                 <div class="loading-page-status-item--green">
-                    🌤️ Connecting to weather services...
+                    🌤️ {{t .server.Lang "loading.step_services"}}
                 </div>
                 <div class="loading-page-status-item--purple">
-                    🎨 Preparing beautiful interfaces...
+                    🎨 {{t .server.Lang "loading.step_ui"}}
                 </div>
             </div>
 
             <div class="margin-y-2">
                 <p class="text-comment">
-                    The service is initializing. This usually takes a few moments while we load
-                    weather data and location databases.
+                    {{t .server.Lang "loading.intro"}}
                 </p>
 
                 <div class="margin-y-15">
-                    <span class="loading-page-countdown-label">Next check in:</span>
+                    <span class="loading-page-countdown-label">{{t .server.Lang "loading.next_check"}}</span>
                     <span id="countdown" class="retry-countdown">30</span>
-                    <span class="loading-page-countdown-label">seconds</span>
+                    <span class="loading-page-countdown-label">{{t .server.Lang "loading.seconds"}}</span>
                     <div class="loading-page-countdown-note">
-                        (Auto-checking every 15 seconds)
+                        {{t .server.Lang "loading.auto_check"}}
                     </div>
                 </div>
 
                 <button id="retry-btn" class="search-button loading-page-retry-button" data-action="loading-retry">
-                    🔄 Try Again Now
+                    🔄 {{t .server.Lang "loading.retry"}}
                 </button>
             </div>
 
             <div class="loading-page-while-wait-box">
-                <h4 class="loading-page-while-wait-title">While You Wait...</h4>
+                <h4 class="loading-page-while-wait-title">{{t .server.Lang "loading.wait_heading"}}</h4>
                 <p class="loading-page-while-wait-text">
-                    This service provides beautiful ASCII weather art for terminals and responsive web interfaces.
-                    Try these console commands once it's ready:
+                    {{t .server.Lang "loading.wait_text"}}
                 </p>
                 <div class="loading-page-code-box">
                     <div class="loading-page-code-line loading-page-code-line--cyan">curl -q -LSs {{.HostInfo.FullHost}}/London,GB?format=3</div>
@@ -68,7 +66,7 @@
         </div>
 
         <div class="footer">
-            <p>Loading weather service • Please wait while we initialize...</p>
+            <p>{{t .server.Lang "loading.footer"}}</p>
         </div>
     </div>
 

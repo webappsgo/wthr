@@ -11,6 +11,9 @@
     <script src="{{asset "/static/js/app.js"}}" defer></script>
 </head>
 <body>
+{{template "header" .}}
+{{template "navbar" .}}
+<main id="main-content" role="main">
     <div class="auth-container">
         <div class="auth-card">
             <h1>{{t .server.Lang "passkey.page_heading"}}</h1>
@@ -42,6 +45,7 @@
             "failedGeneric": "{{t .server.Lang "passkey.js_failed_generic"}}"
         }
     </script>
-</body>
-</html>
+</main>
+{{template "footer" .}}
+
 {{end}}

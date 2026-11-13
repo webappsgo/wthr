@@ -143,6 +143,7 @@ func TestUserNotificationAPI_GetNotifications(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/users/notifications", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -180,6 +181,7 @@ func TestUserNotificationAPI_GetUnreadCount(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/users/notifications/count", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -213,6 +215,7 @@ func TestUserNotificationAPI_MarkAsRead(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PATCH", "/api/v1/users/notifications/"+notif.ID+"/read", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -237,6 +240,7 @@ func TestUserNotificationAPI_MarkAllAsRead(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PATCH", "/api/v1/users/notifications/read", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -260,6 +264,7 @@ func TestUserNotificationAPI_DismissNotification(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PATCH", "/api/v1/users/notifications/"+notif.ID+"/dismiss", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -283,6 +288,7 @@ func TestUserNotificationAPI_DeleteNotification(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("DELETE", "/api/v1/users/notifications/"+notif.ID, nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -303,6 +309,7 @@ func TestUserNotificationAPI_GetPreferences(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/users/notifications/preferences", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -344,6 +351,7 @@ func TestUserNotificationAPI_UpdatePreferences(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PATCH", "/api/v1/users/notifications/preferences", bytes.NewBuffer(body))
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 
@@ -394,6 +402,7 @@ func TestUserNotificationAPI_GetStatistics(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/users/notifications/stats", nil)
+	req.Header.Set("Accept", "application/json")
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -434,6 +443,7 @@ func TestAdminNotificationAPI_SendTestNotification(t *testing.T) {
 	// Make request
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/admin/notifications/send", bytes.NewBuffer(body))
+	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(w, req)
 

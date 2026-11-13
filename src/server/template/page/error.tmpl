@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+{{template "header" .}}
+{{template "navbar" .}}
+<main id="main-content" role="main">
     <div class="error-container">
         <div class="error-icon">⚠️</div>
         <h1 class="error-title">{{t .server.Lang "error.title"}}</h1>
@@ -24,5 +27,6 @@
             <a href="/" class="btn btn-primary">{{t .server.Lang "error.go_home"}}</a>
         </div>
     </div>
-</body>
-</html>
+</main>
+{{template "footer" .}}
+

@@ -18,8 +18,7 @@
         <h1 class="text-purple">{{t .server.Lang "severe.weather_heading"}}</h1>
 
         <!-- Location Search Form - Mobile First (matching moon.html) -->
-        <form id="severe-weather-form" class="moon-form" role="form" aria-label="{{t .server.Lang "severe.weather_form_aria_label"}}">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        <form id="severe-weather-form" class="moon-form" action="/severe-weather" method="get" role="search" aria-label="{{t .server.Lang "severe.weather_form_aria_label"}}">
             <div class="moon-form__wrapper">
                 <!-- First row: Location input with type and distance filters to the right -->
                 <div class="moon-form__row">
@@ -109,7 +108,7 @@
                         {{if .Data.Hurricanes}}{{len .Data.Hurricanes}}{{else}}0{{end}} {{if eq (len .Data.Hurricanes) 1}}{{t .server.Lang "severe.weather_hurricane_tracked_singular"}}{{else}}{{t .server.Lang "severe.weather_hurricane_tracked_plural"}}{{end}}
                     </div>
                     <div class="weather-stats">
-                        <div class="stat">{{t .server.Lang "severe.weather_filter_label"}} <span class="stat-value">{{if eq .TypeFilter "all"}}{{t .server.Lang "severe.weather_type_all"}}{{else}}{{.TypeFilter}}{{end}}</span></div>
+                        <div class="stat">{{t .server.Lang "severe.weather_filter_label"}} <span class="stat-value">{{if eq .TypeFilter "all"}}{{t .server.Lang "severe.weather_type_all"}}{{else}}{{t .server.Lang (printf "severe.weather_type_%s" .TypeFilter)}}{{end}}</span></div>
                         <div class="stat">{{t .server.Lang "severe.weather_distance_label"}} <span class="stat-value">{{if eq .DistanceFilter "0"}}{{t .server.Lang "severe.weather_distance_all"}}{{else}}{{.DistanceFilter}} {{t .server.Lang "severe.weather_distance_unit"}}{{end}}</span></div>
                     </div>
                 </div>
@@ -144,11 +143,11 @@
                             <div class="storm-details">
                                 <div class="storm-detail">
                                     <span class="detail-label">{{t .server.Lang "severe.weather_wind_speed_label"}}</span>
-                                    <span class="detail-value">{{.WindSpeed}} mph</span>
+                                    <span class="detail-value">{{.WindSpeed}} {{t .server.Lang "units.mph"}}</span>
                                 </div>
                                 <div class="storm-detail">
                                     <span class="detail-label">{{t .server.Lang "severe.weather_pressure_label"}}</span>
-                                    <span class="detail-value">{{.Pressure}} mb</span>
+                                    <span class="detail-value">{{.Pressure}} {{t .server.Lang "units.mb"}}</span>
                                 </div>
                                 <div class="storm-detail">
                                     <span class="detail-label">{{t .server.Lang "severe.weather_movement_label"}}</span>
@@ -168,260 +167,15 @@
                 </div>
                 {{end}}
 
-                {{/* Tornado Warnings */}}
-                {{if .Data.TornadoWarnings}}
-                <div class="alert-section">
-                    <div class="section-header">
-                        <span class="section-icon">🌪️</span>
-                        <span class="section-title">{{t .server.Lang "severe.weather_section_tornadoes"}}</span>
-                        <span class="section-count">{{len .Data.TornadoWarnings}}</span>
-                    </div>
-                    <div class="alerts-grid">
-                        {{range .Data.TornadoWarnings}}
-                        {{ $severityClass := "severity-minor" }}
-                        {{ if eq .Severity "Extreme" }}
-                            {{ $severityClass = "severity-extreme" }}
-                        {{ else if eq .Severity "Severe" }}
-                            {{ $severityClass = "severity-severe" }}
-                        {{ else if eq .Severity "Moderate" }}
-                            {{ $severityClass = "severity-moderate" }}
-                        {{ end }}
-                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
-                            <div class="alert-header">
-                                <div class="alert-type">{{.Event}}</div>
-                                {{if .DistanceMiles}}
-                                <div class="alert-distance">📍 {{printf "%.0f" .DistanceMiles}} mi</div>
-                                {{end}}
-                            </div>
-                            <div class="alert-headline">{{.Headline}}</div>
-                            <div class="alert-meta">
-                                <span class="alert-severity">{{.Severity}}</span>
-                                <span class="alert-urgency">{{.Urgency}}</span>
-                                {{if .Country}}
-                                <span class="alert-country">{{.Country}}</span>
-                                {{end}}
-                            </div>
-                            <div class="alert-area">{{.AreaDesc}}</div>
-                            {{if .Description}}
-                            <div class="alert-details display-none">
-                                <div class="alert-description">{{.Description}}</div>
-                                {{if .Instruction}}
-                                <div class="alert-instruction">
-                                    <strong>{{t .server.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}
-                                </div>
-                                {{end}}
-                            </div>
-                            <div class="alert-expand">▼ {{t .server.Lang "severe.weather_click_to_expand"}}</div>
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
+                {{template "alert_section" (dict "Items" .Data.TornadoWarnings "Icon" "🌪️" "Title" (t .server.Lang "severe.weather_section_tornadoes") "Lang" .server.Lang)}}
 
-                {{/* Severe Storms */}}
-                {{if .Data.SevereStorms}}
-                <div class="alert-section">
-                    <div class="section-header">
-                        <span class="section-icon">⛈️</span>
-                        <span class="section-title">{{t .server.Lang "severe.weather_section_severe_storms"}}</span>
-                        <span class="section-count">{{len .Data.SevereStorms}}</span>
-                    </div>
-                    <div class="alerts-grid">
-                        {{range .Data.SevereStorms}}
-                        {{ $severityClass := "severity-minor" }}
-                        {{ if eq .Severity "Extreme" }}
-                            {{ $severityClass = "severity-extreme" }}
-                        {{ else if eq .Severity "Severe" }}
-                            {{ $severityClass = "severity-severe" }}
-                        {{ else if eq .Severity "Moderate" }}
-                            {{ $severityClass = "severity-moderate" }}
-                        {{ end }}
-                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
-                            <div class="alert-header">
-                                <div class="alert-type">{{.Event}}</div>
-                                {{if .DistanceMiles}}
-                                <div class="alert-distance">📍 {{printf "%.0f" .DistanceMiles}} mi</div>
-                                {{end}}
-                            </div>
-                            <div class="alert-headline">{{.Headline}}</div>
-                            <div class="alert-meta">
-                                <span class="alert-severity">{{.Severity}}</span>
-                                <span class="alert-urgency">{{.Urgency}}</span>
-                                {{if .Country}}
-                                <span class="alert-country">{{.Country}}</span>
-                                {{end}}
-                            </div>
-                            <div class="alert-area">{{.AreaDesc}}</div>
-                            {{if .Description}}
-                            <div class="alert-details display-none">
-                                <div class="alert-description">{{.Description}}</div>
-                                {{if .Instruction}}
-                                <div class="alert-instruction">
-                                    <strong>{{t .server.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}
-                                </div>
-                                {{end}}
-                            </div>
-                            <div class="alert-expand">▼ {{t .server.Lang "severe.weather_click_to_expand"}}</div>
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
+                {{template "alert_section" (dict "Items" .Data.SevereStorms "Icon" "⛈️" "Title" (t .server.Lang "severe.weather_section_severe_storms") "Lang" .server.Lang)}}
 
-                {{/* Winter Storms */}}
-                {{if .Data.WinterStorms}}
-                <div class="alert-section">
-                    <div class="section-header">
-                        <span class="section-icon">❄️</span>
-                        <span class="section-title">{{t .server.Lang "severe.weather_section_winter"}}</span>
-                        <span class="section-count">{{len .Data.WinterStorms}}</span>
-                    </div>
-                    <div class="alerts-grid">
-                        {{range .Data.WinterStorms}}
-                        {{ $severityClass := "severity-minor" }}
-                        {{ if eq .Severity "Extreme" }}
-                            {{ $severityClass = "severity-extreme" }}
-                        {{ else if eq .Severity "Severe" }}
-                            {{ $severityClass = "severity-severe" }}
-                        {{ else if eq .Severity "Moderate" }}
-                            {{ $severityClass = "severity-moderate" }}
-                        {{ end }}
-                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
-                            <div class="alert-header">
-                                <div class="alert-type">{{.Event}}</div>
-                                {{if .DistanceMiles}}
-                                <div class="alert-distance">📍 {{printf "%.0f" .DistanceMiles}} mi</div>
-                                {{end}}
-                            </div>
-                            <div class="alert-headline">{{.Headline}}</div>
-                            <div class="alert-meta">
-                                <span class="alert-severity">{{.Severity}}</span>
-                                <span class="alert-urgency">{{.Urgency}}</span>
-                                {{if .Country}}
-                                <span class="alert-country">{{.Country}}</span>
-                                {{end}}
-                            </div>
-                            <div class="alert-area">{{.AreaDesc}}</div>
-                            {{if .Description}}
-                            <div class="alert-details display-none">
-                                <div class="alert-description">{{.Description}}</div>
-                                {{if .Instruction}}
-                                <div class="alert-instruction">
-                                    <strong>{{t .server.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}
-                                </div>
-                                {{end}}
-                            </div>
-                            <div class="alert-expand">▼ {{t .server.Lang "severe.weather_click_to_expand"}}</div>
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
+                {{template "alert_section" (dict "Items" .Data.WinterStorms "Icon" "❄️" "Title" (t .server.Lang "severe.weather_section_winter") "Lang" .server.Lang)}}
 
-                {{/* Flood Warnings */}}
-                {{if .Data.FloodWarnings}}
-                <div class="alert-section">
-                    <div class="section-header">
-                        <span class="section-icon">🌊</span>
-                        <span class="section-title">{{t .server.Lang "severe.weather_section_floods"}}</span>
-                        <span class="section-count">{{len .Data.FloodWarnings}}</span>
-                    </div>
-                    <div class="alerts-grid">
-                        {{range .Data.FloodWarnings}}
-                        {{ $severityClass := "severity-minor" }}
-                        {{ if eq .Severity "Extreme" }}
-                            {{ $severityClass = "severity-extreme" }}
-                        {{ else if eq .Severity "Severe" }}
-                            {{ $severityClass = "severity-severe" }}
-                        {{ else if eq .Severity "Moderate" }}
-                            {{ $severityClass = "severity-moderate" }}
-                        {{ end }}
-                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
-                            <div class="alert-header">
-                                <div class="alert-type">{{.Event}}</div>
-                                {{if .DistanceMiles}}
-                                <div class="alert-distance">📍 {{printf "%.0f" .DistanceMiles}} mi</div>
-                                {{end}}
-                            </div>
-                            <div class="alert-headline">{{.Headline}}</div>
-                            <div class="alert-meta">
-                                <span class="alert-severity">{{.Severity}}</span>
-                                <span class="alert-urgency">{{.Urgency}}</span>
-                                {{if .Country}}
-                                <span class="alert-country">{{.Country}}</span>
-                                {{end}}
-                            </div>
-                            <div class="alert-area">{{.AreaDesc}}</div>
-                            {{if .Description}}
-                            <div class="alert-details display-none">
-                                <div class="alert-description">{{.Description}}</div>
-                                {{if .Instruction}}
-                                <div class="alert-instruction">
-                                    <strong>{{t .server.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}
-                                </div>
-                                {{end}}
-                            </div>
-                            <div class="alert-expand">▼ {{t .server.Lang "severe.weather_click_to_expand"}}</div>
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
+                {{template "alert_section" (dict "Items" .Data.FloodWarnings "Icon" "🌊" "Title" (t .server.Lang "severe.weather_section_floods") "Lang" .server.Lang)}}
 
-                {{/* Other Alerts */}}
-                {{if .Data.OtherAlerts}}
-                <div class="alert-section">
-                    <div class="section-header">
-                        <span class="section-icon">⚠️</span>
-                        <span class="section-title">{{t .server.Lang "severe.weather_section_other"}}</span>
-                        <span class="section-count">{{len .Data.OtherAlerts}}</span>
-                    </div>
-                    <div class="alerts-grid">
-                        {{range .Data.OtherAlerts}}
-                        {{ $severityClass := "severity-minor" }}
-                        {{ if eq .Severity "Extreme" }}
-                            {{ $severityClass = "severity-extreme" }}
-                        {{ else if eq .Severity "Severe" }}
-                            {{ $severityClass = "severity-severe" }}
-                        {{ else if eq .Severity "Moderate" }}
-                            {{ $severityClass = "severity-moderate" }}
-                        {{ end }}
-                        <div class="alert-card {{$severityClass}}" data-action="toggle-alert-details">
-                            <div class="alert-header">
-                                <div class="alert-type">{{.Event}}</div>
-                                {{if .DistanceMiles}}
-                                <div class="alert-distance">📍 {{printf "%.0f" .DistanceMiles}} mi</div>
-                                {{end}}
-                            </div>
-                            <div class="alert-headline">{{.Headline}}</div>
-                            <div class="alert-meta">
-                                <span class="alert-severity">{{.Severity}}</span>
-                                <span class="alert-urgency">{{.Urgency}}</span>
-                                {{if .Country}}
-                                <span class="alert-country">{{.Country}}</span>
-                                {{end}}
-                            </div>
-                            <div class="alert-area">{{.AreaDesc}}</div>
-                            {{if .Description}}
-                            <div class="alert-details display-none">
-                                <div class="alert-description">{{.Description}}</div>
-                                {{if .Instruction}}
-                                <div class="alert-instruction">
-                                    <strong>{{t .server.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}
-                                </div>
-                                {{end}}
-                            </div>
-                            <div class="alert-expand">▼ {{t .server.Lang "severe.weather_click_to_expand"}}</div>
-                            {{end}}
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
+                {{template "alert_section" (dict "Items" .Data.OtherAlerts "Icon" "⚠️" "Title" (t .server.Lang "severe.weather_section_other") "Lang" .server.Lang)}}
 
                 {{/* No alerts message */}}
                 {{if not .Data.Hurricanes}}{{if not .Data.TornadoWarnings}}{{if not .Data.SevereStorms}}{{if not .Data.WinterStorms}}{{if not .Data.FloodWarnings}}{{if not .Data.OtherAlerts}}

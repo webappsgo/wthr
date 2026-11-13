@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/webappsgo/wthr/src/common/httputil"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -224,10 +225,27 @@ func RespondPaginated(w http.ResponseWriter, r *http.Request, data interface{}, 
 	writeJSON(w, http.StatusOK, response)
 }
 
-// shouldRespondText checks if the request wants text response per AI.md PART 14
-// Supports both .txt extension and Accept: text/plain header
+// shouldRespondText checks if the request wants a text response per AI.md PART 14.
+// Order: .txt extension, then an explicit Accept: application/json (which always
+// wins), then on frontend routes an explicit text/html, then Accept: text/plain,
+// and finally, on /api/ routes only, a non-interactive HTTP tool that sent no
+// explicit Accept preference.
 func shouldRespondText(r *http.Request) bool {
-	return hasTextExtension(r) || acceptsPlainText(r)
+	if hasTextExtension(r) {
+		return true
+	}
+	accept := r.Header.Get("Accept")
+	if strings.Contains(accept, "application/json") {
+		return false
+	}
+	isAPI := strings.HasPrefix(r.URL.Path, "/api/")
+	if !isAPI && strings.Contains(accept, "text/html") {
+		return false
+	}
+	if strings.Contains(accept, "text/plain") {
+		return true
+	}
+	return isAPI && isHTTPTool(r) && !isOurCLIClient(r)
 }
 
 // hasTextExtension reports whether the route was requested with the .txt
@@ -256,29 +274,14 @@ func isOurCLIClient(r *http.Request) bool {
 // isTextBrowser reports whether the request came from a text-mode browser,
 // which per AI.md PART 14 receives regular no-JS HTML.
 func isTextBrowser(r *http.Request) bool {
-	ua := strings.ToLower(r.Header.Get("User-Agent"))
-	for _, name := range []string{"lynx", "w3m", "links", "elinks"} {
-		if strings.Contains(ua, name) {
-			return true
-		}
-	}
-	return false
+	return httputil.IsTextBrowser(r)
 }
 
 // isHTTPTool reports whether the request came from a non-interactive HTTP tool
 // (curl/wget/httpie or a client sending no User-Agent at all), which per
 // AI.md PART 14 receives plain text rather than HTML.
 func isHTTPTool(r *http.Request) bool {
-	ua := strings.ToLower(r.Header.Get("User-Agent"))
-	if ua == "" {
-		return true
-	}
-	for _, name := range []string{"curl", "wget", "httpie", "http/"} {
-		if strings.Contains(ua, name) {
-			return true
-		}
-	}
-	return false
+	return httputil.IsHTTPTool(r)
 }
 
 // WantsJSON checks if the request wants JSON response per AI.md PART 14

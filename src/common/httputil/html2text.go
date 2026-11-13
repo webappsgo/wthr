@@ -113,7 +113,7 @@ func convertElement(buf *strings.Builder, n *html.Node, width, indent int) {
 		convertList(buf, n, width, indent, true)
 	case "a":
 		href := sanitizeTerminalText(getAttr(n, "href"))
-		buf.WriteString(getTextContent(n) + " [" + href + "]")
+		writeInline(buf, getTextContent(n)+" ["+href+"]")
 	case "strong", "b":
 		buf.WriteString("*" + getTextContent(n) + "*")
 	case "em", "i":
@@ -136,11 +136,33 @@ func convertElement(buf *strings.Builder, n *html.Node, width, indent int) {
 		buf.WriteString("\n")
 	case "br":
 		buf.WriteString("\n")
-	case "form", "input", "button", "script", "style":
+	case "form", "input", "button", "script", "style", "select", "textarea", "template", "noscript":
 		return
+	case "div", "section", "article", "aside", "header", "footer", "main", "nav", "details", "summary", "dl", "dt", "dd", "fieldset", "figure", "li":
+		breakLine(buf)
+		convertChildren(buf, n, width, indent)
+		breakLine(buf)
 	default:
 		convertChildren(buf, n, width, indent)
 	}
+}
+
+// breakLine ends the current line when text has already been written to it,
+// so adjacent block elements never run together on one line.
+func breakLine(buf *strings.Builder) {
+	out := buf.String()
+	if out != "" && !strings.HasSuffix(out, "\n") {
+		buf.WriteString("\n")
+	}
+}
+
+// writeInline separates an inline element from the text before it.
+func writeInline(buf *strings.Builder, text string) {
+	out := buf.String()
+	if out != "" && !strings.HasSuffix(out, "\n") && !strings.HasSuffix(out, " ") {
+		buf.WriteString(" ")
+	}
+	buf.WriteString(text)
 }
 
 // convertChildren recurses into every child of n, preserving the current

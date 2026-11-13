@@ -492,6 +492,46 @@
     }
   };
 
+  // Locale: strings from /locales/{lang}.json (AI.md PART 31), English fallback when a key or the file is missing
+  const Locale = {
+    messages: null,
+    pending: null,
+
+    lang: function() {
+      return (document.documentElement.lang || 'en').split('-')[0];
+    },
+
+    load: function() {
+      if (Locale.messages) {
+        return Promise.resolve(Locale.messages);
+      }
+      if (!Locale.pending) {
+        Locale.pending = fetch('/locales/' + encodeURIComponent(Locale.lang()) + '.json')
+          .then(function(response) { return response.ok ? response.json() : {}; })
+          .catch(function() { return {}; })
+          .then(function(messages) { Locale.messages = messages || {}; return Locale.messages; });
+      }
+      return Locale.pending;
+    },
+
+    t: function(key, fallback) {
+      const value = Locale.messages && Locale.messages[key];
+      return typeof value === 'string' && value !== '' ? value : fallback;
+    },
+
+    ago: function(seconds) {
+      try {
+        const formatter = new Intl.RelativeTimeFormat(Locale.lang(), { numeric: 'auto' });
+        if (seconds < 60) return formatter.format(0, 'second');
+        if (seconds < 3600) return formatter.format(-Math.floor(seconds / 60), 'minute');
+        if (seconds < 86400) return formatter.format(-Math.floor(seconds / 3600), 'hour');
+        return formatter.format(-Math.floor(seconds / 86400), 'day');
+      } catch (e) {
+        return '';
+      }
+    }
+  };
+
   // ============================================
   // NOTIFICATION SYSTEM
   // ============================================
@@ -556,6 +596,7 @@
      */
     fetchList: async function() {
       try {
+        await Locale.load();
         const response = await fetch(this.getBasePath() + '?limit=5', {
           credentials: 'same-origin'
         });
@@ -578,7 +619,7 @@
       if (!list) return;
 
       if (this.notifications.length === 0) {
-        list.innerHTML = '<div class="notification-empty">No notifications</div>';
+        list.innerHTML = '<div class="notification-empty">' + Utils.escapeHtml(Locale.t('nav.no_notifications', 'No notifications')) + '</div>';
         return;
       }
 
@@ -593,7 +634,7 @@
           '<span class="notification-dot"></span>' +
           '<span class="notification-icon">' + icon + '</span>' +
           '<div class="notification-content">' +
-            '<span class="notification-title">' + Utils.escapeHtml(n.title || 'Notification') + '</span>' +
+            '<span class="notification-title">' + Utils.escapeHtml(n.title || Locale.t('notifications.default_title', 'Notification')) + '</span>' +
             '<span class="notification-message">' + Utils.escapeHtml(n.message || '') + '</span>' +
             '<span class="notification-time">' + Utils.escapeHtml(timeAgo) + '</span>' +
           '</div>' +
@@ -610,11 +651,7 @@
       var now = new Date();
       var diff = Math.floor((now - date) / 1000);
 
-      if (diff < 60) return 'Just now';
-      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
-      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
-      if (diff < 172800) return 'Yesterday';
-      return Math.floor(diff / 86400) + 'd ago';
+      return Locale.ago(diff);
     },
 
     /**
@@ -634,7 +671,7 @@
           this.updateBadge(0);
           this.notifications.forEach(function(n) { n.read = true; });
           this.renderList();
-          Toast.show('All notifications marked as read', 'success');
+          Toast.show(Locale.t('notifications.all_marked_read', 'All notifications marked as read'), 'success');
         }
       } catch (error) {
         console.error('Failed to mark notifications as read:', error);
@@ -8107,21 +8144,6 @@
           break;
         case 'nav-notifications-mark-all-read':
           Notifications.markAllRead();
-          break;
-        case 'toggle-alert-details':
-          (function() {
-            const details = btn.querySelector('.alert-details');
-            const expand = btn.querySelector('.alert-expand');
-            if (details && expand) {
-              if (details.classList.contains('display-none')) {
-                details.classList.remove('display-none');
-                expand.textContent = '▲ Click to collapse';
-              } else {
-                details.classList.add('display-none');
-                expand.textContent = '▼ Click to expand';
-              }
-            }
-          })();
           break;
         case 'regenerate-recovery-keys':
           SecurityPage.regenerateRecoveryKeys();

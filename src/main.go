@@ -4,6 +4,7 @@ package main
 // Per AI.md: Swagger annotations moved to src/swagger/annotations.go
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -35,6 +36,7 @@ import (
 	"github.com/webappsgo/wthr/src/cli"
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/common/display"
+	"github.com/webappsgo/wthr/src/common/httputil"
 	"github.com/webappsgo/wthr/src/common/i18n"
 	"github.com/webappsgo/wthr/src/config"
 	"github.com/webappsgo/wthr/src/database"
@@ -989,9 +991,25 @@ func main() {
 
 	middleware.SetHTMLTemplates(tmpl)
 	middleware.RenderHTML = func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{}) {
+		var page bytes.Buffer
+		if err := tmpl.ExecuteTemplate(&page, name, data); err != nil && page.Len() == 0 {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(status)
+			return
+		}
+		// AI.md PART 14: curl/wget/httpie and Accept: text/plain get the page as
+		// formatted terminal text, everyone else gets the HTML as rendered
+		if httputil.FrontendWantsText(r) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.Header().Add("Vary", "Accept, User-Agent")
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(httputil.HTML2TextConverter(page.String(), 80) + "\n"))
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Add("Vary", "Accept, User-Agent")
 		w.WriteHeader(status)
-		_ = tmpl.ExecuteTemplate(w, name, data)
+		_, _ = w.Write(page.Bytes())
 	}
 
 	// Live reload templates in debug mode (loads from filesystem if available).
@@ -2727,14 +2745,6 @@ func main() {
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security", twoFAHandler.ShowSecurityPage)
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/passkeys", twoFAHandler.ShowSecurityPage)
 	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/security/password", twoFAHandler.ShowSecurityPage)
-
-	// User notification preferences page (per AI.md PART 14: /users/ is plural)
-	r.With(middleware.RequireAuth(db.DB), middleware.BlockAdminFromUserRoutes()).Get("/users/preferences", func(w http.ResponseWriter, r *http.Request) {
-		handler.NegotiateResponse(w, r, "user_preferences.tmpl", util.TemplateData(r, map[string]interface{}{
-			"title": "Preferences",
-			"page":  "preferences",
-		}))
-	})
 
 	// Removed - moved to adminRoutes group above
 

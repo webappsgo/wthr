@@ -18,7 +18,7 @@
         <h1 class="text-purple">{{t .server.Lang "moon.title"}}</h1>
 
         <!-- Location Search Form - Mobile First -->
-        <form id="moon-form" class="moon-form">
+        <form action="/moon" method="get" id="moon-form" class="moon-form">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="moon-form__wrapper">
                 <!-- First row: Location input and units -->

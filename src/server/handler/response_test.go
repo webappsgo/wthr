@@ -16,6 +16,7 @@ import (
 func newTestRequest(method, target string) (*http.Request, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(method, target, nil)
+	r.Header.Set("User-Agent", "Mozilla/5.0 Chrome/120")
 	return r, w
 }
 
@@ -237,10 +238,12 @@ func TestShouldRespondText(t *testing.T) {
 		{"accept text/plain with charset", "/api/v1/weather", "text/plain; charset=utf-8", true},
 		{"no accept header at all", "/api/v1/weather", "", false},
 		{"unrelated extension", "/api/v1/weather.json", "", false},
+		{"json beats plain", "/api/v1/weather", "application/json, text/plain", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r, _ := newTestRequest(http.MethodGet, tt.target)
+			r.Header.Set("User-Agent", "Mozilla/5.0 Chrome/120")
 			if tt.accept != "" {
 				r.Header.Set("Accept", tt.accept)
 			}

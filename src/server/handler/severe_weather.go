@@ -148,7 +148,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 		NegotiateErrorResponse(w, r, http.StatusInternalServerError, "page/severe_weather.tmpl", ErrInternal,
 			Translate(r, "errors.severe_weather_fetch_failed"),
 			util.TemplateData(r, map[string]interface{}{
-				"Title":        "Severe Weather Alerts",
+				"Title":        Translate(r, "severe.weather_heading"),
 				"page":         "severe-weather",
 				"Error":        Translate(r, "errors.severe_weather_fetch_failed"),
 				"LocationName": locationName,
@@ -160,6 +160,23 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 	// Save location to cookies for persistence across navigation
 	if latitude != 0 && longitude != 0 && locationName != "" {
 		middleware.SaveLocationCookies(w, r, latitude, longitude, locationName)
+	}
+
+	// Type filter is an allow-list; anything else behaves as "all"
+	typeFilter := strings.TrimSpace(r.URL.Query().Get("type"))
+	switch typeFilter {
+	case "hurricanes":
+		data.TornadoWarnings, data.SevereStorms, data.WinterStorms, data.FloodWarnings, data.OtherAlerts = nil, nil, nil, nil, nil
+	case "tornadoes":
+		data.Hurricanes, data.SevereStorms, data.WinterStorms, data.FloodWarnings, data.OtherAlerts = nil, nil, nil, nil, nil
+	case "storms":
+		data.Hurricanes, data.TornadoWarnings, data.WinterStorms, data.FloodWarnings, data.OtherAlerts = nil, nil, nil, nil, nil
+	case "winter":
+		data.Hurricanes, data.TornadoWarnings, data.SevereStorms, data.FloodWarnings, data.OtherAlerts = nil, nil, nil, nil, nil
+	case "floods":
+		data.Hurricanes, data.TornadoWarnings, data.SevereStorms, data.WinterStorms, data.OtherAlerts = nil, nil, nil, nil, nil
+	default:
+		typeFilter = "all"
 	}
 
 	// Calculate totals
@@ -210,11 +227,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 		}
 	}
 
-	// Get type and distance filters from query params
-	typeFilter := r.URL.Query().Get("type")
-	if typeFilter == "" {
-		typeFilter = "all"
-	}
+	// Distance filter from the query string
 	distanceFilter := fmt.Sprintf("%.0f", distance)
 
 	// Always use full detected location for clarity
@@ -223,7 +236,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherRequest(w http.ResponseWriter,
 	// AI.md PART 14: hand the assembled page data to the shared negotiation
 	// helper so HTML, text, and JSON clients each get their own format.
 	NegotiateResponse(w, r, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":          "Severe Weather Alerts",
+		"Title":          Translate(r, "severe.weather_heading"),
 		"page":           "severe-weather",
 		"Data":           data,
 		"TotalAlerts":    totalAlerts,
@@ -428,7 +441,7 @@ func (h *SevereWeatherHandler) HandleSevereWeatherByType(w http.ResponseWriter, 
 		displayLocation := locationName
 
 		middleware.RenderHTML(w, r, http.StatusOK, "page/severe_weather.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title":          fmt.Sprintf("%s - Severe Weather Alerts", cases.Title(language.English).String(alertType)),
+			"Title":          fmt.Sprintf("%s - %s", cases.Title(language.English).String(alertType), Translate(r, "severe.weather_heading")),
 			"page":           "severe-weather",
 			"Data":           filteredData,
 			"TotalAlerts":    totalAlerts,

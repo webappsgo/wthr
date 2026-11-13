@@ -353,7 +353,7 @@ func (h *WeatherHandler) serveHTMLWeather(w http.ResponseWriter, r *http.Request
 	displayLocation := location.ShortName
 
 	middleware.RenderHTML(w, r, http.StatusOK, "page/weather.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title": location.ShortName + " Weather",
+		"Title": TranslateFormat(r, "weather.page_title_location", map[string]string{"location": location.ShortName}),
 		"WeatherData": map[string]interface{}{
 			"Location": locationData,
 			"Current":  currentData,
@@ -636,7 +636,7 @@ func (h *WeatherHandler) handleMoonRequest(w http.ResponseWriter, r *http.Reques
 
 		// Serve moon HTML page
 		middleware.RenderHTML(w, r, http.StatusOK, "page/moon.tmpl", util.TemplateData(r, map[string]interface{}{
-			"Title":    "Moon Phase",
+			"Title":    Translate(r, "moon.title"),
 			"Location": location,
 			"Units":    units,
 			"HostInfo": hostInfo,

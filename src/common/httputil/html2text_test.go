@@ -291,3 +291,17 @@ func assertNoControlChars(t *testing.T, s string) {
 		}
 	}
 }
+
+func TestHTML2TextConverter_BlockAndInlineSeparation(t *testing.T) {
+	src := `<body><nav><a href="/">Home</a><a href="/moon">Moon</a></nav><div>One</div><div>Two</div><select><option>English</option></select></body>`
+	out := HTML2TextConverter(src, 80)
+	if strings.Contains(out, "English") {
+		t.Errorf("select options must be skipped: %q", out)
+	}
+	if !strings.Contains(out, "Home [/] Moon [/moon]") {
+		t.Errorf("adjacent links must be separated by a space: %q", out)
+	}
+	if strings.Contains(out, "OneTwo") || !strings.Contains(out, "One\nTwo") {
+		t.Errorf("block elements must start on their own line: %q", out)
+	}
+}

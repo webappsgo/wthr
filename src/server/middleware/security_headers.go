@@ -120,9 +120,6 @@ func DefaultSecurityHeadersConfig() SecurityHeadersConfig {
 		CSP: CSPConfig{
 			Enabled:         true,
 			Mode:            "enforce",
-			ScriptSrcExtra:  "https://unpkg.com",
-			StyleSrcExtra:   "https://unpkg.com",
-			FontSrcExtra:    "https://unpkg.com",
 			ConnectSrcExtra: "https://*.tile.openstreetmap.org wss: ws:",
 		},
 		NEL: NELConfig{

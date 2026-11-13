@@ -11,7 +11,7 @@
     </div>
 
         <!-- Location Search Form - Mobile First -->
-        <form id="weather-form" class="weather-form" role="search" aria-label="{{t .server.Lang "aria.search_form"}}">
+        <form action="/" method="get" id="weather-form" class="weather-form" role="search" aria-label="{{t .server.Lang "aria.search_form"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <div class="weather-form__wrapper">
                 <!-- First row: Location input and units -->

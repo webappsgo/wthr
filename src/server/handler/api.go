@@ -879,7 +879,7 @@ func (h *APIHandler) GetDocsHTML(w http.ResponseWriter, r *http.Request) {
 	hostInfo := util.GetHostInfo(r)
 
 	NegotiateResponse(w, r, "page/api_docs.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":      "API Documentation - Weather",
+		"Title":      Translate(r, "api.docs_title"),
 		"HostInfo":   hostInfo,
 		"HideFooter": false,
 	}))

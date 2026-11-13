@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{asset "/static/css/components.css"}}">
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
     <script src="{{asset "/static/js/app.js"}}" defer></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{asset "/static/vendor/leaflet/leaflet.css"}}">
 </head>
 <body>
     {{template "header" .}}
@@ -18,8 +18,7 @@
         <h1 class="text-purple">{{t .server.Lang "earthquake.title"}}</h1>
 
         <!-- Location Search Form -->
-        <form id="earthquake-form" class="search-form" role="form" aria-label="{{t .server.Lang "earthquake.search_filters_aria"}}">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+        <form action="/earthquakes" method="get" id="earthquake-form" class="search-form" role="form" aria-label="{{t .server.Lang "earthquake.search_filters_aria"}}">
             <div class="search-row-single flex-column-mobile">
                 <input
                     type="text"
@@ -233,7 +232,7 @@
         </div>
     </main>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{asset "/static/vendor/leaflet/leaflet.js"}}"></script>
 
     <script type="application/json" id="earthquake-page-data">
     {"centerLat": {{.CenterLat}}, "centerLon": {{.CenterLon}}, "hasLocation": {{if .Location}}true{{else}}false{{end}}, "earthquakes": [{{range $i, $e := .Earthquakes}}{{if $i}},{{end}}{"lat": {{$e.Latitude}}, "lng": {{$e.Longitude}}, "mag": {{$e.Magnitude}}, "place": {{$e.Place | printf "%q"}}, "time": {{$e.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{$e.Depth}}, "tsunami": {{$e.Tsunami}}, "url": {{$e.URL | printf "%q"}}}{{end}}]}

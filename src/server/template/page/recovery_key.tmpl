@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="{{asset "/static/css/public.css"}}">
 </head>
 <body>
+{{template "header" .}}
+{{template "navbar" .}}
+<main id="main-content" role="main">
     <div class="auth-container">
         <div class="auth-card">
             <h1>{{t .server.Lang "recovery.key_page_heading"}}</h1>
@@ -33,6 +36,7 @@
             </div>
         </div>
     </div>
-</body>
-</html>
+</main>
+{{template "footer" .}}
+
 {{end}}

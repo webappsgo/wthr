@@ -43,6 +43,7 @@ func newUSTestRequest(t *testing.T, method, target string, body interface{}) (*h
 	}
 
 	r := httptest.NewRequest(method, target, bytes.NewReader(raw))
+	r.Header.Set("User-Agent", "Mozilla/5.0 Chrome/120")
 	r.Header.Set("Content-Type", "application/json")
 	return r, w
 }

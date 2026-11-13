@@ -1,0 +1,37 @@
+{{define "alert_section"}}
+{{if .Items}}
+<section class="alert-section" aria-label="{{.Title}}">
+    <div class="section-header">
+        <span class="section-icon" aria-hidden="true">{{.Icon}}</span>
+        <h2 class="section-title">{{.Title}}</h2>
+        <span class="section-count">{{len .Items}}</span>
+    </div>
+    <div class="alerts-grid">
+        {{range .Items}}
+        <article class="alert-card severity-{{if eq .Severity "Extreme"}}extreme{{else if eq .Severity "Severe"}}severe{{else if eq .Severity "Moderate"}}moderate{{else}}minor{{end}}">
+            <div class="alert-header">
+                <h3 class="alert-type">{{.Event}}</h3>
+                {{if .DistanceMiles}}<span class="alert-distance"><span aria-hidden="true">📍</span> {{printf "%.0f" .DistanceMiles}} {{t $.Lang "units.mi"}}</span>{{end}}
+            </div>
+            <p class="alert-headline">{{.Headline}}</p>
+            <p class="alert-meta">
+                <span class="alert-severity">{{.Severity}}</span>
+                <span class="alert-urgency">{{.Urgency}}</span>
+                {{if .Country}}<span class="alert-country">{{.Country}}</span>{{end}}
+            </p>
+            <p class="alert-area">{{.AreaDesc}}</p>
+            {{if .Description}}
+            <details class="alert-details">
+                <summary class="alert-expand">{{t $.Lang "severe.weather_click_to_expand"}}</summary>
+                <div class="alert-description">{{.Description}}</div>
+                {{if .Instruction}}
+                <div class="alert-instruction"><strong>{{t $.Lang "severe.weather_instructions_label"}}</strong> {{.Instruction}}</div>
+                {{end}}
+            </details>
+            {{end}}
+        </article>
+        {{end}}
+    </div>
+</section>
+{{end}}
+{{end}}

@@ -72,7 +72,7 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	}
 
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(r, map[string]interface{}{
-		"Title":          "Web Settings",
+		"Title":          Translate(r, "admin.web.title"),
 		"RobotsTxt":      robotsTxt,
 		"SecurityTxt":    securityTxt,
 		"AppURL":         appURL,

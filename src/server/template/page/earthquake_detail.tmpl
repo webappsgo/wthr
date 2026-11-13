@@ -132,7 +132,7 @@
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{asset "/static/vendor/leaflet/leaflet.js"}}"></script>
 
 <script type="application/json" id="earthquake-detail-data">
 {"latitude": {{.Earthquake.Latitude}}, "longitude": {{.Earthquake.Longitude}}, "magnitude": {{.Earthquake.Magnitude}}, "place": {{.Earthquake.Place | printf "%q"}}, "time": {{.Earthquake.Time.Format "2006-01-02 15:04:05" | printf "%q"}}, "depth": {{.Earthquake.Depth}}, "tsunami": {{.Earthquake.Tsunami}}}

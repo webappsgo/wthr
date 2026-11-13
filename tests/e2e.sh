@@ -61,6 +61,7 @@ docker run --rm \
   --ipc=host \
   -v "$BUILD_DIR:/artifacts:ro" \
   -e "PROJECTNAME=$PROJECTNAME" \
+  -e "SKIP_PUBLIC=${SKIP_PUBLIC:-0}" \
   mcr.microsoft.com/playwright:v1.49.1-jammy bash -c '
     set -euo pipefail
     mkdir -p /tmp/e2e/config /tmp/e2e/data /tmp/e2e/log
@@ -79,7 +80,8 @@ docker run --rm \
     npm init -y >/dev/null 2>&1
     npm install --silent playwright@1.49.1 >/dev/null 2>&1
     cp /artifacts/layout.mjs /tmp/e2e/layout.mjs
-    BASE_URL=http://127.0.0.1:64999 node /tmp/e2e/layout.mjs
+    if [ "${SKIP_PUBLIC:-0}" != "1" ]; then BASE_URL=http://127.0.0.1:64999 node /tmp/e2e/layout.mjs; fi
+    BASE_URL=http://127.0.0.1:64999 SIGNED_IN=1 node /tmp/e2e/layout.mjs
   '
 
 echo "E2E layout matrix completed successfully"

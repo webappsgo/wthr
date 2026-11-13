@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,19 @@ func (h *EarthquakeHandler) HandleEarthquakes(w http.ResponseWriter, r *http.Req
 	// Check if services are initialized
 	if !IsInitialized() {
 		ServeLoadingPage(w, r)
+		return
+	}
+
+	// The search form submits as a plain GET, so JavaScript is optional: a
+	// location in the query string moves to the canonical path form.
+	if location := strings.TrimSpace(r.URL.Query().Get("location")); location != "" {
+		query := r.URL.Query()
+		query.Del("location")
+		target := "/earthquakes/" + url.PathEscape(location)
+		if encoded := query.Encode(); encoded != "" {
+			target += "?" + encoded
+		}
+		http.Redirect(w, r, target, http.StatusSeeOther)
 		return
 	}
 

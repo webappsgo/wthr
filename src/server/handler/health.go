@@ -348,21 +348,22 @@ func HealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 			}))
 		}
 
-		// AI.md PART 14 frontend chain: Accept: text/html > Accept: text/plain >
-		// browser User-Agent > CLI/HTTP tool > default HTML
+		// AI.md PART 14 frontend chain: .txt > Accept: application/json (the bare
+		// health JSON, identical to the API route) > our CLI > Accept: text/html >
+		// Accept: text/plain > browser User-Agent > CLI/HTTP tool > default HTML
 		switch {
-		case shouldRespondText(r):
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(statusCode)
-			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+		case hasTextExtension(r):
+			writeHealthText(w, statusCode, response)
 		case wantsExplicitJSON(r), isOurCLIClient(r):
 			renderIndentedJSON(w, statusCode, response)
+		case acceptsHTML(r):
+			renderHealthHTML()
+		case acceptsPlainText(r):
+			writeHealthText(w, statusCode, response)
 		case util.IsBrowser(r), isTextBrowser(r):
 			renderHealthHTML()
 		case isHTTPTool(r):
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(statusCode)
-			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+			writeHealthText(w, statusCode, response)
 		default:
 			renderHealthHTML()
 		}
@@ -509,9 +510,7 @@ func APIHealthCheck(db *database.DB, startTime time.Time) http.HandlerFunc {
 		// AI.md PART 14 API chain: .txt extension > Accept: application/json >
 		// Accept: text/plain > non-interactive client > default JSON
 		if hasTextExtension(r) || (!wantsExplicitJSON(r) && (acceptsPlainText(r) || isHTTPTool(r))) {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(statusCode)
-			_, _ = w.Write([]byte(formatPublicHealthText(response)))
+			writeHealthText(w, statusCode, response)
 			return
 		}
 
@@ -842,6 +841,18 @@ func renderIndentedJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(append(payload, '\n'))
+}
+
+// acceptsHTML reports whether the client explicitly asked for text/html.
+func acceptsHTML(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
+// writeHealthText writes the flat text rendering of the shared health result.
+func writeHealthText(w http.ResponseWriter, statusCode int, response publicHealthResponse) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(statusCode)
+	_, _ = w.Write([]byte(formatPublicHealthText(response)))
 }
 
 func wantsExplicitJSON(r *http.Request) bool {
