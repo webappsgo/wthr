@@ -4236,5 +4236,12 @@
   "health.check.data_cities": "数据：城市",
   "pwa.update_available": "有新版本可用",
   "pwa.update_now": "立即更新",
-  "pwa.later": "稍后"
+  "pwa.later": "稍后",
+  "location.heading": "位置详情",
+  "location.label": "位置",
+  "location.country": "国家",
+  "location.coordinates": "坐标",
+  "location.timezone": "时区",
+  "location.population": "人口",
+  "location.unknown": "未知"
 }

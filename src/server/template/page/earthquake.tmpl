@@ -107,7 +107,7 @@
         </form>
 
         {{if .LocationData}}
-            {{template "location_details" .LocationData}}
+            {{template "location_details" (dict "Data" .LocationData "Lang" .server.Lang)}}
         {{end}}
 
         <!-- Statistics -->

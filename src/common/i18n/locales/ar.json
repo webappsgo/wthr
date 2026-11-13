@@ -4236,5 +4236,12 @@
   "health.check.data_cities": "البيانات: المدن",
   "pwa.update_available": "يتوفر إصدار جديد",
   "pwa.update_now": "حدّث الآن",
-  "pwa.later": "لاحقًا"
+  "pwa.later": "لاحقًا",
+  "location.heading": "تفاصيل الموقع",
+  "location.label": "الموقع",
+  "location.country": "الدولة",
+  "location.coordinates": "الإحداثيات",
+  "location.timezone": "المنطقة الزمنية",
+  "location.population": "عدد السكان",
+  "location.unknown": "غير معروف"
 }

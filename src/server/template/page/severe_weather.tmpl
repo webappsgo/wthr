@@ -83,7 +83,7 @@
         </form>
 
         {{if .LocationData}}
-            {{template "location_details" .LocationData}}
+            {{template "location_details" (dict "Data" .LocationData "Lang" .server.Lang)}}
 
             <!-- Alert Summary -->
             {{/* Calculate actual visible alert count */}}

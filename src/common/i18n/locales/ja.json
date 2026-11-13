@@ -4236,5 +4236,12 @@
   "health.check.data_cities": "データ：都市",
   "pwa.update_available": "新しいバージョンが利用可能です",
   "pwa.update_now": "今すぐ更新",
-  "pwa.later": "後で"
+  "pwa.later": "後で",
+  "location.heading": "場所の詳細",
+  "location.label": "場所",
+  "location.country": "国",
+  "location.coordinates": "座標",
+  "location.timezone": "タイムゾーン",
+  "location.population": "人口",
+  "location.unknown": "不明"
 }

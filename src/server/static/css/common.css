@@ -2321,20 +2321,6 @@ textarea:user-invalid {
   box-shadow: none;
 }
 
-.location-info {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-lg);
-  align-items: center;
-}
-
-.location-detail {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  font-size: 0.875rem;
-}
-
 .location-icon {
   font-size: 1rem;
   flex-shrink: 0;
@@ -2530,6 +2516,14 @@ textarea:user-invalid {
 .forecast-table td {
   padding: var(--space-md);
   border-bottom: 1px solid var(--color-bg-active);
+  vertical-align: middle;
+}
+
+.forecast-table .day-header,
+.forecast-table .forecast-temp,
+.forecast-table .wind-info,
+.forecast-table .precipitation {
+  white-space: nowrap;
 }
 
 .forecast-table tbody tr:last-child td {
@@ -2628,13 +2622,10 @@ textarea:user-invalid {
   gap: var(--space-md);
 }
 
-@media (min-width: 768px) {
+/* Eight columns need ~1024px; below that each day is a card */
+@media (min-width: 1024px) {
   .mobile-forecast {
     display: none;
-  }
-
-  .desktop-table {
-    display: table;
   }
 }
 
@@ -2642,9 +2633,9 @@ textarea:user-invalid {
   display: none;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .desktop-table {
-    display: revert;
+    display: table;
   }
 }
 
@@ -2956,22 +2947,40 @@ textarea:user-invalid {
 }
 
 .location-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .location-info {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
 }
 
 .location-detail {
-  margin: 0;
-  font-size: 0.875rem;
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
 }
 
 .location-detail__label {
   color: var(--color-info);
-  font-weight: bold;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.location-detail__value {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .location-detail__value--name {
@@ -2985,6 +2994,7 @@ textarea:user-invalid {
 .location-detail__value--coords {
   color: var(--color-accent);
   font-family: var(--font-mono);
+  font-size: 0.9375rem;
 }
 
 .location-detail__value--timezone {

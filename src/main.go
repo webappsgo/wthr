@@ -934,6 +934,7 @@ func main() {
 		"asset":     buildstamp.Asset,
 		"lower":     strings.ToLower,
 		"nextTheme": server.NextTheme,
+		"dict":      server.TemplateDict,
 		"title":     func(s string) string { return cases.Title(language.English).String(s) },
 		"add": func(a, b int) int {
 			return a + b

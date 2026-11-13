@@ -47,6 +47,7 @@ func LoadTemplates() (*template.Template, error) {
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
 		"nextTheme": NextTheme,
+		"dict":      TemplateDict,
 		// Placeholder: main registers the real {baseurl}-aware path helper
 		"path":  func(p string) string { return p },
 		"asset": buildstamp.Asset,

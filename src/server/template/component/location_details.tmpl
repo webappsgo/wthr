@@ -1,39 +1,31 @@
 {{define "location_details"}}
-<!-- Location Details Section - Uniform Across All Pages -->
-<div class="location-details-section">
-    <div class="location-info">
+<!-- Location details: one definition list, same on every page -->
+<section class="location-details-section" aria-label="{{t .Lang "location.heading"}}">
+    <dl class="location-info">
         <div class="location-detail">
-            📍 <strong class="location-detail__label">Location:</strong>
-            <span class="location-detail__value--name">{{if .Location.ShortName}}{{.Location.ShortName}}{{else}}{{.Location.Name}}, {{.Location.Country}}{{end}}</span>
+            <dt class="location-detail__label"><span aria-hidden="true">📍</span> {{t .Lang "location.label"}}</dt>
+            <dd class="location-detail__value location-detail__value--name">{{if .Data.Location.ShortName}}{{.Data.Location.ShortName}}{{else}}{{.Data.Location.Name}}, {{.Data.Location.Country}}{{end}}</dd>
         </div>
         <div class="location-detail">
-            🌍 <strong class="location-detail__label">Country:</strong>
-            <span class="location-detail__value--country">{{.Location.Country}}</span>
+            <dt class="location-detail__label"><span aria-hidden="true">🌍</span> {{t .Lang "location.country"}}</dt>
+            <dd class="location-detail__value location-detail__value--country">{{.Data.Location.Country}}</dd>
         </div>
         <div class="location-detail">
-            🌐 <strong class="location-detail__label">Coordinates:</strong>
-            {{if .Location.Latitude}}{{if .Location.Longitude}}
-            <span class="location-detail__value--coords">{{.Location.Latitude}}, {{.Location.Longitude}}</span>
-            {{else}}
-            <span class="location-detail__value--coords">Unknown</span>
-            {{end}}{{else}}
-            <span class="location-detail__value--coords">Unknown</span>
-            {{end}}
+            <dt class="location-detail__label"><span aria-hidden="true">🌐</span> {{t .Lang "location.coordinates"}}</dt>
+            <dd class="location-detail__value location-detail__value--coords">{{if and .Data.Location.Latitude .Data.Location.Longitude}}{{.Data.Location.Latitude}}, {{.Data.Location.Longitude}}{{else}}{{t .Lang "location.unknown"}}{{end}}</dd>
         </div>
-        {{if .Location.Timezone}}
+        {{if .Data.Location.Timezone}}
         <div class="location-detail">
-            🕐 <strong class="location-detail__label">Timezone:</strong>
-            <span class="location-detail__value--timezone">{{.Location.Timezone}}</span>
+            <dt class="location-detail__label"><span aria-hidden="true">🕐</span> {{t .Lang "location.timezone"}}</dt>
+            <dd class="location-detail__value location-detail__value--timezone">{{.Data.Location.Timezone}}</dd>
         </div>
         {{end}}
-        {{if .Location.Population}}
-        {{if gt .Location.Population 0}}
+        {{if .Data.Location.Population}}
         <div class="location-detail">
-            👥 <strong class="location-detail__label">Population:</strong>
-            <span class="location-detail__value--population">{{.Location.PopulationFormatted}}</span>
+            <dt class="location-detail__label"><span aria-hidden="true">👥</span> {{t .Lang "location.population"}}</dt>
+            <dd class="location-detail__value location-detail__value--population">{{.Data.Location.PopulationFormatted}}</dd>
         </div>
         {{end}}
-        {{end}}
-    </div>
-</div>
+    </dl>
+</section>
 {{end}}

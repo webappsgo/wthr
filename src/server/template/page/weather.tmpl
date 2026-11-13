@@ -40,7 +40,7 @@
         </form>
 
         {{if .WeatherData}}
-            {{template "location_details" .WeatherData}}
+            {{template "location_details" (dict "Data" .WeatherData "Lang" .server.Lang)}}
         {{end}}
 
         {{if .Error}}

@@ -52,7 +52,7 @@
         </form>
 
         {{if .MoonData}}
-            {{template "location_details" .MoonData}}
+            {{template "location_details" (dict "Data" .MoonData "Lang" .server.Lang)}}
 
             <!-- Current Moon Phase -->
             <div class="current-weather">

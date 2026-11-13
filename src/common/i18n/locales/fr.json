@@ -4236,5 +4236,12 @@
   "health.check.data_cities": "Données : villes",
   "pwa.update_available": "Une nouvelle version est disponible",
   "pwa.update_now": "Mettre à jour maintenant",
-  "pwa.later": "Plus tard"
+  "pwa.later": "Plus tard",
+  "location.heading": "Détails du lieu",
+  "location.label": "Lieu",
+  "location.country": "Pays",
+  "location.coordinates": "Coordonnées",
+  "location.timezone": "Fuseau horaire",
+  "location.population": "Population",
+  "location.unknown": "Inconnu"
 }
