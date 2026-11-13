@@ -11,7 +11,6 @@
   "about.api_feature_weather": "Echtzeit-Wetterdaten aus der Open-Meteo-API",
   "about.api_feature_websocket": "Echtzeit-Benachrichtigungen über WebSocket",
   "about.app_info_heading": "Anwendungsinformationen",
-  "about.attribution_geoip_license": "Länder- und ASN-Daten stehen unter CC BY 4.0 der Number Resource Organization (NRO).",
   "about.attribution_geoip_link": "IP-Geolokalisierung durch DB-IP",
   "about.attribution_heading": "Drittanbieter-Zuschreibung",
   "about.data_sources_heading": "Datenquellen",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "Warnung: Devel-Version konnte nicht überprüft werden: %v\n",
   "cli.version.built": "Erstellt: %s\n",
   "cli.version.go": "Go: %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "OS/Arch: %s/%s\n",
   "common.select_language": "Sprache wählen",
   "condition.blizzard": "Schneesturm",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames (Stadt- und Länderdaten)",
   "privacy.api_third_party_noaa": "NOAA (Hurrikan-/Warndaten)",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim (Reverse-Geokodierung)",
-  "privacy.api_third_party_nro": "Number Resource Organization (Länder- und ASN-Daten)",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (Länder- und ASN-Daten)",
   "privacy.api_third_party_open_meteo": "Open-Meteo (Wetterdaten)",
   "privacy.api_third_party_usgs": "USGS (Erdbebendaten)",
   "privacy.audit_logs_label": "Audit-Protokolle:",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "Maximale entpackte Größe",
   "admin.backup.limit_entries": "Maximale Anzahl Archiveinträge",
   "admin.backup.limit_file_size": "Maximale Größe pro Datei",
-  "admin.backup.limit_ratio": "Maximales Kompressionsverhältnis"
+  "admin.backup.limit_ratio": "Maximales Kompressionsverhältnis",
+  "api.text_retrieved": "Erfolgreich abgerufen",
+  "api.text_items_found": "{n} Elemente gefunden"
 }

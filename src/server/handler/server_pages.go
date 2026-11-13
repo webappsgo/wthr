@@ -274,15 +274,14 @@ func dataSourceAttribution(r *http.Request) []map[string]interface{} {
 	}
 }
 
-// geoipAttribution returns the PART 20 verbatim GeoIP notices. The link text
-// and the NRO license line are returned as separate fields so the HTML page can
-// wrap the first in an anchor and the API can carry both as plain values.
+// geoipAttribution returns the PART 20 DB-IP notice. The link text and the URL
+// are separate fields so the HTML page can wrap the text in an anchor and the
+// API can carry both as plain values.
 func geoipAttribution(r *http.Request) map[string]interface{} {
 	return map[string]interface{}{
 		"heading": Translate(r, "about.attribution_heading"),
 		"link":    "https://db-ip.com/",
 		"text":    Translate(r, "about.attribution_geoip_link"),
-		"license": Translate(r, "about.attribution_geoip_license"),
 	}
 }
 
@@ -348,7 +347,7 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 				Translate(r, "privacy.api_third_party_nominatim"),
 				Translate(r, "privacy.api_third_party_geonames"),
 				Translate(r, "privacy.api_third_party_dbip"),
-				Translate(r, "privacy.api_third_party_nro"),
+				Translate(r, "privacy.api_third_party_iptoasn"),
 			},
 			"contact": "/server/contact",
 		})

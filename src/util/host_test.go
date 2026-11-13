@@ -124,33 +124,6 @@ func TestIsLoopback(t *testing.T) {
 	}
 }
 
-// TestGetClientIP covers header priority order and the Gin ClientIP fallback.
-func TestGetClientIP(t *testing.T) {
-	tests := []struct {
-		name    string
-		headers map[string]string
-		want    string
-	}{
-		{"cloudflare", map[string]string{"CF-Connecting-IP": "1.1.1.1"}, "1.1.1.1"},
-		{"x_real_ip", map[string]string{"X-Real-IP": "2.2.2.2"}, "2.2.2.2"},
-		{"x_forwarded_for_single", map[string]string{"X-Forwarded-For": "3.3.3.3"}, "3.3.3.3"},
-		{"x_forwarded_for_multi_takes_first", map[string]string{"X-Forwarded-For": "4.4.4.4, 5.5.5.5"}, "4.4.4.4"},
-		{"true_client_ip", map[string]string{"True-Client-IP": "6.6.6.6"}, "6.6.6.6"},
-		{"cloudflare_beats_others", map[string]string{
-			"CF-Connecting-IP": "1.1.1.1",
-			"X-Real-IP":        "2.2.2.2",
-		}, "1.1.1.1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := newTestRequest(http.MethodGet, "/", tt.headers)
-			if got := GetClientIP(r); got != tt.want {
-				t.Errorf("GetClientIP() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 // TestIsLocalhost covers standard localhost forms and RFC 1918 private
 // ranges, plus rejection of public IPs.
 func TestIsLocalhost(t *testing.T) {

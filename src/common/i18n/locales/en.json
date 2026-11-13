@@ -11,7 +11,6 @@
   "about.api_feature_weather": "Real-time weather data from Open-Meteo API",
   "about.api_feature_websocket": "WebSocket real-time alert notifications",
   "about.app_info_heading": "Application Information",
-  "about.attribution_geoip_license": "Country and ASN data licensed CC BY 4.0 by the Number Resource Organization (NRO).",
   "about.attribution_geoip_link": "IP Geolocation by DB-IP",
   "about.attribution_heading": "Third-Party Attribution",
   "about.data_sources_heading": "Data Sources",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "Warning: Could not check devel release: %v\n",
   "cli.version.built": "Built: %s\n",
   "cli.version.go": "Go: %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "OS/Arch: %s/%s\n",
   "common.select_language": "Select language",
   "condition.blizzard": "Blizzard",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames (city and country data)",
   "privacy.api_third_party_noaa": "NOAA (hurricane/alert data)",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim (reverse geocoding)",
-  "privacy.api_third_party_nro": "Number Resource Organization (country and ASN data)",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (country and ASN data)",
   "privacy.api_third_party_open_meteo": "Open-Meteo (weather data)",
   "privacy.api_third_party_usgs": "USGS (earthquake data)",
   "privacy.audit_logs_label": "Audit Logs:",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "Maximum expanded size",
   "admin.backup.limit_entries": "Maximum archive entries",
   "admin.backup.limit_file_size": "Maximum individual file size",
-  "admin.backup.limit_ratio": "Maximum compression ratio"
+  "admin.backup.limit_ratio": "Maximum compression ratio",
+  "api.text_retrieved": "Retrieved successfully",
+  "api.text_items_found": "{n} items found"
 }

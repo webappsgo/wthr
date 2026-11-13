@@ -11,7 +11,6 @@
   "about.api_feature_weather": "Dati meteo in tempo reale dall'API Open-Meteo",
   "about.api_feature_websocket": "Notifiche di allerta in tempo reale via WebSocket",
   "about.app_info_heading": "Informazioni sull'applicazione",
-  "about.attribution_geoip_license": "Dati su paese e ASN con licenza CC BY 4.0 della Number Resource Organization (NRO).",
   "about.attribution_geoip_link": "Geolocalizzazione IP di DB-IP",
   "about.attribution_heading": "Attribuzioni di terze parti",
   "about.data_sources_heading": "Fonti dei dati",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "Attenzione: impossibile controllare la versione devel: %v\n",
   "cli.version.built": "Build: %s\n",
   "cli.version.go": "Go: %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "SO/Arch: %s/%s\n",
   "common.select_language": "Seleziona la lingua",
   "condition.blizzard": "Bufera di neve",
@@ -3122,7 +3121,7 @@
   "privacy.api_third_party_geonames": "GeoNames (dati su città e paesi)",
   "privacy.api_third_party_noaa": "NOAA (dati su uragani e allerte)",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim (geocodifica inversa)",
-  "privacy.api_third_party_nro": "Number Resource Organization (dati su paesi e ASN)",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (dati su paese e ASN)",
   "privacy.api_third_party_open_meteo": "Open-Meteo (dati meteo)",
   "privacy.api_third_party_usgs": "USGS (dati sui terremoti)",
   "privacy.audit_logs_label": "Registri di audit:",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "Dimensione massima espansa",
   "admin.backup.limit_entries": "Numero massimo di voci dell'archivio",
   "admin.backup.limit_file_size": "Dimensione massima per file",
-  "admin.backup.limit_ratio": "Rapporto massimo di compressione"
+  "admin.backup.limit_ratio": "Rapporto massimo di compressione",
+  "api.text_retrieved": "Recuperato con successo",
+  "api.text_items_found": "{n} elementi trovati"
 }

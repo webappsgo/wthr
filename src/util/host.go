@@ -170,51 +170,6 @@ func getGlobalIPv4() string {
 	return ""
 }
 
-// GetClientIP extracts the real client IP from reverse proxy headers.
-// This is the unguarded resolver: it honors every forwarded-IP header
-// unconditionally. Most callers should use TrustedGetClientIP instead,
-// which only honors these headers when the immediate peer passes the
-// server.trusted_proxies gate (AI.md PART 5/12).
-func GetClientIP(r *http.Request) string {
-	// Check Cloudflare header first
-	if ip := r.Header.Get("CF-Connecting-IP"); ip != "" {
-		return ip
-	}
-
-	// Check X-Real-IP
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-
-	// Check X-Forwarded-For (use first IP)
-	if ip := r.Header.Get("X-Forwarded-For"); ip != "" {
-		// X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
-		// We want the first one (the actual client)
-		for i, char := range ip {
-			if char == ',' {
-				return ip[:i]
-			}
-		}
-		return ip
-	}
-
-	// Check True-Client-IP
-	if ip := r.Header.Get("True-Client-IP"); ip != "" {
-		return ip
-	}
-
-	// Check X-Client-IP
-	if ip := r.Header.Get("X-Client-IP"); ip != "" {
-		return ip
-	}
-
-	// Fallback to the raw remote address (host part only)
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
-	}
-	return r.RemoteAddr
-}
-
 // IsLocalhost checks if an IP is localhost or private
 // AI.md: Host-specific values detected at runtime
 func IsLocalhost(ip string) bool {

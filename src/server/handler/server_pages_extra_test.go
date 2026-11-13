@@ -33,6 +33,7 @@ func TestGetDPOAPIFallbackChain(t *testing.T) {
 	cfg.Server.Contact.Admin.Email = "admin@example.com"
 
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/dpo", nil)
+	r.Header.Set("Accept", "application/json")
 	r.Host = "wthr.example.com"
 	w := httptest.NewRecorder()
 	GetDPOAPI(cfg).ServeHTTP(w, r)
@@ -84,6 +85,7 @@ func TestMCPHelpAPIContent(t *testing.T) {
 	cfg.Server.Pages.Help.MCP = "Ask about Berlin."
 	src := fakeMCP{enabled: true, tools: []MCPToolInfo{{Name: "getWeather", Description: "Current weather"}}}
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/help/mcp", nil)
+	r.Header.Set("Accept", "application/json")
 	r.Host = "wthr.example.com"
 	w := httptest.NewRecorder()
 	GetMCPHelpAPI(cfg, src).ServeHTTP(w, r)
@@ -114,6 +116,7 @@ func TestSecurityAPIs(t *testing.T) {
 	cfg := &config.AppConfig{}
 	cfg.Server.Contact.Security.Email = "security@example.com"
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/security", nil)
+	r.Header.Set("Accept", "application/json")
 	r.Host = "wthr.example.com"
 	w := httptest.NewRecorder()
 	GetSecurityAPI(cfg).ServeHTTP(w, r)
@@ -132,12 +135,16 @@ func TestSecurityAPIs(t *testing.T) {
 	}
 
 	w = httptest.NewRecorder()
-	GetSecurityPolicyAPI().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/server/security/policy", nil))
+	policyReq := httptest.NewRequest(http.MethodGet, "/api/v1/server/security/policy", nil)
+	policyReq.Header.Set("Accept", "application/json")
+	GetSecurityPolicyAPI().ServeHTTP(w, policyReq)
 	if _, ok := decodeBody(t, w)["policy"]; !ok {
 		t.Error("policy field missing")
 	}
 	w = httptest.NewRecorder()
-	GetSecurityThanksAPI().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/server/security/thanks", nil))
+	thanksReq := httptest.NewRequest(http.MethodGet, "/api/v1/server/security/thanks", nil)
+	thanksReq.Header.Set("Accept", "application/json")
+	GetSecurityThanksAPI().ServeHTTP(w, thanksReq)
 	if _, ok := decodeBody(t, w)["entries"]; !ok {
 		t.Error("entries field missing")
 	}

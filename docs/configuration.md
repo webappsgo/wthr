@@ -121,6 +121,17 @@ geoip:
   update_interval: 168h
 ```
 
+### Trusted Proxies
+
+```yaml
+server:
+  trusted_proxies:
+    additional: []
+    client_ip_header: auto
+```
+
+Private ranges, link-local addresses and the same /24 as the listen address are always trusted. `additional` adds public upstream proxies (IP, CIDR or DNS name). Proxy headers are read only when the TCP peer is trusted. The client IP is found by walking the forwarded chain from the right: the first hop that is not a trusted proxy is the client. `client_ip_header` is `auto` (first present of `X-Forwarded-For`, `Forwarded`, `CF-Connecting-IP`, `True-Client-IP`, `X-Real-IP`, `X-Client-IP`) or one header name that is the only header read. Pin it to the header your front proxy sets or appends to.
+
 ### Notifications
 
 ```yaml
@@ -228,10 +239,9 @@ Theme and language preferences can be managed without JavaScript and persist thr
 
 ## Validation
 
-Use the existing project commands for validation:
+Validation runs as part of the test gate: `TestKeyConsistency` and `TestLocalesFS` fail when a language file's keys differ from `en.json`.
 
 ```bash
-make i18n-validate
 make test
 ```
 

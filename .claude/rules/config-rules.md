@@ -8,6 +8,7 @@
 - NEVER build a file path from user/config input without running it through `SafePath`/`validatePath`/`validatePathSegment` — reject `..`, absolute-path escapes, null bytes, and symlink traversal.
 - NEVER fail server startup because a config value is invalid — warn and substitute the default instead.
 - NEVER use `strconv.ParseBool()` for boolean config/env/flag/form/query values — always `config.ParseBool()`/`config.IsTruthy()`.
+- NEVER trust the leftmost `X-Forwarded-For` entry: walk the proxy chain from the right, skip hops inside `trusted_proxies`, the first untrusted hop is the client; an invalid/obfuscated hop ends the walk; the TCP peer and every hop are normalized (strip port/brackets/zone, `netip.ParseAddr`, `Unmap`) before the gate; `server.trusted_proxies.client_ip_header` is `auto` or one pinned header
 - NEVER trust `X-Forwarded-*` headers (Host, Proto, Port, Prefix, client-IP variants) from a peer that isn't in `trusted_proxies` (private ranges + `additional` allow-list) — drop them and fall back to `r.Host`/`r.RemoteAddr`.
 - NEVER evaluate the `trusted_proxies` gate against a rewritten `r.RemoteAddr` — real-IP middleware must preserve the original TCP peer in context and trust-check against that, never the resolved client IP.
 - NEVER apply the `trusted_proxies` gate to Tor requests — Tor Host-header match is priority 0, resolved from `tor.*` config with no IP check.

@@ -122,8 +122,8 @@ func TestRespondSuccess(t *testing.T) {
 	t.Run(".txt extension responds with plain message", func(t *testing.T) {
 		r, w := newTestRequest(http.MethodPost, "/api/v1/thing.txt")
 		RespondSuccess(w, r, "saved")
-		if strings.TrimSpace(w.Body.String()) != "saved" {
-			t.Errorf("body = %q, want %q", w.Body.String(), "saved")
+		if strings.TrimSpace(w.Body.String()) != "OK: saved" {
+			t.Errorf("body = %q, want %q", w.Body.String(), "OK: saved")
 		}
 	})
 }
@@ -319,8 +319,8 @@ func TestNegotiateResponse(t *testing.T) {
 	t.Run("text branch", func(t *testing.T) {
 		r, w := newTestRequest(http.MethodGet, "/page.txt")
 		NegotiateResponse(w, r, "page.tmpl", map[string]interface{}{"X": 1})
-		if !strings.Contains(w.Body.String(), "\"X\"") {
-			t.Errorf("body = %q, want pretty JSON containing X", w.Body.String())
+		if !strings.Contains(w.Body.String(), "X: 1") {
+			t.Errorf("body = %q, want a key: value line for X", w.Body.String())
 		}
 	})
 

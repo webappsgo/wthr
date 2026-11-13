@@ -127,8 +127,8 @@ geoip:
   databases:
     - dbip-city-ipv4
     - dbip-city-ipv6
-    - geo-whois-asn-country
-    - asn
+    - iptoasn-country
+    - iptoasn-asn
 
 # Scheduler Configuration
 schedule:

@@ -67,6 +67,12 @@ func (c *CLI) Parse(args []string) error {
 		}
 	}
 
+	// AI.md PART 8 "Command-Flag Help": help for a command flag is routed before the main parse
+	if name, ok := commandHelp(preprocessedArgs, "shell", "service", "maintenance", "update"); ok {
+		c.printCommandHelp(name)
+		os.Exit(0)
+	}
+
 	// Define standard flags (AI.md PART 8)
 	var (
 		showHelp       = c.flags.Bool("help", false, "Show this help message")
@@ -253,6 +259,38 @@ func commandWithArgs(command string, args []string) []string {
 	return append(result, args...)
 }
 
+// commandHelp returns the command flag whose help was requested, matching both
+// "--shell --help" and "--shell help"; it runs before the flag set parses so the
+// command flag cannot consume the help word as its value.
+func commandHelp(args []string, commands ...string) (string, bool) {
+	for i := 0; i+1 < len(args); i++ {
+		next := args[i+1]
+		if next != "--help" && next != "-h" && next != "help" {
+			continue
+		}
+		for _, command := range commands {
+			if args[i] == "--"+command {
+				return command, true
+			}
+		}
+	}
+	return "", false
+}
+
+// printCommandHelp prints the help for one command flag
+func (c *CLI) printCommandHelp(name string) {
+	switch name {
+	case "shell":
+		c.showShellHelp(filepath.Base(os.Args[0]))
+	case "service":
+		showServiceHelp()
+	case "maintenance":
+		printMaintenanceHelp()
+	case "update":
+		printUpdateHelp()
+	}
+}
+
 // ShowHelp displays help information per AI.md PART 8 spec
 // AI.md PART 8: Must show actual binary name (if renamed)
 func (c *CLI) ShowHelp() {
@@ -311,17 +349,26 @@ func (c *CLI) ShowHelp() {
 	fmt.Printf(T("cli.help.footer")+"\n", binaryName)
 }
 
-// ShowVersion displays version information per AI.md PART 16 line 13778
+// shortCommit returns the first 7 characters of a commit id (AI.md PART 8 "--version Output")
+func shortCommit(commit string) string {
+	commit = strings.TrimSpace(commit)
+	if len(commit) > 7 {
+		return commit[:7]
+	}
+	return commit
+}
+
+// ShowVersion displays version information per AI.md PART 8 "--version Output"
 // AI.md: Must show actual binary name (if renamed)
 // Format per spec:
 //
-//	{binaryName} v{version}
+//	{binaryName} {version} ({short_commit})
 //	Built: {timestamp}
 //	Go: {go_version}
 //	OS/Arch: {os}/{arch}
 func (c *CLI) ShowVersion() {
 	binaryName := filepath.Base(os.Args[0])
-	fmt.Printf(T("cli.version.name_version")+"\n", binaryName, Version)
+	fmt.Printf(T("cli.version.name_version")+"\n", binaryName, Version, shortCommit(CommitID))
 	fmt.Printf(T("cli.version.built")+"\n", BuildDate)
 	fmt.Printf(T("cli.version.go")+"\n", runtime.Version())
 	fmt.Printf(T("cli.version.os_arch")+"\n", runtime.GOOS, runtime.GOARCH)

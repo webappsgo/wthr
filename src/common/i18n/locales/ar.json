@@ -11,7 +11,6 @@
   "about.api_feature_weather": "بيانات طقس في الوقت الفعلي من واجهة برمجة Open-Meteo",
   "about.api_feature_websocket": "إشعارات تنبيهات فورية عبر WebSocket",
   "about.app_info_heading": "معلومات التطبيق",
-  "about.attribution_geoip_license": "بيانات الدولة و ASN مرخصة بموجب CC BY 4.0 من(Number Resource Organization (NRO)).",
   "about.attribution_geoip_link": "تحديد الموقع الجغرافي للـ IP بواسطة DB-IP",
   "about.attribution_heading": "إسناد الأطراف الثالثة",
   "about.data_sources_heading": "مصادر البيانات",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "تحذير: تعذّر التحقق من إصدار التطوير: %v\n",
   "cli.version.built": "تاريخ البناء: %s\n",
   "cli.version.go": "Go: %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "نظام التشغيل/المعمارية: %s/%s\n",
   "common.select_language": "اختر اللغة",
   "condition.blizzard": "عاصفة ثلجية",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames (بيانات المدن والدول)",
   "privacy.api_third_party_noaa": "NOAA (بيانات الأعاصير/التنبيهات)",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim (الترميز الجغرافي العكسي)",
-  "privacy.api_third_party_nro": "Number Resource Organization (بيانات الدولة و ASN)",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (بيانات الدولة وASN)",
   "privacy.api_third_party_open_meteo": "Open-Meteo (بيانات الطقس)",
   "privacy.api_third_party_usgs": "USGS (بيانات الزلازل)",
   "privacy.audit_logs_label": "سجلات التدقيق:",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "الحجم الأقصى بعد فك الضغط",
   "admin.backup.limit_entries": "الحد الأقصى لعناصر الأرشيف",
   "admin.backup.limit_file_size": "الحجم الأقصى للملف الواحد",
-  "admin.backup.limit_ratio": "أقصى نسبة ضغط"
+  "admin.backup.limit_ratio": "أقصى نسبة ضغط",
+  "api.text_retrieved": "تم الاسترجاع بنجاح",
+  "api.text_items_found": "تم العثور على {n} عنصر"
 }

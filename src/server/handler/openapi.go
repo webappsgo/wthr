@@ -13,11 +13,11 @@ import (
 
 // GetSwaggerUIAuto returns the auto-generated Swagger UI using swaggo/http-swagger
 // Serves Swagger UI at /openapi per AI.md PART 14
-func GetSwaggerUIAuto() http.HandlerFunc {
+func GetSwaggerUIAuto(apiPath string) http.HandlerFunc {
 	// Swagger UI inherits the shared theme system per AI.md PART 16
 	ui := httpSwagger.Handler(
-		// The spec is fetched from the unversioned alias (AI.md PART 14)
-		httpSwagger.URL("/api/swagger"),
+		// The spec is fetched from the versioned canonical route (AI.md PART 14)
+		httpSwagger.URL(apiPath+"/server/swagger"),
 		httpSwagger.DocExpansion("list"),
 		httpSwagger.DeepLinking(true),
 		httpSwagger.PersistAuthorization(true),

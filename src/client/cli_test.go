@@ -103,7 +103,7 @@ func TestHandleCommand(t *testing.T) {
 				t.Errorf("expected nil error, got %v", err)
 			}
 		})
-		if !strings.Contains(out, "wthr-cli v") {
+		if !strings.Contains(out, "wthr-cli ") {
 			t.Errorf("expected version text, got %q", out)
 		}
 	})
@@ -147,7 +147,7 @@ func TestPrintVersion(t *testing.T) {
 			t.Errorf("expected nil error, got %v", err)
 		}
 	})
-	for _, want := range []string{"wthr-cli v", "Built:", "Go:", "OS/Arch:"} {
+	for _, want := range []string{"wthr-cli ", "Built:", "Go:", "OS/Arch:"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected version output to contain %q, got %q", want, out)
 		}
@@ -428,4 +428,14 @@ func TestHandleEarthquakesAndHurricanesCommandFlags(t *testing.T) {
 			t.Errorf("expected usage error, got %v", err)
 		}
 	})
+}
+
+// TestClientCommandHelp covers the command-flag help pre-scan (AI.md PART 8).
+func TestClientCommandHelp(t *testing.T) {
+	if name, ok := commandHelp([]string{"--shell", "--help"}, "shell", "update"); !ok || name != "shell" {
+		t.Errorf("shell --help = %q,%v", name, ok)
+	}
+	if _, ok := commandHelp([]string{"--help"}, "shell", "update"); ok {
+		t.Error("plain --help must not match a command flag")
+	}
 }

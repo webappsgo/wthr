@@ -130,7 +130,7 @@ Configure server-wide settings through the web UI.
 - **Enable GeoIP** - Auto-location via IP address
 - **Auto-Update** - Automatically update GeoIP databases
 - **Update Interval** - How often to update (default: 7 days)
-- **Database Sources** - CDN URLs for GeoIP data
+- **Database Sources** - GitHub Release asset URLs for GeoIP data
 
 #### Authentication Settings
 

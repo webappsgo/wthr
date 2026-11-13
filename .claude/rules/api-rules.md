@@ -58,10 +58,12 @@
 - Route scopes: `/server/*` (public), `/server/auth/*`, `/users/*` (no ID, current user from session), `/orgs/*` (`{slug}` required), `/server/{admin_path}/*` (admin), `/server/{admin_path}/config/*` (admin config), `/*` (project-specific)
 - Path params for resource identity, query params for pagination/sort/filter — never duplicate
 - Content negotiation priority for API routes: `.txt` > `Accept: application/json` > `Accept: text/plain` > non-interactive client > default JSON
-- Content negotiation priority for frontend routes: `Accept: text/html` > `Accept: text/plain` > browser User-Agent > CLI/curl > default HTML
+- Content negotiation priority for frontend routes: `.txt` > `Accept: application/json` > our CLI (JSON) > `Accept: text/html` > `Accept: text/plain` > text browser (no-JS HTML) > HTTP tool (formatted text) > default HTML; once the format is HTML, text browsers (lynx/w3m/links) get the no-JS variant even with an explicit `Accept: text/html`
 - Client types: Our CLI (`{project_name}-cli/` UA) gets JSON and renders itself; text browsers (lynx/w3m/links/elinks) get no-JS HTML; HTTP tools (curl/wget/httpie/empty UA) get `HTML2TextConverter()` formatted text
 - External API "compatibility" defaults to feature/behavior parity using our own routes — only add the external route surface when the user explicitly requests route/API/client compatibility
 - Full RFC/protocol compliance (DNS, SMTP, DHCP, Matrix, ActivityPub, WebDAV, etc.) is mandatory when the app itself implements that protocol — not an optional add-on
+- Unversioned API exceptions (exhaustive): `/api/swagger`, `/api/graphql`, `/api/healthz`, `/api/metrics[/{service}]`, `/api/mcp`, `/api/debug/*` (aliases mounting the SAME handler as the versioned route), root `/mcp`, and `/api/autodiscover` (unversioned by design); docs, examples, tests and client code name the canonical versioned route, one parity test per alias
+- Text responses on `/api/**` use one serializer: scalar → bare value; object → `OK: {message}` then `key: value` lines in field order (dot-notation for nested); list → `OK: {n} items found` then one item per line; error → `ERROR: {code}: {message}`
 - Root-level endpoints: `/`, `/server/healthz`, `/server/docs/swagger`, `/server/docs/graphql`, `/metrics`, `/api/autodiscover`, `/api/swagger`, `/api/graphql`, `/api/healthz` (all unversioned aliases mount the same handler as their versioned target, never redirect)
 - Formatting: 2-space indent for JSON/HTML/YAML/CSS/JS, tabs for Go/Makefiles, single trailing newline everywhere, no trailing whitespace
 

@@ -4203,9 +4203,9 @@ func main() {
 			},
 			"current_version": cfg.GetAPIVersion(),
 			"documentation":   "http://" + r.Host + "/docs",
-			"openapi":         "http://" + r.Host + "/api/swagger",
+			"openapi":         "http://" + r.Host + cfg.GetAPIPath() + "/server/swagger",
 			"swagger":         "http://" + r.Host + "/server/docs/swagger",
-			"graphql":         "http://" + r.Host + "/api/graphql",
+			"graphql":         "http://" + r.Host + cfg.GetAPIPath() + "/server/graphql",
 		})
 	})
 
@@ -4306,7 +4306,7 @@ func main() {
 	})
 
 	// OpenAPI/Swagger documentation (AI.md PART 14)
-	registerSwaggerRoutes(r, cfg.GetAPIPath(), mcpServer.OpenAPI, handler.GetSwaggerUIAuto())
+	registerSwaggerRoutes(r, cfg.GetAPIPath(), mcpServer.OpenAPI, handler.GetSwaggerUIAuto(cfg.GetAPIPath()))
 	r.Get("/.well-known/llms.txt", mcpServer.LLMS)
 	r.Get("/llms.txt", mcpServer.LLMS)
 
@@ -4334,11 +4334,11 @@ func main() {
 	// mounting the same handlers (never a redirect).
 	registerGraphQLRoutes(r, cfg.GetAPIPath(),
 		appgraphql.GraphQLHandler(graphqlServer),
-		appgraphql.PlaygroundHandler("/api/graphql"),
+		appgraphql.PlaygroundHandler(cfg.GetAPIPath()+"/server/graphql"),
 		appgraphql.PlaygroundAssetHandler())
 
-	appLogger.Printf("GraphQL API enabled at /api/graphql")
-	fmt.Printf("%s GraphQL API enabled at /api/graphql\n", display.Emoji("✅", "[OK]"))
+	appLogger.Printf("GraphQL API enabled at %s/server/graphql", cfg.GetAPIPath())
+	fmt.Printf("%s GraphQL API enabled at %s/server/graphql\n", display.Emoji("✅", "[OK]"), cfg.GetAPIPath())
 
 	// HTML documentation page at /docs
 	r.Get("/docs", apiHandler.GetDocsHTML)

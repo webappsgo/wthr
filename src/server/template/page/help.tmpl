@@ -192,7 +192,7 @@
         <details class="help-section">
             <summary class="help-summary">{{t .server.Lang "help.graphql_api_title"}}</summary>
             <div class="help-content">
-                <p>{{t .server.Lang "help.graphql_send_intro"}} <code>POST /api/graphql</code> {{t .server.Lang "help.graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
+                <p>{{t .server.Lang "help.graphql_send_intro"}} <code>POST {{.api_path}}/server/graphql</code> {{t .server.Lang "help.graphql_send_suffix"}} <code>{"query": "...", "variables": {...}}</code>.</p>
                 <p><strong>{{t .server.Lang "help.graphql_key_queries_heading"}}</strong></p>
                 <ul>
                     <li><code>weather(location: String!)</code> - {{t .server.Lang "help.graphql_query_weather"}}</li>

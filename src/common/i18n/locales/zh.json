@@ -11,7 +11,6 @@
   "about.api_feature_weather": "来自 Open-Meteo API 的实时天气数据",
   "about.api_feature_websocket": "WebSocket 实时警报通知",
   "about.app_info_heading": "应用信息",
-  "about.attribution_geoip_license": "国家和 ASN 数据由 Number Resource Organization (NRO) 依据 CC BY 4.0 授权。",
   "about.attribution_geoip_link": "IP 地理定位由 DB-IP 提供",
   "about.attribution_heading": "第三方归属",
   "about.data_sources_heading": "数据来源",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "警告：无法检查开发版本：%v\n",
   "cli.version.built": "构建时间：%s\n",
   "cli.version.go": "Go：%s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "操作系统/架构：%s/%s\n",
   "common.select_language": "选择语言",
   "condition.blizzard": "暴风雪",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames（城市和国家数据）",
   "privacy.api_third_party_noaa": "NOAA（飓风/警报数据）",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim（反向地理编码）",
-  "privacy.api_third_party_nro": "Number Resource Organization（国家和 ASN 数据）",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (国家和 ASN 数据)",
   "privacy.api_third_party_open_meteo": "Open-Meteo（天气数据）",
   "privacy.api_third_party_usgs": "USGS（地震数据）",
   "privacy.audit_logs_label": "审计日志：",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "解压后大小上限",
   "admin.backup.limit_entries": "归档条目上限",
   "admin.backup.limit_file_size": "单个文件大小上限",
-  "admin.backup.limit_ratio": "最大压缩比"
+  "admin.backup.limit_ratio": "最大压缩比",
+  "api.text_retrieved": "检索成功",
+  "api.text_items_found": "找到 {n} 项"
 }

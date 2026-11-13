@@ -121,13 +121,11 @@ full license text is available at https://mozilla.org/MPL/2.0/.
   transform of the raw GeoNames source files, not a live API dependency
 
 ### IP Geolocation Databases (sapics/ip-location-db)
-- **License**: CC BY 4.0 (Creative Commons Attribution 4.0 International)
-- **ASN database**: RouteViews, NRO, DB-IP (merged)
-- **Country database**: NRO (RIR whois + geofeed + ASN data, merged)
-- **City database**: DB-IP
-- **Attribution**: [IP Geolocation by DB-IP](https://db-ip.com/)
-- **Attribution**: Country and ASN data licensed CC BY 4.0 by the Number Resource Organization (NRO).
-- **Usage**: Downloaded on first run to `{data_dir}/security/geoip` and refreshed weekly by the built-in scheduler — never embedded in the binary
+- **City database** (`dbip-city`): CC BY 4.0, DB-IP
+- **ASN database** (`iptoasn-asn`): PDDL, iptoasn.com (RouteViews / RIR data)
+- **Country database** (`iptoasn-country`): PDDL, iptoasn.com (RIR data)
+- **Attribution**: [IP Geolocation by DB-IP](https://db-ip.com/) (required for the City database; PDDL data needs no notice)
+- **Usage**: Downloaded on first run to `{data_dir}/security/geoip` from the sapics/ip-location-db GitHub Release assets and refreshed weekly by the built-in scheduler — never embedded in the binary
 
 ## Design and Theme
 

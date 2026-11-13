@@ -1,5 +1,6 @@
 # TODO
 
-- Admin panel pages (admin/*.tmpl) are not covered by the browser matrix; the admin login is, the signed-in admin pages need a setup-token flow in tests/e2e/layout.mjs.
-- Setup wizard pages (page/setup_*.tmpl) still use their own chromeless body instead of the shared header, nav and footer.
-- Remaining hardcoded English in templates: page/help.tmpl prose, admin/admin.tmpl, admin_email.tmpl provider labels, page/earthquake.tmpl CDI/MMI labels, unit suffixes (mph, km/h) on weather pages.
+Issues in AI.md itself (contradictions, ambiguities). Also logged in ~/Projects/github/webappsgo/TODO.SERVER.md.
+
+- AI.md lines 25669-25683 (Guest Header: three theme buttons dark/light/auto plus a Preferences link) contradict lines 28167-28236 (header actions are the profile/preferences zone followed by ONE theme toggle). The project follows the single-toggle layout.
+- AI.md line 16877 (operator workflow at `/server/{admin_path}/security/reports`, report body never shown in the admin panel) contradicts lines 16904-16905 (`/server/{admin_path}/config/security/reports`, full decrypted report view in the browser) and the rule that admin management routes live under `/config/*`. The project follows the `/config/security/reports` paths.

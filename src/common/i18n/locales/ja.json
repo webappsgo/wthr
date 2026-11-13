@@ -11,7 +11,6 @@
   "about.api_feature_weather": "Open-Meteo API からのリアルタイム気象データ",
   "about.api_feature_websocket": "WebSocket によるリアルタイム通知",
   "about.app_info_heading": "アプリケーション情報",
-  "about.attribution_geoip_license": "国および ASN データは Number Resource Organization (NRO) により CC BY 4.0 でライセンスされています。",
   "about.attribution_geoip_link": "IP 地理位置特定は DB-IP によるもの",
   "about.attribution_heading": "サードパーティのクレジット",
   "about.data_sources_heading": "データソース",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "警告: 開発版を確認できませんでした: %v\n",
   "cli.version.built": "ビルド日時: %s\n",
   "cli.version.go": "Go: %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "OS/アーキテクチャ: %s/%s\n",
   "common.select_language": "言語を選択",
   "condition.blizzard": "吹雪",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames（都市・国データ）",
   "privacy.api_third_party_noaa": "NOAA（ハリケーン/警報データ）",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim（逆ジオコーディング）",
-  "privacy.api_third_party_nro": "Number Resource Organization（国・ASN データ）",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (国・ASN データ)",
   "privacy.api_third_party_open_meteo": "Open-Meteo（気象データ）",
   "privacy.api_third_party_usgs": "USGS（地震データ）",
   "privacy.audit_logs_label": "監査ログ：",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "展開後の最大サイズ",
   "admin.backup.limit_entries": "アーカイブの最大エントリ数",
   "admin.backup.limit_file_size": "1ファイルの最大サイズ",
-  "admin.backup.limit_ratio": "最大圧縮率"
+  "admin.backup.limit_ratio": "最大圧縮率",
+  "api.text_retrieved": "取得しました",
+  "api.text_items_found": "{n} 件見つかりました"
 }

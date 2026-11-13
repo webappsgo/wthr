@@ -11,9 +11,9 @@ import (
 // invoked, responds without panicking (no DB/service dependency exists to
 // mock here — httpSwagger.Handler wraps swaggerFiles.Handler directly).
 func TestGetSwaggerUIAuto(t *testing.T) {
-	handlerFunc := GetSwaggerUIAuto()
+	handlerFunc := GetSwaggerUIAuto("/api/v1")
 	if handlerFunc == nil {
-		t.Fatal("GetSwaggerUIAuto() returned a nil handler")
+		t.Fatal("GetSwaggerUIAuto returned a nil handler")
 	}
 
 	r := httptest.NewRequest(http.MethodGet, "/server/docs/swagger", nil)
@@ -32,7 +32,7 @@ func TestSwaggerUIServesAtDocsPath(t *testing.T) {
 	for _, path := range []string{"/server/docs/swagger", "/server/docs/swagger/", "/server/docs/swagger/index.html"} {
 		r := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()
-		GetSwaggerUIAuto()(w, r)
+		GetSwaggerUIAuto("/api/v1")(w, r)
 		if w.Code != http.StatusOK {
 			t.Errorf("GET %s = %d, want 200", path, w.Code)
 		}

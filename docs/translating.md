@@ -95,7 +95,7 @@ Right-to-left languages are also checked mirrored.
 2. Translate every value and fill the `meta` block
 3. Add the language to the registry and to `server.i18n.available_languages`
 4. Add the row to the table above and update the language list in `README.md`
-5. Run `make i18n-validate`, then `make test`
+5. Run `make test` (`TestKeyConsistency` and `TestLocalesFS` check every language against `en.json`)
 
 ## Review
 

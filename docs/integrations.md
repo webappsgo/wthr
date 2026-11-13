@@ -23,16 +23,17 @@ data every 1 minute). No API keys, accounts, or registration are required for an
 
 ## GeoIP
 
-wthr uses the [sapics/ip-location-db](https://github.com/sapics/ip-location-db) GeoLite2-compatible
-databases for automatic location detection from IP address. The databases are downloaded on first
+wthr uses the [sapics/ip-location-db](https://github.com/sapics/ip-location-db) databases for automatic location detection from IP address. The databases are downloaded on first
 run and updated weekly (Sunday 03:00) via the built-in scheduler — never embedded in the binary.
 
 Databases used:
 
-- `geolite2-city-ipv4` — IPv4 city-level geolocation
-- `geolite2-city-ipv6` — IPv6 city-level geolocation
-- `geo-whois-asn-country` — ASN/country lookup
-- `asn` — Autonomous system number lookup
+- `dbip-city-ipv4` — IPv4 city-level geolocation (DB-IP, CC BY 4.0)
+- `dbip-city-ipv6` — IPv6 city-level geolocation (DB-IP, CC BY 4.0)
+- `iptoasn-country` — country lookup (iptoasn.com, PDDL)
+- `iptoasn-asn` — autonomous system number lookup (iptoasn.com, PDDL)
+
+Files are fetched from the sapics/ip-location-db GitHub Release assets.
 
 GeoIP is used only for automatic location detection on the weather page. It is not used as an access
 control mechanism. Users may specify a location explicitly at any time, overriding the GeoIP result.

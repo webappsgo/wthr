@@ -11,7 +11,6 @@
   "about.api_feature_weather": "Données météo en temps réel via l'API Open-Meteo",
   "about.api_feature_websocket": "Notifications d'alertes en temps réel via WebSocket",
   "about.app_info_heading": "Informations sur l'application",
-  "about.attribution_geoip_license": "Les données de pays et d'ASN sont sous licence CC BY 4.0 de la Number Resource Organization (NRO).",
   "about.attribution_geoip_link": "Géolocalisation IP par DB-IP",
   "about.attribution_heading": "Attribution des tiers",
   "about.data_sources_heading": "Sources de données",
@@ -2161,7 +2160,7 @@
   "cli.update.warning_daily_check_failed": "Avertissement : impossible de vérifier la version de développement : %v\n",
   "cli.version.built": "Compilé : %s\n",
   "cli.version.go": "Go : %s\n",
-  "cli.version.name_version": "%s v%s\n",
+  "cli.version.name_version": "%s %s (%s)\n",
   "cli.version.os_arch": "SE/Arch : %s/%s\n",
   "common.select_language": "Choisir la langue",
   "condition.blizzard": "Blizzard",
@@ -3125,7 +3124,7 @@
   "privacy.api_third_party_geonames": "GeoNames (données de villes et de pays)",
   "privacy.api_third_party_noaa": "NOAA (données ouragans/alertes)",
   "privacy.api_third_party_nominatim": "OpenStreetMap Nominatim (géocodage inverse)",
-  "privacy.api_third_party_nro": "Number Resource Organization (données de pays et d'ASN)",
+  "privacy.api_third_party_iptoasn": "iptoasn.com (données de pays et ASN)",
   "privacy.api_third_party_open_meteo": "Open-Meteo (données météo)",
   "privacy.api_third_party_usgs": "USGS (données sismiques)",
   "privacy.audit_logs_label": "Journaux d'audit :",
@@ -4300,5 +4299,7 @@
   "admin.backup.limit_expanded_size": "Taille maximale décompressée",
   "admin.backup.limit_entries": "Nombre maximal d'entrées de l'archive",
   "admin.backup.limit_file_size": "Taille maximale par fichier",
-  "admin.backup.limit_ratio": "Taux de compression maximal"
+  "admin.backup.limit_ratio": "Taux de compression maximal",
+  "api.text_retrieved": "Récupéré avec succès",
+  "api.text_items_found": "{n} éléments trouvés"
 }

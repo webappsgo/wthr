@@ -98,7 +98,7 @@ func writeText(w http.ResponseWriter, status int, format string, args ...interfa
 func RespondError(w http.ResponseWriter, r *http.Request, status int, code string, message string, details ...map[string]interface{}) {
 	// AI.md PART 14: Support .txt extension for text responses
 	if shouldRespondText(r) {
-		writeText(w, status, "%s: %s\n", code, message)
+		writeText(w, status, "ERROR: %s: %s\n", code, message)
 		return
 	}
 
@@ -120,11 +120,6 @@ func RespondError(w http.ResponseWriter, r *http.Request, status int, code strin
 // Format: {"ok": true, "data": {"message": "Item created successfully"}}
 func RespondSuccess(w http.ResponseWriter, r *http.Request, message string, data ...map[string]interface{}) {
 	// AI.md PART 14: Support .txt extension for text responses
-	if shouldRespondText(r) {
-		writeText(w, http.StatusOK, "%s\n", message)
-		return
-	}
-
 	payload := map[string]interface{}{}
 	if len(data) > 0 && data[0] != nil {
 		for k, v := range data[0] {
@@ -135,6 +130,11 @@ func RespondSuccess(w http.ResponseWriter, r *http.Request, message string, data
 		payload["message"] = message
 	}
 
+	if shouldRespondText(r) {
+		writeTextData(w, r, http.StatusOK, payload)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, APIResponse{OK: true, Data: payload})
 }
 
@@ -142,11 +142,6 @@ func RespondSuccess(w http.ResponseWriter, r *http.Request, message string, data
 // Format: {"ok": true, "data": {"id": "item_123", "message": "Item created successfully"}}
 func RespondCreated(w http.ResponseWriter, r *http.Request, message string, id string, data ...map[string]interface{}) {
 	// AI.md PART 14: Support .txt extension for text responses
-	if shouldRespondText(r) {
-		writeText(w, http.StatusCreated, "Created: %s (ID: %s)\n", message, id)
-		return
-	}
-
 	payload := map[string]interface{}{}
 	if len(data) > 0 && data[0] != nil {
 		for k, v := range data[0] {
@@ -160,6 +155,11 @@ func RespondCreated(w http.ResponseWriter, r *http.Request, message string, id s
 		payload["message"] = message
 	}
 
+	if shouldRespondText(r) {
+		writeTextData(w, r, http.StatusCreated, payload)
+		return
+	}
+
 	writeJSON(w, http.StatusCreated, APIResponse{OK: true, Data: payload})
 }
 
@@ -168,7 +168,7 @@ func RespondCreated(w http.ResponseWriter, r *http.Request, message string, id s
 func RespondData(w http.ResponseWriter, r *http.Request, data interface{}) {
 	// AI.md PART 14: Support .txt extension for text responses
 	if shouldRespondText(r) {
-		writeText(w, http.StatusOK, "%v\n", data)
+		writeTextData(w, r, http.StatusOK, data)
 		return
 	}
 
@@ -179,15 +179,7 @@ func RespondData(w http.ResponseWriter, r *http.Request, data interface{}) {
 // RespondNegotiatedData sends JSON normally and text/plain as pretty-printed JSON.
 func RespondNegotiatedData(w http.ResponseWriter, r *http.Request, status int, data interface{}) {
 	if shouldRespondText(r) {
-		payload, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			writeText(w, status, "%s\n", fmt.Sprintf("%v", data))
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(status)
-		payload = append(payload, '\n')
-		_, _ = w.Write(payload)
+		writeTextData(w, r, status, data)
 		return
 	}
 
@@ -207,7 +199,7 @@ func RespondPaginated(w http.ResponseWriter, r *http.Request, data interface{}, 
 
 	// AI.md PART 14: Support .txt extension for text responses
 	if shouldRespondText(r) {
-		writeText(w, http.StatusOK, "Page %d/%d (Total: %d items)\n", page, pages, total)
+		writeTextData(w, r, http.StatusOK, data)
 		return
 	}
 

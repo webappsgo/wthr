@@ -3,6 +3,7 @@ package util
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -108,15 +109,17 @@ func sameSlash24(ip net.IP, listenAddr string) bool {
 // same /24 as the configured listen address, or an entry in
 // server.trusted_proxies.additional (IP, CIDR, or DNS name).
 func isTrustedPeer(remoteAddr string) bool {
-	host := remoteAddr
-	if h, _, err := net.SplitHostPort(remoteAddr); err == nil {
-		host = h
-	}
-
-	ip := net.ParseIP(host)
-	if ip == nil {
+	addr, ok := NormalizeClientIP(remoteAddr)
+	if !ok {
 		return false
 	}
+	return isTrustedAddr(addr)
+}
+
+// isTrustedAddr is the trusted_proxies gate for one already-normalized address,
+// used for the TCP peer and for every hop of a forwarded chain.
+func isTrustedAddr(addr netip.Addr) bool {
+	ip := net.IP(addr.AsSlice())
 
 	if ip.IsLoopback() {
 		return true
@@ -169,21 +172,26 @@ func isTrustedPeer(remoteAddr string) bool {
 	return false
 }
 
-// TrustedGetClientIP resolves the real client IP, honoring
-// X-Forwarded-*/real-IP headers only when the immediate TCP peer
-// (r.RemoteAddr) passes the trusted_proxies gate (AI.md PART 5/12).
-// Untrusted peers' forwarded headers are dropped and r.RemoteAddr is used
-// directly — an attacker reaching the binary without going through a
-// trusted proxy cannot forge their apparent client IP.
+// TrustedGetClientIP resolves the real client IP per AI.md PART 12 "Client IP
+// Detection": the TCP peer must pass the trusted_proxies gate before any proxy
+// header is read, and the forwarded chain is walked from the right. An untrusted
+// peer's headers are ignored entirely and the normalized peer address is used.
 func TrustedGetClientIP(r *http.Request) string {
-	if !isTrustedPeer(r.RemoteAddr) {
-		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-			return host
-		}
+	peer, ok := NormalizeClientIP(r.RemoteAddr)
+	if !ok {
 		return r.RemoteAddr
 	}
-
-	return GetClientIP(r)
+	if !isTrustedAddr(peer) {
+		return peer.String()
+	}
+	header := "auto"
+	if cfg := config.GetGlobalConfig(); cfg != nil && strings.TrimSpace(cfg.Server.TrustedProxies.ClientIPHeader) != "" {
+		header = strings.TrimSpace(cfg.Server.TrustedProxies.ClientIPHeader)
+	}
+	if client, found := clientIPFromHeaders(r.Header, header, peer); found {
+		return client.String()
+	}
+	return peer.String()
 }
 
 // TrustedIsHTTPS reports whether the request reached the server over TLS,

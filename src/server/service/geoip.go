@@ -64,8 +64,8 @@ type GeoIPService struct {
 const (
 	cityIPv4URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv4.mmdb"
 	cityIPv6URL = "https://github.com/sapics/ip-location-db/releases/download/latest/dbip-city-ipv6.mmdb"
-	countryURL  = "https://cdn.jsdelivr.net/npm/@ip-location-db/geo-whois-asn-country-mmdb/geo-whois-asn-country.mmdb"
-	asnURL      = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-mmdb/asn.mmdb"
+	countryURL  = "https://github.com/sapics/ip-location-db/releases/download/latest/iptoasn-country.mmdb"
+	asnURL      = "https://github.com/sapics/ip-location-db/releases/download/latest/iptoasn-asn.mmdb"
 )
 
 // NewGeoIPService creates a new GeoIP service
@@ -76,8 +76,8 @@ func NewGeoIPService(dataDir string) *GeoIPService {
 	gs := &GeoIPService{
 		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
 		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
-		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
-		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
+		countryPath:  filepath.Join(geoipDir, "iptoasn-country.mmdb"),
+		asnPath:      filepath.Join(geoipDir, "iptoasn-asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),
 		cacheTime:    make(map[string]int64),
 	}

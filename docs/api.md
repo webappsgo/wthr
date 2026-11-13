@@ -509,6 +509,8 @@ mounted only when `server.healthz.root.enabled` is true (default: false).
 
 Frontend routes (`/`, `/server/*`) follow a similar order: `Accept: application/json` returns the same data as the API route, `Accept: text/html` returns HTML, `Accept: text/plain` returns formatted text, browsers get HTML and curl, wget and httpie get the page rendered as formatted terminal text. `/server/healthz`, `/healthz` and `/api/{api_version}/server/healthz` share one health result, so the JSON is identical on all three.
 
+Text responses on API routes use one mapping. A scalar is the bare value. An object is `OK: {message}` followed by `key: value` lines in field order (nested keys joined with dots, a list of scalars on one line). A list is `OK: {n} items found` followed by one item per line, or one block of `key: value` lines per object separated by a blank line. An error is `ERROR: {code}: {message}` with the same HTTP status as the JSON error.
+
 ```bash
 curl -q -LSsf -H 'Accept: application/json' https://wthr.example.com/server/healthz
 curl -q -LSsf https://wthr.example.com/server/healthz

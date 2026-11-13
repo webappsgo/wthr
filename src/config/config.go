@@ -225,6 +225,9 @@ func DefaultMetricsConfig() MetricsConfig {
 // upstream proxies (IP, CIDR, or DNS name), refreshed every 5 minutes.
 type TrustedProxiesConfig struct {
 	Additional []string `yaml:"additional"`
+	// ClientIPHeader is "auto" (first present of the known headers) or one pinned
+	// header name that is the only header read (AI.md PART 12 "Client IP Detection").
+	ClientIPHeader string `yaml:"client_ip_header"`
 }
 
 // SecurityConfig represents the server-wide at-rest encryption settings per

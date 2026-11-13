@@ -299,7 +299,7 @@ func TestCLI_ShowVersion(t *testing.T) {
 	c := NewCLI()
 	out := captureStdout(t, c.ShowVersion)
 
-	for _, want := range []string{"v" + Version, "Built:", "Go:", "OS/Arch:"} {
+	for _, want := range []string{Version + " (", "Built:", "Go:", "OS/Arch:"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("ShowVersion() output missing %q; got %q", want, out)
 		}
@@ -311,6 +311,29 @@ func TestParseRejectsUnsafeDirectoryFlags(t *testing.T) {
 		c := NewCLI()
 		if err := c.Parse([]string{arg}); err == nil {
 			t.Errorf("Parse(%q) accepted an unsafe directory", arg)
+		}
+	}
+}
+
+// TestCommandHelp covers both "--shell --help" and "--shell help" forms (AI.md PART 8).
+func TestCommandHelp(t *testing.T) {
+	cmds := []string{"shell", "service", "maintenance", "update"}
+	cases := []struct {
+		args []string
+		want string
+		ok   bool
+	}{
+		{[]string{"--shell", "--help"}, "shell", true},
+		{[]string{"--service", "-h"}, "service", true},
+		{[]string{"--maintenance", "help"}, "maintenance", true},
+		{[]string{"--port", "80", "--update", "help"}, "update", true},
+		{[]string{"--help"}, "", false},
+		{[]string{"--shell", "completions"}, "", false},
+	}
+	for _, tc := range cases {
+		got, ok := commandHelp(tc.args, cmds...)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("commandHelp(%v) = %q,%v want %q,%v", tc.args, got, ok, tc.want, tc.ok)
 		}
 	}
 }

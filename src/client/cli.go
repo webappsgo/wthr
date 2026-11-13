@@ -27,6 +27,12 @@ func Execute() error {
 	// Per AI.md PART 33 line 9551: Display uses filepath.Base(os.Args[0])
 	binaryName := filepath.Base(os.Args[0])
 
+	// AI.md PART 8 "Command-Flag Help": help for a command flag is routed before any parsing
+	if name, ok := commandHelp(os.Args[1:], "shell", "update"); ok {
+		printCommandHelp(binaryName, name)
+		return nil
+	}
+
 	// Check for exit-immediately flags first (before any parsing)
 	// Per AI.md PART 33: -h, --help, -v, --version exit immediately (never TUI)
 	for _, arg := range os.Args[1:] {
@@ -371,12 +377,47 @@ func printUsage(binaryName string) {
 
 // printVersion prints version information per AI.md PART 16
 func printVersion(binaryName string) error {
-	fmt.Printf("%s v%s\n", binaryName, Version)
+	commit := strings.TrimSpace(CommitID)
+	if len(commit) > 7 {
+		commit = commit[:7]
+	}
+	fmt.Printf("%s %s (%s)\n", binaryName, Version, commit)
 	fmt.Printf("Built: %s\n", BuildDate)
-	fmt.Printf("Commit: %s\n", CommitID)
 	fmt.Printf("Go: %s\n", runtime.Version())
 	fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	return nil
+}
+
+// commandHelp returns the command flag whose help was requested, matching both
+// "--shell --help" and "--shell help"; it runs before the flag set parses so the
+// command flag cannot consume the help word as its value.
+func commandHelp(args []string, commands ...string) (string, bool) {
+	for i := 0; i+1 < len(args); i++ {
+		next := args[i+1]
+		if next != "--help" && next != "-h" && next != "help" {
+			continue
+		}
+		for _, command := range commands {
+			if args[i] == "--"+command {
+				return command, true
+			}
+		}
+	}
+	return "", false
+}
+
+// printCommandHelp prints the help for one command flag
+func printCommandHelp(binaryName, name string) {
+	switch name {
+	case "shell":
+		fmt.Printf("Usage: %s --shell {completions|init} [bash|zsh|fish]\n", binaryName)
+		fmt.Println("  --shell completions   Print shell completions")
+		fmt.Println("  --shell init          Print shell init command")
+	case "update":
+		fmt.Printf("Usage: %s --update {check|yes}\n", binaryName)
+		fmt.Println("  --update check        Check whether a newer client release exists")
+		fmt.Println("  --update yes          Download, verify and install the newest client release")
+	}
 }
 
 // printShellCompletions prints shell completion script

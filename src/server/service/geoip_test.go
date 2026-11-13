@@ -20,8 +20,8 @@ func seedGeoIPFixtureFiles(t *testing.T, geoipDir string) {
 	for _, name := range []string{
 		"dbip-city-ipv4.mmdb",
 		"dbip-city-ipv6.mmdb",
-		"geo-whois-asn-country.mmdb",
-		"asn.mmdb",
+		"iptoasn-country.mmdb",
+		"iptoasn-asn.mmdb",
 	} {
 		if err := os.WriteFile(filepath.Join(geoipDir, name), []byte("placeholder"), 0644); err != nil {
 			t.Fatalf("failed to write fixture %s: %v", name, err)
@@ -69,10 +69,10 @@ func TestGeoIP_NewGeoIPService(t *testing.T) {
 		if gs.cityIPv6Path != filepath.Join(wantDir, "dbip-city-ipv6.mmdb") {
 			t.Errorf("cityIPv6Path = %q, want under %q", gs.cityIPv6Path, wantDir)
 		}
-		if gs.countryPath != filepath.Join(wantDir, "geo-whois-asn-country.mmdb") {
+		if gs.countryPath != filepath.Join(wantDir, "iptoasn-country.mmdb") {
 			t.Errorf("countryPath = %q, want under %q", gs.countryPath, wantDir)
 		}
-		if gs.asnPath != filepath.Join(wantDir, "asn.mmdb") {
+		if gs.asnPath != filepath.Join(wantDir, "iptoasn-asn.mmdb") {
 			t.Errorf("asnPath = %q, want under %q", gs.asnPath, wantDir)
 		}
 		if gs.cache == nil {
@@ -349,8 +349,8 @@ func TestGeoIP_Reload_FailsWithoutDownloadableDatabases(t *testing.T) {
 	gs := &GeoIPService{
 		cityIPv4Path: filepath.Join(blocker, "dbip-city-ipv4.mmdb"),
 		cityIPv6Path: filepath.Join(blocker, "dbip-city-ipv6.mmdb"),
-		countryPath:  filepath.Join(blocker, "geo-whois-asn-country.mmdb"),
-		asnPath:      filepath.Join(blocker, "asn.mmdb"),
+		countryPath:  filepath.Join(blocker, "iptoasn-country.mmdb"),
+		asnPath:      filepath.Join(blocker, "iptoasn-asn.mmdb"),
 		enabled:      true,
 		cache:        make(map[string]*GeoIPData),
 		cacheTime:    make(map[string]int64),
@@ -377,8 +377,8 @@ func TestGeoIP_Reload_SucceedsWithPreSeededDatabases(t *testing.T) {
 	gs := &GeoIPService{
 		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
 		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
-		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
-		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
+		countryPath:  filepath.Join(geoipDir, "iptoasn-country.mmdb"),
+		asnPath:      filepath.Join(geoipDir, "iptoasn-asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),
 		cacheTime:    make(map[string]int64),
 	}
@@ -415,8 +415,8 @@ func TestGeoIP_LoadDatabases_AllFilesPresentEnablesService(t *testing.T) {
 	gs := &GeoIPService{
 		cityIPv4Path: filepath.Join(geoipDir, "dbip-city-ipv4.mmdb"),
 		cityIPv6Path: filepath.Join(geoipDir, "dbip-city-ipv6.mmdb"),
-		countryPath:  filepath.Join(geoipDir, "geo-whois-asn-country.mmdb"),
-		asnPath:      filepath.Join(geoipDir, "asn.mmdb"),
+		countryPath:  filepath.Join(geoipDir, "iptoasn-country.mmdb"),
+		asnPath:      filepath.Join(geoipDir, "iptoasn-asn.mmdb"),
 		cache:        make(map[string]*GeoIPData),
 		cacheTime:    make(map[string]int64),
 	}

@@ -22,7 +22,7 @@
 - ALWAYS build via Docker (`casjaysdev/go:latest`) with host `GO_CACHE`/`GO_BUILD` cache dirs mounted; output to `binaries/`
 - ALWAYS graceful process termination: identify exact PID first, `kill {pid}` (SIGTERM), wait, `kill -9` only if still running
 - ALWAYS host RTD documentation via MkDocs Material (`docs/` + `mkdocs.yml` + `.readthedocs.yaml`); required pages: index, installation, configuration, api, admin, security, integrations, development (+ cli if applicable)
-- ALWAYS keep every language file's keys identical to `en.json` — enforced by `make i18n-validate` / build-time check
+- ALWAYS keep every language file's keys identical to `en.json` — enforced by the `TestKeyConsistency` / `TestLocalesFS` tests in `make test` (there is no `make i18n-validate` target)
 - ALWAYS support the fallback chain `?lang= (sets cookie) → lang cookie → Accept-Language header → en`
 - ALWAYS meet WCAG 2.1 AA: keyboard nav, screen reader support, 4.5:1 text contrast, visible focus indicators, 44x44px touch targets, skip links as first focusable elements
 
@@ -82,14 +82,14 @@
 | Fallback chain (CLI/agent/server) | `--lang` flag → config file → `LANG`/`LC_ALL` env → auto-detect → `en` |
 | Missing key | Falls back to English value |
 | Unsupported language | Silently falls back to `en` — never error/crash |
-| Key validation | Build-time check (`make i18n-validate`) — every language must match `en.json` key set |
+| Key validation | `TestKeyConsistency` / `TestLocalesFS` in `make test` — every language must match `en.json` key set |
 
 - Supported languages (all binaries, no partial support): the required minimum is `en`, `es`, `fr`, `de`, `it`, `ar` (RTL); a project may add more (this one also ships `zh`, `ja`) but never fewer. A language is supported only if a complete locale file exists; one registry, the embedded locale files and the config defaults must list the same set. `docs/translating.md` is required. After adding, changing or removing a key, update every locale file in the same change.
 - Translation files: single source of truth at `src/common/i18n/locales/{lang}.json`, embedded via `go:embed` and shared by server/CLI/agent — never duplicated or subsetted per binary. WebUI JS fetches `/locales/{lang}.json` served from the same embedded files.
 - Key rules: no hardcoded strings anywhere; `http.Error()`/API JSON errors always use `t(r, "errors.*")`; dot-separated lowercase keys (`admin.dashboard.title`); `{variable}` interpolation; plurals nested under CLDR categories (`zero/one/two/few/many/other`).
 - CLI/agent send `Accept-Language` header on API requests derived from their own `--lang`/config/env resolution.
 - RTL: Arabic sets `dir="rtl"` from `meta.direction` in the locale file; CSS must use logical properties (`margin-inline-start`, not `margin-left`).
-- Adding a language: copy `en.json` → translate all keys → add to `available_languages` config → `make i18n-validate` → rebuild all binaries.
+- Adding a language: copy `en.json` → translate all keys → add to `available_languages` config → `make test` → rebuild all binaries.
 
 **Accessibility (WCAG 2.1 AA mandatory)**
 | Requirement | Standard |
