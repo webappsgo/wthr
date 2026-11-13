@@ -65,6 +65,7 @@ This software includes the following third-party Go libraries:
 | golang.org/x/text | v0.41.0 | BSD-3-Clause | 2009 The Go Authors |
 | gopkg.in/yaml.v3 | v3.0.1 | MIT and Apache-2.0 | 2006-2011 Kirill Simonov, 2011-2019 Canonical Ltd. |
 | modernc.org/sqlite | v1.39.0 | BSD-3-Clause | 2017 The Sqlite Authors |
+| Leaflet (embedded under src/server/static/vendor/leaflet) | 1.9.4 | BSD-2-Clause | 2010-2023 Vladimir Agafonkin, 2010-2011 CloudMade |
 
 Full license texts: https://spdx.org/licenses/
 
