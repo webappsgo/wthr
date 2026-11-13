@@ -15,6 +15,7 @@ const pages = [
   '/', '/server/about', '/server/help', '/server/help/mcp', '/server/contact',
   '/server/security', '/server/security/policy', '/server/security/thanks',
   '/?location=Summerville%2C%20SC', '/moon?location=Summerville%2C%20SC', '/severe-weather?location=Summerville%2C%20SC', '/earthquakes',
+  '/server/auth/login', '/server/auth/register', '/server/administration',
   '/server/dpo', '/server/privacy', '/server/terms', '/server/preferences', '/server/healthz',
 ];
 
