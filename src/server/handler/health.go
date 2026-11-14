@@ -732,7 +732,7 @@ func getPublicGeoIPStatus(db *database.DB) bool {
 // overlayHealth applies the PART 13 "Overlay Network Health" contract: status is
 // one of disabled, starting, healthy or unavailable, and a disabled network has
 // no check, no hostname and running=false.
-func overlayHealth(enabled, running bool, status, hostname string) (bool, bool, string, string, string) {
+func overlayHealth(enabled bool, status, hostname string) (bool, bool, string, string, string) {
 	switch status {
 	case "starting", "healthy", "unavailable":
 	default:
@@ -741,7 +741,7 @@ func overlayHealth(enabled, running bool, status, hostname string) (bool, bool, 
 	if !enabled || status == "disabled" {
 		return false, false, "disabled", "", ""
 	}
-	running = status == "healthy"
+	running := status == "healthy"
 	if !running {
 		hostname = ""
 	}
@@ -753,16 +753,16 @@ func overlayHealth(enabled, running bool, status, hostname string) (bool, bool, 
 }
 
 func getPublicTorStatus(_ *config.AppConfig) (publicHealthTor, string) {
-	enabled, running, status, hostname := GetTorStatus()
-	enabled, running, status, hostname, check := overlayHealth(enabled, running, status, hostname)
+	enabled, _, status, hostname := GetTorStatus()
+	enabled, running, status, hostname, check := overlayHealth(enabled, status, hostname)
 	return publicHealthTor{Enabled: enabled, Running: running, Status: status, Hostname: hostname}, check
 }
 
 // getPublicI2PStatus reports the eepsite state per AI.md PART 32.2 and the
 // PART 13 overlay contract. I2P is opt-in; a disabled network contributes no check.
 func getPublicI2PStatus(_ *config.AppConfig) (publicHealthI2P, string) {
-	enabled, running, status, provider, address := GetI2PStatus()
-	enabled, running, status, address, check := overlayHealth(enabled, running, status, address)
+	enabled, _, status, provider, address := GetI2PStatus()
+	enabled, running, status, address, check := overlayHealth(enabled, status, address)
 	if !enabled {
 		provider = "none"
 	}
