@@ -13,7 +13,7 @@
 - NEVER put the theme class on `<body>` — it goes on `<html>` (`theme-dark`/`theme-light`/`theme-auto`)
 - NEVER create layout-specific theme files (`admin-dark.css`, `public-light.css`) — one shared theme system for public + admin + Swagger + GraphiQL + CLI + TUI + GUI
 - NEVER link to `/server/{admin_path}` from ANY public route, nav, or footer — admin panel must not be discoverable
-- NEVER put server management routes directly under `/server/{admin_path}/` — everything except the admin's own account goes under `/server/{admin_path}/config/*`
+- NEVER put server management routes directly under `/server/{admin_path}/` — everything except the admin's own account goes under `/server/{admin_path}/*`
 - NEVER let long strings (IPv6, .onion, tokens, hashes, UUIDs) overflow their container — always `word-break: break-all` / `overflow-wrap: break-word` or horizontal scroll
 - NEVER leave a list/table/view with blank space when empty — always a proper empty state (icon, title, message, action)
 - NEVER use `position: fixed`/`sticky` on header/nav/footer — only transient overlays (mobile nav panel, toasts, cookie banner) may be fixed
@@ -41,7 +41,7 @@
 - ALWAYS give forms inline, accessible validation: HTML5 constraints first, `:user-invalid` for styling, `aria-describedby`/`role="alert"` for errors, trim whitespace (but reject — don't trim — password whitespace)
 - ALWAYS normalize URLs (strip trailing slash except root, 301 redirect) via middleware applied first in the chain
 - ALWAYS keep the admin panel isolated: separate session, separate auth (`admins` table, not `users` table), configurable `server.admin_path` (default `administration`), reachable only by typing the URL directly
-- ALWAYS put admin's own account under `/server/{admin_path}/{admin_username}/*` (profile, preferences, notifications) and all server management under `/server/{admin_path}/config/*`
+- ALWAYS put admin's own account under `/server/{admin_path}/{admin_username}/*` (profile, preferences, notifications) and all server management under `/server/{admin_path}/*`
 - ALWAYS require the admin panel to exist for every project, be fully usable before the setup wizard runs (sane defaults, one-time setup token shown once at startup), and support TOTP + Passkey/WebAuthn MFA for every Server Admin
 - ALWAYS validate new admin routes/paths against reserved names and existing routes before accepting them
 

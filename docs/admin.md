@@ -10,7 +10,7 @@ Default URL: `https://wthr.top/server/administration`
 
 On first run, Weather Service launches the setup wizard:
 
-1. Navigate to `https://wthr.top/server/administration/config/setup` in your browser
+1. Navigate to `https://wthr.top/server/administration/setup` in your browser
 2. The setup wizard automatically opens
 3. Create the primary admin account:
    - Username (email address)

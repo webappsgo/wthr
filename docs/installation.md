@@ -77,7 +77,7 @@ wthr --mode production
 
 The server is functional immediately on first run. Admin setup is completed through:
 
-- `https://wthr.top/server/administration/config/setup`
+- `https://wthr.top/server/administration/setup`
 
 After setup, use:
 

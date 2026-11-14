@@ -55,7 +55,7 @@
 
 ### API Structure (PART 14)
 
-- Route scopes: `/server/*` (public), `/server/auth/*`, `/users/*` (no ID, current user from session), `/orgs/*` (`{slug}` required), `/server/{admin_path}/*` (admin), `/server/{admin_path}/config/*` (admin config), `/*` (project-specific)
+- Route scopes: `/server/*` (public), `/server/auth/*`, `/users/*` (no ID, current user from session), `/orgs/*` (`{slug}` required), `/server/{admin_path}/*` (admin), `/server/{admin_path}/*` (admin config), `/*` (project-specific)
 - Path params for resource identity, query params for pagination/sort/filter — never duplicate
 - Content negotiation priority for API routes: `.txt` > `Accept: application/json` > `Accept: text/plain` > non-interactive client > default JSON
 - Content negotiation priority for frontend routes: `.txt` > `Accept: application/json` > our CLI (JSON) > `Accept: text/html` > `Accept: text/plain` > text browser (no-JS HTML) > HTTP tool (formatted text) > default HTML; once the format is HTML, text browsers (lynx/w3m/links) get the no-JS variant even with an explicit `Accept: text/html`

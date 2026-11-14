@@ -36,7 +36,7 @@ Verified findings that drive the work:
 - **103** — the claimed contradiction does not exist. AI.md:30451 is the
   authoritative rule; AI.md:31020-31050 is an ASCII invite diagram with no
   `/help` route. The real help route is
-  `/server/{admin_path}/config/pages/help`, which is what `main.go:2430`
+  `/server/{admin_path}/pages/help`, which is what `main.go:2430`
   registers. Note the fix in TODO.AI.md before removing.
 - **113** — verify the coverage gate on the final `make test` run and
   remove the item once the number is recorded.

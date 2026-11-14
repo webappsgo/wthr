@@ -12,7 +12,7 @@
 
 ## Documentation & Config Updates
 
-- [ ] `docs/` updated for any user/admin/API/config behavior changes
+- [ ] `docs/` updated for any user/admin/API behavior changes
 - [ ] Swagger annotations added/updated for new or changed endpoints
 - [ ] GraphQL schema updated if applicable
 - [ ] `IDEA.md` updated if features changed

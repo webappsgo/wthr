@@ -125,7 +125,7 @@ with an empty body. Tokens are compared in constant time, never logged, and alwa
 masked as `xxxxx` in the admin panel and API responses.
 
 Configure the tokens under `server.metrics.auth.tokens` in `server.yml`, or in the admin panel at
-`/server/{admin_path}/config/metrics`:
+`/server/{admin_path}/metrics`:
 
 ```yaml
 server:
