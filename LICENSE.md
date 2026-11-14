@@ -31,6 +31,7 @@ This software includes the following third-party Go libraries:
 | Library | Version | License | Copyright |
 |---------|---------|---------|-----------|
 | github.com/99designs/gqlgen | v0.17.60 | MIT | 2016 Adam Scarr |
+| github.com/ProtonMail/go-crypto | v1.4.1 | BSD-3-Clause | 2009 The Go Authors |
 | github.com/charmbracelet/bubbletea | v1.3.10 | MIT | 2020-2023 Charmbracelet, Inc. |
 | github.com/charmbracelet/lipgloss | v1.1.0 | MIT | 2021-2023 Charmbracelet, Inc. |
 | github.com/coreos/go-oidc/v3 | v3.11.0 | Apache-2.0 | 2014 CoreOS, Inc. |

@@ -23,13 +23,6 @@ import (
 	"github.com/webappsgo/wthr/src/server/service"
 )
 
-// Ok is the resolver for the GenericResponse.ok field. The Go struct uses
-// `Success` (matching BulkResponse / ContactSubmission convention) but the
-// schema exposes `ok`, so gqlgen requires this trampoline.
-func (r *genericResponseResolver) Ok(ctx context.Context, obj *GenericResponse) (bool, error) {
-	return obj.Success, nil
-}
-
 func (r *aPITokenResolver) Token(ctx context.Context, obj *models.APIToken) (*string, error) {
 	if obj.Token == "" {
 		return nil, nil
@@ -327,61 +320,6 @@ func mapGraphQLTOTPSetup(setup *handler.TwoFactorSetupResponse) *TOTPSetup {
 		Issuer:    setup.Issuer,
 	}
 }
-func mapGraphQLRecoveryKeysResponse(response *handler.RecoveryKeysResponse) *TOTPRecoveryKeys {
-	if response == nil {
-		return nil
-	}
-
-	return &TOTPRecoveryKeys{
-		Message:      response.Message,
-		RecoveryKeys: append([]string(nil), response.RecoveryKeys...),
-	}
-}
-func mapGraphQLAuthUser(user *handler.AuthUserSummary) *AuthUser {
-	if user == nil {
-		return nil
-	}
-
-	return &AuthUser{
-		ID:       strconv.FormatInt(user.ID, 10),
-		Username: user.Username,
-		Email:    user.Email,
-		Role:     user.Role,
-	}
-}
-func mapGraphQLAuthLoginResponse(response *handler.AuthLoginResponse) *AuthResult {
-	if response == nil {
-		return nil
-	}
-
-	result := &AuthResult{
-		RequiresTwoFactor: response.RequiresTwoFactor,
-		User:              mapGraphQLAuthUser(response.User),
-		ExpiresAt:         response.ExpiresAt,
-		RemainingKeys:     response.RemainingKeys,
-	}
-	if trimmed := strings.TrimSpace(response.SessionToken); trimmed != "" {
-		result.SessionToken = &trimmed
-	}
-	if trimmed := strings.TrimSpace(response.Token); trimmed != "" {
-		result.Token = &trimmed
-	}
-	return result
-}
-func mapGraphQLAuthRegisterResponse(response *handler.AuthRegisterResponse) *AuthResult {
-	if response == nil {
-		return nil
-	}
-
-	result := &AuthResult{
-		VerificationRequired: response.VerificationRequired,
-		User:                 mapGraphQLAuthUser(response.User),
-	}
-	if trimmed := strings.TrimSpace(response.Token); trimmed != "" {
-		result.Token = &trimmed
-	}
-	return result
-}
 func mapGraphQLUserInviteValidation(response *handler.UserInviteValidationResponse) *UserInviteValidation {
 	if response == nil {
 		return nil
@@ -404,36 +342,6 @@ func mapGraphQLServerInviteValidation(response *handler.ServerInviteValidationRe
 		ExpiresAt: response.ExpiresAt,
 	}
 }
-func mapGraphQLUserInviteCompletion(response *handler.UserInviteCompletionResponse) *UserInviteCompletion {
-	if response == nil {
-		return nil
-	}
-
-	result := &UserInviteCompletion{
-		User: mapGraphQLAuthUser(response.User),
-	}
-	if trimmed := strings.TrimSpace(response.Message); trimmed != "" {
-		result.Message = &trimmed
-	}
-	if trimmed := strings.TrimSpace(response.Token); trimmed != "" {
-		result.Token = &trimmed
-	}
-	return result
-}
-func mapGraphQLServerInviteCompletion(response *handler.ServerInviteCompletionResponse) *ServerInviteCompletion {
-	if response == nil || response.Admin == nil {
-		return nil
-	}
-
-	return &ServerInviteCompletion{
-		Message: response.Message,
-		Admin: &InvitedServerAdmin{
-			ID:       strconv.FormatInt(response.Admin.ID, 10),
-			Username: response.Admin.Username,
-			Email:    response.Admin.Email,
-		},
-	}
-}
 func loadGraphQLCurrentUserAuth(ctx context.Context, db *sql.DB) (*models.User, error) {
 	userID := getUserIDFromContext(ctx)
 	if userID == 0 {
@@ -446,29 +354,6 @@ func loadGraphQLCurrentUserAuth(ctx context.Context, db *sql.DB) (*models.User, 
 		return nil, fmt.Errorf("failed to load current user: %w", err)
 	}
 	return user, nil
-}
-func loadGraphQLCurrentUserSession(ctx context.Context) (*models.Session, error) {
-	sessionValue := ctx.Value(ctxKeyUserSession)
-	session, ok := sessionValue.(*models.Session)
-	if !ok || session == nil {
-		return nil, fmt.Errorf("session authentication required")
-	}
-	return session, nil
-}
-func graphQLRequestBaseURL(ctx context.Context) string {
-	host, _ := ctx.Value(ctxKeyRequestHost).(string)
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return ""
-	}
-
-	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
-	scheme = strings.TrimSpace(scheme)
-	if scheme == "" {
-		scheme = "http"
-	}
-
-	return fmt.Sprintf("%s://%s", scheme, host)
 }
 func getGraphQLCurrentAdminID(ctx context.Context) (int64, error) {
 	value := ctx.Value(ctxKeyAdminID)
@@ -560,19 +445,6 @@ func loadGraphQLOnlineAdminUsernames(ctx context.Context, db *sql.DB) ([]string,
 
 	return usernames, nil
 }
-func countGraphQLOtherActiveSuperAdmins(ctx context.Context, db *sql.DB, excludeID int64) (int, error) {
-	var count int
-	err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect, `
-	SELECT COUNT(*)
-	FROM server_admin_credentials
-	WHERE is_super_admin = 1 AND is_active = 1 AND id != ?
-`, excludeID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count active super admins: %w", err)
-	}
-
-	return count, nil
-}
 func buildGraphQLServerAdmin(admin *models.Admin) *ServerAdmin {
 	if admin == nil {
 		return nil
@@ -588,55 +460,6 @@ func buildGraphQLServerAdmin(admin *models.Admin) *ServerAdmin {
 		UpdatedAt:    admin.UpdatedAt,
 		LastLoginAt:  admin.LastLoginAt,
 	}
-}
-func graphQLServerInviteURL(ctx context.Context, token string) string {
-	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
-	if strings.TrimSpace(scheme) == "" {
-		scheme = "http"
-	}
-
-	host, _ := ctx.Value(ctxKeyRequestHost).(string)
-	if strings.TrimSpace(host) == "" {
-		return ""
-	}
-
-	return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, host, token)
-}
-func buildGraphQLServerAdminInvite(ctx context.Context, invite *models.AdminInvite, expiresIn string) *ServerAdminInvite {
-	if invite == nil {
-		return nil
-	}
-
-	return &ServerAdminInvite{
-		Token:     invite.Token,
-		Email:     invite.InvitedEmail,
-		ExpiresAt: invite.ExpiresAt,
-		ExpiresIn: expiresIn,
-		InviteURL: graphQLServerInviteURL(ctx, invite.Token),
-	}
-}
-func (r *mutationResolver) updateGraphQLScheduledTaskEnabled(ctx context.Context, name string, enabled bool) (*ScheduledTask, error) {
-	_, err := database.ExecContext(ctx, r.ServerDB, database.TimeoutWrite, `
-	UPDATE server_scheduler_state
-	SET enabled = ?, locked_by = NULL, locked_at = NULL
-	WHERE task_name = ?
-`, enabled, name)
-	if err != nil {
-		return nil, err
-	}
-
-	task, err := r.loadGraphQLScheduledTask(ctx, name)
-	if err != nil {
-		return nil, err
-	}
-
-	return task, nil
-}
-func (r *mutationResolver) loadGraphQLScheduledTask(ctx context.Context, name string) (*ScheduledTask, error) {
-	return scanGraphQLScheduledTask(database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect,
-		"SELECT task_name, schedule, enabled, last_run, next_run, run_count, fail_count FROM server_scheduler_state WHERE task_name = ?",
-		name,
-	).Scan)
 }
 func scanGraphQLScheduledTask(scan func(dest ...any) error) (*ScheduledTask, error) {
 	var task ScheduledTask
@@ -871,94 +694,6 @@ func loadGraphQLSQLiteStats(ctx context.Context, db *sql.DB) (float64, int, erro
 	return float64(pageCount * pageSize), tables, nil
 }
 
-// ensureGraphQLContactSubmissionsTable verifies that contact_submissions is
-// present before the contact mutation writes to it.
-//
-// The table is declared once in database.ServerSchema, which
-// database.InitDualDB executes on every startup, so no DDL runs at request time
-// any more - a request-time CREATE TABLE hid schema drift, cost a migration
-// timeout per mutation, and pinned created_at to the SQLite-only
-// "INTEGER DEFAULT (strftime('%s','now'))" default that no other driver
-// accepts. The check remains so a database missing the schema fails with a
-// clear error instead of a bare "no such table".
-func ensureGraphQLContactSubmissionsTable(ctx context.Context, db *sql.DB) error {
-	if db == nil {
-		return fmt.Errorf("server database unavailable")
-	}
-
-	var present int
-	if err := database.QueryRowContext(ctx, db, database.TimeoutSimpleSelect,
-		"SELECT COUNT(*) FROM contact_submissions WHERE 1 = 0",
-	).Scan(&present); err != nil {
-		return fmt.Errorf("contact_submissions is missing from the server database schema: %w", err)
-	}
-
-	return nil
-}
-func (r *mutationResolver) resolveAdminChannelTestRecipient(ctx context.Context, typeArg string, recipient *string) (string, error) {
-	if recipient != nil {
-		trimmed := strings.TrimSpace(*recipient)
-		if trimmed != "" {
-			return trimmed, nil
-		}
-	}
-
-	if typeArg != "email" {
-		return "", fmt.Errorf("channel %q testing requires a recipient", typeArg)
-	}
-
-	smtpService := service.SharedSMTPService(r.ServerDB)
-	if err := smtpService.LoadConfig(); err != nil {
-		return "", fmt.Errorf("failed to load SMTP configuration: %w", err)
-	}
-
-	if config := smtpService.GetConfig(); config != nil {
-		recipient := strings.TrimSpace(config.TestRecipient)
-		if recipient != "" {
-			return recipient, nil
-		}
-	}
-
-	if adminID, ok := ctx.Value(ctxKeyAdminID).(int); ok && adminID > 0 {
-		var adminEmail string
-		err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
-		SELECT email
-		FROM server_admin_credentials
-		WHERE id = ? AND is_active = 1
-	`, adminID).Scan(&adminEmail)
-		if err != nil && err != sql.ErrNoRows {
-			return "", fmt.Errorf("failed to load authenticated admin email: %w", err)
-		}
-		adminEmail = strings.TrimSpace(adminEmail)
-		if adminEmail != "" {
-			return adminEmail, nil
-		}
-	}
-
-	if adminEmail, ok := ctx.Value(ctxKeyAdminEmail).(string); ok {
-		adminEmail = strings.TrimSpace(adminEmail)
-		if adminEmail != "" {
-			return adminEmail, nil
-		}
-	}
-
-	var fallbackEmail string
-	err := database.QueryRowContext(ctx, r.ServerDB, database.TimeoutSimpleSelect, `
-	SELECT email
-	FROM server_admin_credentials
-	WHERE is_active = 1 AND email IS NOT NULL AND TRIM(email) != ''
-	ORDER BY is_super_admin DESC, id ASC
-	LIMIT 1
-`).Scan(&fallbackEmail)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", fmt.Errorf("email channel testing requires smtp.test_recipient or an active server admin email")
-		}
-		return "", fmt.Errorf("failed to load fallback admin email: %w", err)
-	}
-
-	return strings.TrimSpace(fallbackEmail), nil
-}
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

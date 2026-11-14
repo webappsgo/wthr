@@ -1,0 +1,34 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.security_reports.thanks_title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.security_reports.thanks_intro"}}</p>
+  </div>
+  {{template "flash" .}}
+  <section class="admin-section">
+    {{if .Entries}}
+    {{range .Entries}}
+    <form method="post" action="{{$ap}}/security/thanks" class="form-inline">
+      <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <label for="credit-{{.ID}}">{{t $lang "admin.security_reports.credit"}}</label>
+      <input type="text" id="credit-{{.ID}}" name="credit" class="form-input" value="{{.Credit}}" maxlength="100" required>
+      <label for="order-{{.ID}}">{{t $lang "admin.security_reports.sort_order"}}</label>
+      <input type="number" id="order-{{.ID}}" name="sort_order" class="form-input" value="0">
+      <label><input type="checkbox" name="visible" value="true"{{if .Visible}} checked{{end}}> {{t $lang "admin.security_reports.visible"}}</label>
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.security_reports.save"}}</button>
+    </form>
+    {{end}}
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#127942;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.security_reports.thanks_empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.security_reports.thanks_empty_message"}}</p>
+    </div>
+    {{end}}
+  </section>
+{{template "admin_footer" .}}

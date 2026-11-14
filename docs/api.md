@@ -36,8 +36,8 @@ Browser sessions use a cookie; the API never needs or checks a CSRF token.
 | `GET /api/v1/server/security` | Security contacts, expiry, PGP state, policy and thanks links |
 | `GET /api/v1/server/security/policy` | Disclosure policy (`policy`, Markdown) |
 | `GET /api/v1/server/security/thanks` | Acknowledgments (`entries`) |
-| `GET /api/v1/server/contact` | Contact form description: `fields` (`name`, `type`, `required`, `max_length`), `captcha` (`{provider, site_key}` or, for the built-in challenge, `{provider, challenge_id, question}`), `security_url`, `abuse_email` |
-| `POST /api/v1/server/contact` | Contact form; needs a solved captcha (see below) |
+| `GET /api/v1/server/contact` | Contact form description: `fields` (`name`, `type`, `required`, `max_length`, `required_when`, `max_length_when`; with a valid `?security_id=` the security-report fields), `captcha` (`{provider, site_key}` or, for the built-in challenge, `{provider, challenge_id, question}`), `security_url`, `abuse_email` |
+| `POST /api/v1/server/contact` | Contact form; needs a solved captcha (see below). With a valid `security_id` in the body it submits a security report and answers `{"ok": true, "data": {"tracking_id": "sec_..."}}` |
 | `GET /api/v1/server/auth/check` | Token check: `200` with `{"kind": "operator" \| "owner" \| "user"}` for a valid `Authorization: Bearer` token, `401` otherwise; no side effects, the token is never echoed |
 | `POST /api/v1/server/mcp` | MCP endpoint (Streamable HTTP); aliases `/api/mcp` and `/mcp` |
 

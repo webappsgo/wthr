@@ -2,22 +2,26 @@ package service
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/config"
+	paths "github.com/webappsgo/wthr/src/path"
 	"github.com/webappsgo/wthr/src/server/model"
 )
 
 // SecurityTxtService handles security.txt generation per RFC 9116
 type SecurityTxtService struct {
 	settingsModel *model.SettingsModel
+	keyDir        string
 }
 
 // NewSecurityTxtService creates a new security.txt service
 func NewSecurityTxtService(settingsModel *model.SettingsModel) *SecurityTxtService {
 	return &SecurityTxtService{
 		settingsModel: settingsModel,
+		keyDir:        filepath.Join(paths.GetConfigDir(), "security"),
 	}
 }
 
@@ -25,24 +29,29 @@ func NewSecurityTxtService(settingsModel *model.SettingsModel) *SecurityTxtServi
 func (s *SecurityTxtService) Generate(baseURL string) string {
 	var lines []string
 
-	// Contact (required)
+	// Contact (required): the repo's private vulnerability reporting URL, then the instance
+	// security-report form with the current security_id, last the mailto address (PART 11)
+	if reportURL := s.settingsModel.GetString("web.security.report_url", ""); reportURL != "" {
+		lines = append(lines, fmt.Sprintf("Contact: %s", reportURL))
+	}
+	if s.settingsModel.DB != nil {
+		if id, err := CurrentSecurityID(s.settingsModel.DB); err == nil {
+			lines = append(lines, fmt.Sprintf("Contact: %s/server/contact?security_id=%s", baseURL, id))
+		}
+	}
 	contact := s.settingsModel.GetString("security.contact", "")
 	if contact == "" {
 		contact = config.DefaultEmailAddress("security", config.GetGlobalConfig())
 	}
-	// Support multiple contact methods
-	contacts := strings.Split(contact, ",")
-	for _, c := range contacts {
+	for _, c := range strings.Split(contact, ",") {
 		c = strings.TrimSpace(c)
-		if c != "" {
-			// Auto-format email addresses
-			if !strings.HasPrefix(c, "mailto:") && !strings.HasPrefix(c, "http") {
-				if strings.Contains(c, "@") {
-					c = "mailto:" + c
-				}
-			}
-			lines = append(lines, fmt.Sprintf("Contact: %s", c))
+		if c == "" {
+			continue
 		}
+		if !strings.HasPrefix(c, "mailto:") && !strings.HasPrefix(c, "http") && strings.Contains(c, "@") {
+			c = "mailto:" + c
+		}
+		lines = append(lines, fmt.Sprintf("Contact: %s", c))
 	}
 
 	// Expires (required) - Auto-renew 1 year from now
@@ -72,22 +81,15 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 	lines = append(lines, fmt.Sprintf("Canonical: %s", canonical))
 
 	// Encryption (optional)
-	encryption := s.settingsModel.GetString("security.encryption", "")
-	if encryption != "" {
-		lines = append(lines, fmt.Sprintf("Encryption: %s", encryption))
+	if s.settingsModel.DB != nil && NewPGPKeyManager(s.settingsModel.DB, s.keyDir).Exists() {
+		lines = append(lines, fmt.Sprintf("Encryption: %s/.well-known/pgp-key.asc", baseURL))
 	}
 
 	// Acknowledgments (optional)
-	acknowledgments := s.settingsModel.GetString("security.acknowledgments", "")
-	if acknowledgments != "" {
-		lines = append(lines, fmt.Sprintf("Acknowledgments: %s", acknowledgments))
-	}
+	lines = append(lines, fmt.Sprintf("Acknowledgments: %s/server/security/thanks", baseURL))
 
 	// Policy (optional)
-	policy := s.settingsModel.GetString("security.policy", "")
-	if policy != "" {
-		lines = append(lines, fmt.Sprintf("Policy: %s", policy))
-	}
+	lines = append(lines, fmt.Sprintf("Policy: %s/server/security", baseURL))
 
 	// Hiring (optional)
 	hiring := s.settingsModel.GetString("security.hiring", "")
@@ -115,14 +117,13 @@ func (s *SecurityTxtService) Generate(baseURL string) string {
 // GetConfig returns current security.txt configuration
 func (s *SecurityTxtService) GetConfig() map[string]interface{} {
 	return map[string]interface{}{
-		"contact":         s.settingsModel.GetString("security.contact", ""),
-		"expires":         s.settingsModel.GetString("security.expires", ""),
-		"languages":       s.settingsModel.GetString("security.languages", "en"),
-		"canonical":       s.settingsModel.GetString("security.canonical", ""),
-		"encryption":      s.settingsModel.GetString("security.encryption", ""),
-		"acknowledgments": s.settingsModel.GetString("security.acknowledgments", ""),
-		"policy":          s.settingsModel.GetString("security.policy", ""),
-		"hiring":          s.settingsModel.GetString("security.hiring", ""),
+		"contact":    s.settingsModel.GetString("security.contact", ""),
+		"expires":    s.settingsModel.GetString("security.expires", ""),
+		"languages":  s.settingsModel.GetString("security.languages", "en"),
+		"canonical":  s.settingsModel.GetString("security.canonical", ""),
+		"report_url": s.settingsModel.GetString("web.security.report_url", ""),
+		"keyservers": s.settingsModel.GetString("web.security.keyservers", ""),
+		"hiring":     s.settingsModel.GetString("security.hiring", ""),
 	}
 }
 

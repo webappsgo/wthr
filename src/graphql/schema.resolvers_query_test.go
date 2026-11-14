@@ -192,73 +192,6 @@ func TestQueryResolver_UserTokens(t *testing.T) {
 
 // --- SavedLocations / SavedLocation ---------------------------------------
 
-func TestQueryResolver_SavedLocations(t *testing.T) {
-	ddb := newAuthMutationTestDB(t)
-	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
-
-	owner := seedGraphQLUser(t, ddb, "savedlocqryowner", "savedlocqryowner@example.com", "correctpass1")
-	ownerCtx := withGraphQLUserContext(context.Background(), owner)
-
-	if _, err := m.CreateSavedLocation(ownerCtx, "Home", 1, 1, nil, nil, nil); err != nil {
-		t.Fatalf("seed location: %v", err)
-	}
-
-	other := seedGraphQLUser(t, ddb, "savedlocqryother", "savedlocqryother@example.com", "correctpass1")
-	otherCtx := withGraphQLUserContext(context.Background(), other)
-	if _, err := m.CreateSavedLocation(otherCtx, "Office", 2, 2, nil, nil, nil); err != nil {
-		t.Fatalf("seed other user's location: %v", err)
-	}
-
-	locs, err := q.SavedLocations(ownerCtx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(locs) != 1 || locs[0].Name != "Home" {
-		t.Fatalf("locs = %+v, want exactly the caller's own %q location", locs, "Home")
-	}
-}
-
-func TestQueryResolver_SavedLocation(t *testing.T) {
-	ddb := newAuthMutationTestDB(t)
-	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
-	q := &queryResolver{&Resolver{UsersDB: ddb.Users}}
-
-	owner := seedGraphQLUser(t, ddb, "savedlocsingleowner", "savedlocsingleowner@example.com", "correctpass1")
-	ownerCtx := withGraphQLUserContext(context.Background(), owner)
-
-	loc, err := m.CreateSavedLocation(ownerCtx, "Home", 1, 1, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("seed location: %v", err)
-	}
-	id := formatGraphQLTestUserID(int64(loc.ID))
-
-	t.Run("happy path returns the owner's location", func(t *testing.T) {
-		got, err := q.SavedLocation(ownerCtx, id)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got == nil || got.Name != "Home" {
-			t.Fatalf("got = %+v, want Name = %q", got, "Home")
-		}
-	})
-
-	t.Run("cross-user isolation: cannot read another user's location", func(t *testing.T) {
-		other := seedGraphQLUser(t, ddb, "savedlocsingleother", "savedlocsingleother@example.com", "correctpass1")
-		otherCtx := withGraphQLUserContext(context.Background(), other)
-
-		if _, err := q.SavedLocation(otherCtx, id); err == nil {
-			t.Fatal("expected an error reading another user's saved location, got nil")
-		}
-	})
-
-	t.Run("nonexistent id errors", func(t *testing.T) {
-		if _, err := q.SavedLocation(ownerCtx, "999999"); err == nil {
-			t.Fatal("expected an error for a nonexistent saved location id, got nil")
-		}
-	})
-}
-
 // --- Notifications / UnreadNotifications ----------------------------------
 
 func TestQueryResolver_Notifications(t *testing.T) {
@@ -404,34 +337,6 @@ func TestQueryResolver_AdminUsers(t *testing.T) {
 		if strings.Contains(u.Email, "@example.com") && u.Email != "" && !strings.Contains(u.Email, "*") {
 			t.Fatalf("Email = %q, want it masked before being returned to an admin listing", u.Email)
 		}
-	}
-}
-
-func TestQueryResolver_AdminStats(t *testing.T) {
-	ddb := newAuthMutationTestDB(t)
-	q := &queryResolver{&Resolver{ServerDB: ddb.Server, UsersDB: ddb.Users}}
-	m := &mutationResolver{&Resolver{UsersDB: ddb.Users}}
-
-	owner := seedGraphQLUser(t, ddb, "statsqryowner", "statsqryowner@example.com", "correctpass1")
-	ownerCtx := withGraphQLUserContext(context.Background(), owner)
-	if _, err := m.CreateSavedLocation(ownerCtx, "Home", 1, 1, nil, nil, nil); err != nil {
-		t.Fatalf("seed location: %v", err)
-	}
-	seedGraphQLNotification(t, ddb, owner.ID)
-
-	adminCtx := withGraphQLAdminValues(context.Background(), 1, "admin@example.com")
-	got, err := q.AdminStats(adminCtx)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got == nil || got.Users == nil || got.Users.Total != 1 {
-		t.Fatalf("got = %+v, want Users.Total = 1", got)
-	}
-	if got.Locations == nil || got.Locations.Total != 1 {
-		t.Fatalf("Locations = %+v, want Total = 1", got.Locations)
-	}
-	if got.Notifications == nil || got.Notifications.Total != 1 {
-		t.Fatalf("Notifications = %+v, want Total = 1", got.Notifications)
 	}
 }
 

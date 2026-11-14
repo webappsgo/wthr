@@ -306,6 +306,16 @@ func TestCollectFiles(t *testing.T) {
 			want: []string{"ssl/"},
 		},
 		{
+			name: "security_keypair_always_included",
+			setup: func(configDir, dataDir string) {
+				os.MkdirAll(filepath.Join(configDir, "security"), 0700)
+			},
+			opts: func(configDir, dataDir string) BackupOptions {
+				return BackupOptions{ConfigDir: configDir, DataDir: dataDir}
+			},
+			want: []string{"security/"},
+		},
+		{
 			name:  "data_included_with_flag_even_if_absent",
 			setup: func(configDir, dataDir string) {},
 			opts: func(configDir, dataDir string) BackupOptions {

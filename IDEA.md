@@ -20,7 +20,7 @@ A unified weather information platform that aggregates global meteorological dat
 | Earthquake Data | Real-time seismic activity from USGS |
 | Moon Phases | Lunar cycles, illumination, rise/set times |
 | Location Detection | Automatic IP-based geolocation |
-| Multi-Format API | JSON, text/plain, GraphQL support |
+| Multi-Format API | JSON, text/plain, read-only GraphQL support |
 | Terminal Output | ASCII/ANSI colored weather for curl/terminal |
 | Bash Integration | Shell function for terminal weather (`/:bash.function`) |
 | WebSocket Alerts | Real-time push notifications for severe weather |

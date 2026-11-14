@@ -1,0 +1,65 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.security_reports.detail_title"}} <code>{{.Report.TrackingID}}</code></h1>
+    <p class="admin-page-intro"><a href="{{$ap}}/security/reports">{{t $lang "admin.security_reports.back"}}</a></p>
+  </div>
+  {{template "flash" .}}
+  <section class="admin-section" aria-labelledby="meta-heading">
+    <h2 id="meta-heading">{{t $lang "admin.security_reports.meta_heading"}}</h2>
+    <dl>
+      <dt>{{t $lang "admin.security_reports.col_severity"}}</dt><dd>{{t $lang (printf "security.report.opt.%s" .Report.Severity)}}</dd>
+      <dt>{{t $lang "admin.security_reports.col_component"}}</dt><dd>{{.Report.Component}}</dd>
+      <dt>{{t $lang "admin.security_reports.col_status"}}</dt><dd>{{t $lang (printf "security.report.state.%s" .Report.Status)}}</dd>
+      <dt>{{t $lang "admin.security_reports.col_created"}}</dt><dd>{{.Report.CreatedAt.Format "2006-01-02 15:04"}}</dd>
+      <dt>{{t $lang "admin.security_reports.cve"}}</dt><dd>{{if .Report.CVERequested}}{{t $lang "admin.security_reports.yes"}}{{else}}{{t $lang "admin.security_reports.no"}}{{end}}</dd>
+    </dl>
+  </section>
+  <section class="admin-section" aria-labelledby="body-heading">
+    <h2 id="body-heading">{{t $lang "admin.security_reports.body_heading"}}</h2>
+    {{if .BodyUnreadable}}
+    <p role="alert">{{t $lang "admin.security_reports.unreadable"}}</p>
+    {{else}}
+    <dl>
+      <dt>{{t $lang "security.report.field.summary"}}</dt><dd>{{.Body.Summary}}</dd>
+      <dt>{{t $lang "security.report.field.affected_endpoint"}}</dt><dd>{{.Body.Endpoint}}</dd>
+      <dt>{{t $lang "security.report.field.steps"}}</dt><dd><div class="pre-wrap">{{.Body.Steps}}</div></dd>
+      <dt>{{t $lang "security.report.field.impact"}}</dt><dd><div class="pre-wrap">{{.Body.Impact}}</div></dd>
+      <dt>{{t $lang "security.report.field.suggested_fix"}}</dt><dd><div class="pre-wrap">{{.Body.SuggestedFix}}</div></dd>
+      <dt>{{t $lang "security.report.field.disclosure_days"}}</dt><dd>{{.Body.DisclosureDays}}</dd>
+      <dt>{{t $lang "security.report.field.credit_preference"}}</dt><dd>{{t $lang (printf "security.report.opt.%s" .Body.CreditPreference)}} {{.Body.CreditHandle}}</dd>
+      <dt>{{t $lang "admin.security_reports.version"}}</dt><dd>{{.Body.AppVersion}} {{.Body.CommitHash}}</dd>
+    </dl>
+    {{with .Contact}}
+    <h3>{{t $lang "admin.security_reports.contact_heading"}}</h3>
+    <dl><dt>{{t $lang "security.report.field.name"}}</dt><dd>{{.Name}}</dd><dt>{{t $lang "security.report.field.email"}}</dt><dd>{{.Email}}</dd></dl>
+    {{end}}
+    {{end}}
+  </section>
+  <section class="admin-section" aria-labelledby="update-heading">
+    <h2 id="update-heading">{{t $lang "admin.security_reports.update_heading"}}</h2>
+    <form method="post" action="{{$ap}}/security/reports/{{.Report.TrackingID}}">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="status" class="form-label">{{t $lang "admin.security_reports.col_status"}}</label>
+        <select id="status" name="status" class="form-input">
+          {{range .Statuses}}<option value="{{.}}"{{if eq . $.Report.Status}} selected{{end}}>{{t $lang (printf "security.report.state.%s" .)}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="researcher_comment" class="form-label">{{t $lang "admin.security_reports.comment"}}</label>
+        <textarea id="researcher_comment" name="researcher_comment" class="form-input" rows="4" maxlength="2000" aria-describedby="comment-help">{{.Report.ResearcherComment}}</textarea>
+        <small id="comment-help" class="form-help">{{t $lang "admin.security_reports.comment_help"}}</small>
+      </div>
+      <div class="form-group">
+        <label for="disclosure_date" class="form-label">{{t $lang "admin.security_reports.disclosure_date"}}</label>
+        <input type="date" id="disclosure_date" name="disclosure_date" class="form-input" value="{{.Report.DisclosureDate}}">
+      </div>
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.security_reports.save"}}</button>
+    </form>
+  </section>
+{{template "admin_footer" .}}

@@ -153,6 +153,12 @@ func ShowContactPage(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		} else {
 			captcha["SiteKey"] = cfg.Server.Pages.Contact.CaptchaSiteKey
 		}
+		if securityID := securityIDFromRequest(r, r.URL.Query().Get("security_id")); securityID != "" {
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("Cache-Control", "no-store")
+			NegotiateResponse(w, r, "page/security_report.tmpl", securityReportFormData(w, r, cfg, securityID, captcha))
+			return
+		}
 		data := map[string]interface{}{
 			"page": "contact",
 			"server": pageServerData(r, map[string]interface{}{
@@ -314,8 +320,8 @@ func GetAboutAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 			"attribution":  geoipAttribution(r),
 			"links": map[string]interface{}{
 				"github":  "https://github.com/webappsgo/wthr",
-				"docs":    "/openapi",
-				"graphql": "/graphql",
+				"docs":    util.BuildURL(r, "/server/docs/swagger"),
+				"graphql": util.BuildURL(r, "/server/docs/graphql"),
 			},
 			"tor": map[string]interface{}{
 				"enabled":       torEnabled,
@@ -355,7 +361,8 @@ func GetPrivacyAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	}
 }
 
-// GetHelpAPI returns help content as JSON (AI.md PART 14: /api/v1/server/help)
+// GetHelpAPI returns help content as JSON (AI.md PART 14: /api/v1/server/help).
+// Every human-readable string comes from the locale files, like the HTML page.
 func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
@@ -368,33 +375,35 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 		apiBase := config.GetGlobalConfig().GetAPIPath()
 
 		help := map[string]interface{}{
-			"title": "Help",
+			"title": Translate(r, "help.heading"),
 			"getting_started": map[string]interface{}{
-				"description": "Get weather data with a single request",
-				"examples": []map[string]interface{}{
-					{"description": "Current weather for a city", "curl": "curl " + baseURL + "/London"},
-					{"description": "JSON API", "curl": "curl " + baseURL + apiBase + "/weather?location=London"},
-					{"description": "Forecast", "curl": "curl " + baseURL + apiBase + "/forecasts?location=Paris&days=5"},
+				"description": Translate(r, "help.quick_start_intro"),
+				"examples": []string{
+					"curl " + baseURL + "/London",
+					"curl " + baseURL + apiBase + "/weather?location=London",
+					"curl " + baseURL + apiBase + "/forecasts?location=Paris&days=5",
 				},
 			},
-			"features": []map[string]interface{}{
-				{"name": "Weather Forecasts", "description": "16-day global forecasts with hourly/daily breakdown"},
-				{"name": "Severe Weather Alerts", "description": "Real-time alerts from US, Canada, UK, Australia, Japan, Mexico"},
-				{"name": "Earthquake Data", "description": "Real-time seismic activity from USGS"},
-				{"name": "Hurricane Tracking", "description": "Active tropical storm monitoring from NOAA NHC"},
-				{"name": "Moon Phases", "description": "Lunar cycles, illumination, rise/set times"},
-				{"name": "GraphQL API", "description": "Full GraphQL endpoint at /graphql including passkey/WebAuthn auth mutations"},
-				{"name": "Passkey / WebAuthn", "description": "Admin passkey authentication via beginAdminPasskeyChallenge and finishAdminPasskeyChallenge GraphQL mutations"},
+			"features": []string{
+				Translate(r, "about.api_feature_weather"),
+				Translate(r, "about.api_feature_alerts"),
+				Translate(r, "about.api_feature_earthquakes"),
+				Translate(r, "about.api_feature_hurricanes"),
+				Translate(r, "about.api_feature_moon"),
+				Translate(r, "about.api_feature_api"),
 			},
 			"api_documentation": map[string]interface{}{
-				"swagger":  "/openapi",
-				"graphql":  "/graphql",
-				"examples": "/examples",
+				"swagger": util.BuildURL(r, "/server/docs/swagger"),
+				"graphql": util.BuildURL(r, "/server/docs/graphql"),
+			},
+			"rate_limits": map[string]interface{}{
+				"anonymous":     Translate(r, "help.rate_limits_anonymous_value"),
+				"authenticated": Translate(r, "help.rate_limits_authenticated_value"),
 			},
 			"faq": []map[string]interface{}{
-				{"question": "Do I need an API key?", "answer": "No, the API is free and requires no authentication for basic access."},
-				{"question": "What is the rate limit?", "answer": "Anonymous: 20 requests/minute. Authenticated: 100 requests/minute."},
-				{"question": "What data sources are used?", "answer": "Open-Meteo for weather, USGS for earthquakes, NOAA for hurricanes and US alerts."},
+				{"question": Translate(r, "help.faq_account_question"), "answer": Translate(r, "help.faq_account_answer")},
+				{"question": Translate(r, "help.faq_alerts_question"), "answer": Translate(r, "help.faq_alerts_answer")},
+				{"question": Translate(r, "help.faq_location_question"), "answer": Translate(r, "help.faq_location_answer1")},
 			},
 		}
 
@@ -402,7 +411,6 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 			help["tor_access"] = map[string]interface{}{
 				"enabled":       true,
 				"onion_address": onionAddress,
-				"instructions":  "Download Tor Browser from https://www.torproject.org/download/ and navigate to the onion address.",
 			}
 		}
 
@@ -410,19 +418,37 @@ func GetHelpAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	}
 }
 
-// GetTermsAPI returns terms of service as JSON (AI.md PART 14: /api/v1/server/terms)
+// GetTermsAPI returns terms of service as JSON (AI.md PART 14: /api/v1/server/terms).
+// The sections mirror the HTML page and come from the locale files.
 func GetTermsAPI(db *database.DB, cfg *config.AppConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		RespondNegotiatedData(w, r, http.StatusOK, map[string]interface{}{
-			"title":        "Terms of Service",
+			"title":        Translate(r, "terms.page_title"),
 			"last_updated": BuildDate,
 			"sections": []map[string]interface{}{
-				{"title": "Acceptance of Terms", "content": "By accessing or using Weather, you agree to be bound by these terms. If you do not agree, do not use the service."},
-				{"title": "Description of Service", "content": "Weather provides weather forecasts, severe weather alerts, earthquake data, hurricane tracking, and moon phase information through a web interface and API."},
-				{"title": "Acceptable Use", "content": "You may use the service for lawful purposes. You must not attempt to disrupt the service, circumvent rate limits, or use the service to harm others."},
-				{"title": "Data Accuracy", "content": "Weather data is sourced from third-party providers (Open-Meteo, USGS, NOAA). We do not guarantee the accuracy, completeness, or timeliness of data. Do not rely solely on this service for safety-critical decisions."},
-				{"title": "Limitation of Liability", "content": "Weather is provided as-is without warranty. We are not liable for any damages arising from use of the service or reliance on data provided."},
-				{"title": "Changes to Terms", "content": "We may update these terms at any time. Continued use after changes constitutes acceptance of new terms."},
+				{"title": Translate(r, "terms.acceptance_title"), "content": Translate(r, "terms.acceptance_text")},
+				{"title": Translate(r, "terms.description_title"), "content": Translate(r, "terms.description_text")},
+				{"title": Translate(r, "terms.acceptable_use_title"), "content": Translate(r, "terms.acceptable_use_intro") + " " + strings.Join([]string{
+					Translate(r, "terms.acceptable_use_disrupt"),
+					Translate(r, "terms.acceptable_use_circumvent"),
+					Translate(r, "terms.acceptable_use_harm"),
+					Translate(r, "terms.acceptable_use_scrape"),
+					Translate(r, "terms.acceptable_use_misrepresent"),
+				}, "; ")},
+				{"title": Translate(r, "terms.api_usage_title"), "content": strings.Join([]string{
+					Translate(r, "terms.api_usage_intro"),
+					Translate(r, "terms.api_rate_limits_text"),
+					Translate(r, "terms.api_fair_use_text"),
+					Translate(r, "terms.api_attribution_text"),
+				}, " ")},
+				{"title": Translate(r, "terms.data_accuracy_title"), "content": Translate(r, "terms.data_accuracy_text") + " " + Translate(r, "terms.data_accuracy_advice")},
+				{"title": Translate(r, "terms.liability_title"), "content": Translate(r, "terms.liability_intro") + " " + strings.Join([]string{
+					Translate(r, "terms.liability_use"),
+					Translate(r, "terms.liability_inaccurate"),
+					Translate(r, "terms.liability_interruptions"),
+					Translate(r, "terms.liability_decisions"),
+				}, "; ")},
+				{"title": Translate(r, "terms.changes_title"), "content": Translate(r, "terms.changes_text")},
 			},
 		})
 	}
@@ -564,8 +590,21 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 			CaptchaID     string `json:"captcha_id"`
 			CaptchaAnswer string `json:"captcha_answer"`
 			CaptchaToken  string `json:"captcha_response"`
+			SecurityID    string `json:"security_id"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&body); err != nil {
+		raw, ok := decodeSecurityBody(w, r)
+		if !ok {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "BAD_REQUEST", "message": Translate(r, "errors.contact.invalid")})
+			return
+		}
+		if rawID, present := raw["security_id"]; present {
+			if securityID := securityIDFromRequest(r, fmt.Sprint(rawID)); securityID != "" {
+				handleSecurityFormAPI(w, r, cfg, securityID, raw)
+				return
+			}
+		}
+		encoded, _ := json.Marshal(raw)
+		if err := json.Unmarshal(encoded, &body); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "BAD_REQUEST", "message": Translate(r, "errors.contact.invalid")})
 			return
 		}
@@ -600,6 +639,10 @@ func HandleContactFormWeb(db *database.DB, cfg *config.AppConfig) http.HandlerFu
 		if err := r.ParseForm(); err != nil {
 			SetFlash(w, r, "error", "flash.contact_invalid")
 			http.Redirect(w, r, "/server/contact", http.StatusSeeOther)
+			return
+		}
+		if securityID := securityIDFromRequest(r, r.PostFormValue("security_id")); securityID != "" {
+			handleSecurityFormWeb(w, r, cfg, securityID)
 			return
 		}
 		result := deliverContact(r, cfg, contactForm{

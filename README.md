@@ -159,7 +159,7 @@ weather:
 
 ## API
 
-Full API documentation is available at `https://wthr.top/openapi`, with OpenAPI JSON at `https://wthr.top/openapi.json` and GraphQL at `https://wthr.top/api/v1/graphql`.
+Full API documentation is available at `https://wthr.top/server/docs/swagger`, with OpenAPI JSON at `https://wthr.top/api/v1/server/swagger`. GraphQL (queries only) is at `https://wthr.top/api/v1/server/graphql`, with an interactive playground at `https://wthr.top/server/docs/graphql`.
 
 ### Health Endpoints
 

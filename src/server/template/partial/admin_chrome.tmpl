@@ -90,6 +90,10 @@
           <li><a class="nav-link{{if eq $page "tokens"}} is-active{{end}}" href="{{$ap}}/security/tokens"{{if eq $page "tokens"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tokens"}}</a></li>
           <li><a class="nav-link{{if eq $page "ratelimit"}} is-active{{end}}" href="{{$ap}}/security/ratelimit"{{if eq $page "ratelimit"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ratelimit"}}</a></li>
           <li><a class="nav-link{{if eq $page "firewall"}} is-active{{end}}" href="{{$ap}}/security/firewall"{{if eq $page "firewall"}} aria-current="page"{{end}}>{{t $lang "admin.nav.firewall"}}</a></li>
+          <li><a class="nav-link{{if eq $page "reports"}} is-active{{end}}" href="{{$ap}}/security/reports"{{if eq $page "reports"}} aria-current="page"{{end}}>{{t $lang "admin.nav.security_reports"}}</a></li>
+          <li><a class="nav-link{{if eq $page "policy"}} is-active{{end}}" href="{{$ap}}/security/policy"{{if eq $page "policy"}} aria-current="page"{{end}}>{{t $lang "admin.nav.security_policy"}}</a></li>
+          <li><a class="nav-link{{if eq $page "thanks"}} is-active{{end}}" href="{{$ap}}/security/thanks"{{if eq $page "thanks"}} aria-current="page"{{end}}>{{t $lang "admin.nav.security_thanks"}}</a></li>
+          <li><a class="nav-link{{if eq $page "keypair"}} is-active{{end}}" href="{{$ap}}/security/keypair"{{if eq $page "keypair"}} aria-current="page"{{end}}>{{t $lang "admin.nav.security_keypair"}}</a></li>
         </ul>
       </details>
       <details class="nav-section" data-nav-section="network"{{if index $.admin_nav_open "network"}} open{{end}}>

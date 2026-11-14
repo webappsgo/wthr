@@ -113,6 +113,7 @@ func TestMCPHelpAPIContent(t *testing.T) {
 
 func TestSecurityAPIs(t *testing.T) {
 	resetGlobalConfig(t)
+	setGlobalTestDualDB(t, newTestServerDB(t), newTestUsersDB(t))
 	cfg := &config.AppConfig{}
 	cfg.Server.Contact.Security.Email = "security@example.com"
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/server/security", nil)

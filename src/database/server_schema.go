@@ -480,4 +480,56 @@ CREATE TABLE IF NOT EXISTS server_cve_alerts (
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_severity ON server_cve_alerts(severity);
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_published ON server_cve_alerts(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cve_alerts_acknowledged ON server_cve_alerts(acknowledged);
+
+-- Project-level cryptographic secrets (AI.md PART 11 "Cryptographic Keys"); values are base64 and never leave the server
+CREATE TABLE IF NOT EXISTS app_secrets (
+	name TEXT PRIMARY KEY,
+	value TEXT NOT NULL,
+	created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	rotated_at DATETIME
+);
+
+-- Coordinated-disclosure reports (AI.md PART 11 "Security Report Storage & Operator Workflow")
+CREATE TABLE IF NOT EXISTS security_reports (
+	tracking_id VARCHAR(32) PRIMARY KEY,
+	security_id VARCHAR(64) NOT NULL,
+	severity VARCHAR(16) NOT NULL,
+	component VARCHAR(255) NOT NULL,
+	status VARCHAR(16) NOT NULL DEFAULT 'received',
+	body_enc BLOB NOT NULL,
+	body_alg VARCHAR(16) NOT NULL,
+	contact_enc BLOB,
+	researcher_comment TEXT NOT NULL DEFAULT '',
+	disclosure_date DATE,
+	cve_requested BOOLEAN NOT NULL DEFAULT FALSE,
+	token_hash VARCHAR(64) NOT NULL,
+	token_last_used DATE,
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	closed_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_reports_status ON security_reports(status, created_at);
+
+-- Project PGP keypair metadata; the keys themselves live on disk (PART 11 "GPG Keypair Management")
+CREATE TABLE IF NOT EXISTS security_keypair (
+	id INTEGER PRIMARY KEY CHECK (id = 1),
+	fingerprint TEXT NOT NULL,
+	created_at DATETIME NOT NULL,
+	expires_at DATETIME,
+	last_rotated_at DATETIME,
+	keyservers_published TEXT NOT NULL DEFAULT '[]',
+	revoked INTEGER NOT NULL DEFAULT 0
+);
+
+-- Hall-of-fame entries shown at /server/security/thanks, one per disclosed report that opted in
+CREATE TABLE IF NOT EXISTS security_thanks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	tracking_id VARCHAR(32) NOT NULL UNIQUE,
+	credit TEXT NOT NULL,
+	severity VARCHAR(16) NOT NULL,
+	year INTEGER NOT NULL,
+	visible INTEGER NOT NULL DEFAULT 1,
+	sort_order INTEGER NOT NULL DEFAULT 0
+);
 `

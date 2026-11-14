@@ -19,6 +19,8 @@ type contactFieldSpec struct {
 	RequiredWhen *contactRequiredWhen `json:"required_when"`
 	// MaxLengthWhen narrows the limit for values starting with a prefix; null when there is none
 	MaxLengthWhen []contactMaxLengthWhen `json:"max_length_when"`
+	// Options lists the allowed values of an enum field or the suggestions of a text field; not part of the published descriptor
+	Options []string `json:"-"`
 }
 
 // contactRequiredWhen is the PART 11 required_when descriptor.
@@ -67,8 +69,12 @@ func GetContactFormAPI(cfg *config.AppConfig) http.HandlerFunc {
 			captcha["site_key"] = cfg.Server.Pages.Contact.CaptchaSiteKey
 		}
 
+		fields := contactFields()
+		if securityIDFromRequest(r, r.URL.Query().Get("security_id")) != "" {
+			fields = securityFieldSpecs()
+		}
 		RespondData(w, r, map[string]interface{}{
-			"fields":       contactFields(),
+			"fields":       fields,
 			"captcha":      captcha,
 			"security_url": util.BuildURL(r, "/server/security"),
 			"abuse_email":  cfg.Server.Contact.Abuse.Email,

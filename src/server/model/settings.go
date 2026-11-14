@@ -238,14 +238,15 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 		"security.password_min_length": {Value: "8", Type: "number", Description: "Minimum required password length for user accounts"},
 
 		// security.txt (RFC 9116) settings
-		"security.contact":         {Value: "", Type: "string", Description: "Security contact (email, URL, or phone) - comma separated for multiple"},
-		"security.expires":         {Value: "", Type: "string", Description: "security.txt expiration date (RFC3339 format) - auto-renewed yearly"},
-		"security.languages":       {Value: "en", Type: "string", Description: "Preferred languages for security reports (comma separated)"},
-		"security.canonical":       {Value: "", Type: "string", Description: "Canonical URL for security.txt - auto-generated if empty"},
-		"security.encryption":      {Value: "", Type: "string", Description: "PGP key URL for encrypted communications (optional)"},
-		"security.acknowledgments": {Value: "", Type: "string", Description: "URL to security acknowledgments/hall of fame (optional)"},
-		"security.policy":          {Value: "", Type: "string", Description: "URL to security policy/disclosure policy (optional)"},
-		"security.hiring":          {Value: "", Type: "string", Description: "URL to security job postings (optional)"},
+		"security.contact":                       {Value: "", Type: "string", Description: "Security contact (email, URL, or phone) - comma separated for multiple"},
+		"security.expires":                       {Value: "", Type: "string", Description: "security.txt expiration date (RFC3339 format) - auto-renewed yearly"},
+		"security.languages":                     {Value: "en", Type: "string", Description: "Preferred languages for security reports (comma separated)"},
+		"security.canonical":                     {Value: "", Type: "string", Description: "Canonical URL for security.txt - auto-generated if empty"},
+		"security.hiring":                        {Value: "", Type: "string", Description: "URL to security job postings (optional)"},
+		"security.policy_text":                   {Value: "", Type: "string", Description: "Disclosure policy text for /server/security/policy (Markdown); empty shows the default"},
+		"web.security.report_url":                {Value: "", Type: "string", Description: "Primary security.txt Contact: private vulnerability reporting URL (optional)"},
+		"web.security.keyservers":                {Value: "https://keys.openpgp.org", Type: "string", Description: "Keyservers the project PGP public key is published to (comma separated)"},
+		"server.security.reports.retention_days": {Value: "365", Type: "number", Description: "Days after closing before a closed security report is deleted"},
 
 		// Web frontend settings (app.* are aliases for server.* for consistency)
 		"app.name":        {Value: "Weather", Type: "string", Description: "Alias for server.title - Application display name"},

@@ -910,7 +910,6 @@ func (im *I2PManager) Close() error {
 	return nil
 }
 
-
 // I2P config validation lives solely in config.ValidateI2PConfig (src/config/config.go)
 // per AI.md PART 32.2 — that is the version production code (admin_i2p.go, config.go's
 // own save path) actually calls. A duplicate validator used to live here but only its

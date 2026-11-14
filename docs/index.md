@@ -75,8 +75,8 @@ Weather Service is a production-grade weather API providing global weather forec
 - [GitHub Repository](https://github.com/webappsgo/wthr)
 - [Docker Images](https://ghcr.io/webappsgo/wthr)
 - [Report Issues](https://github.com/webappsgo/wthr/issues)
-- Swagger UI - `/openapi` on your running server
-- GraphQL Playground - `/graphql` on your running server
+- Swagger UI - `/server/docs/swagger` on your running server
+- GraphQL Playground - `/server/docs/graphql` on your running server
 
 ## License
 

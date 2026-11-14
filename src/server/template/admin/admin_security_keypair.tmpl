@@ -1,0 +1,71 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.security_reports.keypair_title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.security_reports.keypair_intro"}}</p>
+  </div>
+  {{template "flash" .}}
+  <section class="admin-section" aria-labelledby="key-state-heading">
+    <h2 id="key-state-heading">{{t $lang "admin.security_reports.keypair_state"}}</h2>
+    {{if .HasKey}}
+    <dl>
+      <dt>{{t $lang "admin.security_reports.fingerprint"}}</dt><dd><code class="break-all">{{.Info.Fingerprint}}</code></dd>
+      <dt>{{t $lang "admin.security_reports.created"}}</dt><dd>{{.Info.CreatedAt.Format "2006-01-02"}}</dd>
+      <dt>{{t $lang "admin.security_reports.expires"}}</dt><dd>{{.Info.ExpiresAt.Format "2006-01-02"}}</dd>
+      {{range $server, $when := .Info.KeyserversPublished}}<dt>{{t $lang "admin.security_reports.published"}}</dt><dd>{{$server}} ({{$when.Format "2006-01-02"}})</dd>{{end}}
+    </dl>
+    <p><a class="btn btn-secondary" href="{{$ap}}/security/keypair/public">{{t $lang "admin.security_reports.download_public"}}</a></p>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128273;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.security_reports.no_key_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.security_reports.no_key_message"}}</p>
+    </div>
+    {{end}}
+  </section>
+  <section class="admin-section" aria-labelledby="key-actions-heading">
+    <h2 id="key-actions-heading">{{t $lang "admin.security_reports.actions"}}</h2>
+    <form method="post" action="{{$ap}}/security/keypair" class="form-inline">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      {{if .HasKey}}
+      <button type="submit" name="action" value="rotate" class="btn btn-secondary">{{t $lang "admin.security_reports.rotate"}}</button>
+      <button type="submit" name="action" value="publish" class="btn btn-secondary">{{t $lang "admin.security_reports.publish"}}</button>
+      {{else}}
+      <button type="submit" name="action" value="generate" class="btn btn-primary">{{t $lang "admin.security_reports.generate"}}</button>
+      {{end}}
+    </form>
+  </section>
+  <section class="admin-section" aria-labelledby="key-sensitive-heading">
+    <h2 id="key-sensitive-heading">{{t $lang "admin.security_reports.sensitive"}}</h2>
+    <p>{{t $lang "admin.security_reports.sensitive_help"}}</p>
+    <form method="post" action="{{$ap}}/security/keypair">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="key-password" class="form-label">{{t $lang "admin.security_reports.password"}}</label>
+        <input type="password" id="key-password" name="password" class="form-input" autocomplete="current-password" required>
+      </div>
+      {{if .HasKey}}
+      <div class="form-group">
+        <label for="key-reason" class="form-label">{{t $lang "admin.security_reports.reason"}}</label>
+        <input type="text" id="key-reason" name="reason" class="form-input" maxlength="500" aria-describedby="key-reason-help">
+        <small id="key-reason-help" class="form-help">{{t $lang "admin.security_reports.reason_help"}}</small>
+      </div>
+      <button type="submit" name="action" value="export_private" class="btn btn-secondary">{{t $lang "admin.security_reports.export_private"}}</button>
+      <div class="form-group">
+        <label for="key-confirm" class="form-label">{{t $lang "admin.security_reports.confirm_delete"}}</label>
+        <input type="text" id="key-confirm" name="confirm" class="form-input" autocomplete="off">
+      </div>
+      <button type="submit" name="action" value="delete" class="btn btn-danger">{{t $lang "admin.security_reports.delete"}}</button>
+      {{end}}
+      <div class="form-group">
+        <label for="key-private" class="form-label">{{t $lang "admin.security_reports.import_label"}}</label>
+        <textarea id="key-private" name="private_key" class="form-input" rows="6" maxlength="32768" spellcheck="false"></textarea>
+      </div>
+      <button type="submit" name="action" value="import_private" class="btn btn-secondary">{{t $lang "admin.security_reports.import_private"}}</button>
+    </form>
+  </section>
+{{template "admin_footer" .}}

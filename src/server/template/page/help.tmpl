@@ -202,35 +202,7 @@
                     <li><code>userPasskeys</code> - {{t .server.Lang "help.graphql_query_user_passkeys"}}</li>
                     <li><code>publicUserProfile(username: String!)</code> - {{t .server.Lang "help.graphql_query_public_profile"}}</li>
                 </ul>
-                <p><strong>{{t .server.Lang "help.graphql_auth_mutations_heading"}}</strong></p>
-                <ul>
-                    <li><code>register(username, email, password)</code> - {{t .server.Lang "help.graphql_mutation_register"}}</li>
-                    <li><code>login(username, password)</code> - {{t .server.Lang "help.graphql_mutation_login"}}</li>
-                    <li><code>logout</code> - {{t .server.Lang "help.graphql_mutation_logout"}}</li>
-                    <li><code>requestPasswordReset(email)</code> - {{t .server.Lang "help.graphql_mutation_request_reset"}}</li>
-                    <li><code>resetPassword(token, newPassword)</code> - {{t .server.Lang "help.graphql_mutation_reset_password"}}</li>
-                    <li><code>verifyEmail(token)</code> - {{t .server.Lang "help.graphql_mutation_verify_email"}}</li>
-                    <li><code>twoFactorLogin(sessionToken, code)</code> - {{t .server.Lang "help.graphql_mutation_2fa_login"}}</li>
-                    <li><code>recoveryKeyLogin(username, recoveryKey)</code> - {{t .server.Lang "help.graphql_mutation_recovery_login"}}</li>
-                </ul>
-                <p><strong>{{t .server.Lang "help.graphql_user_passkey_heading"}}</strong></p>
-                <p>{{t .server.Lang "help.graphql_user_passkey_intro"}} <code>ceremonyToken</code> {{t .server.Lang "help.graphql_user_passkey_middle"}}</p>
-                <ul>
-                    <li><code>beginUserPasskeyRegistration(name, password)</code> - {{t .server.Lang "help.graphql_mutation_begin_user_passkey_reg"}}</li>
-                    <li><code>finishUserPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_user_passkey_reg"}}</li>
-                    <li><code>deleteUserPasskey(id)</code> - {{t .server.Lang "help.graphql_mutation_delete_user_passkey"}}</li>
-                    <li><code>beginUserPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help.graphql_mutation_begin_user_passkey_login"}}</li>
-                    <li><code>finishUserPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_user_passkey_login"}}</li>
-                </ul>
-                <p><strong>{{t .server.Lang "help.graphql_admin_passkey_heading"}}</strong></p>
-                <p>{{t .server.Lang "help.graphql_admin_passkey_intro"}}</p>
-                <ul>
-                    <li><code>beginAdminPasskeyRegistration(name, password)</code> - {{t .server.Lang "help.graphql_mutation_begin_admin_passkey_reg"}}</li>
-                    <li><code>finishAdminPasskeyRegistration(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_admin_passkey_reg"}}</li>
-                    <li><code>deleteAdminPasskey(id)</code> - {{t .server.Lang "help.graphql_mutation_delete_admin_passkey"}}</li>
-                    <li><code>beginAdminPasskeyChallenge(sessionToken)</code> - {{t .server.Lang "help.graphql_mutation_begin_admin_passkey_login"}}</li>
-                    <li><code>finishAdminPasskeyChallenge(ceremonyToken, credential)</code> - {{t .server.Lang "help.graphql_mutation_finish_admin_passkey_login"}}</li>
-                </ul>
+                <p>{{t .server.Lang "help.graphql_read_only"}}</p>
                 <p>{{t .server.Lang "help.graphql_introspection_intro"}} <code>POST /graphql</code> {{t .server.Lang "help.graphql_introspection_middle"}} <a href="/server/docs/graphql" class="text-cyan">{{t .server.Lang "help.graphql_playground_link"}}</a>.</p>
             </div>
         </details>

@@ -4,15 +4,17 @@
 
 ### Admin Authentication
 
-Server Admins authenticate using **WebAuthn (passkeys)** — no passwords. A passkey is a hardware or
-platform credential (YubiKey, Touch ID, Windows Hello, or any FIDO2 device). Passkeys are stored in
-the `server.db` database; the authenticator private key never leaves the device.
+Server Admins sign in at the shared `/server/auth/login` page with their username (or email) and
+password (Argon2id). An admin who has registered a passkey (WebAuthn: YubiKey, Touch ID, Windows
+Hello or any FIDO2 device) must also complete the passkey prompt before the session is created.
+Passkeys are stored in the `server.db` database; the authenticator private key never leaves the
+device. An unauthenticated request to `/server/administration` redirects to the login page.
 
 | Flow | Description |
 |------|-------------|
-| **Register** | Navigate to `/server/administration` → complete passkey ceremony → passkey bound to your device |
-| **Login** | Navigate to `/server/administration` → browser prompts for passkey → session created (30-day cookie) |
-| **Revoke** | Admin panel → Administrators → Manage Passkeys → remove a passkey |
+| **Sign in** | `/server/auth/login` → password → passkey prompt when one is registered → session (30-day cookie) |
+| **Register a passkey** | Admin panel → your profile → Security → add a passkey (the password is asked again) |
+| **Revoke** | Admin panel → your profile → Security → remove a passkey |
 
 ### User Authentication
 
@@ -146,8 +148,37 @@ Audit logs are append-only and never contain raw credentials or tokens.
 
 ## Security Reporting
 
-To report a security vulnerability, email **casjay@yahoo.com** with subject line
-`[wthr] Security Report`. Include a description of the issue, reproduction steps, and your
-contact information. We aim to respond within 48 hours.
+Vulnerabilities in a running instance are reported through the coordinated-disclosure pipeline.
+Everything is derived from live configuration; there is nothing to edit.
 
-Do not file public GitHub issues for security vulnerabilities until a fix has been coordinated.
+| Page | Purpose |
+|------|---------|
+| `/.well-known/security.txt` | RFC 9116 file. `Contact` lines in preference order: the repository's private vulnerability reporting URL (`web.security.report_url`), the report form `/server/contact?security_id={id}`, then the `mailto:` address. Also `Policy`, `Acknowledgments`, `Expires` and, once a keypair exists, `Encryption` |
+| `/server/security` | Human-readable version of the same information with reporting instructions |
+| `/server/security/policy` | Disclosure policy (editable in the admin panel, default text with safe-harbor language) |
+| `/server/security/thanks` | Hall of fame; each credit follows the researcher's own preference (real name, handle, anonymous or none) |
+| `/.well-known/pgp-key.asc` | Project PGP public key; `404` until a keypair is generated |
+| `/server/security/report/{tracking_id}?token=...` | Researcher status page behind a one-shot token emailed to the researcher |
+
+**The report form.** `/server/contact?security_id={id}` switches the contact form to security mode
+(fields: PGP key, affected component and endpoint, severity, summary, steps to reproduce, impact,
+suggested fix, CVE request, disclosure window, credit preference, agreement). The id is
+`HMAC-SHA256(installation_secret, floor(unix_seconds / 172800))`, first 16 hex characters. It rotates
+every 48 hours and the current and previous values are accepted. An invalid or expired id silently
+falls back to the normal contact form; only the first 8 hex characters of its SHA-256 are logged.
+`GET /api/v1/server/contact?security_id={id}` returns the security field list, including the
+`required_when` and `max_length_when` rules the server enforces, and `POST /api/v1/server/contact`
+with the same `security_id` submits a report.
+
+**Storage.** A report body and the researcher's contact are encrypted before they are stored: with
+the project PGP key when one exists, otherwise AES-256-GCM with `server.security.encryption_key`.
+Plaintext is never written to disk or to a log. The status link works once per day and stops working
+30 days after the report is closed; closed reports are deleted `server.security.reports.retention_days`
+(default 365) after closing. The maintainer email never carries report content; the researcher email
+carries only the tracking id and the status link, encrypted to the researcher's key when one was given.
+
+**Admin panel.** `/server/administration/security/reports` lists and updates reports (status moves
+forward only), `/security/policy` edits the policy, `/security/thanks` manages the hall of fame and
+`/security/keypair` generates, rotates, publishes, exports, imports and deletes the keypair. Viewing a
+report, exporting the private key and the other sensitive actions are written to the audit log; the
+sensitive actions ask for the admin password again.

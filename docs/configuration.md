@@ -245,6 +245,17 @@ server:
 - Analytics run only after the visitor opts in, never over Tor or I2P, and never inline: the page loads `/server/tracking.js`. Only the configured provider's hosts are added to the Content-Security-Policy.
 - `available_languages` may be narrowed but always keeps `en`, `es`, `fr`, `de`, `it`, `ar`.
 
+### Security reports
+
+Editable in the admin panel (Settings and Security sections); stored with the other live settings.
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `web.security.report_url` | empty | Primary `Contact` line of security.txt, usually the repository's private vulnerability reporting URL |
+| `web.security.keyservers` | `https://keys.openpgp.org` | Comma-separated keyservers the project public key is published to |
+| `server.security.reports.retention_days` | `365` | Days after closing before a closed security report is deleted; open reports are never deleted |
+| `server.security.encryption_key` | generated on first run | Base64 32-byte AES-256-GCM key; encrypts report bodies when no PGP keypair exists |
+
 ## Language and Theme
 
 Language selection follows AI.md PART 31:

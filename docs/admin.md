@@ -196,6 +196,15 @@ Configure server-wide settings through the web UI.
   `/rss.xml`, which are always served.
 - **security.txt** and the MCP endpoint switch.
 
+### Security reports
+
+`/server/administration/security/` holds the coordinated-disclosure tools: `reports` (list, filter,
+decrypted view, status, comment and disclosure date), `policy` (edit the public policy page),
+`thanks` (hall of fame entries) and `keypair` (the project PGP key: generate, rotate, publish to
+keyservers, download the public key, export or import the private key, delete). Exporting or
+importing the private key and deleting the keypair ask for your password; the export also needs a
+reason and is limited to once per hour. See [Security](security.md#security-reporting).
+
 ### Settings owned by drop-in files
 
 Settings that a file in `yaml.d/` sets are listed at the top of the Settings page with the file

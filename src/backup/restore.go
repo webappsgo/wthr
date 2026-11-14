@@ -270,7 +270,7 @@ func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, 
 		var destPath string
 		var baseDir string
 		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "yaml.d/") || strings.HasPrefix(header.Name, "template/") ||
-			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") {
+			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") || strings.HasPrefix(header.Name, "security/") {
 			baseDir = configDir
 		} else {
 			baseDir = dataDir

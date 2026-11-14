@@ -1,0 +1,23 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.security_reports.policy_title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.security_reports.policy_intro"}}</p>
+  </div>
+  {{template "flash" .}}
+  <section class="admin-section">
+    <form method="post" action="{{$ap}}/security/policy">
+      <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+      <div class="form-group">
+        <label for="policy" class="form-label">{{t $lang "admin.security_reports.policy_label"}}</label>
+        <textarea id="policy" name="policy" class="form-input" rows="16" maxlength="20000" aria-describedby="policy-help">{{.Policy}}</textarea>
+        <small id="policy-help" class="form-help">{{t $lang "admin.security_reports.policy_help"}}</small>
+      </div>
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.security_reports.save"}}</button>
+    </form>
+  </section>
+{{template "admin_footer" .}}

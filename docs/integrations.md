@@ -66,8 +66,10 @@ curl -H "Authorization: Bearer your-token-here" \
 
 ### GraphQL
 
-A GraphQL endpoint is available at `/graphql`. Interactive playground at `/graphql` (development
-mode) or via `/swagger/` (production).
+GraphQL is read-only (queries only). Send queries with `POST /api/v1/server/graphql`
+(unversioned alias: `/api/graphql`). The interactive playground is at `/server/docs/graphql`.
+Every write operation (sign-in, settings, saved locations, passkeys) uses the REST API, which is
+described in the OpenAPI document at `/api/v1/server/swagger` (Swagger UI: `/server/docs/swagger`).
 
 ### Terminal / curl-friendly Output
 

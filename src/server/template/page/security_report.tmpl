@@ -1,0 +1,62 @@
+{{template "head" .}}
+
+{{template "navbar" .}}
+
+<main id="main-content" class="weather-container">
+    <h1 class="text-purple">{{t .server.Lang "security.report.title"}}</h1>
+    <p>{{t .server.Lang "security.report.intro"}}</p>
+
+    <div class="card margin-y-lg">
+        {{template "flash" .}}
+        <form id="security-report-form" method="post" action="{{path "/server/contact"}}" aria-label="{{t .server.Lang "security.report.form_aria"}}">
+            <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+            <input type="hidden" name="security_id" value="{{.SecurityID}}">
+            {{range .Fields}}{{if ne .Type "captcha"}}
+            {{- $label := printf "security.report.field.%s" .Name -}}
+            {{- $help := printf "security.report.help.%s" .Name -}}
+            <div class="form-group">
+                {{if eq .Type "checkbox"}}
+                <label class="form-label"><input type="checkbox" name="{{.Name}}" value="true"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help"> {{t $.server.Lang $label}}</label>
+                {{else}}
+                <label for="sr-{{.Name}}" class="form-label">{{t $.server.Lang $label}}{{if .Required}} *{{end}}</label>
+                {{if eq .Type "textarea"}}
+                <textarea id="sr-{{.Name}}" name="{{.Name}}" class="form-input" rows="6"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}} aria-describedby="sr-{{.Name}}-help"></textarea>
+                {{else if eq .Type "enum"}}
+                <select id="sr-{{.Name}}" name="{{.Name}}" class="form-input"{{if .Required}} required aria-required="true"{{end}} aria-describedby="sr-{{.Name}}-help">
+                    <option value="">{{t $.server.Lang "security.report.select"}}</option>
+                    {{range .Options}}<option value="{{.}}">{{t $.server.Lang (printf "security.report.opt.%s" .)}}</option>{{end}}
+                </select>
+                {{else if eq .Type "number"}}
+                <input type="number" id="sr-{{.Name}}" name="{{.Name}}" class="form-input" min="1" max="3650" value="90" aria-describedby="sr-{{.Name}}-help">
+                {{else}}
+                <input type="{{.Type}}" id="sr-{{.Name}}" name="{{.Name}}" class="form-input"{{if .Required}} required aria-required="true"{{end}}{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Options}} list="sr-{{.Name}}-list"{{end}} aria-describedby="sr-{{.Name}}-help">
+                {{if .Options}}<datalist id="sr-{{.Name}}-list">{{range .Options}}<option value="{{.}}">{{end}}</datalist>{{end}}
+                {{end}}
+                {{end}}
+                <small id="sr-{{.Name}}-help" class="form-help">{{t $.server.Lang $help}}</small>
+            </div>
+            {{end}}{{end}}
+
+            {{if eq .Captcha.Provider "simple"}}
+            <div class="form-group">
+                <label for="sr-captcha" class="form-label">{{tf .server.Lang "contact.captcha.question" "a" (printf "%d" .Captcha.A) "b" (printf "%d" .Captcha.B)}}</label>
+                <input type="hidden" name="captcha_id" value="{{.Captcha.ID}}">
+                <input type="text" id="sr-captcha" name="captcha_answer" class="form-input" required inputmode="numeric" autocomplete="off" aria-describedby="sr-captcha-help">
+                <small id="sr-captcha-help" class="form-help">{{t .server.Lang "contact.captcha.help"}}</small>
+            </div>
+            {{else if eq .Captcha.Provider "recaptcha"}}
+            <div class="g-recaptcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+            {{else if eq .Captcha.Provider "hcaptcha"}}
+            <div class="h-captcha" data-sitekey="{{.Captcha.SiteKey}}"></div>
+            <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+            {{end}}
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="security-report-submit">{{t .server.Lang "security.report.submit"}}</button>
+            </div>
+        </form>
+    </div>
+</main>
+
+{{template "footer" .}}

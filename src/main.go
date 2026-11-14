@@ -10,8 +10,8 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/hex"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -428,6 +428,7 @@ func main() {
 		log.Printf("Failed to initialize logger: %v", err)
 		os.Exit(1)
 	}
+	handler.SetSecurityLogger(appLogger)
 
 	// Print startup timestamp
 	startTime := time.Now()
@@ -1192,6 +1193,17 @@ func main() {
 		return scheduler.CleanupOldAuditLogs()
 	})
 
+	// Closed security reports are deleted server.security.reports.retention_days after closing (PART 11)
+	taskScheduler.AddTask("cleanup-security-reports", "@daily", func() error {
+		serverDB := database.GetServerDB()
+		if serverDB == nil {
+			return nil
+		}
+		days := (&model.SettingsModel{DB: serverDB}).GetInt("server.security.reports.retention_days", 365)
+		_, err := handler.PurgeSecurityReports(serverDB, days)
+		return err
+	})
+
 	// Register weather alert checks - run every 5 minutes per IDEA.md
 	taskScheduler.AddTask("check-weather-alerts", "@every 5m", func() error {
 		return weatherNotifications.CheckWeatherAlerts()
@@ -1651,6 +1663,8 @@ func main() {
 
 	// security.txt endpoint (RFC 9116 - TEMPLATE.md PART 25)
 	r.Get("/.well-known/security.txt", adminWebHandler.ServeSecurityTxt)
+	// Project PGP public key (PART 11); 404 until a keypair exists
+	r.Get("/.well-known/pgp-key.asc", handler.ServePGPKey())
 	// AI.md PART 16: /.well-known/security.txt is canonical; /security.txt is not served (404)
 
 	// /.well-known/change-password redirect (TEMPLATE.md PART 25)
@@ -2271,6 +2285,18 @@ func main() {
 				"breadcrumb": "Security",
 			}))
 		})
+
+		// Coordinated-disclosure pipeline (AI.md PART 11): reports, policy, hall of fame, PGP keypair
+		adminRoutes.Get("/security/reports", handler.ShowSecurityReports)
+		adminRoutes.Get("/security/reports/{tracking_id}", handler.ShowSecurityReport)
+		adminRoutes.Post("/security/reports/{tracking_id}", handler.UpdateSecurityReport)
+		adminRoutes.Get("/security/policy", handler.ShowSecurityPolicyEditor)
+		adminRoutes.Post("/security/policy", handler.UpdateSecurityPolicy)
+		adminRoutes.Get("/security/thanks", handler.ShowSecurityThanksEditor)
+		adminRoutes.Post("/security/thanks", handler.UpdateSecurityThanks)
+		adminRoutes.Get("/security/keypair", handler.ShowSecurityKeypair)
+		adminRoutes.Get("/security/keypair/public", handler.DownloadSecurityPublicKey)
+		adminRoutes.Post("/security/keypair", handler.SecurityKeypairAction)
 
 		adminRoutes.Get("/security/tokens", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
@@ -4353,6 +4379,8 @@ func main() {
 	r.Get("/server/security", handler.ShowSecurityPage(cfg))
 	r.Get("/server/security/policy", handler.ShowSecurityPolicyPage(cfg))
 	r.Get("/server/security/thanks", handler.ShowSecurityThanksPage(cfg))
+	// Researcher status page behind the emailed one-shot token (no API mirror, PART 11)
+	r.Get("/server/security/report/{tracking_id}", handler.ShowSecurityReportStatus(cfg))
 	r.Get("/server/tracking.js", handler.ServeTrackingScript)
 
 	// Preferences (AI.md PART 16): theme + language, works with JS disabled

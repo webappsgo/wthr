@@ -1070,111 +1070,6 @@ func TestMapGraphQLTOTPSetup(t *testing.T) {
 	})
 }
 
-func TestMapGraphQLRecoveryKeysResponse(t *testing.T) {
-	t.Run("nil input returns nil", func(t *testing.T) {
-		if got := mapGraphQLRecoveryKeysResponse(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("copies recovery keys slice", func(t *testing.T) {
-		src := &handler.RecoveryKeysResponse{Message: "ok", RecoveryKeys: []string{"a", "b"}}
-		got := mapGraphQLRecoveryKeysResponse(src)
-		if got.Message != "ok" || len(got.RecoveryKeys) != 2 || got.RecoveryKeys[0] != "a" || got.RecoveryKeys[1] != "b" {
-			t.Errorf("got %+v", got)
-		}
-	})
-	t.Run("nil recovery keys slice yields empty (non-nil append) result", func(t *testing.T) {
-		src := &handler.RecoveryKeysResponse{Message: "ok", RecoveryKeys: nil}
-		got := mapGraphQLRecoveryKeysResponse(src)
-		if len(got.RecoveryKeys) != 0 {
-			t.Errorf("RecoveryKeys = %v, want empty", got.RecoveryKeys)
-		}
-	})
-}
-
-func TestMapGraphQLAuthUser(t *testing.T) {
-	t.Run("nil input returns nil", func(t *testing.T) {
-		if got := mapGraphQLAuthUser(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("happy path formats ID as decimal string", func(t *testing.T) {
-		src := &handler.AuthUserSummary{ID: 99, Username: "u", Email: "e@example.com", Role: "user"}
-		got := mapGraphQLAuthUser(src)
-		if got.ID != "99" || got.Username != "u" || got.Email != "e@example.com" || got.Role != "user" {
-			t.Errorf("got %+v", got)
-		}
-	})
-}
-
-func TestMapGraphQLAuthLoginResponse(t *testing.T) {
-	t.Run("nil input returns nil", func(t *testing.T) {
-		if got := mapGraphQLAuthLoginResponse(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("blank tokens map to nil pointers", func(t *testing.T) {
-		src := &handler.AuthLoginResponse{SessionToken: "  ", Token: ""}
-		got := mapGraphQLAuthLoginResponse(src)
-		if got.SessionToken != nil || got.Token != nil {
-			t.Errorf("got %+v, want nil tokens", got)
-		}
-	})
-	t.Run("non-blank tokens are trimmed and set, and nested user maps", func(t *testing.T) {
-		src := &handler.AuthLoginResponse{
-			RequiresTwoFactor: true,
-			SessionToken:      "  sess-token  ",
-			Token:             "  bearer-token  ",
-			User:              &handler.AuthUserSummary{ID: 1, Username: "u"},
-		}
-		got := mapGraphQLAuthLoginResponse(src)
-		if got.SessionToken == nil || *got.SessionToken != "sess-token" {
-			t.Errorf("SessionToken = %v", got.SessionToken)
-		}
-		if got.Token == nil || *got.Token != "bearer-token" {
-			t.Errorf("Token = %v", got.Token)
-		}
-		if !got.RequiresTwoFactor {
-			t.Error("RequiresTwoFactor = false, want true")
-		}
-		if got.User == nil || got.User.ID != "1" {
-			t.Errorf("User = %+v", got.User)
-		}
-	})
-}
-
-func TestMapGraphQLAuthRegisterResponse(t *testing.T) {
-	t.Run("nil input returns nil", func(t *testing.T) {
-		if got := mapGraphQLAuthRegisterResponse(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("blank token maps to nil pointer", func(t *testing.T) {
-		src := &handler.AuthRegisterResponse{Token: "   "}
-		got := mapGraphQLAuthRegisterResponse(src)
-		if got.Token != nil {
-			t.Errorf("Token = %v, want nil", *got.Token)
-		}
-	})
-	t.Run("happy path", func(t *testing.T) {
-		src := &handler.AuthRegisterResponse{
-			VerificationRequired: true,
-			Token:                "  tok  ",
-			User:                 &handler.AuthUserSummary{ID: 2, Username: "u2"},
-		}
-		got := mapGraphQLAuthRegisterResponse(src)
-		if !got.VerificationRequired {
-			t.Error("VerificationRequired = false, want true")
-		}
-		if got.Token == nil || *got.Token != "tok" {
-			t.Errorf("Token = %v", got.Token)
-		}
-		if got.User == nil || got.User.ID != "2" {
-			t.Errorf("User = %+v", got.User)
-		}
-	})
-}
-
 func TestMapGraphQLUserInviteValidation(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		if got := mapGraphQLUserInviteValidation(nil); got != nil {
@@ -1203,70 +1098,6 @@ func TestMapGraphQLServerInviteValidation(t *testing.T) {
 		got := mapGraphQLServerInviteValidation(src)
 		if got.Email != "e" || !got.ExpiresAt.Equal(expires) {
 			t.Errorf("got %+v", got)
-		}
-	})
-}
-
-func TestMapGraphQLUserInviteCompletion(t *testing.T) {
-	t.Run("nil input returns nil", func(t *testing.T) {
-		if got := mapGraphQLUserInviteCompletion(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("blank message and token map to nil pointers", func(t *testing.T) {
-		src := &handler.UserInviteCompletionResponse{Message: "  ", Token: ""}
-		got := mapGraphQLUserInviteCompletion(src)
-		if got.Message != nil || got.Token != nil {
-			t.Errorf("got %+v, want nil pointers", got)
-		}
-	})
-	t.Run("happy path with nested user", func(t *testing.T) {
-		src := &handler.UserInviteCompletionResponse{
-			Message: "  welcome  ",
-			Token:   "  tok  ",
-			User:    &handler.AuthUserSummary{ID: 3, Username: "u3"},
-		}
-		got := mapGraphQLUserInviteCompletion(src)
-		if got.Message == nil || *got.Message != "welcome" {
-			t.Errorf("Message = %v", got.Message)
-		}
-		if got.Token == nil || *got.Token != "tok" {
-			t.Errorf("Token = %v", got.Token)
-		}
-		if got.User == nil || got.User.ID != "3" {
-			t.Errorf("User = %+v", got.User)
-		}
-	})
-}
-
-// TestMapGraphQLServerInviteCompletion covers the distinct nil-response and
-// non-nil-response-with-nil-Admin cases (both must return nil).
-func TestMapGraphQLServerInviteCompletion(t *testing.T) {
-	t.Run("nil response returns nil", func(t *testing.T) {
-		if got := mapGraphQLServerInviteCompletion(nil); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("non-nil response with nil Admin also returns nil", func(t *testing.T) {
-		src := &handler.ServerInviteCompletionResponse{Message: "hi", Admin: nil}
-		if got := mapGraphQLServerInviteCompletion(src); got != nil {
-			t.Errorf("got %+v, want nil", got)
-		}
-	})
-	t.Run("happy path with non-nil Admin", func(t *testing.T) {
-		src := &handler.ServerInviteCompletionResponse{
-			Message: "welcome admin",
-			Admin:   &handler.InvitedAdminSummary{ID: 7, Username: "adm", Email: "adm@example.com"},
-		}
-		got := mapGraphQLServerInviteCompletion(src)
-		if got == nil {
-			t.Fatal("got nil, want non-nil")
-		}
-		if got.Message != "welcome admin" {
-			t.Errorf("Message = %q", got.Message)
-		}
-		if got.Admin == nil || got.Admin.ID != "7" || got.Admin.Username != "adm" || got.Admin.Email != "adm@example.com" {
-			t.Errorf("Admin = %+v", got.Admin)
 		}
 	})
 }
@@ -1300,31 +1131,6 @@ func derefString(p *string) any {
 // --- Trivial trampoline resolver tests -----------------------------------
 // These resolvers only read fields off the passed-in model/type object; no
 // database or handler is touched, so a zero-value embedded *Resolver is safe.
-
-func TestGenericResponseResolver_Ok(t *testing.T) {
-	res := &genericResponseResolver{&Resolver{}}
-
-	tests := []struct {
-		name string
-		obj  *GenericResponse
-		want bool
-	}{
-		{name: "success true", obj: &GenericResponse{Success: true}, want: true},
-		{name: "success false", obj: &GenericResponse{Success: false}, want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := res.Ok(context.Background(), tt.obj)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got != tt.want {
-				t.Fatalf("got %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestAPITokenResolver_Token(t *testing.T) {
 	res := &aPITokenResolver{&Resolver{}}
@@ -1560,65 +1366,6 @@ func TestLoadGraphQLRequestStats_WindowsAreJudgedByInstantNotText(t *testing.T) 
 	}
 }
 
-// TestContactSubmissionsTableComesFromServerSchema proves contact_submissions
-// and its indexes are declared in database.ServerSchema and therefore exist on
-// a freshly initialised database without any request ever running DDL.
-//
-// Against the previous code the table only appeared after the first contact
-// mutation called ensureGraphQLContactSubmissionsTable, so a fresh database had
-// neither the table nor the two indexes and this test failed on the first
-// lookup.
-func TestContactSubmissionsTableComesFromServerSchema(t *testing.T) {
-	ddb := newGraphQLTimestampTestDB(t)
-
-	objects := []struct {
-		kind string
-		name string
-	}{
-		{"table", "contact_submissions"},
-		{"index", "idx_contact_submissions_status"},
-		{"index", "idx_contact_submissions_created"},
-	}
-
-	for _, object := range objects {
-		var found string
-		err := ddb.Server.QueryRow(
-			"SELECT name FROM sqlite_master WHERE type = ? AND name = ?", object.kind, object.name,
-		).Scan(&found)
-		if err != nil {
-			t.Fatalf("%s %q missing from a schema-initialised database: %v", object.kind, object.name, err)
-		}
-	}
-
-	rows, err := ddb.Server.Query("SELECT name FROM pragma_table_info('contact_submissions') ORDER BY cid")
-	if err != nil {
-		t.Fatalf("read contact_submissions columns: %v", err)
-	}
-	defer rows.Close()
-
-	var columns []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			t.Fatalf("scan column name: %v", err)
-		}
-		columns = append(columns, name)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate columns: %v", err)
-	}
-
-	want := []string{"id", "name", "email", "subject", "message", "ip_address", "user_agent", "status", "created_at"}
-	if len(columns) != len(want) {
-		t.Fatalf("columns = %v, want %v", columns, want)
-	}
-	for i := range want {
-		if columns[i] != want[i] {
-			t.Fatalf("columns = %v, want %v", columns, want)
-		}
-	}
-}
-
 // TestContactSubmissionsCreatedAtDefaultIsTimestampText proves the schema
 // default for created_at is a portable CURRENT_TIMESTAMP producing canonical
 // timestamp text, not the SQLite-only integer epoch the removed runtime DDL used.
@@ -1643,35 +1390,6 @@ func TestContactSubmissionsCreatedAtDefaultIsTimestampText(t *testing.T) {
 
 	if _, err := time.Parse("2006-01-02 15:04:05", createdAt); err != nil {
 		t.Fatalf("created_at = %q, want canonical timestamp text: %v", createdAt, err)
-	}
-}
-
-// TestEnsureGraphQLContactSubmissionsTableDoesNotCreate proves the helper is now
-// a presence check: it succeeds while the schema-provided table is there and
-// reports an error once the table is gone, instead of silently recreating it.
-//
-// The old implementation ran CREATE TABLE IF NOT EXISTS on every call, so after
-// the DROP below it returned nil and the table reappeared - both assertions in
-// the second half of this test failed.
-func TestEnsureGraphQLContactSubmissionsTableDoesNotCreate(t *testing.T) {
-	ddb := newGraphQLTimestampTestDB(t)
-
-	if err := ensureGraphQLContactSubmissionsTable(context.Background(), ddb.Server); err != nil {
-		t.Fatalf("ensureGraphQLContactSubmissionsTable on a schema-initialised database: %v", err)
-	}
-
-	if _, err := ddb.Server.Exec("DROP TABLE contact_submissions"); err != nil {
-		t.Fatalf("drop contact_submissions: %v", err)
-	}
-
-	if err := ensureGraphQLContactSubmissionsTable(context.Background(), ddb.Server); err == nil {
-		t.Fatal("ensureGraphQLContactSubmissionsTable returned nil for a missing table, want an error")
-	}
-
-	var name string
-	err := ddb.Server.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'contact_submissions'").Scan(&name)
-	if err != sql.ErrNoRows {
-		t.Fatalf("contact_submissions was recreated by the helper (err = %v), want it to stay absent", err)
 	}
 }
 

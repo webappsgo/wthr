@@ -172,44 +172,55 @@ func TestSecurityTxt_Generate_ExpiresPreservedWhenValid(t *testing.T) {
 	}
 }
 
-// TestSecurityTxt_Generate_OptionalFields covers that Encryption,
-// Acknowledgments, Policy, and Hiring lines only appear when non-empty, and
-// do appear (with correct values) when set.
+// TestSecurityTxt_Generate_OptionalFields covers the PART 11 lines: Policy and
+// Acknowledgments always point at the project pages, Encryption appears only
+// once a keypair exists, Hiring only when set, and Contact lists the report URL,
+// the security-report form with the current security_id and the mailto address
+// in that order.
 func TestSecurityTxt_Generate_OptionalFields(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
 	sm := &models.SettingsModel{DB: db}
+	svc.keyDir = t.TempDir()
 
-	// Boundary: none set, none of the optional lines should appear.
 	out := svc.Generate("https://example.com")
-	for _, prefix := range []string{"Encryption:", "Acknowledgments:", "Policy:", "Hiring:"} {
+	for _, want := range []string{"Policy: https://example.com/server/security\n", "Acknowledgments: https://example.com/server/security/thanks\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in output:\n%s", want, out)
+		}
+	}
+	for _, prefix := range []string{"Encryption:", "Hiring:"} {
 		if strings.Contains(out, prefix) {
 			t.Errorf("did not expect %q line when unset, got:\n%s", prefix, out)
 		}
 	}
 
-	// Happy path: all set, all lines should appear with the right values.
-	seed := map[string]string{
-		"security.encryption":      "https://example.com/pgp-key.txt",
-		"security.acknowledgments": "https://example.com/hall-of-fame",
-		"security.policy":          "https://example.com/policy",
-		"security.hiring":          "https://example.com/jobs",
+	if _, err := NewPGPKeyManager(db, svc.keyDir).Generate("Weather", "security@example.com", false); err != nil {
+		t.Fatalf("generate keypair: %v", err)
 	}
-	for k, v := range seed {
-		if err := sm.SetString(k, v); err != nil {
-			t.Fatalf("seed %s: %v", k, err)
-		}
+	if err := sm.SetString("security.hiring", "https://example.com/jobs"); err != nil {
+		t.Fatalf("seed hiring: %v", err)
+	}
+	if err := sm.SetString("web.security.report_url", "https://github.com/o/r/security/advisories/new"); err != nil {
+		t.Fatalf("seed report url: %v", err)
+	}
+	if err := sm.SetString("security.contact", "sec@example.com"); err != nil {
+		t.Fatalf("seed contact: %v", err)
 	}
 	out = svc.Generate("https://example.com")
-	wantLines := []string{
-		"Encryption: https://example.com/pgp-key.txt",
-		"Acknowledgments: https://example.com/hall-of-fame",
-		"Policy: https://example.com/policy",
+	id, _ := CurrentSecurityID(db)
+	for _, want := range []string{
+		"Encryption: https://example.com/.well-known/pgp-key.asc",
 		"Hiring: https://example.com/jobs",
-	}
-	for _, want := range wantLines {
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("expected line %q in output:\n%s", want, out)
 		}
+	}
+	first := strings.Index(out, "Contact: https://github.com/o/r/security/advisories/new")
+	second := strings.Index(out, "Contact: https://example.com/server/contact?security_id="+id)
+	third := strings.Index(out, "Contact: mailto:sec@example.com")
+	if first < 0 || second < first || third < second {
+		t.Errorf("Contact lines must be report URL, form, mailto in order:\n%s", out)
 	}
 }
 
@@ -219,7 +230,7 @@ func TestSecurityTxt_GetConfig(t *testing.T) {
 	svc, db := newSecurityTxtService(t)
 
 	cfg := svc.GetConfig()
-	wantKeys := []string{"contact", "expires", "languages", "canonical", "encryption", "acknowledgments", "policy", "hiring"}
+	wantKeys := []string{"contact", "expires", "languages", "canonical", "report_url", "keyservers", "hiring"}
 	for _, k := range wantKeys {
 		if _, ok := cfg[k]; !ok {
 			t.Errorf("expected key %q in GetConfig() result, got %v", k, cfg)

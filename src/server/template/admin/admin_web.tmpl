@@ -277,47 +277,32 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="security_encryption">{{t $lang "admin.web.encryption_label"}}</label>
+                            <label for="security_report_url">{{t $lang "admin.web.report_url_label"}}</label>
                             <input
                                 type="url"
-                                id="security_encryption"
-                                name="security.encryption"
+                                id="security_report_url"
+                                name="web.security.report_url"
                                 class="form-control"
-                                placeholder="https://example.com/pgp-key.txt"
-                                aria-describedby="security_encryption_help"
+                                placeholder="https://github.com/{{.server.GitOrg}}/{{.server.GitRepo}}/security/advisories/new"
+                                aria-describedby="security_report_url_help"
                             >
-                            <small id="security_encryption_help" class="form-text">
-                                {{t $lang "admin.web.encryption_help"}}
+                            <small id="security_report_url_help" class="form-text">
+                                {{t $lang "admin.web.report_url_help"}}
                             </small>
                         </div>
 
                         <div class="form-group">
-                            <label for="security_policy">{{t $lang "admin.web.policy_label"}}</label>
+                            <label for="security_keyservers">{{t $lang "admin.web.keyservers_label"}}</label>
                             <input
-                                type="url"
-                                id="security_policy"
-                                name="security.policy"
+                                type="text"
+                                id="security_keyservers"
+                                name="web.security.keyservers"
                                 class="form-control"
-                                placeholder="https://example.com/security-policy"
-                                aria-describedby="security_policy_help"
+                                placeholder="https://keys.openpgp.org"
+                                aria-describedby="security_keyservers_help"
                             >
-                            <small id="security_policy_help" class="form-text">
-                                {{t $lang "admin.web.policy_help"}}
-                            </small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="security_acknowledgments">{{t $lang "admin.web.acknowledgments_label"}}</label>
-                            <input
-                                type="url"
-                                id="security_acknowledgments"
-                                name="security.acknowledgments"
-                                class="form-control"
-                                placeholder="https://example.com/hall-of-fame"
-                                aria-describedby="security_acknowledgments_help"
-                            >
-                            <small id="security_acknowledgments_help" class="form-text">
-                                {{t $lang "admin.web.acknowledgments_help"}}
+                            <small id="security_keyservers_help" class="form-text">
+                                {{t $lang "admin.web.keyservers_help"}}
                             </small>
                         </div>
 

@@ -20,18 +20,6 @@ func getUserIDFromContext(ctx context.Context) int {
 	return userID
 }
 
-// Helper function to get IP from context. Must read the same typed
-// contextKey (ctxKeyClientIP, defined in graphql.go) that production
-// request handling stores the value under, for the same reason as
-// getUserIDFromContext above.
-func getIPFromContext(ctx context.Context) string {
-	ip, ok := ctx.Value(ctxKeyClientIP).(string)
-	if !ok {
-		return "unknown"
-	}
-	return ip
-}
-
 // Helper function to create a string pointer
 func stringPtr(s string) *string {
 	return &s

@@ -16,7 +16,6 @@ func TestGraphQLSchemaRootFieldsExecuteThroughGeneratedExecutor(t *testing.T) {
 	resolver := &coverageResolver{
 		Resolver: &Resolver{},
 		query:    coverageQueryResolver{},
-		mutation: coverageMutationResolver{},
 	}
 	handler := GraphQLHandler(NewServer(resolver))
 
@@ -25,7 +24,6 @@ func TestGraphQLSchemaRootFieldsExecuteThroughGeneratedExecutor(t *testing.T) {
 		root *ast.Definition
 	}{
 		{name: "query", root: schema.Query},
-		{name: "mutation", root: schema.Mutation},
 	} {
 		if operation.root == nil {
 			continue

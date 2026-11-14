@@ -17,22 +17,6 @@ type AccountSettings struct {
 	TimeFormat  string `json:"timeFormat"`
 }
 
-type AccountSettingsInput struct {
-	DisplayName string `json:"displayName"`
-	Bio         string `json:"bio"`
-	Location    string `json:"location"`
-	Website     string `json:"website"`
-	Timezone    string `json:"timezone"`
-	Language    string `json:"language"`
-	DateFormat  string `json:"dateFormat"`
-	TimeFormat  string `json:"timeFormat"`
-}
-
-type AdminLoginResult struct {
-	SessionToken string     `json:"sessionToken"`
-	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
-}
-
 type AdminPasskey struct {
 	ID         string  `json:"id"`
 	Name       string  `json:"name"`
@@ -40,18 +24,7 @@ type AdminPasskey struct {
 	LastUsedAt *string `json:"lastUsedAt,omitempty"`
 }
 
-type AdminPasskeyRegistrationResult struct {
-	Message string        `json:"message"`
-	Passkey *AdminPasskey `json:"passkey"`
-}
-
 type AppearanceSettings struct {
-	Theme        string `json:"theme"`
-	FontSize     string `json:"fontSize"`
-	ReduceMotion bool   `json:"reduceMotion"`
-}
-
-type AppearanceSettingsInput struct {
 	Theme        string `json:"theme"`
 	FontSize     string `json:"fontSize"`
 	ReduceMotion bool   `json:"reduceMotion"`
@@ -77,22 +50,10 @@ type AuditLog struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-type BulkResponse struct {
-	Ok      bool   `json:"ok"`
-	Message string `json:"message"`
-	Updated *int   `json:"updated,omitempty"`
-	Failed  *int   `json:"failed,omitempty"`
-}
-
 type ChannelStats struct {
 	Sent     int        `json:"sent"`
 	Failed   int        `json:"failed"`
 	LastSent *time.Time `json:"lastSent,omitempty"`
-}
-
-type ContactSubmission struct {
-	Ok      bool   `json:"ok"`
-	Message string `json:"message"`
 }
 
 type CoordinatesLookup struct {
@@ -299,9 +260,6 @@ type MoonPhase struct {
 	NextNewMoon  *time.Time `json:"nextNewMoon,omitempty"`
 }
 
-type Mutation struct {
-}
-
 type NotificationChannel struct {
 	Type    string        `json:"type"`
 	Enabled bool          `json:"enabled"`
@@ -318,28 +276,12 @@ type NotificationSettings struct {
 	PushMentions  bool   `json:"pushMentions"`
 }
 
-type NotificationSettingsInput struct {
-	EmailSecurity bool   `json:"emailSecurity"`
-	EmailMentions bool   `json:"emailMentions"`
-	EmailUpdates  bool   `json:"emailUpdates"`
-	EmailDigest   string `json:"emailDigest"`
-	PushEnabled   bool   `json:"pushEnabled"`
-	PushMentions  bool   `json:"pushMentions"`
-}
-
 type NotificationStats struct {
 	Total  int  `json:"total"`
 	Unread *int `json:"unread,omitempty"`
 }
 
 type PrivacySettings struct {
-	Visibility   string `json:"visibility"`
-	ShowEmail    bool   `json:"showEmail"`
-	ShowActivity bool   `json:"showActivity"`
-	Searchable   bool   `json:"searchable"`
-}
-
-type PrivacySettingsInput struct {
 	Visibility   string `json:"visibility"`
 	ShowEmail    bool   `json:"showEmail"`
 	ShowActivity bool   `json:"showActivity"`
@@ -424,14 +366,6 @@ type ServerAdmin struct {
 	LastLoginAt  *time.Time `json:"lastLoginAt,omitempty"`
 }
 
-type ServerAdminInvite struct {
-	Token     string    `json:"token"`
-	Email     string    `json:"email"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	ExpiresIn string    `json:"expiresIn"`
-	InviteURL string    `json:"inviteUrl"`
-}
-
 type ServerAdminOverview struct {
 	Count         int          `json:"count"`
 	CurrentAdmin  *ServerAdmin `json:"currentAdmin"`
@@ -442,11 +376,6 @@ type ServerAdminOverview struct {
 type SessionsHealth struct {
 	Active int `json:"active"`
 	Total  int `json:"total"`
-}
-
-type SettingInput struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
 }
 
 type SevereWeather struct {

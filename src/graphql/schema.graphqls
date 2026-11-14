@@ -347,28 +347,6 @@ type TOTPSetup {
   issuer: String!
 }
 
-type TOTPRecoveryKeys {
-  message: String!
-  recoveryKeys: [String!]!
-}
-
-type AuthUser {
-  id: ID!
-  username: String!
-  email: String!
-  role: String!
-}
-
-type AuthResult {
-  requiresTwoFactor: Boolean!
-  verificationRequired: Boolean!
-  sessionToken: String
-  token: String
-  user: AuthUser
-  expiresAt: Time
-  remainingKeys: Int
-}
-
 type UserInviteValidation {
   username: String!
   email: String!
@@ -379,23 +357,6 @@ type UserInviteValidation {
 type ServerInviteValidation {
   email: String!
   expiresAt: Time!
-}
-
-type UserInviteCompletion {
-  message: String
-  token: String
-  user: AuthUser
-}
-
-type InvitedServerAdmin {
-  id: ID!
-  username: String!
-  email: String!
-}
-
-type ServerInviteCompletion {
-  message: String!
-  admin: InvitedServerAdmin!
 }
 
 # ============================================================================
@@ -456,37 +417,11 @@ type UserPasskey {
   lastUsedAt: Time
 }
 
-type PasskeyRegistrationOptions {
-  ceremonyToken: String!
-  options: Any!
-}
-
-type PasskeyChallengeOptions {
-  ceremonyToken: String!
-  options: Any!
-}
-
-type PasskeyRegistrationResult {
-  message: String!
-  passkey: UserPasskey!
-  recoveryKeys: [String!]
-}
-
 type AdminPasskey {
   id: ID!
   name: String!
   createdAt: String!
   lastUsedAt: String
-}
-
-type AdminPasskeyRegistrationResult {
-  message: String!
-  passkey: AdminPasskey!
-}
-
-type AdminLoginResult {
-  sessionToken: String!
-  expiresAt: Time
 }
 
 type UserSettings {
@@ -524,39 +459,6 @@ type NotificationSettings {
 }
 
 type AppearanceSettings {
-  theme: String!
-  fontSize: String!
-  reduceMotion: Boolean!
-}
-
-input AccountSettingsInput {
-  displayName: String!
-  bio: String!
-  location: String!
-  website: String!
-  timezone: String!
-  language: String!
-  dateFormat: String!
-  timeFormat: String!
-}
-
-input PrivacySettingsInput {
-  visibility: String!
-  showEmail: Boolean!
-  showActivity: Boolean!
-  searchable: Boolean!
-}
-
-input NotificationSettingsInput {
-  emailSecurity: Boolean!
-  emailMentions: Boolean!
-  emailUpdates: Boolean!
-  emailDigest: String!
-  pushEnabled: Boolean!
-  pushMentions: Boolean!
-}
-
-input AppearanceSettingsInput {
   theme: String!
   fontSize: String!
   reduceMotion: Boolean!
@@ -692,19 +594,9 @@ type SMTPProvider {
 # CONTACT FORM TYPES
 # ============================================================================
 
-type ContactSubmission {
-  ok: Boolean!
-  message: String!
-}
-
 # ============================================================================
 # GENERIC TYPES
 # ============================================================================
-
-type GenericResponse {
-  ok: Boolean!
-  message: String!
-}
 
 type UserInvite {
   id: ID!
@@ -737,21 +629,6 @@ type ServerAdminOverview {
   currentAdmin: ServerAdmin!
   onlineAdmins: [String!]!
   privacyNotice: String!
-}
-
-type ServerAdminInvite {
-  token: String!
-  email: String!
-  expiresAt: Time!
-  expiresIn: String!
-  inviteUrl: String!
-}
-
-type BulkResponse {
-  ok: Boolean!
-  message: String!
-  updated: Int
-  failed: Int
 }
 
 # ============================================================================
@@ -823,110 +700,6 @@ type Query {
 }
 
 # ============================================================================
-# MUTATION TYPE
-# ============================================================================
-
-type Mutation {
-  registerUser(username: String!, email: String!, password: String!): AuthResult!
-  loginUser(identifier: String!, password: String!, twoFactorCode: String, recoveryKey: String): AuthResult!
-  completeUserTwoFactor(sessionToken: String!, twoFactorCode: String!): AuthResult!
-  useUserRecoveryKey(sessionToken: String!, recoveryKey: String!): AuthResult!
-  logoutUser: GenericResponse!
-  refreshUserSession: AuthResult!
-  requestPasswordReset(email: String!): GenericResponse!
-  resetUserPassword(token: String!, password: String!): GenericResponse!
-  verifyUserEmail(token: String!): GenericResponse!
-  completeUserInvite(token: String!, username: String!, password: String!): UserInviteCompletion!
-  completeServerInvite(token: String!, username: String!, password: String!): ServerInviteCompletion!
-
-  # User Mutations
-  updateUserProfile(displayName: String, phone: String): GenericResponse!
-  uploadUserAvatar(file: Upload!): PublicAvatar!
-  updateUserAvatar(type: String!, url: String): PublicAvatar!
-  resetUserAvatar: GenericResponse!
-  changeUserPassword(currentPassword: String!, newPassword: String!): GenericResponse!
-  enableUserTwoFactor(secret: String!, code: String!, password: String!): TOTPRecoveryKeys!
-  disableUserTwoFactor(password: String!): GenericResponse!
-  verifyUserTwoFactor(code: String!): GenericResponse!
-  regenerateUserRecoveryKeys(code: String!): TOTPRecoveryKeys!
-  beginUserPasskeyRegistration(name: String!, password: String!): PasskeyRegistrationOptions!
-  finishUserPasskeyRegistration(ceremonyToken: String!, credential: Any!): PasskeyRegistrationResult!
-  deleteUserPasskey(id: ID!): GenericResponse!
-  beginUserPasskeyChallenge(sessionToken: String): PasskeyChallengeOptions!
-  finishUserPasskeyChallenge(ceremonyToken: String!, credential: Any!): AuthResult!
-  updateUserSettings(
-    account: AccountSettingsInput
-    privacy: PrivacySettingsInput
-    notifications: NotificationSettingsInput
-    appearance: AppearanceSettingsInput
-  ): GenericResponse!
-  createUserToken(name: String!, scopes: String, expiresIn: Int): UserToken!
-  revokeUserToken(id: ID!): GenericResponse!
-
-  # Saved Locations Mutations
-  createSavedLocation(name: String!, lat: Float!, lon: Float!, country: String, region: String, alerts: Boolean): SavedLocation!
-  updateSavedLocation(id: ID!, name: String, alerts: Boolean): SavedLocation!
-  deleteSavedLocation(id: ID!): GenericResponse!
-  toggleLocationAlerts(id: ID!): SavedLocation!
-
-  # Notifications Mutations
-  markNotificationRead(id: ID!): Notification!
-  markAllNotificationsRead: GenericResponse!
-  deleteNotification(id: ID!): GenericResponse!
-
-  # Admin User Mutations
-  adminUpdateUser(id: ID!, username: String, email: String, role: String): User!
-  adminDeleteUser(id: ID!): GenericResponse!
-  adminCreateUserInvite(username: String!, email: String!, role: String, expiresInDays: Int): UserInvite!
-  adminDeleteUserInvite(id: ID!): GenericResponse!
-  adminInviteServerAdmin(email: String!, expiresIn: String): ServerAdminInvite!
-  adminDeleteServerAdmin(id: ID!): GenericResponse!
-  adminDisableServerAdmin(id: ID!): GenericResponse!
-  adminEnableServerAdmin(id: ID!): GenericResponse!
-
-  # Admin Settings Mutations
-  adminUpdateSetting(key: String!, value: String!): Setting!
-  adminUpdateSettings(settings: [SettingInput!]!): BulkResponse!
-  adminResetSettings: GenericResponse!
-
-  # Admin Token Mutations
-  adminGenerateToken: APIToken!
-  adminRevokeToken(id: ID!): GenericResponse!
-
-  # Admin Audit Mutations
-  adminClearAuditLogs: GenericResponse!
-
-  # Admin Task Mutations
-  adminUpdateTask(name: String!, enabled: Boolean!): ScheduledTask!
-  adminEnableTask(name: String!): ScheduledTask!
-  adminDisableTask(name: String!): ScheduledTask!
-  adminTriggerTask(name: String!): GenericResponse!
-
-  # Admin Channel Mutations
-  adminUpdateChannel(type: String!, enabled: Boolean, config: Any): NotificationChannel!
-  adminEnableChannel(type: String!): NotificationChannel!
-  adminDisableChannel(type: String!): NotificationChannel!
-  adminTestChannel(type: String!, recipient: String): GenericResponse!
-  adminInitializeChannels: GenericResponse!
-  adminAutoDetectSMTP: SMTPProvider
-
-  # Admin Passkey Mutations (management requires admin auth; challenge mutations are public)
-  beginAdminPasskeyRegistration(name: String!, password: String!): PasskeyRegistrationOptions!
-  finishAdminPasskeyRegistration(ceremonyToken: String!, credential: Any!): AdminPasskeyRegistrationResult!
-  deleteAdminPasskey(id: ID!): GenericResponse!
-  beginAdminPasskeyChallenge(sessionToken: String!): PasskeyChallengeOptions!
-  finishAdminPasskeyChallenge(ceremonyToken: String!, credential: Any!): AdminLoginResult!
-
-  # Contact Form
-  submitContactForm(name: String!, email: String!, subject: String!, message: String!): ContactSubmission!
-
-}
-
-# ============================================================================
 # INPUT TYPES
 # ============================================================================
 
-input SettingInput {
-  key: String!
-  value: String!
-}

@@ -10,7 +10,7 @@
     <section class="card margin-y-lg">
         {{if .Entries}}
         <ul>
-            {{range .Entries}}<li>{{.credit}} <small>{{.date}}</small></li>{{end}}
+            {{range .Entries}}<li>{{.Credit}} <small>{{.Date}}</small></li>{{end}}
         </ul>
         {{else}}
         <p>{{t .server.Lang "security.thanks.empty"}}</p>

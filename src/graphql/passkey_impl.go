@@ -1,30 +1,10 @@
 package graphql
 
 import (
-	"context"
-	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/webappsgo/wthr/src/server/handler"
 )
-
-// graphQLPasskeyEnvelope reads the host/scheme stored on the request context
-// (see graphql.buildGraphQLAuthContext) and returns the envelope expected by
-// the passkey helper functions in the handler package.
-func graphQLPasskeyEnvelope(ctx context.Context) (handler.PasskeyEnvelope, error) {
-	host, _ := ctx.Value(ctxKeyRequestHost).(string)
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return handler.PasskeyEnvelope{}, fmt.Errorf("missing request host")
-	}
-
-	scheme, _ := ctx.Value(ctxKeyRequestScheme).(string)
-	scheme = strings.TrimSpace(scheme)
-	https := strings.EqualFold(scheme, "https")
-
-	return handler.PasskeyEnvelope{Host: host, HTTPS: https}, nil
-}
 
 // mapGraphQLPasskey converts a handler.PasskeySummary into the GraphQL
 // UserPasskey type. ID is stringified to match the graphql ID! contract used

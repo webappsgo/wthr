@@ -1,0 +1,59 @@
+{{template "head" .}}
+{{template "admin_header" .}}
+{{- $lang := "en" -}}
+{{- if .lang}}{{$lang = .lang}}{{end -}}
+{{- $ap := "/server/administration" -}}
+{{- if .admin_path}}{{$ap = .admin_path}}{{end -}}
+  <div class="admin-header">
+    <h1>{{t $lang "admin.security_reports.title"}}</h1>
+    <p class="admin-page-intro">{{t $lang "admin.security_reports.intro"}}</p>
+  </div>
+  {{template "flash" .}}
+  <nav class="admin-section" aria-label="{{t $lang "admin.security_reports.sections"}}">
+    <ul class="inline-list">
+      <li><a href="{{$ap}}/security/reports" class="btn btn-secondary">{{t $lang "admin.security_reports.nav_reports"}}</a></li>
+      <li><a href="{{$ap}}/security/policy" class="btn btn-secondary">{{t $lang "admin.security_reports.nav_policy"}}</a></li>
+      <li><a href="{{$ap}}/security/thanks" class="btn btn-secondary">{{t $lang "admin.security_reports.nav_thanks"}}</a></li>
+      <li><a href="{{$ap}}/security/keypair" class="btn btn-secondary">{{t $lang "admin.security_reports.nav_keypair"}}</a></li>
+    </ul>
+  </nav>
+  <section class="admin-section" aria-labelledby="reports-heading">
+    <h2 id="reports-heading">{{t $lang "admin.security_reports.list_heading"}}</h2>
+    <form method="get" action="{{$ap}}/security/reports" class="form-inline">
+      <label for="status-filter">{{t $lang "admin.security_reports.filter"}}</label>
+      <select id="status-filter" name="status" class="form-input">
+        <option value="">{{t $lang "admin.security_reports.all"}}</option>
+        {{range .Statuses}}<option value="{{.}}"{{if eq . $.Filter}} selected{{end}}>{{t $lang (printf "security.report.state.%s" .)}}</option>{{end}}
+      </select>
+      <button type="submit" class="btn btn-primary">{{t $lang "admin.security_reports.apply"}}</button>
+    </form>
+    {{if .Reports}}
+    <div class="table-responsive">
+      <table class="table">
+        <thead><tr>
+          <th scope="col">{{t $lang "admin.security_reports.col_tracking"}}</th>
+          <th scope="col">{{t $lang "admin.security_reports.col_severity"}}</th>
+          <th scope="col">{{t $lang "admin.security_reports.col_component"}}</th>
+          <th scope="col">{{t $lang "admin.security_reports.col_status"}}</th>
+          <th scope="col">{{t $lang "admin.security_reports.col_created"}}</th>
+        </tr></thead>
+        <tbody>
+        {{range .Reports}}<tr>
+          <td><a href="{{$ap}}/security/reports/{{.TrackingID}}"><code>{{.TrackingID}}</code></a></td>
+          <td>{{t $lang (printf "security.report.opt.%s" .Severity)}}</td>
+          <td>{{.Component}}</td>
+          <td>{{t $lang (printf "security.report.state.%s" .Status)}}</td>
+          <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+        </tr>{{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">
+      <p class="empty-state__icon" aria-hidden="true">&#128737;</p>
+      <h3 class="empty-state__title">{{t $lang "admin.security_reports.empty_title"}}</h3>
+      <p class="empty-state__message">{{t $lang "admin.security_reports.empty_message"}}</p>
+    </div>
+    {{end}}
+  </section>
+{{template "admin_footer" .}}

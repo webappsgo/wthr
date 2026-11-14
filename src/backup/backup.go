@@ -260,6 +260,13 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 		files = append(files, "yaml.d/")
 	}
 
+	// Security keypair files (PART 11 "Backup Integration"): without them the encrypted
+	// security reports in the database cannot be decrypted after a restore
+	securityDir := filepath.Join(opts.ConfigDir, "security")
+	if info, err := os.Stat(securityDir); err == nil && info.IsDir() {
+		files = append(files, "security/")
+	}
+
 	// Custom templates - If exists per AI.md PART 22 (Backup Contents)
 	templatesDir := filepath.Join(opts.ConfigDir, "template")
 	if _, err := os.Stat(templatesDir); err == nil {
@@ -311,7 +318,7 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 	for _, file := range files {
 		var sourcePath string
 		if file == "server.yml" || strings.HasPrefix(file, "yaml.d/") || strings.HasPrefix(file, "template/") ||
-			strings.HasPrefix(file, "theme/") || strings.HasPrefix(file, "ssl/") {
+			strings.HasPrefix(file, "theme/") || strings.HasPrefix(file, "ssl/") || strings.HasPrefix(file, "security/") {
 			sourcePath = filepath.Join(configDir, file)
 		} else {
 			sourcePath = filepath.Join(dataDir, file)
