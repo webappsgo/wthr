@@ -254,6 +254,12 @@ func (s *BackupService) collectFiles(opts BackupOptions) ([]string, error) {
 		files = append(files, "db/users.db")
 	}
 
+	// Drop-in config files - If exists per AI.md PART 22 (Backup Contents)
+	dropinDir := filepath.Join(opts.ConfigDir, "yaml.d")
+	if info, err := os.Stat(dropinDir); err == nil && info.IsDir() {
+		files = append(files, "yaml.d/")
+	}
+
 	// Custom templates - If exists per AI.md PART 22 (Backup Contents)
 	templatesDir := filepath.Join(opts.ConfigDir, "template")
 	if _, err := os.Stat(templatesDir); err == nil {
@@ -304,7 +310,7 @@ func (s *BackupService) createArchive(configDir, dataDir string, files []string,
 	// Add each file/directory
 	for _, file := range files {
 		var sourcePath string
-		if file == "server.yml" || strings.HasPrefix(file, "template/") ||
+		if file == "server.yml" || strings.HasPrefix(file, "yaml.d/") || strings.HasPrefix(file, "template/") ||
 			strings.HasPrefix(file, "theme/") || strings.HasPrefix(file, "ssl/") {
 			sourcePath = filepath.Join(configDir, file)
 		} else {

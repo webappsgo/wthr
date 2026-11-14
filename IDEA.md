@@ -61,6 +61,7 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 - Terminal/curl-friendly output with ASCII art
 - WebSocket real-time alert push
 - Admin panel for all settings
+- Syndication: `/feed.xml` (Atom) and `/rss.xml` (RSS) list the most recent earthquakes; `/sitemap.xml` lists the public pages
 - User accounts with saved locations and alert subscriptions
 - Tor hidden service (auto-enabled if Tor is present)
 - Backup/restore, scheduler, metrics, email notifications
@@ -305,7 +306,7 @@ All external API responses are validated before use. Network calls have 30-secon
 | Moon Phases | Calculated (no external API) | N/A |
 | IP Geolocation | sapics/ip-location-db | Monthly |
 
-### Product scope & non-goals
+### Interfaces & compatibility
 
 **Interfaces.** Every feature is available as a web page (HTML for browsers, plain
 text for curl and terminals), as a versioned JSON API, as GraphQL and OpenAPI, and
@@ -314,6 +315,12 @@ as tools) lets AI assistants use the service; it can be switched off in the admi
 panel. The standard server pages (about, help, MCP help, privacy, terms, contact,
 security reporting, data protection officer contact, health, preferences) have
 real content derived from this document.
+
+**Syndication.** The primary public resource is the earthquake list (USGS events of
+magnitude 2.5 and above from the last seven days, each linked to its detail page). The
+Atom and RSS feeds always serve it, newest first, with plain-text titles and summaries;
+a failed upstream read yields a valid empty feed. The sitemap lists only public pages
+that `robots.txt` allows.
 
 **Compatibility.** No external weather service's API is emulated. Feature
 compatibility only. No RFC-defined protocol is implemented by the application

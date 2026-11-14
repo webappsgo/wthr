@@ -114,7 +114,7 @@ func UpdateCacheConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	config.SetGlobalConfig(&updatedConfig)
 	if r.Method == http.MethodPost {
-		settingsPath := strings.TrimSuffix(r.URL.Path, "/config/settings/cache") + "/config/settings"
+		settingsPath := adminPagePath(r, "/settings")
 		http.Redirect(w, r, settingsPath, http.StatusSeeOther)
 		return
 	}

@@ -71,7 +71,7 @@ func setupTranslate(r *http.Request, key string) string {
 }
 
 // SetupTokenRequired shows setup token entry form at /server/administration when no admin exists
-// AI.md: User navigates to /server/administration → User enters setup token → Redirect to /server/{admin_path}/config/setup
+// AI.md: User navigates to /server/administration → User enters setup token → Redirect to /server/{admin_path}/setup
 // AI.md: Admin panel (/server/administration) - YES (requires setup token) - accessible before setup
 func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -86,7 +86,7 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			}
 
 			// Skip check for setup routes (setup wizard handles its own auth)
-			setupPath := adminPath + "/config/setup"
+			setupPath := adminPath + "/setup"
 			if strings.HasPrefix(reqPath, setupPath) {
 				next.ServeHTTP(w, r)
 				return
@@ -185,7 +185,7 @@ func BlockSetupAfterComplete(cfg *config.AppConfig) func(http.Handler) http.Hand
 }
 
 // RequireSetupTokenVerified ensures the setup token has been verified before accessing setup wizard
-// AI.md: Step 3: User enters setup token → Step 4: Redirect to /server/{admin_path}/config/setup
+// AI.md: Step 3: User enters setup token → Step 4: Redirect to /server/{admin_path}/setup
 func RequireSetupTokenVerified(cfg *config.AppConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

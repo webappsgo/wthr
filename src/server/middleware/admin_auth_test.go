@@ -102,8 +102,8 @@ func TestRequireAdminAuth_NoCookieShowsLoginPage(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/server/administration/", nil)
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200 (login page) for missing admin_session cookie", w.Code)
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/server/auth/login" {
+		t.Errorf("status = %d Location = %q, want 302 to /server/auth/login for missing admin_session cookie", w.Code, w.Header().Get("Location"))
 	}
 }
 
@@ -151,8 +151,8 @@ func TestRequireAdminAuth_InvalidSessionShowsLoginPage(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "admin_session", Value: "does-not-exist"})
 	handler.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200 (login page) for an unknown session token", w.Code)
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/server/auth/login" {
+		t.Errorf("status = %d Location = %q, want 302 to /server/auth/login for an unknown session token", w.Code, w.Header().Get("Location"))
 	}
 }
 
@@ -314,11 +314,14 @@ func TestRequireAdminAuth_ExpiryIsJudgedByInstantNotText(t *testing.T) {
 				t.Errorf("wrapped handler reached = %v, want %v (%s)", reached, tc.wantHandler, tc.explanation)
 			}
 
-			// Both outcomes are a 200: the reject path renders the login page
-			// rather than a distinguishable status, so nothing about whether the
-			// session exists leaks.
-			if w.Code != http.StatusOK {
-				t.Errorf("status = %d, want 200", w.Code)
+			// The reject path is the same redirect to the shared login form for
+			// every bad session, so nothing about whether the session exists leaks.
+			wantStatus := http.StatusFound
+			if tc.wantHandler {
+				wantStatus = http.StatusOK
+			}
+			if w.Code != wantStatus {
+				t.Errorf("status = %d, want %d", w.Code, wantStatus)
 			}
 		})
 	}

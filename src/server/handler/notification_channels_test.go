@@ -73,7 +73,7 @@ func insertTestNotificationChannel(t *testing.T, db *sql.DB, channelType, channe
 func TestNotificationChannelHandlerListChannels(t *testing.T) {
 	t.Run("empty table returns empty list", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels", "")
 
 		h.ListChannels(w, r)
 
@@ -90,7 +90,7 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 		insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
 
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels", "")
 		h.ListChannels(w, r)
 
 		if w.Code != http.StatusOK {
@@ -109,7 +109,7 @@ func TestNotificationChannelHandlerListChannels(t *testing.T) {
 func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 	t.Run("unknown channel returns 404", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/slack", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack", "")
 		r = withURLParam(r, "type", "slack")
 
 		h.GetChannel(w, r)
@@ -123,7 +123,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/slack", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack", "")
 		r = withURLParam(r, "type", "slack")
 		h.GetChannel(w, r)
 
@@ -139,7 +139,7 @@ func TestNotificationChannelHandlerGetChannel(t *testing.T) {
 func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 	t.Run("malformed body returns 400", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodPut, "/server/administration/config/channels/slack", "not json")
+		r, w := newAPIRequest(t, http.MethodPut, "/server/administration/notifications/channels/slack", "not json")
 		r = withURLParam(r, "type", "slack")
 
 		h.UpdateChannel(w, r)
@@ -153,7 +153,7 @@ func TestNotificationChannelHandlerUpdateChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
 
-		r, w := newAPIRequest(t, http.MethodPut, "/server/administration/config/channels/slack", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPut, "/server/administration/notifications/channels/slack", map[string]interface{}{
 			"enabled": true,
 			"config":  map[string]interface{}{"webhook_url": "https://example.com/hook"},
 		})
@@ -183,7 +183,7 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
 	insertTestNotificationChannel(t, h.DB, "discord", "Discord", false, "disabled")
 
-	r, w := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/discord/enable", "")
+	r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/discord/enable", "")
 	r = withURLParam(r, "type", "discord")
 	h.EnableChannel(w, r)
 	if w.Code != http.StatusOK {
@@ -199,7 +199,7 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 		t.Errorf("after EnableChannel: enabled=%v state=%q, want true/enabled", enabled, state)
 	}
 
-	r2, w2 := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/discord/disable", "")
+	r2, w2 := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/discord/disable", "")
 	r2 = withURLParam(r2, "type", "discord")
 	h.DisableChannel(w2, r2)
 	if w2.Code != http.StatusOK {
@@ -217,7 +217,7 @@ func TestNotificationChannelHandlerEnableDisableChannel(t *testing.T) {
 func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 	t.Run("missing recipient returns 400", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/slack/test", map[string]interface{}{})
+		r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/slack/test", map[string]interface{}{})
 		r = withURLParam(r, "type", "slack")
 
 		h.TestChannel(w, r)
@@ -234,7 +234,7 @@ func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		r, w := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/slack/test", map[string]interface{}{
+		r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/slack/test", map[string]interface{}{
 			"recipient": "someone",
 		})
 		r = withURLParam(r, "type", "slack")
@@ -250,7 +250,7 @@ func TestNotificationChannelHandlerTestChannel(t *testing.T) {
 func TestNotificationChannelHandlerGetChannelStats(t *testing.T) {
 	t.Run("unknown channel returns 404", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/slack/stats", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack/stats", "")
 		r = withURLParam(r, "type", "slack")
 
 		h.GetChannelStats(w, r)
@@ -264,7 +264,7 @@ func TestNotificationChannelHandlerGetChannelStats(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/slack/stats", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/slack/stats", "")
 		r = withURLParam(r, "type", "slack")
 		h.GetChannelStats(w, r)
 
@@ -307,7 +307,7 @@ func TestNotificationChannelHandlerListSMTPProviders(t *testing.T) {
 
 func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 	h := newNotificationChannelsTestHandler(t)
-	r, w := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/initialize", "")
+	r, w := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/initialize", "")
 
 	h.InitializeChannels(w, r)
 
@@ -324,7 +324,7 @@ func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 	}
 
 	// Calling again must not duplicate rows (existence check short-circuits).
-	r2, w2 := newAPIRequest(t, http.MethodPost, "/server/administration/config/channels/initialize", "")
+	r2, w2 := newAPIRequest(t, http.MethodPost, "/server/administration/notifications/channels/initialize", "")
 	h.InitializeChannels(w2, r2)
 	if err := h.DB.QueryRow("SELECT COUNT(*) FROM server_notification_channels").Scan(&count); err != nil {
 		t.Fatalf("count channels after re-init: %v", err)
@@ -337,7 +337,7 @@ func TestNotificationChannelHandlerInitializeChannels(t *testing.T) {
 func TestNotificationChannelHandlerGetChannelDefinitions(t *testing.T) {
 	t.Run("no category returns all definitions", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/definitions", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/definitions", "")
 
 		h.GetChannelDefinitions(w, r)
 
@@ -351,7 +351,7 @@ func TestNotificationChannelHandlerGetChannelDefinitions(t *testing.T) {
 
 	t.Run("filters by category", func(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
-		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/config/channels/definitions?category=sms", "")
+		r, w := newAPIRequest(t, http.MethodGet, "/server/administration/notifications/channels/definitions?category=sms", "")
 
 		h.GetChannelDefinitions(w, r)
 
@@ -544,14 +544,14 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 		form := url.Values{}
 		form.Set("enabled", "true")
 		form.Set("config.webhook_url", "https://example.com/hook")
-		r, w := newChannelFormRequest(t, "/server/administration/config/channels/slack", form, "slack")
+		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack", form, "slack")
 
 		h.UpdateChannel(w, r)
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 		}
-		if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/config/channels") {
+		if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/notifications/channels") {
 			t.Errorf("expected redirect to channels page, got %q", loc)
 		}
 		flash, ok := channelFlashValue(t, w)
@@ -580,7 +580,7 @@ func TestNotificationChannelHandlerUpdateChannelFormPRG(t *testing.T) {
 		form := url.Values{}
 		form.Set("enabled", "true")
 		form.Set("config.webhook_url", "https://new.example.com/hook")
-		r, w := newChannelFormRequest(t, "/server/administration/config/channels/slack", form, "slack")
+		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack", form, "slack")
 
 		h.UpdateChannel(w, r)
 
@@ -605,7 +605,7 @@ func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", false, "disabled")
 
-		r, w := newChannelFormRequest(t, "/server/administration/config/channels/slack/enable", url.Values{}, "slack")
+		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack/enable", url.Values{}, "slack")
 		h.EnableChannel(w, r)
 
 		if w.Code != http.StatusSeeOther {
@@ -624,7 +624,7 @@ func TestNotificationChannelHandlerEnableDisableChannelFormPRG(t *testing.T) {
 		h := newNotificationChannelsTestHandler(t)
 		insertTestNotificationChannel(t, h.DB, "slack", "Slack", true, "enabled")
 
-		r, w := newChannelFormRequest(t, "/server/administration/config/channels/slack/disable", url.Values{}, "slack")
+		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/slack/disable", url.Values{}, "slack")
 		h.DisableChannel(w, r)
 
 		if w.Code != http.StatusSeeOther {
@@ -648,7 +648,7 @@ func TestNotificationChannelHandlerTestChannelFormPRG(t *testing.T) {
 
 		form := url.Values{}
 		form.Set("recipient", "ops@example.com")
-		r, w := newChannelFormRequest(t, "/server/administration/config/channels/unknown/test", form, "unknown")
+		r, w := newChannelFormRequest(t, "/server/administration/notifications/channels/unknown/test", form, "unknown")
 
 		h.TestChannel(w, r)
 

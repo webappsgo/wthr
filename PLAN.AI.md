@@ -1,23 +1,25 @@
 # PLAN.AI.md
 
-Remaining work to bring wthr into line with AI.md (the source of truth). Delete this file once
-every item below is done and committed. Items are grouped by AI.md PART; each names what is
-missing. Order: items marked (blocks) come first.
+Remaining work to bring wthr into line with AI.md (the source of truth). Delete this file once every item is done and committed. Checked against AI.md and the code on 2026-11-13; earlier lists in this file were partly stale.
 
 ## Done in the current pass
 
-- i18n: `it.json`, locale `meta` blocks, language registry with build-time check, dotted keys, 365 undefined template keys defined, template key existence test
-- `WWW-Authenticate` on 401 and `/debug/*` operator token (`server.token`), `/debug/ip` removed in favor of `/api/v1/weather/locations`
-- admin_path default `administration` (config, validation, docs, tests, scripts)
-- AI-bot blocking removed (robots.txt has no ai_bots; admin UI, config, locale keys removed)
-- robots.txt default per PART 16 (`Allow: /api`, `Disallow: /server/{admin_path}`)
-- `/security.txt` no longer served; `/.well-known/change-password` per PART 16
-- Tracking: `/server/tracking.js`, consent-gated tags, CSP hosts, onion/I2P never
-- Contact: captcha (simple/recaptcha/hcaptcha), no-JS form POST + flash, canonical errors
-- New pages and API mirrors: `/server/dpo`, `/server/help/mcp`, `/server/security`, `/server/security/policy`, `/server/security/thanks`
-- `server.i18n.available_languages`, required six-language minimum, `server.contact.dpo`, `server.pages.*`
-- IDEA.md, README.md, docs (api, security, configuration, admin paths), docs/translating.md, .gitignore, .dockerignore, `.claude/rules` partial refresh
-- `tests/e2e.sh` and `tests/e2e/layout.mjs` (layout review matrix)
+- Admin routes without a `config` segment; `validAdminRootPaths` and admin-username collision check; `/dashboard` alias removed; one `/server/auth/logout`; unauthenticated admin requests redirect to `/server/auth/login`; admin pages stay HTML for every client
+- Invite routes at `/server/auth/invite/...` with absolute emailed links
+- `yaml.d` drop-in config (merge, reload, backup, startup log, never copied into server.yml)
+- `web.robots.allow/deny`, generated robots.txt, always-on sitemap limited to robots-allowed public pages, `/feed.xml` and `/rss.xml`, `server.seo.feed.*`
+- `GET /api/v1/server/contact`, `GET /api/v1/server/auth/check`, contact limits in characters with field-level errors
+- Reserved-name list and matching rules; admin usernames exempt from the public blocklist
+
+## Open (verified missing or divergent)
+
+- PART 11 security reports pipeline: `security_id`, report mode of `/server/contact`, encrypted storage, tracking pages, PGP keypair, admin pages for reports, policy, thanks and keypair
+- PART 14 GraphQL is query-only: the schema still has a `Mutation` type (about 70 operations); Swagger/GraphQL generation is not wired into the build
+- PART 5 single-instance mode has no config table: admin settings still live in the `server_config` table next to `server.yml`; per-field read-only display for yaml.d-owned settings needs that unification
+- PART 17 external identity (OIDC/LDAP/SAML) first-login username step for Server Admins; admin auth is passkey-only in IDEA.md while AI.md defines password login with optional TOTP or passkey
+- Legacy error shape `{"error":{...}}` in `admin_tor.go`, `scheduler.go`, `mcp/server.go`; hardcoded English strings in some handlers and in `app.js` toasts
+- `config.LoadConfig()` is called per request in several handlers and middleware; use the live global config
+- Template pages still concatenate UI labels; `smtp_password` is passed to the settings template
 
 ## PART 31 I18N
 
@@ -27,7 +29,6 @@ missing. Order: items marked (blocks) come first.
 ## PART 5/6/8 configuration and CLI
 
 - mode precedence must read `server.mode` from `server.yml` after `MODE`
-- `--shell --help` instead of `--shell help`; `--version` first line `{name} {version} ({short_commit})`
 - `server.baseurl` / `X-Forwarded-Prefix` per request for the `path` template helper (helper currently reads only configured baseurl); migrate hardcoded same-origin links in the 136 templates to `{{ path "..." }}`
 
 ## PART 11/14 security and API

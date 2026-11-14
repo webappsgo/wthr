@@ -19,15 +19,47 @@ const (
 // - Length 2-39 characters
 var usernameRegex = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
 
-// ValidateUsername validates a username according to AI.md PART 22:
-// - Length between 2 and 39 characters
-// - Only lowercase letters (a-z), numbers (0-9), and hyphen (-)
-// - Must start with a letter or digit
-// - Cannot end with hyphen
-// - No consecutive hyphens
-// - Not on the blocklist
-// - Rejects uppercase letters and surrounding whitespace (does NOT normalize)
+// ValidateUsername validates a regular-user username according to AI.md PART 34:
+// the shared syntax rules of validateUsernameSyntax, then the reserved-name list
+// (PART 16) and the username blocklist. Rejects uppercase letters and
+// surrounding whitespace (does NOT normalize).
 func ValidateUsername(username string) error {
+	if err := validateUsernameSyntax(username); err != nil {
+		return err
+	}
+
+	if IsReservedName(username) {
+		return fmt.Errorf("this username is reserved and cannot be used")
+	}
+
+	// Create a fake email to use the blocklist checker
+	fakeEmail := username + "@example.com"
+	if IsUsernameBlocked(fakeEmail) {
+		return fmt.Errorf("this username is reserved and cannot be used")
+	}
+
+	return nil
+}
+
+// ValidateAdminUsername validates a Server Admin username (AI.md PART 17 and
+// PART 34): the same syntax and length rules as any username, exempt from the
+// public username blocklist, but never equal to an admin section name because
+// /server/{admin_path}/{name}/* would then be ambiguous.
+func ValidateAdminUsername(username string) error {
+	if err := validateUsernameSyntax(username); err != nil {
+		return err
+	}
+
+	if IsAdminSectionName(username) {
+		return fmt.Errorf("this username is reserved and cannot be used")
+	}
+
+	return nil
+}
+
+// validateUsernameSyntax checks whitespace, case, length, allowed characters
+// and consecutive hyphens shared by user and admin usernames.
+func validateUsernameSyntax(username string) error {
 	// Check for surrounding whitespace (must not be present)
 	if username != strings.TrimSpace(username) {
 		return fmt.Errorf("username cannot contain leading or trailing whitespace")
@@ -62,16 +94,9 @@ func ValidateUsername(username string) error {
 		return fmt.Errorf("username format is invalid")
 	}
 
-	// Check for consecutive special characters per AI.md PART 22
+	// Check for consecutive special characters
 	if strings.Contains(username, "--") {
 		return fmt.Errorf("username cannot contain consecutive hyphens (--)")
-	}
-
-	// Check against blocklist
-	// Create a fake email to use the blocklist checker
-	fakeEmail := username + "@example.com"
-	if IsUsernameBlocked(fakeEmail) {
-		return fmt.Errorf("this username is reserved and cannot be used")
 	}
 
 	return nil

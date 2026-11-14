@@ -23,6 +23,12 @@ func bearerChallenge(code string) string {
 	return base
 }
 
+// BearerChallenge returns the RFC 6750 WWW-Authenticate value for a 401 or 403
+// error code, for handlers that write their own error responses.
+func BearerChallenge(code string) string {
+	return bearerChallenge(code)
+}
+
 // writeAPIError writes the canonical error body from AI.md PART 14:
 // {"ok":false,"error":"CODE","message":"..."}. The HTTP status carries the
 // status, so it is never duplicated in the body, and operational metadata

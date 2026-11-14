@@ -16,16 +16,18 @@ func wantsFormSubmission(r *http.Request) bool {
 	return strings.Contains(r.Header.Get("Content-Type"), "application/x-www-form-urlencoded")
 }
 
-// adminConfigPagePath resolves the session-auth admin config page that owns a
-// mutation endpoint, so a form post can redirect back to the page it came
-// from. The admin path prefix is everything before the first `/config/`
-// segment, which is what `/server/{admin_path}/config/*` routes share.
-func adminConfigPagePath(r *http.Request, page string) string {
-	idx := strings.Index(r.URL.Path, "/config/")
-	if idx < 0 {
-		return page
+// adminPagePath resolves the session-auth admin page that owns a mutation
+// endpoint, so a form post can redirect back to the page it came from. The
+// admin prefix is `/server/{admin_path}`, taken from the request path itself so
+// a custom admin path keeps working; a path without it returns page unchanged.
+func adminPagePath(r *http.Request, page string) string {
+	segments := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+	for i := 0; i+1 < len(segments); i++ {
+		if segments[i] == "server" {
+			return "/server/" + segments[i+1] + page
+		}
 	}
-	return r.URL.Path[:idx] + page
+	return page
 }
 
 // redirectAdminForm performs the redirect half of the post redirect get flow

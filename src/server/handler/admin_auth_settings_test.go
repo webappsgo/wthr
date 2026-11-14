@@ -26,7 +26,7 @@ func newAuthSettingsTestConfigFile(t *testing.T) string {
 // render path. No auth/data gating exists on this handler.
 func TestAdminAuthSettingsHandler_ShowAuthSettings(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: newAuthSettingsTestConfigFile(t)}
-	r, w := newAPITestContext("/admin/config/auth")
+	r, w := newAPITestContext("/admin/security/auth")
 	defer htmlRenderGuard(t)
 	h.ShowAuthSettings(w, r)
 	if w.Code != http.StatusOK {
@@ -42,7 +42,7 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_Success(t *testing.T) {
 
 	body := `{"oidc_enabled":true,"ldap_enabled":true,"ldap_server":"ldap.example.com","ldap_port":636,"ldap_bind_dn":"cn=admin,dc=example,dc=com","ldap_bind_password":"secret","ldap_base_dn":"dc=example,dc=com","ldap_user_filter":"(uid=%s)","totp_enabled":true,"totp_issuer":"wthr","totp_digits":6,"totp_period":30,"passkeys_enabled":true,"passkeys_rp_id":"example.com","passkeys_rp_name":"wthr"}`
 
-	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", body)
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/security/auth", body)
 
 	h.UpdateAuthSettings(w, r)
 
@@ -70,7 +70,7 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_PersistsOIDCProviders(t *te
 
 	body := `{"oidc_enabled":true,"oidc_providers":[{"name":"okta","client_id":"abc123","client_secret":"shh","issuer_url":"https://okta.example.com","redirect_url":"https://wthr.example.com/callback"}]}`
 
-	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", body)
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/security/auth", body)
 
 	h.UpdateAuthSettings(w, r)
 
@@ -102,7 +102,7 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminAuthSettingsHandler{ConfigPath: configPath}
 
-	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", "{not valid json")
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/security/auth", "{not valid json")
 
 	h.UpdateAuthSettings(w, r)
 
@@ -124,7 +124,7 @@ func TestAdminAuthSettingsHandler_UpdateAuthSettings_InvalidJSON(t *testing.T) {
 func TestAdminAuthSettingsHandler_UpdateAuthSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminAuthSettingsHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	r, w := newTestContextJSON(t, http.MethodPost, "/admin/config/auth", `{"oidc_enabled":true}`)
+	r, w := newTestContextJSON(t, http.MethodPost, "/admin/security/auth", `{"oidc_enabled":true}`)
 
 	h.UpdateAuthSettings(w, r)
 

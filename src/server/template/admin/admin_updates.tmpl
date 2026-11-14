@@ -24,7 +24,7 @@
       <h2 id="updates-settings-heading">{{t $lang "admin.updates.settings_heading"}}</h2>
     </div>
     {{if .saved}}<p role="status" class="alert alert-success">{{t $lang "admin.updates.saved"}}</p>{{end}}
-    <form method="post" action="{{$ap}}/config/updates">
+    <form method="post" action="{{$ap}}/updates">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       <div class="form-group">
         <label for="update-branch">{{t $lang "admin.updates.release_channel"}}</label>

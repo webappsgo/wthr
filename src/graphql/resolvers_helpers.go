@@ -600,7 +600,7 @@ func graphQLServerInviteURL(ctx context.Context, token string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("%s://%s/auth/invite/server/%s", scheme, host, token)
+	return fmt.Sprintf("%s://%s/server/auth/invite/server/%s", scheme, host, token)
 }
 func buildGraphQLServerAdminInvite(ctx context.Context, invite *models.AdminInvite, expiresIn string) *ServerAdminInvite {
 	if invite == nil {
@@ -1015,5 +1015,5 @@ func graphQLUserInviteURL(ctx context.Context, token string) string {
 		scheme = "http"
 	}
 
-	return fmt.Sprintf("%s://%s/auth/invite/user/%s", scheme, host, token)
+	return fmt.Sprintf("%s://%s/server/auth/invite/user/%s", scheme, host, token)
 }

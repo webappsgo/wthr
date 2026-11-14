@@ -37,7 +37,7 @@
             <!-- Create Backup -->
             <div class="card">
                 <h2>➕ {{t $lang "admin.backup.create_backup_heading"}}</h2>
-                <form id="createForm" method="post" action="{{.admin_api_path}}/config/backup">
+                <form id="createForm" method="post" action="{{.admin_api_path}}/backup">
                     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
                     <div class="form-group">
@@ -69,7 +69,7 @@
             <!-- Automated Backups -->
             <div class="card">
                 <h2>⏰ {{t $lang "admin.backup.automated_heading"}}</h2>
-                <form id="scheduleForm" method="post" action="{{.admin_api_path}}/config/backup/schedule">
+                <form id="scheduleForm" method="post" action="{{.admin_api_path}}/backup/schedule">
                     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <div class="form-group">
                         <label>

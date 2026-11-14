@@ -26,7 +26,7 @@ func newWeatherTestConfigFile(t *testing.T) string {
 // render path. No auth/data gating exists on this handler.
 func TestAdminWeatherHandler_ShowWeatherSettings(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: newWeatherTestConfigFile(t)}
-	c, w := newAPITestContext("/server/administration/config/weather")
+	c, w := newAPITestContext("/server/administration/settings/weather")
 	defer htmlRenderGuard(t)
 	h.ShowWeatherSettings(w, c)
 	if w.Code != http.StatusOK {
@@ -42,7 +42,7 @@ func TestAdminWeatherHandler_UpdateWeatherSettings_Success(t *testing.T) {
 
 	body := `{"openmeteo_enabled":true,"openmeteo_base_url":"https://api.open-meteo.com","openmeteo_timeout":10,"openmeteo_retry_attempts":3,"usgs_earthquake_enabled":true,"nhc_hurricane_enabled":true,"cache_enabled":true,"cache_ttl":300,"cache_max_size":1000,"forecast_enabled":true,"current_weather_enabled":true,"historical_data_enabled":false,"alerts_enabled":true,"alerts_check_interval":60,"alerts_severity_threshold":"moderate","api_rate_limit":120,"api_max_forecast_days":14,"api_max_historical_days":30}`
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/weather", body)
 
 	h.UpdateWeatherSettings(w, c)
 
@@ -74,7 +74,7 @@ func TestAdminWeatherHandler_UpdateWeatherSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminWeatherHandler{ConfigPath: configPath}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", "{not valid json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/weather", "{not valid json")
 
 	h.UpdateWeatherSettings(w, c)
 
@@ -96,7 +96,7 @@ func TestAdminWeatherHandler_UpdateWeatherSettings_InvalidJSON(t *testing.T) {
 func TestAdminWeatherHandler_UpdateWeatherSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminWeatherHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/weather", `{"openmeteo_enabled":true}`)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/settings/weather", `{"openmeteo_enabled":true}`)
 
 	h.UpdateWeatherSettings(w, c)
 

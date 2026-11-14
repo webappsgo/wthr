@@ -274,7 +274,7 @@ func TestCreateBackup(t *testing.T) {
 		t.Setenv("CONFIG_DIR", configDir)
 		t.Setenv("DATA_DIR", dataDir)
 
-		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup", url.Values{})
+		r, w := newBackupFormContext(http.MethodPost, "/admin/backup", url.Values{})
 		CreateBackup(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -284,7 +284,7 @@ func TestCreateBackup(t *testing.T) {
 
 func TestRestoreBackup(t *testing.T) {
 	t.Run("no file and no filename returns 400", func(t *testing.T) {
-		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{})
+		r, w := newBackupFormContext(http.MethodPost, "/admin/backup/restore", url.Values{})
 		RestoreBackup(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -294,7 +294,7 @@ func TestRestoreBackup(t *testing.T) {
 	t.Run("filename outside the backup directory returns 400", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+		r, w := newBackupFormContext(http.MethodPost, "/admin/backup/restore", url.Values{
 			"filename": {"../../etc/passwd.tar.gz"},
 		})
 		RestoreBackup(w, r)
@@ -307,7 +307,7 @@ func TestRestoreBackup(t *testing.T) {
 		t.Setenv("CONFIG_DIR", t.TempDir())
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newBackupFormContext(http.MethodPost, "/admin/config/backup/restore", url.Values{
+		r, w := newBackupFormContext(http.MethodPost, "/admin/backup/restore", url.Values{
 			"filename": {"missing.tar.gz"},
 		})
 		RestoreBackup(w, r)
@@ -321,7 +321,7 @@ func TestListBackups(t *testing.T) {
 	t.Run("missing dir returns empty list", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup")
 		ListBackups(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -342,7 +342,7 @@ func TestListBackups(t *testing.T) {
 		writeTestBackup(t, dataDir, "two.tar.gz.enc")
 		writeTestBackup(t, dataDir, "ignore.txt")
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup")
 		ListBackups(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -371,7 +371,7 @@ func TestBackupStats(t *testing.T) {
 		writeTestBackup(t, dataDir, "one.tar.gz")
 		writeTestBackup(t, dataDir, "two.tar.gz.enc")
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/stats")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup/stats")
 		BackupStats(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -397,7 +397,7 @@ func TestDownloadBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/missing.tar.gz/download")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup/missing.tar.gz/download")
 		r = withURLParam(r, "filename", "missing.tar.gz")
 		DownloadBackup(w, r)
 		if w.Code != http.StatusNotFound {
@@ -408,7 +408,7 @@ func TestDownloadBackup(t *testing.T) {
 	t.Run("traversal rejected", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/traverse/download")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup/traverse/download")
 		r = withURLParam(r, "filename", "../../etc/passwd.tar.gz")
 		DownloadBackup(w, r)
 		if w.Code != http.StatusBadRequest {
@@ -421,7 +421,7 @@ func TestDownloadBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		writeTestBackup(t, dataDir, "server.yml")
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/server.yml/download")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup/server.yml/download")
 		r = withURLParam(r, "filename", "server.yml")
 		DownloadBackup(w, r)
 		if w.Code != http.StatusBadRequest {
@@ -434,7 +434,7 @@ func TestDownloadBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		writeTestBackup(t, dataDir, "one.tar.gz")
 
-		r, w := newTestRequestPlain(http.MethodGet, "/admin/config/backup/one.tar.gz/download")
+		r, w := newTestRequestPlain(http.MethodGet, "/admin/backup/one.tar.gz/download")
 		r = withURLParam(r, "filename", "one.tar.gz")
 		DownloadBackup(w, r)
 		if w.Code != http.StatusOK {
@@ -447,7 +447,7 @@ func TestDeleteBackup(t *testing.T) {
 	t.Run("not found returns 404", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/missing.tar.gz")
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/backup/missing.tar.gz")
 		r = withURLParam(r, "filename", "missing.tar.gz")
 		DeleteBackup(w, r)
 		if w.Code != http.StatusNotFound {
@@ -458,7 +458,7 @@ func TestDeleteBackup(t *testing.T) {
 	t.Run("traversal rejected", func(t *testing.T) {
 		t.Setenv("DATA_DIR", t.TempDir())
 
-		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/traverse")
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/backup/traverse")
 		r = withURLParam(r, "filename", "../../etc/passwd.tar.gz")
 		DeleteBackup(w, r)
 		if w.Code != http.StatusBadRequest {
@@ -471,7 +471,7 @@ func TestDeleteBackup(t *testing.T) {
 		t.Setenv("DATA_DIR", dataDir)
 		target := writeTestBackup(t, dataDir, "one.tar.gz")
 
-		r, w := newTestRequestPlain(http.MethodDelete, "/admin/config/backup/one.tar.gz")
+		r, w := newTestRequestPlain(http.MethodDelete, "/admin/backup/one.tar.gz")
 		r = withURLParam(r, "filename", "one.tar.gz")
 		DeleteBackup(w, r)
 		if w.Code != http.StatusOK {
@@ -485,7 +485,7 @@ func TestDeleteBackup(t *testing.T) {
 
 func TestBackupSchedule(t *testing.T) {
 	t.Run("returns defaults when nothing is stored", func(t *testing.T) {
-		_, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/config/backup/schedule", nil)
+		_, r, w := adminAPIContextWithDB(t, http.MethodGet, "/admin/backup/schedule", nil)
 		GetBackupSchedule(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -510,7 +510,7 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("saves and reads back", func(t *testing.T) {
-		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		db, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/backup/schedule", map[string]interface{}{
 			"enabled":        false,
 			"interval":       12,
 			"max_backups":    5,
@@ -524,7 +524,7 @@ func TestBackupSchedule(t *testing.T) {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
 		}
 
-		readReq, readRec := newTestRequestPlain(http.MethodGet, "/admin/config/backup/schedule")
+		readReq, readRec := newTestRequestPlain(http.MethodGet, "/admin/backup/schedule")
 		readReq = readReq.WithContext(reqctx.SetValue(readReq.Context(), "db", db))
 		GetBackupSchedule(readRec, readReq)
 		var schedule struct {
@@ -549,7 +549,7 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("rejects out-of-range interval", func(t *testing.T) {
-		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/backup/schedule", map[string]interface{}{
 			"interval": 0,
 		})
 		SaveBackupSchedule(w, r)
@@ -559,7 +559,7 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("rejects out-of-range max_backups", func(t *testing.T) {
-		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/backup/schedule", map[string]interface{}{
 			"max_backups": 0,
 		})
 		SaveBackupSchedule(w, r)
@@ -569,7 +569,7 @@ func TestBackupSchedule(t *testing.T) {
 	})
 
 	t.Run("rejects negative keep_weekly", func(t *testing.T) {
-		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/config/backup/schedule", map[string]interface{}{
+		_, r, w := adminAPIContextWithDB(t, http.MethodPost, "/admin/backup/schedule", map[string]interface{}{
 			"keep_weekly": -1,
 		})
 		SaveBackupSchedule(w, r)

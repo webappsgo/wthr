@@ -26,7 +26,7 @@ type formPayload struct {
 }
 
 func formRequest(body string) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/ssl", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/ssl", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	return r
 }

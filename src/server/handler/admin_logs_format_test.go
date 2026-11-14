@@ -24,7 +24,7 @@ func TestNewLogFormatHandler(t *testing.T) {
 // nil here, so a write attempt would panic — proving the guard runs first).
 func TestLogFormatHandler_SetLogFormat_InvalidFormat(t *testing.T) {
 	h := &LogFormatHandler{}
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/administration/config/logs/format", map[string]string{"format": "not-a-real-format"})
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/administration/logs/format", map[string]string{"format": "not-a-real-format"})
 
 	h.SetLogFormat(w, c)
 
@@ -37,7 +37,7 @@ func TestLogFormatHandler_SetLogFormat_InvalidFormat(t *testing.T) {
 // "format" field is rejected with 400 by the binding validator.
 func TestLogFormatHandler_SetLogFormat_MissingFormat(t *testing.T) {
 	h := &LogFormatHandler{}
-	c, w := newTestContextJSON(t, http.MethodPost, "/server/administration/config/logs/format", map[string]string{})
+	c, w := newTestContextJSON(t, http.MethodPost, "/server/administration/logs/format", map[string]string{})
 
 	h.SetLogFormat(w, c)
 
@@ -51,7 +51,7 @@ func TestLogFormatHandler_SetLogFormat_MissingFormat(t *testing.T) {
 // given, and renders all 7 supported formats without touching the DB.
 func TestLogFormatHandler_PreviewLogFormat_DefaultsToApache(t *testing.T) {
 	h := &LogFormatHandler{}
-	c, w := newAPITestContext("/server/administration/config/logs/format/preview")
+	c, w := newAPITestContext("/server/administration/logs/format/preview")
 
 	h.PreviewLogFormat(w, c)
 
@@ -73,7 +73,7 @@ func TestLogFormatHandler_PreviewLogFormat_DefaultsToApache(t *testing.T) {
 // ?format= query value is echoed back as current_format.
 func TestLogFormatHandler_PreviewLogFormat_ExplicitFormat(t *testing.T) {
 	h := &LogFormatHandler{}
-	c, w := newAPITestContext("/server/administration/config/logs/format/preview?format=cef")
+	c, w := newAPITestContext("/server/administration/logs/format/preview?format=cef")
 
 	h.PreviewLogFormat(w, c)
 
@@ -93,7 +93,7 @@ func TestLogFormatHandler_GetLogFormat_DefaultsToApache(t *testing.T) {
 	setGlobalTestDualDB(t, serverDB, serverDB)
 
 	h := &LogFormatHandler{DB: serverDB}
-	c, w := newAPITestContext("/server/administration/config/logs/format")
+	c, w := newAPITestContext("/server/administration/logs/format")
 	h.GetLogFormat(w, c)
 
 	if w.Code != http.StatusOK {
@@ -112,13 +112,13 @@ func TestLogFormatHandler_GetLogFormat_ReflectsStoredValue(t *testing.T) {
 
 	h := &LogFormatHandler{DB: serverDB}
 
-	setC, setW := newTestContextJSON(t, http.MethodPost, "/server/administration/config/logs/format", map[string]string{"format": "syslog"})
+	setC, setW := newTestContextJSON(t, http.MethodPost, "/server/administration/logs/format", map[string]string{"format": "syslog"})
 	h.SetLogFormat(setW, setC)
 	if setW.Code != http.StatusOK {
 		t.Fatalf("SetLogFormat status = %d, want 200: %s", setW.Code, setW.Body.String())
 	}
 
-	c, w := newAPITestContext("/server/administration/config/logs/format")
+	c, w := newAPITestContext("/server/administration/logs/format")
 	h.GetLogFormat(w, c)
 
 	if w.Code != http.StatusOK {
@@ -137,7 +137,7 @@ func TestLogFormatHandler_ShowLogFormatPage_LoadsData(t *testing.T) {
 	setGlobalTestDualDB(t, serverDB, serverDB)
 
 	h := &LogFormatHandler{DB: serverDB}
-	c, w := newAPITestContext("/server/administration/config/logs/format/page")
+	c, w := newAPITestContext("/server/administration/logs/format/page")
 	defer htmlRenderGuard(t)
 	h.ShowLogFormatPage(w, c)
 

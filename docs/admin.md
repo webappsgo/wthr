@@ -52,6 +52,17 @@ Admin passwords must meet these criteria:
 
 ## Admin Panel Sections
 
+### URL layout
+
+Everything under `/server/{admin_path}/` (default `administration`) is either the dashboard, the
+admin's own area (`/server/{admin_path}/{admin_username}/profile`, `/preferences`,
+`/notifications`) or a fixed management section named directly: `settings`, `users`, `admins`,
+`security`, `network`, `email`, `notifications`, `web`, `scheduler`, `logs`, `backup`, `updates`,
+`ssl`, and so on. There is no `config` segment. The API mirrors the same layout under
+`/api/v1/server/{admin_path}/`. An admin username can never equal a section name.
+
+Logging out uses `/server/auth/logout` for admins and users alike.
+
 ### Dashboard
 
 The dashboard provides an overview of server status and activity.
@@ -173,6 +184,22 @@ Configure server-wide settings through the web UI.
   - Email address
   - Domain names
   - Auto-renewal
+
+### Web (robots.txt, security.txt, feeds)
+
+`/server/administration/web` manages:
+
+- **robots.txt** - one allowed path and one denied path per line; `{admin_path}` stands for the
+  configured admin path. A read-only preview shows the generated file. The sitemap never lists a
+  path that `robots.txt` disallows.
+- **Syndication feeds** - entries per feed (1 to 200) and the feed title for `/feed.xml` and
+  `/rss.xml`, which are always served.
+- **security.txt** and the MCP endpoint switch.
+
+### Settings owned by drop-in files
+
+Settings that a file in `yaml.d/` sets are listed at the top of the Settings page with the file
+that owns them. The panel never writes them into `server.yml`; edit the drop-in file instead.
 
 ### Logs
 

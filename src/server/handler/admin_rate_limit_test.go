@@ -42,7 +42,7 @@ func TestApplyRateLimitConfigRequest(t *testing.T) {
 }
 
 func TestDecodeRateLimitConfigForm(t *testing.T) {
-	r := httptest.NewRequest("POST", "/server/administration/config/settings/rate-limit", strings.NewReader("enabled=on&global_burst=240&read_requests=120&read_window=60&write_requests=10&write_window=60&health_requests=120&health_window=60&login_requests=5&login_window=900&password_reset_requests=3&password_reset_window=3600&registration_requests=5&registration_window=3600"))
+	r := httptest.NewRequest("POST", "/server/administration/settings/rate-limit", strings.NewReader("enabled=on&global_burst=240&read_requests=120&read_window=60&write_requests=10&write_window=60&health_requests=120&health_window=60&login_requests=5&login_window=900&password_reset_requests=3&password_reset_window=3600&registration_requests=5&registration_window=3600"))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	var got rateLimitConfigRequest
 	if err := decodeRateLimitConfigForm(r, &got); err != nil {

@@ -395,6 +395,28 @@ type SEOConfig struct {
 	TwitterHandle string `yaml:"twitter_handle"`
 	// Site verification codes per AI.md PART 16
 	Verification VerificationConfig `yaml:"verification"`
+	// Sitemap protocol limits per AI.md PART 16
+	Sitemap SitemapConfig `yaml:"sitemap"`
+	// Syndication feeds (/feed.xml and /rss.xml) per AI.md PART 16
+	Feed FeedConfig `yaml:"feed"`
+}
+
+// SitemapConfig holds the sitemap.xml limits per AI.md PART 16. The sitemap
+// itself is always served; there is no setting that turns it off.
+type SitemapConfig struct {
+	// Sitemap protocol limit
+	MaxURLs int `yaml:"max_urls"`
+	// Include image URLs
+	IncludeImages bool `yaml:"include_images"`
+}
+
+// FeedConfig holds the /feed.xml and /rss.xml settings per AI.md PART 16.
+// The feeds are always served; there is no setting that turns them off.
+type FeedConfig struct {
+	// Entries per feed; range 1-200
+	MaxItems int `yaml:"max_items"`
+	// Channel/feed title; default is the application name
+	Title string `yaml:"title"`
 }
 
 // VerificationConfig holds site verification codes per AI.md PART 16
@@ -421,8 +443,8 @@ type WebConfig struct {
 	LLMS LLMSConfig `yaml:"llms"`
 	// CORS setting, e.g., "*"
 	CORS string `yaml:"cors"`
-	// Custom robots.txt content
-	RobotsTxt string `yaml:"robots_txt"`
+	// robots.txt allow and deny paths per AI.md PART 16
+	Robots RobotsConfig `yaml:"robots"`
 	// Custom security.txt content
 	SecurityTxt string `yaml:"security_txt"`
 	// Custom favicon URL (empty = use embedded default)
@@ -733,6 +755,17 @@ func normalizeLanguageCode(value string) string {
 
 // LoadConfig loads configuration from server.yml per AI.md PART 4
 func LoadConfig() (*AppConfig, error) {
+	return loadConfig(false)
+}
+
+// LoadConfigStrict loads the same layers as LoadConfig but reports an invalid
+// server.yml or drop-in as an error instead of falling back to defaults, so a
+// reload can keep the last good configuration (AI.md PART 5, drop-in "Reload").
+func LoadConfigStrict() (*AppConfig, error) {
+	return loadConfig(true)
+}
+
+func loadConfig(strict bool) (*AppConfig, error) {
 	// Get hostname for defaults
 	hostname := getDefaultFQDN()
 	adminEmail := defaultEmailAddressForHost("admin", hostname)
@@ -786,6 +819,8 @@ func LoadConfig() (*AppConfig, error) {
 			},
 			SEO: SEOConfig{
 				Keywords: []string{},
+				Sitemap:  SitemapConfig{MaxURLs: DefaultSitemapMaxURLs},
+				Feed:     FeedConfig{MaxItems: DefaultFeedMaxItems},
 			},
 			Admin: AdminConfig{
 				Email: adminEmail,
@@ -925,7 +960,8 @@ func LoadConfig() (*AppConfig, error) {
 			UI: UIConfig{
 				Theme: "dark",
 			},
-			CORS: "*",
+			CORS:   "*",
+			Robots: DefaultRobotsConfig(),
 		},
 	}
 
@@ -950,20 +986,34 @@ func LoadConfig() (*AppConfig, error) {
 		return cfg, nil
 	}
 
-	// Read config file
-	data, err := os.ReadFile(configPath)
+	// AI.md PART 5: server.yml and the yaml.d drop-ins merge into one document
+	merged, report, err := loadLayers(configPath, strict)
 	if err != nil {
-		return cfg, err
-	}
-
-	// AI.md PART 12: a malformed config file warns and falls back to the
-	// defaults rather than failing startup, so decoding targets a copy that is
-	// only adopted once the whole document parses cleanly.
-	parsed := *cfg
-	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		if strict {
+			return cfg, err
+		}
+		if _, statErr := os.Stat(configPath); statErr != nil {
+			return cfg, statErr
+		}
+		// AI.md PART 12: a malformed config file warns and falls back to the
+		// defaults rather than failing startup.
 		fmt.Fprintf(os.Stderr, "Warning: could not parse %s: %v (using defaults)\n", configPath, err)
 	} else {
-		*cfg = parsed
+		// decoding targets a copy that is only adopted once the whole merged
+		// document decodes cleanly
+		parsed := *cfg
+		if err := applyLayers(&parsed, merged); err != nil {
+			if strict {
+				return cfg, fmt.Errorf("%s: %w", configPath, err)
+			}
+			fmt.Fprintf(os.Stderr, "Warning: could not parse %s: %v (using defaults)\n", configPath, err)
+		} else {
+			*cfg = parsed
+			setLayerReport(report)
+			for _, warning := range report.Warnings {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+			}
+		}
 	}
 
 	// AI.md PART 5: an invalid config value warns and falls back to the
@@ -1132,23 +1182,19 @@ func SaveConfig(cfg *AppConfig) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	// AI.md PART 5: server.yml never receives a setting that a yaml.d drop-in
+	// owns, so the panel and generated values leave the drop-in in charge
+	data, err = stripOwnedKeys(data, dropinOwnedKeys(configPath))
+	if err != nil {
+		return fmt.Errorf("failed to prepare config: %w", err)
+	}
+
 	// Write to file
 	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
-}
-
-// UpdateWebRobotsTxt updates the robots.txt content in server.yml
-func UpdateWebRobotsTxt(content string) error {
-	cfg := GetGlobalConfig()
-	if cfg == nil {
-		return fmt.Errorf("global config not initialized")
-	}
-
-	cfg.Web.RobotsTxt = content
-	return SaveConfig(cfg)
 }
 
 // UpdateI2PConfig validates and persists the I2P eepsite settings per AI.md PART 32.2.

@@ -292,7 +292,6 @@ func CreateDefaultServerYML(configPath string, smtpHost string, smtpPort int) er
 				"burst_size":       10,
 			},
 			"web": map[string]interface{}{
-				"robots_txt":   "User-agent: *\nAllow: /\nAllow: /api\nDisallow: /server/{admin_path}\nSitemap: {app_url}/sitemap.xml",
 				"security_txt": fmt.Sprintf("Contact: mailto:%s\nExpires: %s\nPreferred-Languages: en", config.DefaultEmailAddress("security", nil), time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)),
 			},
 			"tor": map[string]interface{}{

@@ -24,14 +24,14 @@ type AdminSearchResult struct {
 }
 
 // adminSearchPage is one entry of the admin page catalog, mapping a route under
-// /{admin_path}/config/ to the translation key its sidebar link already uses.
+// /{admin_path}/ to the translation key its sidebar link already uses.
 type adminSearchPage struct {
 	path     string
 	titleKey string
 }
 
 // adminSearchPages mirrors the PART 17 sidebar so admins can jump to a settings
-// page by name. The paths are suffixes appended to /{admin_path}/config/.
+// page by name. The paths are suffixes appended to /{admin_path}/.
 var adminSearchPages = []adminSearchPage{
 	{"settings", "nav.settings"},
 	{"branding", "admin.nav.branding"},
@@ -123,8 +123,8 @@ func adminSearchPageCatalog(r *http.Request, query, adminPath string) []AdminSea
 		results = append(results, AdminSearchResult{
 			Category: category,
 			Title:    title,
-			Detail:   adminPath + "/config/" + page.path,
-			URL:      adminPath + "/config/" + page.path,
+			Detail:   adminPath + "/" + page.path,
+			URL:      adminPath + "/" + page.path,
 		})
 	}
 	return results
@@ -148,7 +148,7 @@ func adminSearchSettings(r *http.Request, query, adminPath string) []AdminSearch
 	defer rows.Close()
 
 	category := AdminTranslate(r, "admin.search.category.settings")
-	return adminSearchScanPairs(rows, category, adminPath+"/config/settings")
+	return adminSearchScanPairs(rows, category, adminPath+"/settings")
 }
 
 // adminSearchTasks matches scheduled task ids and names.
@@ -169,7 +169,7 @@ func adminSearchTasks(r *http.Request, query, adminPath string) []AdminSearchRes
 	defer rows.Close()
 
 	category := AdminTranslate(r, "admin.search.category.tasks")
-	return adminSearchScanPairs(rows, category, adminPath+"/config/scheduler")
+	return adminSearchScanPairs(rows, category, adminPath+"/scheduler")
 }
 
 // adminSearchAuditLog matches recent audit entries by action or resource.
@@ -190,7 +190,7 @@ func adminSearchAuditLog(r *http.Request, query, adminPath string) []AdminSearch
 	defer rows.Close()
 
 	category := AdminTranslate(r, "admin.search.category.audit")
-	return adminSearchScanPairs(rows, category, adminPath+"/config/logs/audit")
+	return adminSearchScanPairs(rows, category, adminPath+"/logs/audit")
 }
 
 // adminSearchUsers matches user accounts by username or display name. Email is
@@ -213,7 +213,7 @@ func adminSearchUsers(r *http.Request, query, adminPath string) []AdminSearchRes
 	defer rows.Close()
 
 	category := AdminTranslate(r, "admin.search.category.users")
-	return adminSearchScanPairs(rows, category, adminPath+"/config/users")
+	return adminSearchScanPairs(rows, category, adminPath+"/users")
 }
 
 // adminSearchScanPairs collects two-column (title, detail) rows into results.

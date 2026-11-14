@@ -23,7 +23,7 @@ import (
 var RenderHTML func(w http.ResponseWriter, r *http.Request, status int, name string, data map[string]interface{})
 
 // RequireAdminAuth checks if user is authenticated as admin
-// Shows admin login page if not authenticated per AI.md PART 18
+// Redirects to the shared /server/auth/login form when there is no valid admin session (AI.md PART 17)
 func RequireAdminAuth() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -42,13 +42,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			// Check for admin session
 			sessionCookie, err := r.Cookie("admin_session")
 			if err != nil || sessionCookie.Value == "" {
-				// No session - show login page per AI.md PART 18
-				RenderHTML(w, r, http.StatusOK, "admin/login.tmpl", map[string]interface{}{
-					"branding": map[string]interface{}{
-						"Title": title,
-					},
-					"version": version,
-				})
+				redirectAdminUnauthenticated(w, r)
 				return
 			}
 			session := sessionCookie.Value
@@ -93,13 +87,8 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			`, model.HashAdminSessionToken(session)).Scan(&adminID, &storedExpiresAt)
 
 			if err != nil || !dbtime.IsAfter(storedExpiresAt, time.Now().UTC()) {
-				// Invalid or expired session - show login
-				RenderHTML(w, r, http.StatusOK, "admin/login.tmpl", map[string]interface{}{
-					"branding": map[string]interface{}{
-						"Title": title,
-					},
-					"version": version,
-				})
+				// Invalid or expired session
+				redirectAdminUnauthenticated(w, r)
 				return
 			}
 
@@ -111,6 +100,18 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// redirectAdminUnauthenticated sends a request without a valid admin session
+// away from the admin panel with no admin-specific hint (AI.md PART 17):
+// an authenticated regular user goes to their own dashboard, everyone else to
+// the shared login form.
+func redirectAdminUnauthenticated(w http.ResponseWriter, r *http.Request) {
+	if IsAuthenticated(r) {
+		http.Redirect(w, r, "/users/dashboard", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, "/server/auth/login", http.StatusFound)
 }
 
 // GetVersion returns the application version (helper for middleware)

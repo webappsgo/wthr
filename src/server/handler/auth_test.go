@@ -376,6 +376,29 @@ func TestHandleLogout(t *testing.T) {
 		}
 	})
 
+	t.Run("clears the admin session cookie and returns to the login page", func(t *testing.T) {
+		h, _, _ := newAuthTestHandler(t)
+		r, w := newTestContext(http.MethodGet, "/server/auth/logout")
+		r.AddCookie(&http.Cookie{Name: "admin_session", Value: "not-a-real-admin-session"})
+		h.HandleLogout(w, r)
+
+		if w.Code != http.StatusFound {
+			t.Fatalf("status = %d, want 302; body=%s", w.Code, w.Body.String())
+		}
+		if loc := w.Header().Get("Location"); loc != "/server/auth/login" {
+			t.Errorf("Location = %q, want /server/auth/login", loc)
+		}
+		cleared := false
+		for _, ck := range w.Result().Cookies() {
+			if ck.Name == "admin_session" && ck.MaxAge < 0 {
+				cleared = true
+			}
+		}
+		if !cleared {
+			t.Errorf("expected admin_session cookie to be cleared; got %v", w.Result().Cookies())
+		}
+	})
+
 	t.Run("deletes session row when an active session is present", func(t *testing.T) {
 		h, _, usersDB := newAuthTestHandler(t)
 		uid := seedAuthUser(t, usersDB, "logoutuser", "logout@example.com", "supersecret1")

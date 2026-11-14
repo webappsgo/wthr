@@ -46,14 +46,14 @@ func TestAdminPathFromData(t *testing.T) {
 // TestAdminSearchPageCatalog verifies the page catalog matches on the route
 // path and builds links under the configured admin path, never a hardcoded one.
 func TestAdminSearchPageCatalog(t *testing.T) {
-	c, _ := newTestContext(http.MethodGet, "/server/backoffice/config/search?q=firewall")
+	c, _ := newTestContext(http.MethodGet, "/server/backoffice/settings/search?q=firewall")
 
 	results := adminSearchPageCatalog(c, "firewall", "/server/backoffice")
 	if len(results) != 1 {
 		t.Fatalf("results = %d, want 1", len(results))
 	}
-	if results[0].URL != "/server/backoffice/config/security/firewall" {
-		t.Errorf("URL = %q, want /server/backoffice/config/security/firewall", results[0].URL)
+	if results[0].URL != "/server/backoffice/security/firewall" {
+		t.Errorf("URL = %q, want /server/backoffice/security/firewall", results[0].URL)
 	}
 
 	if got := adminSearchPageCatalog(c, "no-such-page", "/server/administration"); len(got) != 0 {
@@ -64,7 +64,7 @@ func TestAdminSearchPageCatalog(t *testing.T) {
 // TestAdminSearchAllEmptyQuery proves an empty query returns nothing rather
 // than dumping every searchable row.
 func TestAdminSearchAllEmptyQuery(t *testing.T) {
-	c, _ := newTestContext(http.MethodGet, "/server/administration/config/search")
+	c, _ := newTestContext(http.MethodGet, "/server/administration/settings/search")
 
 	if got := adminSearchAll(c, "", "/server/administration"); len(got) != 0 {
 		t.Errorf("empty query returned %d results, want 0", len(got))
@@ -74,7 +74,7 @@ func TestAdminSearchAllEmptyQuery(t *testing.T) {
 // TestAdminSearchAPIEnvelope covers the canonical success envelope of the JSON
 // search endpoint.
 func TestAdminSearchAPIEnvelope(t *testing.T) {
-	c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/search?q=firewall")
+	c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings/search?q=firewall")
 	c.Header.Set("Accept", "application/json")
 	AdminSearchAPI(w, c)
 

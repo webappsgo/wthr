@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
 	"github.com/webappsgo/wthr/src/config"
@@ -443,6 +444,14 @@ type contactForm struct {
 	CaptchaToken string
 }
 
+// Contact form length limits in Unicode characters (AI.md PART 16 "/server/contact").
+const (
+	contactNameMax    = 100
+	contactEmailMax   = 254
+	contactSubjectMax = 200
+	contactMessageMax = 5000
+)
+
 // Result keys of a contact submission; the API and the web form map them to responses.
 const (
 	contactSent           = "sent"
@@ -453,18 +462,32 @@ const (
 	contactCaptchaOffline = "captcha_unavailable"
 )
 
-// validateContactForm trims every field and reports whether all required fields are present and well formed.
-func validateContactForm(f *contactForm) bool {
+// invalidContactField trims every field and returns the name of the first field
+// that is missing, too long or malformed, or "" when the form is valid.
+func invalidContactField(f *contactForm) string {
 	f.Name, f.Email = strings.TrimSpace(f.Name), strings.TrimSpace(f.Email)
 	f.Subject, f.Message = strings.TrimSpace(f.Subject), strings.TrimSpace(f.Message)
-	if f.Name == "" || f.Subject == "" || f.Message == "" || len(f.Name) > 100 || len(f.Subject) > 200 || len(f.Message) > 5000 {
-		return false
+	// AI.md PART 16 "/server/contact": required fields, and limits that count
+	// Unicode characters after trimming
+	switch {
+	case f.Name == "" || utf8.RuneCountInString(f.Name) > contactNameMax || strings.ContainsAny(f.Name, "\r\n"):
+		return "name"
+	case f.Email == "" || utf8.RuneCountInString(f.Email) > contactEmailMax || strings.ContainsAny(f.Email, "\r\n"):
+		return "email"
+	case f.Subject == "" || utf8.RuneCountInString(f.Subject) > contactSubjectMax || strings.ContainsAny(f.Subject, "\r\n"):
+		return "subject"
+	case f.Message == "" || utf8.RuneCountInString(f.Message) > contactMessageMax:
+		return "message"
 	}
-	if strings.ContainsAny(f.Name+f.Email+f.Subject, "\r\n") {
-		return false
+	if addr, err := mail.ParseAddress(f.Email); err != nil || addr.Address != f.Email {
+		return "email"
 	}
-	addr, err := mail.ParseAddress(f.Email)
-	return err == nil && addr.Address == f.Email
+	return ""
+}
+
+// validateContactForm reports whether every required field is present and well formed.
+func validateContactForm(f *contactForm) bool {
+	return invalidContactField(f) == ""
 }
 
 // checkContactCaptcha verifies the captcha for this request: every submission, no failed-attempt
@@ -554,7 +577,10 @@ func HandleContactFormSubmission(db *database.DB, cfg *config.AppConfig) http.Ha
 		case contactSaved:
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "data": map[string]interface{}{"message": Translate(r, "success.contact.message_saved")}})
 		case contactInvalid:
-			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": Translate(r, "errors.contact.invalid")})
+			// field-level VALIDATION_FAILED: name the first offending field
+			probe := contactForm{Name: body.Name, Email: body.Email, Subject: body.Subject, Message: body.Message}
+			details := map[string]interface{}{"field": invalidContactField(&probe), "rule": "invalid"}
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "VALIDATION_FAILED", "message": Translate(r, "errors.contact.invalid"), "details": details})
 		case contactCaptchaFailed:
 			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "CAPTCHA_FAILED", "message": Translate(r, "errors.contact.captcha_failed")})
 		case contactCaptchaOffline:

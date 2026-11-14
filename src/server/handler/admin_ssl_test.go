@@ -71,7 +71,7 @@ func TestCalculateNextRenewal_PastRenewalWindow(t *testing.T) {
 func TestSSLHandlerUpdateSettingsFormEncoded(t *testing.T) {
 	h := NewSSLHandler("/tmp/example/certs", newTestServerDB(t), "")
 	form := strings.NewReader("autoRenewal=yes&renewalDays=30&emailNotifications=no")
-	req := httptest.NewRequest(http.MethodPost, "/server/administration/config/ssl", form)
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/ssl", form)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
@@ -106,7 +106,7 @@ func TestSSLHandlerUpdateSettingsFormEncoded(t *testing.T) {
 func TestSSLHandlerUpdateSettingsFormOutOfRange(t *testing.T) {
 	h := NewSSLHandler("/tmp/example/certs", newTestServerDB(t), "")
 	form := strings.NewReader("autoRenewal=yes&renewalDays=99")
-	req := httptest.NewRequest(http.MethodPost, "/server/administration/config/ssl", form)
+	req := httptest.NewRequest(http.MethodPost, "/server/administration/ssl", form)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 

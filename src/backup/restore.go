@@ -269,7 +269,7 @@ func (s *BackupService) extractArchiveWithLimits(archiveData []byte, configDir, 
 		// Determine destination path per AI.md PART 22 backup contents
 		var destPath string
 		var baseDir string
-		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "template/") ||
+		if header.Name == "server.yml" || strings.HasPrefix(header.Name, "yaml.d/") || strings.HasPrefix(header.Name, "template/") ||
 			strings.HasPrefix(header.Name, "theme/") || strings.HasPrefix(header.Name, "ssl/") {
 			baseDir = configDir
 		} else {

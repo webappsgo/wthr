@@ -64,7 +64,7 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 			t.Fatalf("seed user: %v", err)
 		}
 
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/users")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/users")
 		h.ListUsers(w, r)
 
 		if w.Code != http.StatusOK {
@@ -85,7 +85,7 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 			t.Fatalf("drop table: %v", err)
 		}
 
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/users")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/users")
 		h.ListUsers(w, r)
 
 		if w.Code != http.StatusInternalServerError {
@@ -105,7 +105,7 @@ func TestAdminHandler_CreateUser(t *testing.T) {
 			"password": "password123",
 			"role":     "user",
 		}
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/users", body)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/users", body)
 		h.CreateUser(w, r)
 
 		if w.Code != http.StatusCreated {
@@ -115,7 +115,7 @@ func TestAdminHandler_CreateUser(t *testing.T) {
 
 	t.Run("missing required fields returns 400", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/users", map[string]interface{}{})
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/users", map[string]interface{}{})
 		h.CreateUser(w, r)
 
 		if w.Code != http.StatusBadRequest {
@@ -131,7 +131,7 @@ func TestAdminHandler_CreateUser(t *testing.T) {
 			"password": "password123",
 			"role":     "user",
 		}
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/users", body)
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/users", body)
 		h.CreateUser(w, r)
 
 		if w.Code != http.StatusBadRequest {
@@ -152,7 +152,7 @@ func setAdminCurrentUser(r *http.Request, id int64) *http.Request {
 func TestAdminHandler_UpdateUser_SelfEditForbidden(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
 	body := map[string]interface{}{"username": "newname", "email": "new@example.com", "role": "user"}
-	r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/users/5", body)
+	r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/users/5", body)
 	r = setURLParam(r, "id", "5")
 	r = setAdminCurrentUser(r, 5)
 
@@ -178,7 +178,7 @@ func TestAdminHandler_UpdateUser_SelfEditForbidden(t *testing.T) {
 func TestAdminHandler_UpdateUser_NoCurrentUser_PanicsInsteadOf401(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
 	body := map[string]interface{}{"username": "newname", "email": "new@example.com", "role": "user"}
-	r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/users/5", body)
+	r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/users/5", body)
 	r = setURLParam(r, "id", "5")
 	// Deliberately do NOT set a current user in the request context.
 
@@ -200,7 +200,7 @@ func TestAdminHandler_UpdateUser_NoCurrentUser_PanicsInsteadOf401(t *testing.T) 
 // "cannot delete your own account" guard.
 func TestAdminHandler_DeleteUser_SelfDeleteForbidden(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
-	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/users/7")
+	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/users/7")
 	r = setURLParam(r, "id", "7")
 	r = setAdminCurrentUser(r, 7)
 
@@ -214,7 +214,7 @@ func TestAdminHandler_DeleteUser_SelfDeleteForbidden(t *testing.T) {
 // TestAdminHandler_DeleteUser_InvalidID covers the non-numeric id edge case.
 func TestAdminHandler_DeleteUser_InvalidID(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
-	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/users/abc")
+	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/users/abc")
 	r = setURLParam(r, "id", "abc")
 
 	h.DeleteUser(w, r)
@@ -229,7 +229,7 @@ func TestAdminHandler_DeleteUser_InvalidID(t *testing.T) {
 // identical "currentUser, _ := middleware.GetCurrentUser(c)" bug).
 func TestAdminHandler_DeleteUser_NoCurrentUser_PanicsInsteadOf401(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
-	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/users/7")
+	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/users/7")
 	r = setURLParam(r, "id", "7")
 	// Deliberately do NOT set a current user in the request context.
 
@@ -257,7 +257,7 @@ func TestAdminHandler_UpdateUserPassword(t *testing.T) {
 			t.Fatalf("seed user: %v", err)
 		}
 
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/users/1/password", map[string]interface{}{"password": "newpassword123"})
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/users/1/password", map[string]interface{}{"password": "newpassword123"})
 		r = setURLParam(r, "id", itoa(int(user.ID)))
 		h.UpdateUserPassword(w, r)
 
@@ -268,7 +268,7 @@ func TestAdminHandler_UpdateUserPassword(t *testing.T) {
 
 	t.Run("too short password returns 400", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/users/1/password", map[string]interface{}{"password": "short"})
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/users/1/password", map[string]interface{}{"password": "short"})
 		r = setURLParam(r, "id", "1")
 		h.UpdateUserPassword(w, r)
 
@@ -289,7 +289,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	}
 
 	t.Run("ListSettings success", func(t *testing.T) {
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings")
 		h.ListSettings(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -304,7 +304,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("GetSetting found", func(t *testing.T) {
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings/server.title")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings/server.title")
 		r = setURLParam(r, "key", "server.title")
 		h.GetSetting(w, r)
 		if w.Code != http.StatusOK {
@@ -313,7 +313,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("GetSetting not found returns 404", func(t *testing.T) {
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/settings/does.not.exist")
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/settings/does.not.exist")
 		r = setURLParam(r, "key", "does.not.exist")
 		h.GetSetting(w, r)
 		if w.Code != http.StatusNotFound {
@@ -322,7 +322,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("UpdateSetting success", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/settings/server.title", map[string]interface{}{"value": "New Title"})
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.title", map[string]interface{}{"value": "New Title"})
 		r = setURLParam(r, "key", "server.title")
 		h.UpdateSetting(w, r)
 		if w.Code != http.StatusOK {
@@ -331,7 +331,7 @@ func TestAdminHandler_ListSettings_GetSetting_UpdateSetting(t *testing.T) {
 	})
 
 	t.Run("UpdateSetting missing value returns 400", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/config/settings/server.title", map[string]interface{}{})
+		r, w := newTestContextJSON(t, http.MethodPut, "/api/v1/server/administration/settings/server.title", map[string]interface{}{})
 		r = setURLParam(r, "key", "server.title")
 		h.UpdateSetting(w, r)
 		if w.Code != http.StatusBadRequest {
@@ -351,7 +351,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 
 	var tokenID int
 	t.Run("GenerateToken success", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/security/tokens", map[string]interface{}{
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/security/tokens", map[string]interface{}{
 			"user_id": int(user.ID),
 			"name":    "test token",
 		})
@@ -375,7 +375,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	})
 
 	t.Run("GenerateToken missing fields returns 400", func(t *testing.T) {
-		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/config/security/tokens", map[string]interface{}{})
+		r, w := newTestContextJSON(t, http.MethodPost, "/api/v1/server/administration/security/tokens", map[string]interface{}{})
 		h.GenerateToken(w, r)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -383,7 +383,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	})
 
 	t.Run("ListTokens scoped by user_id success", func(t *testing.T) {
-		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/security/tokens?user_id="+itoa(int(user.ID)))
+		r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/security/tokens?user_id="+itoa(int(user.ID)))
 		h.ListTokens(w, r)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
@@ -391,7 +391,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	})
 
 	t.Run("RevokeToken success", func(t *testing.T) {
-		r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/security/tokens/"+itoa(tokenID))
+		r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/security/tokens/"+itoa(tokenID))
 		r = setURLParam(r, "id", itoa(tokenID))
 		h.RevokeToken(w, r)
 		if w.Code != http.StatusOK {
@@ -400,7 +400,7 @@ func TestAdminHandler_GenerateToken_RevokeToken(t *testing.T) {
 	})
 
 	t.Run("RevokeToken invalid id returns 400", func(t *testing.T) {
-		r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/security/tokens/xyz")
+		r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/security/tokens/xyz")
 		r = setURLParam(r, "id", "xyz")
 		h.RevokeToken(w, r)
 		if w.Code != http.StatusBadRequest {
@@ -443,7 +443,7 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 		}
 	}
 
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/security/tokens")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/security/tokens")
 	h.ListTokens(w, r)
 
 	if w.Code != http.StatusOK {
@@ -484,7 +484,7 @@ func TestAdminHandler_ListTokens_AdminWideView_ReturnsTokensAcrossUsers(t *testi
 // real schema instead of listing audit log entries.
 func TestAdminHandler_ListAuditLogs_QueriesNonexistentColumns(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/logs/audit-logs")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/logs/audit-logs")
 	h.ListAuditLogs(w, r)
 
 	if w.Code != http.StatusOK {
@@ -498,7 +498,7 @@ func TestAdminHandler_ListAuditLogs_QueriesNonexistentColumns(t *testing.T) {
 // "timestamp", so this always 500s instead of clearing old entries.
 func TestAdminHandler_ClearAuditLogs_QueriesNonexistentColumn(t *testing.T) {
 	h, _, _ := newAdminTestHandler(t)
-	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/config/logs/audit-logs")
+	r, w := newTestContext(http.MethodDelete, "/api/v1/server/administration/logs/audit-logs")
 	h.ClearAuditLogs(w, r)
 
 	if w.Code != http.StatusOK {
@@ -544,7 +544,7 @@ func TestAdminHandler_GetLogsStats_CountsRecentRowsByInstant(t *testing.T) {
 		}
 	}
 
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/logs/audit-logs/stats")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/logs/audit-logs/stats")
 	h.GetLogsStats(w, r)
 
 	if w.Code != http.StatusOK {
@@ -577,7 +577,7 @@ func TestAdminHandler_GetTasksStats_Success(t *testing.T) {
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/scheduler/stats")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/scheduler/stats")
 	h.GetTasksStats(w, r)
 
 	if w.Code != http.StatusOK {
@@ -600,7 +600,7 @@ func TestAdminHandler_GetSystemStats_Success(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/stats")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/stats")
 	h.GetSystemStats(w, r)
 
 	if w.Code != http.StatusOK {
@@ -626,7 +626,7 @@ func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing
 		t.Fatalf("seed scheduler state: %v", err)
 	}
 
-	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/scheduler")
+	r, w := newTestContext(http.MethodGet, "/api/v1/server/administration/scheduler")
 	h.GetScheduledTasks(w, r)
 
 	if w.Code != http.StatusOK {
@@ -648,7 +648,7 @@ func TestAdminHandler_GetScheduledTasks_AlwaysEmpty_TableNameMismatch(t *testing
 func TestAdminHandler_ShowSettingsPage_RedirectBranches(t *testing.T) {
 	t.Run("missing admin_id redirects", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
-		r, w := newTestContext(http.MethodGet, "/server/administration/config/settings")
+		r, w := newTestContext(http.MethodGet, "/server/administration/settings")
 		h.ShowSettingsPage(w, r)
 		if w.Code != http.StatusFound {
 			t.Fatalf("status = %d, want 302; body=%s", w.Code, w.Body.String())
@@ -657,7 +657,7 @@ func TestAdminHandler_ShowSettingsPage_RedirectBranches(t *testing.T) {
 
 	t.Run("non-int admin_id redirects", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
-		r, w := newTestContext(http.MethodGet, "/server/administration/config/settings")
+		r, w := newTestContext(http.MethodGet, "/server/administration/settings")
 		r = withReqCtxValue(r, "admin_id", "not-an-int")
 		h.ShowSettingsPage(w, r)
 		if w.Code != http.StatusFound {
@@ -667,7 +667,7 @@ func TestAdminHandler_ShowSettingsPage_RedirectBranches(t *testing.T) {
 
 	t.Run("admin not found redirects", func(t *testing.T) {
 		h, _, _ := newAdminTestHandler(t)
-		r, w := newTestContext(http.MethodGet, "/server/administration/config/settings")
+		r, w := newTestContext(http.MethodGet, "/server/administration/settings")
 		r = withReqCtxValue(r, "admin_id", 999)
 		h.ShowSettingsPage(w, r)
 		if w.Code != http.StatusFound {

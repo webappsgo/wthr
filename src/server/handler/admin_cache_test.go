@@ -9,7 +9,7 @@ import (
 )
 
 func TestDecodeCacheConfigForm(t *testing.T) {
-	r := httptest.NewRequest("POST", "/server/administration/config/settings/cache", strings.NewReader("type=valkey&port=6379&db=0&pool_size=10&min_idle=2&timeout=5s&prefix=wthr%3A&ttl=1h&cluster=on&cluster_nodes=node1%3A6379&clear_password=on"))
+	r := httptest.NewRequest("POST", "/server/administration/settings/cache", strings.NewReader("type=valkey&port=6379&db=0&pool_size=10&min_idle=2&timeout=5s&prefix=wthr%3A&ttl=1h&cluster=on&cluster_nodes=node1%3A6379&clear_password=on"))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	var got cacheConfigRequest
 	if err := decodeCacheConfigForm(r, &got); err != nil {

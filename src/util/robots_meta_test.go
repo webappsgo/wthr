@@ -36,7 +36,7 @@ func TestRobotsMetaForPath(t *testing.T) {
 		// Admin panel
 		{"admin root", "/server/administration", RobotsNoIndexNoFollow},
 		{"admin dashboard", "/server/administration/dashboard", RobotsNoIndexNoFollow},
-		{"admin config", "/server/administration/config/settings", RobotsNoIndexNoFollow},
+		{"admin config", "/server/administration/settings", RobotsNoIndexNoFollow},
 		{"admin custom path", "/server/controlpanel/dashboard", RobotsNoIndexNoFollow},
 
 		// API routes
@@ -57,7 +57,7 @@ func TestRobotsMetaForPath(t *testing.T) {
 		{"logout", "/server/auth/logout", RobotsNoIndexNoFollow},
 
 		// Setup routes
-		{"admin setup", "/server/administration/config/setup", RobotsNoIndexNoFollow},
+		{"admin setup", "/server/administration/setup", RobotsNoIndexNoFollow},
 		{"server setup", "/server/setup", RobotsNoIndexNoFollow},
 
 		// Debug, health, and internal endpoints

@@ -533,6 +533,9 @@ func main() {
 	// AI.md PART 6: --mode flag > MODE env > server.mode in server.yml > production
 	mode.FromConfig(cfg.Server.Mode)
 
+	// AI.md PART 5: list the loaded yaml.d drop-ins and, in debug, the overridden keys
+	service.LogConfigLayers()
+
 	if mode.IsDebugEnabled() {
 		log.Println("DEBUG MODE ENABLED")
 		log.Println("This mode should NEVER be used in production!")
@@ -998,8 +1001,9 @@ func main() {
 			return
 		}
 		// AI.md PART 14: curl/wget/httpie and Accept: text/plain get the page as
-		// formatted terminal text, everyone else gets the HTML as rendered
-		if httputil.FrontendWantsText(r) {
+		// formatted terminal text, everyone else gets the HTML as rendered; the
+		// admin panel is HTML for every client
+		if httputil.FrontendWantsText(r) && !middleware.IsAdminFrontendPath(r.URL.Path) {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			w.Header().Add("Vary", "Accept, User-Agent")
 			w.WriteHeader(status)
@@ -1329,7 +1333,7 @@ func main() {
 			if exists > 0 {
 				continue
 			}
-			action := &model.NotificationAction{Label: "Review update", URL: "/server/" + current.GetAdminPath() + "/config/updates"}
+			action := &model.NotificationAction{Label: "Review update", URL: "/server/" + current.GetAdminPath() + "/updates"}
 			if _, err := notificationService.SendAdminNotification(int(admin.ID), model.NotificationTypeInfo, model.NotificationDisplayBanner, title, release.TagName, action); err != nil {
 				log.Printf("Failed to notify admin about update %s: %v", release.TagName, err)
 			}
@@ -1672,9 +1676,18 @@ func main() {
 
 	// robots.txt endpoint
 	r.Get("/robots.txt", adminWebHandler.ServeRobotsTxt)
+	r.Head("/robots.txt", adminWebHandler.ServeRobotsTxt)
 
-	// sitemap.xml endpoint (AI.md PART 16: dynamically generated)
+	// sitemap.xml endpoint (AI.md PART 16: always served, public pages robots.txt allows)
 	r.Get("/sitemap.xml", adminWebHandler.ServeSitemap)
+	r.Head("/sitemap.xml", adminWebHandler.ServeSitemap)
+
+	// feed.xml (Atom 1.0) and rss.xml (RSS 2.0): always served, GET and HEAD only
+	feedHandler := handler.NewFeedHandler(earthquakeService)
+	r.Get("/feed.xml", feedHandler.ServeAtom)
+	r.Head("/feed.xml", feedHandler.ServeAtom)
+	r.Get("/rss.xml", feedHandler.ServeRSS)
+	r.Head("/rss.xml", feedHandler.ServeRSS)
 
 	// favicon.ico endpoint (AI.md PART 16: embedded default, customizable)
 	r.Get("/favicon.ico", adminWebHandler.ServeFavicon)
@@ -1731,12 +1744,12 @@ func main() {
 		log.Println("   GET  /debug/vars    - expvar metrics")
 	}
 
-	// Server setup routes at /server/{admin_path}/config/setup (requires verified setup token)
-	// AI.md: Setup flow is at /server/{admin_path}/config/setup, creates Primary Admin
+	// Server setup routes at /server/{admin_path}/setup (requires verified setup token)
+	// AI.md: Setup flow is at /server/{admin_path}/setup, creates Primary Admin
 	// AI.md: Server is FULLY FUNCTIONAL without setup - only admin panel requires setup
-	// AI.md: Step 4: Redirect to /server/{admin_path}/config/setup (setup wizard) after token verified
+	// AI.md: Step 4: Redirect to /server/{admin_path}/setup (setup wizard) after token verified
 	adminSetupRoutes := chi.NewRouter()
-	r.Mount("/server/"+cfg.GetAdminPath()+"/config/setup", adminSetupRoutes)
+	r.Mount("/server/"+cfg.GetAdminPath()+"/setup", adminSetupRoutes)
 	adminSetupRoutes.Use(middleware.BlockSetupAfterComplete(cfg))
 	adminSetupRoutes.Use(middleware.RequireSetupTokenVerified(cfg))
 	{
@@ -1761,6 +1774,7 @@ func main() {
 	r.Get("/server/auth/register", authHandler.ShowRegisterPage)
 	r.Post("/server/auth/register", authHandler.HandleRegister)
 	r.Get("/server/auth/logout", authHandler.HandleLogout)
+	r.Post("/server/auth/logout", authHandler.HandleLogout)
 
 	// Password reset routes (public)
 	r.Get("/server/auth/password/forgot", func(w http.ResponseWriter, r *http.Request) {
@@ -1884,7 +1898,7 @@ func main() {
 	}
 
 	// Invite routes (public - token validates)
-	r.Get("/server/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
 		invite, err := adminInviteService.VerifyInvite(chi.URLParam(r, "code"))
 		if err != nil {
 			renderServerInvitePage(w, r, http.StatusGone, map[string]interface{}{
@@ -1900,7 +1914,7 @@ func main() {
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.Post("/server/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
+	r.Post("/server/auth/invite/server/{code}", func(w http.ResponseWriter, r *http.Request) {
 		token := chi.URLParam(r, "code")
 		invite, err := adminInviteService.VerifyInvite(token)
 		if err != nil {
@@ -1963,7 +1977,7 @@ func main() {
 
 		http.Redirect(w, r, "/server/auth/login?invite=accepted", http.StatusSeeOther)
 	})
-	r.Get("/server/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
 		invite, err := userInviteModel.VerifyInvite(chi.URLParam(r, "code"))
 		if err != nil {
 			renderUserInvitePage(w, r, http.StatusGone, map[string]interface{}{
@@ -1981,7 +1995,7 @@ func main() {
 			"expires_at": invite.ExpiresAt,
 		})
 	})
-	r.Post("/server/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
+	r.Post("/server/auth/invite/user/{code}", func(w http.ResponseWriter, r *http.Request) {
 		token := chi.URLParam(r, "code")
 		invite, err := userInviteModel.VerifyInvite(token)
 		if err != nil {
@@ -2199,35 +2213,7 @@ func main() {
 	{
 		// /{admin_path} -> admin dashboard (root level)
 		adminRoutes.Get("/", dashboardHandler.ShowAdminPanel)
-		// /{admin_path}/dashboard -> alias for root
-		adminRoutes.Get("/dashboard", dashboardHandler.ShowAdminPanel)
-
-		// /{admin_path}/logout -> clear admin session and redirect to login
-		adminRoutes.Get("/logout", func(w http.ResponseWriter, r *http.Request) {
-			// Delete admin session from database
-			adminSessionID := ""
-			if cookie, err := r.Cookie("admin_session"); err == nil {
-				adminSessionID = cookie.Value
-			}
-			if adminSessionID != "" {
-				sessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
-				if err := sessionModel.DeleteSession(adminSessionID); err != nil {
-					log.Printf("WARNING: admin-logout: failed to delete admin session: %v", err)
-				}
-			}
-			// Clear admin_session cookie
-			http.SetCookie(w, &http.Cookie{
-				Name:     "admin_session",
-				Value:    "",
-				MaxAge:   -1,
-				Path:     "/",
-				Secure:   false,
-				HttpOnly: true,
-			})
-			http.Redirect(w, r, "/server/auth/login", http.StatusFound)
-		})
-
-		// AI.md PART 17: every server-management page lives under /{admin_path}/config/
+		// AI.md PART 17: every server-management page lives under /{admin_path}/
 		// and the admin's own account lives under /{admin_path}/{admin_username}/
 		adminSelfRoutes := chi.NewRouter()
 		adminRoutes.Mount("/{admin_username}", adminSelfRoutes)
@@ -2235,15 +2221,17 @@ func main() {
 
 		// AI.md PART 17 header spec: global search over settings, logs and the
 		// other data the admin panel manages
-		adminRoutes.Get("/config/search", handler.AdminSearchPage)
+		adminRoutes.Get("/settings/search", handler.AdminSearchPage)
 
-		adminRoutes.Get("/config/settings", adminHandler.ShowSettingsPage)
-		adminRoutes.Post("/config/settings/cache", handler.UpdateCacheConfig)
-		adminRoutes.Post("/config/settings/rate-limit", handler.UpdateRateLimitConfig)
+		adminRoutes.Get("/settings", adminHandler.ShowSettingsPage)
+		adminRoutes.Post("/settings/cache", handler.UpdateCacheConfig)
+		adminRoutes.Post("/settings/rate-limit", handler.UpdateRateLimitConfig)
 
-		adminRoutes.Get("/config/web", adminWebHandler.ShowWebSettings)
+		adminRoutes.Get("/web", adminWebHandler.ShowWebSettings)
+		adminRoutes.Post("/web/robots", adminWebHandler.UpdateRobotsTxt)
+		adminRoutes.Post("/web/feeds", adminWebHandler.UpdateFeedSettings)
 
-		adminRoutes.Get("/config/users", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/users", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_users.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "User Management - Admin",
 				"page":       "users",
@@ -2251,7 +2239,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/email", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/email", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_email.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Email Settings - Admin",
 				"page":       "email",
@@ -2259,7 +2247,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/database", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/database", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_database.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Database & Cache - Admin",
 				"page":       "database",
@@ -2267,7 +2255,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/info", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/info", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_system.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Server Information - Admin",
 				"page":       "info",
@@ -2275,7 +2263,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/security", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/security", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_security.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Security Settings - Admin",
 				"page":       "security",
@@ -2283,7 +2271,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/security/tokens", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/security/tokens", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/tokens.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "API Tokens - Admin",
 				"page":       "tokens",
@@ -2291,7 +2279,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/logs", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/logs", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "System Logs - Admin",
 				"page":       "logs",
@@ -2299,7 +2287,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/logs/audit", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/logs/audit", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/logs.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Audit Logs - Admin",
 				"page":       "audit",
@@ -2307,7 +2295,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/scheduler", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/scheduler", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tasks_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Scheduled Tasks - Admin",
 				"page":       "scheduler",
@@ -2315,7 +2303,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/ssl", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/ssl", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ssl.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "SSL/TLS Management - Admin",
 				"page":       "ssl",
@@ -2323,7 +2311,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/backup", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/backup", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_backup_enhanced.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Backup Management - Admin",
 				"page":       "backup",
@@ -2331,7 +2319,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/metrics", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_metrics.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Metrics Configuration - Admin",
 				"page":       "metrics",
@@ -2339,7 +2327,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/network/tor", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/network/tor", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_tor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      "Tor Hidden Service - Admin",
 				"page":       "tor",
@@ -2348,16 +2336,16 @@ func main() {
 		})
 
 		// AI.md PART 32.2: I2P eepsite settings, opt-in and disabled by default
-		adminRoutes.Get("/config/network/i2p", i2pAdminHandler.ShowI2PSettings)
-		adminRoutes.Post("/config/network/i2p", i2pAdminHandler.UpdateSettings)
-		adminRoutes.Post("/config/network/i2p/regenerate", i2pAdminHandler.Regenerate)
-		adminRoutes.Post("/config/network/i2p/restart", i2pAdminHandler.Restart)
+		adminRoutes.Get("/network/i2p", i2pAdminHandler.ShowI2PSettings)
+		adminRoutes.Post("/network/i2p", i2pAdminHandler.UpdateSettings)
+		adminRoutes.Post("/network/i2p/regenerate", i2pAdminHandler.Regenerate)
+		adminRoutes.Post("/network/i2p/restart", i2pAdminHandler.Restart)
 
 		// AI.md PART 17: the sidebar's open/closed sections persist server-side
 		// in an allow-listed HttpOnly cookie; this is the JS enhancement only.
-		adminRoutes.Post("/config/nav-state", handler.UpdateAdminNavState)
+		adminRoutes.Post("/settings/nav-state", handler.UpdateAdminNavState)
 
-		adminRoutes.Get("/config/channels", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/notifications/channels", func(w http.ResponseWriter, r *http.Request) {
 			// A read failure must not blank the page: the template renders its
 			// empty state for a nil list, which is the safe thing to show.
 			channels, _ := channelHandler.ListChannelRows()
@@ -2373,12 +2361,12 @@ func main() {
 
 		// AI.md PART 16: the same mutations the token-auth API exposes are
 		// reachable as form posts so the panel works with JavaScript disabled.
-		adminRoutes.Post("/config/channels/{type}", channelHandler.UpdateChannel)
-		adminRoutes.Post("/config/channels/{type}/enable", channelHandler.EnableChannel)
-		adminRoutes.Post("/config/channels/{type}/disable", channelHandler.DisableChannel)
-		adminRoutes.Post("/config/channels/{type}/test", channelHandler.TestChannel)
+		adminRoutes.Post("/notifications/channels/{type}", channelHandler.UpdateChannel)
+		adminRoutes.Post("/notifications/channels/{type}/enable", channelHandler.EnableChannel)
+		adminRoutes.Post("/notifications/channels/{type}/disable", channelHandler.DisableChannel)
+		adminRoutes.Post("/notifications/channels/{type}/test", channelHandler.TestChannel)
 
-		adminRoutes.Get("/config/templates", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/notifications/templates", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "template_editor.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":      handler.Translate(r, "admin.templates.title"),
 				"page":       "templates",
@@ -2387,7 +2375,7 @@ func main() {
 			}))
 		})
 
-		adminRoutes.Get("/config/email/templates", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Get("/email/templates", func(w http.ResponseWriter, r *http.Request) {
 			// AI.md PART 16: the editor renders every template server-side and
 			// picks the requested one, so saving works with JavaScript disabled.
 			editable := emailTemplateHandler.EditorTemplates()
@@ -2422,15 +2410,15 @@ func main() {
 		// AI.md PART 16: form posts for the email templates the API mutates. The
 		// editor picks the template client-side, so the name travels in a form
 		// field rather than the path; the token-auth API keeps its {name} route.
-		adminRoutes.Post("/config/email/templates", emailTemplateHandler.UpdateTemplate)
-		adminRoutes.Post("/config/email/templates/preview", emailTemplateHandler.TestTemplate)
-		adminRoutes.Post("/config/email/templates/reset", emailTemplateHandler.ImportTemplate)
+		adminRoutes.Post("/email/templates", emailTemplateHandler.UpdateTemplate)
+		adminRoutes.Post("/email/templates/preview", emailTemplateHandler.TestTemplate)
+		adminRoutes.Post("/email/templates/reset", emailTemplateHandler.ImportTemplate)
 
 		// Admin settings sub-panels (already under /server/)
-		adminRoutes.Get("/config/users/settings", adminUsersHandler.ShowUserSettings)
-		adminRoutes.Get("/config/weather", adminWeatherHandler.ShowWeatherSettings)
-		adminRoutes.Get("/config/notifications", adminNotificationsHandler.ShowNotificationSettings)
-		adminRoutes.Get("/config/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
+		adminRoutes.Get("/users/settings", adminUsersHandler.ShowUserSettings)
+		adminRoutes.Get("/settings/weather", adminWeatherHandler.ShowWeatherSettings)
+		adminRoutes.Get("/notifications", adminNotificationsHandler.ShowNotificationSettings)
+		adminRoutes.Get("/network/geoip", adminGeoIPHandler.ShowGeoIPSettings)
 
 		// AI.md PART 17: the admin's own account pages
 		// /{admin_path}/{admin_username}/profile - Admin's own profile
@@ -2458,51 +2446,51 @@ func main() {
 		})
 
 		// Additional management pages per spec
-		// /{admin_path}/config/branding - Branding & SEO
-		adminRoutes.Get("/config/branding", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/branding - Branding & SEO
+		adminRoutes.Get("/branding", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_branding.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Branding & SEO - Admin",
 				"page":  "server-branding",
 			}))
 		})
 
-		// /{admin_path}/config/pages - Standard pages (about, privacy, contact)
-		adminRoutes.Get("/config/pages", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/pages - Standard pages (about, privacy, contact)
+		adminRoutes.Get("/pages", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_pages.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Standard Pages - Admin",
 				"page":  "server-pages",
 			}))
 		})
 
-		// /{admin_path}/config/roles - Role definitions
-		adminRoutes.Get("/config/roles", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/roles - Role definitions
+		adminRoutes.Get("/roles", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_roles.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Role Definitions - Admin",
 				"page":  "server-roles",
 			}))
 		})
 
-		// /{admin_path}/config/security/auth - Authentication config
-		adminRoutes.Get("/config/security/auth", adminAuthHandler.ShowAuthSettings)
+		// /{admin_path}/security/auth - Authentication config
+		adminRoutes.Get("/security/auth", adminAuthHandler.ShowAuthSettings)
 
-		// /{admin_path}/config/admins - Server admin accounts list
-		adminRoutes.Get("/config/admins", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/admins - Server admin accounts list
+		adminRoutes.Get("/admins", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_admins.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Server Admins - Admin",
 				"page":  "server-admins",
 			}))
 		})
 
-		// /{admin_path}/config/admins/invite - Invite new admin
-		adminRoutes.Get("/config/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/admins/invite - Invite new admin
+		adminRoutes.Get("/admins/invite", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_invite.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Invite Admin - Admin",
 				"page":  "server-admins-invite",
 			}))
 		})
 
-		// /{admin_path}/config/admins/:id - Admin detail
-		adminRoutes.Get("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/admins/:id - Admin detail
+		adminRoutes.Get("/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":   "Admin Detail - Admin",
 				"page":    "server-admins",
@@ -2557,11 +2545,11 @@ func main() {
 			middleware.RenderHTML(w, r, status, "admin/admin_user_invites.tmpl", handler.AdminTemplateData(r, payload))
 		}
 
-		// /{admin_path}/config/users/invites - User invites
-		adminRoutes.Get("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/users/invites - User invites
+		adminRoutes.Get("/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			renderAdminUserInvitesPage(w, r, http.StatusOK, map[string]interface{}{})
 		})
-		adminRoutes.Post("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+		adminRoutes.Post("/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			var req struct {
 				Username      string
 				Email         string
@@ -2652,16 +2640,16 @@ func main() {
 			})
 		})
 
-		// /{admin_path}/config/moderation/users - User moderation
-		adminRoutes.Get("/config/moderation/users", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/moderation/users - User moderation
+		adminRoutes.Get("/moderation/users", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_moderation.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "User Moderation - Admin",
 				"page":  "moderation-users",
 			}))
 		})
 
-		// /{admin_path}/config/moderation/users/:id - User detail
-		adminRoutes.Get("/config/moderation/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/moderation/users/:id - User detail
+		adminRoutes.Get("/moderation/users/{id}", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_user_detail.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title":  "User Detail - Admin",
 				"page":   "moderation-users",
@@ -2669,62 +2657,62 @@ func main() {
 			}))
 		})
 
-		// /{admin_path}/config/security/ratelimit - Rate limiting config
-		adminRoutes.Get("/config/security/ratelimit", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/security/ratelimit - Rate limiting config
+		adminRoutes.Get("/security/ratelimit", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_ratelimit.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Rate Limiting - Admin",
 				"page":  "security-ratelimit",
 			}))
 		})
 
-		// /{admin_path}/config/security/firewall - IP allow/block lists
-		adminRoutes.Get("/config/security/firewall", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/security/firewall - IP allow/block lists
+		adminRoutes.Get("/security/firewall", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_firewall.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Firewall - Admin",
 				"page":  "security-firewall",
 			}))
 		})
 
-		// /{admin_path}/config/network/blocklists - IP/domain blocklists
-		adminRoutes.Get("/config/network/blocklists", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/network/blocklists - IP/domain blocklists
+		adminRoutes.Get("/network/blocklists", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_blocklists.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Blocklists - Admin",
 				"page":  "network-blocklists",
 			}))
 		})
 
-		// /{admin_path}/config/maintenance - Maintenance mode
-		adminRoutes.Get("/config/maintenance", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/maintenance - Maintenance mode
+		adminRoutes.Get("/maintenance", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_maintenance.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Maintenance Mode - Admin",
 				"page":  "server-maintenance",
 			}))
 		})
 
-		// /{admin_path}/config/updates - Software updates
-		adminRoutes.Get("/config/updates", handler.ShowUpdateSettings)
-		adminRoutes.Post("/config/updates", handler.UpdateSettings)
+		// /{admin_path}/updates - Software updates
+		adminRoutes.Get("/updates", handler.ShowUpdateSettings)
+		adminRoutes.Post("/updates", handler.UpdateSettings)
 
-		// /{admin_path}/config/cluster/nodes - Cluster node management
-		adminRoutes.Get("/config/cluster/nodes", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/cluster/nodes - Cluster node management
+		adminRoutes.Get("/cluster/nodes", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_cluster_nodes.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Cluster Nodes - Admin",
 				"page":  "server-cluster-nodes",
 			}))
 		})
 
-		// /{admin_path}/config/cluster/add - Add cluster node
-		adminRoutes.Get("/config/cluster/add", func(w http.ResponseWriter, r *http.Request) {
+		// /{admin_path}/cluster/add - Add cluster node
+		adminRoutes.Get("/cluster/add", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_cluster_add.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Add Cluster Node - Admin",
 				"page":  "server-cluster-add",
 			}))
 		})
 
-		// /{admin_path}/config/pages/help - Admin help & documentation.
+		// /{admin_path}/pages/help - Admin help & documentation.
 		// AI.md PART 17: everything except the admin's own account lives under
-		// /server/{admin_path}/config/*, so help sits with the other pages.
-		adminRoutes.Get("/config/pages/help", func(w http.ResponseWriter, r *http.Request) {
+		// /server/{admin_path}/*, so help sits with the other pages.
+		adminRoutes.Get("/pages/help", func(w http.ResponseWriter, r *http.Request) {
 			middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_help.tmpl", handler.AdminTemplateData(r, map[string]interface{}{
 				"title": "Help - Admin",
 				"page":  "help",
@@ -2858,6 +2846,7 @@ func main() {
 	apiV1.Get("/server/privacy", handler.GetPrivacyAPI(db, cfg))
 	apiV1.Get("/server/help", handler.GetHelpAPI(db, cfg))
 	apiV1.Get("/server/terms", handler.GetTermsAPI(db, cfg))
+	apiV1.Get("/server/contact", handler.GetContactFormAPI(cfg))
 	apiV1.Post("/server/contact", handler.HandleContactFormSubmission(db, cfg))
 	apiV1.Get("/server/dpo", handler.GetDPOAPI(cfg))
 	apiV1.Get("/server/security", handler.GetSecurityAPI(cfg))
@@ -2869,6 +2858,7 @@ func main() {
 	apiV1.Mount("/server/auth", authAPI)
 	{
 		// Public auth endpoints (no auth required)
+		authAPI.Get("/check", handler.HandleAuthCheck(database.GetServerDB(), database.GetUsersDB(), cfg))
 		authAPI.Post("/register", authAPIHandler.HandleAPIRegister)
 		authAPI.Post("/login", authAPIHandler.HandleAPILogin)
 		authAPI.Post("/2fa", authAPIHandler.HandleAPI2FA)
@@ -3123,36 +3113,36 @@ func main() {
 			return "pending"
 		}
 
-		// Setup API per spec: /api/{api_version}/{admin_path}/config/setup/
-		adminAPI.Get("/config/setup", setupHandler.GetSetupStatus)
-		adminAPI.Post("/config/setup/verify", func(w http.ResponseWriter, r *http.Request) {
+		// Setup API per spec: /api/{api_version}/{admin_path}/setup/
+		adminAPI.Get("/setup", setupHandler.GetSetupStatus)
+		adminAPI.Post("/setup/verify", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "verified": true})
 		})
-		adminAPI.Post("/config/setup/account", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup/account", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.admin_account_created")})
 		})
-		adminAPI.Post("/config/setup/token", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup/token", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "token": ""})
 		})
-		adminAPI.Post("/config/setup/config", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.server_config_saved")})
 		})
-		adminAPI.Post("/config/setup/security", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup/security", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.security_settings_saved")})
 		})
-		adminAPI.Post("/config/setup/services", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup/services", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.services_configured")})
 		})
-		adminAPI.Post("/config/setup/complete", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/setup/complete", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.complete")})
 		})
 
 		// Server management API - all under /server/ per spec
 		// User management
-		adminAPI.Get("/config/users", adminHandler.ListUsers)
-		adminAPI.Put("/config/users/{id}", adminHandler.UpdateUser)
-		adminAPI.Delete("/config/users/{id}", adminHandler.DeleteUser)
-		adminAPI.Get("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Get("/users", adminHandler.ListUsers)
+		adminAPI.Put("/users/{id}", adminHandler.UpdateUser)
+		adminAPI.Delete("/users/{id}", adminHandler.DeleteUser)
+		adminAPI.Get("/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			invites, err := userInviteModel.ListInvites()
 			if err != nil {
 				handler.RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", handler.Translate(r, "errors.admin.admins.failed_to_fetch_invites"))
@@ -3175,7 +3165,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "invites": responseInvites})
 		})
-		adminAPI.Post("/config/users/invites", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/users/invites", func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
@@ -3192,7 +3182,7 @@ func main() {
 			}
 
 			username := util.NormalizeUsername(req.Username)
-			if err := util.ValidateUsername(username); err != nil {
+			if err := util.ValidateAdminUsername(username); err != nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_username"))
 				return
 			}
@@ -3237,7 +3227,7 @@ func main() {
 				"expires_in_days": expiresInDays,
 			})
 		})
-		adminAPI.Get("/config/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Get("/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
@@ -3264,7 +3254,7 @@ func main() {
 				"status": userInviteStatus(*invite),
 			})
 		})
-		adminAPI.Delete("/config/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Delete("/users/invites/{id}", func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := getCurrentAdmin(w, r); !ok {
 				return
 			}
@@ -3284,43 +3274,43 @@ func main() {
 		})
 
 		// AI.md PART 17 header spec: JSON counterpart of the admin global search
-		adminAPI.Get("/config/search", handler.AdminSearchAPI)
+		adminAPI.Get("/settings/search", handler.AdminSearchAPI)
 
 		// Settings management
-		adminAPI.Get("/config/settings", adminHandler.ListSettings)
-		adminAPI.Patch("/config/settings", adminSettingsHandler.UpdateSettings)
-		adminAPI.Get("/config/settings/{key}", adminHandler.GetSetting)
-		adminAPI.Put("/config/settings/{key}", adminHandler.UpdateSetting)
-		adminAPI.Get("/config/settings/all", adminSettingsHandler.GetAllSettings)
-		adminAPI.Put("/config/settings/bulk", adminSettingsHandler.UpdateSettings)
-		adminAPI.Post("/config/settings/reset", adminSettingsHandler.ResetSettings)
-		adminAPI.Get("/config/settings/export", adminSettingsHandler.ExportSettings)
-		adminAPI.Post("/config/settings/import", adminSettingsHandler.ImportSettings)
-		adminAPI.Post("/config/reload", adminSettingsHandler.ReloadConfig)
+		adminAPI.Get("/settings", adminHandler.ListSettings)
+		adminAPI.Patch("/settings", adminSettingsHandler.UpdateSettings)
+		adminAPI.Get("/settings/{key}", adminHandler.GetSetting)
+		adminAPI.Put("/settings/{key}", adminHandler.UpdateSetting)
+		adminAPI.Get("/settings/all", adminSettingsHandler.GetAllSettings)
+		adminAPI.Put("/settings/bulk", adminSettingsHandler.UpdateSettings)
+		adminAPI.Post("/settings/reset", adminSettingsHandler.ResetSettings)
+		adminAPI.Get("/settings/export", adminSettingsHandler.ExportSettings)
+		adminAPI.Post("/settings/import", adminSettingsHandler.ImportSettings)
+		adminAPI.Post("/settings/reload", adminSettingsHandler.ReloadConfig)
 
 		// Admin settings sub-endpoints
-		adminAPI.Post("/config/users/settings", adminUsersHandler.UpdateUserSettings)
-		adminAPI.Put("/config/settings/cache", handler.UpdateCacheConfig)
-		adminAPI.Put("/config/settings/rate-limit", handler.UpdateRateLimitConfig)
-		adminAPI.Post("/config/security/auth", adminAuthHandler.UpdateAuthSettings)
-		adminAPI.Post("/config/weather", adminWeatherHandler.UpdateWeatherSettings)
-		adminAPI.Post("/config/notifications", adminNotificationsHandler.UpdateNotificationSettings)
-		adminAPI.Post("/config/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
+		adminAPI.Post("/users/settings", adminUsersHandler.UpdateUserSettings)
+		adminAPI.Put("/settings/cache", handler.UpdateCacheConfig)
+		adminAPI.Put("/settings/rate-limit", handler.UpdateRateLimitConfig)
+		adminAPI.Post("/security/auth", adminAuthHandler.UpdateAuthSettings)
+		adminAPI.Post("/settings/weather", adminWeatherHandler.UpdateWeatherSettings)
+		adminAPI.Post("/notifications", adminNotificationsHandler.UpdateNotificationSettings)
+		adminAPI.Post("/network/geoip", adminGeoIPHandler.UpdateGeoIPSettings)
 
 		// API token management under /server/security/
-		adminAPI.Get("/config/security/tokens", adminHandler.ListTokens)
-		adminAPI.Post("/config/security/tokens", adminHandler.GenerateToken)
-		adminAPI.Delete("/config/security/tokens/{id}", adminHandler.RevokeToken)
+		adminAPI.Get("/security/tokens", adminHandler.ListTokens)
+		adminAPI.Post("/security/tokens", adminHandler.GenerateToken)
+		adminAPI.Delete("/security/tokens/{id}", adminHandler.RevokeToken)
 
 		// Audit logs under /server/logs/
-		adminAPI.Get("/config/logs/audit-logs", adminHandler.ListAuditLogs)
-		adminAPI.Delete("/config/logs/audit-logs", adminHandler.ClearAuditLogs)
+		adminAPI.Get("/logs/audit-logs", adminHandler.ListAuditLogs)
+		adminAPI.Delete("/logs/audit-logs", adminHandler.ClearAuditLogs)
 
 		// System stats
-		adminAPI.Get("/config/stats", adminHandler.GetSystemStats)
+		adminAPI.Get("/stats", adminHandler.GetSystemStats)
 
-		// Email settings per spec: /api/{api_version}/{admin_path}/config/email/
-		adminAPI.Get("/config/email", func(w http.ResponseWriter, r *http.Request) {
+		// Email settings per spec: /api/{api_version}/{admin_path}/email/
+		adminAPI.Get("/email", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"enabled":  settingsModel.GetBool("email.enabled", false),
@@ -3330,7 +3320,7 @@ func main() {
 				"from":     settingsModel.GetString("email.from", ""),
 			})
 		})
-		adminAPI.Patch("/config/email", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Patch("/email", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
@@ -3345,15 +3335,15 @@ func main() {
 			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.email_settings_updated")})
 		})
-		adminAPI.Post("/config/email/test", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/email/test", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": handler.Translate(r, "success.admin.setup.test_email_unavailable"),
 			})
 		})
 
-		// Branding per spec: /api/{api_version}/{admin_path}/config/branding/
-		adminAPI.Get("/config/branding", func(w http.ResponseWriter, r *http.Request) {
+		// Branding per spec: /api/{api_version}/{admin_path}/branding/
+		adminAPI.Get("/branding", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"title":       settingsModel.GetString("branding.title", cfg.Server.Branding.Title),
@@ -3363,7 +3353,7 @@ func main() {
 				"theme_color": settingsModel.GetString("branding.theme_color", ""),
 			})
 		})
-		adminAPI.Patch("/config/branding", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Patch("/branding", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
@@ -3379,8 +3369,8 @@ func main() {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.setup.branding_settings_updated")})
 		})
 
-		// Pages per spec: /api/{api_version}/{admin_path}/config/pages/
-		adminAPI.Get("/config/pages", func(w http.ResponseWriter, r *http.Request) {
+		// Pages per spec: /api/{api_version}/{admin_path}/pages/
+		adminAPI.Get("/pages", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"about":   map[string]interface{}{"enabled": settingsModel.GetBool("pages.about.enabled", true)},
@@ -3390,7 +3380,7 @@ func main() {
 				"terms":   map[string]interface{}{"enabled": settingsModel.GetBool("pages.terms.enabled", true)},
 			})
 		})
-		adminAPI.Get("/config/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Get("/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -3399,7 +3389,7 @@ func main() {
 				"content": settingsModel.GetString("pages."+name+".content", ""),
 			})
 		})
-		adminAPI.Patch("/config/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Patch("/pages/{name}", func(w http.ResponseWriter, r *http.Request) {
 			name := chi.URLParam(r, "name")
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
@@ -3416,8 +3406,8 @@ func main() {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": fmt.Sprintf("%s page updated", name)})
 		})
 
-		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
-		adminAPI.Get("/config/web", func(w http.ResponseWriter, r *http.Request) {
+		// Web settings per spec: /api/{api_version}/{admin_path}/web/
+		adminAPI.Get("/web", func(w http.ResponseWriter, r *http.Request) {
 			settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 			mcpDefault := cfg.Server.MCP.Enabled
 			writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -3426,7 +3416,7 @@ func main() {
 				"mcp_enabled":  settingsModel.GetBool("server.mcp.enabled", mcpDefault),
 			})
 		})
-		adminAPI.Patch("/config/web", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Patch("/web", func(w http.ResponseWriter, r *http.Request) {
 			var settings map[string]interface{}
 			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "BAD_REQUEST", handler.Translate(r, "errors.admin.admins.invalid_request_body"))
@@ -3466,11 +3456,11 @@ func main() {
 
 		// Admin status and health endpoints
 		adminServerStatusHandler := handler.AdminServerStatus(db, port, httpsPort, sslManager)
-		adminAPI.Get("/config/status", adminServerStatusHandler)
-		adminAPI.Get("/config/health", adminServerStatusHandler)
+		adminAPI.Get("/status", adminServerStatusHandler)
+		adminAPI.Get("/status/health", adminServerStatusHandler)
 
 		// Server restart per spec: POST /server/restart
-		adminAPI.Post("/config/restart", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":      true,
 				"message": handler.Translate(r, "success.admin.setup.restart_initiated"),
@@ -3481,26 +3471,26 @@ func main() {
 			}()
 		})
 
-		// Scheduler per spec: /api/{api_version}/{admin_path}/config/scheduler/
-		adminAPI.Get("/config/scheduler", schedulerHandler.GetAllTasks)
-		adminAPI.Get("/config/scheduler/{name}", schedulerHandler.GetTaskHistory)
-		adminAPI.Patch("/config/scheduler/{name}", schedulerHandler.UpdateTask)
-		adminAPI.Post("/config/scheduler/{name}/run", schedulerHandler.TriggerTask)
-		adminAPI.Post("/config/scheduler/{name}/enable", schedulerHandler.EnableTask)
-		adminAPI.Post("/config/scheduler/{name}/disable", schedulerHandler.DisableTask)
+		// Scheduler per spec: /api/{api_version}/{admin_path}/scheduler/
+		adminAPI.Get("/scheduler", schedulerHandler.GetAllTasks)
+		adminAPI.Get("/scheduler/{name}", schedulerHandler.GetTaskHistory)
+		adminAPI.Patch("/scheduler/{name}", schedulerHandler.UpdateTask)
+		adminAPI.Post("/scheduler/{name}/run", schedulerHandler.TriggerTask)
+		adminAPI.Post("/scheduler/{name}/enable", schedulerHandler.EnableTask)
+		adminAPI.Post("/scheduler/{name}/disable", schedulerHandler.DisableTask)
 
-		// Notification channel management under /server/{admin_path}/config/channels/
-		adminAPI.Get("/config/channels", channelHandler.ListChannels)
-		adminAPI.Get("/config/channels/definitions", channelHandler.GetChannelDefinitions)
-		adminAPI.Get("/config/channels/queue/stats", channelHandler.GetQueueStats)
-		adminAPI.Get("/config/channels/history", channelHandler.GetNotificationHistory)
-		adminAPI.Post("/config/channels/initialize", channelHandler.InitializeChannels)
-		adminAPI.Get("/config/channels/{type}", channelHandler.GetChannel)
-		adminAPI.Put("/config/channels/{type}", channelHandler.UpdateChannel)
-		adminAPI.Post("/config/channels/{type}/enable", channelHandler.EnableChannel)
-		adminAPI.Post("/config/channels/{type}/disable", channelHandler.DisableChannel)
-		adminAPI.Post("/config/channels/{type}/test", channelHandler.TestChannel)
-		adminAPI.Get("/config/channels/{type}/stats", channelHandler.GetChannelStats)
+		// Notification channel management under /server/{admin_path}/notifications/channels/
+		adminAPI.Get("/notifications/channels", channelHandler.ListChannels)
+		adminAPI.Get("/notifications/channels/definitions", channelHandler.GetChannelDefinitions)
+		adminAPI.Get("/notifications/channels/queue/stats", channelHandler.GetQueueStats)
+		adminAPI.Get("/notifications/channels/history", channelHandler.GetNotificationHistory)
+		adminAPI.Post("/notifications/channels/initialize", channelHandler.InitializeChannels)
+		adminAPI.Get("/notifications/channels/{type}", channelHandler.GetChannel)
+		adminAPI.Put("/notifications/channels/{type}", channelHandler.UpdateChannel)
+		adminAPI.Post("/notifications/channels/{type}/enable", channelHandler.EnableChannel)
+		adminAPI.Post("/notifications/channels/{type}/disable", channelHandler.DisableChannel)
+		adminAPI.Post("/notifications/channels/{type}/test", channelHandler.TestChannel)
+		adminAPI.Get("/notifications/channels/{type}/stats", channelHandler.GetChannelStats)
 
 		// Admin profile per spec: /api/{api_version}/{admin_path}/profile/
 		adminSelfAPI.Get("/profile", func(w http.ResponseWriter, r *http.Request) {
@@ -3535,7 +3525,7 @@ func main() {
 
 			if req.Username != nil {
 				username = util.NormalizeUsername(*req.Username)
-				if err := util.ValidateUsername(username); err != nil {
+				if err := util.ValidateAdminUsername(username); err != nil {
 					handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.invalid_username"))
 					return
 				}
@@ -3812,8 +3802,8 @@ func main() {
 		adminSelfAPI.Post("/profile/security/passkeys", adminPasskeyHandler.RegisterPasskey)
 		adminSelfAPI.Delete("/profile/security/passkeys/{passkey_id}", adminPasskeyHandler.DeletePasskey)
 
-		// Server admins per spec: /api/{api_version}/{admin_path}/config/admins/
-		adminAPI.Get("/config/admins", func(w http.ResponseWriter, r *http.Request) {
+		// Server admins per spec: /api/{api_version}/{admin_path}/admins/
+		adminAPI.Get("/admins", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3843,7 +3833,7 @@ func main() {
 				"privacy_notice": "Other admin account details are not exposed",
 			})
 		})
-		adminAPI.Get("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Get("/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3866,7 +3856,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "admin": profile})
 		})
-		adminAPI.Delete("/config/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Delete("/admins/{id}", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3900,7 +3890,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_deleted")})
 		})
-		adminAPI.Post("/config/admins/{id}/disable", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/admins/{id}/disable", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3952,7 +3942,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_disabled")})
 		})
-		adminAPI.Post("/config/admins/{id}/enable", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/admins/{id}/enable", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3982,7 +3972,7 @@ func main() {
 
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": handler.Translate(r, "success.admin.core.admin_enabled")})
 		})
-		adminAPI.Post("/config/admins/invite", func(w http.ResponseWriter, r *http.Request) {
+		adminAPI.Post("/admins/invite", func(w http.ResponseWriter, r *http.Request) {
 			admin, ok := getCurrentAdmin(w, r)
 			if !ok {
 				return
@@ -3997,7 +3987,7 @@ func main() {
 				return
 			}
 
-			invite, expiresIn, err := adminInviteService.CreateInvite(req.Email, int(admin.ID), req.ExpiresIn)
+			invite, expiresIn, err := adminInviteService.CreateInviteWithBaseURL(req.Email, int(admin.ID), req.ExpiresIn, util.BuildURL(r, ""))
 			if err != nil {
 				handler.RespondError(w, r, http.StatusBadRequest, "VALIDATION_FAILED", handler.Translate(r, "errors.admin.admins.failed_to_create_invite"))
 				return
@@ -4028,56 +4018,56 @@ func main() {
 		adminSelfAPI.Post("/notifications/send", notificationAPIHandler.SendTestNotification)
 
 		// SMTP provider management under /server/
-		adminAPI.Get("/config/smtp/providers", channelHandler.ListSMTPProviders)
-		adminAPI.Post("/config/smtp/autodetect", channelHandler.AutoDetectSMTP)
+		adminAPI.Get("/email/smtp/providers", channelHandler.ListSMTPProviders)
+		adminAPI.Post("/email/smtp/autodetect", channelHandler.AutoDetectSMTP)
 
 		// Admin panel settings endpoints under /server/
-		adminAPI.Put("/config/settings/web", handler.SaveWebSettings)
-		adminAPI.Put("/config/settings/security", handler.SaveSecuritySettings)
-		adminAPI.Put("/config/settings/database", handler.SaveDatabaseSettings)
+		adminAPI.Put("/settings/web", handler.SaveWebSettings)
+		adminAPI.Put("/settings/security", handler.SaveSecuritySettings)
+		adminAPI.Put("/settings/database", handler.SaveDatabaseSettings)
 
 		// Database management endpoints under /server/
-		adminAPI.Post("/config/database/test", handler.TestDatabaseConnection)
-		adminAPI.Post("/config/database/test-config", handler.TestDatabaseConfigConnection)
-		adminAPI.Post("/config/database/optimize", handler.OptimizeDatabase)
-		adminAPI.Post("/config/database/vacuum", handler.VacuumDatabase)
-		adminAPI.Post("/config/cache/clear", handler.ClearCache)
+		adminAPI.Post("/database/test", handler.TestDatabaseConnection)
+		adminAPI.Post("/database/test-config", handler.TestDatabaseConfigConnection)
+		adminAPI.Post("/database/optimize", handler.OptimizeDatabase)
+		adminAPI.Post("/database/vacuum", handler.VacuumDatabase)
+		adminAPI.Post("/settings/cache/clear", handler.ClearCache)
 
-		// Backup management per spec: /api/{api_version}/{admin_path}/config/backup/
-		adminAPI.Get("/config/backup", handler.ListBackups)
-		adminAPI.Post("/config/backup", handler.CreateBackup)
-		adminAPI.Get("/config/backup/stats", handler.BackupStats)
-		adminAPI.Get("/config/backup/schedule", handler.GetBackupSchedule)
-		adminAPI.Post("/config/backup/schedule", handler.SaveBackupSchedule)
-		adminAPI.Post("/config/backup/restore", handler.RestoreBackup)
+		// Backup management per spec: /api/{api_version}/{admin_path}/backup/
+		adminAPI.Get("/backup", handler.ListBackups)
+		adminAPI.Post("/backup", handler.CreateBackup)
+		adminAPI.Get("/backup/stats", handler.BackupStats)
+		adminAPI.Get("/backup/schedule", handler.GetBackupSchedule)
+		adminAPI.Post("/backup/schedule", handler.SaveBackupSchedule)
+		adminAPI.Post("/backup/restore", handler.RestoreBackup)
 		// The param is named :filename because that is the value the handlers
 		// validate and resolve against the backup directory - a backup has no
 		// identifier other than its file name.
-		adminAPI.Get("/config/backup/{filename}", handler.DownloadBackup)
-		adminAPI.Delete("/config/backup/{filename}", handler.DeleteBackup)
-		adminAPI.Get("/config/backup/{filename}/download", handler.DownloadBackup)
+		adminAPI.Get("/backup/{filename}", handler.DownloadBackup)
+		adminAPI.Delete("/backup/{filename}", handler.DeleteBackup)
+		adminAPI.Get("/backup/{filename}/download", handler.DownloadBackup)
 
 		// Template management under /server/
-		adminAPI.Get("/config/templates", templateHandler.ListTemplates)
-		adminAPI.Get("/config/templates/variables", templateHandler.GetTemplateVariables)
-		adminAPI.Post("/config/templates/preview", templateHandler.PreviewTemplate)
-		adminAPI.Post("/config/templates/initialize", templateHandler.InitializeDefaults)
-		adminAPI.Get("/config/templates/{id}", templateHandler.GetTemplate)
-		adminAPI.Post("/config/templates", templateHandler.CreateTemplate)
-		adminAPI.Put("/config/templates/{id}", templateHandler.UpdateTemplate)
-		adminAPI.Delete("/config/templates/{id}", templateHandler.DeleteTemplate)
-		adminAPI.Post("/config/templates/{id}/clone", templateHandler.CloneTemplate)
+		adminAPI.Get("/notifications/templates", templateHandler.ListTemplates)
+		adminAPI.Get("/notifications/templates/variables", templateHandler.GetTemplateVariables)
+		adminAPI.Post("/notifications/templates/preview", templateHandler.PreviewTemplate)
+		adminAPI.Post("/notifications/templates/initialize", templateHandler.InitializeDefaults)
+		adminAPI.Get("/notifications/templates/{id}", templateHandler.GetTemplate)
+		adminAPI.Post("/notifications/templates", templateHandler.CreateTemplate)
+		adminAPI.Put("/notifications/templates/{id}", templateHandler.UpdateTemplate)
+		adminAPI.Delete("/notifications/templates/{id}", templateHandler.DeleteTemplate)
+		adminAPI.Post("/notifications/templates/{id}/clone", templateHandler.CloneTemplate)
 
 		// Notification metrics management under /server/
-		adminAPI.Get("/config/metrics/notifications/summary", metricsHandler.GetSummary)
-		adminAPI.Get("/config/metrics/notifications/channels/{type}", metricsHandler.GetChannelMetrics)
-		adminAPI.Get("/config/metrics/notifications/errors", metricsHandler.GetRecentErrors)
-		adminAPI.Get("/config/metrics/notifications/health", metricsHandler.GetHealthStatus)
+		adminAPI.Get("/metrics/notifications/summary", metricsHandler.GetSummary)
+		adminAPI.Get("/metrics/notifications/channels/{type}", metricsHandler.GetChannelMetrics)
+		adminAPI.Get("/metrics/notifications/errors", metricsHandler.GetRecentErrors)
+		adminAPI.Get("/metrics/notifications/health", metricsHandler.GetHealthStatus)
 
 		// Tor hidden service management (AI.md PART 32)
-		// API per spec: /api/{api_version}/{admin_path}/config/tor/
+		// API per spec: /api/{api_version}/{admin_path}/network/tor/
 		torAPI := chi.NewRouter()
-		adminAPI.Mount("/config/tor", torAPI)
+		adminAPI.Mount("/network/tor", torAPI)
 		{
 			torAPI.Get("/", torAdminHandler.GetStatus)
 			torAPI.Patch("/", torAdminHandler.UpdateSettings)
@@ -4090,9 +4080,9 @@ func main() {
 		}
 
 		// I2P eepsite management (AI.md PART 32.2)
-		// API per spec: /api/{api_version}/{admin_path}/config/i2p/
+		// API per spec: /api/{api_version}/{admin_path}/network/i2p/
 		i2pAPI := chi.NewRouter()
-		adminAPI.Mount("/config/i2p", i2pAPI)
+		adminAPI.Mount("/network/i2p", i2pAPI)
 		{
 			i2pAPI.Get("/", i2pAdminHandler.GetStatus)
 			i2pAPI.Patch("/", i2pAdminHandler.UpdateSettings)
@@ -4101,21 +4091,22 @@ func main() {
 			i2pAPI.Post("/restart", i2pAdminHandler.Restart)
 		}
 
-		// Web settings per spec: /api/{api_version}/{admin_path}/config/web/
+		// Web settings per spec: /api/{api_version}/{admin_path}/web/
 		webAPI := chi.NewRouter()
-		adminAPI.Mount("/config/web", webAPI)
+		adminAPI.Mount("/web", webAPI)
 		{
 			webAPI.Get("/robots", adminWebHandler.GetRobotsTxt)
 			webAPI.Patch("/robots", adminWebHandler.UpdateRobotsTxt)
+			webAPI.Patch("/feeds", adminWebHandler.UpdateFeedSettings)
 			webAPI.Get("/robots/preview", adminWebHandler.GetRobotsTxt)
 			webAPI.Get("/security", adminWebHandler.GetSecurityTxt)
 			webAPI.Patch("/security", adminWebHandler.UpdateSecurityTxt)
 			webAPI.Get("/security/preview", adminWebHandler.GetSecurityTxt)
 		}
 
-		// Email templates per spec: /api/{api_version}/{admin_path}/config/email/templates/
+		// Email templates per spec: /api/{api_version}/{admin_path}/email/templates/
 		emailTemplateAPI := chi.NewRouter()
-		adminAPI.Mount("/config/email/templates", emailTemplateAPI)
+		adminAPI.Mount("/email/templates", emailTemplateAPI)
 		{
 			emailTemplateAPI.Get("/", emailTemplateHandler.ListTemplates)
 			emailTemplateAPI.Get("/{name}", emailTemplateHandler.GetTemplate)
@@ -4126,7 +4117,7 @@ func main() {
 
 		// System logs management (already under /server/logs)
 		logsAPI := chi.NewRouter()
-		adminAPI.Mount("/config/logs", logsAPI)
+		adminAPI.Mount("/logs", logsAPI)
 		{
 			logsAPI.Get("/", logsHandler.GetLogs)
 			logsAPI.Get("/{type}", logsHandler.GetLogs)
@@ -4142,9 +4133,9 @@ func main() {
 			logsAPI.Delete("/", logsHandler.ClearLogs)
 		}
 
-		// SSL/TLS per spec: /api/{api_version}/{admin_path}/config/ssl/
+		// SSL/TLS per spec: /api/{api_version}/{admin_path}/ssl/
 		sslAPI := chi.NewRouter()
-		adminAPI.Mount("/config/ssl", sslAPI)
+		adminAPI.Mount("/ssl", sslAPI)
 		{
 			sslAPI.Get("/", sslHandler.GetStatus)
 			sslAPI.Patch("/", sslHandler.UpdateSettings)
@@ -4162,7 +4153,7 @@ func main() {
 
 		// Metrics configuration under /server/
 		metricsAPI := chi.NewRouter()
-		adminAPI.Mount("/config/metrics", metricsAPI)
+		adminAPI.Mount("/metrics", metricsAPI)
 		{
 			metricsAPI.Get("/config", metricsConfigHandler.GetMetricsSettings)
 			metricsAPI.Put("/config", metricsConfigHandler.UpdateMetricsSettings)
@@ -4173,7 +4164,7 @@ func main() {
 
 		// Advanced logging formats under /server/
 		loggingAPI := chi.NewRouter()
-		adminAPI.Mount("/config/logging", loggingAPI)
+		adminAPI.Mount("/logs/logging", loggingAPI)
 		{
 			loggingAPI.Get("/formats", loggingHandler.GetFormats)
 			loggingAPI.Put("/formats", loggingHandler.UpdateFormats)
@@ -4542,7 +4533,7 @@ func main() {
 		i2pEepsiteAddr = i2pManager.EepsiteAddress()
 	}
 
-	// The setup wizard lives at {adminBasePath}/config/setup, so the banner needs the configured admin path
+	// The setup wizard lives at {adminBasePath}/setup, so the banner needs the configured admin path
 	adminBasePath := "/server/administration"
 	if cfg != nil {
 		adminBasePath = "/server/" + cfg.GetAdminPath()

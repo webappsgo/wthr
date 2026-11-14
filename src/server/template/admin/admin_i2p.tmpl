@@ -90,7 +90,7 @@
         <h2 id="i2p-settings-heading">{{t $lang "admin.i2p.settings_heading"}}</h2>
         <p>{{t $lang "admin.i2p.settings_intro"}}</p>
 
-        <form method="post" action="{{.admin_path}}/config/network/i2p">
+        <form method="post" action="{{.admin_path}}/network/i2p">
             <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
 
             <div class="form-group">
@@ -284,7 +284,7 @@
         <h2 id="i2p-actions-heading">{{t $lang "admin.i2p.actions_heading"}}</h2>
 
         <div class="action-row">
-            <form method="post" action="{{.admin_path}}/config/network/i2p/restart" class="mr-md">
+            <form method="post" action="{{.admin_path}}/network/i2p/restart" class="mr-md">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <button type="submit"
                         class="btn btn-secondary"
@@ -294,7 +294,7 @@
                 </button>
             </form>
 
-            <form method="post" action="{{.admin_path}}/config/network/i2p/regenerate">
+            <form method="post" action="{{.admin_path}}/network/i2p/regenerate">
                 <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                 <button type="submit"
                         class="btn btn-danger"

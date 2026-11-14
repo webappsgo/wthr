@@ -111,6 +111,14 @@ func isAdminRoute(path string) bool {
 	return strings.HasPrefix(path, webPrefix) || strings.HasPrefix(path, apiPrefix)
 }
 
+// IsAdminFrontendPath reports whether path is a browser admin panel route,
+// /server/{admin_path} or anything beneath it. AI.md PART 14 pins these routes
+// to HTML for every client, so they are never converted to formatted text.
+func IsAdminFrontendPath(path string) bool {
+	webPrefix, _ := adminRoutePrefixes()
+	return path == webPrefix || strings.HasPrefix(path, webPrefix+"/")
+}
+
 // adminRoutePrefixes returns the browser and API admin route prefixes for the
 // currently configured admin path, in that order. Both the route test and the
 // resource extraction below must agree on these strings: if one of them used a

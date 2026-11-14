@@ -2,8 +2,11 @@ package handler
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/webappsgo/wthr/src/config"
@@ -27,7 +30,7 @@ func withTestGlobalConfig(t *testing.T) {
 	t.Helper()
 	resetGlobalConfig(t)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "server.yml"), []byte("web:\n  robots_txt: \"\"\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "server.yml"), []byte("web:\n  cors: \"*\"\n"), 0644); err != nil {
 		t.Fatalf("seed server.yml: %v", err)
 	}
 	oldConfigDir := os.Getenv("CONFIG_DIR")
@@ -45,7 +48,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	setGlobalTestDualDB(t, h.db.DB, newTestUsersDB(t))
 
 	t.Run("missing admin_id", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/web")
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
 			t.Fatalf("status = %d, want 302", w.Code)
@@ -53,7 +56,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	})
 
 	t.Run("non-int admin_id", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/web")
 		c = c.WithContext(reqctx.SetValue(c.Context(), "admin_id", "not-an-int"))
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
@@ -62,7 +65,7 @@ func TestAdminWebHandler_ShowWebSettings_RedirectBranches(t *testing.T) {
 	})
 
 	t.Run("admin not found", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/server/administration/config/web")
+		c, w := newTestContext(http.MethodGet, "/server/administration/web")
 		c = withAdminID(c, 999999)
 		h.ShowWebSettings(w, c)
 		if w.Code != http.StatusFound {
@@ -78,7 +81,7 @@ func TestAdminWebHandler_GetRobotsTxt_GetSecurityTxt(t *testing.T) {
 	resetGlobalConfig(t)
 
 	t.Run("robots", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/web/robots")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/web/robots")
 		h.GetRobotsTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", w.Code)
@@ -86,7 +89,7 @@ func TestAdminWebHandler_GetRobotsTxt_GetSecurityTxt(t *testing.T) {
 	})
 
 	t.Run("security", func(t *testing.T) {
-		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/config/web/security")
+		c, w := newTestContext(http.MethodGet, "/api/v1/server/administration/web/security")
 		h.GetSecurityTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", w.Code)
@@ -94,15 +97,18 @@ func TestAdminWebHandler_GetRobotsTxt_GetSecurityTxt(t *testing.T) {
 	})
 }
 
-// TestAdminWebHandler_UpdateRobotsTxt covers missing-content validation,
-// the "global config not initialized" 500, and a real success write to a
-// scratch temp config file.
+// TestAdminWebHandler_UpdateRobotsTxt covers invalid paths, the "global config
+// not initialized" 500, a JSON success write, and the no-JS form flow (save and
+// reset) which redirects back with a flash.
 func TestAdminWebHandler_UpdateRobotsTxt(t *testing.T) {
 	h := &AdminWebHandler{}
 
-	t.Run("missing content", func(t *testing.T) {
-		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{})
+	t.Run("path without a leading slash is rejected", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/robots", map[string]interface{}{
+			"allow": []string{"/"},
+			"deny":  []string{"private"},
+		})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -111,19 +117,63 @@ func TestAdminWebHandler_UpdateRobotsTxt(t *testing.T) {
 
 	t.Run("global config not initialized", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{"content": "User-agent: *"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/robots", map[string]interface{}{"allow": []string{"/"}})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
 		}
 	})
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("json success persists the lists", func(t *testing.T) {
 		withTestGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/robots", map[string]interface{}{"content": "User-agent: *\nDisallow: /admin"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/robots", map[string]interface{}{
+			"allow": []string{"/", "/api"},
+			"deny":  []string{"/server/{admin_path}", "/private"},
+		})
 		h.UpdateRobotsTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+		}
+		got := config.GetGlobalConfig().Web.Robots
+		if len(got.Deny) != 2 || got.Deny[1] != "/private" {
+			t.Fatalf("saved deny = %v, want both paths", got.Deny)
+		}
+	})
+
+	t.Run("form post saves one path per line and redirects", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		form := url.Values{"allow": {"/\r\n/api"}, "deny": {"/hidden"}}
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/web/robots", strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.UpdateRobotsTxt(w, r)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303; body=%s", w.Code, w.Body.String())
+		}
+		if loc := w.Header().Get("Location"); loc != "/server/administration/web" {
+			t.Fatalf("Location = %q, want /server/administration/web", loc)
+		}
+		got := config.GetGlobalConfig().Web.Robots
+		if len(got.Allow) != 2 || got.Allow[1] != "/api" || len(got.Deny) != 1 || got.Deny[0] != "/hidden" {
+			t.Fatalf("saved robots = %+v", got)
+		}
+	})
+
+	t.Run("form reset restores the defaults", func(t *testing.T) {
+		withTestGlobalConfig(t)
+		config.GetGlobalConfig().Web.Robots = config.RobotsConfig{Allow: []string{"/x"}, Deny: []string{"/y"}}
+		form := url.Values{"allow": {"/x"}, "deny": {"/y"}, "reset": {"1"}}
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/web/robots", strings.NewReader(form.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		h.UpdateRobotsTxt(w, r)
+		if w.Code != http.StatusSeeOther {
+			t.Fatalf("status = %d, want 303", w.Code)
+		}
+		got := config.GetGlobalConfig().Web.Robots
+		want := config.DefaultRobotsConfig()
+		if strings.Join(got.Allow, ",") != strings.Join(want.Allow, ",") || strings.Join(got.Deny, ",") != strings.Join(want.Deny, ",") {
+			t.Fatalf("robots after reset = %+v, want %+v", got, want)
 		}
 	})
 }
@@ -135,7 +185,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("missing content", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/security", map[string]interface{}{})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
@@ -144,7 +194,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("global config not initialized", func(t *testing.T) {
 		resetGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusInternalServerError {
 			t.Fatalf("status = %d, want 500; body=%s", w.Code, w.Body.String())
@@ -153,7 +203,7 @@ func TestAdminWebHandler_UpdateSecurityTxt(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		withTestGlobalConfig(t)
-		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/config/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
+		c, w := newTestContextJSON(t, http.MethodPatch, "/api/v1/server/administration/web/security", map[string]interface{}{"content": "Contact: mailto:security@example.com"})
 		h.UpdateSecurityTxt(w, c)
 		if w.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())

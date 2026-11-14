@@ -26,7 +26,7 @@ func newNotificationsTestConfigFile(t *testing.T) string {
 // HTML render path. No auth/data gating exists on this handler.
 func TestAdminNotificationsHandler_ShowNotificationSettings(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: newNotificationsTestConfigFile(t)}
-	c, w := newAPITestContext("/server/administration/config/notifications")
+	c, w := newAPITestContext("/server/administration/notifications")
 	defer htmlRenderGuard(t)
 	h.ShowNotificationSettings(w, c)
 	if w.Code != http.StatusOK {
@@ -42,7 +42,7 @@ func TestAdminNotificationsHandler_UpdateNotificationSettings_Success(t *testing
 
 	body := `{"email_startup":true,"email_shutdown":true,"email_backup_complete":true,"email_backup_failed":true,"email_cert_renewal":true,"webhook_enabled":true,"webhook_url":"https://hooks.example.com/x","webhook_events":["backup_failed"],"webui_position":"top-right","webui_duration":5000,"webui_max_stored":100,"webui_retention_days":30}`
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/notifications", body)
 
 	h.UpdateNotificationSettings(w, c)
 
@@ -74,7 +74,7 @@ func TestAdminNotificationsHandler_UpdateNotificationSettings_InvalidJSON(t *tes
 
 	h := &AdminNotificationsHandler{ConfigPath: configPath}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", "{not valid json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/notifications", "{not valid json")
 
 	h.UpdateNotificationSettings(w, c)
 
@@ -96,7 +96,7 @@ func TestAdminNotificationsHandler_UpdateNotificationSettings_InvalidJSON(t *tes
 func TestAdminNotificationsHandler_UpdateNotificationSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminNotificationsHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/notifications", `{"email_startup":true}`)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/notifications", `{"email_startup":true}`)
 
 	h.UpdateNotificationSettings(w, c)
 

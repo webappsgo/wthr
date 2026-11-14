@@ -251,7 +251,7 @@ __create_admin() {
         --data-urlencode "email=admin@example.com" \
         --data-urlencode "password=$ADMIN_PASSWORD" \
         --data-urlencode "confirm_password=$ADMIN_PASSWORD" \
-        "$BASE_URL/server/administration/config/setup"
+        "$BASE_URL/server/administration/setup"
 
     if [ "$(__http_code "$hdr")" != "200" ]; then
         __fail "admin bootstrap :: expected status 200, got $(__http_code "$hdr")"
@@ -332,15 +332,15 @@ __check_unauth_protection() {
         __fail "unauth api /api/v1/users :: expected 401"
     fi
 
-    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/administration/config/users" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: application/json" "$BASE_URL/api/v1/server/administration/users" >/dev/null
     if [ "$(__http_code "$hdr")" != "401" ]; then
-        __fail "unauth api /api/v1/server/administration/config/users :: expected 401"
+        __fail "unauth api /api/v1/server/administration/users :: expected 401"
     fi
 
-    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/administration/dashboard" >/dev/null
+    curl -q -Ss -D "$hdr" -o "$body" -H "Accept: text/html" "$BASE_URL/server/administration/settings" >/dev/null
     case "$(__http_code "$hdr")" in
         302 | 401 | 403) ;;
-        *) __fail "unauth html /server/administration/dashboard :: expected 302/401/403, got $(__http_code "$hdr")" ;;
+        *) __fail "unauth html /server/administration/settings :: expected 302/401/403, got $(__http_code "$hdr")" ;;
     esac
 }
 
@@ -447,39 +447,38 @@ USER_API_ROUTES=(
 
 ADMIN_FRONTEND_ROUTES=(
     "/server/administration"
-    "/server/administration/dashboard"
-    "/server/administration/config/settings"
-    "/server/administration/config/web"
-    "/server/administration/config/users"
-    "/server/administration/config/security"
-    "/server/administration/config/scheduler"
-    "/server/administration/config/backup"
-    "/server/administration/config/logs"
-    "/server/administration/config/branding"
-    "/server/administration/config/pages"
-    "/server/administration/config/admins"
+    "/server/administration/settings"
+    "/server/administration/web"
+    "/server/administration/users"
+    "/server/administration/security"
+    "/server/administration/scheduler"
+    "/server/administration/backup"
+    "/server/administration/logs"
+    "/server/administration/branding"
+    "/server/administration/pages"
+    "/server/administration/admins"
     "/server/administration/$ADMIN_USERNAME/notifications"
 )
 
 ADMIN_API_ROUTES=(
-    "/api/v1/server/administration/config/setup"
-    "/api/v1/server/administration/config/users"
-    "/api/v1/server/administration/config/settings"
-    "/api/v1/server/administration/config/settings/all"
-    "/api/v1/server/administration/config/security/tokens"
-    "/api/v1/server/administration/config/stats"
-    "/api/v1/server/administration/config/email"
-    "/api/v1/server/administration/config/branding"
-    "/api/v1/server/administration/config/pages"
-    "/api/v1/server/administration/config/web/robots"
-    "/api/v1/server/administration/config/status"
-    "/api/v1/server/administration/config/health"
-    "/api/v1/server/administration/config/scheduler"
-    "/api/v1/server/administration/config/channels"
-    "/api/v1/server/administration/config/admins"
-    "/api/v1/server/administration/config/backup"
-    "/api/v1/server/administration/config/templates"
-    "/api/v1/server/administration/config/smtp/providers"
+    "/api/v1/server/administration/setup"
+    "/api/v1/server/administration/users"
+    "/api/v1/server/administration/settings"
+    "/api/v1/server/administration/settings/all"
+    "/api/v1/server/administration/security/tokens"
+    "/api/v1/server/administration/stats"
+    "/api/v1/server/administration/email"
+    "/api/v1/server/administration/branding"
+    "/api/v1/server/administration/pages"
+    "/api/v1/server/administration/web/robots"
+    "/api/v1/server/administration/status"
+    "/api/v1/server/administration/status/health"
+    "/api/v1/server/administration/scheduler"
+    "/api/v1/server/administration/notifications/channels"
+    "/api/v1/server/administration/admins"
+    "/api/v1/server/administration/backup"
+    "/api/v1/server/administration/notifications/templates"
+    "/api/v1/server/administration/email/smtp/providers"
     "/api/v1/server/administration/$ADMIN_USERNAME/preferences"
     "/api/v1/server/administration/$ADMIN_USERNAME/profile/sessions"
     "/api/v1/server/administration/$ADMIN_USERNAME/notifications"
@@ -556,7 +555,7 @@ A11Y_USER_ROUTES=(
 )
 
 A11Y_ADMIN_ROUTES=(
-    "/server/administration/dashboard"
+    "/server/administration"
 )
 
 __a11y_fetch() {

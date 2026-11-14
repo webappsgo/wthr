@@ -1334,7 +1334,7 @@
         const headers = { 'Content-Type': 'application/json' };
         const csrf = field('csrf_token');
         if (csrf && csrf.value) headers['X-CSRF-Token'] = csrf.value;
-        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/config/settings/cache', {
+        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/settings/cache', {
           method: 'PUT',
           headers: headers,
           body: JSON.stringify(body)
@@ -1378,7 +1378,7 @@
       const submit = form.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
       try {
-        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/config/settings/rate-limit', {
+        const response = await fetch(AdminSettingsPage.getData().adminApiPath + '/settings/rate-limit', {
           method: 'PUT',
           headers: headers,
           body: JSON.stringify(body)
@@ -1897,7 +1897,7 @@
     },
 
     backupApi: function() {
-      return AdminBackupPage.getData().adminApiPath + '/config/backup';
+      return AdminBackupPage.getData().adminApiPath + '/backup';
     },
 
     request: function(url, options) {
@@ -3100,7 +3100,7 @@
               throw new Error(verifyData.error || 'Passkey verification failed');
             }
             AdminPasskeyLoginPage.setStatus('Authentication successful. Redirecting…', 'status-success');
-            window.location.href = '/' + adminPath + '/dashboard';
+            window.location.href = '/' + adminPath;
           });
         })
         .catch(function(err) {
@@ -3202,7 +3202,7 @@
         }
       });
 
-      fetch(adminPath + '/config/scheduler', {
+      fetch(adminPath + '/scheduler', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3217,7 +3217,7 @@
           }
           AdminSchedulerPage.showSuccess('Scheduler configuration saved successfully!');
           setTimeout(function() {
-            window.location.href = adminPath + '/config/scheduler';
+            window.location.href = adminPath + '/scheduler';
           }, 1500);
         })
         .catch(function(error) {
@@ -5578,45 +5578,8 @@
       });
     },
 
-    saveRobotsTxt: function(form) {
-      const content = form.querySelector('#robots_txt');
-      const adminApiPath = AdminWebPage.getData().adminApiPath;
-      fetch(adminApiPath + '/config/web/robots', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: content ? content.value : ''
-        })
-      }).then(function(response) {
-        return response.json().then(function(data) {
-          if (!response.ok) {
-            throw new Error(data.message || 'Failed to save robots.txt');
-          }
-          Toast.success('robots.txt saved successfully');
-        });
-      }).catch(function(error) {
-        console.error('Save error:', error);
-        Toast.error(error.message);
-      });
-    },
-
-    previewRobotsTxt: function() {
-      window.open('/robots.txt', '_blank');
-    },
-
     previewSecurityTxt: function() {
       window.open('/.well-known/security.txt', '_blank');
-    },
-
-    resetRobotsTxt: function() {
-      showConfirm('Reset robots.txt to default configuration?', 'Reset Robots.txt').then(function(confirmed) {
-        if (!confirmed) return;
-        const robotsTxt = document.getElementById('robots_txt');
-        if (robotsTxt) {
-          robotsTxt.value = 'User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nSitemap: {app_url}/sitemap.xml';
-        }
-        Toast.info('robots.txt reset to defaults (not saved yet)');
-      });
     },
 
     init: function() {
@@ -5638,14 +5601,6 @@
         });
       }
 
-      const robotsForm = document.getElementById('robots-form');
-      if (robotsForm) {
-        robotsForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          AdminWebPage.saveRobotsTxt(robotsForm);
-        });
-      }
-
       const securityTxtForm = document.getElementById('security-txt-form');
       if (securityTxtForm) {
         securityTxtForm.addEventListener('submit', function(e) {
@@ -5660,7 +5615,7 @@
           e.preventDefault();
           const value = mcpForm.querySelector('#mcp_enabled');
           const adminApiPath = AdminWebPage.getData().adminApiPath;
-          fetch(adminApiPath + '/config/web', {
+          fetch(adminApiPath + '/web', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mcp_enabled: value ? value.value === 'true' : false })
@@ -7856,12 +7811,6 @@
           break;
         case 'edit-location-delete':
           EditLocationPage.handleDelete();
-          break;
-        case 'admin-web-preview-robots':
-          AdminWebPage.previewRobotsTxt();
-          break;
-        case 'admin-web-reset-robots':
-          AdminWebPage.resetRobotsTxt();
           break;
         case 'admin-web-preview-security':
           AdminWebPage.previewSecurityTxt();

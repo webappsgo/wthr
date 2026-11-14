@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -432,7 +433,7 @@ func (h *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All users created via /register are regular users.
-	// Admin accounts are created through the /{admin_path}/config/setup wizard on first run.
+	// Admin accounts are created through the /{admin_path}/setup wizard on first run.
 	role := "user"
 
 	// Create user
@@ -530,6 +531,25 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		sessionModel.DeleteSession(session.ID)
 	}
 
+	// AI.md PART 17: one logout endpoint ends a Server Admin session as well
+	adminSessionEnded := false
+	if cookie, err := r.Cookie("admin_session"); err == nil && cookie.Value != "" {
+		adminSessionModel := &model.AdminSessionModel{DB: database.GetServerDB()}
+		if err := adminSessionModel.DeleteSession(cookie.Value); err != nil {
+			log.Printf("WARNING: logout: failed to delete admin session: %v", err)
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     "admin_session",
+			Value:    "",
+			MaxAge:   -1,
+			Path:     "/",
+			Secure:   util.TrustedIsHTTPS(r),
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+		adminSessionEnded = true
+	}
+
 	// Clear session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     middleware.SessionCookieName,
@@ -546,6 +566,10 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(acceptHeader, "application/json") {
 		writeAuthJSON(w, http.StatusOK, map[string]interface{}{"message": Translate(r, "success.auth.logout")})
 	} else {
+		if adminSessionEnded {
+			http.Redirect(w, r, "/server/auth/login", http.StatusFound)
+			return
+		}
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }

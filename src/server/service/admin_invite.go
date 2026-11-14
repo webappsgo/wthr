@@ -70,8 +70,16 @@ func (s *AdminInviteService) GenerateInviteToken() (string, error) {
 	return token, nil
 }
 
-// CreateInvite creates a new admin invitation
+// CreateInvite creates a new admin invitation using the service's configured
+// base URL for the emailed link.
 func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expiration string) (*model.AdminInvite, string, error) {
+	return s.CreateInviteWithBaseURL(email, invitedByID, expiration, s.BaseURL)
+}
+
+// CreateInviteWithBaseURL creates a new admin invitation whose emailed link is
+// built from baseURL, the {proto}://{fqdn} the request arrived on, so the link
+// is always absolute (AI.md PART 8 "Resolution Order").
+func (s *AdminInviteService) CreateInviteWithBaseURL(email string, invitedByID int, expiration, baseURL string) (*model.AdminInvite, string, error) {
 	normalizedEmail := util.NormalizeEmail(email)
 	if err := util.ValidateEmail(normalizedEmail); err != nil {
 		return nil, "", err
@@ -103,8 +111,8 @@ func (s *AdminInviteService) CreateInvite(email string, invitedByID int, expirat
 
 	// Send invitation email when SMTP is configured
 	if s.EmailService != nil && s.EmailService.IsEnabled() {
-		inviteURL := fmt.Sprintf("%s/auth/invite/server/%s", s.BaseURL, invite.Token)
-		if err := s.sendInviteEmail(normalizedEmail, inviteURL, invite.ExpiresAt); err != nil {
+		inviteURL := fmt.Sprintf("%s/server/auth/invite/server/%s", baseURL, invite.Token)
+		if err := s.sendInviteEmail(normalizedEmail, inviteURL, baseURL, invite.ExpiresAt); err != nil {
 			fmt.Printf("Warning: failed to send invite email to %s: %v\n", normalizedEmail, err)
 		}
 	}
@@ -141,7 +149,7 @@ func (s *AdminInviteService) AcceptInvite(token, username, password string) (*mo
 	}
 
 	normalizedUsername := util.NormalizeUsername(username)
-	if err := util.ValidateUsername(normalizedUsername); err != nil {
+	if err := util.ValidateAdminUsername(normalizedUsername); err != nil {
 		return nil, err
 	}
 
@@ -171,7 +179,7 @@ func (s *AdminInviteService) CleanupExpiredInvites() error {
 }
 
 // sendInviteEmail sends an admin invitation email via the configured SMTP service.
-func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresAt time.Time) error {
+func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL, baseURL string, expiresAt time.Time) error {
 	minutesRemaining := int(time.Until(expiresAt).Minutes())
 
 	lang := "en"
@@ -188,7 +196,7 @@ func (s *AdminInviteService) sendInviteEmail(toEmail, inviteURL string, expiresA
 		"invite_link":        inviteURL,
 		"expires_in_minutes": minutesRemaining,
 		"expires_at":         expiresAt.Format(time.RFC1123),
-		"app_url":            s.BaseURL,
+		"app_url":            baseURL,
 	})
 	if err != nil {
 		return err

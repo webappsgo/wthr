@@ -22,7 +22,7 @@
       <p class="empty-state__icon" aria-hidden="true">&#128225;</p>
       <h3 class="empty-state__title">{{t $lang "admin.channels.empty_title"}}</h3>
       <p class="empty-state__message">{{t $lang "admin.channels.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/config/notifications">{{t $lang "admin.channels.empty_action"}}</a>
+      <a class="btn btn-primary" href="{{$ap}}/notifications">{{t $lang "admin.channels.empty_action"}}</a>
     </div>
   </section>
   {{else}}
@@ -41,7 +41,7 @@
         <dt class="admin-detail-list__term">{{t $lang "admin.channels.col_enabled"}}</dt>
         <dd class="admin-detail-list__value">{{if .Enabled}}{{t $lang "admin.channels.yes"}}{{else}}{{t $lang "admin.channels.no"}}{{end}}</dd>
       </dl>
-      <form class="admin-form" method="post" action="{{$ap}}/config/channels/{{.ChannelType}}">
+      <form class="admin-form" method="post" action="{{$ap}}/notifications/channels/{{.ChannelType}}">
         <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
         <div class="form-group">
           <label class="form-check" for="channel-{{.ChannelType}}-enabled">
@@ -53,19 +53,19 @@
           <button type="submit" class="btn btn-primary">{{t $lang "admin.channels.action_update"}}</button>
         </div>
       </form>
-      <form class="admin-form" method="post" action="{{$ap}}/config/channels/{{.ChannelType}}/enable">
+      <form class="admin-form" method="post" action="{{$ap}}/notifications/channels/{{.ChannelType}}/enable">
         <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
         <div class="form-actions">
           <button type="submit" class="btn btn-secondary">{{t $lang "admin.channels.op_enable"}}</button>
         </div>
       </form>
-      <form class="admin-form" method="post" action="{{$ap}}/config/channels/{{.ChannelType}}/disable">
+      <form class="admin-form" method="post" action="{{$ap}}/notifications/channels/{{.ChannelType}}/disable">
         <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
         <div class="form-actions">
           <button type="submit" class="btn btn-secondary">{{t $lang "admin.channels.op_disable"}}</button>
         </div>
       </form>
-      <form class="admin-form" method="post" action="{{$ap}}/config/channels/{{.ChannelType}}/test">
+      <form class="admin-form" method="post" action="{{$ap}}/notifications/channels/{{.ChannelType}}/test">
         <input type="hidden" name="csrf_token" value="{{$.csrf_token}}">
         <div class="form-group">
           <label for="channel-{{.ChannelType}}-recipient">{{t $lang "admin.channels.field_recipient"}}</label>
@@ -86,17 +86,17 @@
     </div>
     <dl class="admin-detail-list">
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_list"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_definitions"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels/definitions</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels/definitions</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_detail"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels/:type</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels/:type</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_stats"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels/:type/stats</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels/:type/stats</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_queue"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels/queue/stats</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels/queue/stats</code></dd>
       <dt class="admin-detail-list__term">{{t $lang "admin.channels.read_history"}}</dt>
-      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/config/channels/history</code></dd>
+      <dd class="admin-detail-list__value admin-break-all"><code>GET {{$apiPath}}/notifications/channels/history</code></dd>
     </dl>
   </section>
 
@@ -117,27 +117,27 @@
         <tbody>
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_update"}}</th>
-            <td class="admin-table-body-cell admin-break-all"><code>PUT {{$apiPath}}/config/channels/:type</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>PUT {{$apiPath}}/notifications/channels/:type</code></td>
             <td class="admin-table-body-cell admin-break-all"><code>{"enabled": true, "config": {}}</code></td>
           </tr>
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_enable"}}</th>
-            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/config/channels/:type/enable</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/notifications/channels/:type/enable</code></td>
             <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
           </tr>
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_disable"}}</th>
-            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/config/channels/:type/disable</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/notifications/channels/:type/disable</code></td>
             <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
           </tr>
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_test"}}</th>
-            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/config/channels/:type/test</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/notifications/channels/:type/test</code></td>
             <td class="admin-table-body-cell admin-break-all"><code>{"recipient": "..."}</code></td>
           </tr>
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">{{t $lang "admin.channels.op_initialize"}}</th>
-            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/config/channels/initialize</code></td>
+            <td class="admin-table-body-cell admin-break-all"><code>POST {{$apiPath}}/notifications/channels/initialize</code></td>
             <td class="admin-table-body-cell">{{t $lang "admin.channels.body_none"}}</td>
           </tr>
         </tbody>

@@ -257,13 +257,6 @@ func (m *SettingsModel) InitializeDefaults(backupPath ...string) error {
 		"seo.author":   {Value: "", Type: "string", Description: "Website author or organization name"},
 		"seo.og_image": {Value: "", Type: "string", Description: "Social media preview image URL (1200x630px recommended)"},
 
-		// robots.txt
-		"web.robots_txt": {Value: `User-agent: *
-Allow: /
-Allow: /api
-Disallow: /server/{admin_path}
-Sitemap: {app_url}/sitemap.xml`, Type: "text", Description: "robots.txt content - {app_url} and {admin_path} are replaced with the actual values"},
-
 		// security.txt (RFC 9116)
 		"web.security_txt": {Value: fmt.Sprintf("Contact: mailto:%s\nExpires: %s\nPreferred-Languages: en\nCanonical: {app_url}/.well-known/security.txt", config.DefaultEmailAddress("security", config.GetGlobalConfig()), time.Now().AddDate(1, 0, 0).UTC().Format(time.RFC3339)), Type: "text", Description: "security.txt content (RFC 9116) - {app_url} will be replaced with actual URL"},
 

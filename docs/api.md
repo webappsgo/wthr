@@ -36,13 +36,34 @@ Browser sessions use a cookie; the API never needs or checks a CSRF token.
 | `GET /api/v1/server/security` | Security contacts, expiry, PGP state, policy and thanks links |
 | `GET /api/v1/server/security/policy` | Disclosure policy (`policy`, Markdown) |
 | `GET /api/v1/server/security/thanks` | Acknowledgments (`entries`) |
+| `GET /api/v1/server/contact` | Contact form description: `fields` (`name`, `type`, `required`, `max_length`), `captcha` (`{provider, site_key}` or, for the built-in challenge, `{provider, challenge_id, question}`), `security_url`, `abuse_email` |
 | `POST /api/v1/server/contact` | Contact form; needs a solved captcha (see below) |
+| `GET /api/v1/server/auth/check` | Token check: `200` with `{"kind": "operator" \| "owner" \| "user"}` for a valid `Authorization: Bearer` token, `401` otherwise; no side effects, the token is never echoed |
 | `POST /api/v1/server/mcp` | MCP endpoint (Streamable HTTP); aliases `/api/mcp` and `/mcp` |
 
 The contact form needs a captcha on every submission. The built-in challenge is the default
 (`captcha_id` from the contact page plus `captcha_answer`); with `recaptcha` or `hcaptcha`
 configured, send the provider token as `captcha_response`. A failed captcha returns `400
 CAPTCHA_FAILED`; an unreachable provider returns `503 CAPTCHA_UNAVAILABLE` with `Retry-After`.
+
+Contact field limits count Unicode characters after trimming: `name` 100, `email` 254,
+`subject` 200, `message` 5000.
+
+### Fixed-format files
+
+These routes are plain `GET` and `HEAD` files with no content negotiation, built per request with
+absolute URLs for the host the client used.
+
+| Route | Content-Type | Description |
+|-------|--------------|-------------|
+| `/robots.txt` | `text/plain` | Generated from `web.robots.allow` and `web.robots.deny`, with the `Sitemap:` line |
+| `/sitemap.xml` | `application/xml` | Public frontend pages that `robots.txt` allows; always served |
+| `/feed.xml` | `application/atom+xml` | Atom 1.0 feed of the most recent earthquakes (magnitude 2.5 and above); always served |
+| `/rss.xml` | `application/rss+xml` | The same items as RSS 2.0; always served |
+
+Both feeds carry `ETag` and `Last-Modified`, answer `304` to a matching conditional request and set
+`Cache-Control: public, max-age=300`. The number of entries (`server.seo.feed.max_items`, 1 to 200,
+default 50) and the feed title (`server.seo.feed.title`) are set in the admin panel under Web.
 
 ## API Endpoints
 

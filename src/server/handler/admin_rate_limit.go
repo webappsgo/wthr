@@ -76,7 +76,7 @@ func UpdateRateLimitConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	config.SetGlobalConfig(&updated)
 	if r.Method == http.MethodPost {
-		settingsPath := strings.TrimSuffix(r.URL.Path, "/config/settings/rate-limit") + "/config/settings"
+		settingsPath := adminPagePath(r, "/settings")
 		http.Redirect(w, r, settingsPath, http.StatusSeeOther)
 		return
 	}

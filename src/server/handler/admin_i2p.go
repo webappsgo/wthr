@@ -169,7 +169,7 @@ func (h *I2PAdminHandler) decodeI2PConfig(r *http.Request) (config.I2PConfig, er
 }
 
 // GetStatus returns the I2P eepsite status and configuration
-// GET /api/{api_version}/server/{admin_path}/config/i2p
+// GET /api/{api_version}/server/{admin_path}/network/i2p
 func (h *I2PAdminHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"status": h.i2pStatusPayload(),
@@ -178,7 +178,7 @@ func (h *I2PAdminHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateSettings validates, persists and live applies the I2P settings
-// PATCH /api/{api_version}/server/{admin_path}/config/i2p
+// PATCH /api/{api_version}/server/{admin_path}/network/i2p
 func (h *I2PAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	next, err := h.decodeI2PConfig(r)
 	if err != nil {
@@ -231,7 +231,7 @@ func (h *I2PAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 }
 
 // ValidateI2PConfig checks the submitted settings without saving them
-// POST /api/{api_version}/server/{admin_path}/config/i2p/validate
+// POST /api/{api_version}/server/{admin_path}/network/i2p/validate
 func (h *I2PAdminHandler) ValidateI2PConfig(w http.ResponseWriter, r *http.Request) {
 	next, err := h.decodeI2PConfig(r)
 	if err != nil {
@@ -250,7 +250,7 @@ func (h *I2PAdminHandler) ValidateI2PConfig(w http.ResponseWriter, r *http.Reque
 }
 
 // Regenerate creates a brand new .b32.i2p destination
-// POST /api/{api_version}/server/{admin_path}/config/i2p/regenerate
+// POST /api/{api_version}/server/{admin_path}/network/i2p/regenerate
 func (h *I2PAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	if h.i2pManager == nil || !currentI2PConfig().Enabled {
 		if !wantsI2PJSON(r) {
@@ -282,7 +282,7 @@ func (h *I2PAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 }
 
 // Restart restarts the I2P provider with the persisted configuration
-// POST /api/{api_version}/server/{admin_path}/config/i2p/restart
+// POST /api/{api_version}/server/{admin_path}/network/i2p/restart
 func (h *I2PAdminHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	if h.i2pManager == nil || !currentI2PConfig().Enabled {
 		if !wantsI2PJSON(r) {
@@ -313,7 +313,7 @@ func (h *I2PAdminHandler) Restart(w http.ResponseWriter, r *http.Request) {
 }
 
 // ShowI2PSettings renders the I2P eepsite admin page
-// GET /server/{admin_path}/config/network/i2p
+// GET /server/{admin_path}/network/i2p
 func (h *I2PAdminHandler) ShowI2PSettings(w http.ResponseWriter, r *http.Request) {
 	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_i2p.tmpl", AdminTemplateData(r, map[string]interface{}{
 		"title":          Translate(r, "admin.i2p.title"),

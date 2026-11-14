@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -475,15 +476,26 @@ func TestSetGlobalConfig_GetGlobalConfig(t *testing.T) {
 	}
 }
 
-func TestUpdateWebRobotsTxt(t *testing.T) {
+func TestUpdateWebRobots(t *testing.T) {
 	t.Run("errors when global config not initialized", func(t *testing.T) {
 		withGlobalConfig(t, nil)
-		if err := UpdateWebRobotsTxt("User-agent: *"); err == nil {
-			t.Error("UpdateWebRobotsTxt() expected error when global config is nil")
+		if errs := UpdateWebRobots([]string{"/"}, nil); len(errs) == 0 {
+			t.Error("UpdateWebRobots() expected an error when global config is nil")
 		}
 	})
 
-	t.Run("updates and persists robots.txt", func(t *testing.T) {
+	t.Run("rejects an invalid path without saving", func(t *testing.T) {
+		cfg := &AppConfig{}
+		withGlobalConfig(t, cfg)
+		if errs := UpdateWebRobots([]string{"/"}, []string{"private"}); len(errs) != 1 || errs[0].Field != "web.robots.deny" {
+			t.Fatalf("UpdateWebRobots() errors = %v, want one for web.robots.deny", errs)
+		}
+		if len(cfg.Web.Robots.Deny) != 0 {
+			t.Errorf("Web.Robots.Deny = %v, invalid input must not be applied", cfg.Web.Robots.Deny)
+		}
+	})
+
+	t.Run("updates and persists the allow and deny paths", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "server.yml")
 		if err := os.WriteFile(path, []byte("server:\n  fqdn: example.com\n"), 0644); err != nil {
@@ -496,11 +508,18 @@ func TestUpdateWebRobotsTxt(t *testing.T) {
 		cfg := &AppConfig{}
 		withGlobalConfig(t, cfg)
 
-		if err := UpdateWebRobotsTxt("User-agent: *\nDisallow:\n"); err != nil {
-			t.Fatalf("UpdateWebRobotsTxt() unexpected error: %v", err)
+		if errs := UpdateWebRobots([]string{"/", "/api"}, []string{"/private"}); len(errs) != 0 {
+			t.Fatalf("UpdateWebRobots() unexpected errors: %v", errs)
 		}
-		if cfg.Web.RobotsTxt != "User-agent: *\nDisallow:\n" {
-			t.Errorf("Web.RobotsTxt = %q, not updated", cfg.Web.RobotsTxt)
+		if len(cfg.Web.Robots.Allow) != 2 || len(cfg.Web.Robots.Deny) != 1 || cfg.Web.Robots.Deny[0] != "/private" {
+			t.Errorf("Web.Robots = %+v, not updated", cfg.Web.Robots)
+		}
+		saved, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read saved config: %v", err)
+		}
+		if !strings.Contains(string(saved), "/private") {
+			t.Errorf("server.yml does not hold the saved deny path:\n%s", saved)
 		}
 	})
 }

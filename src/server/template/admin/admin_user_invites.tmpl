@@ -21,7 +21,7 @@
 
   <section class="card">
     <h2>{{t $lang "admin.user_invites.create_heading"}}</h2>
-    <form method="POST" action="{{.admin_path}}/config/users/invites">
+    <form method="POST" action="{{.admin_path}}/users/invites">
       <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
       <label for="username">{{t $lang "admin.admins.col_username"}}</label>
       <input id="username" name="username" type="text" required autocomplete="username" value="{{.form.Username}}">

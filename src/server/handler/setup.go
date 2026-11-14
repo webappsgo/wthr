@@ -88,9 +88,9 @@ func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Re
 	// Store validated token in session for the admin creation step
 	setSetupVerifiedCookie(w, r, cfg)
 
-	// Redirect to setup wizard at /{admin_path}/config/setup
-	// AI.md: Step 4: Redirect to /{admin_path}/config/setup (setup wizard)
-	http.Redirect(w, r, adminPath+"/config/setup", http.StatusFound)
+	// Redirect to setup wizard at /{admin_path}/setup
+	// AI.md: Step 4: Redirect to /{admin_path}/setup (setup wizard)
+	http.Redirect(w, r, adminPath+"/setup", http.StatusFound)
 }
 
 // VerifySetupToken validates the setup token (API endpoint)
@@ -144,7 +144,7 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":       true,
-		"redirect": adminPath + "/config/setup",
+		"redirect": adminPath + "/setup",
 	})
 }
 
@@ -277,6 +277,12 @@ func (h *SetupHandler) CreateAdmin(w http.ResponseWriter, r *http.Request) {
 
 	// Normalize username
 	username = strings.ToLower(username)
+
+	// AI.md PART 17: syntax and length rules, never an admin section name
+	if err := util.ValidateAdminUsername(username); err != nil {
+		h.setupError(w, r, http.StatusBadRequest, Translate(r, "errors.setup.invalid_username"))
+		return
+	}
 
 	var password string
 	var generatedPassword string
@@ -780,7 +786,7 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the admin path from config (derive from current URL)
-	// Current URL is /server/{admin_path}/config/setup/complete
+	// Current URL is /server/{admin_path}/setup/complete
 	reqPath := r.URL.Path
 	parts := strings.Split(reqPath, "/")
 	adminPath := "/server/administration" // default
@@ -839,7 +845,7 @@ func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
 			"total_steps": 2,
 			"message":     Translate(r, "setup.status.primary_admin_created_setup_wizard_still_in_progress"),
 			"next_action": Translate(r, "setup.status.continue_server_setup"),
-			"next_route":  adminPath + "/config/setup/api-token",
+			"next_route":  adminPath + "/setup/api-token",
 			"is_complete": false,
 		})
 		return

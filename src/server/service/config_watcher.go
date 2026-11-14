@@ -2,11 +2,13 @@ package service
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/webappsgo/wthr/src/config"
+	"github.com/webappsgo/wthr/src/mode"
 )
 
 // ConfigWatcher watches server.yml for changes and triggers reload
@@ -40,6 +42,15 @@ func (cw *ConfigWatcher) StartConfigWatcher() error {
 		return err
 	}
 
+	// AI.md PART 5: the yaml.d drop-in directory is watched as well; when it
+	// does not exist yet, the Create event on the config directory adds it
+	dropinDir := config.DropinDir(cw.configPath)
+	if info, err := os.Stat(dropinDir); err == nil && info.IsDir() {
+		if err := cw.watcher.Add(dropinDir); err != nil {
+			log.Printf("WARNING: cannot watch %s: %v", dropinDir, err)
+		}
+	}
+
 	// Capture the settings the process actually bound so a later reload can
 	// tell live-applicable changes from restart-required ones
 	RecordBootSettings(config.GetGlobalConfig())
@@ -59,13 +70,27 @@ func (cw *ConfigWatcher) StartConfigWatcher() error {
 					return
 				}
 
-				// Check if this is our config file
-				if filepath.Clean(event.Name) != filepath.Clean(cw.configPath) {
+				eventPath := filepath.Clean(event.Name)
+				isServerYML := eventPath == filepath.Clean(cw.configPath)
+				isDropinDir := eventPath == filepath.Clean(dropinDir)
+				isDropinEntry := filepath.Dir(eventPath) == filepath.Clean(dropinDir)
+				if !isServerYML && !isDropinDir && !isDropinEntry {
 					continue
 				}
 
-				// Handle write and create events (editors often write temp files)
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+				if isDropinDir && event.Op&fsnotify.Create == fsnotify.Create {
+					if err := cw.watcher.Add(dropinDir); err != nil {
+						log.Printf("WARNING: cannot watch %s: %v", dropinDir, err)
+					}
+				}
+
+				// Handle write and create events (editors often write temp files);
+				// a drop-in that is added, changed, renamed or removed re-merges everything
+				changed := event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create
+				if !isServerYML {
+					changed = changed || event.Op&fsnotify.Remove == fsnotify.Remove || event.Op&fsnotify.Rename == fsnotify.Rename
+				}
+				if changed {
 					// Reset or start debounce timer
 					if debounceTimer != nil {
 						debounceTimer.Stop()
@@ -74,12 +99,14 @@ func (cw *ConfigWatcher) StartConfigWatcher() error {
 					debounceTimer = time.AfterFunc(debounceDuration, func() {
 						log.Println("INFO: Config file changed, reloading...")
 
-						// Load new config
-						newCfg, err := config.LoadConfig()
+						// Load new config; an invalid server.yml or drop-in keeps the
+						// last good configuration active
+						newCfg, err := config.LoadConfigStrict()
 						if err != nil {
-							log.Printf("ERROR: Failed to load new config: %v", err)
+							log.Printf("ERROR: Config reload rejected, keeping the last good configuration: %v", err)
 							return
 						}
+						LogConfigLayers()
 
 						// Trigger reload callback
 						if err := cw.reloadFunc(newCfg); err != nil {
@@ -117,4 +144,22 @@ func (cw *ConfigWatcher) StartConfigWatcher() error {
 func (cw *ConfigWatcher) StopConfigWatcher() error {
 	close(cw.stopChan)
 	return cw.watcher.Close()
+}
+
+// LogConfigLayers logs the loaded yaml.d drop-ins in merge order at info level
+// and the file that won for every overridden key at debug level. Secret values
+// are never logged: only key names and file names appear.
+func LogConfigLayers() {
+	report := config.GetLayerReport()
+	for _, file := range report.Files {
+		log.Printf("INFO: Loaded config drop-in: %s", file)
+	}
+	for _, warning := range report.Warnings {
+		log.Printf("WARNING: Config drop-in: %s", warning)
+	}
+	if mode.IsDebugEnabled() {
+		for _, override := range report.Overrides {
+			log.Printf("DEBUG: Config key %s is set by %s", override.Key, override.File)
+		}
+	}
 }

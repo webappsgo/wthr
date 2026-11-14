@@ -3,7 +3,7 @@
 {{- $lang := "en" -}}
 {{- if .lang}}{{$lang = .lang}}{{end -}}
 <div class="admin-header"><h1>🔐 {{t $lang "admin.auth.title"}}</h1></div>
-<form id="authSettingsForm" action="{{.admin_api_path}}/config/security/auth"
+<form id="authSettingsForm" action="{{.admin_api_path}}/security/auth"
     data-msg-saved="{{t $lang "admin.common.settings_saved"}}"
     data-msg-error="{{t $lang "admin.common.settings_save_error"}}">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">

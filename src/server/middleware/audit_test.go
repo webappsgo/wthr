@@ -47,7 +47,7 @@ func TestIsAdminRoute(t *testing.T) {
 	}{
 		{"/server/administration", true},
 		{"/server/administration/users", true},
-		{"/api/v1/server/administration/config", true},
+		{"/api/v1/server/administration", true},
 		{"/users/settings", false},
 		{"/api/v1/weather/london", false},
 		{"/", false},
@@ -125,7 +125,7 @@ func TestGetResourceFromPath(t *testing.T) {
 		{"/server/administration", "dashboard"},
 		{"/server/administration/users", "users"},
 		{"/server/administration/users/42", "users"},
-		{"/api/v1/server/administration/config", "config"},
+		{"/api/v1/server/administration/settings", "settings"},
 		{"/api/v1/server/administration", "dashboard"},
 	}
 	for _, tt := range tests {
@@ -164,7 +164,7 @@ func TestGetResourceFromPath_ConfiguredAdminPathNotDefault(t *testing.T) {
 		{"/server/backoffice", "dashboard"},
 		{"/server/backoffice/users", "users"},
 		{"/server/backoffice/users/42", "users"},
-		{"/api/v1/server/backoffice/config", "config"},
+		{"/api/v1/server/backoffice/settings", "settings"},
 		{"/api/v1/server/backoffice", "dashboard"},
 	}
 	for _, tt := range tests {

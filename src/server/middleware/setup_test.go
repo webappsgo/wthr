@@ -150,7 +150,7 @@ func TestSetupTokenRequired_SetupRouteSkipped(t *testing.T) {
 	cfg := testAppConfig()
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 	w := serveThroughMiddleware(t, SetupTokenRequired(cfg), req, next)
 
 	if w.Code != http.StatusOK {
@@ -266,8 +266,8 @@ func TestSetupTokenRequired_VerifiedTokenCookieRedirectsToWizard(t *testing.T) {
 	if w.Code != http.StatusFound {
 		t.Errorf("status = %d, want 302 redirect to the setup wizard", w.Code)
 	}
-	if loc := w.Header().Get("Location"); loc != "/server/administration/config/setup" {
-		t.Errorf("Location = %q, want %q", loc, "/server/administration/config/setup")
+	if loc := w.Header().Get("Location"); loc != "/server/administration/setup" {
+		t.Errorf("Location = %q, want %q", loc, "/server/administration/setup")
 	}
 }
 
@@ -283,7 +283,7 @@ func TestBlockSetupAfterComplete_AdminExistsRedirects(t *testing.T) {
 		t.Error("wrapped handler reached, want a redirect instead")
 		w.WriteHeader(http.StatusOK)
 	})
-	req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusFound {
@@ -303,7 +303,7 @@ func TestBlockSetupAfterComplete_NoAdminTokenPresentPassesThrough(t *testing.T) 
 	writeSetupToken(t)
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusOK {
@@ -323,7 +323,7 @@ func TestBlockSetupAfterComplete_NoAdminNoTokenRedirectsToAdminRoot(t *testing.T
 		t.Error("wrapped handler reached, want a redirect instead")
 		w.WriteHeader(http.StatusOK)
 	})
-	req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+	req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 	w := serveThroughMiddleware(t, BlockSetupAfterComplete(cfg), req, next)
 
 	if w.Code != http.StatusFound {
@@ -358,7 +358,7 @@ func TestRequireSetupTokenVerified(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+			req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 			if tt.cookie != nil {
 				req.AddCookie(tt.cookie)
 			}
@@ -386,7 +386,7 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 			t.Error("wrapped handler reached, want a redirect instead")
 			w.WriteHeader(http.StatusOK)
 		})
-		req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+		req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 		w := serveThroughMiddleware(t, BlockSetupAfterAdminExists(cfg), req, next)
 
 		if w.Code != http.StatusFound {
@@ -399,7 +399,7 @@ func TestBlockSetupAfterAdminExists(t *testing.T) {
 		cfg := testAppConfig()
 
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-		req := httptest.NewRequest(http.MethodGet, "/server/administration/config/setup", nil)
+		req := httptest.NewRequest(http.MethodGet, "/server/administration/setup", nil)
 		w := serveThroughMiddleware(t, BlockSetupAfterAdminExists(cfg), req, next)
 
 		if w.Code != http.StatusOK {

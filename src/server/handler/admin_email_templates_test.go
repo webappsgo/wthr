@@ -120,7 +120,7 @@ func TestEmailTemplateHandler_UpdateTemplate_Success(t *testing.T) {
 	}
 	h := &EmailTemplateHandler{templatesDir: dir}
 
-	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/config/email-templates/welcome",
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/email/templates/welcome",
 		map[string]string{"Subject": "Welcome!", "Body": "Hello there."}, map[string]string{"name": "welcome"})
 
 	h.UpdateTemplate(w, r)
@@ -143,7 +143,7 @@ func TestEmailTemplateHandler_UpdateTemplate_Success(t *testing.T) {
 func TestEmailTemplateHandler_UpdateTemplate_InvalidName(t *testing.T) {
 	h := &EmailTemplateHandler{templatesDir: t.TempDir()}
 
-	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/config/email-templates/nope",
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/email/templates/nope",
 		map[string]string{"Subject": "x", "Body": "y"}, map[string]string{"name": "nope"})
 
 	h.UpdateTemplate(w, r)
@@ -169,7 +169,7 @@ func TestEmailTemplateHandler_ListTemplates(t *testing.T) {
 	}
 
 	h := &EmailTemplateHandler{templatesDir: dir}
-	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/config/email-templates", nil, nil)
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/email/templates", nil, nil)
 
 	h.ListTemplates(w, r)
 
@@ -199,7 +199,7 @@ func TestEmailTemplateHandler_GetTemplate_Success(t *testing.T) {
 	}
 
 	h := &EmailTemplateHandler{templatesDir: dir}
-	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/config/email-templates/welcome",
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/email/templates/welcome",
 		nil, map[string]string{"name": "welcome"})
 
 	h.GetTemplate(w, r)
@@ -232,7 +232,7 @@ func TestEmailTemplateHandler_ExportTemplate(t *testing.T) {
 	}
 
 	h := &EmailTemplateHandler{templatesDir: dir}
-	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/config/email-templates/test/export",
+	r, w := newEmailTemplateTestRequest(t, http.MethodGet, "/server/administration/email/templates/test/export",
 		nil, map[string]string{"name": "test"})
 
 	h.ExportTemplate(w, r)
@@ -257,7 +257,7 @@ func TestEmailTemplateHandler_ImportTemplate(t *testing.T) {
 
 	h := &EmailTemplateHandler{templatesDir: dir}
 	template := EmailTemplate{Subject: "Imported", Body: "Imported body"}
-	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/config/email-templates/test/import",
+	r, w := newEmailTemplateTestRequest(t, http.MethodPost, "/server/administration/email/templates/test/import",
 		template, map[string]string{"name": "test"})
 
 	h.ImportTemplate(w, r)
@@ -311,7 +311,7 @@ func emailTemplateFlashValue(t *testing.T, w *httptest.ResponseRecorder) (string
 // form field is present.
 func TestResolveTemplateName(t *testing.T) {
 	t.Run("form field beats URL param", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/email/templates",
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/email/templates",
 			strings.NewReader(url.Values{"template": {"welcome"}}.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rctx := chi.NewRouteContext()
@@ -324,7 +324,7 @@ func TestResolveTemplateName(t *testing.T) {
 	})
 
 	t.Run("URL param fallback when no form field", func(t *testing.T) {
-		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/email-templates/welcome", nil)
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/email/templates/welcome", nil)
 		rctx := chi.NewRouteContext()
 		rctx.URLParams.Add("name", "welcome")
 		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
@@ -341,7 +341,7 @@ func TestResolveTemplateName(t *testing.T) {
 // JSON route that follows still decodes its body correctly.
 func TestResolveTemplateName_JSONBodyNotConsumed(t *testing.T) {
 	payload := `{"subject":"Kept","body":"Kept body"}`
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/email-templates/welcome",
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/email/templates/welcome",
 		strings.NewReader(payload))
 	r.Header.Set("Content-Type", "application/json")
 	rctx := chi.NewRouteContext()
@@ -422,14 +422,14 @@ func TestEmailTemplateHandler_UpdateTemplate_FormPRG(t *testing.T) {
 		"subject":  {"Welcome aboard"},
 		"body":     {"Hello there."},
 	}
-	r, w := newEmailTemplateFormRequest(t, "/server/administration/config/email/templates", form, nil)
+	r, w := newEmailTemplateFormRequest(t, "/server/administration/email/templates", form, nil)
 
 	h.UpdateTemplate(w, r)
 
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303: %s", w.Code, w.Body.String())
 	}
-	if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/config/email/templates") {
+	if loc := w.Header().Get("Location"); !strings.HasSuffix(loc, "/email/templates") {
 		t.Fatalf("Location = %q, want editor page", loc)
 	}
 	val, ok := emailTemplateFlashValue(t, w)
@@ -459,7 +459,7 @@ func TestEmailTemplateHandler_UpdateTemplate_FormWriteFail(t *testing.T) {
 		"subject":  {"x"},
 		"body":     {"y"},
 	}
-	r, w := newEmailTemplateFormRequest(t, "/server/administration/config/email/templates", form, nil)
+	r, w := newEmailTemplateFormRequest(t, "/server/administration/email/templates", form, nil)
 
 	h.UpdateTemplate(w, r)
 
@@ -478,7 +478,7 @@ func TestEmailTemplateHandler_TestTemplate_FormPRG(t *testing.T) {
 	h := &EmailTemplateHandler{templatesDir: t.TempDir()}
 
 	form := url.Values{"template": {"welcome"}}
-	r, w := newEmailTemplateFormRequest(t, "/server/administration/config/email/templates/test", form, nil)
+	r, w := newEmailTemplateFormRequest(t, "/server/administration/email/templates/test", form, nil)
 
 	h.TestTemplate(w, r)
 
@@ -506,7 +506,7 @@ func TestEmailTemplateHandler_ImportTemplate_FormPRG(t *testing.T) {
 		"subject":  {"Imported"},
 		"body":     {"Imported body"},
 	}
-	r, w := newEmailTemplateFormRequest(t, "/server/administration/config/email/templates/import", form, nil)
+	r, w := newEmailTemplateFormRequest(t, "/server/administration/email/templates/import", form, nil)
 
 	h.ImportTemplate(w, r)
 
@@ -537,7 +537,7 @@ func TestEmailTemplateHandler_ImportTemplate_FormWriteFail(t *testing.T) {
 		"subject":  {"x"},
 		"body":     {"y"},
 	}
-	r, w := newEmailTemplateFormRequest(t, "/server/administration/config/email/templates/import", form, nil)
+	r, w := newEmailTemplateFormRequest(t, "/server/administration/email/templates/import", form, nil)
 
 	h.ImportTemplate(w, r)
 

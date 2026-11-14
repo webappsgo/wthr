@@ -41,7 +41,7 @@ func UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	config.SetGlobalConfig(cfg)
-	http.Redirect(w, r, "/server/"+cfg.GetAdminPath()+"/config/updates?saved=1", http.StatusSeeOther)
+	http.Redirect(w, r, "/server/"+cfg.GetAdminPath()+"/updates?saved=1", http.StatusSeeOther)
 }
 
 // ShowUpdateSettings renders update configuration and the current release.

@@ -31,7 +31,7 @@
           {{range .admins}}
           <tr class="admin-table-body-row">
             <th class="admin-table-body-cell" scope="row">
-              <a href="{{$ap}}/config/admins/{{.ID}}">{{.Username}}</a>
+              <a href="{{$ap}}/admins/{{.ID}}">{{.Username}}</a>
             </th>
             <td class="admin-table-body-cell admin-break-all">{{.Email}}</td>
             <td class="admin-table-body-cell">
@@ -63,7 +63,7 @@
       <p class="empty-state__icon" aria-hidden="true">&#128100;</p>
       <h3 class="empty-state__title">{{t $lang "admin.admins.empty_title"}}</h3>
       <p class="empty-state__message">{{t $lang "admin.admins.empty_message"}}</p>
-      <a class="btn btn-primary" href="{{$ap}}/config/admins/invite">{{t $lang "admin.admins.empty_action"}}</a>
+      <a class="btn btn-primary" href="{{$ap}}/admins/invite">{{t $lang "admin.admins.empty_action"}}</a>
     </div>
     {{end}}
   </section>
@@ -99,7 +99,7 @@
       <p class="empty-state__icon" aria-hidden="true">&#9993;</p>
       <h3 class="empty-state__title">{{t $lang "admin.admins.invites_empty_title"}}</h3>
       <p class="empty-state__message">{{t $lang "admin.admins.invites_empty_message"}}</p>
-      <a class="btn btn-secondary" href="{{$ap}}/config/admins/invite">{{t $lang "admin.admins.invites_empty_action"}}</a>
+      <a class="btn btn-secondary" href="{{$ap}}/admins/invite">{{t $lang "admin.admins.invites_empty_action"}}</a>
     </div>
     {{end}}
   </section>

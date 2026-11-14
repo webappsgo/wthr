@@ -48,19 +48,19 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	robotsTxt := ""
 	securityTxt := ""
+	robots := config.DefaultRobotsConfig()
+	adminPath := config.DefaultAdminPath
+	feed := config.FeedConfig{MaxItems: config.DefaultFeedMaxItems}
 	if cfg != nil {
-		robotsTxt = cfg.Web.RobotsTxt
 		securityTxt = cfg.Web.SecurityTxt
+		robots = cfg.Web.Robots
+		adminPath = cfg.GetAdminPath()
+		feed = cfg.Server.SEO.Feed
 	}
 
 	// Get app URL for template variable replacement
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	appURL := scheme + "://" + r.Host
+	appURL := util.BuildURL(r, "")
 
 	serverCtx, _ := middleware.GetServerContext(r.Context())
 	settingsModel := &models.SettingsModel{DB: database.GetServerDB()}
@@ -71,9 +71,15 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 		mcpEnabledDefault = cfg.Server.MCP.Enabled
 	}
 
-	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", util.TemplateData(r, map[string]interface{}{
+	middleware.RenderHTML(w, r, http.StatusOK, "admin/admin_web.tmpl", AdminTemplateData(r, map[string]interface{}{
 		"Title":          Translate(r, "admin.web.title"),
-		"RobotsTxt":      robotsTxt,
+		"RobotsAllow":    strings.Join(robots.Allow, "\n"),
+		"RobotsDeny":     strings.Join(robots.Deny, "\n"),
+		"RobotsPreview":  robots.RobotsTxt(adminPath, appURL),
+		"FeedMaxItems":   feed.MaxItems,
+		"FeedTitle":      feed.Title,
+		"FeedMaxLimit":   config.MaxFeedMaxItems,
+		"flash":          TakeFlash(w, r),
 		"SecurityTxt":    securityTxt,
 		"AppURL":         appURL,
 		"User":           admin,
@@ -83,47 +89,129 @@ func (h *AdminWebHandler) ShowWebSettings(w http.ResponseWriter, r *http.Request
 	}))
 }
 
-// GetRobotsTxt retrieves robots.txt content
-// GET /{api_version}/admin/server/web/robots
-func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
-	cfg := config.GetGlobalConfig()
-	robotsTxt := ""
+// robotsView is the robots.txt configuration as the admin API returns it.
+type robotsView struct {
+	Allow   []string `json:"allow"`
+	Deny    []string `json:"deny"`
+	Preview string   `json:"preview"`
+}
 
-	if cfg != nil {
-		robotsTxt = cfg.Web.RobotsTxt
+// currentRobotsView builds the robots view for the request, with the preview
+// rendered exactly as /robots.txt serves it.
+func currentRobotsView(r *http.Request) robotsView {
+	robots := config.DefaultRobotsConfig()
+	adminPath := config.DefaultAdminPath
+	if cfg := config.GetGlobalConfig(); cfg != nil {
+		robots = cfg.Web.Robots
+		adminPath = cfg.GetAdminPath()
+	}
+	return robotsView{
+		Allow:   robots.Allow,
+		Deny:    robots.Deny,
+		Preview: robots.RobotsTxt(adminPath, util.BuildURL(r, "")),
+	}
+}
+
+// GetRobotsTxt returns the robots.txt allow and deny paths with a preview of the
+// generated file.
+// GET /api/{api_version}/server/{admin_path}/web/robots (and /web/robots/preview)
+func (h *AdminWebHandler) GetRobotsTxt(w http.ResponseWriter, r *http.Request) {
+	RespondData(w, r, currentRobotsView(r))
+}
+
+// splitRobotsLines splits a textarea value into one path per line.
+func splitRobotsLines(value string) []string {
+	return strings.FieldsFunc(value, func(c rune) bool { return c == '\n' || c == '\r' })
+}
+
+// UpdateRobotsTxt saves the robots.txt allow and deny paths. A browser form post
+// (one path per line in each textarea, or `reset` to restore the defaults)
+// redirects back to the page with a flash; a JSON body carries `allow` and
+// `deny` arrays.
+// POST /server/{admin_path}/web/robots, PATCH /api/{api_version}/server/{admin_path}/web/robots
+func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request) {
+	var allow, deny []string
+	reset := false
+	if wantsFormSubmission(r) {
+		if err := r.ParseForm(); err != nil {
+			RespondError(w, r, http.StatusBadRequest, ErrBadRequest, Translate(r, "errors.invalid_request"))
+			return
+		}
+		reset = r.PostForm.Get("reset") != ""
+		allow = splitRobotsLines(r.PostForm.Get("allow"))
+		deny = splitRobotsLines(r.PostForm.Get("deny"))
+	} else {
+		var req struct {
+			Allow []string `json:"allow"`
+			Deny  []string `json:"deny"`
+		}
+		if !DecodeAndValidate(w, r, &req) {
+			return
+		}
+		allow, deny = req.Allow, req.Deny
+	}
+	if reset {
+		defaults := config.DefaultRobotsConfig()
+		allow, deny = defaults.Allow, defaults.Deny
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":      true,
-		"content": robotsTxt,
+	if config.GetGlobalConfig() == nil {
+		InternalError(w, r, Translate(r, "errors.internal_error"))
+		return
+	}
+
+	errs := config.UpdateWebRobots(allow, deny)
+	if wantsFormSubmission(r) {
+		var err error
+		if len(errs) > 0 {
+			err = errs[0]
+		}
+		redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", err)
+		return
+	}
+	if len(errs) > 0 {
+		ValidationFailed(w, r, Translate(r, "errors.validation_failed"), map[string]interface{}{
+			"field":  errs[0].Field,
+			"errors": errs,
+		})
+		return
+	}
+	RespondSuccess(w, r, Translate(r, "admin.web.robots_updated_message"), map[string]interface{}{
+		"robots": currentRobotsView(r),
 	})
 }
 
-// UpdateRobotsTxt updates robots.txt content
-// PATCH /{api_version}/admin/server/web/robots
-func (h *AdminWebHandler) UpdateRobotsTxt(w http.ResponseWriter, r *http.Request) {
+// UpdateFeedSettings saves the syndication feed limits (server.seo.feed.*).
+// POST /server/{admin_path}/web/feeds, PATCH /api/{api_version}/server/{admin_path}/web/feeds
+func (h *AdminWebHandler) UpdateFeedSettings(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Content string `json:"content" binding:"required"`
+		MaxItems int    `json:"max_items" binding:"min=1,max=200"`
+		Title    string `json:"title" binding:"max=140"`
 	}
-
 	if !DecodeAndValidate(w, r, &req) {
 		return
 	}
 
-	// Update server.yml file (config watcher will auto-reload)
-	if err := config.UpdateWebRobotsTxt(req.Content); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "UPDATE_FAILED",
-				"message": Translate(r, "errors.admin.web.robots_update_failed"),
-			},
-		})
-		return
+	cfg := config.GetGlobalConfig()
+	var saveErr error
+	if cfg == nil {
+		saveErr = fmt.Errorf("global config not initialized")
+	} else {
+		cfg.Server.SEO.Feed = config.FeedConfig{MaxItems: req.MaxItems, Title: strings.TrimSpace(req.Title)}
+		saveErr = config.SaveConfig(cfg)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":      true,
-		"message": Translate(r, "admin.web.robots_updated_message"),
+	if wantsFormSubmission(r) {
+		redirectAdminForm(w, r, adminPagePath(r, "/web"), "flash.settings_saved", "flash.settings_save_failed", saveErr)
+		return
+	}
+	if saveErr != nil {
+		InternalError(w, r, Translate(r, "errors.admin.web.feed_update_failed"))
+		return
+	}
+	RespondSuccess(w, r, Translate(r, "admin.web.feed_updated_message"), map[string]interface{}{
+		"max_items": req.MaxItems,
+		"title":     strings.TrimSpace(req.Title),
 	})
 }
 
@@ -171,35 +259,19 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 	})
 }
 
-// ServeRobotsTxt serves robots.txt file
+// ServeRobotsTxt serves robots.txt generated from web.robots.allow and
+// web.robots.deny, with the absolute sitemap URL for the host the client used.
 // GET /robots.txt
 func (h *AdminWebHandler) ServeRobotsTxt(w http.ResponseWriter, r *http.Request) {
-	cfg := config.GetGlobalConfig()
-	robotsTxt := `User-agent: *
-Allow: /
-Allow: /api
-Disallow: /server/{admin_path}
-Sitemap: {app_url}/sitemap.xml`
-
-	if cfg != nil && cfg.Web.RobotsTxt != "" {
-		robotsTxt = cfg.Web.RobotsTxt
-	}
-
-	// Replace template variables
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	appURL := scheme + "://" + r.Host
-
-	robotsTxt = strings.ReplaceAll(robotsTxt, "{app_url}", appURL)
-	robotsTxt = strings.ReplaceAll(robotsTxt, "{admin_path}", cfg.GetAdminPath())
+	view := currentRobotsView(r)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	// Cache for 24 hours
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, robotsTxt)
+	if r.Method == http.MethodHead {
+		return
+	}
+	fmt.Fprint(w, view.Preview)
 }
 
 // ServeSecurityTxt serves security.txt file
@@ -237,61 +309,6 @@ Preferred-Languages: en`,
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, securityTxt)
-}
-
-// ServeSitemap serves dynamically generated sitemap.xml
-// GET /sitemap.xml
-// Per AI.md PART 16: Include homepage, public pages, docs, API docs
-// NEVER include: admin pages, auth pages, api endpoints
-func (h *AdminWebHandler) ServeSitemap(w http.ResponseWriter, r *http.Request) {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	appURL := scheme + "://" + r.Host
-	lastmod := time.Now().Format("2006-01-02")
-
-	// Build sitemap XML
-	var sb strings.Builder
-	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
-	sb.WriteString("\n")
-	sb.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
-	sb.WriteString("\n")
-
-	// Homepage - priority 1.0, daily
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n", appURL, lastmod))
-
-	// Weather page - public content, priority 0.9, daily
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/weather</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n", appURL, lastmod))
-
-	// Severe weather - public content, priority 0.8, daily
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/severe-weather</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n", appURL, lastmod))
-
-	// Earthquakes - public content, priority 0.8, hourly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/earthquakes</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>hourly</changefreq>\n    <priority>0.8</priority>\n  </url>\n", appURL, lastmod))
-
-	// Hurricanes - public content, priority 0.8, daily
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/hurricanes</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n", appURL, lastmod))
-
-	// Moon phase - public content, priority 0.7, daily
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/moon</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
-
-	// OpenAPI docs - priority 0.7, weekly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/server/docs/swagger</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
-
-	// GraphQL endpoint - priority 0.7, weekly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/graphql</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n", appURL, lastmod))
-
-	// Health check - priority 0.5, weekly
-	sb.WriteString(fmt.Sprintf("  <url>\n    <loc>%s/server/healthz</loc>\n    <lastmod>%s</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.5</priority>\n  </url>\n", appURL, lastmod))
-
-	sb.WriteString("</urlset>\n")
-
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	// Cache for 1 hour
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, sb.String())
 }
 
 // ServeFavicon serves the favicon.ico

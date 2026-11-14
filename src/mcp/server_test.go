@@ -20,7 +20,7 @@ func TestToolsListUsesRegisteredAPIRoutes(t *testing.T) {
 	router.Get("/api/v1/users/settings", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	router.Get("/api/v1/server/administration/config/status", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/api/v1/server/administration/status", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	server := NewServer(router, nil, nil, "test")
@@ -190,7 +190,7 @@ func TestModernProtocolRejectsHeaderMismatchAndUnsupportedVersion(t *testing.T) 
 func TestLLMSUsesPublicRouteCatalog(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/api/v1/weather/{location}", func(http.ResponseWriter, *http.Request) {})
-	router.Get("/api/v1/server/administration/config/status", func(http.ResponseWriter, *http.Request) {})
+	router.Get("/api/v1/server/administration/status", func(http.ResponseWriter, *http.Request) {})
 	router.Get("/api/v1/server/metrics", func(http.ResponseWriter, *http.Request) {})
 	cfg := &config.AppConfig{}
 	cfg.Server.Branding.Title = "Weather"

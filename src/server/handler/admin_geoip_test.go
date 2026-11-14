@@ -26,7 +26,7 @@ func newGeoIPTestConfigFile(t *testing.T) string {
 // path. No auth/data gating exists on this handler.
 func TestAdminGeoIPHandler_ShowGeoIPSettings(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: newGeoIPTestConfigFile(t)}
-	c, w := newAPITestContext("/server/administration/config/geoip")
+	c, w := newAPITestContext("/server/administration/network/geoip")
 	defer htmlRenderGuard(t)
 	h.ShowGeoIPSettings(w, c)
 	if w.Code != http.StatusOK {
@@ -41,7 +41,7 @@ func TestAdminGeoIPHandler_UpdateGeoIPSettings_Success(t *testing.T) {
 
 	body := `{"enabled":true,"dir":"/data/geoip","update_frequency":7,"deny_countries":["CN","RU"],"database_asn":true,"database_country":true,"database_city":false}`
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", body)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", body)
 
 	h.UpdateGeoIPSettings(w, c)
 
@@ -69,7 +69,7 @@ func TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON(t *testing.T) {
 
 	h := &AdminGeoIPHandler{ConfigPath: configPath}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", "{not valid json")
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", "{not valid json")
 
 	h.UpdateGeoIPSettings(w, c)
 
@@ -91,7 +91,7 @@ func TestAdminGeoIPHandler_UpdateGeoIPSettings_InvalidJSON(t *testing.T) {
 func TestAdminGeoIPHandler_UpdateGeoIPSettings_ConfigWriteError(t *testing.T) {
 	h := &AdminGeoIPHandler{ConfigPath: filepath.Join(t.TempDir(), "does-not-exist", "server.yml")}
 
-	c, w := newTestContextJSON(t, http.MethodPost, "/admin/config/geoip", `{"enabled":true}`)
+	c, w := newTestContextJSON(t, http.MethodPost, "/admin/network/geoip", `{"enabled":true}`)
 
 	h.UpdateGeoIPSettings(w, c)
 

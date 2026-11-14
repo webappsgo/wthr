@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -867,5 +868,25 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 		"cache_config":      cacheConfigSettings,
 		"rate_limit_config": rateLimitConfigView(rateLimitConfig),
 		"Settings":          historySettings,
+		"dropin_owned":      dropinOwnedSettings(),
 	}))
+}
+
+// dropinOwnedSetting is one server.yml key that a yaml.d drop-in owns.
+type dropinOwnedSetting struct {
+	Key  string
+	File string
+}
+
+// dropinOwnedSettings lists every setting a yaml.d drop-in sets, sorted by key,
+// so the settings page can show them as read-only with the file that owns them
+// (AI.md PART 5: "set by yaml.d/20-mail.yml").
+func dropinOwnedSettings() []dropinOwnedSetting {
+	sources := config.GetLayerReport().Sources
+	owned := make([]dropinOwnedSetting, 0, len(sources))
+	for key, file := range sources {
+		owned = append(owned, dropinOwnedSetting{Key: key, File: file})
+	}
+	sort.Slice(owned, func(i, j int) bool { return owned[i].Key < owned[j].Key })
+	return owned
 }

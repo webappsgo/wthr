@@ -23,7 +23,7 @@ func TestWantsFormSubmission(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
+			r := httptest.NewRequest(http.MethodPost, "/server/administration/notifications/channels", nil)
 			if tt.contentType != "" {
 				r.Header.Set("Content-Type", tt.contentType)
 			}
@@ -34,23 +34,23 @@ func TestWantsFormSubmission(t *testing.T) {
 	}
 }
 
-func TestAdminConfigPagePath(t *testing.T) {
+func TestAdminPagePath(t *testing.T) {
 	tests := []struct {
 		name string
 		path string
 		page string
 		want string
 	}{
-		{"default admin path", "/server/administration/config/channels", "/config/channels", "/server/administration/config/channels"},
-		{"custom admin path", "/server/console/config/email/templates", "/config/email/templates", "/server/console/config/email/templates"},
-		{"no config segment", "/server/administration/dashboard", "/config/channels", "/config/channels"},
+		{"default admin path", "/server/administration/notifications/channels", "/notifications/channels", "/server/administration/notifications/channels"},
+		{"custom admin path", "/server/console/email/templates", "/email/templates", "/server/console/email/templates"},
+		{"no admin prefix", "/dashboard", "/notifications/channels", "/notifications/channels"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, tt.path, nil)
-			if got := adminConfigPagePath(r, tt.page); got != tt.want {
-				t.Fatalf("adminConfigPagePath() = %q, want %q", got, tt.want)
+			if got := adminPagePath(r, tt.page); got != tt.want {
+				t.Fatalf("adminPagePath() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -71,14 +71,14 @@ func flashCookieValue(t *testing.T, w *httptest.ResponseRecorder) (string, bool)
 func TestRedirectAdminForm(t *testing.T) {
 	t.Run("success sets success flash and redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash.channel_updated", "flash.channel_update_failed", nil)
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/notifications/channels", nil)
+		redirectAdminForm(w, r, "/server/administration/notifications/channels", "flash.channel_updated", "flash.channel_update_failed", nil)
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
 		}
-		if loc := w.Header().Get("Location"); loc != "/server/administration/config/channels" {
-			t.Fatalf("Location = %q, want %q", loc, "/server/administration/config/channels")
+		if loc := w.Header().Get("Location"); loc != "/server/administration/notifications/channels" {
+			t.Fatalf("Location = %q, want %q", loc, "/server/administration/notifications/channels")
 		}
 		val, ok := flashCookieValue(t, w)
 		if !ok {
@@ -91,8 +91,8 @@ func TestRedirectAdminForm(t *testing.T) {
 
 	t.Run("failure sets error flash and redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash.channel_updated", "flash.channel_update_failed", errors.New("write failed"))
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/notifications/channels", nil)
+		redirectAdminForm(w, r, "/server/administration/notifications/channels", "flash.channel_updated", "flash.channel_update_failed", errors.New("write failed"))
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
@@ -108,8 +108,8 @@ func TestRedirectAdminForm(t *testing.T) {
 
 	t.Run("unlisted key sets no cookie but still redirects", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodPost, "/server/administration/config/channels", nil)
-		redirectAdminForm(w, r, "/server/administration/config/channels", "flash_not_a_real_key", "flash.channel_update_failed", nil)
+		r := httptest.NewRequest(http.MethodPost, "/server/administration/notifications/channels", nil)
+		redirectAdminForm(w, r, "/server/administration/notifications/channels", "flash_not_a_real_key", "flash.channel_update_failed", nil)
 
 		if w.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want %d", w.Code, http.StatusSeeOther)
@@ -122,7 +122,7 @@ func TestRedirectAdminForm(t *testing.T) {
 
 func TestFlashRoundTrip(t *testing.T) {
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+	r := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 	SetFlash(w, r, "success", "flash.channel_updated")
 
 	val, ok := flashCookieValue(t, w)
@@ -131,7 +131,7 @@ func TestFlashRoundTrip(t *testing.T) {
 	}
 
 	// Feed the set cookie into the next request and take it back.
-	r2 := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+	r2 := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 	r2.AddCookie(&http.Cookie{Name: FlashCookieName, Value: val})
 	w2 := httptest.NewRecorder()
 	flash := TakeFlash(w2, r2)
@@ -154,7 +154,7 @@ func TestFlashRoundTrip(t *testing.T) {
 	}
 
 	// A second take on the same (now-cleared) request yields nothing.
-	r3 := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+	r3 := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 	if f := TakeFlash(httptest.NewRecorder(), r3); f != nil {
 		t.Fatalf("expected no flash on empty request, got %+v", f)
 	}
@@ -173,7 +173,7 @@ func TestFlashRejectsTamperedValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+			r := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 			r.AddCookie(&http.Cookie{Name: FlashCookieName, Value: tt.value})
 			if f := TakeFlash(httptest.NewRecorder(), r); f != nil {
 				t.Fatalf("expected nil flash for tampered value %q, got %+v", tt.value, f)
@@ -185,7 +185,7 @@ func TestFlashRejectsTamperedValues(t *testing.T) {
 func TestSetFlashSecureFlag(t *testing.T) {
 	t.Run("plain http is not secure", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+		r := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 		SetFlash(w, r, "success", "flash.channel_updated")
 		for _, c := range w.Result().Cookies() {
 			if c.Name == FlashCookieName && c.Secure {
@@ -196,7 +196,7 @@ func TestSetFlashSecureFlag(t *testing.T) {
 
 	t.Run("forwarded https sets secure", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		r := httptest.NewRequest(http.MethodGet, "/server/administration/config/channels", nil)
+		r := httptest.NewRequest(http.MethodGet, "/server/administration/notifications/channels", nil)
 		r.RemoteAddr = "127.0.0.1:12345"
 		r.Header.Set("X-Forwarded-Proto", "https")
 		SetFlash(w, r, "success", "flash.channel_updated")

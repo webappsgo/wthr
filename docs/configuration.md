@@ -7,6 +7,7 @@ wthr generates its configuration at runtime with sane defaults and keeps the liv
 | File | Location | Purpose |
 |------|----------|---------|
 | `server.yml` | `{config_dir}/server.yml` | Server configuration |
+| `yaml.d/*.yml`, `yaml.d/*.yaml` | `{config_dir}/yaml.d/` | Optional drop-in files that override `server.yml` |
 | `cli.yml` | `~/.config/webappsgo/wthr/cli.yml` | CLI client configuration |
 
 Use the admin panel for routine changes:
@@ -20,7 +21,7 @@ Configuration is applied in this order:
 
 1. Command-line flags
 2. Environment variables
-3. Generated config files
+3. Config files: `yaml.d/*` drop-ins override `server.yml`
 4. Embedded defaults
 
 ## Important Rules
@@ -30,6 +31,24 @@ Configuration is applied in this order:
 - Do not store plaintext passwords or tokens in `server.yml`
 - All server settings must also be editable from the admin WebUI
 - Most changes apply live without restarting the service
+
+## Drop-in Config Directory (`yaml.d`)
+
+A large configuration may be split into files in `{config_dir}/yaml.d/`, next to `server.yml`. The directory is optional; `server.yml` alone is always valid.
+
+| Rule | Behavior |
+|------|----------|
+| Files | `*.yml` and `*.yaml`, regular files only. Hidden files, backups (`*.bak`, `*~`, `*.orig`), other extensions and subdirectories are ignored. A symlink is followed only when its target stays inside `yaml.d/` |
+| Order | Built-in defaults, then `server.yml`, then every drop-in in byte-wise filename order (`10-tls.yml`, then `20-mail.yml`); a later file overrides an earlier one |
+| Merge | Maps merge key by key and recursively. A scalar or a list in a later file replaces the earlier value whole; lists are never appended. An explicit `null` is an error, not a reset |
+| Keys | The same dotted paths as `server.yml`; any section may live in any file |
+| Validation | The merged result is validated like any config. An error names the file, line and key; a duplicate key inside one file is an error |
+| Reload | `server.yml` and `yaml.d/` are watched. A change, add or remove re-merges everything. If the merged result is invalid, the last good configuration stays active and the error is logged |
+| Generated values | The saved random port and `server.token` are written only to `server.yml`. If a drop-in sets the same key, the drop-in wins and the startup log says which file did |
+| Permissions | A drop-in that is group or world writable is refused. Use `0600` for files that hold secrets |
+| Backup | `{config_dir}/yaml.d/` is included in backups whenever it exists |
+
+The admin panel writes only `server.yml`. A setting that a drop-in file sets is owned by that file (`set by yaml.d/20-mail.yml`); edit the drop-in instead. The startup log lists each loaded drop-in in order at info level and, with debug enabled, names the file that won for every overridden key. Secret values are never logged.
 
 ## Environment Variables
 

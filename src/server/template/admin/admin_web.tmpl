@@ -9,6 +9,8 @@
                 <p class="subtitle">{{t $lang "admin.web.subtitle"}}</p>
             </div>
 
+            {{template "flash" .}}
+
             <div class="alert alert-info" role="status">
                 <strong>{{t $lang "admin.web.note_label"}}</strong> {{t $lang "admin.web.note_text"}}
             </div>
@@ -169,45 +171,58 @@
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info" role="status">
-                        <strong>{{t $lang "admin.web.current_url_label"}}</strong> <a href="/robots.txt" target="_blank" rel="noopener">/robots.txt</a><br>
-                        {{t $lang "admin.web.robots_placeholder_note_prefix"}} <code>{app_url}</code> {{t $lang "admin.web.robots_placeholder_note_suffix"}}
+                        <strong>{{t $lang "admin.web.current_url_label"}}</strong> <a href="/robots.txt" target="_blank" rel="noopener">/robots.txt</a>
                     </div>
 
-                    <form id="robots-form" class="settings-form">
-    <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                    <form id="robots-form" class="settings-form" method="post" action="{{if .admin_path}}{{.admin_path}}{{else}}/server/administration{{end}}/web/robots">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                         <div class="form-group">
-                            <label for="robots_txt">{{t $lang "admin.web.robots_content_label"}}</label>
-                            <textarea
-                                id="robots_txt"
-                                name="web.robots_txt"
-                                class="form-control code-editor"
-                                rows="12"
-                                aria-describedby="robots_txt_help"
-                                spellcheck="false"
-                            >User-agent: *
-Allow: /
-Allow: /api
-Disallow: /server/{admin_path}
-Sitemap: {app_url}/sitemap.xml</textarea>
-                            <small id="robots_txt_help" class="form-text">
-                                <strong>{{t $lang "admin.web.common_directives_label"}}</strong><br>
-                                • <code>User-agent: *</code> - {{t $lang "admin.web.directive_all_crawlers"}}<br>
-                                • <code>Allow: /</code> - {{t $lang "admin.web.directive_allow_all"}}<br>
-                                • <code>Disallow: /server/{admin_path}</code> - {{t $lang "admin.web.directive_block_admin"}}<br>
-                                • <code>Sitemap:</code> - {{t $lang "admin.web.directive_sitemap_link"}}
-                            </small>
+                            <label for="robots_allow">{{t $lang "admin.web.robots_allow_label"}}</label>
+                            <textarea id="robots_allow" name="allow" class="form-control code-editor" rows="4" aria-describedby="robots_allow_help" spellcheck="false">{{.RobotsAllow}}</textarea>
+                            <small id="robots_allow_help" class="form-text">{{t $lang "admin.web.robots_allow_help"}}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="robots_deny">{{t $lang "admin.web.robots_deny_label"}}</label>
+                            <textarea id="robots_deny" name="deny" class="form-control code-editor" rows="4" aria-describedby="robots_deny_help" spellcheck="false">{{.RobotsDeny}}</textarea>
+                            <small id="robots_deny_help" class="form-text">{{t $lang "admin.web.robots_deny_help"}}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="robots_preview">{{t $lang "admin.web.robots_preview_label"}}</label>
+                            <textarea id="robots_preview" class="form-control code-editor" rows="7" readonly spellcheck="false">{{.RobotsPreview}}</textarea>
                         </div>
 
                         <div class="button-group">
                             <button type="submit" class="btn btn-primary" aria-label="{{t $lang "admin.web.save_robots_aria"}}">
                                 💾 {{t $lang "admin.web.save_robots_action"}}
                             </button>
-                            <button type="button" class="btn btn-secondary" data-action="admin-web-preview-robots" aria-label="{{t $lang "admin.web.preview_robots_aria"}}">
-                                👁️ {{t $lang "admin.web.preview_action"}}
-                            </button>
-                            <button type="button" class="btn btn-secondary" data-action="admin-web-reset-robots" aria-label="{{t $lang "admin.web.reset_defaults_aria"}}">
+                            <button type="submit" name="reset" value="1" class="btn btn-secondary" aria-label="{{t $lang "admin.web.reset_defaults_aria"}}">
                                 🔄 {{t $lang "admin.web.reset_default_action"}}
                             </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="admin-card" aria-labelledby="feeds-heading">
+                <div class="card-header">
+                    <h2 id="feeds-heading">{{t $lang "admin.web.feeds_heading"}}</h2>
+                    <p class="card-description">{{t $lang "admin.web.feeds_desc"}}</p>
+                </div>
+                <div class="card-body">
+                    <form id="feeds-form" class="settings-form" method="post" action="{{if .admin_path}}{{.admin_path}}{{else}}/server/administration{{end}}/web/feeds">
+                        <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
+                        <div class="form-group">
+                            <label for="feed_max_items">{{t $lang "admin.web.feed_max_items_label"}}</label>
+                            <input type="number" id="feed_max_items" name="max_items" class="form-control" min="1" max="{{.FeedMaxLimit}}" value="{{.FeedMaxItems}}" required aria-describedby="feed_max_items_help">
+                            <small id="feed_max_items_help" class="form-text">{{t $lang "admin.web.feed_max_items_help"}}</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="feed_title">{{t $lang "admin.web.feed_title_label"}}</label>
+                            <input type="text" id="feed_title" name="title" class="form-control" maxlength="140" value="{{.FeedTitle}}" aria-describedby="feed_title_help">
+                            <small id="feed_title_help" class="form-text">{{t $lang "admin.web.feed_title_help"}}</small>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit" class="btn btn-primary">💾 {{t $lang "admin.web.feeds_save_action"}}</button>
                         </div>
                     </form>
                 </div>

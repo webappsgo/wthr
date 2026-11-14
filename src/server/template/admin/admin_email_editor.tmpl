@@ -24,7 +24,7 @@
                 <p class="empty-state__message">{{t $lang "admin.email_editor.templates_empty"}}</p>
                 {{else}}
                 {{range .templates}}
-                <a class="template-item{{if eq .Name $.selected}} active{{end}}" data-template="{{.Name}}" href="{{$ap}}/config/email/templates?template={{.Name}}"{{if eq .Name $.selected}} aria-current="true"{{end}}>
+                <a class="template-item{{if eq .Name $.selected}} active{{end}}" data-template="{{.Name}}" href="{{$ap}}/email/templates?template={{.Name}}"{{if eq .Name $.selected}} aria-current="true"{{end}}>
                     <span class="template-name">{{t $lang (printf "admin.email_editor.tpl_%s_name" .Name)}}</span>
                     <span class="template-desc">{{t $lang (printf "admin.email_editor.tpl_%s_desc" .Name)}}</span>
                 </a>
@@ -36,7 +36,7 @@
             <div class="editor-panel">
                 <h2><span id="editorTitle">{{t $lang "admin.email_editor.edit_heading"}}</span></h2>
 
-                <form id="templateForm" class="admin-form" method="post" action="{{$ap}}/config/email/templates" enctype="application/x-www-form-urlencoded">
+                <form id="templateForm" class="admin-form" method="post" action="{{$ap}}/email/templates" enctype="application/x-www-form-urlencoded">
                     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <input type="hidden" name="template" id="templateName" value="{{.selected}}">
                     <div class="form-group">
@@ -70,7 +70,7 @@
                     </div>
                 </form>
 
-                <form class="admin-form" method="post" action="{{$ap}}/config/email/templates/preview" enctype="application/x-www-form-urlencoded">
+                <form class="admin-form" method="post" action="{{$ap}}/email/templates/preview" enctype="application/x-www-form-urlencoded">
                     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
                     <input type="hidden" name="template" value="{{.selected}}">
                     <div class="form-actions">

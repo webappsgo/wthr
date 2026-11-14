@@ -29,7 +29,7 @@
       <span class="admin-brand__text">{{if .server}}{{.server.Title}}{{else}}{{t $lang "app.name"}}{{end}}</span>
       <span class="admin-brand__suffix">{{t $lang "admin.title"}}</span>
     </a>
-    <form class="admin-search" method="get" action="{{$ap}}/config/search" role="search">
+    <form class="admin-search" method="get" action="{{$ap}}/settings/search" role="search">
       <label class="admin-search__label" for="admin-search-input">{{t $lang "admin.search.label"}}</label>
       <input class="admin-search__input" id="admin-search-input" type="search" name="q"
              placeholder="{{t $lang "admin.search.placeholder"}}" autocomplete="off">
@@ -45,13 +45,13 @@
       <span class="admin-account__name">{{if .user.Username}}{{.user.Username}}{{else}}{{.user.Email}}{{end}}</span>
     </a>
     {{end}}
-    <a class="admin-logout" href="{{$ap}}/logout">
+    <a class="admin-logout" href="/server/auth/logout">
       <span class="admin-logout__icon" aria-hidden="true">&#9099;</span>
       <span class="admin-logout__label">{{t $lang "nav.logout"}}</span>
     </a>
   </header>
   <div class="admin-body">
-    <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}" data-nav-state-url="{{$ap}}/config/nav-state" data-nav-state-csrf="{{.csrf_token}}">
+    <nav class="admin-sidebar" id="admin-nav" aria-label="{{t $lang "admin.nav.label"}}" data-nav-state-url="{{$ap}}/settings/nav-state" data-nav-state-csrf="{{.csrf_token}}">
       <ul class="nav-root">
         <li>
           <a class="nav-link nav-link--top{{if eq $page "admin"}} is-active{{end}}" href="{{$ap}}"{{if eq $page "admin"}} aria-current="page"{{end}}>
@@ -66,18 +66,18 @@
           <span class="nav-section__text">{{t $lang "admin.nav.server"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "settings"}} is-active{{end}}" href="{{$ap}}/config/settings"{{if eq $page "settings"}} aria-current="page"{{end}}>{{t $lang "nav.settings"}}</a></li>
-          <li><a class="nav-link{{if eq $page "branding"}} is-active{{end}}" href="{{$ap}}/config/branding"{{if eq $page "branding"}} aria-current="page"{{end}}>{{t $lang "admin.nav.branding"}}</a></li>
-          <li><a class="nav-link{{if eq $page "ssl"}} is-active{{end}}" href="{{$ap}}/config/ssl"{{if eq $page "ssl"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ssl"}}</a></li>
-          <li><a class="nav-link{{if eq $page "scheduler"}} is-active{{end}}" href="{{$ap}}/config/scheduler"{{if eq $page "scheduler"}} aria-current="page"{{end}}>{{t $lang "admin.nav.scheduler"}}</a></li>
-          <li><a class="nav-link{{if eq $page "email"}} is-active{{end}}" href="{{$ap}}/config/email"{{if eq $page "email"}} aria-current="page"{{end}}>{{t $lang "admin.nav.email"}}</a></li>
-          <li><a class="nav-link{{if eq $page "channels"}} is-active{{end}}" href="{{$ap}}/config/channels"{{if eq $page "channels"}} aria-current="page"{{end}}>{{t $lang "admin.nav.channels"}}</a></li>
-          <li><a class="nav-link{{if eq $page "templates"}} is-active{{end}}" href="{{$ap}}/config/templates"{{if eq $page "templates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.templates"}}</a></li>
-          <li><a class="nav-link{{if eq $page "logs"}} is-active{{end}}" href="{{$ap}}/config/logs"{{if eq $page "logs"}} aria-current="page"{{end}}>{{t $lang "admin.nav.logs"}}</a></li>
-          <li><a class="nav-link{{if eq $page "backup"}} is-active{{end}}" href="{{$ap}}/config/backup"{{if eq $page "backup"}} aria-current="page"{{end}}>{{t $lang "admin.nav.backup"}}</a></li>
-          <li><a class="nav-link{{if eq $page "maintenance"}} is-active{{end}}" href="{{$ap}}/config/maintenance"{{if eq $page "maintenance"}} aria-current="page"{{end}}>{{t $lang "admin.nav.maintenance"}}</a></li>
-          <li><a class="nav-link{{if eq $page "updates"}} is-active{{end}}" href="{{$ap}}/config/updates"{{if eq $page "updates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.updates"}}</a></li>
-          <li><a class="nav-link{{if eq $page "info"}} is-active{{end}}" href="{{$ap}}/config/info"{{if eq $page "info"}} aria-current="page"{{end}}>{{t $lang "admin.nav.info"}}</a></li>
+          <li><a class="nav-link{{if eq $page "settings"}} is-active{{end}}" href="{{$ap}}/settings"{{if eq $page "settings"}} aria-current="page"{{end}}>{{t $lang "nav.settings"}}</a></li>
+          <li><a class="nav-link{{if eq $page "branding"}} is-active{{end}}" href="{{$ap}}/branding"{{if eq $page "branding"}} aria-current="page"{{end}}>{{t $lang "admin.nav.branding"}}</a></li>
+          <li><a class="nav-link{{if eq $page "ssl"}} is-active{{end}}" href="{{$ap}}/ssl"{{if eq $page "ssl"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ssl"}}</a></li>
+          <li><a class="nav-link{{if eq $page "scheduler"}} is-active{{end}}" href="{{$ap}}/scheduler"{{if eq $page "scheduler"}} aria-current="page"{{end}}>{{t $lang "admin.nav.scheduler"}}</a></li>
+          <li><a class="nav-link{{if eq $page "email"}} is-active{{end}}" href="{{$ap}}/email"{{if eq $page "email"}} aria-current="page"{{end}}>{{t $lang "admin.nav.email"}}</a></li>
+          <li><a class="nav-link{{if eq $page "channels"}} is-active{{end}}" href="{{$ap}}/notifications/channels"{{if eq $page "channels"}} aria-current="page"{{end}}>{{t $lang "admin.nav.channels"}}</a></li>
+          <li><a class="nav-link{{if eq $page "templates"}} is-active{{end}}" href="{{$ap}}/notifications/templates"{{if eq $page "templates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.templates"}}</a></li>
+          <li><a class="nav-link{{if eq $page "logs"}} is-active{{end}}" href="{{$ap}}/logs"{{if eq $page "logs"}} aria-current="page"{{end}}>{{t $lang "admin.nav.logs"}}</a></li>
+          <li><a class="nav-link{{if eq $page "backup"}} is-active{{end}}" href="{{$ap}}/backup"{{if eq $page "backup"}} aria-current="page"{{end}}>{{t $lang "admin.nav.backup"}}</a></li>
+          <li><a class="nav-link{{if eq $page "maintenance"}} is-active{{end}}" href="{{$ap}}/maintenance"{{if eq $page "maintenance"}} aria-current="page"{{end}}>{{t $lang "admin.nav.maintenance"}}</a></li>
+          <li><a class="nav-link{{if eq $page "updates"}} is-active{{end}}" href="{{$ap}}/updates"{{if eq $page "updates"}} aria-current="page"{{end}}>{{t $lang "admin.nav.updates"}}</a></li>
+          <li><a class="nav-link{{if eq $page "info"}} is-active{{end}}" href="{{$ap}}/info"{{if eq $page "info"}} aria-current="page"{{end}}>{{t $lang "admin.nav.info"}}</a></li>
         </ul>
       </details>
       <details class="nav-section" data-nav-section="security"{{if index $.admin_nav_open "security"}} open{{end}}>
@@ -86,10 +86,10 @@
           <span class="nav-section__text">{{t $lang "admin.nav.security"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "auth"}} is-active{{end}}" href="{{$ap}}/config/security/auth"{{if eq $page "auth"}} aria-current="page"{{end}}>{{t $lang "admin.nav.authentication"}}</a></li>
-          <li><a class="nav-link{{if eq $page "tokens"}} is-active{{end}}" href="{{$ap}}/config/security/tokens"{{if eq $page "tokens"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tokens"}}</a></li>
-          <li><a class="nav-link{{if eq $page "ratelimit"}} is-active{{end}}" href="{{$ap}}/config/security/ratelimit"{{if eq $page "ratelimit"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ratelimit"}}</a></li>
-          <li><a class="nav-link{{if eq $page "firewall"}} is-active{{end}}" href="{{$ap}}/config/security/firewall"{{if eq $page "firewall"}} aria-current="page"{{end}}>{{t $lang "admin.nav.firewall"}}</a></li>
+          <li><a class="nav-link{{if eq $page "auth"}} is-active{{end}}" href="{{$ap}}/security/auth"{{if eq $page "auth"}} aria-current="page"{{end}}>{{t $lang "admin.nav.authentication"}}</a></li>
+          <li><a class="nav-link{{if eq $page "tokens"}} is-active{{end}}" href="{{$ap}}/security/tokens"{{if eq $page "tokens"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tokens"}}</a></li>
+          <li><a class="nav-link{{if eq $page "ratelimit"}} is-active{{end}}" href="{{$ap}}/security/ratelimit"{{if eq $page "ratelimit"}} aria-current="page"{{end}}>{{t $lang "admin.nav.ratelimit"}}</a></li>
+          <li><a class="nav-link{{if eq $page "firewall"}} is-active{{end}}" href="{{$ap}}/security/firewall"{{if eq $page "firewall"}} aria-current="page"{{end}}>{{t $lang "admin.nav.firewall"}}</a></li>
         </ul>
       </details>
       <details class="nav-section" data-nav-section="network"{{if index $.admin_nav_open "network"}} open{{end}}>
@@ -98,10 +98,10 @@
           <span class="nav-section__text">{{t $lang "admin.nav.network"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "tor"}} is-active{{end}}" href="{{$ap}}/config/network/tor"{{if eq $page "tor"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tor"}}</a></li>
-          <li><a class="nav-link{{if eq $page "i2p"}} is-active{{end}}" href="{{$ap}}/config/network/i2p"{{if eq $page "i2p"}} aria-current="page"{{end}}>{{t $lang "admin.nav.i2p"}}</a></li>
-          <li><a class="nav-link{{if eq $page "geoip"}} is-active{{end}}" href="{{$ap}}/config/network/geoip"{{if eq $page "geoip"}} aria-current="page"{{end}}>{{t $lang "admin.nav.geoip"}}</a></li>
-          <li><a class="nav-link{{if eq $page "blocklists"}} is-active{{end}}" href="{{$ap}}/config/network/blocklists"{{if eq $page "blocklists"}} aria-current="page"{{end}}>{{t $lang "admin.nav.blocklists"}}</a></li>
+          <li><a class="nav-link{{if eq $page "tor"}} is-active{{end}}" href="{{$ap}}/network/tor"{{if eq $page "tor"}} aria-current="page"{{end}}>{{t $lang "admin.nav.tor"}}</a></li>
+          <li><a class="nav-link{{if eq $page "i2p"}} is-active{{end}}" href="{{$ap}}/network/i2p"{{if eq $page "i2p"}} aria-current="page"{{end}}>{{t $lang "admin.nav.i2p"}}</a></li>
+          <li><a class="nav-link{{if eq $page "geoip"}} is-active{{end}}" href="{{$ap}}/network/geoip"{{if eq $page "geoip"}} aria-current="page"{{end}}>{{t $lang "admin.nav.geoip"}}</a></li>
+          <li><a class="nav-link{{if eq $page "blocklists"}} is-active{{end}}" href="{{$ap}}/network/blocklists"{{if eq $page "blocklists"}} aria-current="page"{{end}}>{{t $lang "admin.nav.blocklists"}}</a></li>
         </ul>
       </details>
       {{- /* AI.md PART 34 is active for this project, so Users is always shown. */}}
@@ -111,9 +111,9 @@
           <span class="nav-section__text">{{t $lang "admin.nav.users"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "users"}} is-active{{end}}" href="{{$ap}}/config/users"{{if eq $page "users"}} aria-current="page"{{end}}>{{t $lang "admin.nav.user_list"}}</a></li>
-          <li><a class="nav-link{{if eq $page "invites"}} is-active{{end}}" href="{{$ap}}/config/users/invites"{{if eq $page "invites"}} aria-current="page"{{end}}>{{t $lang "admin.nav.invites"}}</a></li>
-          <li><a class="nav-link{{if eq $page "roles"}} is-active{{end}}" href="{{$ap}}/config/roles"{{if eq $page "roles"}} aria-current="page"{{end}}>{{t $lang "admin.nav.roles"}}</a></li>
+          <li><a class="nav-link{{if eq $page "users"}} is-active{{end}}" href="{{$ap}}/users"{{if eq $page "users"}} aria-current="page"{{end}}>{{t $lang "admin.nav.user_list"}}</a></li>
+          <li><a class="nav-link{{if eq $page "invites"}} is-active{{end}}" href="{{$ap}}/users/invites"{{if eq $page "invites"}} aria-current="page"{{end}}>{{t $lang "admin.nav.invites"}}</a></li>
+          <li><a class="nav-link{{if eq $page "roles"}} is-active{{end}}" href="{{$ap}}/roles"{{if eq $page "roles"}} aria-current="page"{{end}}>{{t $lang "admin.nav.roles"}}</a></li>
         </ul>
       </details>
       {{- /* AI.md PART 10 cluster section: only rendered when cluster mode is on. */}}
@@ -124,8 +124,8 @@
           <span class="nav-section__text">{{t $lang "admin.nav.cluster"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "cluster_nodes"}} is-active{{end}}" href="{{$ap}}/config/cluster/nodes"{{if eq $page "cluster_nodes"}} aria-current="page"{{end}}>{{t $lang "admin.nav.nodes"}}</a></li>
-          <li><a class="nav-link{{if eq $page "cluster_add"}} is-active{{end}}" href="{{$ap}}/config/cluster/add"{{if eq $page "cluster_add"}} aria-current="page"{{end}}>{{t $lang "admin.nav.add_node"}}</a></li>
+          <li><a class="nav-link{{if eq $page "cluster_nodes"}} is-active{{end}}" href="{{$ap}}/cluster/nodes"{{if eq $page "cluster_nodes"}} aria-current="page"{{end}}>{{t $lang "admin.nav.nodes"}}</a></li>
+          <li><a class="nav-link{{if eq $page "cluster_add"}} is-active{{end}}" href="{{$ap}}/cluster/add"{{if eq $page "cluster_add"}} aria-current="page"{{end}}>{{t $lang "admin.nav.add_node"}}</a></li>
         </ul>
       </details>
       {{end}}
@@ -135,7 +135,7 @@
           <span class="nav-section__text">{{t $lang "admin.nav.help"}}</span>
         </summary>
         <ul class="nav-list">
-          <li><a class="nav-link{{if eq $page "help"}} is-active{{end}}" href="{{$ap}}/config/pages/help"{{if eq $page "help"}} aria-current="page"{{end}}>{{t $lang "admin.nav.documentation"}}</a></li>
+          <li><a class="nav-link{{if eq $page "help"}} is-active{{end}}" href="{{$ap}}/pages/help"{{if eq $page "help"}} aria-current="page"{{end}}>{{t $lang "admin.nav.documentation"}}</a></li>
         </ul>
       </details>
     </nav>
@@ -161,7 +161,7 @@
       </main>
       <footer class="admin-footer">
         <p class="admin-footer__item">{{t $lang "admin.footer.version"}} <span class="admin-footer__value">{{if .server}}{{.server.Version}}{{else}}{{t $lang "admin.footer.unknown"}}{{end}}</span></p>
-        <p class="admin-footer__item"><a class="admin-footer__link" href="{{$ap}}/config/pages/help">{{t $lang "admin.footer.docs"}}</a></p>
+        <p class="admin-footer__item"><a class="admin-footer__link" href="{{$ap}}/pages/help">{{t $lang "admin.footer.docs"}}</a></p>
         <p class="admin-footer__item admin-status admin-status--{{$status}}">
           <span class="admin-status__dot" aria-hidden="true">{{if eq $status "error"}}&#10007;{{else if eq $status "warning"}}&#9888;{{else}}&#10003;{{end}}</span>
           <span class="admin-status__text">{{if eq $status "error"}}{{t $lang "admin.status.error"}}{{else if eq $status "warning"}}{{t $lang "admin.status.warning"}}{{else}}{{t $lang "admin.status.ok"}}{{end}}</span>

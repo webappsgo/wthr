@@ -73,7 +73,7 @@ func TestAdminNavOpenSectionsDropsUnknownNames(t *testing.T) {
 
 func TestSetAdminNavCollapsedFiltersAndPersists(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", nil)
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", nil)
 
 	SetAdminNavCollapsed(rec, r, []string{" users ", "bogus", "help"})
 
@@ -97,7 +97,7 @@ func TestSetAdminNavCollapsedFiltersAndPersists(t *testing.T) {
 
 func TestSetAdminNavCollapsedSecureBehindHTTPSProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "http://example.invalid/server/administration/config/nav-state", nil)
+	r := httptest.NewRequest(http.MethodPost, "http://example.invalid/server/administration/settings/nav-state", nil)
 	r.RemoteAddr = "127.0.0.1:12345"
 	r.Header.Set("X-Forwarded-Proto", "https")
 
@@ -114,7 +114,7 @@ func TestSetAdminNavCollapsedSecureBehindHTTPSProxy(t *testing.T) {
 
 func TestSetAdminNavCollapsedClearsCookieWhenEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", nil)
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", nil)
 
 	SetAdminNavCollapsed(rec, r, []string{"bogus"})
 
@@ -129,11 +129,11 @@ func TestSetAdminNavCollapsedClearsCookieWhenEmpty(t *testing.T) {
 
 func TestAdminNavStateRoundTrip(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", nil)
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", nil)
 
 	SetAdminNavCollapsed(rec, r, []string{"security", "network"})
 
-	next := httptest.NewRequest(http.MethodGet, "/server/administration/config/settings", nil)
+	next := httptest.NewRequest(http.MethodGet, "/server/administration/settings", nil)
 	for _, cookie := range rec.Result().Cookies() {
 		next.AddCookie(cookie)
 	}
@@ -149,7 +149,7 @@ func TestAdminNavStateRoundTrip(t *testing.T) {
 
 func TestUpdateAdminNavStateJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", strings.NewReader(`{"collapsed":["users","bogus"]}`))
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", strings.NewReader(`{"collapsed":["users","bogus"]}`))
 	r.Header.Set("Content-Type", "application/json")
 
 	UpdateAdminNavState(rec, r)
@@ -166,7 +166,7 @@ func TestUpdateAdminNavStateJSON(t *testing.T) {
 func TestUpdateAdminNavStateFormEncoded(t *testing.T) {
 	rec := httptest.NewRecorder()
 	form := strings.NewReader("collapsed=help&collapsed=users")
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", form)
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", form)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	UpdateAdminNavState(rec, r)
@@ -185,7 +185,7 @@ func TestUpdateAdminNavStateFormEncoded(t *testing.T) {
 // this as request state written by the sidebar, so only the POST body counts.
 func TestUpdateAdminNavStateIgnoresQueryParams(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state?collapsed=security", strings.NewReader("collapsed=users"))
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state?collapsed=security", strings.NewReader("collapsed=users"))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	UpdateAdminNavState(rec, r)
@@ -201,7 +201,7 @@ func TestUpdateAdminNavStateIgnoresQueryParams(t *testing.T) {
 
 func TestUpdateAdminNavStateRejectsMalformedJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", strings.NewReader("{not json"))
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", strings.NewReader("{not json"))
 	r.Header.Set("Content-Type", "application/json")
 
 	UpdateAdminNavState(rec, r)
@@ -227,7 +227,7 @@ func TestUpdateAdminNavStateRejectsMalformedJSON(t *testing.T) {
 
 func TestUpdateAdminNavStateSuccessShape(t *testing.T) {
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/server/administration/config/nav-state", strings.NewReader(`{"collapsed":[]}`))
+	r := httptest.NewRequest(http.MethodPost, "/server/administration/settings/nav-state", strings.NewReader(`{"collapsed":[]}`))
 	r.Header.Set("Content-Type", "application/json")
 
 	UpdateAdminNavState(rec, r)

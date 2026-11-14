@@ -10,6 +10,18 @@
             <p class="subtitle">{{t $lang "admin.settings.subtitle"}}</p>
         </div>
 
+        {{if .dropin_owned}}
+        <section class="alert alert-info" role="status" aria-labelledby="dropin-owned-heading">
+            <h2 id="dropin-owned-heading">{{t $lang "admin.settings.dropin_heading"}}</h2>
+            <p>{{t $lang "admin.settings.dropin_intro"}}</p>
+            <ul>
+                {{range .dropin_owned}}
+                <li><code class="admin-break-all">{{.Key}}</code> {{t $lang "admin.settings.dropin_set_by"}} <code>{{.File}}</code></li>
+                {{end}}
+            </ul>
+        </section>
+        {{end}}
+
         <!-- Settings Tabs -->
         <div class="tabs" role="tablist" aria-label="{{t $lang "admin.settings.tabs_aria_label"}}">
             <button class="tab active"
@@ -761,7 +773,7 @@
         <div id="tab-ratelimit" class="tab-content" role="tabpanel" aria-labelledby="tab-ratelimit">
             <div class="card">
                 <h2>🚦 {{t $lang "admin.settings.rate_limit_heading"}}</h2>
-                <form id="form-ratelimit" data-rate-limit-config-form method="post" action="{{.admin_path}}/config/settings/rate-limit"
+                <form id="form-ratelimit" data-rate-limit-config-form method="post" action="{{.admin_path}}/settings/rate-limit"
                       data-save-success="{{t $lang "admin.settings.rate_limit_save_success"}}"
                       data-save-error="{{t $lang "admin.settings.rate_limit_save_error"}}"
                       role="form" aria-label="{{t $lang "admin.settings.rate_limit_heading"}}">
@@ -1253,7 +1265,7 @@
             <div class="card">
                 <h2>🗄️ {{t $lang "admin.settings.cache_config_heading"}}</h2>
                 <p>{{t $lang "admin.settings.cache_config_description"}}</p>
-                <form data-cache-config-form method="post" action="{{.admin_path}}/config/settings/cache"
+                <form data-cache-config-form method="post" action="{{.admin_path}}/settings/cache"
                       role="form"
                       aria-label="{{t $lang "admin.settings.cache_config_form_aria"}}"
                       data-save-success="{{t $lang "admin.settings.cache_save_success"}}"

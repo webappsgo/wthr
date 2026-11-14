@@ -25,7 +25,44 @@ func validateConfig(cfg *AppConfig) bool {
 	validateServerTracking(cfg)
 	validateServerCache(cfg)
 	validateServerUpdate(cfg)
+	validateServerSEO(cfg)
+	validateWebRobots(cfg)
 	return portReplaced
+}
+
+// validateServerSEO bounds the sitemap and feed limits (AI.md PART 16): an
+// out-of-range value is replaced by its default.
+func validateServerSEO(cfg *AppConfig) {
+	seo := &cfg.Server.SEO
+	if seo.Sitemap.MaxURLs < 1 || seo.Sitemap.MaxURLs > DefaultSitemapMaxURLs {
+		if seo.Sitemap.MaxURLs != 0 {
+			warnConfig("invalid seo.sitemap.max_urls %d, using default %d", seo.Sitemap.MaxURLs, DefaultSitemapMaxURLs)
+		}
+		seo.Sitemap.MaxURLs = DefaultSitemapMaxURLs
+	}
+	if seo.Feed.MaxItems < 1 || seo.Feed.MaxItems > MaxFeedMaxItems {
+		if seo.Feed.MaxItems != 0 {
+			warnConfig("invalid seo.feed.max_items %d, using default %d", seo.Feed.MaxItems, DefaultFeedMaxItems)
+		}
+		seo.Feed.MaxItems = DefaultFeedMaxItems
+	}
+	seo.Feed.Title = strings.TrimSpace(seo.Feed.Title)
+}
+
+// validateWebRobots drops invalid robots paths with a warning and restores the
+// defaults when nothing usable is left.
+func validateWebRobots(cfg *AppConfig) {
+	robots := &cfg.Web.Robots
+	allow, allowErrs := NormalizeRobotsPaths(robots.Allow)
+	deny, denyErrs := NormalizeRobotsPaths(robots.Deny)
+	for _, message := range append(allowErrs, denyErrs...) {
+		warnConfig("web.robots: %s", message)
+	}
+	robots.Allow = allow
+	robots.Deny = deny
+	if len(robots.Allow) == 0 && len(robots.Deny) == 0 {
+		*robots = DefaultRobotsConfig()
+	}
 }
 
 func validateServerUpdate(cfg *AppConfig) {

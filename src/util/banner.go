@@ -111,12 +111,12 @@ func bannerDisplayWidth(text string) int {
 
 // DisplayFirstRunBanner displays the startup banner with setup information
 // AI.md PART 11: Responsive banner adapts to terminal width
-// adminBasePath is the resolved "/server/{admin_path}" prefix; the setup wizard lives beneath it at /config/setup
+// adminBasePath is the resolved "/server/{admin_path}" prefix; the setup wizard lives beneath it at /setup
 func DisplayFirstRunBanner(port int, useTLS bool, setupToken string, torOnion, i2pAddress, adminBasePath string) {
 	proto := BannerProto(useTLS)
 	fqdn := GetFQDN()
 	listenURL := BannerListenURL(proto, fqdn, port)
-	setupURL := listenURL + adminBasePath + "/config/setup"
+	setupURL := listenURL + adminBasePath + "/setup"
 	binaryName := getBinaryName()
 
 	if !EmojiEnabled() {

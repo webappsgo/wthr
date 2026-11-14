@@ -11,7 +11,7 @@
         <div class="admin-alert admin-alert-success" id="successAlert" role="alert"></div>
         <div class="admin-alert admin-alert-error" id="errorAlert" role="alert"></div>
 
-        <form id="schedulerForm" method="POST" action="{{.admin_path}}/config/scheduler">
+        <form id="schedulerForm" method="POST" action="{{.admin_path}}/scheduler">
     <input type="hidden" name="csrf_token" value="{{.csrf_token}}">
             <!-- Global Settings -->
             <div class="admin-page-card">
@@ -428,7 +428,7 @@
 
             <div class="btn-group">
                 <button type="submit" class="btn btn-primary">{{t $lang "admin.scheduler.save_action"}}</button>
-                <a href="{{.admin_path}}/config/scheduler" class="btn btn-secondary">{{t $lang "action.cancel"}}</a>
+                <a href="{{.admin_path}}/scheduler" class="btn btn-secondary">{{t $lang "action.cancel"}}</a>
             </div>
         </form>
     </div>
