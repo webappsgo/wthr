@@ -52,9 +52,11 @@ const (
 	i2pHealthProbeTimeout = 50 * time.Millisecond
 	// i2pMonitorInterval is how often the provider is health-checked.
 	i2pMonitorInterval = 30 * time.Second
-	// i2pStatusErrorMaxLen caps the "error:{short message}" status string.
-	i2pStatusErrorMaxLen = 120
 )
+
+// errI2PNoProvider marks "I2P is opted in but neither i2pd nor a SAM bridge exists".
+// The health contract (PART 13) reports that state as disabled, never unavailable.
+var errI2PNoProvider = errors.New("i2p enabled but no provider available")
 
 // i2pBase64 is the I2P base64 variant used by SAM ('+' becomes '-', '/' becomes '~').
 var i2pBase64 = base64.NewEncoding("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-~")
@@ -565,7 +567,7 @@ func startDedicatedI2P(ctx context.Context, cfg *config.I2PConfig, backendPort i
 	} else if samReachable(cfg.SAMAddress) {
 		provider = I2PProviderSAM
 	} else {
-		return nil, fmt.Errorf("i2p enabled but no provider available (no i2pd binary, SAM %s unreachable)", cfg.SAMAddress)
+		return nil, fmt.Errorf("%w (no i2pd binary, SAM %s unreachable)", errI2PNoProvider, cfg.SAMAddress)
 	}
 
 	if err := ensureI2PDirs(); err != nil {
@@ -814,24 +816,36 @@ func (im *I2PManager) IsRunning() bool {
 	return im.service != nil && i2pProviderHealthy(im.service)
 }
 
-// Status returns the health-response status string: "disabled" when I2P is not
-// opted in, "healthy" when the eepsite is up, or "error:{short message}".
+// Enabled reports whether I2P is active on this instance: opted in AND a
+// provider was found (PART 13 "Overlay Network Health").
+func (im *I2PManager) Enabled() bool {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+	return im.enabledLocked()
+}
+
+func (im *I2PManager) enabledLocked() bool {
+	if im.config == nil || !im.config.Enabled {
+		return false
+	}
+	return !errors.Is(im.lastErr, errI2PNoProvider)
+}
+
+// Status returns one of the four health-contract words: disabled, starting,
+// healthy or unavailable. It never carries error text; details go to the log.
 func (im *I2PManager) Status() string {
 	im.mu.Lock()
 	defer im.mu.Unlock()
-	if im.config == nil || !im.config.Enabled {
+	if !im.enabledLocked() {
 		return "disabled"
 	}
 	if im.service != nil && i2pProviderHealthy(im.service) {
 		return "healthy"
 	}
-	if im.lastErr != nil {
-		return "error:" + shortI2PError(im.lastErr)
+	if im.lastErr != nil || im.service != nil {
+		return "unavailable"
 	}
-	if im.service == nil {
-		return "error:not started"
-	}
-	return "error:provider unresponsive"
+	return "starting"
 }
 
 // Provider returns the active provider name: i2pd, sam, or none.
@@ -896,21 +910,6 @@ func (im *I2PManager) Close() error {
 	return nil
 }
 
-// shortI2PError condenses an error into the single short line the health
-// response's "error:{short message}" form expects.
-func shortI2PError(err error) string {
-	if err == nil {
-		return "unknown"
-	}
-	msg := strings.TrimSpace(strings.SplitN(err.Error(), "\n", 2)[0])
-	if msg == "" {
-		return "unknown"
-	}
-	if len(msg) > i2pStatusErrorMaxLen {
-		return msg[:i2pStatusErrorMaxLen]
-	}
-	return msg
-}
 
 // I2P config validation lives solely in config.ValidateI2PConfig (src/config/config.go)
 // per AI.md PART 32.2 — that is the version production code (admin_i2p.go, config.go's

@@ -152,3 +152,21 @@ func TestInvalidContactFieldNamesTheFirstOffender(t *testing.T) {
 		t.Errorf("valid form: field=%q trimmed name=%q", got, ok.Name)
 	}
 }
+
+func TestContactFieldDescriptorsAlwaysCarryAllKeys(t *testing.T) {
+	raw, err := json.Marshal(contactFields())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var fields []map[string]interface{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, f := range fields {
+		for _, key := range []string{"name", "type", "required", "max_length", "required_when", "max_length_when"} {
+			if _, ok := f[key]; !ok {
+				t.Errorf("field %v is missing descriptor key %q", f["name"], key)
+			}
+		}
+	}
+}

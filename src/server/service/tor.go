@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -14,6 +16,24 @@ import (
 	"github.com/webappsgo/wthr/src/database"
 	"github.com/webappsgo/wthr/src/server/model"
 )
+
+const (
+	torLifecycleStarting = "starting"
+	torLifecycleRunning  = "running"
+	torLifecycleFailed   = "failed"
+	torLifecycleDisabled = "disabled"
+)
+
+// ErrTorBinaryMissing is returned by StartTorService when no tor binary is on
+// PATH. It is informational: a missing Tor is a normal state, never a failure.
+var ErrTorBinaryMissing = errors.New("tor binary not found")
+
+// torBinaryFound reports whether a tor binary is on PATH; a missing binary is a
+// normal state (disabled), never an error.
+func torBinaryFound() bool {
+	_, err := exec.LookPath("tor")
+	return err == nil
+}
 
 // TorService manages the Tor hidden service
 type TorService struct {
@@ -32,6 +52,8 @@ type TorService struct {
 	restartCount    int
 	monitorEnabled  bool
 	monitorStop     chan struct{}
+	// lifecycle is idle (never launched), starting, running or failed; it feeds Status()
+	lifecycle string
 }
 
 // NewTorService creates a new Tor service instance
@@ -50,6 +72,7 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 		cancel:         cancel,
 		isRunning:      false,
 		healthStatus:   "not_started",
+		lifecycle:      torLifecycleStarting,
 		monitorEnabled: true,
 		monitorStop:    make(chan struct{}),
 	}
@@ -57,11 +80,38 @@ func NewTorService(db *database.DB, dataDir string) *TorService {
 
 // StartTorService initializes and starts the Tor hidden service
 func (ts *TorService) StartTorService(httpPort int) error {
+	if !torBinaryFound() {
+		ts.setLifecycle(torLifecycleDisabled)
+		return ErrTorBinaryMissing
+	}
+	ts.setLifecycle(torLifecycleStarting)
+	if err := ts.startTorService(httpPort); err != nil {
+		ts.setLifecycle(torLifecycleFailed)
+		return err
+	}
+	return nil
+}
+
+// SetDisabled records an admin switching the hidden service off.
+func (ts *TorService) SetDisabled() {
+	ts.setLifecycle(torLifecycleDisabled)
+}
+
+// setLifecycle records the launch state used by Status().
+func (ts *TorService) setLifecycle(state string) {
+	ts.mu.Lock()
+	ts.lifecycle = state
+	ts.mu.Unlock()
+}
+
+// startTorService launches the dedicated Tor process and the hidden service.
+func (ts *TorService) startTorService(httpPort int) error {
 	settingsModel := &model.SettingsModel{DB: database.GetServerDB()}
 
 	// Check if Tor is enabled
 	enabled := settingsModel.GetBool("tor.enabled", true)
 	if !enabled {
+		ts.setLifecycle(torLifecycleDisabled)
 		log.Printf("%s Tor hidden service is disabled in settings", display.Emoji("ℹ️", "INFO:"))
 		return nil
 	}
@@ -128,6 +178,7 @@ func (ts *TorService) StartTorService(httpPort int) error {
 	ts.isRunning = true
 	ts.startTime = time.Now()
 	ts.healthStatus = "healthy"
+	ts.lifecycle = torLifecycleRunning
 	ts.lastHealthCheck = time.Now()
 	ts.mu.Unlock()
 
@@ -178,6 +229,9 @@ func (ts *TorService) StopTorService() error {
 	ts.mu.Lock()
 	ts.isRunning = false
 	ts.healthStatus = "stopped"
+	if ts.lifecycle == torLifecycleRunning {
+		ts.lifecycle = torLifecycleFailed
+	}
 	ts.mu.Unlock()
 
 	log.Println("OK: Tor hidden service stopped")
@@ -186,12 +240,42 @@ func (ts *TorService) StopTorService() error {
 
 // GetOnionAddress returns the current .onion address
 func (ts *TorService) GetOnionAddress() string {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
 	return ts.onionAddress
 }
 
 // IsRunning returns true if Tor service is running
 func (ts *TorService) IsRunning() bool {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
 	return ts.isRunning
+}
+
+// Enabled reports whether the hidden service is active on this instance: a tor
+// binary was found and the service was not switched off by an admin.
+func (ts *TorService) Enabled() bool {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+	return ts.lifecycle != torLifecycleDisabled && torBinaryFound()
+}
+
+// Status returns one of the four health-contract words: disabled, starting,
+// healthy or unavailable. Failure detail goes to the log, never to this value.
+func (ts *TorService) Status() string {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+	if ts.lifecycle == torLifecycleDisabled || !torBinaryFound() {
+		return "disabled"
+	}
+	switch {
+	case ts.isRunning && ts.healthStatus != "unhealthy":
+		return "healthy"
+	case ts.lifecycle == torLifecycleFailed || ts.isRunning:
+		return "unavailable"
+	default:
+		return "starting"
+	}
 }
 
 // GetStatus returns the current Tor service status

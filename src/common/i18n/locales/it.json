@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "Dimensione massima per file",
   "admin.backup.limit_ratio": "Rapporto massimo di compressione",
   "api.text_retrieved": "Recuperato con successo",
-  "api.text_items_found": "{n} elementi trovati"
+  "api.text_items_found": "{n} elementi trovati",
+  "errors.tor.settings_update_failed": "Impossibile aggiornare le impostazioni",
+  "errors.tor.start_failed": "Impossibile avviare Tor",
+  "errors.tor.stop_failed": "Impossibile arrestare Tor",
+  "errors.tor.regenerate_failed": "Impossibile rigenerare l'indirizzo .onion",
+  "errors.tor.generation_failed": "Impossibile avviare la generazione dell'indirizzo personalizzato",
+  "errors.tor.cancel_failed": "Impossibile annullare la generazione",
+  "errors.tor.no_keys": "Nessuna chiave generata disponibile",
+  "errors.tor.import_failed": "Impossibile importare le chiavi",
+  "errors.tor.restart_failed": "Impossibile riavviare Tor",
+  "errors.tor.save_failed": "Impossibile salvare il file caricato",
+  "errors.tor.export_failed": "Impossibile esportare le chiavi",
+  "errors.scheduler.update_failed": "Impossibile aggiornare l'attività",
+  "errors.scheduler.list_failed": "Impossibile caricare l'elenco delle attività",
+  "errors.scheduler.history_failed": "Impossibile caricare la cronologia dell'attività"
 }

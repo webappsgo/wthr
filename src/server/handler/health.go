@@ -8,7 +8,6 @@ import (
 	"github.com/webappsgo/wthr/src/server/middleware"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -77,7 +76,9 @@ func getPublicCacheCheck() string {
 
 // TorStatusProvider is an interface for getting Tor service status
 type TorStatusProvider interface {
+	Enabled() bool
 	IsRunning() bool
+	Status() string
 	GetOnionAddress() string
 }
 
@@ -89,17 +90,18 @@ func SetTorStatusProvider(provider TorStatusProvider) {
 }
 
 // GetTorStatus returns the current Tor service status
-func GetTorStatus() (running bool, onionAddress string) {
+func GetTorStatus() (enabled, running bool, status, onionAddress string) {
 	torMutex.RLock()
 	defer torMutex.RUnlock()
 	if torStatusGetter == nil {
-		return false, ""
+		return false, false, "disabled", ""
 	}
-	return torStatusGetter.IsRunning(), torStatusGetter.GetOnionAddress()
+	return torStatusGetter.Enabled(), torStatusGetter.IsRunning(), torStatusGetter.Status(), torStatusGetter.GetOnionAddress()
 }
 
 // I2PStatusProvider is an interface for getting I2P eepsite status per AI.md PART 32.2
 type I2PStatusProvider interface {
+	Enabled() bool
 	IsRunning() bool
 	Status() string
 	Provider() string
@@ -114,13 +116,13 @@ func SetI2PStatusProvider(provider I2PStatusProvider) {
 }
 
 // GetI2PStatus returns the current I2P eepsite status
-func GetI2PStatus() (running bool, status, provider, address string) {
+func GetI2PStatus() (enabled, running bool, status, provider, address string) {
 	i2pMutex.RLock()
 	defer i2pMutex.RUnlock()
 	if i2pStatusGetter == nil {
-		return false, "disabled", "none", ""
+		return false, false, "disabled", "none", ""
 	}
-	return i2pStatusGetter.IsRunning(), i2pStatusGetter.Status(), i2pStatusGetter.Provider(), i2pStatusGetter.EepsiteAddress()
+	return i2pStatusGetter.Enabled(), i2pStatusGetter.IsRunning(), i2pStatusGetter.Status(), i2pStatusGetter.Provider(), i2pStatusGetter.EepsiteAddress()
 }
 
 // SetInitStatus updates initialization status
@@ -177,8 +179,8 @@ type publicHealthCluster struct {
 type publicHealthTor struct {
 	Enabled  bool   `json:"enabled"`
 	Running  bool   `json:"running"`
-	Status   string `json:"status,omitempty"`
-	Hostname string `json:"hostname,omitempty"`
+	Status   string `json:"status"`
+	Hostname string `json:"hostname"`
 }
 
 // publicHealthI2P mirrors AI.md PART 32.2 I2PInfo - opt-in, so it stays
@@ -186,9 +188,9 @@ type publicHealthTor struct {
 type publicHealthI2P struct {
 	Enabled  bool   `json:"enabled"`
 	Running  bool   `json:"running"`
-	Status   string `json:"status,omitempty"`
-	Hostname string `json:"hostname,omitempty"`
-	Provider string `json:"provider,omitempty"`
+	Status   string `json:"status"`
+	Hostname string `json:"hostname"`
+	Provider string `json:"provider"`
 }
 
 // publicHealthFeatures follows the AI.md PART 13 FeaturesInfo order: the
@@ -623,14 +625,6 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		response.Checks.Cluster = clusterCheckFromStatus(cluster.Status)
 	}
 
-	if !torFeature.Enabled {
-		response.Checks.Tor = ""
-	}
-
-	if !i2pFeature.Enabled {
-		response.Checks.I2P = ""
-	}
-
 	response.Checks.Datasets = datasetChecks(r)
 	datasetUnhealthy, datasetDegraded := health.Worst()
 
@@ -658,8 +652,8 @@ func buildPublicHealthResponse(db *database.DB, startTime time.Time, r *http.Req
 		response.Checks.Scheduler == "error" ||
 		response.Checks.Cluster == "error" ||
 		response.Checks.Cache == "error" ||
-		response.Checks.Tor == "error" ||
-		response.Checks.I2P == "error":
+		response.Checks.Tor == "degraded" ||
+		response.Checks.I2P == "degraded":
 		response.Status = "degraded"
 	case pendingRestart:
 		response.Status = "restart_required"
@@ -735,62 +729,44 @@ func getPublicGeoIPStatus(db *database.DB) bool {
 	return settingsModel.GetBool("geoip.enabled", true)
 }
 
-func getPublicTorStatus(cfg *config.AppConfig) (publicHealthTor, string) {
-	torRunning, torHostname := GetTorStatus()
-	torEnabled := torHostname != "" || torRunning
-	if !torEnabled && cfg != nil {
-		torEnabled = cfg.Server.Tor.Enabled
+// overlayHealth applies the PART 13 "Overlay Network Health" contract: status is
+// one of disabled, starting, healthy or unavailable, and a disabled network has
+// no check, no hostname and running=false.
+func overlayHealth(enabled, running bool, status, hostname string) (bool, bool, string, string, string) {
+	switch status {
+	case "starting", "healthy", "unavailable":
+	default:
+		status = "disabled"
 	}
-	if !torEnabled {
-		if _, err := exec.LookPath("tor"); err == nil {
-			torEnabled = true
-		}
+	if !enabled || status == "disabled" {
+		return false, false, "disabled", "", ""
 	}
-
-	torStatus := ""
-	torCheck := ""
-	if torEnabled {
-		if torRunning {
-			torStatus = "healthy"
-			torCheck = "ok"
-		} else {
-			torStatus = "error"
-			torCheck = "error"
-		}
+	running = status == "healthy"
+	if !running {
+		hostname = ""
 	}
-
-	return publicHealthTor{
-		Enabled:  torEnabled,
-		Running:  torRunning,
-		Status:   torStatus,
-		Hostname: torHostname,
-	}, torCheck
+	check := "ok"
+	if status == "unavailable" {
+		check = "degraded"
+	}
+	return true, running, status, hostname, check
 }
 
-// getPublicI2PStatus reports the eepsite state per AI.md PART 32.2. I2P is
-// opt-in, so a disabled feature reports enabled=false and contributes no check.
-func getPublicI2PStatus(cfg *config.AppConfig) (publicHealthI2P, string) {
-	i2pEnabled := false
-	if cfg != nil {
-		i2pEnabled = cfg.Server.Features.I2P || cfg.Server.I2P.Enabled
-	}
-	if !i2pEnabled {
-		return publicHealthI2P{Enabled: false, Status: "disabled", Provider: "none"}, ""
-	}
+func getPublicTorStatus(_ *config.AppConfig) (publicHealthTor, string) {
+	enabled, running, status, hostname := GetTorStatus()
+	enabled, running, status, hostname, check := overlayHealth(enabled, running, status, hostname)
+	return publicHealthTor{Enabled: enabled, Running: running, Status: status, Hostname: hostname}, check
+}
 
-	running, status, provider, address := GetI2PStatus()
-	i2pCheck := "ok"
-	if !running {
-		i2pCheck = "error"
+// getPublicI2PStatus reports the eepsite state per AI.md PART 32.2 and the
+// PART 13 overlay contract. I2P is opt-in; a disabled network contributes no check.
+func getPublicI2PStatus(_ *config.AppConfig) (publicHealthI2P, string) {
+	enabled, running, status, provider, address := GetI2PStatus()
+	enabled, running, status, address, check := overlayHealth(enabled, running, status, address)
+	if !enabled {
+		provider = "none"
 	}
-
-	return publicHealthI2P{
-		Enabled:  true,
-		Running:  running,
-		Status:   status,
-		Hostname: address,
-		Provider: provider,
-	}, i2pCheck
+	return publicHealthI2P{Enabled: enabled, Running: running, Status: status, Hostname: address, Provider: provider}, check
 }
 
 func getPublicStats(db *database.DB) publicHealthStats {

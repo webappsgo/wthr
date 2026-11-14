@@ -507,16 +507,42 @@ GET /healthz
 and `/api/healthz` are its API counterparts. The root `/healthz` alias is
 mounted only when `server.healthz.root.enabled` is true (default: false).
 
-**Response:**
+**Response (abridged):**
 
 ```json
 {
+  "project": {"name": "Weather", "tagline": "", "description": ""},
   "status": "healthy",
   "version": "1.0.0",
-  "uptime": 86400,
-  "timestamp": "2025-01-15T14:30:00Z"
+  "go_version": "go1.25.0",
+  "build": {"commit": "abc1234", "date": "2025-01-15T12:00:00Z"},
+  "uptime": "1d 2h 5m",
+  "mode": "production",
+  "timestamp": "2025-01-15T14:30:00Z",
+  "cluster": {"enabled": false},
+  "features": {
+    "tor": {"enabled": true, "running": true, "status": "healthy", "hostname": "{56 characters}.onion"},
+    "i2p": {"enabled": false, "running": false, "status": "disabled", "hostname": "", "provider": "none"},
+    "geoip": true,
+    "multi_user": true
+  },
+  "checks": {"database": "ok", "cache": "ok", "disk": "ok", "scheduler": "ok", "tor": "ok"},
+  "stats": {"requests_total": 0, "requests_24h": 0, "active_connections": 0}
 }
 ```
+
+The overall `status` is `healthy`, `degraded`, `restart_required`, `maintenance`, `shutting_down` or `unhealthy`. It is `unhealthy` (HTTP 503) only when the database or disk fails or the server is still initializing.
+
+**Tor and I2P status.** `features.tor.status` and `features.i2p.status` are always exactly one of four words, never free text. No error message, path or exit code appears in a health response; the detail goes to the server log.
+
+| `status` | `enabled` | `running` | `hostname` | `checks.tor` / `checks.i2p` | Meaning |
+|----------|-----------|-----------|------------|-----------------------------|---------|
+| `disabled` | `false` | `false` | empty | omitted | Not active on this instance: no `tor` binary, or I2P not opted in or no provider found |
+| `starting` | `true` | `false` | empty | `ok` | The provider was launched and is bootstrapping |
+| `healthy` | `true` | `true` | the address | `ok` | Serving at `hostname` |
+| `unavailable` | `true` | `false` | empty | `degraded` | The provider exists but is not serving (failed to start, bootstrap timeout, provider exited) |
+
+A missing `tor` binary is `disabled`, never an error. An `unavailable` network makes the overall status `degraded` (HTTP 200), never `unhealthy`.
 
 ## Content Negotiation
 

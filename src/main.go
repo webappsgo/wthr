@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -4496,7 +4497,9 @@ func main() {
 	}()
 
 	// Start Tor hidden service after HTTP server starts
-	if err := torService.StartTorService(httpPortInt); err != nil {
+	if err := torService.StartTorService(httpPortInt); errors.Is(err, service.ErrTorBinaryMissing) {
+		log.Printf("INFO: tor binary not found, hidden service skipped")
+	} else if err != nil {
 		log.Printf("Failed to start Tor hidden service: %v", err)
 		fmt.Printf("%s Failed to start Tor hidden service: %v\n", display.Emoji("⚠️", "WARNING:"), err)
 	}

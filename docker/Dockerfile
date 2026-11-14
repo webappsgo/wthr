@@ -53,7 +53,8 @@ RUN apk upgrade --no-cache && \
     curl \
     bash \
     tini \
-    tor
+    tor \
+    i2pd
 
 # NO directory creation - binary handles ALL setup based on env vars
 # This allows users to override CONFIG_DIR, DATA_DIR, etc.

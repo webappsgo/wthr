@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "الحجم الأقصى للملف الواحد",
   "admin.backup.limit_ratio": "أقصى نسبة ضغط",
   "api.text_retrieved": "تم الاسترجاع بنجاح",
-  "api.text_items_found": "تم العثور على {n} عنصر"
+  "api.text_items_found": "تم العثور على {n} عنصر",
+  "errors.tor.settings_update_failed": "تعذر تحديث الإعدادات",
+  "errors.tor.start_failed": "تعذر تشغيل Tor",
+  "errors.tor.stop_failed": "تعذر إيقاف Tor",
+  "errors.tor.regenerate_failed": "تعذر إعادة إنشاء عنوان .onion",
+  "errors.tor.generation_failed": "تعذر بدء إنشاء العنوان المخصص",
+  "errors.tor.cancel_failed": "تعذر إلغاء عملية الإنشاء",
+  "errors.tor.no_keys": "لا توجد مفاتيح مُنشأة متاحة",
+  "errors.tor.import_failed": "تعذر استيراد المفاتيح",
+  "errors.tor.restart_failed": "تعذر إعادة تشغيل Tor",
+  "errors.tor.save_failed": "تعذر حفظ الملف المرفوع",
+  "errors.tor.export_failed": "تعذر تصدير المفاتيح",
+  "errors.scheduler.update_failed": "تعذر تحديث المهمة",
+  "errors.scheduler.list_failed": "تعذر تحميل قائمة المهام",
+  "errors.scheduler.history_failed": "تعذر تحميل سجل المهمة"
 }

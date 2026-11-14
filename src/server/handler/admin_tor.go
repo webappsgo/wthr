@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,6 +57,7 @@ func (h *TorAdminHandler) DisableService() error {
 	if err := h.torService.StopTorService(); err != nil {
 		return fmt.Errorf("failed to stop Tor: %w", err)
 	}
+	h.torService.SetDisabled()
 	return nil
 }
 
@@ -146,23 +148,15 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", true); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "DATABASE_ERROR",
-				"message": fmt.Sprintf("Failed to update settings: %v", err),
-			},
-		})
+		log.Printf("tor admin: settings_update_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", Translate(r, "errors.tor.settings_update_failed"))
 		return
 	}
 
 	// Start Tor service
 	if err := h.torService.StartTorService(httpPort); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "TOR_START_FAILED",
-				"message": fmt.Sprintf("Failed to start Tor: %v", err),
-			},
-		})
+		log.Printf("tor admin: start_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "TOR_START_FAILED", Translate(r, "errors.tor.start_failed"))
 		return
 	}
 
@@ -178,23 +172,15 @@ func (h *TorAdminHandler) Enable(w http.ResponseWriter, r *http.Request) {
 func (h *TorAdminHandler) Disable(w http.ResponseWriter, r *http.Request) {
 	// Update setting
 	if err := h.settingsModel.SetBool("tor.enabled", false); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "DATABASE_ERROR",
-				"message": fmt.Sprintf("Failed to update settings: %v", err),
-			},
-		})
+		log.Printf("tor admin: settings_update_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "DATABASE_ERROR", Translate(r, "errors.tor.settings_update_failed"))
 		return
 	}
 
 	// Stop Tor service
 	if err := h.torService.StopTorService(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "TOR_STOP_FAILED",
-				"message": fmt.Sprintf("Failed to stop Tor: %v", err),
-			},
-		})
+		log.Printf("tor admin: stop_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "TOR_STOP_FAILED", Translate(r, "errors.tor.stop_failed"))
 		return
 	}
 
@@ -211,12 +197,7 @@ func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		Enabled *bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": Translate(r, "errors.common.invalid_request_body"),
-			},
-		})
+		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.common.invalid_request_body"))
 		return
 	}
 
@@ -229,12 +210,7 @@ func (h *TorAdminHandler) UpdateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-		"error": map[string]interface{}{
-			"code":    "INVALID_REQUEST",
-			"message": Translate(r, "errors.common.no_settings_to_update"),
-		},
-	})
+	RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.common.no_settings_to_update"))
 }
 
 // Regenerate regenerates the .onion address
@@ -244,12 +220,8 @@ func (h *TorAdminHandler) Regenerate(w http.ResponseWriter, r *http.Request) {
 	httpPort := 8080
 
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "REGENERATE_FAILED",
-				"message": fmt.Sprintf("Failed to regenerate address: %v", err),
-			},
-		})
+		log.Printf("tor admin: regenerate_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "REGENERATE_FAILED", Translate(r, "errors.tor.regenerate_failed"))
 		return
 	}
 
@@ -268,33 +240,19 @@ func (h *TorAdminHandler) GenerateVanity(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": Translate(r, "errors.tor.invalid_prefix"),
-			},
-		})
+		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.tor.invalid_prefix"))
 		return
 	}
 
 	// binding:"required" equivalent
 	if req.Prefix == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "INVALID_REQUEST",
-				"message": Translate(r, "errors.tor.invalid_prefix"),
-			},
-		})
+		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.tor.invalid_prefix"))
 		return
 	}
 
 	if err := h.vanityGenerator.StartVanityGeneration(req.Prefix); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "GENERATION_FAILED",
-				"message": fmt.Sprintf("Failed to start generation: %v", err),
-			},
-		})
+		log.Printf("tor admin: generation_failed: %v", err)
+		RespondError(w, r, http.StatusBadRequest, "GENERATION_FAILED", Translate(r, "errors.tor.generation_failed"))
 		return
 	}
 
@@ -343,12 +301,8 @@ func (h *TorAdminHandler) GetVanityStatus(w http.ResponseWriter, r *http.Request
 // POST /{api_version}/admin/server/tor/vanity/cancel
 func (h *TorAdminHandler) CancelVanity(w http.ResponseWriter, r *http.Request) {
 	if err := h.vanityGenerator.Cancel(); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "CANCEL_FAILED",
-				"message": fmt.Sprintf("Failed to cancel: %v", err),
-			},
-		})
+		log.Printf("tor admin: cancel_failed: %v", err)
+		RespondError(w, r, http.StatusBadRequest, "CANCEL_FAILED", Translate(r, "errors.tor.cancel_failed"))
 		return
 	}
 
@@ -364,35 +318,23 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 	// Get generated keys
 	publicKey, privateKey, err := h.vanityGenerator.GetKeys()
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "NO_KEYS",
-				"message": fmt.Sprintf("No keys available: %v", err),
-			},
-		})
+		log.Printf("tor admin: no_keys: %v", err)
+		RespondError(w, r, http.StatusBadRequest, "NO_KEYS", Translate(r, "errors.tor.no_keys"))
 		return
 	}
 
 	// Import keys
 	if err := h.keyManager.ImportKeys(publicKey, privateKey); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "IMPORT_FAILED",
-				"message": fmt.Sprintf("Failed to import keys: %v", err),
-			},
-		})
+		log.Printf("tor admin: import_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "IMPORT_FAILED", Translate(r, "errors.tor.import_failed"))
 		return
 	}
 
 	// Restart Tor with new keys
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "RESTART_FAILED",
-				"message": fmt.Sprintf("Failed to restart Tor: %v", err),
-			},
-		})
+		log.Printf("tor admin: restart_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "RESTART_FAILED", Translate(r, "errors.tor.restart_failed"))
 		return
 	}
 
@@ -408,12 +350,7 @@ func (h *TorAdminHandler) ApplyVanity(w http.ResponseWriter, r *http.Request) {
 func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("key_file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "NO_FILE",
-				"message": Translate(r, "errors.tor.no_key_file"),
-			},
-		})
+		RespondError(w, r, http.StatusBadRequest, "NO_FILE", Translate(r, "errors.tor.no_key_file"))
 		return
 	}
 	defer file.Close()
@@ -426,35 +363,23 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 		dest.Close()
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "SAVE_FAILED",
-				"message": fmt.Sprintf("Failed to save file: %v", err),
-			},
-		})
+		log.Printf("tor admin: save_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "SAVE_FAILED", Translate(r, "errors.tor.save_failed"))
 		return
 	}
 
 	// Import from file
 	if err := h.keyManager.ImportFromFile(tempPath); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "IMPORT_FAILED",
-				"message": fmt.Sprintf("Failed to import keys: %v", err),
-			},
-		})
+		log.Printf("tor admin: import_failed: %v", err)
+		RespondError(w, r, http.StatusBadRequest, "IMPORT_FAILED", Translate(r, "errors.tor.import_failed"))
 		return
 	}
 
 	// Restart Tor with new keys
 	httpPort := 8080
 	if err := h.torService.RegenerateAddress(httpPort); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "RESTART_FAILED",
-				"message": fmt.Sprintf("Failed to restart Tor: %v", err),
-			},
-		})
+		log.Printf("tor admin: restart_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "RESTART_FAILED", Translate(r, "errors.tor.restart_failed"))
 		return
 	}
 
@@ -470,12 +395,8 @@ func (h *TorAdminHandler) ImportKeys(w http.ResponseWriter, r *http.Request) {
 func (h *TorAdminHandler) ExportKeys(w http.ResponseWriter, r *http.Request) {
 	publicKey, privateKey, err := h.keyManager.ExportKeys()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "EXPORT_FAILED",
-				"message": fmt.Sprintf("Failed to export keys: %v", err),
-			},
-		})
+		log.Printf("tor admin: export_failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "EXPORT_FAILED", Translate(r, "errors.tor.export_failed"))
 		return
 	}
 

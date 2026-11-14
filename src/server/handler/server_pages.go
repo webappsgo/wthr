@@ -82,7 +82,7 @@ func buildI2PPageData(cfg *config.AppConfig) map[string]interface{} {
 			"Provider": "none",
 		}
 	}
-	running, _, provider, address := GetI2PStatus()
+	_, running, _, provider, address := GetI2PStatus()
 	return map[string]interface{}{
 		"Enabled":  true,
 		"Running":  running,

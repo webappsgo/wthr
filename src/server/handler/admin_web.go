@@ -244,12 +244,7 @@ func (h *AdminWebHandler) UpdateSecurityTxt(w http.ResponseWriter, r *http.Reque
 
 	// Update server.yml file (config watcher will auto-reload)
 	if err := config.UpdateWebSecurityTxt(req.Content); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error": map[string]interface{}{
-				"code":    "UPDATE_FAILED",
-				"message": Translate(r, "errors.admin.web.security_update_failed"),
-			},
-		})
+		RespondError(w, r, http.StatusInternalServerError, "UPDATE_FAILED", Translate(r, "errors.admin.web.security_update_failed"))
 		return
 	}
 

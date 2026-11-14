@@ -54,33 +54,98 @@ func TestSetInitStatus_GetInitStatus_IsInitialized(t *testing.T) {
 	}
 }
 
-// TestGetTorStatus_NoProvider verifies the zero-value/unset-provider path
-// returns false/"" instead of panicking on a nil torStatusGetter.
-func TestGetTorStatus_NoProvider(t *testing.T) {
-	SetTorStatusProvider(nil)
-	running, addr := GetTorStatus()
-	if running || addr != "" {
-		t.Errorf("GetTorStatus() = (%v, %q), want (false, \"\") when no provider set", running, addr)
-	}
-}
-
 type fakeTorProvider struct {
+	enabled bool
 	running bool
+	status  string
 	onion   string
 }
 
+func (f fakeTorProvider) Enabled() bool           { return f.enabled }
 func (f fakeTorProvider) IsRunning() bool         { return f.running }
+func (f fakeTorProvider) Status() string          { return f.status }
 func (f fakeTorProvider) GetOnionAddress() string { return f.onion }
 
-// TestGetTorStatus_WithProvider confirms the provider's values are passed
-// through unmodified.
-func TestGetTorStatus_WithProvider(t *testing.T) {
-	SetTorStatusProvider(fakeTorProvider{running: true, onion: "abc123.onion"})
-	t.Cleanup(func() { SetTorStatusProvider(nil) })
+type fakeI2PProvider struct {
+	enabled bool
+	running bool
+	status  string
+	address string
+}
 
-	running, addr := GetTorStatus()
-	if !running || addr != "abc123.onion" {
-		t.Errorf("GetTorStatus() = (%v, %q), want (true, %q)", running, addr, "abc123.onion")
+func (f fakeI2PProvider) Enabled() bool          { return f.enabled }
+func (f fakeI2PProvider) IsRunning() bool        { return f.running }
+func (f fakeI2PProvider) Status() string         { return f.status }
+func (f fakeI2PProvider) Provider() string       { return "i2pd" }
+func (f fakeI2PProvider) EepsiteAddress() string { return f.address }
+
+// overlayCase drives one row of the PART 13 overlay-health table.
+type overlayCase struct {
+	name        string
+	enabled     bool
+	running     bool
+	status      string
+	host        string
+	wantEnabled bool
+	wantRunning bool
+	wantStatus  string
+	wantHost    string
+	wantCheck   string
+}
+
+var overlayCases = []overlayCase{
+	{"disabled", false, false, "disabled", "", false, false, "disabled", "", ""},
+	{"disabled ignores stray hostname", false, false, "disabled", "x.onion", false, false, "disabled", "", ""},
+	{"starting", true, false, "starting", "", true, false, "starting", "", "ok"},
+	{"healthy", true, true, "healthy", "abc.onion", true, true, "healthy", "abc.onion", "ok"},
+	{"unavailable", true, false, "unavailable", "stale.onion", true, false, "unavailable", "", "degraded"},
+	{"free text is never passed through", true, false, "error: /var/lib/secret: denied", "", false, false, "disabled", "", ""},
+}
+
+// TestOverlayHealth_Tor is the table-driven Tor contract test: all four states
+// plus the invariants (disabled has no check, hostname or running flag).
+func TestOverlayHealth_Tor(t *testing.T) {
+	t.Cleanup(func() { SetTorStatusProvider(nil) })
+	for _, tc := range overlayCases {
+		t.Run(tc.name, func(t *testing.T) {
+			SetTorStatusProvider(fakeTorProvider{enabled: tc.enabled, running: tc.running, status: tc.status, onion: tc.host})
+			feature, check := getPublicTorStatus(nil)
+			if feature.Enabled != tc.wantEnabled || feature.Running != tc.wantRunning || feature.Status != tc.wantStatus || feature.Hostname != tc.wantHost || check != tc.wantCheck {
+				t.Errorf("got %+v check=%q, want enabled=%v running=%v status=%q host=%q check=%q", feature, check, tc.wantEnabled, tc.wantRunning, tc.wantStatus, tc.wantHost, tc.wantCheck)
+			}
+		})
+	}
+}
+
+// TestOverlayHealth_I2P is the same contract test for the I2P eepsite.
+func TestOverlayHealth_I2P(t *testing.T) {
+	t.Cleanup(func() { SetI2PStatusProvider(nil) })
+	for _, tc := range overlayCases {
+		t.Run(tc.name, func(t *testing.T) {
+			SetI2PStatusProvider(fakeI2PProvider{enabled: tc.enabled, running: tc.running, status: tc.status, address: tc.host})
+			feature, check := getPublicI2PStatus(nil)
+			if feature.Enabled != tc.wantEnabled || feature.Running != tc.wantRunning || feature.Status != tc.wantStatus || feature.Hostname != tc.wantHost || check != tc.wantCheck {
+				t.Errorf("got %+v check=%q, want enabled=%v running=%v status=%q host=%q check=%q", feature, check, tc.wantEnabled, tc.wantRunning, tc.wantStatus, tc.wantHost, tc.wantCheck)
+			}
+		})
+	}
+}
+
+// TestGetTorStatus_NoProvider verifies an unset provider reports disabled.
+func TestGetTorStatus_NoProvider(t *testing.T) {
+	SetTorStatusProvider(nil)
+	enabled, running, status, addr := GetTorStatus()
+	if enabled || running || status != "disabled" || addr != "" {
+		t.Errorf("GetTorStatus() = (%v, %v, %q, %q), want disabled", enabled, running, status, addr)
+	}
+}
+
+// TestGetI2PStatus_NoProvider verifies an unset provider reports disabled.
+func TestGetI2PStatus_NoProvider(t *testing.T) {
+	SetI2PStatusProvider(nil)
+	enabled, running, status, provider, addr := GetI2PStatus()
+	if enabled || running || status != "disabled" || provider != "none" || addr != "" {
+		t.Errorf("GetI2PStatus() = (%v, %v, %q, %q, %q), want disabled", enabled, running, status, provider, addr)
 	}
 }
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -24,17 +25,12 @@ func NewSchedulerHandler(s *scheduler.Scheduler) *SchedulerHandler {
 func (h *SchedulerHandler) GetAllTasks(w http.ResponseWriter, r *http.Request) {
 	tasks, err := h.Scheduler.GetAllTaskInfo()
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Failed to get task information",
-			"details": err.Error(),
-		})
+		log.Printf("scheduler: list tasks failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", Translate(r, "errors.scheduler.list_failed"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"tasks": tasks,
-		"count": len(tasks),
-	})
+	RespondPaginated(w, r, tasks, 1, len(tasks), len(tasks))
 }
 
 // GetTaskHistory returns execution history for a specific task
@@ -52,18 +48,12 @@ func (h *SchedulerHandler) GetTaskHistory(w http.ResponseWriter, r *http.Request
 
 	history, err := h.Scheduler.GetTaskHistory(taskName, limit)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-			"error":   "Failed to get task history",
-			"details": err.Error(),
-		})
+		log.Printf("scheduler: task history failed: %v", err)
+		RespondError(w, r, http.StatusInternalServerError, "INTERNAL_ERROR", Translate(r, "errors.scheduler.history_failed"))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"task_name": taskName,
-		"history":   history,
-		"count":     len(history),
-	})
+	RespondPaginated(w, r, history, 1, len(history), len(history))
 }
 
 // EnableTask enables a specific task
@@ -72,16 +62,11 @@ func (h *SchedulerHandler) EnableTask(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Scheduler.EnableTask(taskName)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": err.Error(),
-		})
+		RespondError(w, r, http.StatusNotFound, "TASK_NOT_FOUND", TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName}))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   Translate(r, "success.scheduler.task_enabled"),
-		"task_name": taskName,
-	})
+	RespondSuccess(w, r, Translate(r, "success.scheduler.task_enabled"), map[string]interface{}{"task_name": taskName})
 }
 
 // DisableTask disables a specific task
@@ -90,16 +75,11 @@ func (h *SchedulerHandler) DisableTask(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Scheduler.DisableTask(taskName)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": err.Error(),
-		})
+		RespondError(w, r, http.StatusNotFound, "TASK_NOT_FOUND", TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName}))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   Translate(r, "success.scheduler.task_disabled"),
-		"task_name": taskName,
-	})
+	RespondSuccess(w, r, Translate(r, "success.scheduler.task_disabled"), map[string]interface{}{"task_name": taskName})
 }
 
 // UpdateTask updates task settings (enable/disable)
@@ -108,9 +88,7 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	task := h.Scheduler.GetTask(taskName)
 	if task == nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": map[string]interface{}{"code": "TASK_NOT_FOUND", "message": TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName})},
-		})
+		RespondError(w, r, http.StatusNotFound, "TASK_NOT_FOUND", TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName}))
 		return
 	}
 
@@ -118,9 +96,7 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		Enabled *bool `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error": map[string]interface{}{"code": "INVALID_REQUEST", "message": Translate(r, "errors.common.invalid_request_body")},
-		})
+		RespondError(w, r, http.StatusBadRequest, "INVALID_REQUEST", Translate(r, "errors.common.invalid_request_body"))
 		return
 	}
 
@@ -132,18 +108,13 @@ func (h *SchedulerHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 			err = h.Scheduler.DisableTask(taskName)
 		}
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
-				"error": map[string]interface{}{"code": "UPDATE_FAILED", "message": err.Error()},
-			})
+			log.Printf("scheduler: task update failed: %v", err)
+			RespondError(w, r, http.StatusInternalServerError, "UPDATE_FAILED", Translate(r, "errors.scheduler.update_failed"))
 			return
 		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":        true,
-		"message":   Translate(r, "success.scheduler.task_updated"),
-		"task_name": taskName,
-	})
+	RespondSuccess(w, r, Translate(r, "success.scheduler.task_updated"), map[string]interface{}{"task_name": taskName})
 }
 
 // TriggerTask manually triggers a task to run immediately
@@ -152,14 +123,9 @@ func (h *SchedulerHandler) TriggerTask(w http.ResponseWriter, r *http.Request) {
 
 	err := h.Scheduler.TriggerTask(taskName)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, map[string]interface{}{
-			"error": err.Error(),
-		})
+		RespondError(w, r, http.StatusNotFound, "TASK_NOT_FOUND", TranslateFormat(r, "errors.scheduler.task_not_found", map[string]string{"task": taskName}))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"message":   Translate(r, "success.scheduler.task_triggered"),
-		"task_name": taskName,
-	})
+	RespondSuccess(w, r, Translate(r, "success.scheduler.task_triggered"), map[string]interface{}{"task_name": taskName})
 }

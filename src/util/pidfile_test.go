@@ -279,6 +279,24 @@ func TestDetectServiceManager_SystemdBeatsContainer(t *testing.T) {
 	}
 }
 
+// TestDetectServiceManager_OpenRCBeatsContainer verifies RC_SVCNAME wins over
+// container detection (an Alpine Incus system container is a normal OpenRC
+// host) and that OpenRC service starts stay foreground.
+func TestDetectServiceManager_OpenRCBeatsContainer(t *testing.T) {
+	old := IsContainer
+	IsContainer = func() bool { return true }
+	defer func() { IsContainer = old }()
+
+	t.Setenv("INVOCATION_ID", "")
+	t.Setenv("RC_SVCNAME", "wthr")
+	if got := DetectServiceManager(); got != "openrc" {
+		t.Fatalf("with RC_SVCNAME = %q, want openrc", got)
+	}
+	if ShouldDaemonize(true, false, false) {
+		t.Error("an OpenRC service start must stay foreground")
+	}
+}
+
 // TestShouldDaemonize verifies manual starts honor flag and config.
 func TestShouldDaemonize(t *testing.T) {
 	old := IsContainer

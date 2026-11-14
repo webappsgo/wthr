@@ -44,12 +44,15 @@ func detectContainer() bool {
 }
 
 // DetectServiceManager names the service manager that launched the process:
-// systemd, launchd, runit, s6, container, sysv, rcd or manual. A systemd
+// systemd, openrc, launchd, runit, s6, container, sysv, rcd or manual. A systemd
 // launch (INVOCATION_ID set) wins over generic container detection, so Incus,
 // LXC and nspawn system containers still report systemd (AI.md PART 8).
 func DetectServiceManager() string {
 	if os.Getenv("INVOCATION_ID") != "" {
 		return "systemd"
+	}
+	if os.Getenv("RC_SVCNAME") != "" {
+		return "openrc"
 	}
 	if IsContainer() {
 		return "container"
@@ -69,6 +72,11 @@ func DetectServiceManager() string {
 	}
 	if os.Getenv("S6_LOGGING") != "" {
 		return "s6"
+	}
+	if ppid == 1 {
+		if _, err := os.Stat("/run/openrc"); err == nil {
+			return "openrc"
+		}
 	}
 	if ppid == 1 {
 		if _, err := os.Stat("/etc/init.d"); err == nil {

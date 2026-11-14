@@ -134,7 +134,7 @@ negotiation, CLI/agent) in a container.
 ./tests/run_tests.sh
 ```
 
-Prefer `./tests/incus.sh` (full systemd) when available, with
+Prefer `./tests/incus.sh [systemd|openrc|all]` (full init systems: systemd on Debian, OpenRC on Alpine, with Tor and I2P) when available, with
 `./tests/docker.sh` as the fallback.
 
 ## Development Workflow

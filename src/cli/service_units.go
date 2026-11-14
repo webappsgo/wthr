@@ -33,7 +33,9 @@ func detectLinuxInit() (linuxInit, error) {
 		return initSystemd, nil
 	}
 	if _, err := os.Stat("/sbin/openrc-run"); err == nil {
-		return initOpenRC, nil
+		if _, err := os.Stat("/run/openrc"); err == nil {
+			return initOpenRC, nil
+		}
 	}
 	if isRunitAvailable() {
 		return initRunit, nil

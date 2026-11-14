@@ -27,7 +27,7 @@ Comprehensive test suite for the Weather Service including unit tests, integrati
 tests/
 ├── README.md                           # This file
 ├── run_tests.sh                        # Phase 2 entrypoint (Incus preferred, Docker fallback)
-├── incus.sh                            # Phase 2 in Incus (debian/trixie, full systemd)
+├── incus.sh                            # Phase 2 in Incus ([systemd|openrc|all]: debian/trixie + alpine, service lifecycle, Tor, I2P)
 ├── docker.sh                           # Phase 2 in Docker (alpine:latest)
 ├── e2e.sh                              # Browser E2E: layout review matrix in headless Chromium (Playwright image)
 ├── e2e/layout.mjs                      # Viewports x themes x LTR/RTL x pages checks used by e2e.sh

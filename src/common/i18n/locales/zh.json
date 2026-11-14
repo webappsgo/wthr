@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "单个文件大小上限",
   "admin.backup.limit_ratio": "最大压缩比",
   "api.text_retrieved": "检索成功",
-  "api.text_items_found": "找到 {n} 项"
+  "api.text_items_found": "找到 {n} 项",
+  "errors.tor.settings_update_failed": "无法更新设置",
+  "errors.tor.start_failed": "无法启动 Tor",
+  "errors.tor.stop_failed": "无法停止 Tor",
+  "errors.tor.regenerate_failed": "无法重新生成 .onion 地址",
+  "errors.tor.generation_failed": "无法开始生成自定义地址",
+  "errors.tor.cancel_failed": "无法取消生成",
+  "errors.tor.no_keys": "没有可用的已生成密钥",
+  "errors.tor.import_failed": "无法导入密钥",
+  "errors.tor.restart_failed": "无法重新启动 Tor",
+  "errors.tor.save_failed": "无法保存上传的文件",
+  "errors.tor.export_failed": "无法导出密钥",
+  "errors.scheduler.update_failed": "无法更新任务",
+  "errors.scheduler.list_failed": "无法加载任务列表",
+  "errors.scheduler.history_failed": "无法加载任务历史"
 }

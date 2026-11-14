@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "Maximale Größe pro Datei",
   "admin.backup.limit_ratio": "Maximales Kompressionsverhältnis",
   "api.text_retrieved": "Erfolgreich abgerufen",
-  "api.text_items_found": "{n} Elemente gefunden"
+  "api.text_items_found": "{n} Elemente gefunden",
+  "errors.tor.settings_update_failed": "Die Einstellungen konnten nicht aktualisiert werden",
+  "errors.tor.start_failed": "Tor konnte nicht gestartet werden",
+  "errors.tor.stop_failed": "Tor konnte nicht gestoppt werden",
+  "errors.tor.regenerate_failed": "Die .onion-Adresse konnte nicht neu erzeugt werden",
+  "errors.tor.generation_failed": "Die Erzeugung der Wunschadresse konnte nicht gestartet werden",
+  "errors.tor.cancel_failed": "Die Erzeugung konnte nicht abgebrochen werden",
+  "errors.tor.no_keys": "Es sind keine erzeugten Schlüssel vorhanden",
+  "errors.tor.import_failed": "Die Schlüssel konnten nicht importiert werden",
+  "errors.tor.restart_failed": "Tor konnte nicht neu gestartet werden",
+  "errors.tor.save_failed": "Die hochgeladene Datei konnte nicht gespeichert werden",
+  "errors.tor.export_failed": "Die Schlüssel konnten nicht exportiert werden",
+  "errors.scheduler.update_failed": "Die Aufgabe konnte nicht aktualisiert werden",
+  "errors.scheduler.list_failed": "Die Aufgabenliste konnte nicht geladen werden",
+  "errors.scheduler.history_failed": "Der Aufgabenverlauf konnte nicht geladen werden"
 }

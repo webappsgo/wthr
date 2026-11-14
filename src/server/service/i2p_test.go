@@ -3,6 +3,7 @@ package service
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -675,61 +676,39 @@ func TestI2P_ManagerUpdateConfigToDisabled(t *testing.T) {
 	}
 }
 
-// TestI2P_ManagerStatusError covers the "error:{short message}" branch, which
-// an enabled-but-unstarted manager must report rather than "healthy".
-func TestI2P_ManagerStatusError(t *testing.T) {
-	t.Run("enabled but never started", func(t *testing.T) {
-		im := &I2PManager{config: testI2PConfig(), ctx: context.Background()}
-		got := im.Status()
-		if got != "error:not started" {
-			t.Errorf("Status() = %q, want %q", got, "error:not started")
-		}
-	})
-
-	t.Run("last error is surfaced", func(t *testing.T) {
-		im := &I2PManager{
-			config:  testI2PConfig(),
-			ctx:     context.Background(),
-			lastErr: errI2PTest,
-		}
-		got := im.Status()
-		if !strings.HasPrefix(got, "error:") {
-			t.Fatalf("Status() = %q, want an error: prefix", got)
-		}
-		if !strings.Contains(got, "no provider available") {
-			t.Errorf("Status() = %q, want it to include the failure reason", got)
-		}
-	})
-}
-
-// TestI2P_ShortError covers error condensation for the status string: nil
-// input, multi-line errors, and the length cap.
-func TestI2P_ShortError(t *testing.T) {
-	if got := shortI2PError(nil); got != "unknown" {
-		t.Errorf("shortI2PError(nil) = %q, want %q", got, "unknown")
+// TestI2P_ManagerStatusContract covers all four health-contract words and the
+// invariants: enabled is false exactly when status is disabled, and failure text
+// never reaches the status.
+func TestI2P_ManagerStatusContract(t *testing.T) {
+	secret := errors.New("exec /secret/path/i2pd: permission denied")
+	cases := []struct {
+		name        string
+		im          *I2PManager
+		wantStatus  string
+		wantEnabled bool
+	}{
+		{"not opted in", &I2PManager{config: &config.I2PConfig{}, ctx: context.Background()}, "disabled", false},
+		{"nil config", &I2PManager{ctx: context.Background()}, "disabled", false},
+		{"no provider found", &I2PManager{config: testI2PConfig(), ctx: context.Background(), lastErr: fmt.Errorf("%w (no i2pd binary)", errI2PNoProvider)}, "disabled", false},
+		{"enabled but not started yet", &I2PManager{config: testI2PConfig(), ctx: context.Background()}, "starting", true},
+		{"provider failed to start", &I2PManager{config: testI2PConfig(), ctx: context.Background(), lastErr: secret}, "unavailable", true},
+		{"provider exited", &I2PManager{config: testI2PConfig(), ctx: context.Background(), service: &I2PService{provider: I2PProviderSAM}}, "unavailable", true},
 	}
-
-	multi := &i2pTestError{msg: "first line\nsecond line"}
-	if got := shortI2PError(multi); got != "first line" {
-		t.Errorf("shortI2PError(multiline) = %q, want %q", got, "first line")
-	}
-
-	long := &i2pTestError{msg: strings.Repeat("x", i2pStatusErrorMaxLen+50)}
-	if got := shortI2PError(long); len(got) != i2pStatusErrorMaxLen {
-		t.Errorf("shortI2PError(long) length = %d, want %d", len(got), i2pStatusErrorMaxLen)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.im.Status()
+			if got != tc.wantStatus {
+				t.Fatalf("Status() = %q, want %q", got, tc.wantStatus)
+			}
+			if tc.im.Enabled() != tc.wantEnabled {
+				t.Errorf("Enabled() = %v, want %v", tc.im.Enabled(), tc.wantEnabled)
+			}
+			if strings.Contains(got, "secret") || strings.Contains(got, ":") {
+				t.Errorf("Status() = %q leaks error text", got)
+			}
+		})
 	}
 }
-
-// i2pTestError is a minimal error used to exercise message condensation.
-type i2pTestError struct {
-	msg string
-}
-
-// Error returns the wrapped message.
-func (e *i2pTestError) Error() string { return e.msg }
-
-// errI2PTest stands in for a provider-resolution failure in status tests.
-var errI2PTest = &i2pTestError{msg: "i2p enabled but no provider available (no i2pd binary, SAM 127.0.0.1:7656 unreachable)"}
 
 // TestI2P_ServiceAccessors covers the I2PService field accessors and the
 // close path for a service that never acquired a provider, which is the
@@ -1034,8 +1013,8 @@ func TestI2P_ManagerStartNoProvider(t *testing.T) {
 	if !strings.Contains(err.Error(), "no provider available") {
 		t.Errorf("error = %v, want it to mention that no provider is available", err)
 	}
-	if got := im.Status(); !strings.HasPrefix(got, "error:") {
-		t.Errorf("Status() = %q, want an error: prefix", got)
+	if got := im.Status(); got != "disabled" || im.Enabled() {
+		t.Errorf("Status() = %q enabled=%v, want disabled (no provider found is disabled, never unavailable)", got, im.Enabled())
 	}
 	if im.IsRunning() {
 		t.Error("IsRunning() = true, want false")

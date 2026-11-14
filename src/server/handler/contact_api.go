@@ -15,6 +15,22 @@ type contactFieldSpec struct {
 	Required bool   `json:"required"`
 	// MaxLength counts Unicode characters after trimming; null means no text limit
 	MaxLength *int `json:"max_length"`
+	// RequiredWhen makes the field required when another field has a value; null when unconditional
+	RequiredWhen *contactRequiredWhen `json:"required_when"`
+	// MaxLengthWhen narrows the limit for values starting with a prefix; null when there is none
+	MaxLengthWhen []contactMaxLengthWhen `json:"max_length_when"`
+}
+
+// contactRequiredWhen is the PART 11 required_when descriptor.
+type contactRequiredWhen struct {
+	Field  string `json:"field"`
+	Equals string `json:"equals"`
+}
+
+// contactMaxLengthWhen is one PART 11 max_length_when entry.
+type contactMaxLengthWhen struct {
+	Prefix    string `json:"prefix"`
+	MaxLength int    `json:"max_length"`
 }
 
 func intPtr(v int) *int { return &v }

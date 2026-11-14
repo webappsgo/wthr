@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "Maximum individual file size",
   "admin.backup.limit_ratio": "Maximum compression ratio",
   "api.text_retrieved": "Retrieved successfully",
-  "api.text_items_found": "{n} items found"
+  "api.text_items_found": "{n} items found",
+  "errors.tor.settings_update_failed": "Failed to update the settings",
+  "errors.tor.start_failed": "Failed to start Tor",
+  "errors.tor.stop_failed": "Failed to stop Tor",
+  "errors.tor.regenerate_failed": "Failed to regenerate the .onion address",
+  "errors.tor.generation_failed": "Failed to start the vanity address generation",
+  "errors.tor.cancel_failed": "Failed to cancel the generation",
+  "errors.tor.no_keys": "No generated keys are available",
+  "errors.tor.import_failed": "Failed to import the keys",
+  "errors.tor.restart_failed": "Failed to restart Tor",
+  "errors.tor.save_failed": "Failed to save the uploaded file",
+  "errors.tor.export_failed": "Failed to export the keys",
+  "errors.scheduler.update_failed": "Failed to update the task",
+  "errors.scheduler.list_failed": "Failed to load the task list",
+  "errors.scheduler.history_failed": "Failed to load the task history"
 }

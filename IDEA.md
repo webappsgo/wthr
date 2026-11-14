@@ -26,10 +26,10 @@ A unified weather information platform that aggregates global meteorological dat
 | WebSocket Alerts | Real-time push notifications for severe weather |
 | User Locations | Save favorite locations for quick access |
 | Alert Subscriptions | Subscribe to alerts for specific regions |
-| OpenAPI/Swagger | Full API documentation at `/swagger/` |
+| API Documentation | Interactive REST and GraphQL documentation |
 | i18n | English, Spanish, French, German, Arabic, Japanese, Chinese |
 
-All weather data sources are free/public APIs — no API keys required. GeoIP databases are downloaded on first run and updated weekly by the scheduler (never embedded in the binary). Single binary deployment — no external dependencies.
+All weather data sources are free/public APIs — no API keys required. GeoIP databases are downloaded on first run and updated weekly by the scheduler (never embedded in the binary). Self-hosted with no external services required.
 
 ## Project variables
 
@@ -80,8 +80,8 @@ All weather data sources are free/public APIs — no API keys required. GeoIP da
 |------|-------------|------------|
 | Anonymous | No account — basic API and web access | None |
 | Regular User | Registered account — saved locations, subscriptions | Password + session cookie |
-| Server Admin | Manages the app configuration and admins | Passkey (WebAuthn) + session |
-| Primary Admin | First admin created — cannot be deleted | Passkey (WebAuthn) + session |
+| Server Admin | Manages the app configuration and admins | Password with optional TOTP or passkey (AI.md PART 17) |
+| Primary Admin | First admin created — cannot be deleted | Password with optional TOTP or passkey (AI.md PART 17) |
 
 **Permission matrix:**
 
@@ -101,22 +101,17 @@ Rate limits use the AI.md PART 11/12 defaults (reads 120/min, writes 10/min, hea
 
 ### Data model & sensitivity
 
-**Databases:**
-- `server.db` — app configuration, admin accounts, admin sessions, admin passkeys, audit log, scheduler state, metrics, cache state
-- `users.db` — regular user accounts, user sessions, saved locations, alert subscriptions
+**Stored data:** application configuration, admin accounts, regular user accounts, saved locations, alert subscriptions, sessions, the audit log and scheduler state (storage layout: AI.md PART 10).
 
 **Sensitive data:**
-- Admin passwords: Argon2id hash (time=3, mem=64MB, threads=4, keyLen=32)
-- User passwords: Argon2id (same parameters)
-- Session tokens: 32 bytes crypto/rand → stored as SHA-256 hash; raw token returned once
-- Admin session tokens prefixed `adm:` before hashing
-- SMTP password: stored encrypted in config
-- No API keys (all weather sources are public)
+- Admin and user passwords and session tokens are never stored or shown in plaintext (AI.md PART 11)
+- SMTP password: stored encrypted
+- No third-party API keys are needed (all weather sources are public)
 
 **Cached data (non-sensitive):**
-- Weather forecasts: 15-minute TTL in Valkey/memory
-- Alert data: 5-minute TTL
-- GeoIP lookups: in-memory for session duration
+- Weather forecasts stay cached for at most 15 minutes
+- Alert data stays cached for at most 5 minutes
+- GeoIP lookups are held in memory only for the session
 
 **Data models:**
 
@@ -211,8 +206,8 @@ All external API responses are validated before use. Network calls have 30-secon
 - Service availability (DoS protection)
 
 **Trusted inputs:**
-- Authenticated admin sessions (passkey-verified, `adm:`-prefixed token)
-- Authenticated user sessions (password-verified token)
+- Authenticated admin sessions
+- Authenticated user sessions
 - Internal scheduler jobs
 
 **Untrusted inputs:**
@@ -222,7 +217,7 @@ All external API responses are validated before use. Network calls have 30-secon
 - User-supplied location strings
 
 **Main attacker/abuser goals:**
-1. Gain admin panel access (credential theft, session hijacking, passkey bypass)
+1. Gain admin panel access (credential theft, session hijacking)
 2. Scrape weather data to avoid rate limits
 3. Exploit external API response parsing (malformed data)
 4. Enumerate user accounts
@@ -234,9 +229,8 @@ All external API responses are validated before use. Network calls have 30-secon
 **Required defenses:**
 | Threat | Defense |
 |--------|---------|
-| Credential theft | Argon2id, constant-time compare, no timing oracle |
-| Session hijacking | 32-byte crypto/rand tokens, SHA-256 stored, HttpOnly Secure cookies |
-| Passkey bypass | WebAuthn ceremony enforced server-side, pending token expires in 5 min |
+| Credential theft | Passwords are never recoverable and login comparison leaks no timing (AI.md PART 11) |
+| Session hijacking | Unguessable session tokens that scripts cannot read (AI.md PART 11) |
 | Account enumeration | Same message + timing for wrong-password vs no-such-user |
 | Scraping | Rate limiting (AI.md defaults, per IP or per token), 429 + Retry-After |
 | Malformed API response | Schema validation before use, never eval/exec |
@@ -247,13 +241,13 @@ All external API responses are validated before use. Network calls have 30-secon
 
 **Explicit non-goals (acceptable risk):**
 - GeoIP is a convenience feature, not a security gate; VPN bypass is acceptable
-- No MFA for regular users (passkey is admin-only)
+- Regular users are not required to enable two-factor authentication
 
 ### Security decisions & exceptions
 
-1. **Admin auth is passkey-only** — no password fallback for admin login. This eliminates credential stuffing against the admin panel. The tradeoff (lockout if all passkeys lost) is acceptable; recovery via server console is documented.
+1. **Admin sign-in follows AI.md PART 17** — password login with optional TOTP or passkey; recovery of a lost admin login is through the server console.
 
-2. **Regular user accounts use password auth** — passkey is not required for regular users because the user feature (PART 34) is optional and passkey enrollment UX adds friction for a low-stakes feature (saved locations, alert subscriptions).
+2. **Regular user accounts use password sign-in** — two-factor authentication and passkeys are optional for users, because saved locations and alert subscriptions are a low-stakes feature.
 
 3. **Anonymous weather access** — core weather/alert/earthquake/hurricane data is public with no auth required. Rate limiting is the only protection. This is intentional: weather data is public information.
 

@@ -75,8 +75,7 @@ func TestTorAdminHandler_Enable(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	errObj, ok := resp["error"].(map[string]interface{})
-	if !ok || errObj["code"] != "TOR_START_FAILED" {
+	if resp["ok"] != false || resp["error"] != "TOR_START_FAILED" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }
@@ -96,8 +95,7 @@ func TestTorAdminHandler_Enable_SettingsFailure(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	errObj, ok := resp["error"].(map[string]interface{})
-	if !ok || errObj["code"] != "DATABASE_ERROR" {
+	if resp["ok"] != false || resp["error"] != "DATABASE_ERROR" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }
@@ -277,8 +275,7 @@ func TestTorAdminHandler_ApplyVanity(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	errObj, ok := resp["error"].(map[string]interface{})
-	if !ok || errObj["code"] != "NO_KEYS" {
+	if resp["ok"] != false || resp["error"] != "NO_KEYS" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }
@@ -295,8 +292,7 @@ func TestTorAdminHandler_ImportKeys(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	errObj, ok := resp["error"].(map[string]interface{})
-	if !ok || errObj["code"] != "NO_FILE" {
+	if resp["ok"] != false || resp["error"] != "NO_FILE" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }
@@ -313,8 +309,7 @@ func TestTorAdminHandler_ExportKeys(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	errObj, ok := resp["error"].(map[string]interface{})
-	if !ok || errObj["code"] != "EXPORT_FAILED" {
+	if resp["ok"] != false || resp["error"] != "EXPORT_FAILED" {
 		t.Fatalf("unexpected error payload: %+v", resp)
 	}
 }

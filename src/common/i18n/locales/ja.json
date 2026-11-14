@@ -4313,5 +4313,19 @@
   "admin.backup.limit_file_size": "1ファイルの最大サイズ",
   "admin.backup.limit_ratio": "最大圧縮率",
   "api.text_retrieved": "取得しました",
-  "api.text_items_found": "{n} 件見つかりました"
+  "api.text_items_found": "{n} 件見つかりました",
+  "errors.tor.settings_update_failed": "設定を更新できませんでした",
+  "errors.tor.start_failed": "Tor を起動できませんでした",
+  "errors.tor.stop_failed": "Tor を停止できませんでした",
+  "errors.tor.regenerate_failed": ".onion アドレスを再生成できませんでした",
+  "errors.tor.generation_failed": "カスタムアドレスの生成を開始できませんでした",
+  "errors.tor.cancel_failed": "生成をキャンセルできませんでした",
+  "errors.tor.no_keys": "生成済みの鍵がありません",
+  "errors.tor.import_failed": "鍵をインポートできませんでした",
+  "errors.tor.restart_failed": "Tor を再起動できませんでした",
+  "errors.tor.save_failed": "アップロードしたファイルを保存できませんでした",
+  "errors.tor.export_failed": "鍵をエクスポートできませんでした",
+  "errors.scheduler.update_failed": "タスクを更新できませんでした",
+  "errors.scheduler.list_failed": "タスク一覧を読み込めませんでした",
+  "errors.scheduler.history_failed": "タスク履歴を読み込めませんでした"
 }
