@@ -1,6 +1,6 @@
 # TODO
 
-Issues in AI.md itself (contradictions, ambiguities). Also logged in ~/Projects/github/webappsgo/TODO.API.md.
+Issues in AI.md itself (contradictions, ambiguities). Also logged in ~/Projects/github/webappsgo/TODO.SERVER.md.
 
 - AI.md lines 21132, 21162, 51791, 52853 and 53260 (Tor has no enable/disable toggle) contradict lines 32732 (`tor.enabled` Toggle in admin settings), 31901 (admins can toggle Tor), 13272 (`tor.enabled` restart list) and 36256 (`tor_enabled` gauge). The project keeps the admin toggle and reports a switched-off Tor as `disabled`.
 - AI.md line 31901 (`config/network/tor`) contradicts line 31385 (no `config` segment under `/server/{admin_path}/`).
