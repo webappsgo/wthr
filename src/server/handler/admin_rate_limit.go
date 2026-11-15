@@ -57,7 +57,7 @@ func UpdateRateLimitConfig(w http.ResponseWriter, r *http.Request) {
 	current := config.GetGlobalConfig()
 	if current == nil {
 		var err error
-		current, err = config.LoadConfig()
+		current, err = config.CurrentConfig()
 		if err != nil {
 			InternalError(w, r, "Configuration is unavailable")
 			return

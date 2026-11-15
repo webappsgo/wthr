@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "Private reporting URL",
   "admin.web.report_url_help": "Optional. The first Contact line of security.txt, usually the repository's private vulnerability reporting page.",
   "admin.web.keyservers_label": "PGP keyservers",
-  "admin.web.keyservers_help": "Comma-separated https URLs the project public key is published to when it is generated or rotated."
+  "admin.web.keyservers_help": "Comma-separated https URLs the project public key is published to when it is generated or rotated.",
+  "admin.settings.secret_unchanged": "Leave blank to keep the stored password",
+  "boot.error": "This page could not finish loading. Reload it, or clear this site's data in your browser settings."
 }

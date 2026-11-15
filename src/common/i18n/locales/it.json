@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "URL di segnalazione privata",
   "admin.web.report_url_help": "Facoltativo. La prima riga Contact di security.txt, di solito la pagina di segnalazione privata delle vulnerabilità del repository.",
   "admin.web.keyservers_label": "Keyserver PGP",
-  "admin.web.keyservers_help": "URL https separati da virgole su cui la chiave pubblica del progetto viene pubblicata alla generazione o rotazione."
+  "admin.web.keyservers_help": "URL https separati da virgole su cui la chiave pubblica del progetto viene pubblicata alla generazione o rotazione.",
+  "admin.settings.secret_unchanged": "Lascia vuoto per mantenere la password salvata",
+  "boot.error": "Impossibile completare il caricamento di questa pagina. Ricaricala o cancella i dati di questo sito nelle impostazioni del browser."
 }

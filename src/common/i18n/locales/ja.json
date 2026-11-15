@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "非公開報告 URL",
   "admin.web.report_url_help": "任意。security.txt の最初の Contact 行で、通常はリポジトリの非公開脆弱性報告ページです。",
   "admin.web.keyservers_label": "PGP キーサーバー",
-  "admin.web.keyservers_help": "プロジェクトの公開鍵を生成・ローテーションしたときに公開する https URL（カンマ区切り）。"
+  "admin.web.keyservers_help": "プロジェクトの公開鍵を生成・ローテーションしたときに公開する https URL（カンマ区切り）。",
+  "admin.settings.secret_unchanged": "空欄のままにすると保存済みのパスワードを維持します",
+  "boot.error": "このページの読み込みを完了できませんでした。再読み込みするか、ブラウザーの設定でこのサイトのデータを消去してください。"
 }

@@ -127,7 +127,7 @@ func IsAdminFrontendPath(path string) bool {
 // number of characters and report a garbled resource name.
 func adminRoutePrefixes() (webPrefix, apiPrefix string) {
 	webPrefix = "/server/administration"
-	if cfg, err := config.LoadConfig(); err == nil && cfg != nil {
+	if cfg, err := config.CurrentConfig(); err == nil && cfg != nil {
 		webPrefix = "/server/" + cfg.GetAdminPath()
 	}
 	return webPrefix, "/api/v1" + webPrefix

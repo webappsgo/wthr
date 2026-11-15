@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "URL de notificación privada",
   "admin.web.report_url_help": "Opcional. La primera línea Contact de security.txt, normalmente la página de notificación privada de vulnerabilidades del repositorio.",
   "admin.web.keyservers_label": "Servidores de claves PGP",
-  "admin.web.keyservers_help": "URL https separadas por comas a las que se publica la clave pública del proyecto al generarla o rotarla."
+  "admin.web.keyservers_help": "URL https separadas por comas a las que se publica la clave pública del proyecto al generarla o rotarla.",
+  "admin.settings.secret_unchanged": "Déjelo en blanco para conservar la contraseña guardada",
+  "boot.error": "No se pudo terminar de cargar esta página. Recárguela o borre los datos de este sitio en los ajustes del navegador."
 }

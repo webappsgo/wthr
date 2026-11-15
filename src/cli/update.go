@@ -78,7 +78,7 @@ func UpdateCommand(args []string) error {
 		if !isValidBranch(args[1]) {
 			return fmt.Errorf("invalid branch: %s (use stable, beta, or devel)", args[1])
 		}
-		cfg, err := config.LoadConfig()
+		cfg, err := config.CurrentConfig()
 		if err != nil {
 			return fmt.Errorf("failed to load configuration: %w", err)
 		}
@@ -135,7 +135,7 @@ Current:
 }
 
 func configuredUpdateBranch() (string, error) {
-	cfg, err := config.LoadConfig()
+	cfg, err := config.CurrentConfig()
 	if err != nil {
 		return "", fmt.Errorf("failed to load configuration: %w", err)
 	}

@@ -163,7 +163,7 @@ func IsAdmin(r *http.Request) bool {
 // Admins are treated as guest/anonymous on all non-admin routes
 func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
@@ -207,7 +207,7 @@ func RestrictAdminToAdminRoutes() func(http.Handler) http.Handler {
 // Admins should only access admin routes
 func BlockAdminFromUserRoutes() func(http.Handler) http.Handler {
 	// Get admin path from config (AI.md: use configurable admin_path)
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()

@@ -77,7 +77,7 @@ func UpdateCacheConfig(w http.ResponseWriter, r *http.Request) {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		var err error
-		cfg, err = config.LoadConfig()
+		cfg, err = config.CurrentConfig()
 		if err != nil {
 			InternalError(w, r, "Configuration is unavailable")
 			return

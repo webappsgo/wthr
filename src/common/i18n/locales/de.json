@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "URL für private Meldungen",
   "admin.web.report_url_help": "Optional. Die erste Contact-Zeile in security.txt, meist die Seite des Repositorys für private Schwachstellenmeldungen.",
   "admin.web.keyservers_label": "PGP-Schlüsselserver",
-  "admin.web.keyservers_help": "Durch Kommas getrennte https-URLs, auf denen der öffentliche Projektschlüssel beim Erzeugen oder Rotieren veröffentlicht wird."
+  "admin.web.keyservers_help": "Durch Kommas getrennte https-URLs, auf denen der öffentliche Projektschlüssel beim Erzeugen oder Rotieren veröffentlicht wird.",
+  "admin.settings.secret_unchanged": "Leer lassen, um das gespeicherte Passwort zu behalten",
+  "boot.error": "Diese Seite konnte nicht fertig geladen werden. Laden Sie sie neu oder löschen Sie die Daten dieser Website in den Browsereinstellungen."
 }

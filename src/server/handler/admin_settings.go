@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/webappsgo/wthr/src/common/dbtime"
@@ -124,6 +125,11 @@ func (h *AdminSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Req
 			valueStr = string(jsonBytes)
 		}
 
+		// A blank secret means "keep the stored value"; secrets are never echoed to the form
+		if valueStr == "" && strings.HasSuffix(key, ".password") {
+			continue
+		}
+
 		// Update in database.
 		// updated_at is bound as canonical UTC text rather than produced by SQL's
 		// CURRENT_TIMESTAMP, which yields a different type and zone on PostgreSQL,
@@ -135,7 +141,8 @@ func (h *AdminSettingsHandler) UpdateSettings(w http.ResponseWriter, r *http.Req
 		`, valueStr, dbtime.FormatSQLTimestamp(time.Now()), key)
 
 		if err != nil {
-			failed[key] = err.Error()
+			log.Printf("admin settings: update of %s failed: %v", key, err)
+			failed[key] = "update failed"
 			continue
 		}
 

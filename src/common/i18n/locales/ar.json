@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "رابط الإبلاغ الخاص",
   "admin.web.report_url_help": "اختياري. أول سطر Contact في security.txt، وعادةً صفحة الإبلاغ الخاص عن الثغرات في المستودع.",
   "admin.web.keyservers_label": "خوادم مفاتيح PGP",
-  "admin.web.keyservers_help": "عناوين https مفصولة بفواصل يُنشر عليها المفتاح العام للمشروع عند إنشائه أو تدويره."
+  "admin.web.keyservers_help": "عناوين https مفصولة بفواصل يُنشر عليها المفتاح العام للمشروع عند إنشائه أو تدويره.",
+  "admin.settings.secret_unchanged": "اتركه فارغًا للإبقاء على كلمة المرور المحفوظة",
+  "boot.error": "تعذّر إكمال تحميل هذه الصفحة. أعد تحميلها أو امسح بيانات هذا الموقع من إعدادات المتصفح."
 }

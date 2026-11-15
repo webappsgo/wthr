@@ -1163,6 +1163,17 @@ func GetGlobalConfig() *AppConfig {
 	return globalConfig
 }
 
+// CurrentConfig returns the live configuration: the global config that startup and every
+// reload keep current, so request handlers never re-read server.yml and the drop-ins
+// (AI.md PART 5). Only before any config was installed (tests, early startup) does it
+// fall back to loading the layers once.
+func CurrentConfig() (*AppConfig, error) {
+	if cfg := GetGlobalConfig(); cfg != nil {
+		return cfg, nil
+	}
+	return LoadConfig()
+}
+
 // SaveConfig saves the current configuration to server.yml per AI.md PART 4
 func SaveConfig(cfg *AppConfig) error {
 	configPath := findConfigFile()

@@ -38,7 +38,7 @@ var upgrader = websocket.Upgrader{
 		}
 
 		// Load config to check allowed origins
-		cfg, err := config.LoadConfig()
+		cfg, err := config.CurrentConfig()
 		if err != nil || cfg == nil {
 			// Config load failed - reject for safety
 			return false

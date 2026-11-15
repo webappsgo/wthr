@@ -28,7 +28,7 @@ func RequireAdminAuth() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Load config for branding
-			cfg, err := config.LoadConfig()
+			cfg, err := config.CurrentConfig()
 			var title string
 			if err == nil && cfg.Server.Branding.Title != "" {
 				title = cfg.Server.Branding.Title
@@ -135,7 +135,7 @@ func GetDB(r *http.Request) *sql.DB {
 func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Load config for branding and HTTPS detection
-		cfg, _ := config.LoadConfig()
+		cfg, _ := config.CurrentConfig()
 		title := "Weather"
 		if cfg != nil && cfg.Server.Branding.Title != "" {
 			title = cfg.Server.Branding.Title
@@ -265,7 +265,7 @@ func AdminLoginHandler(db *sql.DB) http.HandlerFunc {
 func AdminLogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Get admin path from config (AI.md: use configurable admin_path)
-		cfg, _ := config.LoadConfig()
+		cfg, _ := config.CurrentConfig()
 		adminPath := "/server/administration"
 		if cfg != nil {
 			adminPath = "/server/" + cfg.GetAdminPath()

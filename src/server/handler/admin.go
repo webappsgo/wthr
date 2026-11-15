@@ -780,7 +780,8 @@ func (h *AdminHandler) ShowSettingsPage(w http.ResponseWriter, r *http.Request) 
 	settings["smtp_host"] = settingsModel.GetString("smtp.host", "")
 	settings["smtp_port"] = settingsModel.GetInt("smtp.port", 587)
 	settings["smtp_username"] = settingsModel.GetString("smtp.username", "")
-	settings["smtp_password"] = settingsModel.GetString("smtp.password", "")
+	// The stored password is never sent back to the browser; only whether one is set
+	settings["smtp_password_set"] = settingsModel.GetString("smtp.password", "") != ""
 	settings["smtp_from_address"] = settingsModel.GetString("smtp.from_address", "")
 	settings["smtp_from_name"] = settingsModel.GetString("smtp.from_name", "Weather")
 	settings["smtp_use_tls"] = settingsModel.GetBool("smtp.use_tls", true)

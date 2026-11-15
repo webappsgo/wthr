@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "URL de signalement privé",
   "admin.web.report_url_help": "Facultatif. La première ligne Contact de security.txt, généralement la page de signalement privé de vulnérabilités du dépôt.",
   "admin.web.keyservers_label": "Serveurs de clés PGP",
-  "admin.web.keyservers_help": "URL https séparées par des virgules sur lesquelles la clé publique du projet est publiée lors de sa génération ou de son renouvellement."
+  "admin.web.keyservers_help": "URL https séparées par des virgules sur lesquelles la clé publique du projet est publiée lors de sa génération ou de son renouvellement.",
+  "admin.settings.secret_unchanged": "Laissez vide pour conserver le mot de passe enregistré",
+  "boot.error": "Cette page n'a pas pu finir de se charger. Rechargez-la ou effacez les données de ce site dans les paramètres du navigateur."
 }

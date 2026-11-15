@@ -138,7 +138,7 @@ func SetupTokenRequired(cfg *config.AppConfig) func(http.Handler) http.Handler {
 			// No admin, setup token exists, no verified cookie - show token entry form at /admin
 			// AI.md: Step 2: User navigates to /admin → Step 3: User enters setup token
 			title := "Weather"
-			cfgLoaded, _ := config.LoadConfig()
+			cfgLoaded, _ := config.CurrentConfig()
 			if cfgLoaded != nil && cfgLoaded.Server.Branding.Title != "" {
 				title = cfgLoaded.Server.Branding.Title
 			}

@@ -77,7 +77,7 @@ The dashboard provides an overview of server status and activity.
 - Recent errors and warnings
 
 **Quick Actions:**
-- Restart server
+- Restart server (graceful shutdown; a service manager or container restart policy starts the new process, a manually started server re-executes itself)
 - Clear cache
 - Download logs
 - Run backup

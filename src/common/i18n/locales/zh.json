@@ -4454,5 +4454,7 @@
   "admin.web.report_url_label": "私密报告网址",
   "admin.web.report_url_help": "可选。security.txt 的第一条 Contact，通常是代码仓库的私密漏洞报告页面。",
   "admin.web.keyservers_label": "PGP 密钥服务器",
-  "admin.web.keyservers_help": "以逗号分隔的 https 网址，生成或轮换项目公钥时会发布到这些地址。"
+  "admin.web.keyservers_help": "以逗号分隔的 https 网址，生成或轮换项目公钥时会发布到这些地址。",
+  "admin.settings.secret_unchanged": "留空则保留已保存的密码",
+  "boot.error": "此页面无法加载完成。请重新加载，或在浏览器设置中清除本站数据。"
 }

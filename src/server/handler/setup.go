@@ -37,7 +37,7 @@ func (h *SetupHandler) ShowSetupTokenEntry(w http.ResponseWriter, r *http.Reques
 // AI.md: Step 2: User navigates to /server/administration → Step 3: User enters setup token → Step 4: Redirect to setup wizard
 func (h *SetupHandler) VerifySetupTokenAtAdmin(w http.ResponseWriter, r *http.Request) {
 	// Get admin path from config
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()
@@ -134,7 +134,7 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 	// Store validated token in session for the admin creation step
 	// Use a secure session cookie to track that token was validated
 	// Get admin path for redirect
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	setSetupVerifiedCookie(w, r, cfg)
 
 	adminPath := "/server/administration"
@@ -151,7 +151,7 @@ func (h *SetupHandler) VerifySetupToken(w http.ResponseWriter, r *http.Request) 
 // ShowAdminSetup shows the admin creation form
 // AI.md: Setup wizard step - create Primary Admin
 func (h *SetupHandler) ShowAdminSetup(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
@@ -191,7 +191,7 @@ func setupTokenVerified(r *http.Request) bool {
 		return false
 	}
 
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	if cfg == nil {
 		return false
 	}
@@ -209,7 +209,7 @@ func (h *SetupHandler) setupError(w http.ResponseWriter, r *http.Request, status
 	}
 
 	// HTML form submission - re-render form with error
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
@@ -475,7 +475,7 @@ func generateAPIToken() (string, error) {
 // ShowAPIToken shows the API token page (Step 2)
 // AI.md: Setup wizard Step 2 - API Token auto-generated, user MUST copy
 func (h *SetupHandler) ShowAPIToken(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
@@ -516,7 +516,7 @@ func (h *SetupHandler) ProcessAPIToken(w http.ResponseWriter, r *http.Request) {
 // ShowServerConfig shows the server configuration page (Step 3)
 // AI.md: Setup wizard Step 3 - Server Configuration
 func (h *SetupHandler) ShowServerConfig(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	defaultDomain := ""
 	defaultMode := "production"
@@ -598,7 +598,7 @@ func (h *SetupHandler) ProcessServerConfig(w http.ResponseWriter, r *http.Reques
 // ShowSecurity shows the security settings page (Step 4)
 // AI.md: Setup wizard Step 4 - Security Settings
 func (h *SetupHandler) ShowSecurity(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
@@ -672,7 +672,7 @@ func (h *SetupHandler) ProcessSecurity(w http.ResponseWriter, r *http.Request) {
 // ShowServices shows the optional services page (Step 5)
 // AI.md: Setup wizard Step 5 - Optional Services
 func (h *SetupHandler) ShowServices(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	title := "Weather"
 	if cfg != nil && cfg.Server.Branding.Title != "" {
 		title = cfg.Server.Branding.Title
@@ -802,7 +802,7 @@ func (h *SetupHandler) CompleteSetup(w http.ResponseWriter, r *http.Request) {
 
 // GetSetupStatus returns the current setup status as a healthz endpoint
 func (h *SetupHandler) GetSetupStatus(w http.ResponseWriter, r *http.Request) {
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	adminPath := "/server/administration"
 	if cfg != nil {
 		adminPath = "/server/" + cfg.GetAdminPath()

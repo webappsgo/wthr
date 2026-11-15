@@ -8681,3 +8681,40 @@
   });
 
 })();
+
+// Boot watchdog (AI.md PART 9 "Version-Change Purge"): if the first render has not completed
+// within 10 seconds, drop every service worker and Cache API cache and reload, at most once
+// per tab. A second expiry shows a static error line instead of looping.
+(function() {
+  const recoveredKey = 'wthr_recovered';
+  const timer = setTimeout(function() {
+    let alreadyRecovered = false;
+    try {
+      alreadyRecovered = sessionStorage.getItem(recoveredKey) === '1';
+      sessionStorage.setItem(recoveredKey, '1');
+    } catch (e) {
+      alreadyRecovered = true;
+    }
+    if (alreadyRecovered) {
+      const meta = document.querySelector('meta[name="wthr-boot-error"]');
+      const notice = document.createElement('p');
+      notice.setAttribute('role', 'alert');
+      notice.textContent = meta ? meta.content : '';
+      document.body.prepend(notice);
+      return;
+    }
+    const jobs = [];
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      jobs.push(navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        return Promise.all(registrations.map(function(registration) { return registration.unregister(); }));
+      }));
+    }
+    if (window.caches && caches.keys) {
+      jobs.push(caches.keys().then(function(keys) {
+        return Promise.all(keys.map(function(key) { return caches.delete(key); }));
+      }));
+    }
+    Promise.all(jobs).catch(function() {}).then(function() { location.reload(); });
+  }, 10000);
+  window.addEventListener('load', function() { clearTimeout(timer); try { sessionStorage.removeItem(recoveredKey); } catch (e) {} });
+})();

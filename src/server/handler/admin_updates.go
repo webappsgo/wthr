@@ -28,7 +28,7 @@ func UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		BadRequest(w, r, "defer days must be between 0 and 365")
 		return
 	}
-	cfg, err := config.LoadConfig()
+	cfg, err := config.CurrentConfig()
 	if err != nil {
 		InternalError(w, r, err.Error())
 		return

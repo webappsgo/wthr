@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -241,7 +242,33 @@ func registerSwaggerRoutes(r chi.Router, apiPath string, spec, ui http.HandlerFu
 	r.Get("/api/swagger", spec)
 }
 
+// restartRequested is signalled by the admin restart endpoint; the signal loop then runs
+// the graceful shutdown and the deferred restart in main re-executes the binary.
+var restartRequested = make(chan struct{}, 1)
+
+// exitRestart is the exit status that asks a supervisor to start the server again.
+const exitRestart = 75
+
+// restartPending records that the shutdown in progress is a restart.
+var restartPending atomic.Bool
+
 func main() {
+	// Registered first so it runs last, after every other deferred cleanup
+	defer func() {
+		if restartPending.Load() {
+			// Under a service manager or container runtime the supervisor does the restart: a
+			// non-zero exit (75, EX_TEMPFAIL) makes systemd Restart=on-failure, OpenRC and
+			// container restart policies start a fresh process with the right privileges.
+			// A manually started server re-executes itself instead.
+			if util.DetectServiceManager() != "manual" {
+				os.Exit(exitRestart)
+			}
+			if err := restartProcess(); err != nil {
+				log.Printf("Restart failed: %v", err)
+				os.Exit(1)
+			}
+		}
+	}()
 	buildstamp.Set(Version, CommitID)
 	// Initialize CLI
 	cliInstance := cli.NewCLI()
@@ -520,7 +547,7 @@ func main() {
 	}
 
 	// Load server configuration
-	cfg, err := config.LoadConfig()
+	cfg, err := config.CurrentConfig()
 	if err != nil {
 		appLogger.Error("Warning: Could not load server.yml: %v (using defaults)", err)
 		fmt.Printf("%s Warning: Could not load server.yml: %v (using defaults)\n", display.Emoji("⚠️", "WARNING:"), err)
@@ -720,6 +747,8 @@ func main() {
 	r.Use(middleware.BodySizeLimitMiddleware(middleware.DefaultMaxBodySize))
 
 	// CSRF protection middleware (AI.md PART 0 line 994, PART 22)
+	// Version-change purge for stale browser caches (AI.md PART 9), HTML navigations only
+	r.Use(middleware.VersionPurge())
 	r.Use(middleware.CSRFProtection(middleware.DefaultCSRFConfig()))
 
 	// CORS middleware per AI.md PART 17 lines 14220-14222 and 15401-15405
@@ -3488,14 +3517,12 @@ func main() {
 
 		// Server restart per spec: POST /server/restart
 		adminAPI.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"ok":      true,
-				"message": handler.Translate(r, "success.admin.setup.restart_initiated"),
-			})
-			go func() {
-				time.Sleep(500 * time.Millisecond)
-				log.Println("Server restart requested via admin API")
-			}()
+			handler.RespondSuccess(w, r, handler.Translate(r, "success.admin.setup.restart_initiated"))
+			// Signal after the response is written; the signal loop runs the graceful shutdown
+			select {
+			case restartRequested <- struct{}{}:
+			default:
+			}
 		})
 
 		// Scheduler per spec: /api/{api_version}/{admin_path}/scheduler/
@@ -4653,20 +4680,28 @@ func main() {
 	}
 
 	// Handle signals
-	for sig := range sigChan {
-		switch sig {
-		case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
-			log.Println("INFO: Received shutdown signal, shutting down gracefully...")
+	for {
+		select {
+		case <-restartRequested:
+			log.Println("INFO: Restart requested by an admin, shutting down gracefully...")
+			restartPending.Store(true)
 			shutdownGracefully()
 			return
-
-		default:
-			// Handle platform-specific signals (SIGHUP, SIGUSR1, SIGUSR2, SIGRTMIN+3 on Unix)
-			// Returns true if shutdown requested (e.g., SIGRTMIN+3 Docker signal)
-			if handlePlatformSignal(sig, db, appLogger, dirPaths) {
-				log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
+		case sig := <-sigChan:
+			switch sig {
+			case syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT:
+				log.Println("INFO: Received shutdown signal, shutting down gracefully...")
 				shutdownGracefully()
 				return
+
+			default:
+				// Handle platform-specific signals (SIGHUP, SIGUSR1, SIGUSR2, SIGRTMIN+3 on Unix)
+				// Returns true if shutdown requested (e.g., SIGRTMIN+3 Docker signal)
+				if handlePlatformSignal(sig, db, appLogger, dirPaths) {
+					log.Println("INFO: Platform signal requested shutdown, shutting down gracefully...")
+					shutdownGracefully()
+					return
+				}
 			}
 		}
 	}
@@ -4785,7 +4820,7 @@ func showServerStatus(db *database.DB, dbPath string, isFirstRun bool) bool {
 
 	// AI.md PART 32.2: the eepsite line sits beside the Tor line in --status
 	i2pStatusCfg := config.DefaultI2PConfig()
-	if statusCfg, statusErr := config.LoadConfig(); statusErr == nil && statusCfg != nil {
+	if statusCfg, statusErr := config.CurrentConfig(); statusErr == nil && statusCfg != nil {
 		i2pStatusCfg = statusCfg.Server.I2P
 	}
 	i2pStatusText, i2pStatusAddress := service.I2PCLIStatus(&i2pStatusCfg)

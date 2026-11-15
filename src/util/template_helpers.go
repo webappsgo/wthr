@@ -142,7 +142,7 @@ func TemplateData(r *http.Request, data map[string]interface{}) map[string]inter
 
 	// Get configurable paths per AI.md PART 17
 	// Templates must use these instead of hardcoded "/server/administration/" or "/api/v1/server/administration/"
-	cfg, _ := config.LoadConfig()
+	cfg, _ := config.CurrentConfig()
 	adminPath := "/server/administration"
 	apiPath := "/api/v1"
 	adminAPIPath := "/api/v1/server/administration"
