@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s 未找到（使用默认值）\n",
   "cli.maintenance.config_written": "\n%s 配置已写入 %s\n",
   "cli.maintenance.confirm_token_regen": "重新生成设置令牌并显示它？(是/否): ",
+  "cli.maintenance.admin_credentials_cleared": "%s 管理员凭据已清除：所有管理员账户、API 令牌和通行密钥均已删除。用户账户和数据保持不变。",
   "cli.maintenance.first_run_detected": "%s 检测到首次运行 - 设置令牌已生成\n",
   "cli.maintenance.geoip_not_found": "%s 未找到（首次使用时将下载）\n",
   "cli.maintenance.invalid_token": "%s 设置令牌无效或已过期\n",

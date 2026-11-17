@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s NICHT GEFUNDEN (Standardwerte werden verwendet)\n",
   "cli.maintenance.config_written": "\n%s Konfiguration in %s geschrieben\n",
   "cli.maintenance.confirm_token_regen": "Setup-Token neu generieren und anzeigen? (Ja/Nein): ",
+  "cli.maintenance.admin_credentials_cleared": "%s Administrator-Zugangsdaten gelöscht: Alle Administratorkonten, API-Token und Passkeys wurden entfernt. Benutzerkonten und Daten bleiben unverändert.",
   "cli.maintenance.first_run_detected": "%s Erste Ausführung erkannt - Setup-Token generiert\n",
   "cli.maintenance.geoip_not_found": "%s NICHT GEFUNDEN (wird bei der ersten Verwendung heruntergeladen)\n",
   "cli.maintenance.invalid_token": "%s Setup-Token ist ungültig oder abgelaufen\n",

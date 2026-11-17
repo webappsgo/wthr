@@ -1306,9 +1306,9 @@ func main() {
 		if usersDB == nil {
 			return nil
 		}
-		rows, err := database.QueryContext(context.Background(), usersDB, database.TimeoutSimpleSelect, `SELECT DISTINCT latitude, longitude FROM user_locations WHERE latitude IS NOT NULL AND longitude IS NOT NULL LIMIT 100`)
+		rows, err := database.QueryContext(context.Background(), usersDB, database.TimeoutSimpleSelect, `SELECT DISTINCT latitude, longitude FROM user_saved_locations LIMIT 100`)
 		if err != nil {
-			return nil
+			return fmt.Errorf("failed to list saved locations for the weather refresh: %w", err)
 		}
 		defer rows.Close()
 		count := 0

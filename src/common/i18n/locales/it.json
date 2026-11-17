@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s NON TROVATO (si usano i valori predefiniti)\n",
   "cli.maintenance.config_written": "\n%s Configurazione scritta in %s\n",
   "cli.maintenance.confirm_token_regen": "Rigenerare e mostrare il token di configurazione? (yes/no): ",
+  "cli.maintenance.admin_credentials_cleared": "%s Credenziali amministratore cancellate: tutti gli account amministratore, i token API e le passkey sono stati rimossi. Gli account e i dati degli utenti restano invariati.",
   "cli.maintenance.first_run_detected": "%s Primo avvio rilevato - Token di configurazione generato\n",
   "cli.maintenance.geoip_not_found": "%s NON TROVATO (verrà scaricato al primo utilizzo)\n",
   "cli.maintenance.invalid_token": "%s Token di configurazione non valido o scaduto\n",

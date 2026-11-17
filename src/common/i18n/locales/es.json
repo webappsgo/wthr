@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s NO ENCONTRADO (usando valores por defecto)\n",
   "cli.maintenance.config_written": "\n%s Configuración escrita en %s\n",
   "cli.maintenance.confirm_token_regen": "¿Regenerar token de configuración y mostrarlo? (sí/no): ",
+  "cli.maintenance.admin_credentials_cleared": "%s Credenciales de administrador borradas: se eliminaron todas las cuentas de administrador, tokens de API y claves de acceso. Las cuentas y los datos de usuarios no cambian.",
   "cli.maintenance.first_run_detected": "%s Primera ejecución detectada - Token de configuración generado\n",
   "cli.maintenance.geoip_not_found": "%s NO ENCONTRADO (se descargará en el primer uso)\n",
   "cli.maintenance.invalid_token": "%s Token de configuración inválido o expirado\n",

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/oklog/ulid/v2"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -385,7 +386,8 @@ func adminRecoverySetup(setupToken string) error {
 		return nil
 	}
 
-	// Handle root recovery: regenerate token with confirmation
+	// Authorized recovery (root, or a valid setup token): confirm when running as
+	// root without a token, then clear the admin credentials and issue a new token
 	if isRoot && !hasValidToken {
 		fmt.Printf(T("cli.maintenance.root_recovery_title")+"\n\n", display.Emoji("🔐", "[AUTH]"))
 		fmt.Print(T("cli.maintenance.confirm_token_regen"))
@@ -396,47 +398,64 @@ func adminRecoverySetup(setupToken string) error {
 			fmt.Println(T("cli.maintenance.operation_cancelled"))
 			return nil
 		}
+	} else {
+		fmt.Printf("\n"+T("cli.maintenance.setup_authorized")+"\n", display.Emoji("✓", "[OK]"))
+		fmt.Println(T("cli.maintenance.token_accepted"))
+	}
 
-		token, err := util.GenerateSetupToken()
-		if err != nil {
-			return fmt.Errorf("failed to generate setup token: %w", err)
+	// AI.md PART 22: clear the admin password, API token and passkeys; user data is untouched
+	if err := clearAdminCredentials(db, filepath.Join(dataDir, "db", "server.db")); err != nil {
+		return fmt.Errorf("failed to clear admin credentials: %w", err)
+	}
+	fmt.Printf("\n"+T("cli.maintenance.admin_credentials_cleared")+"\n", display.Emoji("🔑", "[KEY]"))
+
+	token, err := util.GenerateSetupToken()
+	if err != nil {
+		return fmt.Errorf("failed to generate setup token: %w", err)
+	}
+	if err := util.SaveSetupToken(configDir, token); err != nil {
+		return fmt.Errorf("failed to save setup token: %w", err)
+	}
+
+	fmt.Printf("\n"+T("cli.maintenance.new_setup_token")+"\n", display.Emoji("🔑", "[KEY]"))
+	fmt.Printf("\n  %s\n\n", token)
+	fmt.Println(T("cli.maintenance.setup_token_warning"))
+
+	return nil
+}
+
+// clearAdminCredentials removes every Server Admin account together with its API
+// tokens, passkeys, preferences, notifications and login sessions, which resets the
+// installation to the setup wizard (AI.md PART 22 admin recovery). usersDB is the
+// users.db handle; the admin sessions live in server.db at serverDBPath. Regular
+// users, their data and the configuration are not touched. The action is written
+// to the audit log when server.db is available.
+func clearAdminCredentials(usersDB *sql.DB, serverDBPath string) error {
+	ctx := context.Background()
+	for _, statement := range []string{
+		"DELETE FROM tokens WHERE owner_type = 'admin'",
+		"DELETE FROM passkeys WHERE user_type = 'admin'",
+		"DELETE FROM admins",
+	} {
+		if _, err := database.ExecContext(ctx, usersDB, database.TimeoutWrite, statement); err != nil {
+			return err
 		}
+	}
 
-		if err := util.SaveSetupToken(configDir, token); err != nil {
-			return fmt.Errorf("failed to save setup token: %w", err)
-		}
-
-		fmt.Printf("\n"+T("cli.maintenance.new_setup_token")+"\n", display.Emoji("🔑", "[KEY]"))
-		fmt.Printf("\n  %s\n\n", token)
-		fmt.Println(T("cli.maintenance.setup_token_warning"))
-
+	serverDB, err := openDatabase(serverDBPath)
+	if err != nil {
 		return nil
 	}
+	defer serverDB.Close()
 
-	// If we reach here, token is valid or it's first-run or root is running
-	// The setup token has been validated (hasValidToken) or it's first-run or root
-	// For token-based or root recovery, display the token for next use
-	if hasValidToken || isRoot {
-		// Regenerate token for root, or use existing for token-based
-		if isRoot {
-			token, err := util.GenerateSetupToken()
-			if err != nil {
-				return fmt.Errorf("failed to generate setup token: %w", err)
-			}
-
-			if err := util.SaveSetupToken(configDir, token); err != nil {
-				return fmt.Errorf("failed to save setup token: %w", err)
-			}
-
-			fmt.Printf("\n"+T("cli.maintenance.new_setup_token")+"\n", display.Emoji("🔑", "[KEY]"))
-			fmt.Printf("\n  %s\n\n", token)
-			fmt.Println(T("cli.maintenance.setup_token_warning"))
-		} else {
-			fmt.Printf("\n"+T("cli.maintenance.setup_authorized")+"\n", display.Emoji("✓", "[OK]"))
-			fmt.Println(T("cli.maintenance.token_accepted"))
-		}
+	if _, err := database.ExecContext(ctx, serverDB, database.TimeoutWrite, "DELETE FROM admin_sessions"); err != nil {
+		return err
 	}
-
+	// The audit entry is best effort: recovery must still succeed on a damaged log
+	_, _ = database.ExecContext(ctx, serverDB, database.TimeoutWrite, `
+		INSERT INTO audit_log (ulid, actor_type, actor_id, action, resource_type, source, status)
+		VALUES (?, 'system', 'console', 'maintenance.setup', 'admins', 'cli', 'success')
+	`, ulid.Make().String())
 	return nil
 }
 

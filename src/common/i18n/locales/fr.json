@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s INTROUVABLE (utilisation des valeurs par défaut)\n",
   "cli.maintenance.config_written": "\n%s Configuration écrite dans %s\n",
   "cli.maintenance.confirm_token_regen": "Régénérer le jeton de configuration et l'afficher ? (Oui/Non) : ",
+  "cli.maintenance.admin_credentials_cleared": "%s Identifiants administrateur effacés : tous les comptes administrateur, jetons d'API et clés d'accès ont été supprimés. Les comptes et données des utilisateurs sont inchangés.",
   "cli.maintenance.first_run_detected": "%s Première exécution détectée - Jeton de configuration généré\n",
   "cli.maintenance.geoip_not_found": "%s INTROUVABLE (sera téléchargé lors de la première utilisation)\n",
   "cli.maintenance.invalid_token": "%s Le jeton de configuration est invalide ou expiré\n",

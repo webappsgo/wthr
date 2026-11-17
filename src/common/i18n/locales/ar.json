@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s غير موجود (سيتم استخدام القيم الافتراضية)\n",
   "cli.maintenance.config_written": "\n%s تمت كتابة الإعدادات إلى %s\n",
   "cli.maintenance.confirm_token_regen": "إعادة إنشاء رمز الإعداد وعرضه؟ (نعم/لا): ",
+  "cli.maintenance.admin_credentials_cleared": "%s تم مسح بيانات اعتماد المسؤول: أُزيلت جميع حسابات المسؤولين ورموز API ومفاتيح المرور. حسابات المستخدمين وبياناتهم لم تتغير.",
   "cli.maintenance.first_run_detected": "%s تم اكتشاف التشغيل الأول - تم إنشاء رمز الإعداد\n",
   "cli.maintenance.geoip_not_found": "%s غير موجود (سيتم تنزيله عند أول استخدام)\n",
   "cli.maintenance.invalid_token": "%s رمز الإعداد غير صحيح أو انتهت صلاحيته\n",

@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s 見つかりません（既定値を使用）\n",
   "cli.maintenance.config_written": "\n%s 設定を %s に書き込みました\n",
   "cli.maintenance.confirm_token_regen": "セットアップトークンを再生成して表示しますか？(はい/いいえ): ",
+  "cli.maintenance.admin_credentials_cleared": "%s 管理者の認証情報を消去しました。すべての管理者アカウント、API トークン、パスキーを削除しました。ユーザーアカウントとデータは変更されていません。",
   "cli.maintenance.first_run_detected": "%s 初回実行が検出されました - セットアップトークンを生成しました\n",
   "cli.maintenance.geoip_not_found": "%s 見つかりません（初回使用時にダウンロードされます）\n",
   "cli.maintenance.invalid_token": "%s セットアップトークンが無効であるか、期限切れです\n",

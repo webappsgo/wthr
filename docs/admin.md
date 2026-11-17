@@ -446,9 +446,9 @@ The admin panel is fully responsive and works on:
 
 **Solution:**
 1. Stop the server
-2. Run setup wizard reset: `wthr --maintenance setup`
-3. Create new admin account
-4. Start the server
+2. Run the recovery reset as root or with a valid setup token: `wthr --maintenance setup`. It removes every admin account, API token, passkey and admin session, keeps all user accounts, user data and settings, and prints a new one-time setup token
+3. Start the server, open the admin URL and enter the setup token
+4. Create the new admin account in the setup wizard
 
 ### Settings Not Saving
 

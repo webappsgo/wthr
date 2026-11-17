@@ -2002,6 +2002,7 @@
   "cli.maintenance.config_not_found": "%s NOT FOUND (using defaults)\n",
   "cli.maintenance.config_written": "\n%s Configuration written to %s\n",
   "cli.maintenance.confirm_token_regen": "Regenerate setup token and display it? (yes/no): ",
+  "cli.maintenance.admin_credentials_cleared": "%s Admin credentials cleared: all admin accounts, API tokens and passkeys were removed. User accounts and data are unchanged.",
   "cli.maintenance.first_run_detected": "%s First-run detected - Setup token generated\n",
   "cli.maintenance.geoip_not_found": "%s NOT FOUND (will download on first use)\n",
   "cli.maintenance.invalid_token": "%s Invalid or expired setup token\n",

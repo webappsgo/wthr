@@ -619,3 +619,61 @@ func TestAdminRecoverySetup_FirstRun_ShowsToken(t *testing.T) {
 		t.Errorf("admin account count = %d, want 0 (setup only shows token, doesn't create account)", count)
 	}
 }
+
+// TestClearAdminCredentials proves the recovery reset removes every admin
+// account with its tokens, passkeys and sessions while leaving regular users
+// and their tokens untouched (AI.md PART 22).
+func TestClearAdminCredentials(t *testing.T) {
+	dbDir := t.TempDir()
+	usersPath := filepath.Join(dbDir, "users.db")
+	serverPath := filepath.Join(dbDir, "server.db")
+	applySchema(t, usersPath, database.UsersSchema)
+	applySchema(t, serverPath, database.ServerSchema)
+
+	execFixture(t, usersPath, "INSERT INTO admins (id, username, email, password_hash) VALUES (1, 'root', 'root@example.com', 'hash')")
+	execFixture(t, usersPath, "INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix) VALUES ('admin', 1, 'default', 'adm-hash', 'adm_1234')")
+	execFixture(t, usersPath, "INSERT INTO passkeys (user_type, user_id, credential_id, public_key, name) VALUES ('admin', 1, 'cred-a', 'pk', 'key')")
+	execFixture(t, usersPath, "INSERT INTO users (id, username, email, password_hash) VALUES (5, 'weather', 'w@example.com', 'hash')")
+	execFixture(t, usersPath, "INSERT INTO tokens (owner_type, owner_id, name, token_hash, token_prefix) VALUES ('user', 5, 'cli', 'usr-hash', 'usr_1234')")
+	execFixture(t, serverPath, "INSERT INTO admin_sessions (id, token_hash, admin_id, expires_at) VALUES ('s1', 'h1', 1, '2099-01-01 00:00:00')")
+
+	usersDB, err := openDatabase(usersPath)
+	if err != nil {
+		t.Fatalf("open users db: %v", err)
+	}
+	defer usersDB.Close()
+
+	if err := clearAdminCredentials(usersDB, serverPath); err != nil {
+		t.Fatalf("clearAdminCredentials: %v", err)
+	}
+
+	count := func(dbPath, query string) int {
+		db, err := openDatabase(dbPath)
+		if err != nil {
+			t.Fatalf("open %s: %v", dbPath, err)
+		}
+		defer db.Close()
+		var n int
+		if err := db.QueryRow(query).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", query, err)
+		}
+		return n
+	}
+
+	for _, check := range []struct {
+		path, query string
+		want        int
+	}{
+		{usersPath, "SELECT COUNT(*) FROM admins", 0},
+		{usersPath, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'admin'", 0},
+		{usersPath, "SELECT COUNT(*) FROM passkeys WHERE user_type = 'admin'", 0},
+		{serverPath, "SELECT COUNT(*) FROM admin_sessions", 0},
+		{usersPath, "SELECT COUNT(*) FROM users", 1},
+		{usersPath, "SELECT COUNT(*) FROM tokens WHERE owner_type = 'user'", 1},
+		{serverPath, "SELECT COUNT(*) FROM audit_log WHERE action = 'maintenance.setup'", 1},
+	} {
+		if got := count(check.path, check.query); got != check.want {
+			t.Errorf("%s = %d, want %d", check.query, got, check.want)
+		}
+	}
+}
